@@ -1,13 +1,13 @@
-package com.pixel.intelligentsearch.feature.settings
+package com.pixel.intelligentsearch.core.system.battery
 
 import android.os.BatteryManager.BATTERY_PLUGGED_AC
 import android.os.BatteryManager.BATTERY_PLUGGED_DOCK
 import android.os.BatteryManager.BATTERY_PLUGGED_USB
 import android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS
-import com.pixel.intelligentsearch.feature.settings.ChargingStatus.Source
-import com.pixel.intelligentsearch.feature.settings.ChargingStatus.UsbLink
-import com.pixel.intelligentsearch.feature.settings.DiagnosticsReadings.ChargeState
-import com.pixel.intelligentsearch.feature.settings.DiagnosticsReadings.HealthSeverity
+import com.pixel.intelligentsearch.core.system.battery.ChargingStatus.Source
+import com.pixel.intelligentsearch.core.system.battery.ChargingStatus.UsbLink
+import com.pixel.intelligentsearch.core.system.battery.BatteryReadings.ChargeState
+import com.pixel.intelligentsearch.core.system.battery.BatteryReadings.HealthSeverity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -183,7 +183,7 @@ class ChargingStatusTest {
     fun theHeaderChipShowsChargingWhenPluggedInEvenWithoutAHealthRating() {
         val charging = status(BATTERY_PLUGGED_AC)
         assertEquals("Charging" to false,
-            ChargingStatus.headerChip(DiagnosticsReadings.HEALTH_NOT_REPORTED, HealthSeverity.Ok, charging))
+            ChargingStatus.headerChip(BatteryReadings.HEALTH_NOT_REPORTED, HealthSeverity.Ok, charging))
         assertEquals("Good" to true, ChargingStatus.headerChip("Good", HealthSeverity.Ok, null))
     }
 

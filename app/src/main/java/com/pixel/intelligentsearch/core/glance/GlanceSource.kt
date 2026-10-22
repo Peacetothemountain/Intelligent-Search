@@ -20,8 +20,8 @@ import android.os.SystemClock
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.scale
-import com.pixel.intelligentsearch.feature.settings.ChargingStatus
-import com.pixel.intelligentsearch.feature.settings.DiagnosticsReadings
+import com.pixel.intelligentsearch.core.system.battery.BatteryReadings
+import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -252,11 +252,11 @@ fun batteryFrom(intent: Intent): GlanceBattery? = batteryFrom(
 fun batteryFrom(level: Int, scale: Int, plugged: Int, status: Int, chargingStatus: Int = 0): GlanceBattery? {
     if (level < 0 || scale <= 0) return null
     val percent = (level * 100 / scale).coerceIn(0, 100)
-    val chargeState = DiagnosticsReadings.chargeState(status, plugged)
+    val chargeState = BatteryReadings.chargeState(status, plugged)
     // What the charger is doing ("Charging", "Fully Charged", "Paused to Protect Battery"); the cable's USB modes,
     // which the diagnostics page adds, don't belong here.
     val label = ChargingStatus.status(plugged, chargeState, usb = null, adbEnabled = false, chargingState = chargingStatus)?.shortLabel
-    return GlanceBattery(percent, pluggedIn = chargeState != DiagnosticsReadings.ChargeState.Discharging, statusLabel = label)
+    return GlanceBattery(percent, pluggedIn = chargeState != BatteryReadings.ChargeState.Discharging, statusLabel = label)
 }
 
 /**

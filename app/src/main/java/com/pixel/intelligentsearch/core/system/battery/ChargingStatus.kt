@@ -1,4 +1,4 @@
-package com.pixel.intelligentsearch.feature.settings
+package com.pixel.intelligentsearch.core.system.battery
 
 import android.os.BatteryManager
 
@@ -85,13 +85,13 @@ internal object ChargingStatus {
      */
     fun status(
         plugged: Int,
-        chargeState: DiagnosticsReadings.ChargeState,
+        chargeState: BatteryReadings.ChargeState,
         usb: UsbLink?,
         adbEnabled: Boolean,
         chargingState: Int = 0,
         fastCharging: Boolean = false
     ): Status? {
-        if (plugged == 0 || chargeState == DiagnosticsReadings.ChargeState.Discharging) {
+        if (plugged == 0 || chargeState == BatteryReadings.ChargeState.Discharging) {
             // Running on battery; a USB device the phone powers (OTG) is still worth naming.
             return if (usb?.hostConnected == true) {
                 Status("USB Device Connected (OTG)", "USB Device", Source.UsbDevice)
@@ -180,8 +180,8 @@ internal object ChargingStatus {
 
     private class ChargePhrase(val short: String, val kind: ChargeKind)
 
-    private fun chargePhrase(state: DiagnosticsReadings.ChargeState, chargingState: Int, fast: Boolean): ChargePhrase = when (state) {
-        DiagnosticsReadings.ChargeState.Charging -> ChargePhrase(
+    private fun chargePhrase(state: BatteryReadings.ChargeState, chargingState: Int, fast: Boolean): ChargePhrase = when (state) {
+        BatteryReadings.ChargeState.Charging -> ChargePhrase(
             when (chargingState) {
                 CHARGING_STATE_TOO_HOT -> "Charging Slowly, Too Warm"
                 CHARGING_STATE_TOO_COLD -> "Charging Slowly, Too Cold"
@@ -191,8 +191,8 @@ internal object ChargingStatus {
             },
             ChargeKind.Adding
         )
-        DiagnosticsReadings.ChargeState.Full -> ChargePhrase("Fully Charged", ChargeKind.Full)
-        DiagnosticsReadings.ChargeState.PluggedNotCharging -> ChargePhrase(
+        BatteryReadings.ChargeState.Full -> ChargePhrase("Fully Charged", ChargeKind.Full)
+        BatteryReadings.ChargeState.PluggedNotCharging -> ChargePhrase(
             when (chargingState) {
                 CHARGING_STATE_LONG_LIFE -> "Paused to Protect Battery"
                 CHARGING_STATE_ADAPTIVE -> "Paused by Adaptive Charging"
@@ -202,7 +202,7 @@ internal object ChargingStatus {
             },
             ChargeKind.Held
         )
-        DiagnosticsReadings.ChargeState.PluggedUnknown, DiagnosticsReadings.ChargeState.Discharging ->
+        BatteryReadings.ChargeState.PluggedUnknown, BatteryReadings.ChargeState.Discharging ->
             ChargePhrase("Plugged In", ChargeKind.Unknown)
     }
 
@@ -211,8 +211,8 @@ internal object ChargingStatus {
      * hidden behind "Charging"; otherwise a plugged-in phone shows its charging status, and a phone on battery its
      * health. Returns the label and whether it is the health rating.
      */
-    fun headerChip(health: String, severity: DiagnosticsReadings.HealthSeverity, status: Status?): Pair<String, Boolean> = when {
-        severity != DiagnosticsReadings.HealthSeverity.Ok -> health to true
+    fun headerChip(health: String, severity: BatteryReadings.HealthSeverity, status: Status?): Pair<String, Boolean> = when {
+        severity != BatteryReadings.HealthSeverity.Ok -> health to true
         status != null -> status.shortLabel to false
         else -> health to true
     }

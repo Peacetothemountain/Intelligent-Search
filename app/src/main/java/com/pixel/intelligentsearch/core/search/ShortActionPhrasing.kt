@@ -33,7 +33,7 @@ object ShortActionPhrasing {
         val minute: Int = 0,
         val triggerMillis: Long = 0L
     ) {
-        /** The [com.pixel.intelligentsearch.feature.search.DirectAction] icon type of the row. */
+        /** The search screen's DirectAction icon type of the row. */
         val iconType: String get() = when (kind) {
             Kind.TIMER -> "timer"
             Kind.ALARM -> "alarm"

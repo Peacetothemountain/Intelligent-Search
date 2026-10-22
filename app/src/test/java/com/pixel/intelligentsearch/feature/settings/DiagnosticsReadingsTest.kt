@@ -1,10 +1,11 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.system.battery.BatteryReadings
 import android.os.BatteryManager
 import android.os.PowerManager
-import com.pixel.intelligentsearch.feature.settings.DiagnosticsReadings.ChargeState
-import com.pixel.intelligentsearch.feature.settings.DiagnosticsReadings.CurrentReader
-import com.pixel.intelligentsearch.feature.settings.DiagnosticsReadings.HealthSeverity
+import com.pixel.intelligentsearch.core.system.battery.BatteryReadings.ChargeState
+import com.pixel.intelligentsearch.core.system.battery.BatteryReadings.CurrentReader
+import com.pixel.intelligentsearch.core.system.battery.BatteryReadings.HealthSeverity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -41,30 +42,30 @@ class DiagnosticsReadingsTest {
 
     @Test
     fun healthCode11MeansNotReportedNotOptimized() {
-        assertEquals(DiagnosticsReadings.HEALTH_NOT_REPORTED, DiagnosticsReadings.healthLabel(11))
-        assertEquals(HealthSeverity.Ok, DiagnosticsReadings.healthSeverity(11))
+        assertEquals(BatteryReadings.HEALTH_NOT_REPORTED, BatteryReadings.healthLabel(11))
+        assertEquals(HealthSeverity.Ok, BatteryReadings.healthSeverity(11))
     }
 
     @Test
     fun healthCode8IsAWornBatteryCaution() {
-        assertEquals("Fair (worn)", DiagnosticsReadings.healthLabel(8))
-        assertEquals(HealthSeverity.Caution, DiagnosticsReadings.healthSeverity(8))
+        assertEquals("Fair (worn)", BatteryReadings.healthLabel(8))
+        assertEquals(HealthSeverity.Caution, BatteryReadings.healthSeverity(8))
     }
 
     @Test
     fun unknownInconsistentAndUnrecognisedCodesAreNotReported() {
         listOf(BatteryManager.BATTERY_HEALTH_UNKNOWN, 12, 9, 42, -1).forEach {
-            assertEquals("code $it", DiagnosticsReadings.HEALTH_NOT_REPORTED, DiagnosticsReadings.healthLabel(it))
-            assertEquals("code $it", HealthSeverity.Ok, DiagnosticsReadings.healthSeverity(it))
+            assertEquals("code $it", BatteryReadings.HEALTH_NOT_REPORTED, BatteryReadings.healthLabel(it))
+            assertEquals("code $it", HealthSeverity.Ok, BatteryReadings.healthSeverity(it))
         }
     }
 
     @Test
     fun standardHealthCodesKeepTheirMeaning() {
-        assertEquals("Good", DiagnosticsReadings.healthLabel(BatteryManager.BATTERY_HEALTH_GOOD))
-        assertEquals(HealthSeverity.Ok, DiagnosticsReadings.healthSeverity(BatteryManager.BATTERY_HEALTH_GOOD))
-        assertEquals(HealthSeverity.Bad, DiagnosticsReadings.healthSeverity(BatteryManager.BATTERY_HEALTH_OVERHEAT))
-        assertEquals(HealthSeverity.Bad, DiagnosticsReadings.healthSeverity(BatteryManager.BATTERY_HEALTH_DEAD))
+        assertEquals("Good", BatteryReadings.healthLabel(BatteryManager.BATTERY_HEALTH_GOOD))
+        assertEquals(HealthSeverity.Ok, BatteryReadings.healthSeverity(BatteryManager.BATTERY_HEALTH_GOOD))
+        assertEquals(HealthSeverity.Bad, BatteryReadings.healthSeverity(BatteryManager.BATTERY_HEALTH_OVERHEAT))
+        assertEquals(HealthSeverity.Bad, BatteryReadings.healthSeverity(BatteryManager.BATTERY_HEALTH_DEAD))
     }
 
     // --- Charging state ---
@@ -72,10 +73,10 @@ class DiagnosticsReadingsTest {
     @Test
     fun pluggedInButNotChargingIsNotDischarging() {
         val usb = BatteryManager.BATTERY_PLUGGED_USB
-        assertEquals(ChargeState.PluggedNotCharging, DiagnosticsReadings.chargeState(BatteryManager.BATTERY_STATUS_NOT_CHARGING, usb))
-        assertEquals(ChargeState.Charging, DiagnosticsReadings.chargeState(BatteryManager.BATTERY_STATUS_CHARGING, usb))
-        assertEquals(ChargeState.Full, DiagnosticsReadings.chargeState(BatteryManager.BATTERY_STATUS_FULL, BatteryManager.BATTERY_PLUGGED_AC))
-        assertEquals(ChargeState.PluggedUnknown, DiagnosticsReadings.chargeState(BatteryManager.BATTERY_STATUS_UNKNOWN, usb))
+        assertEquals(ChargeState.PluggedNotCharging, BatteryReadings.chargeState(BatteryManager.BATTERY_STATUS_NOT_CHARGING, usb))
+        assertEquals(ChargeState.Charging, BatteryReadings.chargeState(BatteryManager.BATTERY_STATUS_CHARGING, usb))
+        assertEquals(ChargeState.Full, BatteryReadings.chargeState(BatteryManager.BATTERY_STATUS_FULL, BatteryManager.BATTERY_PLUGGED_AC))
+        assertEquals(ChargeState.PluggedUnknown, BatteryReadings.chargeState(BatteryManager.BATTERY_STATUS_UNKNOWN, usb))
     }
 
     @Test
@@ -85,7 +86,7 @@ class DiagnosticsReadingsTest {
             BatteryManager.BATTERY_STATUS_NOT_CHARGING,
             BatteryManager.BATTERY_STATUS_FULL,
             BatteryManager.BATTERY_STATUS_UNKNOWN
-        ).forEach { assertEquals("status $it", ChargeState.Discharging, DiagnosticsReadings.chargeState(it, 0)) }
+        ).forEach { assertEquals("status $it", ChargeState.Discharging, BatteryReadings.chargeState(it, 0)) }
     }
 
     // --- Current unit and sign ---
@@ -209,11 +210,11 @@ class DiagnosticsReadingsTest {
 
     @Test
     fun averageOnlyStandsInWhenItAgreesWithTheLiveReading() {
-        assertTrue(DiagnosticsReadings.averageAgrees(-150f, -300f))
-        assertFalse(DiagnosticsReadings.averageAgrees(-150f, 300f)) // lagging average from before a plug change
-        assertFalse(DiagnosticsReadings.averageAgrees(-350f, -0.35f)) // average reported in mA on a µA device
-        assertFalse(DiagnosticsReadings.averageAgrees(-450f, -450_000f)) // and the reverse
-        assertFalse(DiagnosticsReadings.averageAgrees(null, -300f))
+        assertTrue(BatteryReadings.averageAgrees(-150f, -300f))
+        assertFalse(BatteryReadings.averageAgrees(-150f, 300f)) // lagging average from before a plug change
+        assertFalse(BatteryReadings.averageAgrees(-350f, -0.35f)) // average reported in mA on a µA device
+        assertFalse(BatteryReadings.averageAgrees(-450f, -450_000f)) // and the reverse
+        assertFalse(BatteryReadings.averageAgrees(null, -300f))
     }
 
     @Test
@@ -230,27 +231,27 @@ class DiagnosticsReadingsTest {
     @Test
     fun timeUntilEmptyNeedsARealDrain() {
         // 2337.5 mAh left at a 150 mA drain is about 15.6 h.
-        assertEquals(935, DiagnosticsReadings.minutesUntilEmpty(2337.5f, -150f))
-        assertNull(DiagnosticsReadings.minutesUntilEmpty(2337.5f, 150f)) // gaining charge
-        assertNull(DiagnosticsReadings.minutesUntilEmpty(2337.5f, -5f))
-        assertNull(DiagnosticsReadings.minutesUntilEmpty(null, -150f))
-        assertNull(DiagnosticsReadings.minutesUntilEmpty(2337.5f, null))
+        assertEquals(935, BatteryReadings.minutesUntilEmpty(2337.5f, -150f))
+        assertNull(BatteryReadings.minutesUntilEmpty(2337.5f, 150f)) // gaining charge
+        assertNull(BatteryReadings.minutesUntilEmpty(2337.5f, -5f))
+        assertNull(BatteryReadings.minutesUntilEmpty(null, -150f))
+        assertNull(BatteryReadings.minutesUntilEmpty(2337.5f, null))
     }
 
     @Test
     fun timeUntilFullNeedsChargeFlowingIn() {
         // 45 % with 2337.5 mAh implies ~5194 mAh full; 2857 mAh to go at 1000 mA is ~171 min.
-        assertEquals(171, DiagnosticsReadings.minutesUntilFull(2337.5f, 45, 1000f))
-        assertNull(DiagnosticsReadings.minutesUntilFull(2337.5f, 45, -150f)) // draining on a weak charger
-        assertNull(DiagnosticsReadings.minutesUntilFull(2337.5f, 5, 1000f))
-        assertNull(DiagnosticsReadings.minutesUntilFull(2337.5f, 100, 1000f))
+        assertEquals(171, BatteryReadings.minutesUntilFull(2337.5f, 45, 1000f))
+        assertNull(BatteryReadings.minutesUntilFull(2337.5f, 45, -150f)) // draining on a weak charger
+        assertNull(BatteryReadings.minutesUntilFull(2337.5f, 5, 1000f))
+        assertNull(BatteryReadings.minutesUntilFull(2337.5f, 100, 1000f))
     }
 
     @Test
     fun smoothingMovesTowardNewReadingsWithoutJumping() {
-        assertEquals(400f, DiagnosticsReadings.smooth(null, 400f), 0.01f)
-        assertEquals(175f, DiagnosticsReadings.smooth(100f, 400f), 0.01f)
-        assertEquals(-175f, DiagnosticsReadings.smooth(-100f, -400f), 0.01f)
+        assertEquals(400f, BatteryReadings.smooth(null, 400f), 0.01f)
+        assertEquals(175f, BatteryReadings.smooth(100f, 400f), 0.01f)
+        assertEquals(-175f, BatteryReadings.smooth(-100f, -400f), 0.01f)
     }
 
     @Test

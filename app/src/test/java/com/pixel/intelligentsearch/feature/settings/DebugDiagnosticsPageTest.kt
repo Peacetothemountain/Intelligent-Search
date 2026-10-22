@@ -7,6 +7,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -63,6 +66,107 @@ class DebugDiagnosticsPageTest {
         compose.runOnIdle { owner.registry.currentState = Lifecycle.State.RESUMED }
         compose.settle(steps = 5)
         assertTrue("reads again once visible", samples > whenHidden)
+    }
+
+    @Test
+    fun aPluggedInPhoneShowsItsChargingStatusNotAnUnratedHealth() {
+        // Pixels stop rating battery health while plugged in, which left the card's status chip on "Not reported".
+        val status = ChargingStatus.status(
+            plugged = android.os.BatteryManager.BATTERY_PLUGGED_USB,
+            chargeState = DiagnosticsReadings.ChargeState.Charging,
+            usb = ChargingStatus.UsbLink(connected = true, configured = true, adb = true),
+            adbEnabled = true
+        )
+        val plugged = SAMPLE.copy(
+            battery = SAMPLE.battery.copy(
+                health = DiagnosticsReadings.HEALTH_NOT_REPORTED, isCharging = true,
+                chargingRateStr = status!!.label, power = status
+            )
+        )
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            IntelligentSearchTheme(darkTheme = false) {
+                BatteryAndMemoryDiagnosticsPage(ApplicationProvider.getApplicationContext(), newSampler = { DiagnosticsSampler { plugged } })
+            }
+        }
+        compose.settle(steps = 5)
+        compose.onNodeWithTag(BATTERY_STATUS_CHIP_TAG).assertTextEquals("USB Debugging")
+        compose.onNodeWithText("USB Debugging · Charging").assertExists()
+    }
+
+    @Suppress("DEPRECATION") // Sticky broadcasts are how the system publishes these states; tests stand in for it.
+    @Test
+    fun theSamplerNamesTheConnectionFromTheSystemBroadcasts() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        context.sendStickyBroadcast(
+            android.content.Intent(android.content.Intent.ACTION_BATTERY_CHANGED)
+                .putExtra(android.os.BatteryManager.EXTRA_PLUGGED, android.os.BatteryManager.BATTERY_PLUGGED_USB)
+                .putExtra(android.os.BatteryManager.EXTRA_STATUS, android.os.BatteryManager.BATTERY_STATUS_CHARGING)
+                .putExtra(android.os.BatteryManager.EXTRA_HEALTH, android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN)
+                .putExtra(android.os.BatteryManager.EXTRA_LEVEL, 50)
+                .putExtra(android.os.BatteryManager.EXTRA_SCALE, 100)
+        )
+        context.sendStickyBroadcast(
+            android.content.Intent(ChargingStatus.ACTION_USB_STATE)
+                .putExtra("connected", true).putExtra("configured", true).putExtra("adb", true)
+        )
+        val battery = DeviceDiagnosticsSampler(context).sample().battery
+        assertEquals("USB Debugging · Charging", battery.chargingRateStr)
+        assertEquals("USB Debugging", battery.power?.shortLabel)
+
+        // Unplugged: no connection status, and the chip goes back to the health rating.
+        context.sendStickyBroadcast(
+            android.content.Intent(android.content.Intent.ACTION_BATTERY_CHANGED)
+                .putExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0)
+                .putExtra(android.os.BatteryManager.EXTRA_STATUS, android.os.BatteryManager.BATTERY_STATUS_DISCHARGING)
+                .putExtra(android.os.BatteryManager.EXTRA_HEALTH, android.os.BatteryManager.BATTERY_HEALTH_GOOD)
+        )
+        val unplugged = DeviceDiagnosticsSampler(context).sample().battery
+        assertEquals("Discharging", unplugged.chargingRateStr)
+        assertEquals(null, unplugged.power)
+    }
+
+    @Test
+    fun readsAgainAsSoonAsTheUsbStateChanges() {
+        var samples = 0
+        val sampler = DiagnosticsSampler { samples++; SAMPLE }
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            IntelligentSearchTheme(darkTheme = false) {
+                BatteryAndMemoryDiagnosticsPage(context, newSampler = { sampler })
+            }
+        }
+        compose.settle(steps = 3)
+        val before = samples
+        assertTrue("reads on opening", before > 0)
+
+        // Well inside the 2.5 s poll: only the broadcast can cause another reading.
+        context.sendBroadcast(android.content.Intent(ChargingStatus.ACTION_USB_STATE).putExtra("connected", true))
+        compose.settle(steps = 2)
+        assertTrue("reads when the USB state changes", samples > before)
+    }
+
+    @Test
+    fun listensForPlugChangesOnlyWhileVisible() {
+        val owner = TestOwner()
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        fun usbListeners() = org.robolectric.Shadows.shadowOf(app).registeredReceivers
+            .count { it.intentFilter.hasAction(ChargingStatus.ACTION_USB_STATE) }
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                IntelligentSearchTheme(darkTheme = false) {
+                    BatteryAndMemoryDiagnosticsPage(app, newSampler = { DiagnosticsSampler { SAMPLE } })
+                }
+            }
+        }
+        compose.settle(steps = 3)
+        assertEquals(1, usbListeners())
+
+        compose.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
+        compose.settle(steps = 3)
+        assertEquals(0, usbListeners())
     }
 
     @Test

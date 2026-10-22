@@ -107,7 +107,8 @@ class BackupManager @Inject constructor(
                 key == "profile_1_restored_to_default_v918" ||
                 key == "app_night_mode_override_cleared_v1" ||
                 key == SettingsManager.PILL_OPACITY_LINEAR_KEY ||
-                key == SettingsManager.QUICK_PANEL_CAPS_CHOSEN_APPS_KEY
+                key == SettingsManager.QUICK_PANEL_CAPS_CHOSEN_APPS_KEY ||
+                key in SettingsManager.REMOVED_NAMES
         }
 
         /** The backup file's type label for a declared setting. */
@@ -624,11 +625,9 @@ class BackupManager @Inject constructor(
         settingsManager.updateSetting(SettingsManager.HIDDEN_APPS, payload.hiddenApps.toSet())
         restoredCount += payload.hiddenApps.size
 
-        // Settings that switch a component on or off live outside the settings file; apply the restored value now
-        // the settings are in, so a failure restoring the history below can't leave it out of step.
-        com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity.syncWithSetting(context)
-        // Scheduled work lives outside the settings file too: a restored Calculator, Live Currency Rates or search
-        // engine setting (Tor) can mean the daily rates download must stop.
+        // Scheduled work lives outside the settings file: a restored Calculator, Live Currency Rates or search engine
+        // setting (Tor) can mean the daily rates download must stop. Applied now the settings are in, so a failure
+        // restoring the history below can't leave it out of step.
         currencyRates.syncSchedule()
 
         // 4. Restore Search History

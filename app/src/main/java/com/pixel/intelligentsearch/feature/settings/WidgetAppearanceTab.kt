@@ -121,226 +121,122 @@ internal fun WidgetAppearanceTab(
 
     if (isMaterialYou) {
         SettingsSectionHeader("Widget Action Icon")
-        SettingsCard {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(6.dp)
-                    .selectableGroup(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+        val actionOptions = listOf(
+            Triple("None", "None", null),
+            Triple("Search", "Search", com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive),
+            Triple("Assistant", "Assistant", com.pixel.intelligentsearch.R.drawable.ic_lens_action),
+            Triple("Now Playing", "Playing", com.pixel.intelligentsearch.R.drawable.ic_music)
+        )
+        val currentAction = if (localActionIcon == "Gemini") "Assistant" else localActionIcon
+        ShellSelector(
+            options = actionOptions,
+            selected = actionOptions.firstOrNull { it.first == currentAction } ?: actionOptions.first(),
+            onSelect = { localActionIcon = it.first },
+            itemHeight = 64.dp
+        ) { (optionKey, label, iconRes), isSel ->
+            val tint = LocalContentColor.current
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(4.dp)
             ) {
-                val actionOptions = listOf(
-                    Triple("None", "None", null),
-                    Triple("Search", "Search", com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive),
-                    Triple("Assistant", "Assistant", com.pixel.intelligentsearch.R.drawable.ic_lens_action),
-                    Triple("Now Playing", "Playing", com.pixel.intelligentsearch.R.drawable.ic_music)
-                )
-                val currentAction = if (localActionIcon == "Gemini") "Assistant" else localActionIcon
-                actionOptions.forEach { (optionKey, label, iconRes) ->
-                    val isSel = currentAction == optionKey
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(64.dp)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(
-                                if (isSel) MaterialTheme.colorScheme.primaryContainer 
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                            )
-                            .semantics { selected = isSel }
-                            .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
-                                localActionIcon = optionKey
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                            modifier = Modifier.padding(4.dp)
-                        ) {
-                            if (iconRes != null) {
-                                ComposeActionIcon(
-                                    iconType = optionKey,
-                                    modifier = Modifier.size(22.dp),
-                                    primaryColor = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    secondaryColor = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    tertiaryColor = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            } else {
-                                Icon(
-                                    Icons.Default.Close,
-                                    contentDescription = "None",
-                                    modifier = Modifier.size(22.dp),
-                                    tint = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
-                        }
-                    }
+                if (iconRes != null) {
+                    ComposeActionIcon(
+                        iconType = optionKey,
+                        modifier = Modifier.size(22.dp),
+                        primaryColor = tint,
+                        secondaryColor = tint,
+                        tertiaryColor = tint
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "None",
+                        modifier = Modifier.size(22.dp)
+                    )
                 }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                    maxLines = 1,
+                    autoSize = oneLineAutoSize(MaterialTheme.typography.labelSmall)
+                )
             }
         }
     }
 
     // Floating Theme Pills
     // The Custom pill is painted in the custom colour, so its label is black or white to match. Unselected, the
-    // pill is a gradient up from half opacity and the label sits on its midpoint, both shown over the page.
-    val pageColor = MaterialTheme.colorScheme.background
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .selectableGroup(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        if (localThemeStyle == "System Default") {
-            val systemOpts = listOf("System", "Light", "Dark", "Custom")
-            systemOpts.forEach { opt ->
-                val isSel = localSubtheme == opt
-                val dynColor = androidx.compose.ui.graphics.Color(computedCustomColorInt)
-                val bgModifier = if (opt == "Custom") {
-                    if (isSel) {
-                        Modifier.background(dynColor, RoundedCornerShape(32.dp))
-                    } else {
-                        Modifier.background(
-                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                colors = listOf(
-                                    dynColor.copy(alpha = 0.5f),
-                                    dynColor
-                                )
-                            ),
-                            shape = RoundedCornerShape(32.dp)
-                        )
-                    }
-                } else {
-                    Modifier.background(if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f), RoundedCornerShape(32.dp))
-                }
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .then(bgModifier)
-                        .clip(RoundedCornerShape(32.dp))
-                        .semantics { selected = isSel }
-                        .bouncyClickable(shape = RoundedCornerShape(32.dp)) { localSubtheme = opt },
-                    contentAlignment = Alignment.Center
-                ) {
-                    val textColor = if (opt == "Custom") {
-                        subthemePillLabelColor(if (isSel) dynColor else dynColor.copy(alpha = 0.75f), pageColor)
-                    } else if (isSel) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium))
-                }
+    // pill is a gradient up from half opacity and the label sits on its midpoint, both shown over the shell.
+    val shellColor = MaterialTheme.colorScheme.surfaceContainer
+    val dynColor = androidx.compose.ui.graphics.Color(computedCustomColorInt)
+    val subthemeOptions = if (localThemeStyle == "System Default") {
+        listOf("System", "Light", "Dark", "Custom")
+    } else {
+        listOf("Material", "Custom")
+    }
+    ShellSelector(
+        options = subthemeOptions,
+        selected = localSubtheme,
+        onSelect = { opt ->
+            localSubtheme = opt
+            if (opt == "Material") {
+                localLockBlack = true
             }
-        } else {
-            val matOpts = listOf("Material", "Custom")
-            matOpts.forEach { opt ->
-                val isSel = localSubtheme == opt
-                val dynColor = androidx.compose.ui.graphics.Color(computedCustomColorInt)
-                val bgModifier = if (opt == "Custom") {
-                    if (isSel) {
-                        Modifier.background(dynColor, RoundedCornerShape(32.dp))
-                    } else {
-                        Modifier.background(
-                            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                                colors = listOf(
-                                    dynColor.copy(alpha = 0.5f),
-                                    dynColor
-                                )
-                            ),
-                            shape = RoundedCornerShape(32.dp)
-                        )
-                    }
-                } else {
-                    Modifier.background(if (isSel) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant.copy(alpha=0.5f), RoundedCornerShape(32.dp))
-                }
-
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(48.dp)
-                        .then(bgModifier)
-                        .clip(RoundedCornerShape(32.dp))
-                        .semantics { selected = isSel }
-                        .bouncyClickable(shape = RoundedCornerShape(32.dp)) {
-                            localSubtheme = opt
-                            if (opt == "Material") {
-                                localLockBlack = true
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    val textColor = if (opt == "Custom") {
-                        subthemePillLabelColor(if (isSel) dynColor else dynColor.copy(alpha = 0.75f), pageColor)
-                    } else if (isSel) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                    Text(opt, style = MaterialTheme.typography.labelMedium, color = textColor, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium))
-                }
-            }
+        },
+        indicatorColor = { opt -> if (opt == "Custom") dynColor else androidx.compose.ui.graphics.Color.Unspecified }
+    ) { opt, isSel ->
+        val isCustom = opt == "Custom"
+        if (isCustom && !isSel) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            colors = listOf(dynColor.copy(alpha = 0.5f), dynColor)
+                        ),
+                        shape = ShellSelectorDefaults.ItemShape
+                    )
+            )
         }
+        Text(
+            opt,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+            color = if (isCustom) {
+                subthemePillLabelColor(if (isSel) dynColor else dynColor.copy(alpha = 0.75f), shellColor)
+            } else {
+                androidx.compose.ui.graphics.Color.Unspecified
+            },
+            maxLines = 1,
+            autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium)
+        )
     }
 
     SettingsSectionHeader("G Icon Style")
     // G Icon Row with Custom G Icon button right beside Accented G Icon
-    SettingsCard {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp)
-                .padding(4.dp)
-                .selectableGroup(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val opts = listOf("System G Icon", "Material G Icon", "Accented G Icon", "Custom G Icon")
-            opts.forEach { opt ->
-                val isSel = localMaterialGIconTheme == opt
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(if (isSel) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent)
-                        .semantics { selected = isSel }
-                        .bouncyClickable(shape = RoundedCornerShape(20.dp)) {
-                            localMaterialGIconTheme = opt
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    val label = when (opt) {
-                        "System G Icon" -> "System"
-                        "Material G Icon" -> "Material"
-                        "Accented G Icon" -> "Accented"
-                        "Custom G Icon" -> "Custom"
-                        else -> opt
-                    }
-                    Text(
-                        text = label,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                        maxLines = 1,
-                        autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                        color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+    ShellSelector(
+        options = listOf("System G Icon", "Material G Icon", "Accented G Icon", "Custom G Icon"),
+        selected = localMaterialGIconTheme,
+        onSelect = { localMaterialGIconTheme = it }
+    ) { opt, isSel ->
+        val label = when (opt) {
+            "System G Icon" -> "System"
+            "Material G Icon" -> "Material"
+            "Accented G Icon" -> "Accented"
+            "Custom G Icon" -> "Custom"
+            else -> opt
         }
+        Text(
+            text = label,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            maxLines = 1,
+            autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
+        )
     }
 
     // Material Design Inner Pill & Circle Switcher

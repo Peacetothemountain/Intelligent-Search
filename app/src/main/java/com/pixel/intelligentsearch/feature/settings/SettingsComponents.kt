@@ -60,6 +60,10 @@ import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 
 // REUSABLE COMPONENTS
 // -----------------------------------------------------------------------------------------
+/**
+ * A group of settings rows, in the matte shell every settings page groups its controls in ([MatteShell]): grainy
+ * surface-container tone, soft Material You glow, top rim light and shadow, and the same entrance on every page.
+ */
 @Composable
 fun SettingsCard(
     modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
@@ -67,14 +71,10 @@ fun SettingsCard(
     shape: androidx.compose.ui.graphics.Shape = ExpressiveCornerTokens.ShapeExtraLarge,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Card(
+    com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
+        modifier = modifier,
         shape = shape,
-        colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        modifier = modifier
-            .semantics { isTraversalGroup = true }
-            .clip(shape)
+        containerColor = containerColor
     ) {
         Column(modifier = Modifier.padding(vertical = 12.dp)) {
             content()

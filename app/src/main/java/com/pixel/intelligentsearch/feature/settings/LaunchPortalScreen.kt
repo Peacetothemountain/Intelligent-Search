@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AddHome
-import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -34,7 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -42,7 +40,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.MainActivity
 import com.pixel.intelligentsearch.R
-import com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity
 import com.pixel.intelligentsearch.feature.widget.SearchTileService
 
 private const val ADD_TILE_YOURSELF = "You can add it yourself: open Quick Settings, tap the pencil and drag Intelligent Search in."
@@ -156,19 +153,6 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 } else {
                                     Toast.makeText(context, "Pinning shortcuts not supported on this device.", Toast.LENGTH_SHORT).show()
                                 }
-                            },
-                            showDivider = true
-                        )
-
-                        var fromSelectedText by rememberSetting(SettingsManager.SEARCH_FROM_SELECTED_TEXT)
-                        SettingsRowToggle(
-                            title = "Search from Selected Text",
-                            subtitle = "Show Intelligent Search When You Select or Share Text.",
-                            icon = Icons.Outlined.TextFields,
-                            isChecked = fromSelectedText,
-                            onCheckedChange = {
-                                fromSelectedText = it
-                                SelectedTextSearchActivity.syncWithSetting(context)
                             },
                             showDivider = false
                         )

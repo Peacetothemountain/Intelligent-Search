@@ -10,7 +10,6 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
-import androidx.annotation.VisibleForTesting
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.util.storageContext
@@ -72,10 +71,6 @@ class SelectedTextSearchActivity : Activity() {
         /** Joiners change how the letters or emoji around them are drawn, so they are kept. */
         private const val ZERO_WIDTH_NON_JOINER = 0x200C
         private const val ZERO_WIDTH_JOINER = 0x200D
-
-        /** Guards the component state, so a caller holding an older value can't apply it after a newer one. */
-        @VisibleForTesting
-        internal val componentLock = Any()
 
         /**
          * The query in a selection or share [intent]: "" when it carries no usable text, null when it is not a
@@ -188,35 +183,20 @@ class SelectedTextSearchActivity : Activity() {
             context.storageContext().getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
 
         /**
-         * Shows or hides "Intelligent Search" in other apps' selection menus and share sheets by enabling or disabling
-         * this activity. Callers following the Search from Selected Text setting use [syncWithSetting].
+         * Turns "Intelligent Search" in other apps' selection menus and share sheets back on where an older version's
+         * Search from Selected Text switch disabled this activity. The entry is always on now, but Android keeps
+         * component states outside the app's data and across updates, so this runs at every start.
          */
-        fun setEnabled(context: Context, enabled: Boolean) {
-            synchronized(componentLock) { applyEnabled(context, enabled) }
-        }
-
-        /**
-         * Matches this activity's state to the Search from Selected Text setting. Android keeps component states
-         * outside the app's data, so this runs at start-up, after a restore and when the switch changes. The setting
-         * is read under the lock the state is written with, so a slower caller can't apply a value that a newer
-         * change has replaced.
-         */
-        fun syncWithSetting(context: Context) {
-            synchronized(componentLock) {
-                applyEnabled(context, settings(context)[SettingsManager.SEARCH_FROM_SELECTED_TEXT])
-            }
-        }
-
-        private fun applyEnabled(context: Context, enabled: Boolean) {
+        fun ensureEnabled(context: Context) {
             val pm = context.packageManager
             val component = ComponentName(context, SelectedTextSearchActivity::class.java)
-            val state = if (enabled) PackageManager.COMPONENT_ENABLED_STATE_DEFAULT else PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+            val state = PackageManager.COMPONENT_ENABLED_STATE_DEFAULT
             try {
                 if (pm.getComponentEnabledSetting(component) != state) {
                     pm.setComponentEnabledSetting(component, state, PackageManager.DONT_KILL_APP)
                 }
             } catch (e: Exception) {
-                Log.w(TAG, "Could not update the selected text entry", e)
+                Log.w(TAG, "Could not turn the selected text entry back on", e)
             }
         }
     }

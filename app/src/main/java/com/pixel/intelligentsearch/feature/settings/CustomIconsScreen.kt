@@ -31,8 +31,6 @@ import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -283,18 +281,12 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             } else {
                                 MaterialTheme.colorScheme.surfaceContainer
                             }
-                            val borderColor = if (isSelected) {
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
-                            } else {
-                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
-                            }
-
-                            Card(
+                            com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(24.dp),
-                                colors = CardDefaults.cardColors(containerColor = containerColor),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
-                                elevation = CardDefaults.cardElevation(defaultElevation = elevation)
+                                containerColor = containerColor,
+                                accentRim = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else Color.Transparent,
+                                shadowElevation = maxOf(elevation, com.pixel.intelligentsearch.core.ui.expressive.MatteShellDefaults.ShadowElevation)
                             ) {
                                 // Only one pack is in use at a time (System Default is none), so each row is a radio
                                 // option: tapping anywhere on it picks the pack. Dragging the handle is touch-only, so

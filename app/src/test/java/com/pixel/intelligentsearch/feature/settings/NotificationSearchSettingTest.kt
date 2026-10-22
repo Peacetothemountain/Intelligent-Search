@@ -16,7 +16,7 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import com.pixel.intelligentsearch.core.glance.NotificationIndex
-import com.pixel.intelligentsearch.core.glance.NotificationSearchListener
+import com.pixel.intelligentsearch.core.glance.NotificationAccessListener
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.screenshots.confinedEffects
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -58,7 +58,7 @@ class NotificationSearchSettingTest {
 
     private fun grant(granted: Boolean) {
         shadowOf(context.getSystemService(NotificationManager::class.java))
-            .setNotificationListenerAccessGranted(NotificationSearchListener.component(context), granted)
+            .setNotificationListenerAccessGranted(NotificationAccessListener.component(context), granted)
     }
 
     private fun showSources() {

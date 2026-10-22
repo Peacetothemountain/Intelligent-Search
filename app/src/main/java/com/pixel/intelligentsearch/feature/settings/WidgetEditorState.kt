@@ -84,7 +84,6 @@ internal class WidgetEditorState(initialSlotItemHeightPx: Float) {
     var itemDragOffset by mutableFloatStateOf(0f)
     var selectedTabName by mutableStateOf("Appearance")
     var showFavouritesSheet by mutableStateOf(false)
-    var showMediaAccessDialog by mutableStateOf(false)
     /** The saved theme being renamed, or the name field of a new one ("" while saving the current design). */
     var themeNameDialogFor by mutableStateOf<String?>(null)
     var themeNameInput by mutableStateOf("")

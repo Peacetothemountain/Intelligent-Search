@@ -113,7 +113,7 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
                 awaitClose { }
                 return@callbackFlow
             }
-            val component = NotificationSearchListener.component(context)
+            val component = NotificationAccess.component(context)
             val handler = Handler(Looper.getMainLooper())
             // Touched only on the main thread, where every callback below arrives.
             var controllers: List<MediaController> = emptyList()

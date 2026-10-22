@@ -143,7 +143,12 @@ class BackupManager @Inject constructor(
             SettingsManager.DICTIONARY_ANSWERS.name,
             SettingsManager.WEATHER_ANSWERS.name,
             SettingsManager.WEATHER_USE_DEVICE_LOCATION.name,
-            SettingsManager.AI_ANSWERS_ENABLED.name
+            SettingsManager.AI_ANSWERS_ENABLED.name,
+            // Launch Portal's notification, floating button and edge swipe need permissions this phone may not have
+            // granted, and draw over other apps; like the opt-ins above, only the user switches them on.
+            SettingsManager.SEARCH_NOTIFICATION_SHORTCUT.name,
+            SettingsManager.FLOATING_SEARCH_BUTTON.name,
+            SettingsManager.EDGE_SWIPE.name
         )
 
         private fun isPrivacyOptInKey(key: String): Boolean =

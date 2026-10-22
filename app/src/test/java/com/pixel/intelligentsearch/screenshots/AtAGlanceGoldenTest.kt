@@ -63,6 +63,9 @@ class AtAGlanceGoldenTest(private val state: String, private val dark: Boolean) 
     @Before fun setUp() {
         hilt.inject()
         disableHandRolledAnimations()
+        // App icons are cached for the process: forget any another test drew for these apps (the widget goldens give
+        // com.example.mail one), so the rows show their own fallback as the goldens were drawn.
+        com.pixel.intelligentsearch.core.ui.clearThemedIconCache()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
     }
 

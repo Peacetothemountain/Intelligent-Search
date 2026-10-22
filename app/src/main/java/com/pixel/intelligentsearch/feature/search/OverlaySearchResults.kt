@@ -343,7 +343,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             }
         } else if (aiOffer != null && question != null) {
             item(key = ResultListKeys.ASK_AI, contentType = "direct_action") {
-                AskAiRow(aiOffer, question, highlight = Modifier.keyboardHighlight(s, ResultListKeys.ASK_AI, DirectActionRowShape)) {
+                AskAiRow(aiOffer, question, modifier = Modifier.keyboardHighlight(s, ResultListKeys.ASK_AI, DirectActionRowShape)) {
                     focusManager.clearFocus(force = true)
                     keyboardController?.hide()
                     viewModel.askAi()

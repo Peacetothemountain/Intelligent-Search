@@ -61,6 +61,27 @@ class NotificationIndexTest {
         assertEquals(2, NotificationIndex.search(entries, "ana", limit = 2).size)
     }
 
+    /** Notifications are matched the way every other result is (QueryNormalizer), not by a looser fold of their own. */
+    @Test
+    fun searchFoldsTextLikeTheRestOfSearch() {
+        val entries = listOf(
+            entry("lotus", "ハス", "Garden"),
+            entry("bus", "バス", "Leaves at 8"),
+            entry("street", "Weißstraße 5", "Your parcel"),
+            entry("hindi", "किताब", "Library")
+        )
+        // A voicing mark makes another letter: "バス" (bus) is not "ハス" (lotus).
+        assertEquals(listOf("bus"), NotificationIndex.search(entries, "バス").map { it.key })
+        assertEquals(listOf("lotus"), NotificationIndex.search(entries, "ハス").map { it.key })
+        // Typed without the special letters, as other results allow.
+        assertEquals(listOf("street"), NotificationIndex.search(entries, "weissstrasse").map { it.key })
+        // A Devanagari vowel sign is part of the word.
+        assertEquals(listOf("hindi"), NotificationIndex.search(entries, "किताब").map { it.key })
+        assertTrue(NotificationIndex.search(entries, "कतब").isEmpty())
+        // Punctuation doesn't have to be typed.
+        assertEquals(listOf("bus"), NotificationIndex.search(entries, "at 8").map { it.key })
+    }
+
     @Test
     fun aOneLetterQueryFindsNothing() {
         assertTrue(NotificationIndex.search(listOf(entry("1", "Ana")), "a").isEmpty())

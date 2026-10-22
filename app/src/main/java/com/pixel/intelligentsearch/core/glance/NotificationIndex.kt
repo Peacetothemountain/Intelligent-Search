@@ -1,11 +1,11 @@
 package com.pixel.intelligentsearch.core.glance
 
 import android.app.PendingIntent
+import com.pixel.intelligentsearch.core.search.QueryNormalizer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import java.text.Normalizer
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -27,9 +27,9 @@ data class IndexedNotification(
     /** A running chronometer: a timer counting down to [baseTime], or a stopwatch counting up from it (wall clock). */
     data class Chronometer(val countDown: Boolean, val baseTime: Long)
 
-    /** The text search looks through, folded once when the entry is made. */
-    internal val searchable: String = NotificationIndex.fold("$title\n$text\n$appLabel")
-    internal val foldedTitle: String = NotificationIndex.fold(title)
+    /** The text search looks through, normalized once when the entry is made, as every other result is. */
+    internal val searchable: String = QueryNormalizer.normalize("$title\n$text\n$appLabel")
+    internal val foldedTitle: String = QueryNormalizer.normalize(title)
 }
 
 /**
@@ -78,20 +78,16 @@ class NotificationIndex @Inject constructor() {
         /** Queries shorter than this match nearly every notification, so they show none. */
         const val MIN_QUERY_LENGTH = 2
 
-        /** Lower case without accents, so "cafe" finds "Café". */
-        internal fun fold(text: String): String =
-            Normalizer.normalize(text, Normalizer.Form.NFD).replace(COMBINING_MARKS, "").lowercase()
-
-        private val COMBINING_MARKS = Regex("\\p{Mn}+")
-
         /**
          * The [entries] whose title, text or app name hold every word of [query]. A title starting with the query
          * ranks first, then a title word starting with it, then any match; newer before older within each.
          */
         fun search(entries: List<IndexedNotification>, query: String, limit: Int = DEFAULT_LIMIT): List<IndexedNotification> {
-            val folded = fold(query.trim())
+            // Folded like every other result (QueryNormalizer): "cafe" finds "Café", but a voicing mark or a
+            // Devanagari vowel sign still tells letters apart.
+            val folded = QueryNormalizer.normalize(query)
             if (folded.length < MIN_QUERY_LENGTH) return emptyList()
-            val words = folded.split(Regex("\\s+")).filter { it.isNotEmpty() }
+            val words = folded.split(' ')
             return entries
                 .filter { entry -> words.all { it in entry.searchable } }
                 .sortedWith(

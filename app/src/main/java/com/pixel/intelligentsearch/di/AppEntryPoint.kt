@@ -34,6 +34,10 @@ interface AppEntryPoint {
     /** The in-memory notification index behind Search Your Notifications and At a Glance's timers. */
     fun notificationIndex(): com.pixel.intelligentsearch.core.glance.NotificationIndex
     fun instantAnswerEngine(): com.pixel.intelligentsearch.core.answers.InstantAnswerEngine
+    /** AI Answers' Keystore-encrypted API keys, for its settings page. */
+    fun aiKeyVault(): com.pixel.intelligentsearch.core.security.AiKeyVault
+    fun savedLinkStore(): com.pixel.intelligentsearch.core.data.SavedLinkStore
+    fun savedLinkIcons(): com.pixel.intelligentsearch.core.data.SavedLinkIcons
 
     @ApplicationScope
     fun applicationScope(): CoroutineScope

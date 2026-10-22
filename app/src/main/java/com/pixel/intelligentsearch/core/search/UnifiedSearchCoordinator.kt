@@ -99,6 +99,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         val query: String,
         val mathResult: MathematicalExpressionEngine.MathEvaluationResult? = null,
         val parsedIntent: NaturalLanguageIntentParser.ParsedIntent? = null,
+        /** "15 min", "7:30am", "laundry in 2 hrs": the short phrasing's action, when nothing else reads the query. */
+        val shortAction: ShortActionPhrasing.Suggestion? = null,
         val dateAnswer: DateMathEngine.DateAnswer? = null,
         val systemAction: SystemActionRouter.ActionResult? = null,
         val apps: List<AppItem> = emptyList(),
@@ -688,6 +690,11 @@ class UnifiedSearchCoordinator @Inject constructor(
             { target -> searchContacts(target, limit = 5).firstOrNull { it.phoneNumber.isNotBlank() } }
         } else null
         val parsedIntent = NaturalLanguageIntentParser.parse(query, contactLookup = contactLookup)
+        // Only what the full phrasings, the calculator, the converters and date maths leave: "15 min in seconds" and
+        // "15 min + 5" stay theirs.
+        val shortAction = if (parsedIntent == null && mathResult == null && dateAnswer == null) {
+            ShortActionPhrasing.parse(query, is24Hour = android.text.format.DateFormat.is24HourFormat(context))
+        } else null
 
         cancellationCheck?.invoke()
 
@@ -798,6 +805,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             query = query,
             mathResult = mathResult,
             parsedIntent = parsedIntent,
+            shortAction = shortAction,
             dateAnswer = dateAnswer,
             systemAction = systemAction,
             apps = matchedApps,

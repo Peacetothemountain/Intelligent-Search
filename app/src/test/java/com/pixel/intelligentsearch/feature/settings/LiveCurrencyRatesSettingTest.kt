@@ -108,7 +108,7 @@ class LiveCurrencyRatesSettingTest {
             addActivityIfNotPresent(tor)
             addIntentFilterForActivity(tor, IntentFilter(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) })
         }
-        compose.setContent { IntelligentSearchTheme(darkTheme = false) { WebSearchScreen(prefs) {} } }
+        compose.setContent { IntelligentSearchTheme(darkTheme = false) { WebSearchScreen(prefs, onBack = {}) } }
 
         currencyRates.onCurrencyConverted(CurrencyRates.BUILT_IN)
         assertTrue(dailyWorkEnqueued())

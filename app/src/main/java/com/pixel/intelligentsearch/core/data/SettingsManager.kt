@@ -247,6 +247,18 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** Contacts' birthdays this week (needs contacts access). */
         val GLANCE_BIRTHDAYS = BooleanSetting("glance.birthdays", true)
         val GLANCE_BATTERY = BooleanSetting("glance.battery", true)
+        /**
+         * AI Answers: questions ("…?", "ask …") offer an Ask row that, only when tapped, sends that one question to
+         * [AI_PROVIDER] with the user's own key (kept in AiKeyVault, never here). Off by default; a backup can't
+         * switch it on.
+         */
+        val AI_ANSWERS_ENABLED = BooleanSetting("ai.answers.enabled", false)
+        /** The [com.pixel.intelligentsearch.core.ai.AiProvider] id AI Answers asks. */
+        val AI_PROVIDER = StringSetting("ai.answers.provider", "anthropic")
+        /** The chosen model of [AI_PROVIDER]; blank (or another provider's) means its default. */
+        val AI_MODEL = StringSetting("ai.answers.model", "")
+        /** Saved Links: named web addresses found by name in search, as JSON (SavedLinks); read through SavedLinkStore. */
+        val SAVED_LINKS = StringSetting("saved_links_json", "[]")
 
         // Each search bar widget design's extras, kept per design like the rest of its customization
         // (WidgetSettingsStore reads and writes them). Favourite apps are package names, comma separated, in order.
@@ -291,7 +303,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION, FILES_EXCLUDED_TYPES, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_FAVOURITE_APPS, WIDGET_MATERIAL_FAVOURITE_APPS, WIDGET_SYSTEM_SHOW_MEDIA,
             WIDGET_MATERIAL_SHOW_MEDIA, WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
-            WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_SAVED_THEMES, COUNTDOWN_EVENTS
+            WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_SAVED_THEMES, COUNTDOWN_EVENTS,
+            AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL, SAVED_LINKS
         ) + FILES_OPEN_WITH.values
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =

@@ -147,7 +147,8 @@ fun SearchPillsScreen(
                     val apps = resolveInfoList.asSequence()
                         .distinctBy { it.activityInfo.packageName }
                         .map { AppPickerItem(packageName = it.activityInfo.packageName, label = it.loadLabel(pm).toString()) }
-                        .sortedBy { it.label.lowercase() }
+                        // Installed AI assistants lead the list: their pills ask them the search.
+                        .sortedWith(compareBy({ com.pixel.intelligentsearch.core.bangs.AiAssistants.forPackage(it.packageName) == null }, { it.label.lowercase() }))
                         .toList()
                     installedApps = apps
                 } catch (e: Exception) {
@@ -312,7 +313,11 @@ fun SearchPillsScreen(
                             ) {
                                 SettingsRow(
                                     title = appItem.label,
-                                    subtitle = if (isAlreadyAdded) "Already in Quick Launch" else packageName.breakableAtDots(),
+                                    subtitle = when {
+                                        isAlreadyAdded -> "Already in Quick Launch"
+                                        com.pixel.intelligentsearch.core.bangs.AiAssistants.forPackage(packageName) != null -> "AI Assistant. Its Pill Asks It Your Search."
+                                        else -> packageName.breakableAtDots()
+                                    },
                                     icon = appIcon ?: Icons.Outlined.Apps,
                                     onClick = {
                                         if (multiSelectMode) {

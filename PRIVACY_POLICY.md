@@ -13,7 +13,7 @@
 
 **Intelligent Search** is engineered and published by **NG Designs** with a strict, non-negotiable **On-Device First Privacy Architecture**. 
 
-We believe that your personal device search queries, contacts, schedule, files, and installed applications are your private property. Intelligent Search is built so that **your personal data stays on your device**. The exceptions are things you choose to send: web searches and live web suggestions go to the search engine you pick (see Section 3), and voice input may be handled by your device's speech recognizer (see Section 2.H). Live currency rates are downloaded from the European Central Bank without sending any of your data (see Section 3). Instant answers you switch on (dictionary definitions and weather forecasts) are described in Section 3; both are off until you turn them on.
+We believe that your personal device search queries, contacts, schedule, files, and installed applications are your private property. Intelligent Search is built so that **your personal data stays on your device**. The exceptions are things you choose to send: web searches and live web suggestions go to the search engine you pick (see Section 3), voice input may be handled by your device's speech recognizer (see Section 2.H), and, only if you turn on AI Answers and tap Ask, that one question goes to the AI provider you chose with your own key (see Section 3). Live currency rates are downloaded from the European Central Bank without sending any of your data (see Section 3). Instant answers you switch on (dictionary definitions and weather forecasts) are described in Section 3; both are off until you turn them on.
 
 * **Zero Cloud Data Exfiltration**: We do not maintain, operate, or connect to remote servers that collect, store, profile, or analyze your searches or personal information.
 * **Zero Advertising & Zero Tracking**: Intelligent Search contains **no advertisements**, **no advertising SDKs**, **no commercial tracking beacons**, and **no third-party behavioral analytics libraries** (such as Firebase Analytics, Mixpanel, or Facebook SDK).
@@ -89,7 +89,7 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 
 ---
 
-## 3. Web Search, External Search Engines, Live Currency Rates & Instant Answers
+## 3. Web Search, External Search Engines, Live Currency Rates, Instant Answers, AI Answers & Saved Links
 
 When you execute a web search or request live autocomplete suggestions:
 1. **Direct Communication**: Search queries are transmitted directly and securely (via HTTPS) to your chosen search engine provider (e.g., Google, DuckDuckGo, Bing, or your configured Custom Search URL).
@@ -113,6 +113,16 @@ When you execute a web search or request live autocomplete suggestions:
 * **Translations**: searches like "translate hello to Spanish" show a card that sends nothing by itself. Only when you tap **Translate in Google Translate** is the text handed to Google Translate: the Google Translate app if your phone has it, otherwise `https://translate.google.com` in your browser. What happens there is covered by Google's own policy. [Google Privacy Policy](https://policies.google.com/privacy)
 * **Screen Time** answers are read from Android's usage statistics on your phone (Section 2.E) and send nothing.
 
+**AI Answers** (optional, off by default) send a question to an AI provider with **your own API key**:
+* **Only when you tap Ask, only that question**: with **Settings -> Web Search -> AI Answers** on and your key saved, a search ending with "?" or starting with "ask" shows an **Ask** row. Nothing is sent as you type. Only when you tap Ask is that one question (without the word "ask") sent over HTTPS, with fixed instructions to answer briefly, to the provider you chose; no other searches, contacts, files, account or device details go with it.
+* **Providers and endpoints**: Anthropic Claude (`api.anthropic.com`, [Anthropic Privacy Policy](https://www.anthropic.com/legal/privacy)), OpenAI (`api.openai.com`, [OpenAI Privacy Policy](https://openai.com/policies/privacy-policy)) and Google Gemini (`generativelanguage.googleapis.com`, [Google Privacy Policy](https://policies.google.com/privacy)). The provider handles the question under its own policy and your agreement with it, and can see your IP address.
+* **Your key**: it is encrypted with an Android Keystore key on your phone, never written to the app's settings, backups, logs or Android backup, shown only masked (its last four characters), sent only to the provider it belongs to, and deleted with **Remove Key**. A restore from a backup never switches AI Answers on.
+* **Tor**: AI Answers are off while Tor is your search engine.
+
+**AI assistant shortcuts** (`!gpt`, `!pplx`, `!gemini`, `!claude`, `!copilot`, and AI apps added to Quick Launch) open ChatGPT, Perplexity, Gemini, Claude or Copilot with your query, in their app or your browser, like any other web shortcut: the query goes to that service only when you use the shortcut.
+
+**Saved Links**: names and addresses you save are kept in the app's settings and backups. Nothing is downloaded for them unless you tap **Fetch Icon**, which downloads that site's own icon (`/favicon.ico` or `/apple-touch-icon.png`) once over HTTPS, sending nothing but the request; it is unavailable while Tor is your search engine.
+
 ---
 
 ## 4. Local Data Storage, Encryption, & Backup Security
@@ -124,7 +134,7 @@ When you execute a web search or request live autocomplete suggestions:
   * With a passphrase, the key is derived from it using **PBKDF2** (600,000 iterations, random salt), so the backup can be restored on any device.
   * Without a passphrase, the key is created inside this device's Android Keystore and never leaves it, so the backup can only be restored on the same device and installation.
   * Backup files are saved strictly to the storage location or cloud drive chosen by the user via the Android system file creator.
-  * Restoring a backup never switches on contact sharing, clipboard suggestions, web suggestions, notification search, Dictionary Answers, Weather Answers, Use Approximate Location or the **Live Currency Rates** switch itself; it can only leave them as you set them on this phone or switch them off. It does bring back your **Calculator** and search engine choices, which also decide whether currency rates are downloaded (see Section 3): with Live Currency Rates on, a restore that turns the Calculator on or changes your search engine from Tor to another lets the downloads resume.
+  * Restoring a backup never switches on contact sharing, clipboard suggestions, web suggestions, notification search, Dictionary Answers, Weather Answers, Use Approximate Location, AI Answers or the **Live Currency Rates** switch itself; it can only leave them as you set them on this phone or switch them off. It does bring back your **Calculator** and search engine choices, which also decide whether currency rates are downloaded (see Section 3): with Live Currency Rates on, a restore that turns the Calculator on or changes your search engine from Tor to another lets the downloads resume.
   * A passphrase you choose to save on the phone is encrypted with an Android Keystore key that works only while the phone is unlocked and shortly after you authenticate.
 
 ---

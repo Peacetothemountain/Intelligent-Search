@@ -28,6 +28,7 @@ class HttpsRatesClient internal constructor(
     private val totalTimeoutMs: Long,
     private val open: (URL) -> HttpURLConnection?,
     private val nanoTime: () -> Long,
+    /** What the download asks for: the rates file by default, images for a Saved Link's icon. */
     private val accept: String = ACCEPT_XML
 ) : RatesHttpClient {
 

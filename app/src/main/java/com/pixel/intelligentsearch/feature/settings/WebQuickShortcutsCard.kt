@@ -306,10 +306,11 @@ internal fun WebQuickShortcutsCard() {
                 }
 
                 if (displayedActiveBangs.isEmpty()) {
-                    Surface(
+                    com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        nested = true
                     ) {
                         Text(
                             text = "No Active Shortcuts. Tap Add or Restore Direct Shortcuts Below.",
@@ -382,7 +383,7 @@ internal fun WebQuickShortcutsCard() {
                                         }
                                     }
                                 ) {
-                                    Card(
+                                    com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             // TalkBack can't swipe the card away, so removing it is an action on it.
@@ -395,8 +396,8 @@ internal fun WebQuickShortcutsCard() {
                                                 showAddDialog = true
                                             },
                                         shape = RoundedCornerShape(24.dp),
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-                                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                        nested = true
                                     ) {
                                         Row(
                                             modifier = Modifier
@@ -488,11 +489,11 @@ internal fun WebQuickShortcutsCard() {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         availableDirectBangs.forEach { bang ->
                             key("avail_${bang.displayPrefix}") {
-                                Card(
+                                com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(24.dp),
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f))
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                    nested = true
                                 ) {
                                     Row(
                                         modifier = Modifier

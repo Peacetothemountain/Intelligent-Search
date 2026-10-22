@@ -181,14 +181,10 @@ internal fun WidgetShortcutsTab(
                             }
                         }
                 ) {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .shadow(elevation, RoundedCornerShape(24.dp))
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp)),
-                        color = Color.Transparent
+                    com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(24.dp),
+                        shadowElevation = maxOf(elevation, com.pixel.intelligentsearch.core.ui.expressive.MatteShellDefaults.ShadowElevation)
                     ) {
                         Row(
                             modifier = Modifier

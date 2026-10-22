@@ -14,7 +14,7 @@ import org.robolectric.RobolectricTestRunner
 
 /**
  * Enter's order once short action phrasing, trigger words, the keyboard highlight and Enter Key Action all apply:
- * a trigger word, then the highlight, then the phrasing's action (with Open Top Result), then Enter Key Action. And
+ * the highlight, then a trigger word, then the phrasing's action (with Open Top Result), then Enter Key Action. And
  * the stops the arrow keys reach for the Ask row, an AI answer, Saved Links and the file-type chip.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -34,11 +34,22 @@ class OverlayEnterKeyTest {
     ) = OverlayEnterKey.decide(query, triggered, highlighted, phrasing, isBang, setting)
 
     @Test
-    fun aTriggerWordComesBeforeEverythingElse() {
+    fun theHighlightComesBeforeEverythingElse() {
+        // A result the user moved to with the arrow keys opens, as Enter Key Action says, even on a trigger word.
+        for (setting in EnterKeyAction.entries) {
+            assertEquals(
+                EnterOutcome.OpenHighlighted(highlighted),
+                decide(triggered = pinnedResult, highlighted = highlighted, phrasing = timer, isBang = true, setting = setting)
+            )
+        }
+    }
+
+    @Test
+    fun aTriggerWordComesBeforeThePhrasingABangAndTheSetting() {
         for (setting in EnterKeyAction.entries) {
             assertEquals(
                 EnterOutcome.OpenTriggered(pinnedResult),
-                decide(triggered = pinnedResult, highlighted = highlighted, phrasing = timer, isBang = true, setting = setting)
+                decide(triggered = pinnedResult, phrasing = timer, isBang = true, setting = setting)
             )
         }
     }

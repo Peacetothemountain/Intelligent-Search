@@ -11,11 +11,11 @@ import com.pixel.intelligentsearch.core.data.settings.EnterKeyAction
 
 /** What Enter does with the query. */
 internal sealed interface EnterOutcome {
-    /** The query is exactly a trigger word: opens the result it was set on. */
-    data class OpenTriggered(val result: Any) : EnterOutcome
-
     /** Opens the result the arrow keys highlight. */
     data class OpenHighlighted(val target: NavTarget) : EnterOutcome
+
+    /** The query is exactly a trigger word: opens the result it was set on. */
+    data class OpenTriggered(val result: Any) : EnterOutcome
 
     /** Runs the short phrasing's action ("15 min" starts the timer, "7:30am" sets the alarm). */
     data class RunAction(val action: DirectAction) : EnterOutcome
@@ -34,8 +34,9 @@ internal sealed interface EnterOutcome {
 internal object OverlayEnterKey {
 
     /**
-     * What Enter does, in order: a trigger word ([triggered]) opens its result; then the result the arrow keys
-     * [highlighted]; then, with nothing typed, nothing. A bang is an explicit request for its site, so it is searched.
+     * What Enter does, in order: the result the arrow keys [highlighted] opens, as Enter Key Action promises (a
+     * highlighted result always opens on Enter); then a trigger word ([triggered]) opens its result; then, with
+     * nothing typed, nothing. A bang is an explicit request for its site, so it is searched.
      * With [setting] Open Top Result the short phrasing's [phrasingAction] runs, else the top result opens; with
      * Search the Web, the query is searched.
      */
@@ -47,8 +48,8 @@ internal object OverlayEnterKey {
         isBang: Boolean,
         setting: EnterKeyAction
     ): EnterOutcome = when {
-        triggered != null -> EnterOutcome.OpenTriggered(triggered)
         highlighted != null -> EnterOutcome.OpenHighlighted(highlighted)
+        triggered != null -> EnterOutcome.OpenTriggered(triggered)
         query.isEmpty() -> EnterOutcome.NothingTyped
         isBang || setting == EnterKeyAction.SEARCH_WEB -> EnterOutcome.SearchWeb
         phrasingAction != null -> EnterOutcome.RunAction(phrasingAction)

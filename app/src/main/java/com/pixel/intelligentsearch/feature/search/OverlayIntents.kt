@@ -36,15 +36,45 @@ internal fun isMediaStoreUri(uri: Uri): Boolean =
     uri.authority == android.provider.MediaStore.AUTHORITY && uri.pathSegments.firstOrNull() == "external"
 
 /**
- * Opens a file result. MediaStore entries prefer Files by Google; documents from the user's chosen
- * folders or the photo picker go to whichever app handles their type, carrying the read grant along.
+ * The intent that opens a file result as [choice] says: the system's "Open with" sheet, the phone's default app for
+ * the type, or one app. Either way it carries read access to the file's content URI (the document or MediaStore URI
+ * the index holds), so the app can open it without any storage permission of its own.
  */
-internal fun buildOpenFileIntent(uri: String, mimeType: String): Intent {
-    val parsed = Uri.parse(uri)
-    return Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(parsed, mimeType)
+internal fun buildOpenFileIntent(uri: String, mimeType: String, choice: OpenWithChoice): Intent {
+    val view = Intent(Intent.ACTION_VIEW).apply {
+        setDataAndType(Uri.parse(uri), mimeType)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        if (isMediaStoreUri(parsed)) setPackage("com.google.android.apps.nbu.files")
+    }
+    return when (choice) {
+        OpenWithChoice.AskEveryTime -> openWithChooser(view)
+        OpenWithChoice.DefaultApp -> view
+        is OpenWithChoice.App -> view.setPackage(choice.packageName)
+    }
+}
+
+/** The system's "Open with" sheet for [view]; the sheet passes the read grant on to the app picked. */
+internal fun openWithChooser(view: Intent): Intent =
+    Intent.createChooser(Intent(view).setPackage(null), null).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+/**
+ * The intent to open [file] with the app chosen for its type under Open Files With ([SettingsManager.FILES_OPEN_WITH]
+ * in [prefs]). A chosen app that was uninstalled or doesn't open this file's type gives way to the "Open with" sheet.
+ */
+internal fun openFileIntent(pm: android.content.pm.PackageManager, prefs: android.content.SharedPreferences, file: FileItem): Intent {
+    val group = FileTypes.groupOf(file)
+    val choice = OpenWithChoice.parse(prefs[SettingsManager.FILES_OPEN_WITH.getValue(group)])
+    val intent = buildOpenFileIntent(file.uri, FileTypes.mimeForOpening(file.name, file.mimeType), choice)
+    if (choice is OpenWithChoice.App && pm.queryIntentActivities(intent, 0).isEmpty()) {
+        return openWithChooser(intent)
+    }
+    return intent
+}
+
+/** Opens a file result (see [openFileIntent]); if that can't start, offers the "Open with" sheet instead. */
+internal fun openFileResult(context: Context, prefs: android.content.SharedPreferences, file: FileItem) {
+    val intent = openFileIntent(context.packageManager, prefs, file)
+    if (!launchSafeIntent(context, intent) && intent.action != Intent.ACTION_CHOOSER) {
+        launchSafeIntent(context, openWithChooser(intent))
     }
 }
 

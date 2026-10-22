@@ -605,13 +605,7 @@ fun SearchOverlayScreen(
                 launchSafeIntent(context, ContactActions.openIntent(match, directCall = settingsState.contactDirectCall && !fromVoice))
             }
             is AppItem -> performAppLaunch(match, LaunchSource.keyboard(LaunchIconKeys.BEST_MATCH, LaunchIconKeys.app(match)))
-            is FileItem -> {
-                val intent = buildOpenFileIntent(match.uri, match.mimeType)
-                if (!launchSafeIntent(context, intent)) {
-                    intent.setPackage(null)
-                    launchSafeIntent(context, intent)
-                }
-            }
+            is FileItem -> openFileResult(context, prefs, match)
             else -> when {
                 uiState.instantAnswer?.iconType == "url" -> uiState.instantAnswer?.let { answer -> openWebAddress(answer.title) }
                 settingsState.appQuickLaunch && visibleApps.isNotEmpty() -> visibleApps.first().let { app -> performAppLaunch(app, LaunchSource.keyboard(LaunchIconKeys.app(app))) }

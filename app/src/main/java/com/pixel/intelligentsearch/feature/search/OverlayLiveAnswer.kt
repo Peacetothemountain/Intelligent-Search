@@ -25,6 +25,7 @@ import androidx.core.content.edit
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.pixel.intelligentsearch.core.answers.GoogleTranslate
 import com.pixel.intelligentsearch.core.answers.LiveAnswer
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
@@ -33,6 +34,7 @@ import com.pixel.intelligentsearch.core.ui.ScreenTimeOneBox
 import com.pixel.intelligentsearch.core.ui.TranslationOneBox
 import com.pixel.intelligentsearch.core.ui.WeatherLocationOneBox
 import com.pixel.intelligentsearch.core.ui.WeatherOneBox
+import com.pixel.intelligentsearch.feature.widget.resolveActivityCompat
 
 /** The weather app to open from a forecast: Pixel Weather, else the Google app's weather page; null for neither. */
 internal fun weatherAppIntent(context: Context): Intent? {
@@ -50,9 +52,6 @@ internal fun digitalWellbeingIntent(context: Context): Intent? =
         .firstNotNullOfOrNull { context.packageManager.getLaunchIntentForPackage(it) }
         ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
-/** Google Translate's page for [text], [source] to [target] ("auto" when the source wasn't told). */
-internal fun googleTranslateAddress(text: String, source: String?, target: String): String =
-    "https://translate.google.com/?sl=${source ?: "auto"}&tl=$target&text=${Uri.encode(text)}&op=translate"
 
 /**
  * The overlay's live instant answer for the current query, with its actions: web searches and addresses go through
@@ -62,7 +61,6 @@ internal fun googleTranslateAddress(text: String, source: String?, target: Strin
 @Composable
 internal fun OverlayLiveAnswer(s: OverlayScope, answer: LiveAnswer) {
     val context = LocalContext.current
-    val viewModel = s.viewModel
     when (answer) {
         is LiveAnswer.Definition -> DefinitionOneBox(
             entry = answer.entry,
@@ -79,10 +77,15 @@ internal fun OverlayLiveAnswer(s: OverlayScope, answer: LiveAnswer) {
         is LiveAnswer.WeatherNeedsLocation -> WeatherLocationPrompt(s)
         is LiveAnswer.Translation -> TranslationOneBox(
             answer = answer,
-            onDownload = { useMobileData -> viewModel.downloadTranslationLanguages(answer, useMobileData) },
             onOpenGoogleTranslate = {
                 s.ui.hasStartedTyping = false
-                s.openWebAddress(googleTranslateAddress(answer.text, answer.source, answer.target))
+                // The Google Translate app with the text, as the widget's Translate shortcut opens; else its web page.
+                val app = GoogleTranslate.appIntent(answer.text, answer.source, answer.target) {
+                    context.packageManager.resolveActivityCompat(it) != null
+                }
+                if (app == null || !launchSafeIntent(context, app)) {
+                    s.openWebAddress(GoogleTranslate.webAddress(answer.text, answer.source, answer.target))
+                }
             }
         )
         is LiveAnswer.ScreenTime -> ScreenTimePrompt(s, answer)

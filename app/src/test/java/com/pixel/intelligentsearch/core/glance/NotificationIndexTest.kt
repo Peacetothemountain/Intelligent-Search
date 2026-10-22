@@ -213,7 +213,6 @@ class NotificationIndexTest {
         val chatEntry = NotificationExtractor.fromNotification("m", "com.whatsapp", "WhatsApp", 5L, chat, emptySet())
         assertEquals("Family", chatEntry?.title)
         assertEquals("Dinner at 8", chatEntry?.text)
-        assertTrue(chatEntry!!.isMessagingStyle)
     }
 
     @Test

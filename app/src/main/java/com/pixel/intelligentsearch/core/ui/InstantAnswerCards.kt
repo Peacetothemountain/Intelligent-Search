@@ -26,7 +26,6 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AcUnit
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Dehaze
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.EditLocationAlt
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -43,7 +42,6 @@ import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -75,7 +73,6 @@ import com.pixel.intelligentsearch.core.answers.LiveAnswer
 import com.pixel.intelligentsearch.core.answers.ScreenTimeCalculator
 import com.pixel.intelligentsearch.core.answers.ScreenTimeReport
 import com.pixel.intelligentsearch.core.answers.TranslationLanguages
-import com.pixel.intelligentsearch.core.answers.TranslationStatus
 import com.pixel.intelligentsearch.core.answers.WeatherCodes
 import com.pixel.intelligentsearch.core.answers.WeatherReport
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
@@ -415,30 +412,24 @@ fun WeatherLocationOneBox(
 // TRANSLATION
 // -------------------------------------------------------------------------------------------------
 
-/** What a translation download is: one language or two, about this big each. */
-internal fun downloadLabel(languages: Int): String = if (languages > 1) "Download Languages (~${30 * languages} MB)" else "Download Language (~30 MB)"
-
 /**
- * A translation made on the phone, or what it is waiting for: a first download of the language, or On-Device
- * Translation being switched on. Every state offers Google Translate as well.
+ * Text to translate, handed to Google Translate: the languages, the text, and the chip that opens it there (the app
+ * when the phone has it, else the web page).
  */
 @Composable
 fun TranslationOneBox(
     answer: LiveAnswer.Translation,
     modifier: Modifier = Modifier,
-    onDownload: (useMobileData: Boolean) -> Unit,
     onOpenGoogleTranslate: () -> Unit
 ) {
     val locale = LocalConfiguration.current.locales[0]
     val sourceName = answer.source?.let { TranslationLanguages.displayName(it, locale) }
     val targetName = TranslationLanguages.displayName(answer.target, locale)
-    val status = answer.status
     AnswerCard(modifier) {
         AnswerHeader(
             icon = Icons.Default.Translate,
             label = "TRANSLATION",
             title = if (sourceName != null) "$sourceName → $targetName" else "To $targetName",
-            subtitle = if (answer.detected && sourceName != null && status !is TranslationStatus.Off) "Language Detected" else null,
             tone = AnswerTone.Primary
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -449,72 +440,8 @@ fun TranslationOneBox(
             maxLines = 4,
             overflow = TextOverflow.Ellipsis
         )
-        when (status) {
-            is TranslationStatus.Done -> {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = status.translated,
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                AnswerChips {
-                    AnimatedCopyChip(textToCopy = status.translated, label = "Copy", copiedLabel = "Copied!", clipLabel = "Translation")
-                    AnswerChip(label = "Open in Google Translate", icon = Icons.AutoMirrored.Filled.OpenInNew, onClick = onOpenGoogleTranslate)
-                }
-            }
-            TranslationStatus.Working, TranslationStatus.Downloading -> {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = if (status == TranslationStatus.Downloading) "Downloading $targetName…" else "Translating…",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                val animate by rememberAnimationsEnabled()
-                if (animate) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth().clip(ExpressiveCornerTokens.ShapeFull))
-                } else {
-                    // Animations off: a still bar rather than a moving one.
-                    LinearProgressIndicator(progress = { 0.5f }, modifier = Modifier.fillMaxWidth().clip(ExpressiveCornerTokens.ShapeFull))
-                }
-            }
-            is TranslationStatus.NeedsDownload -> {
-                Spacer(modifier = Modifier.height(12.dp))
-                val names = status.languages.joinToString(" and ") { TranslationLanguages.displayName(it, locale) }
-                Text(
-                    text = when {
-                        status.blocked -> "Translating needs $names on your phone. Downloads are off while Tor is your search engine."
-                        status.onWifi -> "Translating needs $names on your phone, a one-time download from Google."
-                        else -> "Translating needs $names on your phone, a one-time download from Google. It waits for Wi-Fi unless you use mobile data."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                AnswerChips {
-                    if (!status.blocked) {
-                        AnswerChip(label = downloadLabel(status.languages.size), icon = Icons.Default.Download, emphasized = true) { onDownload(false) }
-                        if (!status.onWifi) AnswerChip(label = "Use Mobile Data", icon = Icons.Default.Download) { onDownload(true) }
-                    }
-                    AnswerChip(label = "Open in Google Translate", icon = Icons.AutoMirrored.Filled.OpenInNew, onClick = onOpenGoogleTranslate)
-                }
-            }
-            else -> {
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = when (status) {
-                        TranslationStatus.Off -> "Turn on On-Device Translation in Search Sources to translate here, on your phone."
-                        TranslationStatus.SameLanguage -> "This is already in $targetName."
-                        TranslationStatus.Unidentified -> "Couldn't tell which language this is."
-                        else -> "Couldn't translate this right now."
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                AnswerChips {
-                    AnswerChip(label = "Open in Google Translate", icon = Icons.AutoMirrored.Filled.OpenInNew, emphasized = true, onClick = onOpenGoogleTranslate)
-                }
-            }
+        AnswerChips {
+            AnswerChip(label = "Translate in Google Translate", icon = Icons.AutoMirrored.Filled.OpenInNew, emphasized = true, onClick = onOpenGoogleTranslate)
         }
     }
 }

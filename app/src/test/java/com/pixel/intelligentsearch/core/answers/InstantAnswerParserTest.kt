@@ -152,8 +152,11 @@ class InstantAnswerParserTest {
     }
 
     @Test
-    fun everyLanguageCodeIsOneMlKitTranslates() {
-        assertEquals(com.google.mlkit.nl.translate.TranslateLanguage.getAllLanguages().toSet(), TranslationLanguages.CODES)
+    fun theLanguagesAQueryCanNameStayTheSame() {
+        // The same languages as before translation moved to Google Translate, which takes every one of them.
+        val codes = ("af ar be bg bn ca cs cy da de el en eo es et fa fi fr ga gl gu he hi hr ht hu id is it ja ka kn " +
+            "ko lt lv mk mr ms mt nl no pl pt ro ru sk sl sq sv sw ta te th tl tr uk ur vi zh").split(' ').toSet()
+        assertEquals(codes, TranslationLanguages.CODES)
         assertEquals("he", TranslationLanguages.codeFor(Locale.forLanguageTag("iw")))
         assertEquals("no", TranslationLanguages.codeFor(Locale.forLanguageTag("nb-NO")))
         assertEquals("en", TranslationLanguages.codeFor(Locale.US))

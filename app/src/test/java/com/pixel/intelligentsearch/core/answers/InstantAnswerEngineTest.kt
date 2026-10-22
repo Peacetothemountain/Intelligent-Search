@@ -49,27 +49,12 @@ class InstantAnswerEngineTest {
         }
     }
 
-    private class FakeTranslation(
-        var downloaded: MutableSet<String> = mutableSetOf("en"),
-        var identified: String? = "en"
-    ) : TranslationEngine {
-        val downloads = mutableListOf<Triple<String, String, Boolean>>()
-        override suspend fun identifyLanguage(text: String) = identified
-        override suspend fun isDownloaded(language: String) = language in downloaded
-        override suspend fun download(source: String, target: String, wifiOnly: Boolean) {
-            downloads += Triple(source, target, wifiOnly)
-            downloaded += listOf(source, target)
-        }
-        override suspend fun translate(text: String, source: String, target: String) = if (text == "hello" && target == "es") "hola" else "?"
-    }
-
     private class FakeLocation(var allowed: Boolean = false) : DeviceLocation {
         override fun permitted() = allowed
         override suspend fun approximate() = 48.8566 to 2.3522
     }
 
     private val http = FakeHttp()
-    private val translation = FakeTranslation()
     private val location = FakeLocation()
     private var screenTime: ScreenTimeReport? = null
 
@@ -77,10 +62,8 @@ class InstantAnswerEngineTest {
         prefs = { prefs },
         dictionary = DictionaryRepository(http, AnswerCache(60_000, 16), AnswerCache(60_000, 16)),
         weather = WeatherRepository(http, AnswerCache(60_000, 16), AnswerCache(60_000, 16)),
-        translation = lazyOf(translation),
         screenTime = { screenTime },
         location = location,
-        onUnmeteredNetwork = { true },
         locale = { Locale.US },
         debounceMs = debounceMs
     )
@@ -107,7 +90,6 @@ class InstantAnswerEngineTest {
     fun theAnswersAreOffUntilTurnedOnAndSendNothing() {
         assertFalse(SettingsManager.DICTIONARY_ANSWERS.default)
         assertFalse(SettingsManager.WEATHER_ANSWERS.default)
-        assertFalse(SettingsManager.ON_DEVICE_TRANSLATION.default)
         val engine = engine()
         assertEquals(emptyList<LiveAnswer>(), answers(engine, "define serendipity"))
         assertEquals(emptyList<LiveAnswer>(), answers(engine, "weather in johnson city"))
@@ -134,15 +116,6 @@ class InstantAnswerEngineTest {
             runBlocking { assertEquals(null, engine.findPlaces("Johnson City")) }
         }
         assertEquals(emptyList<String>(), http.requests)
-    }
-
-    @Test
-    fun underTorLanguagesAreNeverDownloaded() = runBlocking {
-        prefs.edit().put(SettingsManager.ON_DEVICE_TRANSLATION, true).put(SettingsManager.SEARCH_ENGINE, "Tor Project").commit()
-        val answer = answers(engine(), "translate hello to spanish").single() as LiveAnswer.Translation
-        assertEquals(TranslationStatus.NeedsDownload(listOf("es"), onWifi = true, blocked = true), answer.status)
-        assertFalse(engine().downloadLanguages(answer, useMobileData = true))
-        assertEquals(emptyList<Triple<String, String, Boolean>>(), translation.downloads)
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -268,53 +241,25 @@ class InstantAnswerEngineTest {
     // ---------------------------------------------------------------------------------------------
 
     @Test
-    fun withTranslationOffTheCardOnlyOffersGoogleTranslate() {
-        val answer = answers(engine(), "translate hello to spanish").single() as LiveAnswer.Translation
-        assertEquals(TranslationStatus.Off, answer.status)
-        assertEquals("es", answer.target)
-    }
-
-    @Test
-    fun aTranslationNeedsItsLanguageDownloadedOnceThenRunsOnThePhone() = runBlocking {
-        prefs.edit().put(SettingsManager.ON_DEVICE_TRANSLATION, true).commit()
-        val engine = engine()
-        val first = answers(engine, "translate hello to spanish").single() as LiveAnswer.Translation
-        assertEquals("en", first.source)
-        assertTrue(first.detected)
-        assertEquals(TranslationStatus.NeedsDownload(listOf("es"), onWifi = true, blocked = false), first.status)
-
-        assertTrue(engine.downloadLanguages(first, useMobileData = false))
-        assertEquals(listOf(Triple("en", "es", true)), translation.downloads)
-
-        val states = answers(engine, "translate hello to spanish").map { (it as LiveAnswer.Translation).status }
-        assertEquals(listOf(TranslationStatus.Working, TranslationStatus.Done("hola")), states)
+    fun aTranslationIsHandedToGoogleTranslateAtOnceAndSendsNothing() {
+        // Debounce left on: the card needs nothing fetched, so it doesn't wait for typing to pause.
+        val answer = answers(engine(debounceMs = 60_000), "translate hello to spanish").single()
+        assertEquals(LiveAnswer.Translation("translate hello to spanish", "hello", null, "es"), answer)
         assertEquals(emptyList<String>(), http.requests)
     }
 
     @Test
-    fun mobileDataDownloadsOnlyWhenAskedFor() = runBlocking {
-        prefs.edit().put(SettingsManager.ON_DEVICE_TRANSLATION, true).commit()
-        val first = answers(engine(), "translate hello to spanish").single() as LiveAnswer.Translation
-        engine().downloadLanguages(first, useMobileData = true)
-        assertEquals(listOf(Triple("en", "es", false)), translation.downloads)
+    fun aTranslationWithoutATargetIsIntoThePhonesLanguage() {
+        val answer = answers(engine(), "translate bonjour tout le monde").single() as LiveAnswer.Translation
+        assertEquals("en", answer.target)
+        assertEquals(null, answer.source)
     }
 
     @Test
-    fun theSameLanguageAndUnknownLanguagesSaySo() {
-        prefs.edit().put(SettingsManager.ON_DEVICE_TRANSLATION, true).commit()
-        assertEquals(TranslationStatus.SameLanguage, (answers(engine(), "translate hello to english").single() as LiveAnswer.Translation).status)
-        translation.identified = null
-        assertEquals(TranslationStatus.Unidentified, (answers(engine(), "translate xyzzy to spanish").single() as LiveAnswer.Translation).status)
-    }
-
-    @Test
-    fun aNamedSourceIsNotIdentified() {
-        prefs.edit().put(SettingsManager.ON_DEVICE_TRANSLATION, true).commit()
-        translation.identified = "fr"
-        translation.downloaded += "es"
-        val answer = answers(engine(), "translate gato from spanish to english").last() as LiveAnswer.Translation
+    fun aNamedSourceIsKept() {
+        val answer = answers(engine(), "translate gato from spanish to english").single() as LiveAnswer.Translation
         assertEquals("es", answer.source)
-        assertFalse(answer.detected)
+        assertEquals("en", answer.target)
     }
 
     // ---------------------------------------------------------------------------------------------

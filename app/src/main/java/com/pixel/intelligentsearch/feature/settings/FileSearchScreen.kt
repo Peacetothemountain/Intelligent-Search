@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CreateNewFolder
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.FolderOff
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
@@ -61,6 +62,9 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var folderPendingRemoval by remember { mutableStateOf<String?>(null) }
     var confirmClearMedia by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    // Subfolders of the chosen folders that search skips; removing a chosen folder drops its own.
+    val excludedFolders by rememberSetting(SettingsManager.FILES_EXCLUDED_FOLDERS)
+    val excludedNames = remember { mutableStateMapOf<String, String>() }
 
     LaunchedEffect(folderUris) {
         val details = withContext(Dispatchers.IO) {
@@ -71,6 +75,26 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         details.forEach { (uri, detail) ->
             folderNames[uri] = detail.first
             folderAccessLost[uri] = detail.second
+        }
+    }
+
+    LaunchedEffect(excludedFolders) {
+        val names = withContext(Dispatchers.IO) {
+            excludedFolders.associateWith { UserGrantedFiles.excludedFolderName(context, prefs, it) }
+        }
+        excludedNames.putAll(names)
+    }
+
+    // The same system folder picker, opened in a chosen folder; what is picked must lie inside one of them. Its
+    // access isn't kept: indexing reaches it through the chosen folder's own.
+    val excludePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            val message = when (UserGrantedFiles.addExcludedFolder(prefs, uri.toString())) {
+                UserGrantedFiles.ExcludeResult.ADDED -> "Subfolder skipped in search"
+                UserGrantedFiles.ExcludeResult.ALREADY_EXCLUDED -> "That folder is already skipped"
+                UserGrantedFiles.ExcludeResult.NOT_INSIDE_A_CHOSEN_FOLDER -> "Pick a folder inside one of the folders you search"
+            }
+            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -174,6 +198,15 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         showDivider = true
                     )
                 }
+                excludedFolders.sortedBy { excludedNames[it] ?: it }.forEach { uri ->
+                    SettingsRow(
+                        title = excludedNames[uri] ?: "Subfolder",
+                        subtitle = "Skipped in Search. Tap to Search It Again.",
+                        icon = Icons.Outlined.FolderOff,
+                        onClick = { UserGrantedFiles.removeExcludedFolder(prefs, uri) },
+                        showDivider = true
+                    )
+                }
                 SettingsRow(
                     title = "Add Folder",
                     subtitle = "Pick a folder such as Documents. Android doesn't allow the Download folder itself, but folders inside it work.",
@@ -181,6 +214,18 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onClick = { folderPicker.launch(null) },
                     showDivider = true
                 )
+                if (folderUris.isNotEmpty()) {
+                    SettingsRow(
+                        title = "Skip a Subfolder",
+                        subtitle = "Leave a Folder Inside a Chosen One Out of Search. Hidden Folders and App Data Are Always Skipped.",
+                        icon = Icons.Outlined.FolderOff,
+                        onClick = {
+                            val start = folderUris.minByOrNull { folderNames[it] ?: it }
+                            excludePicker.launch(start?.let(UserGrantedFiles::folderRootDocumentUri))
+                        },
+                        showDivider = true
+                    )
+                }
                 SettingsRow(
                     title = "Choose Photos & Videos",
                     subtitle = if (mediaCount > 0) "$mediaCount chosen. Tap to add more." else "Pick photos and videos with the Android photo picker.",
@@ -226,6 +271,12 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 PrioritySetting(SettingsManager.SEARCH_WEIGHT_FILES, "File")
             }
+
+            SettingsSectionHeader("File Types")
+            FileTypesCard()
+
+            SettingsSectionHeader("Open Files With")
+            OpenFilesWithCard()
         }
     }
 }

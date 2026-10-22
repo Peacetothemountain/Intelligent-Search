@@ -32,7 +32,8 @@ enum class AiProvider(
     ),
     GEMINI(
         "gemini", "Google Gemini", "Gemini", "generativelanguage.googleapis.com",
-        listOf("gemini-2.5-flash", "gemini-2.5-flash-lite"),
+        // Google recommends the 3.x models for new keys; the 2.5 models are served only to keys that used them.
+        listOf("gemini-3.8-flash", "gemini-3.5-flash-lite"),
         AiAssistants.GEMINI, "aistudio.google.com"
     );
 

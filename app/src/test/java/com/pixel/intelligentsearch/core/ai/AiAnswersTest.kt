@@ -123,11 +123,11 @@ class AiAnswersTest {
 
     @Test
     fun theChosenProviderAndModelAreUsed() {
-        settings.prefs.edit().put(SettingsManager.AI_PROVIDER, "gemini").put(SettingsManager.AI_MODEL, "gemini-2.5-flash-lite").commit()
+        settings.prefs.edit().put(SettingsManager.AI_PROVIDER, "gemini").put(SettingsManager.AI_MODEL, "gemini-3.5-flash-lite").commit()
         vault.save(AiProvider.GEMINI, "gemini-key-0123456789")
         ask("why?")
         assertEquals(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent?alt=sse",
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse",
             transport.requests.single().url
         )
         assertEquals("gemini-key-0123456789", transport.requests.single().headers["x-goog-api-key"])

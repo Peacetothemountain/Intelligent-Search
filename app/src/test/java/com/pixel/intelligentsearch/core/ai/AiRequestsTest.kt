@@ -30,6 +30,9 @@ class AiRequestsTest {
         val body = JSONObject(request.body)
         assertEquals("claude-sonnet-5-5", body.getString("model"))
         assertEquals(400, body.getInt("max_tokens"))
+        // Sonnet 5.5's lowest thinking setting ("disabled" is refused there); a fallback runs it as disabled.
+        assertEquals("between_tools", body.getJSONObject("thinking").getString("type"))
+        assertEquals(setOf("type"), body.getJSONObject("thinking").keySet())
         assertTrue(body.getBoolean("stream"))
         assertEquals("default", body.getString("fallbacks"))
         assertEquals("low", body.getJSONObject("output_config").getString("effort"))
@@ -38,7 +41,18 @@ class AiRequestsTest {
         assertEquals(question, message.getString("content"))
         assertEquals(1, body.getJSONArray("messages").length())
         // No sampling settings (the API refuses them) and nothing but what is listed here.
-        assertEquals(setOf("model", "max_tokens", "stream", "system", "messages", "output_config", "fallbacks"), body.keySet())
+        assertEquals(setOf("model", "max_tokens", "stream", "system", "messages", "output_config", "thinking", "fallbacks"), body.keySet())
+    }
+
+    @Test
+    fun opusThinksAtLowEffortWithRoomForTheAnswer() {
+        val body = JSONObject(AiRequests.build(AiProvider.ANTHROPIC, "claude-opus-5-5", key, question).body)
+        // Thinking can't be turned off on Opus 5.5, and max_tokens counts it with the answer.
+        assertFalse(body.has("thinking"))
+        assertEquals(AiRequests.MAX_OUTPUT_TOKENS_WITH_THINKING, body.getInt("max_tokens"))
+        assertEquals(1024, body.getInt("max_tokens"))
+        assertEquals("low", body.getJSONObject("output_config").getString("effort"))
+        assertEquals("default", body.getString("fallbacks"))
     }
 
     @Test
@@ -47,6 +61,9 @@ class AiRequestsTest {
         assertFalse("anthropic-beta" in request.headers)
         assertFalse(JSONObject(request.body).has("fallbacks"))
         assertEquals("claude-haiku-5-5", JSONObject(request.body).getString("model"))
+        // Haiku 5.5 accepts thinking off at low effort, so the whole limit is for the answer.
+        assertEquals("disabled", JSONObject(request.body).getJSONObject("thinking").getString("type"))
+        assertEquals(400, JSONObject(request.body).getInt("max_tokens"))
     }
 
     @Test
@@ -68,15 +85,17 @@ class AiRequestsTest {
 
     @Test
     fun geminiGetsTheModelInTheAddressAndTheKeyInItsHeader() {
-        val request = AiRequests.build(AiProvider.GEMINI, "gemini-2.5-flash", key, question)
-        assertEquals("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse", request.url)
+        val request = AiRequests.build(AiProvider.GEMINI, "gemini-3.8-flash", key, question)
+        assertEquals("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:streamGenerateContent?alt=sse", request.url)
         assertEquals(key, request.headers["x-goog-api-key"])
         // Never in the address, where logs could keep it.
         assertFalse(key in request.url)
         val body = JSONObject(request.body)
         val config = body.getJSONObject("generationConfig")
-        assertEquals(400, config.getInt("maxOutputTokens"))
-        assertEquals(0, config.getJSONObject("thinkingConfig").getInt("thinkingBudget"))
+        assertEquals(AiRequests.MAX_OUTPUT_TOKENS_WITH_THINKING, config.getInt("maxOutputTokens"))
+        // Gemini 3's thinking level, lowest both Flash models offer; never with a thinkingBudget (a 400 together).
+        assertEquals("low", config.getJSONObject("thinkingConfig").getString("thinkingLevel"))
+        assertFalse(config.getJSONObject("thinkingConfig").has("thinkingBudget"))
         val part = body.getJSONArray("contents").getJSONObject(0).getJSONArray("parts").getJSONObject(0)
         assertEquals(question, part.getString("text"))
     }

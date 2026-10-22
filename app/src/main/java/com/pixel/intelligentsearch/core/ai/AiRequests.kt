@@ -29,6 +29,12 @@ sealed interface AiEvent {
 object AiRequests {
 
     const val MAX_OUTPUT_TOKENS = 400
+
+    /**
+     * Opus can't turn thinking off, and `max_tokens` caps its thinking and its answer together, so it gets more room;
+     * at low effort it still thinks briefly and answers in well under this.
+     */
+    const val MAX_OUTPUT_TOKENS_WITH_THINKING = 1024
     const val ANTHROPIC_VERSION = "2026-10-21"
     /** Re-asks a declined question on a model of Anthropic's choosing, inside the same request. */
     const val ANTHROPIC_FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -44,14 +50,23 @@ object AiRequests {
     }
 
     private fun anthropic(model: String, apiKey: String, question: String): AiRequest {
+        // The least thinking each model allows, so the whole limit is for the answer: Sonnet 5.5 turns it off with
+        // "between_tools" ("disabled" is refused there), Haiku 5.5 with "disabled" (accepted at low effort), and Opus
+        // can't turn it off at all, so it thinks adaptively at low effort with more room.
+        val thinking = when {
+            model.startsWith("claude-sonnet") -> JSONObject().put("type", "between_tools")
+            model.startsWith("claude-haiku") -> JSONObject().put("type", "disabled")
+            else -> null
+        }
         val body = JSONObject()
             .put("model", model)
-            .put("max_tokens", MAX_OUTPUT_TOKENS)
+            .put("max_tokens", if (thinking == null) MAX_OUTPUT_TOKENS_WITH_THINKING else MAX_OUTPUT_TOKENS)
             .put("stream", true)
             .put("system", INSTRUCTIONS)
             .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", question)))
-            // Low effort keeps the thinking short, so the answer fits the output limit and comes quickly.
+            // Low effort keeps any thinking short, so the answer comes quickly.
             .put("output_config", JSONObject().put("effort", "low"))
+        if (thinking != null) body.put("thinking", thinking)
         val headers = linkedMapOf(
             "x-api-key" to apiKey,
             "anthropic-version" to ANTHROPIC_VERSION,
@@ -94,9 +109,10 @@ object AiRequests {
             .put(
                 "generationConfig",
                 JSONObject()
-                    .put("maxOutputTokens", MAX_OUTPUT_TOKENS)
-                    // No thinking: the whole limit is for the answer.
-                    .put("thinkingConfig", JSONObject().put("thinkingBudget", 0))
+                    // Gemini 3 can't turn thinking off and counts it within the limit, so it gets Opus's room.
+                    .put("maxOutputTokens", MAX_OUTPUT_TOKENS_WITH_THINKING)
+                    // The lowest level both Flash models offer; thinkingBudget is only kept for older models.
+                    .put("thinkingConfig", JSONObject().put("thinkingLevel", "low"))
             )
         // The key goes in its header, never in the address, where it could end up in logs.
         val headers = linkedMapOf(

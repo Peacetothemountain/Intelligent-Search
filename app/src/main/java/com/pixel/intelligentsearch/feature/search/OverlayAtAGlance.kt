@@ -107,7 +107,7 @@ private fun rememberGlanceNow(periodMs: Long, enabled: Boolean = true): Long {
     }.value
 }
 
-/** The At a Glance switches in Search Behavior, with Search Your Notifications for the timers. */
+/** The At a Glance switches in Search Behavior, with Search Your Notifications for the timers and Contacts for birthdays. */
 @Composable
 private fun rememberGlanceToggles(): GlanceToggles {
     val enabled by rememberSetting(SettingsManager.GLANCE_ENABLED)
@@ -117,27 +117,32 @@ private fun rememberGlanceToggles(): GlanceToggles {
     val birthdays by rememberSetting(SettingsManager.GLANCE_BIRTHDAYS)
     val battery by rememberSetting(SettingsManager.GLANCE_BATTERY)
     val notifications by rememberSetting(SettingsManager.SEARCH_NOTIFICATIONS)
-    return remember(enabled, alarm, timers, media, birthdays, battery, notifications) {
-        GlanceToggles(enabled, alarm, timers, media, birthdays, battery, notifications)
+    val contacts by rememberSetting(SettingsManager.SEARCH_CONTACTS)
+    return remember(enabled, alarm, timers, media, birthdays, battery, notifications, contacts) {
+        GlanceToggles(enabled, alarm, timers, media, birthdays, battery, notifications, contacts)
     }
 }
 
 /**
  * What At a Glance shows now. Its sources are read off the main thread and only while the search is on screen
- * (started); leaving it removes every receiver and listener. Alarms come into range on a coarse clock; timers
- * tick in their own rows.
+ * (started) and [active] (the query is empty, the only time the section shows); typing or leaving removes every
+ * receiver and listener, and the last cards wait for the query to be cleared. Alarms come into range on a coarse
+ * clock; timers tick in their own rows.
  */
 @Composable
-internal fun rememberGlanceItems(hiddenApps: Set<String>): List<GlanceItem> {
+internal fun rememberGlanceItems(hiddenApps: Set<String>, active: Boolean): List<GlanceItem> {
     val toggles = rememberGlanceToggles()
     val context = LocalContext.current
     val source = LocalGlanceSource.current ?: remember(context) {
         AndroidGlanceSource(context.applicationContext, context.appEntryPoint.notificationIndex())
     }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
-    val snapshot by produceState(GlanceSnapshot.EMPTY, source, toggles, hiddenApps, lifecycle) {
-        value = GlanceSnapshot.EMPTY
-        if (!toggles.anyOn) return@produceState
+    val snapshot by produceState(GlanceSnapshot.EMPTY, source, toggles, hiddenApps, lifecycle, active) {
+        if (!toggles.anyOn) {
+            value = GlanceSnapshot.EMPTY
+            return@produceState
+        }
+        if (!active) return@produceState
         lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             source.snapshots(toggles, hiddenApps).collect { value = it }
         }

@@ -9,7 +9,7 @@ import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 
 /**
  * The widget media row's play/pause and next buttons: sends them to the session the row shows
- * ([MediaSessionAccess.current]). Not exported; only the widget's own PendingIntents reach it. The media session
+ * ([MediaSessionAccess.current], by the same rule as At a Glance, leaving out hidden apps). Not exported; only the widget's own PendingIntents reach it. The media session
  * listener redraws the widget once the session reports its new state.
  */
 class WidgetMediaReceiver : BroadcastReceiver() {

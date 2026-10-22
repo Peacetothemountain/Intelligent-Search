@@ -61,7 +61,7 @@ class NotificationAccessListener : NotificationListenerService() {
 
     override fun onCreate() {
         super.onCreate()
-        mediaWatcher = WidgetMediaWatcher(applicationContext, component(this), widgetUpdater, appScope)
+        mediaWatcher = WidgetMediaWatcher(applicationContext, widgetUpdater, appScope)
         indexer = NotificationIndexer(
             index = index,
             isOptedIn = { settingsManager[SettingsManager.SEARCH_NOTIFICATIONS] },

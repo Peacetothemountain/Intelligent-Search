@@ -10,25 +10,21 @@ import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
-import android.media.session.MediaSessionManager
-import android.media.session.PlaybackState
 import android.os.BatteryManager
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.os.SystemClock
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.scale
+import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 import com.pixel.intelligentsearch.core.system.battery.BatteryReadings
 import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
@@ -54,7 +50,7 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
         val alarm = if (toggles.alarm) alarmFlow() else flowOf(null)
         val battery = if (toggles.battery) batteryFlow() else flowOf(null)
         val media = if (toggles.media) mediaFlow(hiddenApps) else flowOf(null)
-        val birthdays = if (toggles.birthdays) {
+        val birthdays = if (toggles.birthdaysOn) {
             flow { emit(Birthdays.inWindow(Birthdays.load(context), LocalDate.now())) }.flowOn(Dispatchers.IO)
         } else flowOf(emptyList())
         val timers = if (toggles.notifications && toggles.timers) timerFlow(hiddenApps) else flowOf(emptyList())
@@ -99,72 +95,26 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
         awaitClose { runCatching { context.unregisterReceiver(receiver) } }
     }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
-    /** Android opens media sessions only to an app with notification access; without it there is nothing to show. */
-    private fun mediaFlow(hiddenApps: Set<String>): Flow<GlanceMedia?> = flow {
-        if (NotificationAccess.isGranted(context)) emitAll(sessionsFlow(hiddenApps)) else emit(null)
-    }.flowOn(Dispatchers.Default)
-
-    private fun sessionsFlow(hiddenApps: Set<String>): Flow<GlanceMedia?> {
+    /** The media session At a Glance shows ([MediaSessionAccess.pick]), with its artwork and controls. */
+    private fun mediaFlow(hiddenApps: Set<String>): Flow<GlanceMedia?> {
         val artworks = ArtworkCache()
-        return callbackFlow {
-            val sessions = context.getSystemService(MediaSessionManager::class.java)
-            if (sessions == null) {
-                trySend(emptyList())
-                awaitClose { }
-                return@callbackFlow
+        return MediaSessionAccess.sessions(context)
+            .map { found ->
+                MediaSessionAccess.pick(found.filterNot { it.packageName in hiddenApps }, SystemClock.elapsedRealtime())
+                    ?.let { glanceMedia(it, artworks) }
             }
-            val component = NotificationAccess.component(context)
-            val handler = Handler(Looper.getMainLooper())
-            // Touched only on the main thread, where every callback below arrives.
-            var controllers: List<MediaController> = emptyList()
-            val callback = object : MediaController.Callback() {
-                override fun onPlaybackStateChanged(state: PlaybackState?) { trySend(controllers) }
-                override fun onMetadataChanged(metadata: MediaMetadata?) { trySend(controllers) }
-                override fun onSessionDestroyed() { trySend(controllers) }
-            }
-            fun attach(found: List<MediaController>?) {
-                controllers.forEach { it.unregisterCallback(callback) }
-                controllers = found.orEmpty()
-                controllers.forEach { it.registerCallback(callback, handler) }
-                trySend(controllers)
-            }
-            val listener = MediaSessionManager.OnActiveSessionsChangedListener { attach(it) }
-            handler.post {
-                try {
-                    sessions.addOnActiveSessionsChangedListener(listener, component, handler)
-                    attach(sessions.getActiveSessions(component))
-                } catch (_: SecurityException) {
-                    // Notification access was revoked in between.
-                    trySend(emptyList())
-                }
-            }
-            awaitClose {
-                handler.post {
-                    runCatching { sessions.removeOnActiveSessionsChangedListener(listener) }
-                    controllers.forEach { it.unregisterCallback(callback) }
-                    controllers = emptyList()
-                }
-            }
-        }
-            .map { found -> pickMedia(found.filterNot { it.packageName in hiddenApps }, artworks) }
             .distinctUntilChanged()
             .flowOn(Dispatchers.Default)
     }
 
-    /** The session to show: the first one playing, else one paused a short while ago. */
-    private fun pickMedia(controllers: List<MediaController>, artworks: ArtworkCache): GlanceMedia? {
-        val now = SystemClock.elapsedRealtime()
-        val shown = controllers.mapNotNull { controller ->
-            val metadata = runCatching { controller.metadata }.getOrNull() ?: return@mapNotNull null
-            val state = runCatching { controller.playbackState }.getOrNull()
-            val playing = mediaPlayingState(state?.state, state?.lastPositionUpdateTime, now) ?: return@mapNotNull null
-            val title = (metadata.getString(MediaMetadata.METADATA_KEY_TITLE)
-                ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE))?.trim().orEmpty()
-            if (title.isEmpty()) return@mapNotNull null
-            Triple(controller, metadata, playing) to title
-        }
-        val (picked, title) = shown.firstOrNull { it.first.third } ?: shown.firstOrNull() ?: return null
-        val (controller, metadata, playing) = picked
+    private fun glanceMedia(controller: MediaController, artworks: ArtworkCache): GlanceMedia? {
+        val metadata = runCatching { controller.metadata }.getOrNull() ?: return null
+        val title = MediaSessionAccess.titleOf(controller) ?: return null
+        val playing = MediaSessionAccess.playingState(
+            runCatching { controller.playbackState?.state }.getOrNull(),
+            runCatching { controller.playbackState?.lastPositionUpdateTime }.getOrNull(),
+            SystemClock.elapsedRealtime()
+        ) == true
         val artist = (metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?: metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
             ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE))?.trim().orEmpty()
@@ -223,21 +173,6 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
         /** Artwork is shown at 40 dp; this covers the densest screens without holding a full-size cover. */
         private const val ARTWORK_PX = 160
     }
-}
-
-/** How long a paused player stays: long enough to come back to, not hours later. */
-const val GLANCE_PAUSED_MEDIA_MS = 30 * 60 * 1000L
-
-/**
- * Whether a session in playback [state] shows, and as playing: true while playing or buffering, false while paused
- * for less than [GLANCE_PAUSED_MEDIA_MS] (by [lastUpdateElapsed], when its position last changed), null otherwise.
- */
-fun mediaPlayingState(state: Int?, lastUpdateElapsed: Long?, nowElapsed: Long): Boolean? = when (state) {
-    PlaybackState.STATE_PLAYING, PlaybackState.STATE_BUFFERING, PlaybackState.STATE_FAST_FORWARDING,
-    PlaybackState.STATE_REWINDING -> true
-    PlaybackState.STATE_PAUSED ->
-        if (lastUpdateElapsed != null && nowElapsed - lastUpdateElapsed in 0..GLANCE_PAUSED_MEDIA_MS) false else null
-    else -> null
 }
 
 /** The battery from its broadcast: level, whether plugged in, and the charging status the diagnostics page shows. */

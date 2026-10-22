@@ -165,7 +165,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         val order = rows.map { it.first().listKey }
         searchResultsListState.scrollIntoView(stop.listKey, isTowardEnd(searchResultsListState, order, stop.listKey), animationsOn)
     }
-    val glanceItems = rememberGlanceItems(settingsState.hiddenApps)
+    // Read only while the section can show: typing stops every At a Glance receiver and listener.
+    val glanceItems = rememberGlanceItems(settingsState.hiddenApps, active = uiState.query.isEmpty())
     val notificationHits = rememberNotificationHits(uiState.query, settingsState.hiddenApps)
 
     LazyColumn(

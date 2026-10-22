@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.core.glance
 import android.app.Notification
 import android.media.session.PlaybackState
 import android.os.BatteryManager
+import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -36,7 +37,7 @@ class AtAGlanceTest {
         birthdays = listOf(birthday),
         battery = GlanceBattery(15, pluggedIn = false, statusLabel = null)
     )
-    private val allOn = GlanceToggles(notifications = true)
+    private val allOn = GlanceToggles(notifications = true, contacts = true)
 
     private fun kinds(items: List<GlanceItem>) = items.map { it::class.simpleName }
 
@@ -65,11 +66,19 @@ class AtAGlanceTest {
 
     @Test
     fun timersNeedSearchYourNotifications() {
-        val withoutOptIn = GlanceToggles(notifications = false)
+        val withoutOptIn = GlanceToggles(notifications = false, contacts = true)
         assertEquals(listOf("Alarm", "Media", "Birthday", "Battery"), kinds(glanceItems(everything, withoutOptIn, now)))
         // With only notification items switched on and no opt-in, there is nothing to read at all.
         assertFalse(GlanceToggles(alarm = false, media = false, birthdays = false, battery = false, notifications = false).anyOn)
         assertTrue(GlanceToggles(alarm = false, media = false, birthdays = false, battery = false, notifications = true).anyOn)
+    }
+
+    @Test
+    fun birthdaysNeedContactSearch() {
+        assertEquals(listOf("Timer", "Alarm", "Media", "Battery"), kinds(glanceItems(everything, allOn.copy(contacts = false), now)))
+        // With only birthdays switched on and contact search off, nothing is read at all.
+        assertFalse(GlanceToggles(alarm = false, media = false, battery = false, birthdays = true, contacts = false).anyOn)
+        assertTrue(GlanceToggles(alarm = false, media = false, battery = false, birthdays = true, contacts = true).anyOn)
     }
 
     @Test
@@ -104,12 +113,26 @@ class AtAGlanceTest {
 
     @Test
     fun aPausedPlayerStaysForHalfAnHour() {
-        assertEquals(true, mediaPlayingState(PlaybackState.STATE_PLAYING, null, 0L))
-        assertEquals(true, mediaPlayingState(PlaybackState.STATE_BUFFERING, null, 0L))
-        assertEquals(false, mediaPlayingState(PlaybackState.STATE_PAUSED, 1_000L, 1_000L + GLANCE_PAUSED_MEDIA_MS))
-        assertNull(mediaPlayingState(PlaybackState.STATE_PAUSED, 1_000L, 1_001L + GLANCE_PAUSED_MEDIA_MS))
-        assertNull(mediaPlayingState(PlaybackState.STATE_STOPPED, 1_000L, 1_000L))
-        assertNull(mediaPlayingState(null, null, 0L))
+        assertEquals(true, MediaSessionAccess.playingState(PlaybackState.STATE_PLAYING, null, 0L))
+        assertEquals(true, MediaSessionAccess.playingState(PlaybackState.STATE_BUFFERING, null, 0L))
+        assertEquals(false, MediaSessionAccess.playingState(PlaybackState.STATE_PAUSED, 1_000L, 1_000L + MediaSessionAccess.PAUSED_MEDIA_MS))
+        assertNull(MediaSessionAccess.playingState(PlaybackState.STATE_PAUSED, 1_000L, 1_001L + MediaSessionAccess.PAUSED_MEDIA_MS))
+        assertNull(MediaSessionAccess.playingState(PlaybackState.STATE_STOPPED, 1_000L, 1_000L))
+        assertNull(MediaSessionAccess.playingState(null, null, 0L))
+    }
+
+    /** At a Glance and the widget's media row pick the session to show by one rule. */
+    @Test
+    fun theSessionShownIsThePlayingOneElseOneRecentlyPaused() {
+        val now = 10_000_000L
+        val pausedRecently = MediaSessionAccess.SessionState("Podcast", PlaybackState.STATE_PAUSED, now - 60_000)
+        val pausedLongAgo = MediaSessionAccess.SessionState("Old Song", PlaybackState.STATE_PAUSED, now - 2 * MediaSessionAccess.PAUSED_MEDIA_MS)
+        val playing = MediaSessionAccess.SessionState("Song", PlaybackState.STATE_PLAYING, now)
+        val untitled = MediaSessionAccess.SessionState(null, PlaybackState.STATE_PLAYING, now)
+        assertEquals(2, MediaSessionAccess.pickIndex(listOf(pausedRecently, untitled, playing), now))
+        assertEquals(1, MediaSessionAccess.pickIndex(listOf(pausedLongAgo, pausedRecently), now))
+        assertNull(MediaSessionAccess.pickIndex(listOf(pausedLongAgo, untitled), now))
+        assertNull(MediaSessionAccess.pickIndex(emptyList(), now))
     }
 
     private fun clockEntry(key: String, countDown: Boolean, category: String?, base: Long) = IndexedNotification(

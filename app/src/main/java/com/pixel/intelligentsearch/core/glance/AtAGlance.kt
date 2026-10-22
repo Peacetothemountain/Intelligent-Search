@@ -79,10 +79,15 @@ data class GlanceToggles(
     val media: Boolean = true,
     val birthdays: Boolean = true,
     val battery: Boolean = true,
-    val notifications: Boolean = false
+    val notifications: Boolean = false,
+    /** Search Sources -> Contacts: birthdays come from the contacts, so they show only while contact search is on. */
+    val contacts: Boolean = false
 ) {
+    /** Whether birthdays are read: their own switch and contact search on. */
+    val birthdaysOn: Boolean get() = birthdays && contacts
+
     /** Whether anything at all can show, so nothing is read for an empty section. */
-    val anyOn: Boolean get() = enabled && (alarm || media || birthdays || battery || (notifications && timers))
+    val anyOn: Boolean get() = enabled && (alarm || media || birthdaysOn || battery || (notifications && timers))
 }
 
 /** One card in At a Glance; [key] keeps each in place in the list. */
@@ -123,7 +128,7 @@ fun glanceItems(snapshot: GlanceSnapshot, toggles: GlanceToggles, now: Long): Li
         }
         snapshot.alarm?.takeIf { toggles.alarm && it.triggerAt - now in 0..GLANCE_ALARM_WINDOW_MS }?.let { add(GlanceItem.Alarm(it)) }
         snapshot.media?.takeIf { toggles.media }?.let { add(GlanceItem.Media(it)) }
-        if (toggles.birthdays) snapshot.birthdays.forEach { add(GlanceItem.Birthday(it)) }
+        if (toggles.birthdaysOn) snapshot.birthdays.forEach { add(GlanceItem.Birthday(it)) }
         snapshot.battery?.takeIf { toggles.battery && it.isRelevant }?.let { add(GlanceItem.Battery(it)) }
     }
 }

@@ -75,6 +75,20 @@ class AtAGlanceOverlayTest {
         index.clear()
     }
 
+    /** How many collectors At a Glance has on the source right now. */
+    private val collecting = java.util.concurrent.atomic.AtomicInteger()
+    private val source = GlanceSource { _, _ ->
+        kotlinx.coroutines.flow.flow {
+            collecting.incrementAndGet()
+            try {
+                emit(snapshot)
+                kotlinx.coroutines.awaitCancellation()
+            } finally {
+                collecting.decrementAndGet()
+            }
+        }
+    }
+
     private fun showOverlay(query: String = "", history: List<String> = emptyList()) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
@@ -84,7 +98,7 @@ class AtAGlanceOverlayTest {
                     history.forEach(viewModel::addSearchHistory)
                     if (query.isNotEmpty()) viewModel.onQueryChanged(query)
                 }
-                CompositionLocalProvider(LocalGlanceSource provides GlanceSource { _, _ -> flowOf(snapshot) }) {
+                CompositionLocalProvider(LocalGlanceSource provides source) {
                     SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
                 }
             }
@@ -94,12 +108,14 @@ class AtAGlanceOverlayTest {
 
     @Test
     fun atAGlanceSitsAboveTheRecentSearches() {
+        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).commit()
         showOverlay(history = listOf("weather tomorrow"))
         val glance = compose.onNodeWithTag(GLANCE_HEADER_TAG).getUnclippedBoundsInRoot()
         val birthday = compose.onNodeWithText("Ana Lima's Birthday").getUnclippedBoundsInRoot()
         val battery = compose.onNodeWithText("Battery · 15%").getUnclippedBoundsInRoot()
         val recent = compose.onNodeWithText("Recent").getUnclippedBoundsInRoot()
         assertTrue("heading, birthday, battery, then Recent", glance.top < birthday.top && birthday.top < battery.top && battery.top < recent.top)
+        assertEquals("the empty search reads At a Glance", 1, collecting.get())
     }
 
     @Test
@@ -107,6 +123,20 @@ class AtAGlanceOverlayTest {
         showOverlay(query = "ana")
         compose.onNodeWithTag(GLANCE_HEADER_TAG).assertDoesNotExist()
         compose.onNodeWithText("Ana Lima's Birthday").assertDoesNotExist()
+    }
+
+    @Test
+    fun nothingIsReadForAtAGlanceWhileTyping() {
+        showOverlay(query = "ana")
+        assertEquals("At a Glance kept listening while typing", 0, collecting.get())
+    }
+
+    @Test
+    fun birthdaysNeedContactSearch() {
+        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).commit()
+        showOverlay()
+        compose.onNodeWithText("Ana Lima's Birthday").assertDoesNotExist()
+        compose.onNodeWithText("Battery · 15%").assertExists()
     }
 
     @Test

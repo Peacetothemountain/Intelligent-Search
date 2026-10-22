@@ -38,8 +38,7 @@ import javax.inject.Singleton
  * Orchestrates eager in-memory index construction and real-time delta updates for:
  * 1. Applications (with usage metadata and package add/replace/remove observers)
  * 2. Contacts (with ContactsContract ContentObserver)
- * 3. App Shortcuts (via LauncherApps)
- * 4. Local Files (folders and photos the user chose, plus MediaStore entries this app can see)
+ * 3. Local Files (folders and photos the user chose, plus MediaStore entries this app can see)
  *
  * Guarantees that keystroke queries execute 100% in-memory without ContentProvider Binder IPC stalls.
  */
@@ -64,9 +63,9 @@ class CorpusIndexManager @Inject constructor(
     val isIndexReady: StateFlow<Boolean> = _isIndexReady.asStateFlow()
     private val isInitialized = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    // Observer registration runs on the IO scope while cleanup() may arrive from the main thread, so
-    // both are serialized on observerLock. The debounce job is also touched from the main-thread
-    // ContentObserver callback and therefore stays volatile.
+    // Observer registration runs on the IO scope and is serialized on observerLock, so passes that overlap
+    // never register an observer twice. The debounce jobs are touched from the main-thread observer
+    // callbacks and therefore stay volatile.
     private val observerLock = Any()
     private var contactsObserver: ContentObserver? = null
     private var launcherCallback: android.content.pm.LauncherApps.Callback? = null
@@ -75,13 +74,11 @@ class CorpusIndexManager @Inject constructor(
     @Volatile
     private var contactsDebounceJob: Job? = null
     private val appsMutex = Mutex()
-    private val shortcutsMutex = Mutex()
     private val contactsMutex = Mutex()
     private val filesMutex = Mutex()
 
     // Folder and photo-picker choices live in settings prefs; any change there rebuilds the file index.
     // SharedPreferences keeps listeners weakly, so the listener must stay referenced from this field.
-    private var filesPrefs: android.content.SharedPreferences? = null
     private var filesPrefListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
     @Volatile
     private var filesDebounceJob: Job? = null
@@ -95,23 +92,21 @@ class CorpusIndexManager @Inject constructor(
     /**
      * Bootstraps eager background indexing of all corpuses.
      */
-    fun initialize(force: Boolean = false) {
-        if (!force && isInitialized.getAndSet(true)) {
+    fun initialize() {
+        if (isInitialized.getAndSet(true)) {
             return
         }
-        isInitialized.set(true)
         scope.launch(Dispatchers.IO) {
             try {
                 val startMs = System.currentTimeMillis()
 
                 // Concurrently index all corpuses using Kotlin coroutines for instant readiness
                 coroutineScope {
-                    val appsDeferred = async { reindexAppsInternal(forceRefresh = force) }
+                    val appsDeferred = async { reindexAppsInternal() }
                     refreshAppUsageIfStale()
-                    val shortcutsDeferred = async { reindexShortcutsInternal() }
                     val contactsDeferred = async { reindexContactsInternal() }
-                    val filesDeferred = async { reindexFilesInternal(onlyIfOlderThanMs = if (force) null else FILES_REFRESH_INTERVAL_MS) }
-                    awaitAll(appsDeferred, shortcutsDeferred, contactsDeferred, filesDeferred)
+                    val filesDeferred = async { reindexFilesInternal(onlyIfOlderThanMs = FILES_REFRESH_INTERVAL_MS) }
+                    awaitAll(appsDeferred, contactsDeferred, filesDeferred)
                 }
 
                 _isIndexReady.value = true
@@ -121,7 +116,7 @@ class CorpusIndexManager @Inject constructor(
                 // Register live system listeners
                 registerObservers()
             } catch (e: CancellationException) {
-                // Cancelled (e.g. by cleanup()): allow a later initialize() to start over.
+                // Cancelled with its scope: allow a later initialize() to start over.
                 isInitialized.set(false)
                 throw e
             } catch (e: Exception) {
@@ -137,7 +132,6 @@ class CorpusIndexManager @Inject constructor(
         pendingAppReindex = scope.launch(Dispatchers.IO) {
             kotlinx.coroutines.delay(300)
             reindexAppsInternal(forceRefresh = true)
-            reindexShortcutsInternal()
         }
     }
 
@@ -160,12 +154,6 @@ class CorpusIndexManager @Inject constructor(
     fun reindexContactsIfStale() {
         scope.launch(Dispatchers.IO) {
             reindexContactsInternal(onlyIfOlderThanMs = CONTACTS_REFRESH_INTERVAL_MS)
-        }
-    }
-
-    fun reindexShortcuts() {
-        scope.launch(Dispatchers.IO) {
-            reindexShortcutsInternal()
         }
     }
 
@@ -204,22 +192,10 @@ class CorpusIndexManager @Inject constructor(
         }
     }
 
-    private suspend fun reindexShortcutsInternal() {
-        shortcutsMutex.withLock {
-            try {
-                val shortcuts = sources.allShortcuts()
-                searchCoordinator.replaceShortcuts(shortcuts)
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed indexing shortcuts", e)
-            }
-        }
-    }
-
     private suspend fun reindexContactsInternal(onlyIfOlderThanMs: Long? = null) {
         contactsMutex.withLock {
-            if (onlyIfOlderThanMs != null &&
+            // 0 means never read; the uptime clock is itself small just after boot, so it must not count as recent.
+            if (onlyIfOlderThanMs != null && lastContactsIndexAtMs != 0L &&
                 android.os.SystemClock.elapsedRealtime() - lastContactsIndexAtMs < onlyIfOlderThanMs
             ) return
             try {
@@ -245,7 +221,8 @@ class CorpusIndexManager @Inject constructor(
 
     private suspend fun reindexFilesInternal(onlyIfOlderThanMs: Long? = null) {
         filesMutex.withLock {
-            if (onlyIfOlderThanMs != null &&
+            // 0 means never indexed; the uptime clock is itself small just after boot, so it must not count as recent.
+            if (onlyIfOlderThanMs != null && lastFilesIndexAtMs != 0L &&
                 android.os.SystemClock.elapsedRealtime() - lastFilesIndexAtMs < onlyIfOlderThanMs
             ) return
             try {
@@ -309,7 +286,6 @@ class CorpusIndexManager @Inject constructor(
                     }
                 }
                 prefs.registerOnSharedPreferenceChangeListener(listener)
-                filesPrefs = prefs
                 filesPrefListener = listener
             }
         } catch (e: Exception) {
@@ -317,7 +293,7 @@ class CorpusIndexManager @Inject constructor(
         }
 
         // App changes in every profile (personal, work, private space): installs, removals, updates, apps disabled
-        // or suspended, profiles becoming available, and shortcut changes. Package broadcasts only cover the
+        // or suspended, and profiles becoming available. Package broadcasts only cover the
         // personal profile and miss disabling, so LauncherApps is the one source.
         try {
             if (launcherCallback == null) {
@@ -329,11 +305,6 @@ class CorpusIndexManager @Inject constructor(
                     override fun onPackagesUnavailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = appsChanged()
                     override fun onPackagesSuspended(packageNames: Array<out String>, user: android.os.UserHandle) = appsChanged()
                     override fun onPackagesUnsuspended(packageNames: Array<out String>, user: android.os.UserHandle) = appsChanged()
-                    override fun onShortcutsChanged(
-                        packageName: String,
-                        shortcuts: MutableList<android.content.pm.ShortcutInfo>,
-                        user: android.os.UserHandle
-                    ) = reindexShortcuts()
                 }
                 context.getSystemService(android.content.pm.LauncherApps::class.java)?.registerCallback(callback, mainHandler)
                 launcherCallback = callback

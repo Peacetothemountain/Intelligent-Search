@@ -9,7 +9,10 @@ import android.os.Build
 import android.provider.CalendarContract
 import android.provider.ContactsContract
 import android.provider.MediaStore
+import androidx.annotation.VisibleForTesting
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 import androidx.compose.runtime.Immutable
@@ -67,12 +70,14 @@ data class AppItem(
     }
 }
 
+/** An upcoming event instance. [startTime] reads "All day" when [allDay]; [beginMillis] is the instance's own start. */
 @Immutable
 data class CalendarEvent(
     val title: String,
     val startTime: String,
     val eventId: Long = 0L,
-    val beginMillis: Long = 0L
+    val beginMillis: Long = 0L,
+    val allDay: Boolean = false
 )
 
 @Immutable
@@ -111,11 +116,34 @@ object SystemDataProvider {
         cachedApps = null
     }
 
+    /** Reads every launchable app from the device. Replaceable in tests, which count how often a scan runs. */
+    @VisibleForTesting
+    internal var appScanner: suspend (Context, Boolean) -> List<AppItem> = { context, forceRefresh -> scanApps(context, forceRefresh) }
+
+    /** One app scan at a time: callers that arrive together (overlay, index, widget at start-up) share its result. */
+    private val appsLock = Mutex()
+
     suspend fun getAllApps(context: Context, forceRefresh: Boolean = false): List<AppItem> = withContext(Dispatchers.IO) {
         if (!forceRefresh && cachedApps != null) {
             cachedApps?.let { return@withContext it }
         }
 
+        appsLock.withLock {
+            // A caller that waited here usually finds the scan it was waiting on already cached.
+            if (!forceRefresh) cachedApps?.let { return@withLock it }
+            val finalApps = appScanner(context, forceRefresh)
+            if (finalApps.isNotEmpty() || cachedApps == null) {
+                cachedApps = finalApps
+            }
+            finalApps
+        }
+    }
+
+    /**
+     * Every launchable app in every profile, by name. When nothing at all can be read, the last list read stands in,
+     * so a failed PackageManager query never empties the results.
+     */
+    private suspend fun scanApps(context: Context, forceRefresh: Boolean): List<AppItem> {
         val mergedMap = LinkedHashMap<String, AppItem>()
 
         // 1. Discover multi-profile apps (Personal, Work Profile, Private Space, Dual Apps) first via LauncherApps
@@ -149,7 +177,7 @@ object SystemDataProvider {
             } catch (e: Throwable) {
                 android.util.Log.w("SystemDataProvider", "IPC binder transaction error querying activities", e)
                 if (mergedMap.isEmpty()) {
-                    cachedApps?.let { return@withContext it }
+                    cachedApps?.let { return it }
                 }
                 emptyList()
             }
@@ -171,11 +199,7 @@ object SystemDataProvider {
                 }
         }
 
-        val finalApps = mergedMap.values.sortedBy { it.name.lowercase() }
-        if (finalApps.isNotEmpty() || cachedApps == null) {
-            cachedApps = finalApps
-        }
-        finalApps
+        return mergedMap.values.sortedBy { it.name.lowercase() }
     }
 
     /** How much an app has been used lately: on how many of the last days, and when it was last in the foreground. */
@@ -216,8 +240,11 @@ object SystemDataProvider {
         }
 
         val pm = context.packageManager
+        // The last 24 hours span two daily buckets, so an app used on both days comes back twice; only its latest
+        // use counts, or the duplicates would take the slots of other apps.
         val sortedStats = stats.filter { it.totalTimeInForeground > 0 && !hiddenApps.contains(it.packageName) }
             .sortedByDescending { it.lastTimeUsed }
+            .distinctBy { it.packageName }
 
         val recentApps = mutableListOf<AppItem>()
         for (stat in sortedStats) {
@@ -284,19 +311,22 @@ object SystemDataProvider {
             val projection = arrayOf(
                 CalendarContract.Instances.TITLE,
                 CalendarContract.Instances.BEGIN,
-                CalendarContract.Instances.EVENT_ID
+                CalendarContract.Instances.EVENT_ID,
+                CalendarContract.Instances.ALL_DAY
             )
 
             context.contentResolver.query(
                 builder.build(),
                 projection,
-                null,
+                // Calendars the user hid in their calendar app stay hidden here too.
+                "${CalendarContract.Instances.VISIBLE} = 1",
                 null,
                 "${CalendarContract.Instances.BEGIN} ASC"
             )?.use { cursor ->
                 val titleIndex = cursor.getColumnIndex(CalendarContract.Instances.TITLE)
                 val dtStartIndex = cursor.getColumnIndex(CalendarContract.Instances.BEGIN)
                 val eventIdIndex = cursor.getColumnIndex(CalendarContract.Instances.EVENT_ID)
+                val allDayIndex = cursor.getColumnIndex(CalendarContract.Instances.ALL_DAY)
                 // Honours the user's 12/24-hour preference and locale instead of always printing AM/PM.
                 val timeFormat = android.text.format.DateFormat.getTimeFormat(context)
 
@@ -304,9 +334,11 @@ object SystemDataProvider {
                     val title = if (titleIndex >= 0) cursor.getString(titleIndex) else null
                     val startTimeMillis = if (dtStartIndex >= 0) cursor.getLong(dtStartIndex) else 0L
                     val eventId = if (eventIdIndex >= 0) cursor.getLong(eventIdIndex) else 0L
-                    val timeString = timeFormat.format(java.util.Date(startTimeMillis))
+                    val allDay = allDayIndex >= 0 && cursor.getInt(allDayIndex) != 0
+                    // An all-day event starts at midnight UTC, which local time would show as some odd hour.
+                    val timeString = if (allDay) "All day" else timeFormat.format(java.util.Date(startTimeMillis))
 
-                    events.add(CalendarEvent(title ?: "Event", timeString, eventId, startTimeMillis))
+                    events.add(CalendarEvent(title ?: "Event", timeString, eventId, startTimeMillis, allDay))
                 }
             }
         } catch (_: Throwable) {}

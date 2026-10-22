@@ -102,6 +102,19 @@ internal object ContactActions {
 
     fun callIntent(number: String): Intent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))
 
+    /**
+     * What tapping [contact] itself opens: the dialler with its number when [directCall] is on (the Direct Call
+     * setting) or when it has no card to show, else its card in Contacts, else the Contacts app. Numbers go through
+     * [callIntent], so "*86#" reaches the dialler whole instead of being cut at the "#".
+     */
+    fun openIntent(contact: ContactItem, directCall: Boolean): Intent = when {
+        directCall && contact.phoneNumber.isNotBlank() -> callIntent(contact.phoneNumber)
+        // Contacts reads the lookup URI with its own permission; no grant needed.
+        contact.lookupUri.isNotBlank() -> Intent(Intent.ACTION_VIEW, contact.lookupUri.toUri())
+        contact.phoneNumber.isNotBlank() -> callIntent(contact.phoneNumber)
+        else -> Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
+    }
+
     fun messageIntent(number: String): Intent = Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null))
 
     fun emailIntent(address: String): Intent = Intent(Intent.ACTION_SENDTO, Uri.fromParts("mailto", address, null))

@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -35,8 +36,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,6 +60,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -73,7 +79,6 @@ import kotlinx.coroutines.withContext
 fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     val view = LocalView.current
-    val viewModel = LocalSettingsViewModel.current
     val hapticEngine = remember(context) { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
     var activeIconPack by rememberSetting(SettingsManager.ACTIVE_ICON_PACK)
@@ -135,15 +140,30 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
     var pendingIconPack by remember { mutableStateOf<String?>(null) }
 
+    // Saving activeIconPack writes the setting; it is the only write.
+    fun applyPack(pkg: String) {
+        activeIconPack = pkg
+        com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+    }
+
     fun activatePack(pkg: String) {
         if (pkg == activeIconPack) return
         if (activeIconPack != "system_default" && !neverShowWarning) {
             pendingIconPack = pkg
         } else {
-            activeIconPack = pkg
-            viewModel?.updateActiveIconPack(pkg)
-            com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+            applyPack(pkg)
         }
+    }
+
+    // Swaps a pack with its neighbour, as dragging past it does, and saves the new order.
+    fun movePack(pkg: String, by: Int) {
+        val from = localPillList.indexOf(pkg)
+        val to = from + by
+        if (from == -1 || to !in localPillList.indices) return
+        val reordered = localPillList.toMutableList()
+        java.util.Collections.swap(reordered, from, to)
+        localPillList = reordered
+        storedPillString = reordered.joinToString(",")
     }
 
     Scaffold(
@@ -175,10 +195,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 onClick = {
                                     neverShowWarning = true
                                     if (pendingIconPack != null) {
-                                        val chosen = pendingIconPack!!
-                                        activeIconPack = chosen
-                                        viewModel?.updateActiveIconPack(chosen)
-                                        com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+                                        applyPack(pendingIconPack!!)
                                         pendingIconPack = null
                                     }
                                 }
@@ -194,10 +211,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 Button(
                                     onClick = {
                                         if (pendingIconPack != null) {
-                                            val chosen = pendingIconPack!!
-                                            activeIconPack = chosen
-                                            viewModel?.updateActiveIconPack(chosen)
-                                            com.pixel.intelligentsearch.core.util.IconPackManager.clearCache()
+                                            applyPack(pendingIconPack!!)
                                             pendingIconPack = null
                                         }
                                     }
@@ -227,7 +241,8 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(padding)
-                        .padding(horizontal = 16.dp),
+                        .padding(horizontal = 16.dp)
+                        .selectableGroup(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
                 ) {
@@ -281,9 +296,25 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 border = androidx.compose.foundation.BorderStroke(1.dp, borderColor),
                                 elevation = CardDefaults.cardElevation(defaultElevation = elevation)
                             ) {
+                                // Only one pack is in use at a time (System Default is none), so each row is a radio
+                                // option: tapping anywhere on it picks the pack. Dragging the handle is touch-only, so
+                                // the row also offers Move up and Move down to TalkBack and switch access.
+                                val position = localPillList.indexOf(packageName)
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .semantics(mergeDescendants = true) {
+                                            selected = isSelected
+                                            customActions = buildList {
+                                                if (position > 0) {
+                                                    add(CustomAccessibilityAction("Move up") { movePack(packageName, -1); true })
+                                                }
+                                                if (position in 0 until localPillList.lastIndex) {
+                                                    add(CustomAccessibilityAction("Move down") { movePack(packageName, 1); true })
+                                                }
+                                            }
+                                        }
+                                        .bouncyClickable(role = Role.RadioButton) { activatePack(packageName) }
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
@@ -329,18 +360,8 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     }
 
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
-                                            checked = isSelected,
-                                            onCheckedChange = { checked ->
-                                                if (checked) {
-                                                    activatePack(packageName)
-                                                } else {
-                                                    if (activeIconPack == packageName) {
-                                                        activatePack("system_default")
-                                                    }
-                                                }
-                                            }
-                                        )
+                                        // The row handles the tap and announces the selection.
+                                        RadioButton(selected = isSelected, onClick = null)
                                         Spacer(modifier = Modifier.width(12.dp))
                                         val currentPkg by rememberUpdatedState(packageName)
                                         Icon(

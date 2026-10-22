@@ -18,7 +18,6 @@ object SearchScoringEngine {
         DIRECT_ACTION(2.2f),
         SYSTEM_TOGGLE(2.0f),
         APPLICATION(1.8f),
-        APP_SHORTCUT(1.5f),
         CONTACT(1.3f),
         FILE(1.0f),
         WEB_SUGGESTION(0.7f)
@@ -145,9 +144,8 @@ object SearchScoringEngine {
     }
 
     /**
-     * Scores the secondary line: an app's package name, a contact's number, a file's path or a
-     * shortcut's long label. Only digit runs and whole-token or token-prefix matches count. The
-     * phonetic and edit-distance tiers used for titles would read "cam" as "com" and rank every
+     * Scores the secondary line: an app's package name, a contact's number or a file's path. Only
+     * digit runs and whole-token or token-prefix matches count. The phonetic and edit-distance tiers used for titles would read "cam" as "com" and rank every
      * installed app, so they are not applied here.
      */
     private fun computeSubtitleMatchScore(
@@ -186,7 +184,13 @@ object SearchScoringEngine {
             if (subDigits.isNotEmpty()) {
                 val digitScore = when {
                     subDigits == queryDigits -> SCORE_EXACT_MATCH * 0.85f
+                    // The query adds a country or trunk code the saved number leaves out: "+1 415 555 2671"
+                    // for "(415) 555-2671".
+                    subDigits.length >= 7 && queryDigits.endsWith(subDigits) -> SCORE_EXACT_MATCH * 0.85f
                     subDigits.startsWith(queryDigits) -> SCORE_PREFIX_MAX * 0.85f
+                    // The same national number behind different prefixes: "+44 7700 900123" for "07700 900123".
+                    subDigits.length >= 10 && queryDigits.length >= 10 &&
+                        subDigits.takeLast(10) == queryDigits.takeLast(10) -> SCORE_PREFIX_MAX * 0.85f
                     subDigits.contains(queryDigits) -> SCORE_SUBSTRING_MAX * 0.75f
                     else -> 0.0f
                 }

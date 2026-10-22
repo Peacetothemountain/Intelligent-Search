@@ -4,27 +4,22 @@ import android.app.Activity
 import android.content.Context
 import android.hardware.display.DisplayManager
 import android.os.Build
-import android.view.Choreographer
 import android.view.Display
-import android.view.Surface
 import android.view.View
 import android.view.WindowManager
 import kotlin.math.abs
 
 /**
- * Hardware-Synchronized Window & Surface Frame Pacing Engine.
- *
- * Implements 120Hz / 144Hz LTPO OLED dynamic refresh rate adaptation (1Hz to 120Hz),
- * Velocity-Driven frame rate category escalation (Android 14+ / API 34+),
- * Hardware touch boost & power savings tuning (Android 15+ / API 35+ / Android 17 Canary ZP11),
- * Surface.CHANGE_FRAME_RATE_ALWAYS overrides, and Choreographer VSYNC deadline tracking.
- *
- * Modernized for Android 17 (Canary ZP11 2610) / Kotlin 2.1 / compileSdk 37.
- * Eliminates reflection, utilizes official platform APIs, zero allocations on main thread,
- * and provides cancellable frame callbacks.
+ * Refresh-rate hints for the app's windows, used while gestures and animations run:
+ * - Frame-rate category (Android 15+, API 35): the window's decor view asks for a high, normal or low rate, and
+ *   scrolling reports its velocity, so an LTPO panel rises with motion and falls back when it stops.
+ * - Touch boost (Android 15+): the rate rises as soon as a finger lands, for the length of a gesture.
+ * - Mode lock (before Android 14, API 34, which have no per-view hint): a gesture locks the window to the fastest
+ *   display mode at the current resolution, and the lock is released when it ends.
  */
 object WindowFramePacing {
 
+    /** The app's own category ids, translated to the platform's View.REQUESTED_FRAME_RATE_CATEGORY_* values. */
     const val FRAME_RATE_CATEGORY_HIGH = 4
     const val FRAME_RATE_CATEGORY_NORMAL = 2
     const val FRAME_RATE_CATEGORY_LOW = 1
@@ -148,8 +143,8 @@ object WindowFramePacing {
     }
 
     /**
-     * Detects and locks the display panel to its highest supported refresh rate mode (e.g. 144Hz / 120Hz).
-     * Uses [WindowManager.LayoutParams.preferredDisplayModeId].
+     * Locks the panel to its fastest refresh rate at the current resolution (see [pickHighRefreshMode]) through
+     * [WindowManager.LayoutParams.preferredDisplayModeId]. Leaves the window alone when no faster mode exists.
      */
     fun lockMaxDisplayRefreshRate(activity: Activity?) {
         if (activity == null) return
@@ -157,16 +152,28 @@ object WindowFramePacing {
             val window = activity.window ?: return
             val display = getDisplaySafely(activity) ?: return
 
-            val modes = display.supportedModes
-            val highestMode = modes.maxByOrNull { it.refreshRate } ?: return
-            if (highestMode.refreshRate >= 90f) {
-                val params = window.attributes
-                if (params.preferredDisplayModeId != highestMode.modeId) {
-                    params.preferredDisplayModeId = highestMode.modeId
-                    window.attributes = params
-                }
+            fun Display.Mode.spec() = ModeSpec(modeId, physicalWidth, physicalHeight, refreshRate)
+            val modeId = pickHighRefreshMode(display.supportedModes.map { it.spec() }, display.mode.spec()) ?: return
+            val params = window.attributes
+            if (params.preferredDisplayModeId != modeId) {
+                params.preferredDisplayModeId = modeId
+                window.attributes = params
             }
         } catch (_: Throwable) {}
+    }
+
+    /** A display mode's id, physical size and refresh rate. */
+    internal data class ModeSpec(val id: Int, val width: Int, val height: Int, val refreshRate: Float)
+
+    /**
+     * The fastest mode at [current]'s resolution, or null unless it reaches 90 Hz and beats the current rate. Only
+     * modes of the same size are considered: picking a mode by rate alone could switch the panel's resolution.
+     */
+    internal fun pickHighRefreshMode(modes: List<ModeSpec>, current: ModeSpec): Int? {
+        val fastest = modes
+            .filter { it.width == current.width && it.height == current.height }
+            .maxByOrNull { it.refreshRate } ?: return null
+        return fastest.id.takeIf { fastest.refreshRate >= 90f && fastest.refreshRate > current.refreshRate }
     }
 
     /**
@@ -182,17 +189,5 @@ object WindowFramePacing {
                 window.attributes = params
             }
         } catch (_: Throwable) {}
-    }
-
-    /**
-     * Android 15+ (API 35+ / Android 17 Canary ZP11) direct requested frame rate or category setter.
-     */
-    fun setRequestedFrameRate(activity: Activity?, rateOrCategory: Float) {
-        if (activity == null) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            try {
-                activity.window?.decorView?.setRequestedFrameRate(rateOrCategory)
-            } catch (_: Throwable) {}
-        }
     }
 }

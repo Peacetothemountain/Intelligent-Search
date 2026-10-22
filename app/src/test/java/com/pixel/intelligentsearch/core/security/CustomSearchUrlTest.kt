@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.core.security
 
 import com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -62,5 +63,14 @@ class CustomSearchUrlTest {
         assertNull(uri.fragment)
         assertNull(CustomSearchUrl.build("javascript:alert(1)", "x"))
         assertEquals("Startpage", CustomSearchUrl.displayName("https://www.startpage.com/do/search?query=%s"))
+    }
+
+    @Test
+    fun aBareSiteIsRefusedBecauseNoSearchCouldUseIt() {
+        // No %s and nowhere to append the words: every search would have quietly gone to Google instead.
+        rejected("https://searx.example.org")
+        rejected("searx.example.org:8443")
+        // A template ending where the words go still works without %s.
+        assertNotNull(CustomSearchUrl.build("https://searx.example.org/search?q=", "x"))
     }
 }

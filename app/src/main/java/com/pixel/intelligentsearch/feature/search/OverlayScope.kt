@@ -55,9 +55,13 @@ internal class OverlayScope(
     /** Voice search for the search bar's mic button and the assistant gesture. */
     val voice: OverlayVoice,
     val listState: LazyListState,
-    /** Launches an app: package, profile (null = personal) and launcher activity if known. */
-    val performLaunch: (String, android.os.UserHandle?, String?) -> Unit,
-    val performAppLaunch: (AppItem) -> Unit,
+    /** Launches an app: package, profile (null = personal), launcher activity if known, and what it was opened from. */
+    val performLaunch: (String, android.os.UserHandle?, String?, LaunchSource) -> Unit,
+    val performAppLaunch: (AppItem, LaunchSource) -> Unit,
+    /** The app icons on screen; mark each with Modifier.launchIcon so apps opened from it open out of it. */
+    val launchIcons: LaunchIcons,
+    /** How to open an app (or its shortcut) from a source, per the App Animations setting (null = system default). */
+    val appLaunch: (LaunchSource) -> AppLaunchOptions?,
     val closeOverlay: () -> Unit,
     val launchWebSearch: (String) -> Unit,
     val openWebAddress: (String) -> Unit,

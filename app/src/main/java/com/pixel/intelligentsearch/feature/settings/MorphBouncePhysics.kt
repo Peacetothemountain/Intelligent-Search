@@ -11,8 +11,8 @@ import kotlin.random.Random
  * The physics behind the Material Morph animation: shapes that drop in from under the bottom card, bounce on the
  * bottom edge of the screen as if it were a trampoline, change shape on every bounce and leave by the sides.
  *
- * The scene is simulated in metres, drawn at one dp per centimetre, so a 20 dp shape behaves like a light
- * inflatable ball 20 cm across:
+ * The scene is simulated in metres, drawn at one dp per centimetre (smaller in an area too short for that, see
+ * [morphSceneFor]), so a 20 dp shape behaves like a light inflatable ball 20 cm across:
  * - gravity is real gravity, 9.81 m/s²;
  * - air resistance grows with the square of speed (drag coefficient of a sphere, density of air), so shapes have a
  *   natural top speed and slow down sideways as they fly;
@@ -26,8 +26,20 @@ import kotlin.random.Random
  * Positions are body centres, y downwards, with the top of the animation area at 0 and the floor at [height].
  * Each new shape's sideways speed is chosen by simulating its flight beforehand, so it leaves the screen after
  * exactly the number of bounces it was given. Until it has made them, the side edges are soft walls, so a knock from
- * another shape can never send it out early; once it has, its next flight carries it off the screen. Bounces are
- * capped so a shape never rises above the top of the area.
+ * another shape can never send it out early; once it has, its next flight carries it off the screen (or, in an area
+ * too wide to cross in one flight, every flight from then on carries it on towards the edge). Bounces are capped so a
+ * shape never rises above the top of the area.
+ *
+ * No shape stays long: every one has left within [MAX_LIFETIME] of appearing, having made its planned bounces. A new
+ * shape is given only as many bounces as it makes, with the flight after them, by [PLAN_TIME] (fewer in a tall area,
+ * where flights are long); past that age knocks no longer reach it, since shapes knocking each other up could keep
+ * one in the air for ever, and the bed throws it no higher than its lowest bounce until it has made the rest.
+ *
+ * How each shape looks as it moves (its morph, squash, scale-in and fade out, see [animateLook]) runs on the springs
+ * of Material 3 Expressive's motion scheme (androidx.compose.material3 ExpressiveMotionTokens; spatial springs, which
+ * overshoot, for shape and size, effects springs, which never do, for fading;
+ * https://m3.material.io/styles/motion/overview), stepped with the physics so a seed always gives the same run. None of
+ * it feeds back into the motion: the bounces, the haptics and every rule above are the physics' alone.
  */
 internal class MorphBouncePhysics(
     private val random: Random = Random.Default,
@@ -49,16 +61,35 @@ internal class MorphBouncePhysics(
         var spin = 0f
         var angle = 0f
         var bounces = 0
-        /** Seconds since the body appeared; a safety limit removes any shape that somehow never leaves. */
+        /** Seconds since the body appeared; past [MAX_AGE] a shape is sent out whatever it has made, as a last resort. */
         var age = 0f
         /** How far the body has sunk into the trampoline bed, metres; 0 in the air. */
         var penetration = 0f
         /** Which shape the body is changing into, counted up on every bounce. */
         var shapeIndex = 0
-        /** 0 at the moment of a bounce, easing to 1 once the new shape has formed. */
+        /**
+         * 0 at the moment of a bounce, springing to 1 once the new shape has formed, on Material 3 Expressive's fast
+         * spatial spring ([MORPH_DAMPING], [MORPH_STIFFNESS]): it overshoots 1 a little and settles, as Google's
+         * morphing loading indicator does. Exactly 1 once settled.
+         */
         var morphProgress = 1f
+        internal var morphVelocity = 0f
         /** 1 at the moment of a bounce, fading back to 0: the shape's brief brightening. */
         var glow = 0f
+        /**
+         * How flat the shape is drawn: positive squashed flat and wide on the trampoline, negative stretched tall in
+         * the soft wobble after it lifts off; never past [MAX_SQUASH] or [MAX_JELLY_STRETCH]. Drawn with its area kept.
+         */
+        var squash = 0f
+        internal var squashVelocity = 0f
+        /** 0 as the shape appears from under the card, springing to 1 (its full size) on the default spatial spring. */
+        var appear = 0f
+        internal var appearVelocity = 0f
+        /** 0 until the shape reaches the edge it leaves by, then easing to 1 as it shrinks and fades out. */
+        var leave = 0f
+        internal var leaveVelocity = 0f
+        /** +1 if the shape turns clockwise as it morphs (it came in heading right), -1 if anticlockwise. */
+        var turnDirection = 1f
         /** True once the shape has come fully out from under the bottom card. */
         internal var entered = false
         /** Set by [step] on the step a shape leaves the trampoline. */
@@ -69,6 +100,8 @@ internal class MorphBouncePhysics(
         internal var contactTime = 0f
         /** On its way off the screen after its planned bounces; nothing knocks it back. */
         internal var exiting = false
+        /** Which side an [exiting] shape leaves by. */
+        internal var exitTowardsRight = false
         internal val dragK: Float get() = 0.5f * AIR_DENSITY * DRAG_COEFFICIENT * (Math.PI.toFloat() * radius * radius) / mass
         internal var inContact = false
     }
@@ -91,8 +124,13 @@ internal class MorphBouncePhysics(
     private var idleTimer = 0f
     private var accumulator = 0f
 
-    /** Sizes the area, in metres. The first call starts the opening wave. */
+    /**
+     * Sizes the area, in metres. The first call starts the opening wave. A later one (the phone turned, or the text
+     * grew while the page is open) keeps the shapes in the air inside the new area: one now under the floor is thrown
+     * back up from it, one past a side wall is set against it, and one too big for the area leaves.
+     */
     fun resize(widthMetres: Float, heightMetres: Float, radiiMetres: List<Float>) {
+        if (widthMetres == width && heightMetres == height && radiiMetres == radii) return
         val first = width == 0f
         width = widthMetres
         height = heightMetres
@@ -102,6 +140,20 @@ internal class MorphBouncePhysics(
             waveSlots = (0 until pendingWave).shuffled(random)
             waveTimer = 0f
             idleTimer = IDLE_FIRST_DELAY
+        }
+        bodies.removeAll { it.radius > height * MAX_RADIUS_SHARE }
+        for (body in bodies) {
+            if (body.y > height - body.radius) {
+                // The bed throws it straight back up, like any bounce, so it never lands softly from nowhere.
+                body.y = height - body.radius
+                body.vy = -minimumRebound(body)
+                body.penetration = 0f
+                body.inContact = false
+                body.contactTime = 0f
+                body.sinceLift = 0f
+            }
+            if (!body.exiting) body.x = body.x.clampSafely(body.radius, width - body.radius)
+            capRise(body)
         }
     }
 
@@ -116,8 +168,15 @@ internal class MorphBouncePhysics(
             if (autoSpawn) schedule(STEP)
             for (body in bodies) {
                 step(body, STEP, listener)
+                animateLook(body, STEP)
                 body.age += STEP
-                if (body.justLifted && !body.exiting && (body.bounces >= body.plannedBounces || body.age > MAX_AGE)) sendOut(body)
+                if (!body.justLifted) continue
+                if (body.exiting || body.bounces >= body.plannedBounces || body.age > MAX_AGE) {
+                    sendOut(body)
+                } else if (body.age > PLAN_TIME) {
+                    // Behind its plan (knocks kept it up): its bounces still to come are the bed's lowest, real ones.
+                    body.vy = maxOf(body.vy, -minimumRebound(body))
+                }
             }
             collide()
             bodies.removeAll { it.x - it.radius > width || it.x + it.radius < 0f }
@@ -133,8 +192,9 @@ internal class MorphBouncePhysics(
             for (j in i + 1 until bodies.size) {
                 val a = bodies[i]
                 val b = bodies[j]
-                // A shape whose centre has crossed a side edge is on its way out; nothing knocks it back or off.
-                if (leaving(a) || leaving(b)) continue
+                // A shape whose centre has crossed a side edge is on its way out; nothing knocks it back or off. Nor
+                // is a shape past its planned time knocked about any longer: knocks could keep it up for ever.
+                if (untouchable(a) || untouchable(b)) continue
                 val dx = b.x - a.x
                 val dy = b.y - a.y
                 val minDistance = a.radius + b.radius
@@ -150,8 +210,12 @@ internal class MorphBouncePhysics(
                 val share = overlap / (inverseA + inverseB)
                 a.x -= nx * share * inverseA; a.y -= ny * share * inverseA
                 b.x += nx * share * inverseB; b.y += ny * share * inverseB
-                // The push never lifts a shape that was inside the area out of it.
-                for (body in arrayOf(a, b)) if (body.entered && body.y - body.radius < 0f) body.y = body.radius
+                // The push never lifts a shape that was inside the area out of it, nor one still coming in back
+                // under the card.
+                for (body in arrayOf(a, b)) {
+                    if (body.entered && body.y - body.radius < 0f) body.y = body.radius
+                    if (!body.entered && body.y < -body.radius) body.y = -body.radius
+                }
                 val approach = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny
                 if (approach >= 0f) continue
                 val e = (a.restitution + b.restitution) / 2f
@@ -185,17 +249,21 @@ internal class MorphBouncePhysics(
     /**
      * A shape that has made its planned bounces is given, as it leaves the trampoline, just enough sideways speed
      * to leave the screen before it lands again: in the direction it is going, or towards the nearer edge if it had
-     * all but stopped.
+     * all but stopped. Where the edge is too far for one flight even at the top speed, the bed throws it on again,
+     * the same way, every time it lands, so the bounce's friction and the air never leave it crawling across.
      */
     private fun sendOut(body: Body) {
-        val towardsRight = if (abs(body.vx) >= MIN_TRAVEL) body.vx > 0f else body.x > width / 2f
+        if (!body.exiting) {
+            body.exitTowardsRight = if (abs(body.vx) >= MIN_TRAVEL) body.vx > 0f else body.x > width / 2f
+            body.exiting = true
+        }
+        val towardsRight = body.exitTowardsRight
         val distance = if (towardsRight) width - body.x else body.x
         val needed = lowestSpeedFor(body, 0, distance, towardsRight, clearEdge = true) * 1.08f
-        body.vx = (if (towardsRight) 1f else -1f) * maxOf(abs(body.vx), needed)
-        body.exiting = true
+        body.vx = (if (towardsRight) 1f else -1f) * maxOf(if (body.vx > 0f == towardsRight) abs(body.vx) else 0f, needed)
     }
 
-    private fun leaving(body: Body): Boolean = body.exiting || body.x < 0f || body.x > width
+    private fun untouchable(body: Body): Boolean = body.exiting || body.x < 0f || body.x > width || body.age > PLAN_TIME
 
     private fun schedule(dt: Float) {
         if (pendingWave > 0) {
@@ -218,33 +286,57 @@ internal class MorphBouncePhysics(
     /** Drops a new shape in from just under the bottom card, aimed to leave after [bounces] bounces. */
     internal fun spawn(bounces: Int, slot: Int?, slots: Int): Body? {
         if (bodies.size >= maxBodies || radii.isEmpty()) return null
-        val radius = radii[nextId % radii.size].coerceAtMost(height * 0.3f)
+        val radius = radii[nextId % radii.size].coerceAtMost(height * MAX_RADIUS_SHARE)
         // Light inflatable shells: mass grows with surface area.
         val mass = BASE_MASS * (radius / 0.1f) * (radius / 0.1f)
-        val body = Body(
-            id = nextId++,
-            radius = radius,
-            mass = mass,
-            restitution = 0.82f + random.nextFloat() * 0.06f,
-            plannedBounces = bounces
-        )
+        val restitution = 0.82f + random.nextFloat() * 0.06f
         // The opening wave spreads across the width; later shapes come in anywhere.
         val fraction = if (slot != null && slots > 0) {
             (slot + 0.5f) / slots + (random.nextFloat() - 0.5f) * 0.08f
         } else {
             0.12f + random.nextFloat() * 0.76f
         }
+        val dropSpeed = 0.4f + random.nextFloat() * 0.8f
+        val body = Body(
+            id = nextId++,
+            radius = radius,
+            mass = mass,
+            restitution = restitution,
+            plannedBounces = bouncesThatFit(radius, mass, restitution, dropSpeed, bounces)
+        )
         body.x = (width * fraction).clampSafely(radius, width - radius)
         body.y = -radius
-        body.vy = 0.4f + random.nextFloat() * 0.8f
+        body.vy = dropSpeed
         body.shapeIndex = body.id * 7
         body.angle = random.nextFloat() * 360f
         // Usually towards the farther edge, so the shape crosses the screen.
         val towardsRight = if (body.x < width / 2f) random.nextFloat() < 0.75f else random.nextFloat() < 0.25f
         val distanceToEdge = if (towardsRight) width - body.x else body.x
-        body.vx = (if (towardsRight) 1f else -1f) * planSidewaysSpeed(body, bounces, distanceToEdge, towardsRight)
+        body.vx = (if (towardsRight) 1f else -1f) * planSidewaysSpeed(body, body.plannedBounces, distanceToEdge, towardsRight)
+        // A shape rolling right turns clockwise, so its quarter turn on each morph goes the way it rolls.
+        body.turnDirection = if (towardsRight) 1f else -1f
         bodies += body
         return body
+    }
+
+    /**
+     * At most [bounces], and no more than a shape dropped in at [dropSpeed] makes, with the flight after them, by
+     * [PLAN_TIME]: in a tall area every flight is long, so a shape there is given fewer bounces rather than staying
+     * longer. At least one.
+     */
+    private fun bouncesThatFit(radius: Float, mass: Float, restitution: Float, dropSpeed: Float, bounces: Int): Int {
+        // Dropped straight down, with no side walls: only the bounces' timing matters here.
+        val ghost = Body(-1, radius, mass, restitution, bounces).apply {
+            x = width / 2f; y = -radius; vy = dropSpeed
+            exiting = true
+        }
+        var t = 0f
+        while (t < PLAN_TIME && ghost.bounces <= bounces) {
+            step(ghost, STEP, null)
+            t += STEP
+        }
+        // The landing that ends the flight after the last bounce must come by then too.
+        return bounces.coerceAtMost(ghost.bounces - 1).coerceAtLeast(1)
     }
 
     /**
@@ -265,7 +357,7 @@ internal class MorphBouncePhysics(
 
     /** The lowest sideways speed at which [body] leaves after at most [n] bounces (faster leaves sooner). */
     private fun lowestSpeedFor(body: Body, n: Int, distanceToEdge: Float, towardsRight: Boolean, clearEdge: Boolean): Float {
-        fun bouncesAt(speed: Float): Int = simulateBouncesBeforeExit(body, speed, distanceToEdge, towardsRight, clearEdge)
+        fun bouncesAt(speed: Float): Int = simulateBouncesBeforeExit(body, speed, distanceToEdge, towardsRight, clearEdge, limit = n)
         var lo = MIN_SIDEWAYS
         var hi = 8f
         if (bouncesAt(hi) > n) return hi
@@ -278,9 +370,10 @@ internal class MorphBouncePhysics(
 
     /**
      * How many bounces [template] makes, thrown sideways at [speed], before it reaches the edge [distanceToEdge]
-     * away: before it fully clears it if [clearEdge], otherwise before it first touches it.
+     * away: before it fully clears it if [clearEdge], otherwise before it first touches it. Only whether that is
+     * more than [limit] matters, so the flight is cut short once it is.
      */
-    private fun simulateBouncesBeforeExit(template: Body, speed: Float, distanceToEdge: Float, towardsRight: Boolean, clearEdge: Boolean): Int {
+    private fun simulateBouncesBeforeExit(template: Body, speed: Float, distanceToEdge: Float, towardsRight: Boolean, clearEdge: Boolean, limit: Int): Int {
         // The flight is simulated moving right; a shape heading left is its mirror image, spin included (friction
         // with the trampoline couples spin and sideways speed, so an unmirrored spin would change the answer).
         val ghost = Body(-1, template.radius, template.mass, template.restitution, template.plannedBounces).apply {
@@ -295,6 +388,7 @@ internal class MorphBouncePhysics(
         while (t < 30f) {
             step(ghost, STEP, null)
             if (if (clearEdge) ghost.x - ghost.radius > width else ghost.x + ghost.radius > width) return ghost.bounces
+            if (ghost.bounces > limit) return ghost.bounces
             if (abs(ghost.vx) < 1e-3f && !ghost.inContact && ghost.bounces > 20) return Int.MAX_VALUE
             t += STEP
         }
@@ -385,9 +479,54 @@ internal class MorphBouncePhysics(
             body.glow *= exp(-dt / GLOW_TIME_CONSTANT)
             if (body.glow < 0.01f) body.glow = 0f
         }
-        if (body.morphProgress < 1f) {
-            body.morphProgress += (1f - body.morphProgress) * (1f - exp(-dt / MORPH_TIME_CONSTANT))
-            if (body.morphProgress > 0.999f) body.morphProgress = 1f
+    }
+
+    /**
+     * Moves what the shape looks like on by [dt], on Material 3 Expressive springs; nothing here changes how it moves.
+     * - The morph to its new shape springs on the fast spatial spring, overshooting a touch and settling.
+     * - On the trampoline it squashes as deep as it sinks into the bed; as it lifts off, the squash springs back on
+     *   the fast spatial spring with part of its speed, so the shape wobbles tall once, softly, and settles round.
+     * - It scales in from nothing as it comes out from under the card, on the default spatial spring.
+     * - Reaching the edge it leaves by, it shrinks and fades on the default effects spring, which never overshoots.
+     */
+    internal fun animateLook(body: Body, dt: Float) {
+        if (body.morphProgress != 1f || body.morphVelocity != 0f) {
+            body.morphVelocity += springAcceleration(body.morphProgress - 1f, body.morphVelocity, MORPH_STIFFNESS, MORPH_DAMPING) * dt
+            body.morphProgress += body.morphVelocity * dt
+            if (abs(body.morphProgress - 1f) < MORPH_SETTLE && abs(body.morphVelocity) < MORPH_SETTLE_SPEED) {
+                body.morphProgress = 1f
+                body.morphVelocity = 0f
+            }
+        }
+
+        if (body.penetration > 0f) {
+            val pressed = (body.penetration / (2f * body.radius) * SQUASH_PER_DEPTH).coerceIn(0f, MAX_SQUASH)
+            // Pressed into the bed the shape is as flat as the bed is deep; the spring takes over as it lets go.
+            body.squashVelocity = (pressed - body.squash) / dt * JELLY_CARRY
+            body.squash = pressed
+        } else if (body.squash != 0f || body.squashVelocity != 0f) {
+            body.squashVelocity += springAcceleration(body.squash, body.squashVelocity, JELLY_STIFFNESS, JELLY_DAMPING) * dt
+            body.squash = (body.squash + body.squashVelocity * dt).coerceIn(-MAX_JELLY_STRETCH, MAX_SQUASH)
+            if (abs(body.squash) < 1e-3f && abs(body.squashVelocity) < 1e-2f) {
+                body.squash = 0f
+                body.squashVelocity = 0f
+            }
+        }
+
+        if (body.appear < 1f || body.appearVelocity != 0f) {
+            body.appearVelocity += springAcceleration(body.appear - 1f, body.appearVelocity, APPEAR_STIFFNESS, APPEAR_DAMPING) * dt
+            body.appear = (body.appear + body.appearVelocity * dt).coerceAtMost(MAX_APPEAR)
+            if (abs(body.appear - 1f) < 1e-3f && abs(body.appearVelocity) < 1e-2f) {
+                body.appear = 1f
+                body.appearVelocity = 0f
+            }
+        }
+
+        // From a shape's width short of the edge, so it has faded by the time it is past it.
+        val atItsEdge = body.exiting && if (body.exitTowardsRight) body.x + 2f * body.radius >= width else body.x - 2f * body.radius <= 0f
+        if (atItsEdge || body.leave > 0f) {
+            body.leaveVelocity += springAcceleration(body.leave - 1f, body.leaveVelocity, LEAVE_STIFFNESS, LEAVE_DAMPING) * dt
+            body.leave = (body.leave + body.leaveVelocity * dt).coerceIn(0f, 1f)
         }
     }
 
@@ -401,12 +540,46 @@ internal class MorphBouncePhysics(
         const val BED_OMEGA = 40f
         const val CONTACT_GRIP = 30f
         const val SPIN_AIR_DECAY = 0.35f
-        /** The new shape is 90% formed about 100 ms after touching down, i.e. during the bounce. */
-        const val MORPH_TIME_CONSTANT = 0.045f
+        /**
+         * The morph's spring: Material 3 Expressive's fast spatial spring (MotionScheme.expressive() fastSpatialSpec,
+         * damping ratio 0.6, stiffness 800). Its damping is that of Google's morphing LoadingIndicator (0.6, there at
+         * stiffness 200, one morph every 650 ms); here a morph must be formed within the 80 ms a bounce spends on the
+         * bed, so it is the expressive scheme's faster spring of the same feel: the new shape is about 85% formed at
+         * lift-off, overshoots by under 10% and has settled about 0.35 s after the bounce.
+         */
+        const val MORPH_DAMPING = 0.6f
+        const val MORPH_STIFFNESS = 800f
+        /**
+         * The morph counts as settled, and is set to exactly 1, this close to it and this slow (Google's loading
+         * indicator likewise raises its morph spring's visibility threshold so the low-damping spring ends sooner).
+         */
+        const val MORPH_SETTLE = 0.01f
+        const val MORPH_SETTLE_SPEED = 0.1f
+        /** A shape at the bottom of a bounce is squashed by this share of its sink into the bed, over its diameter. */
+        const val SQUASH_PER_DEPTH = 0.55f
+        /** The flattest a shape gets on the trampoline: 32% shorter, and wider to keep its area. */
+        const val MAX_SQUASH = 0.32f
+        /** The tallest it gets in the wobble after lifting off: 12% taller, and narrower. */
+        const val MAX_JELLY_STRETCH = 0.12f
+        /** The share of its unsquashing speed a shape carries into the wobble after lifting off. */
+        const val JELLY_CARRY = 0.5f
+        /** The wobble's spring: the expressive fast spatial spring again, so it rings once, softly, and settles. */
+        const val JELLY_DAMPING = 0.6f
+        const val JELLY_STIFFNESS = 800f
+        /** The scale-in from under the card: the expressive default spatial spring (0.8, 380), about 0.4 s. */
+        const val APPEAR_DAMPING = 0.8f
+        const val APPEAR_STIFFNESS = 380f
+        /** The scale-in's overshoot (about 1.5% for this spring) is never more than this. */
+        const val MAX_APPEAR = 1.03f
+        /** The fade out at the edge: the expressive default effects spring (1.0, 1600), no overshoot, about 0.1 s. */
+        const val LEAVE_DAMPING = 1f
+        const val LEAVE_STIFFNESS = 1600f
         const val HAPTIC_MIN_SPEED = 1.0f
         /** The brightening on a bounce fades over roughly a fifth of a second. */
         const val GLOW_TIME_CONSTANT = 0.12f
         const val TOP_MARGIN = 0.02f
+        /** No shape's radius is more than this share of the area's height. */
+        const val MAX_RADIUS_SHARE = 0.3f
         const val STEP = 1f / 240f
         const val MAX_FRAME = 1f / 20f
         const val WAVE_GAP_MIN = 0.14f
@@ -414,7 +587,16 @@ internal class MorphBouncePhysics(
         const val IDLE_FIRST_DELAY = 2.6f
         const val IDLE_GAP_MIN = 1.4f
         const val IDLE_GAP_MAX = 2.8f
+        /** A last resort only: no shape has been seen to reach it (see [MAX_LIFETIME]). */
         const val MAX_AGE = 8f
+        /** A new shape's bounces, and the flight after them, are planned to be over by this age. */
+        const val PLAN_TIME = 5f
+        /**
+         * Every shape has left by this age, having made its planned bounces, in areas from 40 dp to 900 dp tall and
+         * 320 dp to 1280 dp wide (checked over 500 random runs of each in MorphBouncePhysicsTest; the longest stay
+         * found is under 8 s).
+         */
+        const val MAX_LIFETIME = 9f
         const val MIN_SIDEWAYS = 0.02f
         /** A shape slowed by a knock keeps at least this sideways speed, so it always travels on. */
         const val MIN_TRAVEL = 0.35f
@@ -427,8 +609,13 @@ internal class MorphBouncePhysics(
         const val MIN_REBOUND_SHARE = 0.35f
         /** Launch a little faster than the drag-free figure, since air resistance takes some of the height. */
         const val MIN_REBOUND_DRAG_ALLOWANCE = 1.06f
-        /** A shape turned back after a knock drifts at no more than this (or its own speed, if faster). */
-        const val GENTLE_SIDEWAYS = 1.2f
+
+        /**
+         * The acceleration of a spring of [stiffness] and [dampingRatio] (as Compose's `spring()` takes them, unit
+         * mass) at [offset] from its rest with [velocity].
+         */
+        fun springAcceleration(offset: Float, velocity: Float, stiffness: Float, dampingRatio: Float): Float =
+            -stiffness * offset - 2f * dampingRatio * sqrt(stiffness) * velocity
 
         /** Damping ratio of a spring contact that returns [restitution] of the impact speed. */
         fun dampingFor(restitution: Float): Float {

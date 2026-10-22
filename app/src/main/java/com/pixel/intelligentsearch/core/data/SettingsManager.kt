@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.os.UserManager
 import android.util.Log
+import androidx.core.content.edit
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.preferencesDataStoreFile
@@ -41,7 +42,6 @@ data class IntelligentSearchSettings(
     val searchWeb: Boolean = SettingsManager.SEARCH_WEB.default,
     val searchCalculator: Boolean = SettingsManager.SEARCH_CALCULATOR.default,
     val searchCalendar: Boolean = SettingsManager.SEARCH_CALENDAR.default,
-    val searchShortcuts: Boolean = SettingsManager.SEARCH_SHORTCUTS.default,
     val searchAndroidSettings: Boolean = SettingsManager.SEARCH_ANDROID_SETTINGS.default,
     val backgroundBlur: Int = SettingsManager.BACKGROUND_BLUR.default,
     val showWallpaper: Boolean = SettingsManager.SHOW_WALLPAPER.default,
@@ -57,13 +57,7 @@ data class IntelligentSearchSettings(
     val tutorialCompleted: Boolean = SettingsManager.TUTORIAL_COMPLETED.default,
     val forceTutorial: Boolean = SettingsManager.FORCE_TUTORIAL.default,
     val tutorialStep: Int = SettingsManager.TUTORIAL_STEP.default,
-    val gIconEnabled: Boolean = SettingsManager.G_ICON_ENABLED.default,
     val widgetShowVoice: Boolean = SettingsManager.WIDGET_SHOW_VOICE.default,
-    val widgetShowGemini: Boolean = SettingsManager.WIDGET_SHOW_GEMINI.default,
-    val quickSearchYoutube: Boolean = SettingsManager.QUICK_SEARCH_YOUTUBE.default,
-    val quickSearchWikipedia: Boolean = SettingsManager.QUICK_SEARCH_WIKIPEDIA.default,
-    val quickSearchPlayStore: Boolean = SettingsManager.QUICK_SEARCH_PLAY_STORE.default,
-    val quickSearchMaps: Boolean = SettingsManager.QUICK_SEARCH_MAPS.default,
     val searchPills: String = SettingsManager.SEARCH_PILLS.default,
     val widgetThemeStyle: String = SettingsManager.WIDGET_THEME_STYLE.default,
     val hiddenApps: Set<String> = SettingsManager.HIDDEN_APPS.default,
@@ -88,7 +82,6 @@ data class IntelligentSearchSettings(
     val webShortcutTriggerSymbol: String = SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL.default,
     val adaptiveIconShape: String = SettingsManager.ADAPTIVE_ICON_SHAPE.default,
     val dynamicIconMasking: Boolean = SettingsManager.DYNAMIC_ICON_MASKING.default,
-    val diagnosticsOverlayEnabled: Boolean = SettingsManager.DIAGNOSTICS_OVERLAY_ENABLED.default,
     val matrixAnimationEnabled: Boolean = SettingsManager.MATRIX_ANIMATION_ENABLED.default,
     val backToSearchOverlay: Boolean = SettingsManager.BACK_TO_SEARCH_OVERLAY.default,
     val disabledWebShortcuts: Set<String> = SettingsManager.DISABLED_WEB_SHORTCUTS.default,
@@ -126,13 +119,19 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** Fetches the European Central Bank's rates for currency answers once a day while the Calculator is on; off, nothing is fetched. */
         val LIVE_CURRENCY_RATES = BooleanSetting("live_currency_rates", true)
         val SEARCH_CALENDAR = BooleanSetting("search.calendar", true, "search_calendar")
+        /**
+         * Switched app shortcut results on; nothing reads it any more. Android lets only the home screen app read
+         * other apps' shortcuts, so they never showed, and the row became the Quick App Panel switch
+         * ([QUICK_SEARCH_HORIZONTAL]). Stays declared so the migration and older backups recognise it.
+         */
         val SEARCH_SHORTCUTS = BooleanSetting("search.shortcuts", true, "search_shortcuts")
         /** Offers Android Settings pages ("battery", "app info chrome") among the results. */
         val SEARCH_ANDROID_SETTINGS = BooleanSetting("search.android.settings", true)
         val BACKGROUND_BLUR = IntSetting("search.background.blur", 50, 0..100, "background.blur")
         val SHOW_WALLPAPER = BooleanSetting("search.background.show.wall", true, "show_wallpaper", "show.wallpaper")
         val BACKGROUND_TRANSPARENCY = IntSetting("search.background.transparency", 50, 0..100, "background.transparency")
-        val PILL_OPACITY = IntSetting("search.pill.opacity", 50, 0..100, "pill.opacity")
+        /** The search pill's opacity in percent; see [PILL_OPACITY_LINEAR_KEY] for what older versions stored. */
+        val PILL_OPACITY = IntSetting("search.pill.opacity", 100, 0..100, "pill.opacity")
         val SEARCH_ENGINE = StringSetting("search.engine", "Google")
         val CUSTOM_SEARCH_ENGINE_URL = StringSetting("custom_search_engine_url", "")
         val CUSTOM_SEARCH_ENGINE_NAME = StringSetting("custom_search_engine_name", "Custom")
@@ -145,6 +144,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val TUTORIAL_COMPLETED = BooleanSetting("tutorial_completed", false)
         val FORCE_TUTORIAL = BooleanSetting("force_tutorial", false)
         val TUTORIAL_STEP = IntSetting("tutorial_step", 0, 0..20)
+        // Nothing reads this, WIDGET_SHOW_GEMINI, QUICK_SEARCH_YOUTUBE/WIKIPEDIA/PLAY_STORE/MAPS or
+        // DIAGNOSTICS_OVERLAY_ENABLED any more; they stay declared so the migration and older backups recognise them.
         val G_ICON_ENABLED = BooleanSetting("g_icon_enabled", true)
         val WIDGET_SHOW_VOICE = BooleanSetting("widget_show_voice", true)
         val WIDGET_SHOW_GEMINI = BooleanSetting("widget_show_gemini", true)
@@ -160,12 +161,16 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** Call, Message, Email and chat-app buttons on contact results. */
         val CONTACT_ACTIONS = BooleanSetting("contact_actions", true)
         val SHORTCUT_INLINE = BooleanSetting("shortcut.inline", true, "shortcut_inline")
-        val SHORTCUT_RECENT = BooleanSetting("shortcut.recent", true)
         val APP_FUZZY_SEARCH = BooleanSetting("app.fuzzy.search", true, "app_fuzzy_search")
+        /** The overlay's quick-app panel; switched from Search Behavior and from App & Shortcut Search. */
         val QUICK_SEARCH_HORIZONTAL = BooleanSetting("quick_search_horizontal", false, "quick.search.horizontal")
         val WEB_RESULTS_COUNT = IntSetting("web_results_count", 5, 0..20)
         val CONTACT_RESULTS_COUNT = IntSetting("contact_results_count", 5, 0..20)
         val FILE_RESULTS_COUNT = IntSetting("file_results_count", 5, 0..20)
+        /**
+         * Max Quick Panel Apps: how many apps the quick-app panel shows, chosen or recent. Named for the shortcut
+         * results it once capped; the name stays so backups keep restoring it. See [QUICK_PANEL_CAPS_CHOSEN_APPS_KEY].
+         */
         val SHORTCUT_RESULTS_COUNT = IntSetting("shortcut_results_count", 6, 1..20)
         val SEARCH_WEIGHT_APPS = IntSetting("search_weight_apps", 50, 0..100)
         val SEARCH_WEIGHT_CONTACTS = IntSetting("search_weight_contacts", 50, 0..100)
@@ -211,7 +216,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             BOTTOM_SEARCH, BOTTOM_SEARCH_RESULT, TUTORIAL_COMPLETED, FORCE_TUTORIAL, TUTORIAL_STEP, G_ICON_ENABLED,
             WIDGET_SHOW_VOICE, WIDGET_SHOW_GEMINI, QUICK_SEARCH_YOUTUBE, QUICK_SEARCH_WIKIPEDIA,
             QUICK_SEARCH_PLAY_STORE, QUICK_SEARCH_MAPS, SEARCH_PILLS, WIDGET_THEME_STYLE, HIDDEN_APPS,
-            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, CONTACT_ACTIONS, SHORTCUT_INLINE, SHORTCUT_RECENT, APP_FUZZY_SEARCH,
+            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, CONTACT_ACTIONS, SHORTCUT_INLINE, APP_FUZZY_SEARCH,
             QUICK_SEARCH_HORIZONTAL, WEB_RESULTS_COUNT, CONTACT_RESULTS_COUNT, FILE_RESULTS_COUNT,
             SHORTCUT_RESULTS_COUNT, SEARCH_WEIGHT_APPS, SEARCH_WEIGHT_CONTACTS, SEARCH_WEIGHT_FILES,
             SEARCH_WEIGHT_WEB, CONTEXT_AWARE_QUICK_APPS, SMART_CLIPBOARD_SUGGESTIONS, ASSISTANT_STARTS_WITH_VOICE,
@@ -232,6 +237,34 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
 
         /** Settings keys retired with their features; removed by the migration. */
         private val RETIRED_NAMES = listOf("search_sections_config_json", "datastore_migration_v1_completed")
+
+        /**
+         * Set once [PILL_OPACITY] holds the pill's real opacity. Older versions drew their default, 50, fully
+         * opaque, so a store (or backup) without this flag reads 50 as 100. Backups carry it, so a restore can
+         * tell which kind of value a file holds; restores never write it.
+         */
+        const val PILL_OPACITY_LINEAR_KEY = "pill_opacity_linear_v1"
+
+        /** A [PILL_OPACITY] value saved before [PILL_OPACITY_LINEAR_KEY], as the pill's real opacity. */
+        fun pillOpacityFromOldScale(stored: Int): Int = if (stored == 50) 100 else stored
+
+        /**
+         * Set once [SHORTCUT_RESULTS_COUNT] caps the chosen Quick Launch apps too. Older versions capped only recent
+         * apps and showed every chosen one, so a store (or backup) without this flag has the max raised to fit its
+         * chosen apps. Backups carry it, so a restore can tell which kind of file it has; restores never write it.
+         */
+        const val QUICK_PANEL_CAPS_CHOSEN_APPS_KEY = "quick_panel_caps_chosen_apps_v1"
+
+        /**
+         * Raises [SHORTCUT_RESULTS_COUNT] in [editor] to the number of chosen Quick Launch apps in [sp] when the panel
+         * shows them (Context Aware Quick Apps off) and the max is lower, so the panel shows what it did before the
+         * max applied to them.
+         */
+        fun fitQuickPanelToChosenApps(sp: SharedPreferences, editor: SharedPreferences.Editor) {
+            if (sp[CONTEXT_AWARE_QUICK_APPS]) return
+            val chosen = sp[SEARCH_PILLS].split(",").map { it.trim() }.filter { it.isNotBlank() }.distinct().size
+            if (chosen > sp[SHORTCUT_RESULTS_COUNT]) editor.put(SHORTCUT_RESULTS_COUNT, chosen)
+        }
     }
 
     /**
@@ -284,7 +317,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         searchWeb = sp[SEARCH_WEB],
         searchCalculator = sp[SEARCH_CALCULATOR],
         searchCalendar = sp[SEARCH_CALENDAR],
-        searchShortcuts = sp[SEARCH_SHORTCUTS],
         searchAndroidSettings = sp[SEARCH_ANDROID_SETTINGS],
         backgroundBlur = sp[BACKGROUND_BLUR],
         showWallpaper = sp[SHOW_WALLPAPER],
@@ -300,13 +332,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         tutorialCompleted = sp[TUTORIAL_COMPLETED],
         forceTutorial = sp[FORCE_TUTORIAL],
         tutorialStep = sp[TUTORIAL_STEP],
-        gIconEnabled = sp[G_ICON_ENABLED],
         widgetShowVoice = sp[WIDGET_SHOW_VOICE],
-        widgetShowGemini = sp[WIDGET_SHOW_GEMINI],
-        quickSearchYoutube = sp[QUICK_SEARCH_YOUTUBE],
-        quickSearchWikipedia = sp[QUICK_SEARCH_WIKIPEDIA],
-        quickSearchPlayStore = sp[QUICK_SEARCH_PLAY_STORE],
-        quickSearchMaps = sp[QUICK_SEARCH_MAPS],
         searchPills = sp[SEARCH_PILLS],
         widgetThemeStyle = sp[WIDGET_THEME_STYLE],
         hiddenApps = sp[HIDDEN_APPS],
@@ -331,7 +357,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         webShortcutTriggerSymbol = sp[WEB_SHORTCUT_TRIGGER_SYMBOL],
         adaptiveIconShape = sp[ADAPTIVE_ICON_SHAPE],
         dynamicIconMasking = sp[DYNAMIC_ICON_MASKING],
-        diagnosticsOverlayEnabled = sp[DIAGNOSTICS_OVERLAY_ENABLED],
         matrixAnimationEnabled = sp[MATRIX_ANIMATION_ENABLED],
         backToSearchOverlay = sp[BACK_TO_SEARCH_OVERLAY],
         disabledWebShortcuts = sp[DISABLED_WEB_SHORTCUTS],
@@ -364,7 +389,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
     private var directBootMirror: SharedPreferences.OnSharedPreferenceChangeListener? = null
 
     private val widgetAppWideNames =
-        listOf(THEME, G_ICON_ENABLED, WIDGET_SHOW_VOICE, WIDGET_SHOW_GEMINI, WIDGET_THEME_STYLE, SEARCH_OVERLAY_ENABLED)
+        listOf(THEME, WIDGET_SHOW_VOICE, WIDGET_THEME_STYLE, SEARCH_OVERLAY_ENABLED)
             .map { it.name }.toSet()
 
     private fun isMirroredForWidgets(name: String): Boolean = name.startsWith("widget") || name in widgetAppWideNames
@@ -390,11 +415,19 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
     /**
      * One-time move to the single store (run after the user is unlocked): imports values only the old
      * DataStore copy still held, folds every legacy spelling into its canonical name, normalizes the theme,
-     * drops retired keys, and deletes the DataStore file. Safe to call repeatedly.
+     * drops retired keys, and deletes the DataStore file. Then moves the pill opacity to its linear meaning (see
+     * [migratePillOpacity]) and fits the quick panel's max to the chosen apps (see [migrateQuickPanelMax]). Safe to
+     * call repeatedly.
      */
     suspend fun migrateToSingleStore() = withContext(Dispatchers.IO) {
         val sp = prefs
-        if (sp.getInt(STORAGE_VERSION_KEY, 0) >= CURRENT_STORAGE_VERSION) return@withContext
+        if (sp.getInt(STORAGE_VERSION_KEY, 0) < CURRENT_STORAGE_VERSION && !foldIntoSingleStore(sp)) return@withContext
+        migratePillOpacity(sp)
+        migrateQuickPanelMax(sp)
+    }
+
+    /** The single-store move itself; false if it couldn't be saved, so it runs again at the next start. */
+    private suspend fun foldIntoSingleStore(sp: SharedPreferences): Boolean {
         val editor = sp.edit()
         importLegacyDataStore(sp, editor)
         for (key in ALL) {
@@ -408,8 +441,35 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         }
         RETIRED_NAMES.forEach(editor::remove)
         editor.putInt(STORAGE_VERSION_KEY, CURRENT_STORAGE_VERSION)
-        editor.commit()
+        // The old store may hold the only copy of what was imported: keep it until the import is on disk, and the
+        // migration runs again at the next start.
+        if (!editor.commit()) return false
         runCatching { context.preferencesDataStoreFile(LEGACY_DATASTORE_NAME).delete() }
+        return true
+    }
+
+    /**
+     * Once per install: older versions drew a pill opacity of 50 (their default) fully opaque, so a stored 50 becomes
+     * 100 and the pill looks the same after the update. Any other value already meant its own opacity.
+     */
+    private fun migratePillOpacity(sp: SharedPreferences) {
+        if (sp.getBoolean(PILL_OPACITY_LINEAR_KEY, false)) return
+        sp.edit {
+            if (PILL_OPACITY.allNames.any(sp::contains)) put(PILL_OPACITY, pillOpacityFromOldScale(sp[PILL_OPACITY]))
+            putBoolean(PILL_OPACITY_LINEAR_KEY, true)
+        }
+    }
+
+    /**
+     * Once per install: Max Quick Panel Apps used to cap only recent apps, so an install that chose more Quick Launch
+     * apps than its max has the max raised to fit them, and the panel looks the same after the update.
+     */
+    private fun migrateQuickPanelMax(sp: SharedPreferences) {
+        if (sp.getBoolean(QUICK_PANEL_CAPS_CHOSEN_APPS_KEY, false)) return
+        sp.edit {
+            fitQuickPanelToChosenApps(sp, this)
+            putBoolean(QUICK_PANEL_CAPS_CHOSEN_APPS_KEY, true)
+        }
     }
 
     /**

@@ -8,11 +8,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class ProfileContainerState(
-    val hasPrivateSpace: Boolean,
-    val isPrivateSpaceLocked: Boolean,
-)
-
 @Singleton
 class PrivateSpaceManager @Inject constructor(
     @param:ApplicationContext private val context: Context,

@@ -2,7 +2,11 @@ package com.pixel.intelligentsearch.feature.search
 
 import android.Manifest
 import com.pixel.intelligentsearch.core.util.findActivity
+import android.content.Context
 import android.content.pm.PackageManager
+import androidx.core.content.edit
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
@@ -76,11 +80,12 @@ internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (S
     val problem by rememberUpdatedState(onProblem)
     val dictation = remember { Dictation(context) }
     val begin = remember { { dictation.start(onFinished = { heard(it) }, onProblem = { problem(it) }) } }
+    val asking = remember { MicRequest() }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         when {
             granted -> begin()
             // Denied for good (Android no longer shows its dialog): the app's settings page is the only way back.
-            context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) == false -> {
+            isPermanentDenial(asking.askedBefore, asking.rationaleBefore, rationaleAfter = context.micRationale()) -> {
                 problem("Turn on the microphone for Intelligent Search in Settings to search by voice.")
                 runCatching {
                     context.startActivity(
@@ -93,13 +98,56 @@ internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (S
             else -> problem("Allow the microphone to search by voice.")
         }
     }
-    val voice = remember { OverlayVoice(dictation, askPermission = { permission.launch(Manifest.permission.RECORD_AUDIO) }, begin = begin) }
+    val voice = remember {
+        OverlayVoice(dictation, askPermission = {
+            asking.rationaleBefore = context.micRationale()
+            asking.askedBefore = micAskedBefore(context)
+            permission.launch(Manifest.permission.RECORD_AUDIO)
+            noteMicAsked(context)
+        }, begin = begin)
+    }
     voice.permissionGranted = {
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
     DisposableEffect(Unit) { onDispose { dictation.cancel() } }
+    // Leaving the screen (home, another app, the screen turning off) lets go of the microphone; cancelling also drops
+    // the callbacks, so nothing heard is searched later. Not on pause: the permission dialog pauses the screen too.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { dictation.cancel() }
     return voice
 }
+
+/** What was known just before the microphone was last asked for, read when the answer comes back. */
+private class MicRequest(var askedBefore: Boolean = false, var rationaleBefore: Boolean = false)
+
+/** Whether Android wants the app to explain why it needs the microphone: true after one denial, until a second. */
+private fun Context.micRationale(): Boolean =
+    findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) == true
+
+/**
+ * Where it is noted that the microphone has been asked for: a file of its own, since the settings file goes into
+ * backups and its changes redraw the widgets, and this is neither a setting nor anything to carry to another phone.
+ */
+private const val VOICE_PERMISSION_PREFS = "voice_permission_state"
+private const val KEY_MIC_ASKED = "mic_asked"
+
+/** Whether the microphone has been asked for before. Unreadable before the first unlock, when search never shows. */
+private fun micAskedBefore(context: Context): Boolean = runCatching {
+    context.getSharedPreferences(VOICE_PERMISSION_PREFS, Context.MODE_PRIVATE).getBoolean(KEY_MIC_ASKED, false)
+}.getOrDefault(false)
+
+private fun noteMicAsked(context: Context) {
+    runCatching { context.getSharedPreferences(VOICE_PERMISSION_PREFS, Context.MODE_PRIVATE).edit { putBoolean(KEY_MIC_ASKED, true) } }
+}
+
+/**
+ * Whether a refused microphone request means Android won't show its dialog again, so App Info is the only way back.
+ * Android says so only indirectly, by no longer asking the app to explain why it needs the microphone
+ * ([rationaleAfter] false). That alone also fits a first request the user dismissed without answering, which must just
+ * ask again next time, so it counts only when the request could have been the final one: the user had already denied
+ * it once ([rationaleBefore]), or the microphone had been asked for before ([askedBefore]).
+ */
+internal fun isPermanentDenial(askedBefore: Boolean, rationaleBefore: Boolean, rationaleAfter: Boolean): Boolean =
+    !rationaleAfter && (rationaleBefore || askedBefore)
 
 /**
  * The search bar's listening animation, matched frame by frame to Gboard's Rambler strip. A field of light in the

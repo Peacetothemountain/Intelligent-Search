@@ -9,7 +9,7 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Inject
 
 /**
- * The device data search pulls in: installed and recent apps, app usage, shortcuts, upcoming calendar events,
+ * The device data search pulls in: installed and recent apps, app usage, upcoming calendar events,
  * contacts, files and web suggestions. Injected rather than called statically, so the search ViewModel and the
  * index can be tested with stand-ins.
  */
@@ -18,7 +18,6 @@ interface DeviceSearchSources {
     /** Drops the cached app list so the next [allApps] re-reads the device. */
     fun invalidateAppsCache()
     fun appUsage(): Map<String, SystemDataProvider.AppUsage>
-    fun allShortcuts(): List<AppShortcutItem>
     suspend fun allContacts(): List<ContactItem>
     suspend fun recentFiles(limit: Int, includeHidden: Boolean): List<FileItem>
     suspend fun recentApps(hiddenApps: Set<String>): List<AppItem>
@@ -35,7 +34,6 @@ class DeviceSearchSourcesImpl @Inject constructor(@ApplicationContext private va
     override suspend fun allApps(forceRefresh: Boolean): List<AppItem> = SystemDataProvider.getAllApps(context, forceRefresh)
     override fun invalidateAppsCache() = SystemDataProvider.invalidateAppsCache()
     override fun appUsage(): Map<String, SystemDataProvider.AppUsage> = SystemDataProvider.getAppUsage(context)
-    override fun allShortcuts(): List<AppShortcutItem> = ShortcutProvider.getAllShortcuts(context)
     override suspend fun allContacts(): List<ContactItem> = SystemDataProvider.getAllContacts(context)
     override suspend fun recentFiles(limit: Int, includeHidden: Boolean): List<FileItem> =
         SystemDataProvider.getAllRecentFiles(context, limit = limit, includeHidden = includeHidden)

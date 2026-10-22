@@ -155,6 +155,17 @@ class MathematicalExpressionEngineTest {
     }
 
     @Test
+    fun aLoneSignedNumberIsNotACalculation() {
+        // International phone numbers are typed with a plus; echoing them back as "= 14155552671" is noise.
+        assertNull(MathematicalExpressionEngine.evaluate("+14155552671"))
+        assertNull(MathematicalExpressionEngine.evaluate("+447700900123"))
+        assertNull(MathematicalExpressionEngine.evaluate("-5"))
+        // A sign in front of real arithmetic still counts.
+        val sum = MathematicalExpressionEngine.evaluate("-5+3") as MathematicalExpressionEngine.MathEvaluationResult.Computation
+        assertEquals(-2.0, sum.numericValue, 0.0)
+    }
+
+    @Test
     fun roundIsHalfAwayFromZero() {
         val up = MathematicalExpressionEngine.evaluate("round(2.5)") as MathematicalExpressionEngine.MathEvaluationResult.Computation
         assertEquals(3.0, up.numericValue, 0.0)

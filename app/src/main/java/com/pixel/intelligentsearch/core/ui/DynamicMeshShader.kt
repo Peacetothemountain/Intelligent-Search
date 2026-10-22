@@ -9,6 +9,7 @@ import androidx.compose.foundation.background
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.pixel.intelligentsearch.core.performance.ADPFThermalManager
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.intellij.lang.annotations.Language
 
@@ -146,12 +148,8 @@ fun Modifier.meshGradientBackground(
     val context = androidx.compose.ui.platform.LocalContext.current
     val adpfThermalManager = remember(context) { ADPFThermalManager.getInstance(context) }
     val throttleLevelState = adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
-    val throttleLevel by throttleLevelState
-    val isThermallyThrottled = throttleLevel >= ADPFThermalManager.ThermalThrottleLevel.SEVERE
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val timeState = remember { mutableFloatStateOf(0f) }
-    val animationsEnabled by rememberAnimationsEnabled()
+    // Stands still while paused, interacting, throttled, in the background or with animations removed.
+    val timeState = rememberMeshClock(isPaused, extraPause = isInteracting)
 
     val currentTL by androidx.compose.runtime.rememberUpdatedState(colorTLProducer)
     val currentTR by androidx.compose.runtime.rememberUpdatedState(colorTRProducer)
@@ -163,31 +161,13 @@ fun Modifier.meshGradientBackground(
     val meshPainter = remember {
         androidx.compose.ui.graphics.MeshGradientPainter(rows = 2, columns = 2, hasBicubicColor = true) {
             configureMaterialMesh(
-                t = timeState.floatValue,
+                t = timeState.value,
                 tl = currentTL(),
                 tr = currentTR(),
                 bl = currentBL(),
                 br = currentBR(),
                 center = currentCenter()
             )
-        }
-    }
-
-    // Pause frame animation loop while paused, interacting, throttled, or in background
-    LaunchedEffect(lifecycleOwner, isPaused, isInteracting, isThermallyThrottled, animationsEnabled) {
-        if (!isPaused && !isInteracting && !isThermallyThrottled && animationsEnabled) {
-            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                var lastFrame = 0L
-                val period = (2000.0 * Math.PI).toFloat()
-                while (isActive) {
-                    withFrameNanos { frameTime ->
-                        if (lastFrame == 0L) lastFrame = frameTime
-                        val dt = ((frameTime - lastFrame) / 1_000_000_000f).coerceIn(0f, 0.1f)
-                        timeState.floatValue = (timeState.floatValue + dt) % period
-                        lastFrame = frameTime
-                    }
-                }
-            }
         }
     }
 
@@ -208,6 +188,53 @@ fun Modifier.meshGradientBackground(
         }
     }
 }
+
+/**
+ * Seconds the mesh backgrounds have drifted. Their drift is far too slow to need every display frame, so the clock
+ * waits [MESH_FRAME_GAP_MS] after each tick and then takes the next frame: about 30 redraws a second at 60, 90 or
+ * 120 Hz. It stands still while [isPaused] or [extraPause], in the background, under severe thermal throttling and,
+ * when [stopsWithAnimationsRemoved], while the user has removed animations. Time is taken from frame timestamps, so
+ * a late frame doesn't slow it.
+ */
+@Composable
+internal fun rememberMeshClock(
+    isPaused: Boolean,
+    extraPause: Boolean = false,
+    stopsWithAnimationsRemoved: Boolean = true
+): State<Float> {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val adpfThermalManager = remember(context) { ADPFThermalManager.getInstance(context) }
+    val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
+    val isThermallyThrottled = throttleLevel >= ADPFThermalManager.ThermalThrottleLevel.SEVERE
+    val animationsEnabled by rememberAnimationsEnabled()
+    val stoppedForAccessibility = stopsWithAnimationsRemoved && !animationsEnabled
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val timeState = remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(lifecycleOwner, isPaused, extraPause, isThermallyThrottled, stoppedForAccessibility) {
+        if (!isPaused && !extraPause && !isThermallyThrottled && !stoppedForAccessibility) {
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+                var lastFrame = 0L
+                while (isActive) {
+                    withFrameNanos { frameTime ->
+                        if (lastFrame == 0L) lastFrame = frameTime
+                        val dt = ((frameTime - lastFrame) / 1_000_000_000f).coerceIn(0f, 0.1f)
+                        timeState.floatValue = (timeState.floatValue + dt) % MESH_CLOCK_PERIOD
+                        lastFrame = frameTime
+                    }
+                    delay(MESH_FRAME_GAP_MS)
+                }
+            }
+        }
+    }
+    return timeState
+}
+
+/** Pause after each mesh tick; with the wait for the next frame, ticks land about 33 ms apart. */
+private const val MESH_FRAME_GAP_MS = 30L
+
+/** Every mesh drift frequency completes whole cycles in this time, so the clock wraps without a jump. */
+private const val MESH_CLOCK_PERIOD = (2000.0 * Math.PI).toFloat()
 
 /**
  * Material You under-lit mesh (Gemini overlay search bar style).
@@ -241,31 +268,14 @@ fun Modifier.materialYouEdgeGlowMesh(
     val context = androidx.compose.ui.platform.LocalContext.current
     val adpfThermalManager = remember(context) { ADPFThermalManager.getInstance(context) }
     val throttleLevelState = adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
-    val isThermallyThrottled = throttleLevelState.value >= ADPFThermalManager.ThermalThrottleLevel.SEVERE
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val timeState = remember { mutableFloatStateOf(0f) }
-
-    LaunchedEffect(lifecycleOwner, isPaused, isThermallyThrottled) {
-        if (!isPaused && !isThermallyThrottled) {
-            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                var lastFrame = 0L
-                while (isActive) {
-                    withFrameNanos { frameTime ->
-                        if (lastFrame == 0L) lastFrame = frameTime
-                        val dt = ((frameTime - lastFrame) / 1_000_000_000f).coerceIn(0f, 0.1f)
-                        timeState.floatValue = (timeState.floatValue + dt) % 10_000f
-                        lastFrame = frameTime
-                    }
-                }
-            }
-        }
-    }
+    // Unlike the other mesh backgrounds, this one keeps drifting with animations removed; the overlay screenshots
+    // are recorded with it drifting.
+    val timeState = rememberMeshClock(isPaused, stopsWithAnimationsRemoved = false)
 
     val meshPainter = remember {
         androidx.compose.ui.graphics.MeshGradientPainter(rows = 3, columns = 3, hasBicubicColor = true) {
             configureUnderLitMesh(
-                t = timeState.floatValue,
+                t = timeState.value,
                 deep = deepState.value,
                 interior = interiorState.value,
                 lightPrimary = lightPrimaryState.value,

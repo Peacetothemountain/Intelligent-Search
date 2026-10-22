@@ -109,7 +109,7 @@ class ContactActionsOverlayTest {
                 LaunchedEffect(Unit) { viewModel.onQueryChanged(FakeContactBook.QUERY) }
                 SearchOverlayScreen(
                     onOpenSettings = {},
-                    onLaunchApp = { _, _, _ -> },
+                    onLaunchApp = { _, _, _, _ -> },
                     viewModel = viewModel,
                     isKeyboardDisabled = true
                 )

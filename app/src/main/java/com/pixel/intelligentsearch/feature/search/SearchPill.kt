@@ -33,7 +33,7 @@ import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 
 @Composable
-fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: String, scale: Float = 1f, onClick: () -> Unit) {
+fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: String, scale: Float = 1f, launchIcon: LaunchIconTarget? = null, onClick: () -> Unit) {
     val hPadding = (12 * scale).dp
     val vPadding = (8 * scale).dp
     val iconSize = (18 * scale).dp
@@ -67,11 +67,11 @@ fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: S
             Image(
                 bitmap = iconBitmap.bitmap,
                 contentDescription = null,
-                modifier = Modifier.size(iconSize),
+                modifier = Modifier.size(iconSize).launchIcon(launchIcon),
                 colorFilter = if (iconBitmap.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
             )
         } else if (iconRes != null) {
-            Image(painter = painterResource(id = iconRes), contentDescription = null, modifier = Modifier.size(iconSize))
+            Image(painter = painterResource(id = iconRes), contentDescription = null, modifier = Modifier.size(iconSize).launchIcon(launchIcon))
         }
         Spacer(modifier = Modifier.width((8 * scale).dp))
         Text(

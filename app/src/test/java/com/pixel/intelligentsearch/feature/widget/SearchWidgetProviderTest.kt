@@ -189,6 +189,11 @@ class SearchWidgetProviderTest {
             com.pixel.intelligentsearch.R.drawable.ic_lens_action,
             getShortcutIconRes("Gemini")
         )
+        // The Live shortcut uses the search widget's magnifier, not the assistant's sparkles.
+        assertEquals(
+            com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive,
+            getShortcutIconRes("Live")
+        )
         assertEquals(
             com.pixel.intelligentsearch.R.drawable.ic_music,
             getShortcutIconRes("Now Playing")

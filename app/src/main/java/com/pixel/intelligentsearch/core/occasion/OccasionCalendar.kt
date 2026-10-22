@@ -150,6 +150,13 @@ object OccasionCalendar {
         else -> null
     }
 
+    /** Every region some doodle is kept only in, so a doodle's regions can be found by asking each of them. */
+    internal val REGIONS: Set<String> by lazy {
+        setOf("US", "CA", "BR", "TH", "NL", "JP", "SE", "FI", "FR", "KR", "DE", "MX", "IN", "GB") +
+            PANCAKE_DAY_REGIONS + MID_AUTUMN_REGIONS + MOTHERING_SUNDAY_REGIONS + MAY_MOTHERS_DAY_REGIONS +
+            SEPTEMBER_FATHERS_DAY_REGIONS + JUNE_FATHERS_DAY_REGIONS
+    }
+
     /** Where Shrove Tuesday is Pancake Day; in Brazil the same day is Carnival's. */
     private val PANCAKE_DAY_REGIONS = setOf("GB", "IE", "AU", "NZ", "CA")
 

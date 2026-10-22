@@ -1,11 +1,17 @@
 package com.pixel.intelligentsearch.feature.widget
 
+import android.app.Activity
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.ResolveInfo
+import android.view.View
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.core.net.toUri
+import com.pixel.intelligentsearch.R
+import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.WorkInfo
@@ -83,6 +89,21 @@ class WidgetDoodlesTest {
         assertEquals(WorkInfo.State.ENQUEUED, work.state)
         // Halloween starts in an hour; the redraw waits half a minute past midnight.
         assertEquals(TimeUnit.HOURS.toMillis(1) + TimeUnit.SECONDS.toMillis(30), work.initialDelayMillis)
+    }
+
+    /** The doodle plays around the G, so a widget with its G hidden has none, even on a doodle day. */
+    @Test
+    fun aWidgetWithoutItsGHasNoDoodle() {
+        today("2026-10-31")
+        prefs.edit().putBoolean("widget_material_design_saved", true).putBoolean("widget_material_show_g_icon", false).commit()
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        for (size in listOf(SearchWidgetProvider.ULTRA_COMPACT_WIDTH, SearchWidgetProvider.EXPANDED_WIDTH)) {
+            val widget = SearchWidgetProvider.buildResponsiveViews(context, appWidgetId = 7, isMaterialYou = true, prefs = prefs)
+                .getValue(size)
+                .apply(activity, FrameLayout(activity))
+            assertEquals(0, widget.findViewById<ViewGroup>(R.id.widget_doodle).childCount)
+            assertEquals(View.GONE, widget.findViewById<View>(R.id.widget_g_slot).visibility)
+        }
     }
 
     @Test

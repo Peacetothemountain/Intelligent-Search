@@ -11,7 +11,6 @@ import android.util.Log
 import android.util.LruCache
 import androidx.core.graphics.PathParser
 import androidx.core.graphics.createBitmap
-import androidx.core.graphics.withTranslation
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import com.pixel.intelligentsearch.feature.search.SearchIconPaths
@@ -37,12 +36,11 @@ internal val PATH_G_COVER by lazy {
     PathParser.createPathFromPathData("M12,14.26V10H22.36C22.49,10.72 22.56,11.47 22.56,12.25C22.56,12.943 22.509,13.614 22.409,14.26H17.92H12Z")
 }
 
-// The search overlay's sparkle mic.
+// The search overlay's mic, which the widget draws without the overlay's sparkle.
 internal val PATH_MIC_1 by lazy { PathParser.createPathFromPathData(SearchIconPaths.MIC_CAPSULE) }
 internal val PATH_MIC_2 by lazy { PathParser.createPathFromPathData(SearchIconPaths.MIC_STEM) }
 internal val PATH_MIC_3 by lazy { PathParser.createPathFromPathData(SearchIconPaths.MIC_LEFT_CRADLE) }
 internal val PATH_MIC_4 by lazy { PathParser.createPathFromPathData(SearchIconPaths.MIC_RIGHT_CRADLE) }
-internal val PATH_MIC_SPARKLE by lazy { PathParser.createPathFromPathData(SearchIconPaths.MIC_SPARKLE) }
 
 internal val PATH_LENS_1 by lazy { PathParser.createPathFromPathData("M75.0365 83.3333C79.6388 83.3333 83.3698 79.6023 83.3698 75C83.3698 70.3976 79.6388 66.6666 75.0365 66.6666C70.4341 66.6666 66.7031 70.3976 66.7031 75C66.7031 79.6023 70.4341 83.3333 75.0365 83.3333Z") }
 internal val PATH_LENS_2 by lazy { PathParser.createPathFromPathData("M50.0364 66.6666C56.9399 66.6666 62.5364 61.0702 62.5364 54.1666C62.5364 47.2631 56.9399 41.6666 50.0364 41.6666C43.1328 41.6666 37.5364 47.2631 37.5364 54.1666C37.5364 61.0702 43.1328 66.6666 50.0364 66.6666Z") }
@@ -157,8 +155,9 @@ internal fun createThemedActionIconBitmap(
 
 /**
  * Draws [resId] in the colours [themedIconColors] works out from [accents], or returns null for an icon without a
- * themed drawing (the caller tints the plain icon instead). The mic and the lens are the search overlay's own sparkle
- * mic and lens, part for part in its colours; the others take the mic's three tiers. Cached by what it's drawn from,
+ * themed drawing (the caller tints the plain icon instead). The mic and the lens are the search overlay's own mic and
+ * lens, part for part in its colours, though the mic is centred and has no sparkle: only the overlay's mic has one.
+ * The others take the mic's three tiers. Cached by what it's drawn from,
  * so a redraw with nothing changed skips the palette maths; [kind] keeps the shortcut and circle button drawings apart.
  */
 private fun renderThemedIcon(
@@ -210,14 +209,10 @@ private fun renderThemedIcon(
         // The largest part of each icon is the third tone (grounded in the darker accent, never white).
         when (resId) {
             R.drawable.ic_mic -> {
-                // The mic sits a little left of centre to leave its sparkle room, as on the overlay's.
-                canvas.withTranslation(SearchIconPaths.MIC_SHIFT_X, SearchIconPaths.MIC_SHIFT_Y) {
-                    fill(PATH_MIC_1, colors.micCapsule)
-                    fill(PATH_MIC_2, colors.micStem)
-                    fill(PATH_MIC_3, colors.micLeftCradle)
-                    fill(PATH_MIC_4, colors.micRightCradle) // right and bottom of the cradle
-                }
-                fill(PATH_MIC_SPARKLE, colors.micSparkle)
+                fill(PATH_MIC_1, colors.micCapsule)
+                fill(PATH_MIC_2, colors.micStem)
+                fill(PATH_MIC_3, colors.micLeftCradle)
+                fill(PATH_MIC_4, colors.micRightCradle) // right and bottom of the cradle
             }
             R.drawable.ic_camera -> {
                 fill(PATH_LENS_1, palette.secondLighter) // dot

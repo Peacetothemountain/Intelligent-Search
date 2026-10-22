@@ -316,4 +316,6 @@ internal fun WidgetShortcutsTab(
             }
         }
     }
+
+    WidgetExtrasSection(fields = fields, ui = ui)
 }

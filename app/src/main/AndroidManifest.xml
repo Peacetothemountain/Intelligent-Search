@@ -320,6 +320,46 @@
                 android:resource="@xml/search_widget_material_info" />
         </receiver>
 
+        <!-- The countdown widget, redrawn after each local midnight and when the clock or time zone changes. -->
+        <receiver
+            android:name="com.pixel.intelligentsearch.feature.widget.CountdownWidgetProvider"
+            android:label="@string/widget_countdown_label"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/countdown_widget_info" />
+        </receiver>
+
+        <!-- Sets up a countdown widget. Not exported: the launcher's widget setup goes through SettingsActivity (the
+             app's one widget configuration entry point), which hands a countdown widget's setup on to it. -->
+        <activity
+            android:name="com.pixel.intelligentsearch.feature.widget.CountdownConfigActivity"
+            android:label="@string/widget_countdown_label"
+            android:windowSoftInputMode="adjustResize"
+            android:excludeFromRecents="true"
+            android:exported="false" />
+
+        <!-- The search bar widget's media row's play/pause and next; only the widget's own PendingIntents reach it. -->
+        <receiver android:name="com.pixel.intelligentsearch.feature.widget.WidgetMediaReceiver" android:exported="false" />
+
+        <!-- Notification access, which Android requires before it shares media sessions, for the widget's optional
+             media row only (MediaSessionAccess). Bound by the system only while the user has granted it. -->
+        <service
+            android:name="com.pixel.intelligentsearch.core.system.MediaSessionListenerService"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name="com.pixel.intelligentsearch.core.system.DirectBootReceiver"
             android:exported="false">

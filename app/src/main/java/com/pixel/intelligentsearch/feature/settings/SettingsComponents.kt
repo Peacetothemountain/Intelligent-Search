@@ -508,7 +508,9 @@ fun SettingsSliderRow(
     icon: ImageVector,
     showDivider: Boolean,
     steps: Int = 0,
-    onReset: (() -> Unit)? = null
+    onReset: (() -> Unit)? = null,
+    /** The value as shown beside the title and read by TalkBack ("8 dp"); without it TalkBack reads a percentage. */
+    valueText: ((Float) -> String)? = null
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     Column {
@@ -538,6 +540,14 @@ fun SettingsSliderRow(
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    if (valueText != null) {
+                        Text(
+                            text = valueText(value),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1
+                        )
+                    }
                     if (onReset != null) {
                         // Material's own IconButton: the click haptic below is this button's one haptic.
                         androidx.compose.material3.IconButton(
@@ -563,7 +573,7 @@ fun SettingsSliderRow(
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     steps = steps,
                     label = title,
-                    valueDescription = "${value.toInt()}%"
+                    valueDescription = valueText?.invoke(value) ?: "${value.toInt()}%"
                 )
             }
         }

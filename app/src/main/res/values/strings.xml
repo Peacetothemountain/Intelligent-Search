@@ -28,6 +28,30 @@
     <string name="tile_content_description">Search phone and web quick launcher</string>
     <string name="widget_talkback_open_app">Open %1$s</string>
     <string name="widget_talkback_open_web">Open %1$s</string>
+    <string name="widget_talkback_calculator">Calculate in search</string>
+    <string name="widget_talkback_discover">Google Discover</string>
+    <string name="widget_talkback_media_play">Play</string>
+    <string name="widget_talkback_media_pause">Pause</string>
+    <string name="widget_talkback_media_next">Next track</string>
+    <!-- The media row's title: TalkBack reads "<title>, open <app>". -->
+    <string name="widget_talkback_media_open">%1$s, open %2$s</string>
+
+    <!-- The countdown widget. -->
+    <string name="widget_countdown_label">Countdown</string>
+    <string name="widget_countdown_description">Days left until a date you choose</string>
+    <plurals name="widget_countdown_days_to">
+        <item quantity="one">day to %1$s</item>
+        <item quantity="other">days to %1$s</item>
+    </plurals>
+    <plurals name="widget_countdown_days_since">
+        <item quantity="one">day since %1$s</item>
+        <item quantity="other">days since %1$s</item>
+    </plurals>
+    <string name="widget_countdown_today">Today</string>
+    <string name="widget_countdown_today_caption">is %1$s</string>
+    <string name="widget_countdown_set_up">Tap to choose a date</string>
+    <!-- TalkBack: "12 days to Halloween, search for Halloween". -->
+    <string name="widget_talkback_countdown">%1$s %2$s, search for %3$s</string>
     <string name="search_hint">Search</string>
     <!-- Doodle days: TalkBack reads "<day> doodle, search for <day>", and tapping the doodle searches for the day. -->
     <string name="widget_talkback_doodle">%1$s doodle, search for %1$s</string>

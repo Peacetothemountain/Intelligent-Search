@@ -58,7 +58,8 @@ internal fun WidgetAppearanceTab(
     themeStyle: MutableState<String>,
     computedCustomColorInt: Int,
     view: android.view.View,
-    hapticEngine: PixelHapticEngine
+    hapticEngine: PixelHapticEngine,
+    savedThemes: WidgetSavedThemes
 ) {
     var localSubtheme by fields::subtheme
     var localMaterialGIconTheme by fields::materialGIconTheme
@@ -288,6 +289,8 @@ internal fun WidgetAppearanceTab(
             )
         }
     }
+
+    WidgetBarShapeSection(fields = fields, isMaterialDesign = isMaterialDesign)
 
     if (localMaterialGIconTheme == "Custom G Icon") {
         SettingsSectionHeader("Custom Icon Colors")
@@ -632,5 +635,46 @@ internal fun WidgetAppearanceTab(
                 }
             }
         }
+    }
+
+    WidgetSavedThemesSection(saved = savedThemes, ui = ui)
+}
+
+/**
+ * The bar's Outline Thickness and Corner Radius ([WidgetBarShape]). Corner Radius goes up to fully round for the
+ * chosen outline, so every value it offers changes the bar; the widget never draws a corner rounder than its shape.
+ */
+@Composable
+private fun WidgetBarShapeSection(fields: WidgetDraftFields, isMaterialDesign: Boolean) {
+    var outline by fields::outlineThickness
+    var corner by fields::cornerRadius
+    val design = if (isMaterialDesign) com.pixel.intelligentsearch.core.data.widget.WidgetDesign.MATERIAL else com.pixel.intelligentsearch.core.data.widget.WidgetDesign.SYSTEM
+    val maxCorner = com.pixel.intelligentsearch.feature.widget.WidgetBarShape.maxCornerRadius(isMaterialDesign, outline)
+    // The widget draws outlines and corners in whole steps (WidgetBarShape.STEP), so the sliders move in them too.
+    val step = com.pixel.intelligentsearch.feature.widget.WidgetBarShape.STEP
+    SettingsSectionHeader("Bar Shape")
+    SettingsCard(lit = false) {
+        SettingsSliderRow(
+            title = if (isMaterialDesign) "Rim Thickness" else "Outline Thickness",
+            value = outline.toFloat(),
+            onValueChange = { outline = kotlin.math.round(it).toInt() },
+            valueRange = 0f..com.pixel.intelligentsearch.core.data.widget.MAX_OUTLINE_THICKNESS.toFloat(),
+            steps = com.pixel.intelligentsearch.core.data.widget.MAX_OUTLINE_THICKNESS / step - 1,
+            icon = Icons.Outlined.LineWeight,
+            showDivider = true,
+            onReset = { outline = design.outlineThicknessKey.default },
+            valueText = { v -> if (kotlin.math.round(v).toInt() == 0) "None" else "${kotlin.math.round(v).toInt()} dp" }
+        )
+        SettingsSliderRow(
+            title = "Corner Radius",
+            value = corner.coerceAtMost(maxCorner).toFloat(),
+            onValueChange = { corner = kotlin.math.round(it).toInt() },
+            valueRange = 0f..maxCorner.toFloat(),
+            steps = (maxCorner / step - 1).coerceAtLeast(0),
+            icon = Icons.Outlined.RoundedCorner,
+            showDivider = false,
+            onReset = { corner = design.cornerRadiusKey.default },
+            valueText = { v -> kotlin.math.round(v).toInt().let { if (it >= maxCorner) "Fully Round" else "$it dp" } }
+        )
     }
 }

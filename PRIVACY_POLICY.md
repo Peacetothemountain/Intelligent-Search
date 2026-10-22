@@ -71,6 +71,11 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Purpose**: On Android 16 and later, on-device assistants can ask Intelligent Search to search your installed apps, run a calculation, or (only if you turn on **Settings -> Search Sources -> Contacts -> Share with Assistants**, which is off by default) search your contacts.
 * **Processing & Security**: Requests are answered on the device. Hidden apps are never returned, and contacts are never shared while contact search or sharing is off, or contacts access is not granted.
 
+### K. Notification Access for the Widget's Media Controls (`BIND_NOTIFICATION_LISTENER_SERVICE`)
+* **Purpose**: Android shares which media is playing only with apps that have notification access. The search bar widget's optional **Media Controls** row (Widget Customization -> Widget Shortcuts, off by default) uses it to show the playing title and artist with play, pause and next buttons.
+* **Processing & Security**: Only the active media sessions' title, artist and play state are read, on the device, to draw the widget. Notifications themselves are never read, stored or sent, and nothing leaves the device.
+* **User Control**: Access is requested only when you turn Media Controls on, after an in-app explanation, and can be revoked in Android Settings -> Notifications -> Device & app notifications. Without it the row isn't shown.
+
 ---
 
 ## 3. Web Search, External Search Engines & Live Currency Rates

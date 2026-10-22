@@ -22,7 +22,7 @@ import com.pixel.intelligentsearch.core.glance.GlanceSnapshot
 import com.pixel.intelligentsearch.core.glance.GlanceSource
 import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import com.pixel.intelligentsearch.core.glance.NotificationIndex
-import com.pixel.intelligentsearch.core.glance.NotificationSearchListener
+import com.pixel.intelligentsearch.core.glance.NotificationAccessListener
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
 import com.pixel.intelligentsearch.screenshots.confinedEffects
@@ -119,7 +119,7 @@ class AtAGlanceOverlayTest {
     private fun grantNotificationSearch() {
         prefs.edit().put(SettingsManager.SEARCH_NOTIFICATIONS, true).commit()
         shadowOf(context.getSystemService(NotificationManager::class.java))
-            .setNotificationListenerAccessGranted(NotificationSearchListener.component(context), true)
+            .setNotificationListenerAccessGranted(NotificationAccessListener.component(context), true)
     }
 
     private fun indexDinner(): Intent {

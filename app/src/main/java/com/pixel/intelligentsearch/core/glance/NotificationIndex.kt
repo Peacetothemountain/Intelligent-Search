@@ -34,7 +34,7 @@ data class IndexedNotification(
 
 /**
  * The phone's active notifications, held in memory only so typed searches can find them: never written to disk,
- * preferences, the database or backups, and gone with the process. Filled by [NotificationSearchListener] while the
+ * preferences, the database or backups, and gone with the process. Filled by [NotificationAccessListener] while the
  * user has Search Your Notifications on and notification access granted, and cleared the moment either goes.
  */
 @Singleton

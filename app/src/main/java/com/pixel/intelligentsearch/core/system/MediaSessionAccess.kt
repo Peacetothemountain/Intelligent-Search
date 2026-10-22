@@ -1,47 +1,29 @@
 package com.pixel.intelligentsearch.core.system
 
 import android.app.PendingIntent
-import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
-import android.provider.Settings
 import android.util.Log
-import androidx.core.app.NotificationManagerCompat
+import com.pixel.intelligentsearch.core.glance.NotificationAccess
 
 /**
- * Reading other apps' media sessions (what's playing, play/pause, next). Android only lets an app with notification
- * access ask for them, so this is gated on the user granting it to [MediaSessionListenerService] in Android settings
- * (Special app access). Nothing is read from notifications themselves; only the active media sessions.
+ * Reading other apps' media sessions (what's playing, play/pause, next) for the widget's Media Controls. Android only
+ * shares them with an app whose notification listener the user has granted, so this asks through the app's one
+ * listener and its one grant ([NotificationAccess]), the same that Search Your Notifications and Now Playing use.
+ * Nothing is read from notifications themselves; only the active media sessions.
  */
 object MediaSessionAccess {
 
     private const val TAG = "MediaSessionAccess"
 
-    fun listenerComponent(context: Context): ComponentName = ComponentName(context, MediaSessionListenerService::class.java)
-
-    /** Whether the user has given this app notification access, which is what lets it see media sessions. */
-    fun isGranted(context: Context): Boolean =
-        context.packageName in NotificationManagerCompat.getEnabledListenerPackages(context)
-
-    /** Android settings' page for granting it: this app's own notification access page. */
-    fun grantIntent(context: Context): Intent =
-        Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
-            .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, listenerComponent(context).flattenToString())
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-
-    /** The list of apps with notification access, for phones without the per-app page. */
-    fun grantListIntent(): Intent =
-        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-
     /** The active media sessions, most relevant first (as Android orders them); empty without access. */
     fun activeControllers(context: Context): List<MediaController> {
-        if (!isGranted(context)) return emptyList()
+        if (!NotificationAccess.isGranted(context)) return emptyList()
         return try {
-            context.getSystemService(MediaSessionManager::class.java)?.getActiveSessions(listenerComponent(context)).orEmpty()
+            context.getSystemService(MediaSessionManager::class.java)?.getActiveSessions(NotificationAccess.component(context)).orEmpty()
         } catch (e: SecurityException) {
             Log.w(TAG, "Media sessions aren't readable", e)
             emptyList()

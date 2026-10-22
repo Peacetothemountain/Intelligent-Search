@@ -10,46 +10,64 @@ import android.provider.AlarmClock
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
+import com.pixel.intelligentsearch.core.system.WidgetMediaWatcher
+import com.pixel.intelligentsearch.core.system.WidgetUpdater
+import com.pixel.intelligentsearch.di.ApplicationScope
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.lang.ref.WeakReference
 import javax.inject.Inject
 
 /**
- * Reads the phone's notifications into the in-memory [NotificationIndex] for Search Your Notifications and At a
- * Glance's timers.
+ * The app's one notification listener, so it appears once in Android's Notification Access list and one grant covers
+ * everything that needs it ([NotificationAccess]):
+ * - Search Your Notifications and At a Glance's timers: reads the phone's notifications into the in-memory
+ *   [NotificationIndex], only while that switch is on.
+ * - At a Glance's Now Playing and the widget's Media Controls: Android shares media sessions only with a granted
+ *   listener. Now Playing asks for them itself while the search is open; while a widget design shows its media row,
+ *   this listener also watches them ([WidgetMediaWatcher]) so the widget keeps up. Neither reads notifications.
  *
  * Google Play policy: notification listener access is allowed for an app's core feature with a prominent
- * disclosure. Here it is the user's own opt-in (Settings > Search Sources > Notifications, off by default), granted by
- * the user on Android's Notification Access screen after the app explains it (the rationale dialog there), and used
- * only to search notifications on the phone and to show timers above the search. Nothing read is stored
+ * disclosure. Here each use is the user's own opt-in, granted by the user on Android's Notification Access screen
+ * after the app explains it (the shared rationale dialog), and used only for those features. Nothing read is stored
  * (memory only, cleared when access or the switch goes), backed up or sent anywhere, and the app sees only what each
- * notification itself shows, never the messages or emails behind it. With the switch off the listener unbinds itself
- * at once, so it never reads anything the user hasn't asked it to.
+ * notification itself shows, never the messages or emails behind it. While nothing needs it ([staysBound]) the
+ * listener unbinds itself at once, so it never reads anything the user hasn't asked it to.
  */
 @AndroidEntryPoint
-class NotificationSearchListener : NotificationListenerService() {
+class NotificationAccessListener : NotificationListenerService() {
 
     @Inject lateinit var index: NotificationIndex
     @Inject lateinit var settingsManager: SettingsManager
+    @Inject lateinit var widgetUpdater: WidgetUpdater
+    @Inject @ApplicationScope lateinit var appScope: CoroutineScope
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1))
     private lateinit var indexer: NotificationIndexer
+    private lateinit var mediaWatcher: WidgetMediaWatcher
+    /** Whether Android has the listener connected; touched on the main thread. */
+    private var connected = false
 
     override fun onCreate() {
         super.onCreate()
+        mediaWatcher = WidgetMediaWatcher(applicationContext, component(this), widgetUpdater, appScope)
         indexer = NotificationIndexer(
             index = index,
             isOptedIn = { settingsManager[SettingsManager.SEARCH_NOTIFICATIONS] },
             extract = NotificationExtractor(applicationContext)::extract,
-            unbind = { runCatching { requestUnbind() } }
+            // Search is off; a widget's media row may still need the listener.
+            unbind = { unbindUnlessNeeded() }
         )
         // The switch turned off while connected: forget everything and stop listening straight away.
         scope.launch {
@@ -57,15 +75,47 @@ class NotificationSearchListener : NotificationListenerService() {
                 if (!on) indexer.onOptInChanged(false)
             }
         }
+        // A widget's media row switched on or off while connected: start or stop watching what's playing.
+        scope.launch {
+            combine(WidgetDesign.entries.map { settingsManager.observe(it.showMediaKey) }) { shows -> shows.any { it } }
+                .distinctUntilChanged()
+                .drop(1)
+                .collect { wanted ->
+                    if (!wanted) unbindUnlessNeeded()
+                    withContext(Dispatchers.Main) {
+                        when {
+                            !connected -> Unit
+                            wanted -> mediaWatcher.start()
+                            else -> mediaWatcher.stop()
+                        }
+                    }
+                }
+        }
     }
 
     override fun onListenerConnected() {
+        connected = true
         current = WeakReference(this)
-        scope.launch { indexer.onConnected(runCatching { activeNotifications?.toList() }.getOrNull().orEmpty()) }
+        scope.launch {
+            // Read off the main thread; then the watcher starts there, where its callbacks arrive.
+            if (WidgetMediaWatcher.anyWidgetShowsMedia(this@NotificationAccessListener)) {
+                withContext(Dispatchers.Main) { if (connected) mediaWatcher.start() }
+            }
+            indexer.onConnected(runCatching { activeNotifications?.toList() }.getOrNull().orEmpty())
+        }
     }
 
     override fun onListenerDisconnected() {
+        connected = false
+        if (current?.get() === this) current = null
+        mediaWatcher.stop()
         indexer.onDisconnected()
+    }
+
+    /** Unbinds unless Search Your Notifications or a widget's media row still needs the listener. */
+    internal fun unbindUnlessNeeded() {
+        val search = settingsManager[SettingsManager.SEARCH_NOTIFICATIONS]
+        if (!staysBound(search, WidgetMediaWatcher.anyWidgetShowsMedia(this))) runCatching { requestUnbind() }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -79,6 +129,8 @@ class NotificationSearchListener : NotificationListenerService() {
     }
 
     override fun onDestroy() {
+        connected = false
+        mediaWatcher.stop()
         indexer.onDisconnected()
         scope.cancel()
         if (current?.get() === this) current = null
@@ -86,10 +138,17 @@ class NotificationSearchListener : NotificationListenerService() {
     }
 
     companion object {
-        /** The connected listener, so turning the switch off can unbind it at once. */
-        @Volatile internal var current: WeakReference<NotificationSearchListener>? = null
+        /** The connected listener, so turning a switch off can unbind it at once. */
+        @Volatile internal var current: WeakReference<NotificationAccessListener>? = null
 
-        fun component(context: Context) = ComponentName(context, NotificationSearchListener::class.java)
+        fun component(context: Context) = ComponentName(context, NotificationAccessListener::class.java)
+
+        /**
+         * Whether the listener stays connected: while Search Your Notifications is on ([searchNotifications]) it reads
+         * notifications, and while a widget design shows its media row ([widgetMedia]) it watches media sessions. Now
+         * Playing needs only the grant, not the connection.
+         */
+        fun staysBound(searchNotifications: Boolean, widgetMedia: Boolean): Boolean = searchNotifications || widgetMedia
     }
 }
 

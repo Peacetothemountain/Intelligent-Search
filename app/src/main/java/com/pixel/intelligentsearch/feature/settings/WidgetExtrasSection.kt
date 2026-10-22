@@ -13,13 +13,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.outlined.LibraryMusic
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -36,14 +34,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pixel.intelligentsearch.core.data.widget.MAX_FAVOURITE_APPS
-import com.pixel.intelligentsearch.core.system.MediaSessionAccess
+import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
  * The Widget Shortcuts tab's rows above the bar: the favourite apps row (chosen in a sheet of installed apps) and the
- * media row, which needs notification access: turning it on without it explains why and opens Android's page for it,
- * and if the user comes back without granting it the row is switched off again (the widget never shows it without).
+ * media row, which needs notification access: turning it on without it asks through the app's shared rationale
+ * ([rememberNotificationAccessRequest], the same grant as Search Your Notifications and Now Playing), and it stays off
+ * unless the user comes back with access granted. Revoked access switches it off (the widget never shows it without).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -52,12 +51,13 @@ internal fun WidgetExtrasSection(fields: WidgetDraftFields, ui: WidgetEditorStat
     var favouriteApps by fields::favouriteApps
     var showMedia by fields::showMedia
     var showFavouritesSheet by ui::showFavouritesSheet
-    var showMediaAccessDialog by ui::showMediaAccessDialog
+    val mediaAccess = rememberNotificationAccessRequest { granted -> if (granted) showMedia = true }
+    NotificationAccessDialog(mediaAccess)
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, fields) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && showMedia && !MediaSessionAccess.isGranted(context)) showMedia = false
+            if (event == Lifecycle.Event.ON_RESUME && showMedia && !NotificationAccess.isGranted(context)) showMedia = false
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -87,43 +87,8 @@ internal fun WidgetExtrasSection(fields: WidgetDraftFields, ui: WidgetEditorStat
             subtitle = "Show What's Playing With Play, Pause and Next. Needs Notification Access.",
             icon = Icons.Outlined.LibraryMusic,
             isChecked = showMedia,
-            onCheckedChange = { on ->
-                if (on && !MediaSessionAccess.isGranted(context)) showMediaAccessDialog = true else showMedia = on
-            },
+            onCheckedChange = { on -> if (on) mediaAccess.request() else showMedia = false },
             showDivider = false
-        )
-    }
-
-    if (showMediaAccessDialog) {
-        AlertDialog(
-            onDismissRequest = { showMediaAccessDialog = false },
-            title = { Text("Allow Notification Access?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-            text = {
-                Text(
-                    "Android shares what's playing only with apps that have notification access. Intelligent Search uses it " +
-                        "only to show the title and the play, pause and next buttons on your widget. It never reads, keeps or " +
-                        "sends your notifications. Turn on Intelligent Search on the next screen.",
-                    style = MaterialTheme.typography.bodyLarge
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    showMediaAccessDialog = false
-                    showMedia = true
-                    val opened = runCatching { context.startActivity(MediaSessionAccess.grantIntent(context)) }.isSuccess ||
-                        runCatching { context.startActivity(MediaSessionAccess.grantListIntent()) }.isSuccess
-                    if (!opened) {
-                        showMedia = false
-                        Toast.makeText(context, "Notification access settings aren't available", Toast.LENGTH_SHORT).show()
-                    }
-                }) { Text("Allow", style = MaterialTheme.typography.labelLarge) }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showMediaAccessDialog = false
-                    showMedia = false
-                }) { Text("Not Now", style = MaterialTheme.typography.labelLarge) }
-            }
         )
     }
 

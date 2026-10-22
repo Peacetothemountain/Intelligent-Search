@@ -9,6 +9,7 @@ import android.util.TypedValue
 import android.view.View
 import android.widget.RemoteViews
 import com.pixel.intelligentsearch.R
+import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 
 /**
@@ -56,6 +57,11 @@ internal data class WidgetExtras(
                 val label = runCatching { pm.getApplicationLabel(pm.getApplicationInfoCompat(packageName)).toString() }.getOrDefault(packageName)
                 val icon = createFavouriteAppBitmap(context, packageName, accent = config.themePColor, plate = plate) ?: return@mapNotNull null
                 Favourite(packageName, label, icon, launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+            if (config.showMedia) {
+                // The media row keeps up through the app's one notification listener; connect it if it isn't (after
+                // the row is switched on, or a restore turned it on).
+                NotificationAccess.ensureConnected(context)
             }
             val playing = if (config.showMedia) runCatching { nowPlaying(context) }.getOrNull() else null
             return WidgetExtras(favourites, playing)

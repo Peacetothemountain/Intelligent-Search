@@ -12,7 +12,7 @@ import kotlin.random.Random
 
 /**
  * How the Material Morph animation looks: Material 3 Expressive shapes, Material You colour roles, a morph that
- * completes on every bounce, and squash, stretch, scale-in and fade that stay within their bounds.
+ * completes on every bounce, squash, stretch and scale-in that stay within their bounds, and no fading.
  */
 class MaterialMorphLookTest {
 
@@ -126,7 +126,7 @@ class MaterialMorphLookTest {
         val dark = morphPalette(darkColorScheme())
         assertTrue(light[1] != dark[1] && light[3] != dark[3])
         assertEquals(light[0], dark[0])
-        // Five shapes at most, five colours: no two on screen alike.
+        // Three shapes at most, five colours, given in turn: no two on screen alike.
         assertEquals(5, light.toSet().size)
         assertEquals(5, dark.toSet().size)
     }
@@ -163,7 +163,7 @@ class MaterialMorphLookTest {
     @Test
     fun aSettledMorphIsExactlyTheNewShape() {
         val physics = MorphBouncePhysics(Random(5), autoSpawn = false).apply { resize(4.11f, 1.6f, listOf(0.1f)) }
-        val body = physics.spawn(bounces = 3, slot = 0, slots = 1)!!
+        val body = physics.spawn()!!
         var peak = 0f
         var settledAfterBounce = false
         var sinceBounce = -1f
@@ -183,15 +183,14 @@ class MaterialMorphLookTest {
     }
 
     @Test
-    fun squashStretchScaleAndFadeStayWithinTheirBounds() {
+    fun squashStretchAndScaleStayWithinTheirBoundsAndNothingFadesAsItLeaves() {
         var deepest = 0f
         var tallest = 0f
-        var leftFaded = 0
         var left = 0
         for (seed in 1..40) {
             val physics = world(seed)
             val lastSeen = HashMap<Int, MorphBouncePhysics.Body>()
-            val leaveAtLastFrame = HashMap<Int, Float>()
+            val scaleAtLastFrame = HashMap<Int, Float>()
             run(physics, 30f) {
                 for (b in physics.bodies) {
                     val pose = morphPoseOf(b)
@@ -200,31 +199,31 @@ class MaterialMorphLookTest {
                     assertEquals("seed $seed: shape ${b.id} area", 1f, pose.scaleX * pose.scaleY, 1e-4f)
                     assertTrue("seed $seed: shape ${b.id} stretch ${pose.stretch}", pose.stretch in 0f..MAX_FLIGHT_STRETCH)
                     assertTrue("seed $seed: shape ${b.id} scale ${pose.scale}", pose.scale in 0f..MorphBouncePhysics.MAX_APPEAR)
-                    assertTrue("seed $seed: shape ${b.id} alpha ${pose.alpha}", pose.alpha in 0f..1f)
                     assertTrue("seed $seed: shape ${b.id} rotation ${pose.rotationDegrees}", pose.rotationDegrees.isFinite())
                     deepest = maxOf(deepest, b.squash)
                     tallest = minOf(tallest, b.squash)
                     lastSeen[b.id] = b
-                    leaveAtLastFrame[b.id] = b.leave
+                    scaleAtLastFrame[b.id] = pose.scale
                 }
                 val alive = physics.bodies.map { it.id }.toSet()
                 for (id in lastSeen.keys - alive) {
                     lastSeen.remove(id)
                     left++
-                    if (leaveAtLastFrame.remove(id)!! > 0.5f) leftFaded++
+                    // Shapes leave by flying off the screen, drawn whole to the last: nothing shrinks or fades.
+                    assertEquals("seed $seed: shape $id scale as it left", 1f, scaleAtLastFrame.remove(id)!!, 0.03f)
                 }
             }
         }
+        // Dense as they are, shapes squash a little in the membrane and wobble a little off the hard floor.
         assertTrue("never squashed: $deepest", deepest > 0.08f)
         assertTrue("never wobbled tall: $tallest", tallest < -0.01f)
-        // Shapes fade out at the edge they leave by.
-        assertTrue("$leftFaded of $left shapes had faded as they left", leftFaded >= left * 0.95f)
+        assertTrue("only $left shapes left", left > 200)
     }
 
     @Test
     fun aNewShapeScalesInFromNothing() {
         val physics = MorphBouncePhysics(Random(8), autoSpawn = false).apply { resize(4.11f, 1.6f, listOf(0.1f)) }
-        val body = physics.spawn(bounces = 2, slot = 0, slots = 1)!!
+        val body = physics.spawn()!!
         assertEquals(0f, morphPoseOf(body).scale, 0f)
         var t = 0f
         var grown = -1f
@@ -240,7 +239,7 @@ class MaterialMorphLookTest {
     @Test
     fun eachMorphTurnsTheShapeAQuarterTurnTheWayItRolls() {
         val physics = MorphBouncePhysics(Random(6), autoSpawn = false).apply { resize(4.11f, 1.6f, listOf(0.1f)) }
-        val body = physics.spawn(bounces = 3, slot = 0, slots = 1)!!
+        val body = physics.spawn()!!
         // The turn the morphs add to the shape's roll, between -180 and 180 degrees.
         fun morphTurn(): Float = (((morphPoseOf(body).rotationDegrees - body.angle) % 360f) + 540f) % 360f - 180f
         assertEquals(0f, morphTurn(), 0.01f)

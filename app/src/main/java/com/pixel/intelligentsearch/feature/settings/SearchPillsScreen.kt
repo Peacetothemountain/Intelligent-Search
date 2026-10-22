@@ -572,7 +572,7 @@ fun SearchPillsScreen(
                                     )
                                     LaunchedEffect(dismissState.currentValue) {
                                         if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
-                                            hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
+                                            hapticEngine.performPredictiveBackHaptic(view)
                                             val updated = localPillList.toMutableList()
                                             updated.remove(packageName)
                                             persistPills(updated)
@@ -684,7 +684,7 @@ fun SearchPillsScreen(
                                                                 targetSlotIndex = startIdx
                                                                 itemDragOffset = 0f
                                                                 autoScrollVelocity = 0f
-                                                                hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
+                                                                hapticEngine.performPredictiveBackHaptic(view)
 
                                                                 val pointerId = down.id
                                                                 while (true) {
@@ -704,7 +704,7 @@ fun SearchPillsScreen(
                                                                     val rawDelta = kotlin.math.round(itemDragOffset / currentHeight).toInt()
                                                                     val newTarget = (startIdx + rawDelta).coerceIn(0, totalSlots - 1)
                                                                     if (newTarget != targetSlotIndex) {
-                                                                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.REORDER_SWAP)
+                                                                        hapticEngine.performPredictiveBackHaptic(view)
                                                                         targetSlotIndex = newTarget
                                                                     }
 
@@ -750,7 +750,7 @@ fun SearchPillsScreen(
                                                                         ) {
                                                                             itemDragOffset = value
                                                                         }
-                                                                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
+                                                                        hapticEngine.performPredictiveBackHaptic(view)
 
                                                                         wasReordered = true
                                                                         val currentList = localPillList.toMutableList()

@@ -234,8 +234,8 @@ private fun rememberPowerSaveMode(): State<Boolean> {
  * Shapes drop in from just under the bottom card, bounce on the bottom of the screen as if it were a trampoline,
  * change shape and give a haptic tap on every bounce, and leave by the sides; while the page stays open, new shapes
  * keep dropping in, at most five at a time. The motion is real physics, see [MorphBouncePhysics]: shapes also knock
- * into each other, roll and tumble from the trampoline's friction, and give a haptic tap whose strength follows the
- * impact.
+ * into each other, roll and tumble from the trampoline's friction, and give the app's one haptic tap (the back gesture's) on
+ * each bounce worth feeling.
  *
  * It looks and moves like Google's Material 3 Expressive UI on Pixel:
  * - the shapes are the Material 3 Expressive shape set, MaterialShapes (see [MaterialMorphShapes]), drawn flat and
@@ -321,14 +321,13 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
         SideEffect { physics.resize(scene.widthMetres, scene.heightMetres, scene.radiiMetres) }
         LaunchedEffect(Unit) {
             var lastHaptic = 0L
-            val onBounce = MorphBouncePhysics.BounceListener { _, impactSpeed ->
+            val onBounce = MorphBouncePhysics.BounceListener { _, _ ->
                 sceneInfo.bouncesFelt++
                 val now = SystemClock.uptimeMillis()
                 if (now - lastHaptic >= HAPTIC_SPACING_MS) {
                     lastHaptic = now
-                    // A gentle landing is a soft tick, a hard one the full standard tick.
-                    val strength = 0.25f + 0.75f * ((impactSpeed - 1f) / 5f).coerceIn(0f, 1f)
-                    hapticEngine.performImpactHaptic(view, strength)
+                    // Every landing worth feeling gets the app's one haptic, soft or hard.
+                    hapticEngine.performPredictiveBackHaptic(view)
                 }
             }
             snapshotFlow { onScreen.value }.collectLatest { visible ->

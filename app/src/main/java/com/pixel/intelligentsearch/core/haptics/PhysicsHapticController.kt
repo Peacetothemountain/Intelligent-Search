@@ -10,7 +10,8 @@ import androidx.compose.ui.platform.LocalView
 import kotlin.math.abs
 
 /**
- * Controller for physics-coupled tactile detents during LazyList scrolling.
+ * Controller for tactile detents during LazyList scrolling: one detent per item boundary crossed or long stretch
+ * scrolled within an item.
  */
 class ScrollDetentController(
     private val engine: TactileSonicEngine,
@@ -18,13 +19,8 @@ class ScrollDetentController(
 ) {
     private var lastIndex = -1
     private var lastScrollOffset = 0
-    private var lastTimeMs = 0L
 
     fun onScrollUpdate(firstVisibleIndex: Int, firstVisibleOffset: Int) {
-        val now = android.os.SystemClock.uptimeMillis()
-        val dt = (now - lastTimeMs).coerceAtLeast(1L)
-        lastTimeMs = now
-
         if (lastIndex == -1) {
             lastIndex = firstVisibleIndex
             lastScrollOffset = firstVisibleOffset
@@ -32,21 +28,20 @@ class ScrollDetentController(
         }
 
         val deltaIndex = firstVisibleIndex - lastIndex
-        val deltaOffset = (firstVisibleOffset - lastScrollOffset) + (deltaIndex * 150)
-        val velocity = (deltaOffset.toFloat() / dt.toFloat()) * 1000f
+        val deltaOffset = firstVisibleOffset - lastScrollOffset
 
         lastIndex = firstVisibleIndex
         lastScrollOffset = firstVisibleOffset
 
         // If item boundary crossed or large delta traversed
         if (deltaIndex != 0 || abs(deltaOffset) > 85) {
-            engine.scrollDetent(view, velocity)
+            engine.scrollDetent(view)
         }
     }
 }
 
 /**
- * Attaches a physics-driven haptic scroll detent observer to a LazyListState. The scroll position is watched from
+ * Attaches a haptic scroll detent observer to a LazyListState. The scroll position is watched from
  * an effect, never read during composition, so scrolling doesn't recompose the screen that calls this.
  */
 @Composable

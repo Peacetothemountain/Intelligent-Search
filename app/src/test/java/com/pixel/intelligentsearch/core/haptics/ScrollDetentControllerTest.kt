@@ -28,7 +28,7 @@ class ScrollDetentControllerTest {
     @Test
     fun scrollingLeavesTheHostAlone() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val engine = TactileSonicEngine(context, PixelHapticEngine(context))
+        val engine = TactileSonicEngine(PixelHapticEngine(context))
         val listState = LazyListState()
         var compositions = 0
         compose.setContent {

@@ -31,7 +31,9 @@ import kotlinx.coroutines.launch
  * A result row the user can swipe away (recent searches, suggested actions, calendar events). Dragging fades the
  * row; past the threshold it flies off in the drag direction and [onDismissed] runs, otherwise it springs back.
  * TalkBack users get the same through a "Dismiss" action. [threshold] is the drag distance that dismisses;
- * the row fades up to [maxDragFade] over [fadeDistance] while dragged.
+ * the row fades up to [maxDragFade] over [fadeDistance] while dragged. The haptics are the back gesture's: the
+ * commit haptic as the drag crosses the threshold, the cancel haptic if it is pulled back under it, and nothing more
+ * on letting go; a TalkBack dismissal plays the commit haptic.
  */
 @Stable
 internal class SwipeToDismissState(
@@ -48,8 +50,11 @@ internal class SwipeToDismissState(
         private set
     var direction by mutableFloatStateOf(1f)
         private set
+    /** Whether the drag is past [threshold], so letting go now dismisses the row. */
+    private var pastThreshold = false
 
     fun dismiss() {
+        sensoryEngine.deleteThud(view)
         dismissed = true
     }
 
@@ -58,12 +63,22 @@ internal class SwipeToDismissState(
             val newOffset = offsetX.value + amount
             offsetX.snapTo(newOffset)
             alpha.snapTo(1f - (kotlin.math.abs(newOffset) / fadeDistance).coerceIn(0f, maxDragFade))
+            crossThreshold(kotlin.math.abs(newOffset) > threshold)
         }
+    }
+
+    /** Plays the back gesture's commit or cancel haptic when the drag crosses [threshold] one way or the other. */
+    private fun crossThreshold(past: Boolean) {
+        if (past == pastThreshold) return
+        pastThreshold = past
+        if (past) sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
+        else sensoryEngine.hapticEngine.performPredictiveBackCancelHaptic(view)
     }
 
     internal fun release() {
         if (kotlin.math.abs(offsetX.value) > threshold) {
-            sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
+            // The commit haptic played as the drag crossed the threshold.
+            crossThreshold(true)
             direction = if (offsetX.value >= 0f) 1f else -1f
             dismissed = true
         } else {
@@ -72,6 +87,7 @@ internal class SwipeToDismissState(
     }
 
     internal fun settleBack() {
+        crossThreshold(false)
         scope.launch {
             launch { offsetX.animateTo(0f, ExpressiveMotionTokens.bouncySpring()) }
             launch { alpha.animateTo(1f, ExpressiveMotionTokens.gentleSpring()) }
@@ -93,7 +109,6 @@ internal fun rememberSwipeToDismiss(
     val currentOnDismissed by rememberUpdatedState(onDismissed)
     LaunchedEffect(state.dismissed) {
         if (state.dismissed) {
-            sensoryEngine.deleteThud(view)
             launch {
                 state.offsetX.animateTo(
                     targetValue = state.direction * 1500f,

@@ -170,13 +170,59 @@ class UnifiedSearchCoordinator @Inject constructor(
      */
     fun replaceFiles(files: List<FileItem>) {
         val keys = ArrayList<Pair<String, SearchItem>>(files.size * 3)
+        val typed = ArrayList<Pair<SearchItem, com.pixel.intelligentsearch.core.data.FileTypeGroup>>(files.size)
         for (file in files) {
             val item = newFileItem(file, file.lastModifiedMs)
             keys.add(file.name to item)
             // Each word of the name as well: "resume" finds "My Resume.pdf".
             for (word in QueryNormalizer.tokenize(file.name)) keys.add(word to item)
+            typed.add(item to com.pixel.intelligentsearch.core.data.FileTypes.groupOf(file))
         }
         fileRadixTree.replaceAll(keys)
+        filesByType = typed
+    }
+
+    /** Every indexed file with its type, for searches limited to one type ([searchFilesOfType]). */
+    @Volatile
+    private var filesByType: List<Pair<SearchItem, com.pixel.intelligentsearch.core.data.FileTypeGroup>> = emptyList()
+
+    /**
+     * Files of [group] matching [query], best first, for a query that names a type ("pdf invoice" searches PDFs for
+     * "invoice"). Every word of [query] has to be in the file's name or folder. A blank [query] lists the files of
+     * that type most recently changed first ("photos" alone).
+     */
+    fun searchFilesOfType(
+        query: String,
+        group: com.pixel.intelligentsearch.core.data.FileTypeGroup,
+        limit: Int = MAX_RESULTS_PER_DOMAIN
+    ): List<FileItem> {
+        val ofType = filesByType.filter { it.second == group }.map { it.first }
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) {
+            return ofType.sortedByDescending { it.metadata.lastUsedTimestampMs }.take(limit).mapNotNull { it.payload as? FileItem }
+        }
+        val tokens = QueryNormalizer.tokenize(trimmed)
+        if (tokens.isEmpty()) return emptyList()
+        val now = System.currentTimeMillis()
+        val queryMetaphone = DoubleMetaphone.encode(trimmed)
+        return ofType.asSequence()
+            .filter { QueryNormalizer.containsAllTokens("${it.title} ${it.subtitle.orEmpty()}", tokens) }
+            .map { item ->
+                item to SearchScoringEngine.evaluateScore(
+                    query = trimmed,
+                    targetTitle = item.title,
+                    metadata = item.metadata,
+                    currentTimeMs = now,
+                    domainWeightMultiplier = 1.0f,
+                    precomputedQueryMetaphone = queryMetaphone,
+                    precomputedTargetMetaphone = item.precomputedMetaphone,
+                    targetSubtitle = item.subtitle
+                ).totalScore
+            }
+            .sortedByDescending { it.second }
+            .take(limit)
+            .mapNotNull { it.first.payload as? FileItem }
+            .toList()
     }
 
     private fun newFileItem(file: FileItem, modifiedMs: Long): SearchItem {

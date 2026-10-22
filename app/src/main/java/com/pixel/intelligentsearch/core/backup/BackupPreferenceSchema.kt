@@ -72,7 +72,9 @@ internal object BackupPreferenceSchema {
             "widget_system_shortcut_2", "widget_system_shortcut_3", "widget_system_shortcut_order",
             "widget_system_subtheme", "widget_theme_style"
         )
-        typed("STRING_SET", "disabled_web_shortcuts", "hidden_apps")
+        typed("STRING_SET", "disabled_web_shortcuts", "hidden_apps", "search.files.excluded_types")
+        // The app each file type opens with (Open Files With in File Search settings).
+        for (key in com.pixel.intelligentsearch.core.data.SettingsManager.FILES_OPEN_WITH.values) put(key.name, "STRING")
     }
 
     // The pill profiles' working copies and saved states, named by profile number (SearchPillProfiles).

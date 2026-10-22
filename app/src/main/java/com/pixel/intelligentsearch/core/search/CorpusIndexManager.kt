@@ -235,6 +235,7 @@ class CorpusIndexManager @Inject constructor(
                     // this app's own files; the user's chosen folders and photos are the main source.
                     val granted = UserGrantedFiles.loadAll(context, prefs)
                     val ownMedia = sources.recentFiles(limit = 300, includeHidden = UserGrantedFiles.includeHiddenFiles(prefs))
+                        .filter(UserGrantedFiles.keepsOwnMedia(prefs))
                     val files = (granted + ownMedia).distinctBy { it.uri }
                     searchCoordinator.replaceFiles(files)
                     Log.d(TAG, "Indexed ${files.size} files (${granted.size} from chosen folders and photos)")

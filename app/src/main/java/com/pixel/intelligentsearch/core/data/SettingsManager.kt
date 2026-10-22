@@ -137,6 +137,17 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val CUSTOM_SEARCH_ENGINE_NAME = StringSetting("custom_search_engine_name", "Custom")
         val FILES_HIDDEN_FILES = BooleanSetting("search.files.hidden.files", false, "search_files_hidden_files")
         val FILES_THUMBNAILS = BooleanSetting("search.files.thumbnails", true, "search_files_thumbnails")
+        /** File types left out of file search, by [FileTypeGroup.id]; empty searches every type. */
+        val FILES_EXCLUDED_TYPES = StringSetSetting("search.files.excluded_types", emptySet())
+        /**
+         * Subfolders of the chosen folders that file search skips, as tree URIs. Like the chosen folders themselves
+         * they only mean something on this phone, so backups leave them out ([UserGrantedFiles.DEVICE_LOCAL_KEYS]).
+         */
+        val FILES_EXCLUDED_FOLDERS = StringSetSetting("search.files.excluded_folders", emptySet())
+        /** The app each file type opens with ([OpenWithChoice]); the phone's default app unless chosen. */
+        val FILES_OPEN_WITH: Map<FileTypeGroup, StringSetting> = FileTypeGroup.entries.associateWith { group ->
+            StringSetting("search.files.open_with.${group.id}", OpenWithChoice.DEFAULT_STORED)
+        }
         val APP_ANIMATIONS = BooleanSetting("app_animations", true, "app.animation")
         val MORPH_ANIMATION_ENABLED = BooleanSetting("morph_animation_enabled", false)
         val BOTTOM_SEARCH = BooleanSetting("settings.bottom.search", true, "bottom_search")
@@ -226,8 +237,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             ADAPTIVE_ICON_SHAPE, DYNAMIC_ICON_MASKING, DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, OVERLAY_SHOW_MIC, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
-            DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS
-        )
+            DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, FILES_EXCLUDED_TYPES, FILES_EXCLUDED_FOLDERS
+        ) + FILES_OPEN_WITH.values
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =
             ALL.flatMap { key -> key.allNames.map { it to key } }.toMap()

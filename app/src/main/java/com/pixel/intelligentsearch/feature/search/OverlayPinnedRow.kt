@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
+import com.pixel.intelligentsearch.core.data.SavedLink
 import com.pixel.intelligentsearch.core.search.AndroidSettingResult
 import com.pixel.intelligentsearch.core.ui.uniqueItems
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
@@ -56,6 +57,8 @@ internal fun openResult(context: Context, s: OverlayScope, result: Any, from: La
         is ContactItem -> launchSafeIntent(context, ContactActions.openIntent(result, s.settingsState.contactDirectCall))
         is FileItem -> openFileResult(context, s.prefs, result)
         is AndroidSettingResult -> openAndroidSetting(context, result)
+        // In the browser or the site's own app; under Tor, only in Tor Browser.
+        is SavedLink -> s.openWebAddress(result.url)
     }
 }
 
@@ -65,6 +68,7 @@ private fun menuTargetFor(result: Any): ResultMenuTarget? = when (result) {
     is ContactItem -> ResultMenuTarget.Contact(result)
     is FileItem -> ResultMenuTarget.File(result)
     is AndroidSettingResult -> ResultMenuTarget.Setting(result)
+    is SavedLink -> ResultMenuTarget.Link(result)
     else -> null
 }
 
@@ -106,6 +110,9 @@ internal fun OverlayPinnedRow(s: OverlayScope) {
                         }
                         is AndroidSettingResult -> PinnedTile(result.title, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }, spokenLabel = result.spokenLabel) {
                             TileSymbol(androidSettingIcon(result.iconType))
+                        }
+                        is SavedLink -> PinnedTile(result.name, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }) {
+                            SavedLinkIcon(result, rememberSavedLinkIcon(result), 48.dp)
                         }
                     }
                 }

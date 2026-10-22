@@ -101,6 +101,11 @@ internal sealed interface ResultMenuTarget {
         override val title: String = setting.title
     }
 
+    data class Link(val link: com.pixel.intelligentsearch.core.data.SavedLink) : ResultMenuTarget {
+        override val key: String = ResultKeys.link(link)
+        override val title: String = link.name
+    }
+
     data class History(val query: String) : ResultMenuTarget {
         override val key: String? = null
         override val title: String = query
@@ -137,7 +142,7 @@ internal fun resultMenuCommands(
     val key = target.key
     val personal = if (key == null) emptyList() else buildList {
         add(if (shortcuts.isPinned(key)) ResultCommand.UNPIN else ResultCommand.PIN)
-        if (target is ResultMenuTarget.App || target is ResultMenuTarget.Contact) add(ResultCommand.ADD_NICKNAME)
+        if (target is ResultMenuTarget.App || target is ResultMenuTarget.Contact || target is ResultMenuTarget.Link) add(ResultCommand.ADD_NICKNAME)
         add(if (shortcuts[key]?.trigger.isNullOrBlank()) ResultCommand.SET_TRIGGER else ResultCommand.CHANGE_TRIGGER)
     }
     if (target !is ResultMenuTarget.App) return listOf(personal).filter { it.isNotEmpty() }

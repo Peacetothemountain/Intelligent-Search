@@ -142,7 +142,8 @@ class BackupManager @Inject constructor(
             SettingsManager.SEARCH_NOTIFICATIONS.name,
             SettingsManager.DICTIONARY_ANSWERS.name,
             SettingsManager.WEATHER_ANSWERS.name,
-            SettingsManager.WEATHER_USE_DEVICE_LOCATION.name
+            SettingsManager.WEATHER_USE_DEVICE_LOCATION.name,
+            SettingsManager.AI_ANSWERS_ENABLED.name
         )
 
         private fun isPrivacyOptInKey(key: String): Boolean =

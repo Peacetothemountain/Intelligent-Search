@@ -598,6 +598,13 @@ fun SearchOverlayScreen(
             launchWebSearch(submittedQuery)
             return@submit
         }
+        // "15 min", "7:30am", "set a timer for 10 minutes": the top action, which opens the clock or calendar to confirm.
+        // It is an action, not a search, so it isn't kept in the history.
+        uiState.enterAction?.intent?.let { action ->
+            ui.hasStartedTyping = false
+            launchSafeIntent(context, android.content.Intent(action))
+            return@submit
+        }
         viewModel.addSearchHistory(submittedQuery)
         when (val match = bestMatch) {
             is ContactItem -> {

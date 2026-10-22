@@ -54,13 +54,7 @@ internal fun openResult(context: Context, s: OverlayScope, result: Any, from: La
     when (result) {
         is AppItem -> s.performAppLaunch(result, from)
         is ContactItem -> launchSafeIntent(context, ContactActions.openIntent(result, s.settingsState.contactDirectCall))
-        is FileItem -> {
-            val intent = buildOpenFileIntent(result.uri, result.mimeType)
-            if (!launchSafeIntent(context, intent)) {
-                intent.setPackage(null)
-                launchSafeIntent(context, intent)
-            }
-        }
+        is FileItem -> openFileResult(context, s.prefs, result)
         is AndroidSettingResult -> openAndroidSetting(context, result)
     }
 }

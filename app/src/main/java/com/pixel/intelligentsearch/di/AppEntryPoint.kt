@@ -31,6 +31,8 @@ interface AppEntryPoint {
     fun strongBoxSecurityManager(): StrongBoxSecurityManager
     fun backupManager(): com.pixel.intelligentsearch.core.backup.BackupManager
     fun currencyRateRepository(): com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
+    /** The in-memory notification index behind Search Your Notifications and At a Glance's codes and timers. */
+    fun notificationIndex(): com.pixel.intelligentsearch.core.glance.NotificationIndex
 
     @ApplicationScope
     fun applicationScope(): CoroutineScope

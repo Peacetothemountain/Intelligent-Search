@@ -159,6 +159,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                             showDivider = false
                         )
                     }
+                    AtAGlanceSettingsCard()
                 }
             }
         }

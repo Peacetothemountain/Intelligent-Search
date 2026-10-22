@@ -104,7 +104,7 @@ internal fun directActionIcon(type: String): androidx.compose.ui.graphics.vector
     else -> Icons.Default.ContentPaste
 }
 
-/** The overlay's results list: suggested actions, best match, recents, calendar, shortcuts, one-boxes, and the app, Android Settings, web, people and file sections. */
+/** The overlay's results list: suggested actions, At a Glance, best match, recents, calendar, shortcuts, one-boxes, and the app, Android Settings, web, people, file and notification sections. */
 @Composable
 internal fun OverlaySearchResults(s: OverlayScope) {
     val onOpenSettings = s.onOpenSettings
@@ -168,6 +168,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     }
 
     val isBottomResults = settingsState.bottomSearch && settingsState.bottomSearchResult
+    val glanceItems = rememberGlanceItems(settingsState.hiddenApps)
+    val notificationHits = rememberNotificationHits(uiState.query, settingsState.hiddenApps)
 
     LazyColumn(
         state = searchResultsListState,
@@ -378,6 +380,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             }
             item(key = "direct_actions_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
         }
+
+        // At a Glance: codes, timers, the next alarm, what's playing, birthdays and the battery, above the empty search.
+        if (uiState.query.isEmpty()) atAGlanceItems(glanceItems) { hasStartedTyping = false }
 
         if (bestMatch != null) {
             item(key = "best_match_hero_card", contentType = "best_match") {
@@ -815,6 +820,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 }
             }
         }
+
+        // Search Your Notifications: matching notifications after the phone's other results.
+        if (uiState.query.isNotEmpty()) notificationResultItems(notificationHits) { hasStartedTyping = false }
 
         if (!isBottomResults) {
             renderInlineShortcuts()

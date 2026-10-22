@@ -9,7 +9,6 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.HiltTestActivity
 import com.pixel.intelligentsearch.core.answers.LiveAnswer
-import com.pixel.intelligentsearch.core.answers.TranslationStatus
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -29,7 +28,7 @@ import org.robolectric.annotation.Config
 /**
  * The overlay's view model asks the instant-answer engine about each query and shows its answer for that query only.
  * Every switch is at its default here, so nothing reaches the network: definitions and forecasts keep their
- * tap-through cards, and translations offer Google Translate.
+ * tap-through cards, and translations are handed to Google Translate.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -68,8 +67,7 @@ class LiveAnswerViewModelTest {
     fun aTranslationQueryGetsItsCardAndTheNextKeystrokeClearsIt() {
         viewModel.onQueryChanged("translate hello to spanish")
         val answer = await("translation") { it.liveAnswer != null }.liveAnswer as LiveAnswer.Translation
-        assertEquals("translate hello to spanish", answer.query)
-        assertEquals(TranslationStatus.Off, answer.status)
+        assertEquals(LiveAnswer.Translation("translate hello to spanish", "hello", null, "es"), answer)
 
         viewModel.onQueryChanged("translate hello to spanis")
         assertTrue(viewModel.uiState.value.liveAnswer?.query != "translate hello to spanish")

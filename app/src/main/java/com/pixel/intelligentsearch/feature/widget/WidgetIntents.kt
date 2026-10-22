@@ -12,6 +12,7 @@ import android.speech.RecognizerIntent
 import android.util.Log
 import androidx.core.net.toUri
 import com.pixel.intelligentsearch.R
+import com.pixel.intelligentsearch.core.answers.GoogleTranslate
 
 private const val TAG = "SearchWidgetProvider"
 
@@ -205,8 +206,8 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
         "Search" -> getGeminiSearchIntent(context)
         "Song Search", "Now Playing" -> getNowPlayingIntent(context)
         "Google Lens" -> getLensSearchIntent(context)
-        "Translate (text)" -> context.packageManager.getLaunchIntentForPackage("com.google.android.apps.translate")
-            ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://translate.google.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        "Translate (text)" -> context.packageManager.getLaunchIntentForPackage(GoogleTranslate.PACKAGE)
+            ?: Intent(Intent.ACTION_VIEW, Uri.parse(GoogleTranslate.WEB_HOME)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "Translate (camera)" -> getLensTranslateIntent(context)
         "Weather" -> getCustomIntentOrDefault(context, "Weather") {
             val intentWeatherApp = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.weather")

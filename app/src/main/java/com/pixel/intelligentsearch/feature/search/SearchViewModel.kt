@@ -185,7 +185,7 @@ class SearchViewModel @Inject constructor(
 
     private val _remoteSearchQueryFlow = MutableStateFlow("")
 
-    /** A query's instant-answer question; [attempt] changes to ask again (after a download or a permission grant). */
+    /** A query's instant-answer question; [attempt] changes to ask again (after a permission grant). */
     private data class LiveAnswerRequest(
         val query: String,
         val question: com.pixel.intelligentsearch.core.answers.InstantAnswerQuery,
@@ -869,27 +869,9 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    /** Works the current query's instant answer out again: after a language download or a permission was granted. */
+    /** Works the current query's instant answer out again: after a permission was granted. */
     fun retryLiveAnswer() {
         liveAnswerRequests.update { it?.copy(attempt = it.attempt + 1) }
-    }
-
-    /**
-     * Downloads the languages [answer] needs (on Wi-Fi only unless [useMobileData]), showing the card as downloading
-     * meanwhile, then translates. The download goes on if the user keeps typing; it is the user's to have asked for.
-     */
-    fun downloadTranslationLanguages(answer: com.pixel.intelligentsearch.core.answers.LiveAnswer.Translation, useMobileData: Boolean) {
-        val downloading = answer.copy(status = com.pixel.intelligentsearch.core.answers.TranslationStatus.Downloading)
-        _uiState.update { if (it.liveAnswer == answer) it.copy(liveAnswer = downloading) else it }
-        viewModelScope.launch {
-            val downloaded = instantAnswers.downloadLanguages(answer, useMobileData)
-            if (!downloaded) {
-                val failed = answer.copy(status = com.pixel.intelligentsearch.core.answers.TranslationStatus.Failed)
-                _uiState.update { if (it.query == answer.query) it.copy(liveAnswer = failed) else it }
-            } else if (_uiState.value.query == answer.query) {
-                retryLiveAnswer()
-            }
-        }
     }
 
     /** Opened on first use, on the main thread (the spell checker answers on the thread that opened it). */

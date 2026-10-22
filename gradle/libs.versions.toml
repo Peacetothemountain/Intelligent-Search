@@ -28,9 +28,6 @@ benchmark = "1.5.0"
 # The measuring library only (never shipped): 1.6 reads Android 17 traces; the plugin stays on stable.
 benchmarkMacro = "1.6.0-alpha01"
 uiautomator = "2.4.0"
-# On-device translation for search: models are downloaded once, never bundled; language identification for the source.
-mlkitTranslate = "17.0.3"
-mlkitLanguageId = "17.0.6"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCore" }
@@ -73,8 +70,6 @@ androidx-profileinstaller = { module = "androidx.profileinstaller:profileinstall
 androidx-graphics-shapes = { module = "androidx.graphics:graphics-shapes", version.ref = "graphicsShapes" }
 androidx-appfunctions = { module = "androidx.appfunctions:appfunctions", version.ref = "appfunctions" }
 androidx-appfunctions-compiler = { module = "androidx.appfunctions:appfunctions-compiler", version.ref = "appfunctions" }
-mlkit-translate = { module = "com.google.mlkit:translate", version.ref = "mlkitTranslate" }
-mlkit-language-id = { module = "com.google.mlkit:language-id", version.ref = "mlkitLanguageId" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }

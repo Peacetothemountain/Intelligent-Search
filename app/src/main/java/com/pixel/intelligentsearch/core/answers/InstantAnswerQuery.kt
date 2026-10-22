@@ -20,8 +20,8 @@ sealed interface InstantAnswerQuery {
     data class Weather(val place: String?, val day: ForecastDay) : InstantAnswerQuery
 
     /**
-     * Translate [text] into [targetLanguage], a BCP-47 code ML Kit translates (null: the phone's language), from
-     * [sourceLanguage] (null: identify it).
+     * Translate [text] into [targetLanguage], one of [TranslationLanguages.CODES] (null: the phone's language), from
+     * [sourceLanguage] (null: let Google Translate tell).
      */
     data class Translate(val text: String, val targetLanguage: String?, val sourceLanguage: String?) : InstantAnswerQuery
 
@@ -83,7 +83,7 @@ object InstantAnswerParser {
     private val HOW_DO_YOU_SAY = Regex("^how (?:do|would|can) (?:you|i) say (.+?) in ([\\p{L} ]+)$")
     private val WHAT_IS_IN = Regex("^(?:what(?:'s| is) )?(.+?) in ([\\p{L} ]+)$")
 
-    /** Longest text translated inline; anything longer is better pasted into a translator. */
+    /** Longest text a query offers to translate; anything longer is better pasted into a translator. */
     const val MAX_TRANSLATE_CHARS = 500
 
     // ---------------------------------------------------------------------------------------------
@@ -231,8 +231,8 @@ object InstantAnswerParser {
 }
 
 /**
- * The languages ML Kit translates, by the names people type for them ("spanish", "español") and their BCP-47 codes,
- * which are what ML Kit's TranslateLanguage constants hold.
+ * The languages a translation query can name, by the names people type for them ("spanish", "español"), and their
+ * BCP-47 codes. Google Translate takes every one of them ([GoogleTranslate.googleCode] gives its own spelling).
  */
 object TranslationLanguages {
     private val BY_NAME: Map<String, String> = buildMap {
@@ -255,17 +255,17 @@ object TranslationLanguages {
         add("vi", "vietnamese"); add("zh", "chinese", "mandarin", "simplified chinese")
     }
 
-    /** Every language code ML Kit can translate. */
+    /** Every language code a query can name. */
     val CODES: Set<String> = BY_NAME.values.toSet()
 
-    /** The code for a typed language name ("Spanish", "spanish language"), or null if it isn't one ML Kit has. */
+    /** The code for a typed language name ("Spanish", "spanish language"), or null if it isn't one of [CODES]. */
     fun codeFor(name: String): String? {
         val key = name.trim().lowercase(Locale.ROOT).removeSuffix(" language").trim()
         return BY_NAME[key]
     }
 
     /**
-     * ML Kit's code for a [locale]'s language, or null when it can't translate it. Java still reports Hebrew,
+     * The code for a [locale]'s language, or null when it isn't one of [CODES]. Java still reports Hebrew,
      * Indonesian and Yiddish under their old codes on some phones, and Norwegian Bokmål as "nb".
      */
     fun codeFor(locale: Locale): String? {

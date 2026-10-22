@@ -132,7 +132,7 @@ class BackupManager @Inject constructor(
         /**
          * Opt-ins that share data or reach the network. A backup may switch them off but never on: a file someone
          * else made must not be able to start sharing contacts with assistants, sending clipboard text and keystrokes
-         * out, reading notifications, or making requests the user turned off (definitions, forecasts, language downloads, location use).
+         * out, reading notifications, or making requests the user turned off (definitions, forecasts, location use).
          */
         private val PRIVACY_OPT_IN_KEYS = setOf(
             SettingsManager.APP_FUNCTIONS_SHARE_CONTACTS.name,
@@ -142,8 +142,7 @@ class BackupManager @Inject constructor(
             SettingsManager.SEARCH_NOTIFICATIONS.name,
             SettingsManager.DICTIONARY_ANSWERS.name,
             SettingsManager.WEATHER_ANSWERS.name,
-            SettingsManager.WEATHER_USE_DEVICE_LOCATION.name,
-            SettingsManager.ON_DEVICE_TRANSLATION.name
+            SettingsManager.WEATHER_USE_DEVICE_LOCATION.name
         )
 
         private fun isPrivacyOptInKey(key: String): Boolean =

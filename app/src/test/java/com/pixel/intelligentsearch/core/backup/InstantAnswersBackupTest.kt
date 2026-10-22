@@ -24,7 +24,7 @@ class InstantAnswersBackupTest {
 
     private val optIns = listOf(
         SettingsManager.DICTIONARY_ANSWERS, SettingsManager.WEATHER_ANSWERS,
-        SettingsManager.WEATHER_USE_DEVICE_LOCATION, SettingsManager.ON_DEVICE_TRANSLATION
+        SettingsManager.WEATHER_USE_DEVICE_LOCATION
     )
 
     @Test

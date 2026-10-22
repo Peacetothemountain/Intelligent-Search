@@ -421,12 +421,6 @@
             android:permission="android.permission.GLOBAL_SEARCH"
             android:exported="true" />
 
-        <!-- ML Kit (on-device translation) starts when the user first translates, not with every app start. -->
-        <provider
-            android:name="com.google.mlkit.common.internal.MlKitInitProvider"
-            android:authorities="${applicationId}.mlkitinitprovider"
-            tools:node="remove" />
-
     </application>
 </manifest>
 

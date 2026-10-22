@@ -130,8 +130,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val WEATHER_HOME_LOCATION = StringSetting("weather_home_location", "")
         /** Weather answers use the phone's approximate location (when allowed) instead of the home location. */
         val WEATHER_USE_DEVICE_LOCATION = BooleanSetting("weather_use_device_location", false)
-        /** Translations in the overlay, made on the phone by ML Kit; each language is downloaded from Google once. */
-        val ON_DEVICE_TRANSLATION = BooleanSetting("on_device_translation", false)
         /**
          * Switched app shortcut results on; nothing reads it any more. Android lets only the home screen app read
          * other apps' shortcuts, so they never showed, and the row became the Quick App Panel switch
@@ -261,7 +259,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_ALARM,
             GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_CODES, GLANCE_BIRTHDAYS, GLANCE_BATTERY, RESULT_SHORTCUTS,
             DICTIONARY_ANSWERS, WEATHER_ANSWERS,
-            WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION, ON_DEVICE_TRANSLATION
+            WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION
         )
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =

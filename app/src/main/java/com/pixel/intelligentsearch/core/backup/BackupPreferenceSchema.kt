@@ -40,7 +40,7 @@ internal object BackupPreferenceSchema {
             "widget_system_show_doodles", "widget_system_show_g_icon", "widget_system_show_voice", "widget_system_lock_black",
             "search.notifications", "glance.enabled", "glance.alarm", "glance.timers", "glance.media", "glance.codes",
             "glance.birthdays", "glance.battery",
-            "dictionary_answers", "weather_answers", "weather_use_device_location", "on_device_translation"
+            "dictionary_answers", "weather_answers", "weather_use_device_location"
         )
         // The per-design element colours the widget reads with getInt (WidgetDesignSettings).
         for (design in listOf("widget", "widget_system", "widget_material")) {

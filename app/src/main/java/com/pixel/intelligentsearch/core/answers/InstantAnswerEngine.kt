@@ -2,8 +2,6 @@ package com.pixel.intelligentsearch.core.answers
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import androidx.compose.runtime.Immutable
 import com.pixel.intelligentsearch.core.currency.HttpsRatesClient
 import com.pixel.intelligentsearch.core.currency.RatesHttpClient
@@ -12,7 +10,6 @@ import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.security.SafeWebLaunch
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -37,64 +34,28 @@ sealed interface LiveAnswer {
     /** Weather for "here" with no home location set and no approximate location to use. */
     data class WeatherNeedsLocation(override val query: String) : LiveAnswer
 
-    /**
-     * Translating [text] from [source] (null: not identified) to [target]; [detected] when the source was identified
-     * rather than named. [status] is where it has got to.
-     */
-    data class Translation(
-        override val query: String,
-        val text: String,
-        val source: String?,
-        val detected: Boolean,
-        val target: String,
-        val status: TranslationStatus
-    ) : LiveAnswer
+    /** [text] to translate from [source] (null: let Google Translate tell) to [target], in Google Translate. */
+    data class Translation(override val query: String, val text: String, val source: String?, val target: String) : LiveAnswer
 
     /** Today's screen time, or null [report] when Usage Access isn't granted. */
     data class ScreenTime(override val query: String, val report: ScreenTimeReport?) : LiveAnswer
 }
 
-@Immutable
-sealed interface TranslationStatus {
-    /** On-Device Translation is off: the card only offers Google Translate. */
-    data object Off : TranslationStatus
-    data object Working : TranslationStatus
-    data class Done(val translated: String) : TranslationStatus
-
-    /**
-     * [languages] still need downloading. Downloads wait for Wi-Fi unless the user says otherwise, which [onWifi]
-     * tells the card; [blocked] while Tor is the search engine, when nothing is downloaded at all.
-     */
-    data class NeedsDownload(val languages: List<String>, val onWifi: Boolean, val blocked: Boolean) : TranslationStatus
-    data object Downloading : TranslationStatus
-
-    /** The language couldn't be told, or ML Kit can't translate it. */
-    data object Unidentified : TranslationStatus
-
-    /** The text is already in the language asked for. */
-    data object SameLanguage : TranslationStatus
-    data object Failed : TranslationStatus
-}
-
 /**
  * When an instant answer may reach the network. Definitions and forecasts send what was typed (a word, a place) to a
  * third party, so they follow the same switches as live web suggestions: Web and Web Suggestions on, the feature's
- * own switch on, and never while Tor is the search engine. Language models come from Google, so they are only
- * downloaded while On-Device Translation is on and Tor isn't the engine.
+ * own switch on, and never while Tor is the search engine.
  */
 object AnswerPrivacy {
     fun webAnswersAllowed(prefs: SharedPreferences, feature: BooleanSetting): Boolean =
         prefs[feature] && prefs[SettingsManager.SEARCH_WEB] && prefs[SettingsManager.SEARCH_WEB_SUGGESTIONS] &&
             !SafeWebLaunch.isTorEngine(prefs[SettingsManager.SEARCH_ENGINE])
-
-    fun modelDownloadsAllowed(prefs: SharedPreferences): Boolean =
-        prefs[SettingsManager.ON_DEVICE_TRANSLATION] && !SafeWebLaunch.isTorEngine(prefs[SettingsManager.SEARCH_ENGINE])
 }
 
 /**
- * Works out the overlay's instant answers: definitions, forecasts, translations and screen time. Each answer is a
- * flow, collected per keystroke and cancelled by the next, that emits nothing (the overlay keeps its tap-through
- * card) or the answer as it becomes known. Network answers wait [debounceMs] after the last keystroke before going
+ * Works out the overlay's instant answers: definitions, forecasts, translations (handed to Google Translate) and
+ * screen time. Each answer is a flow, collected per keystroke and cancelled by the next, that emits nothing (the
+ * overlay keeps its tap-through card) or the answer as it becomes known. Network answers wait [debounceMs] after the last keystroke before going
  * out, and come from the cache at once when they can.
  */
 @Singleton
@@ -102,10 +63,8 @@ class InstantAnswerEngine internal constructor(
     private val prefs: () -> SharedPreferences,
     private val dictionary: DictionaryRepository,
     private val weather: WeatherRepository,
-    private val translation: Lazy<TranslationEngine>,
     private val screenTime: () -> ScreenTimeReport?,
     private val location: DeviceLocation,
-    private val onUnmeteredNetwork: () -> Boolean,
     private val locale: () -> Locale = Locale::getDefault,
     private val debounceMs: Long = DEBOUNCE_MS
 ) {
@@ -130,10 +89,8 @@ class InstantAnswerEngine internal constructor(
             AnswerCache(FORECAST_TTL_MS, 16, DiskAnswerCache(cacheDir(context, "forecast"), 8)),
             AnswerCache(PLACE_TTL_MS, 32, DiskAnswerCache(cacheDir(context, "places"), 32))
         ),
-        translation = lazy { MlKitTranslationEngine(context) },
         screenTime = ScreenTimeRepository(context)::today,
-        location = AndroidDeviceLocation(context),
-        onUnmeteredNetwork = { isOnUnmeteredNetwork(context) }
+        location = AndroidDeviceLocation(context)
     )
 
     /** The answer to [question], which was read from [query]. */
@@ -141,7 +98,7 @@ class InstantAnswerEngine internal constructor(
         when (question) {
             is InstantAnswerQuery.Define -> define(question, query)
             is InstantAnswerQuery.Weather -> weather(question, query)
-            is InstantAnswerQuery.Translate -> translate(question, query)
+            is InstantAnswerQuery.Translate -> emit(translation(question, query))
             InstantAnswerQuery.ScreenTime -> emit(LiveAnswer.ScreenTime(query, screenTime()))
         }
     }.flowOn(Dispatchers.IO)
@@ -191,37 +148,13 @@ class InstantAnswerEngine internal constructor(
         return HomeLocationCodec.decode(settings[SettingsManager.WEATHER_HOME_LOCATION])
     }
 
-    private suspend fun FlowCollector<LiveAnswer>.translate(question: InstantAnswerQuery.Translate, query: String) {
-        val target = question.targetLanguage ?: TranslationLanguages.codeFor(locale()) ?: ENGLISH
-        fun answer(source: String?, status: TranslationStatus) =
-            LiveAnswer.Translation(query, question.text, source, question.sourceLanguage == null, target, status)
-
-        if (!prefs()[SettingsManager.ON_DEVICE_TRANSLATION]) return emit(answer(question.sourceLanguage, TranslationStatus.Off))
-        delay(debounceMs)
-        val engine = translation.value
-        val source = question.sourceLanguage ?: runCatchingCancellable { engine.identifyLanguage(question.text) }
-            ?: return emit(answer(null, TranslationStatus.Unidentified))
-        if (source == target) return emit(answer(source, TranslationStatus.SameLanguage))
-
-        val missing = listOf(source, target).distinct().filterNot { runCatchingCancellable { engine.isDownloaded(it) } == true }
-        if (missing.isNotEmpty()) {
-            val blocked = !AnswerPrivacy.modelDownloadsAllowed(prefs())
-            return emit(answer(source, TranslationStatus.NeedsDownload(missing, onUnmeteredNetwork(), blocked)))
-        }
-        emit(answer(source, TranslationStatus.Working))
-        val translated = runCatchingCancellable { engine.translate(question.text, source, target) }
-        emit(answer(source, if (translated != null) TranslationStatus.Done(translated) else TranslationStatus.Failed))
-    }
-
-    /**
-     * Downloads the languages [answer] needs, on Wi-Fi only unless [useMobileData]. Refuses (false) while downloads
-     * aren't allowed. Returns once the download finishes or fails.
-     */
-    suspend fun downloadLanguages(answer: LiveAnswer.Translation, useMobileData: Boolean): Boolean = withContext(Dispatchers.IO) {
-        val source = answer.source ?: return@withContext false
-        if (!AnswerPrivacy.modelDownloadsAllowed(prefs())) return@withContext false
-        runCatchingCancellable { translation.value.download(source, answer.target, wifiOnly = !useMobileData); true } == true
-    }
+    /** The Google Translate card for [question]: into the language named, else the phone's, else English. */
+    private fun translation(question: InstantAnswerQuery.Translate, query: String) = LiveAnswer.Translation(
+        query = query,
+        text = question.text,
+        source = question.sourceLanguage,
+        target = question.targetLanguage ?: TranslationLanguages.codeFor(locale()) ?: ENGLISH
+    )
 
     /** Forgets saved answers for [feature], for when the user turns it off. */
     suspend fun clearCache(feature: Feature) = withContext(Dispatchers.IO) {
@@ -248,20 +181,5 @@ class InstantAnswerEngine internal constructor(
         private const val ENGLISH = "en"
 
         private fun cacheDir(context: Context, name: String) = File(File(context.cacheDir, "answers"), name)
-
-        private fun isOnUnmeteredNetwork(context: Context): Boolean {
-            val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return false
-            val capabilities = connectivity.getNetworkCapabilities(connectivity.activeNetwork) ?: return false
-            return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
-        }
     }
-}
-
-/** [block]'s result, or null if it threw; cancellation still cancels. */
-private inline fun <T> runCatchingCancellable(block: () -> T): T? = try {
-    block()
-} catch (e: CancellationException) {
-    throw e
-} catch (_: Exception) {
-    null
 }

@@ -139,7 +139,7 @@ class SearchBangManager @Inject constructor(
                 isBuiltIn = true,
                 description = "Search Songs and Artists on Spotify."
             )
-        )
+        ) + AiAssistants.ALL.map(AiAssistants::bang)
 
         /** A built-in's prefix with the "!" trigger, whatever trigger it was written with. */
         fun canonicalBuiltInPrefix(prefix: String): String =
@@ -301,6 +301,9 @@ class SearchBangManager @Inject constructor(
         val bang = parsed.bang
         val query = parsed.extractedQuery
         val pm = context.packageManager
+
+        // AI assistants open in their app when it takes their address (or, for Gemini, the shared query), else the web.
+        AiAssistants.forBang(bang)?.let { return AiAssistants.launchIntent(context, it, query) }
 
         // Priority 1: Native Application Intent Deep Link (if installed)
         if (!bang.targetPackage.isNullOrBlank() && !bang.targetPackage.equals(context.packageName, ignoreCase = true)) {

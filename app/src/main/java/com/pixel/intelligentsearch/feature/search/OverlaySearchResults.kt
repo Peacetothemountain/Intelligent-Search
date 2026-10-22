@@ -133,6 +133,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val mockTrendingUnlocked by rememberSetting(SettingsManager.DEBUG_UNLOCKED)
     val mockTrendingSwitch by rememberSetting(SettingsManager.DEBUG_MOCK_TRENDING)
     val mockTrendingOn = mockTrendingUnlocked && mockTrendingSwitch
+    val aiModel by rememberSetting(SettingsManager.AI_MODEL)
     var showHistoryClearedSnackbar by s.ui::showHistoryClearedSnackbar
     val context = LocalContext.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -312,73 +313,62 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         )
                         .swipeOffset(swipe)
                 ) {
-                    val actionIcon = directActionIcon(action.iconType)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
-                            .clip(RoundedCornerShape(32.dp))
-                            .swipeToDismiss(swipe, action)
-                            .bouncyClickable {
-                                hasStartedTyping = false
-                                focusManager.clearFocus(force = true)
-                                keyboardController?.hide()
-                                if (action.iconType == "private_space") {
-                                    val act = context.findActivity()
-                                    if (act != null) {
-                                        viewModel.unlockPrivateSpace(act)
-                                    }
-                                } else {
-                                    action.intent?.let { intent ->
-                                        launchSafeIntent(context, intent)
-                                    }
-                                }
-                            }
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    DirectActionRow(
+                        title = action.title,
+                        subtitle = action.subtitle,
+                        icon = directActionIcon(action.iconType),
+                        gestures = Modifier.swipeToDismiss(swipe, action)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(MaterialTheme.colorScheme.primary, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = actionIcon,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
+                        hasStartedTyping = false
+                        focusManager.clearFocus(force = true)
+                        keyboardController?.hide()
+                        if (action.iconType == "private_space") {
+                            val act = context.findActivity()
+                            if (act != null) {
+                                viewModel.unlockPrivateSpace(act)
+                            }
+                        } else {
+                            action.intent?.let { intent ->
+                                launchSafeIntent(context, intent)
+                            }
                         }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = action.title,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                fontFamily = GoogleSansFlex
-                            )
-                            Text(
-                                text = action.subtitle,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
-                                fontSize = 13.sp,
-                                fontFamily = GoogleSansFlex,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(20.dp)
-                        )
                     }
                 }
             }
             item(key = "direct_actions_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+        }
+
+        // AI Answers: "Ask Claude" for a question, sending it only when tapped; then its answer, for this query only.
+        val aiOffer = uiState.aiOffer
+        val aiAnswer = uiState.aiAnswer
+        val question = com.pixel.intelligentsearch.core.ai.AiAnswers.questionIn(uiState.query)
+        if (aiAnswer != null) {
+            item(key = "ai_answer", contentType = "ai_answer") {
+                AiAnswerCard(aiAnswer, model = aiAnswer.provider.model(aiModel)) {
+                    hasStartedTyping = false
+                    launchSafeIntent(context, com.pixel.intelligentsearch.core.bangs.AiAssistants.launchIntent(context, aiAnswer.provider.assistant, aiAnswer.question))
+                }
+            }
+        } else if (aiOffer != null && question != null) {
+            item(key = "ask_ai", contentType = "direct_action") {
+                AskAiRow(aiOffer, question) {
+                    focusManager.clearFocus(force = true)
+                    keyboardController?.hide()
+                    viewModel.askAi()
+                }
+            }
+        }
+
+        // Saved Links the query names, each with its long-press menu (pin, nickname, trigger word).
+        if (uiState.savedLinks.isNotEmpty()) {
+            item(key = "saved_links_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+            uniqueItems(uiState.savedLinks, key = { link -> "saved_link_${link.url}" }, contentType = { "saved_link" }) { link ->
+                ResultMenuBox(s, ResultMenuTarget.Link(link)) { openMenu ->
+                    SavedLinkRow(link, rememberSavedLinkIcon(link), onLongClick = openMenu) {
+                        openResult(context, s, link, LaunchSource.keyboard())
+                    }
+                }
+            }
         }
 
         // At a Glance: codes, timers, the next alarm, what's playing, birthdays and the battery, above the empty search.

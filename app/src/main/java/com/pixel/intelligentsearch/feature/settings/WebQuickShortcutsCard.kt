@@ -62,7 +62,7 @@ internal fun suggestedWebShortcut(pkg: String): Pair<String?, String?> = when (p
     "com.imdb.mobile" -> "imdb" to "https://www.imdb.com/find/?q=%s"
     "com.google.android.googlequicksearchbox" -> "g" to "https://www.google.com/search?q=%s"
     "com.duckduckgo.mobile.android" -> "ddg" to "https://duckduckgo.com/?q=%s"
-    else -> null to null
+    else -> com.pixel.intelligentsearch.core.bangs.AiAssistants.forPackage(pkg)?.let { it.trigger to it.urlTemplate } ?: (null to null)
 }
 
 /**

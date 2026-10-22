@@ -184,16 +184,10 @@ object NaturalLanguageIntentParser {
         if (!matched || totalSeconds <= 0L || totalSeconds > MAX_TIMER_SECONDS) return null
         val durationSeconds = totalSeconds.toInt()
 
-        val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
-            putExtra(AlarmClock.EXTRA_LENGTH, durationSeconds)
-            putExtra(AlarmClock.EXTRA_MESSAGE, "Intelligent Search Timer")
-            putExtra(AlarmClock.EXTRA_SKIP_UI, false)
-        }
-
         return ParsedIntent.Timer(
             durationSeconds = durationSeconds,
             label = "Timer ${formatDuration(durationSeconds)}",
-            intent = intent
+            intent = timerIntent(durationSeconds)
         )
     }
 
@@ -241,12 +235,7 @@ object NaturalLanguageIntentParser {
             extractTime(remainder) ?: return null
         }
 
-        val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
-            putExtra(AlarmClock.EXTRA_HOUR, time.first)
-            putExtra(AlarmClock.EXTRA_MINUTES, time.second)
-            putExtra(AlarmClock.EXTRA_MESSAGE, "Alarm")
-            putExtra(AlarmClock.EXTRA_SKIP_UI, false)
-        }
+        val intent = alarmIntent(time.first, time.second)
 
         val formattedTime = String.format(Locale.US, "%02d:%02d", time.first, time.second)
         return ParsedIntent.Alarm(
@@ -271,18 +260,10 @@ object NaturalLanguageIntentParser {
         val cleanTask = temporalResult.cleanText.ifBlank { rawTask }
         val triggerTime = temporalResult.timestampMs
 
-        val intent = Intent(Intent.ACTION_INSERT).apply {
-            data = CalendarContract.Events.CONTENT_URI
-            putExtra(CalendarContract.Events.TITLE, cleanTask)
-            putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, triggerTime)
-            putExtra(CalendarContract.EXTRA_EVENT_END_TIME, triggerTime + 30 * 60 * 1000)
-            putExtra(CalendarContract.Events.ALL_DAY, 0)
-        }
-
         return ParsedIntent.Reminder(
             task = cleanTask,
             triggerMillis = triggerTime,
-            intent = intent
+            intent = reminderIntent(cleanTask, triggerTime)
         )
     }
 
@@ -540,5 +521,33 @@ object NaturalLanguageIntentParser {
 
         if (hour !in 0..23 || minute !in 0..59) return null
         return Pair(hour, minute)
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // ACTION INTENTS (shared with ShortActionPhrasing, which offers "15 min", "7:30am", "laundry in 2 hrs")
+    // ---------------------------------------------------------------------------------------------
+
+    /** The clock's timer for [durationSeconds] (1..86400), shown to the user to start rather than started silently. */
+    internal fun timerIntent(durationSeconds: Int): Intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+        putExtra(AlarmClock.EXTRA_LENGTH, durationSeconds)
+        putExtra(AlarmClock.EXTRA_MESSAGE, "Intelligent Search Timer")
+        putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+    }
+
+    /** The clock's new alarm at [hour]:[minute] (24-hour), shown to the user to confirm. */
+    internal fun alarmIntent(hour: Int, minute: Int): Intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
+        putExtra(AlarmClock.EXTRA_HOUR, hour)
+        putExtra(AlarmClock.EXTRA_MINUTES, minute)
+        putExtra(AlarmClock.EXTRA_MESSAGE, "Alarm")
+        putExtra(AlarmClock.EXTRA_SKIP_UI, false)
+    }
+
+    /** A reminder: a half-hour calendar event named [task] at [triggerMillis], opened in the calendar to save. */
+    internal fun reminderIntent(task: String, triggerMillis: Long): Intent = Intent(Intent.ACTION_INSERT).apply {
+        data = CalendarContract.Events.CONTENT_URI
+        putExtra(CalendarContract.Events.TITLE, task)
+        putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, triggerMillis)
+        putExtra(CalendarContract.EXTRA_EVENT_END_TIME, triggerMillis + 30 * 60 * 1000)
+        putExtra(CalendarContract.Events.ALL_DAY, 0)
     }
 }

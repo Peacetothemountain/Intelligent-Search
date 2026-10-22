@@ -109,6 +109,45 @@ class SubmitQueryTest {
     }
 
     @Test
+    fun enterStartsTheTimerAShortDurationAsksFor() {
+        showOverlay()
+        viewModel.onQueryChanged("15 min")
+        compose.settle()
+        assertEquals("Start 15 min Timer", viewModel.uiState.value.directActions.first().title)
+
+        compose.onNode(hasSetTextAction()).performImeAction()
+        compose.settle()
+
+        val timer = startedActivity()
+        assertEquals(android.provider.AlarmClock.ACTION_SET_TIMER, timer?.action)
+        assertEquals(900, timer?.getIntExtra(android.provider.AlarmClock.EXTRA_LENGTH, 0))
+    }
+
+    @Test
+    fun enterRunsAFullTimerPhraseToo() {
+        showOverlay()
+        viewModel.onQueryChanged("set a timer for 10 minutes")
+        compose.settle()
+        compose.onNode(hasSetTextAction()).performImeAction()
+        compose.settle()
+        assertEquals(android.provider.AlarmClock.ACTION_SET_TIMER, startedActivity()?.action)
+    }
+
+    @Test
+    fun aBareClockTimeOffersAnAlarmButEnterStillSearches() {
+        showOverlay()
+        viewModel.onQueryChanged("7:30")
+        compose.settle()
+        assertTrue(viewModel.uiState.value.directActions.first().title.startsWith("Set Alarm for "))
+
+        compose.onNode(hasSetTextAction()).performImeAction()
+        compose.settle()
+
+        val search = startedActivity()
+        assertTrue("expected a web search, got $search", search?.action == Intent.ACTION_WEB_SEARCH || search?.action == Intent.ACTION_VIEW)
+    }
+
+    @Test
     fun enterDialsTheBestMatchContactsWholeNumber() {
         prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).put(SettingsManager.CONTACT_DIRECT_CALL, true).commit()
         (sources as FakeDeviceSearchSources).contactBook = listOf(ContactItem("Voicemail", "*86#", "content://contacts/voicemail"))

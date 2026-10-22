@@ -398,15 +398,7 @@ fun Modifier.materialYouGeminiPlate(
     }
 
     // 3. Bottom lift: defined upward light along bottom edge matching #1E1319 reference
-    val bottomLiftColor = if (isDark) {
-        androidx.compose.ui.graphics.lerp(
-            Color(0xFF160E14),
-            scheme.primaryContainer,
-            0.46f
-        )
-    } else {
-        outerColor
-    }
+    val bottomLiftColor = geminiPlateBottomLiftColor(scheme)
 
     // 4. Top rim: defined subtle highlight along top edge (#181016)
     val topRimColor = if (isDark) {
@@ -437,6 +429,22 @@ fun Modifier.materialYouGeminiPlate(
         onDrawBehind { drawRect(brush = brush, alpha = alpha.coerceIn(0f, 1f)) }
     }
 }
+
+/**
+ * The colour of the light along the bottom edge of [materialYouGeminiPlate] for [scheme]: in dark theme a lift of
+ * the deep container tone, in light theme the plate's outer tone. [geminiPlateIdleFlow] flows this same colour.
+ */
+internal fun geminiPlateBottomLiftColor(scheme: androidx.compose.material3.ColorScheme): Color =
+    if (scheme.surface.luminance() < 0.5f) {
+        androidx.compose.ui.graphics.lerp(
+            Color(0xFF160E14),
+            scheme.primaryContainer,
+            0.46f
+        )
+    } else {
+        // The light theme's outer colour.
+        scheme.surfaceContainerHigh
+    }
 
 @Language("AGSL")
 private const val AGSL_GEMINI_PLATE = """

@@ -52,12 +52,11 @@ class BackupPreferenceSchemaTest {
     }
 
     @Test
-    fun searchFromSelectedTextIsBackedUpAsABoolean() {
-        val key = SettingsManager.SEARCH_FROM_SELECTED_TEXT
-        assertEquals("BOOLEAN", BackupPreferenceSchema.expectedType(key.name))
-        assertTrue(key in SettingsManager.ALL)
-        assertEquals(key, SettingsManager.keyFor("search_from_selected_text"))
-        assertTrue(key.default)
+    fun searchFromSelectedTextIsNoLongerASetting() {
+        // The entry is always on now; older backups still carry the switch, which restores ignore.
+        assertNull(SettingsManager.keyFor("search_from_selected_text"))
+        assertNull(BackupPreferenceSchema.expectedType("search_from_selected_text"))
+        assertTrue("search_from_selected_text" in SettingsManager.REMOVED_NAMES)
     }
 
     @Test

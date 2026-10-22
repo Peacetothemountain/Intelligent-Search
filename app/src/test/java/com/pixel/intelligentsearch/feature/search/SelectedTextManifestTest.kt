@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.feature.widget.WidgetActivity
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Test
 import org.w3c.dom.Element
 import java.io.File
@@ -67,11 +66,11 @@ class SelectedTextManifestTest {
     }
 
     @Test
-    fun theEntryIsOnByDefaultLikeItsSetting() {
-        // The Search from Selected Text setting defaults to on; the component's own default must match, and the
-        // setting alone turns it off (an "enabled" here would fight the state the app sets at run time).
+    fun theEntryIsAlwaysOn() {
+        // Search from Selected Text is built in, with no switch: the entry is declared on, and start-up only ever
+        // puts it back to this declared state.
         val entry = activity(SelectedTextSearchActivity::class.java.name)
-        assertFalse(entry.hasAttributeNS(androidNs, "enabled"))
+        assertEquals("true", entry.android("enabled"))
     }
 
     @Test

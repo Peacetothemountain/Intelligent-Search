@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.BlurOn
 import androidx.compose.material.icons.outlined.BrightnessMedium
 import androidx.compose.material.icons.outlined.Layers
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Opacity
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Vibration
@@ -116,6 +117,16 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         isChecked = vibrationEnabled,
                         // The haptic engines read this setting on every haptic, so saving it is enough.
                         onCheckedChange = { vibrationEnabled = it },
+                        showDivider = true
+                    )
+
+                    var overlayShowMic by rememberSetting(SettingsManager.OVERLAY_SHOW_MIC)
+                    SettingsRowToggle(
+                        title = "Show Microphone in Search Bar",
+                        subtitle = "Show Voice Search Button on Search Overlay Page.",
+                        icon = Icons.Outlined.Mic,
+                        isChecked = overlayShowMic,
+                        onCheckedChange = { overlayShowMic = it },
                         showDivider = true
                     )
 

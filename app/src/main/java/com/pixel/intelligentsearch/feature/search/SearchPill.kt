@@ -24,6 +24,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -32,11 +33,17 @@ import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 
+/** The app icon's size in a quick-app pill at full [SearchPill] scale. */
+internal val QuickAppIconSize = 22.dp
+
+/** Test tag on a quick-app pill's icon. */
+internal const val QUICK_APP_ICON_TAG = "quick_app_icon"
+
 @Composable
 fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: String, scale: Float = 1f, launchIcon: LaunchIconTarget? = null, onClick: () -> Unit) {
     val hPadding = (12 * scale).dp
     val vPadding = (8 * scale).dp
-    val iconSize = (18 * scale).dp
+    val iconSize = QuickAppIconSize * scale
     val textSize = (14 * scale).sp
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -67,11 +74,11 @@ fun SearchPill(iconRes: Int? = null, iconBitmap: AppIconResult? = null, title: S
             Image(
                 bitmap = iconBitmap.bitmap,
                 contentDescription = null,
-                modifier = Modifier.size(iconSize).launchIcon(launchIcon),
+                modifier = Modifier.size(iconSize).testTag(QUICK_APP_ICON_TAG).launchIcon(launchIcon),
                 colorFilter = if (iconBitmap.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
             )
         } else if (iconRes != null) {
-            Image(painter = painterResource(id = iconRes), contentDescription = null, modifier = Modifier.size(iconSize).launchIcon(launchIcon))
+            Image(painter = painterResource(id = iconRes), contentDescription = null, modifier = Modifier.size(iconSize).testTag(QUICK_APP_ICON_TAG).launchIcon(launchIcon))
         }
         Spacer(modifier = Modifier.width((8 * scale).dp))
         Text(

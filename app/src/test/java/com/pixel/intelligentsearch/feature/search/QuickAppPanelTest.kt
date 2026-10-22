@@ -6,9 +6,13 @@ import android.content.pm.PackageInfo
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Looper
+import androidx.compose.ui.test.assertHeightIsEqualTo
+import androidx.compose.ui.test.assertWidthIsEqualTo
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -81,5 +85,23 @@ class QuickAppPanelTest {
         compose.waitForIdle()
 
         assertTrue(lookupsOnMain.isEmpty())
+    }
+
+    @Test
+    fun theIconIsLargeEnoughToMakeOut() {
+        compose.setContent {
+            QuickAppPill(packageName = maps, activeIconPack = "system_default", scale = 1f, knownName = "Maps", appLabel = recordingLabel) {}
+        }
+        // 18dp icons were too small to make out; the name beside them is unchanged.
+        compose.onNodeWithTag(QUICK_APP_ICON_TAG, useUnmergedTree = true).assertWidthIsEqualTo(22.dp).assertHeightIsEqualTo(22.dp)
+        compose.onNodeWithText("Maps").assertExists()
+    }
+
+    @Test
+    fun aCrowdedPanelStillShrinksItsIcons() {
+        compose.setContent {
+            QuickAppPill(packageName = maps, activeIconPack = "system_default", scale = 0.5f, knownName = "Maps", appLabel = recordingLabel) {}
+        }
+        compose.onNodeWithTag(QUICK_APP_ICON_TAG, useUnmergedTree = true).assertWidthIsEqualTo(11.dp)
     }
 }

@@ -12,8 +12,9 @@ import com.pixel.intelligentsearch.feature.widget.WidgetDoodles
 internal object StartupSync {
 
     fun afterUnlock(context: Context, currencyRates: CurrencyRateRepository) {
-        // Component states are kept by Android, outside the app's data; keep the selection entry matching the setting.
-        SelectedTextSearchActivity.syncWithSetting(context)
+        // Component states are kept by Android, outside the app's data; turn the selection entry back on where an
+        // older version's switch turned it off.
+        SelectedTextSearchActivity.ensureEnabled(context)
         // Redraw the widgets when the day's doodle next changes (a doodle day starts or ends at midnight).
         WidgetDoodles.scheduleNextChange(context)
         // Keep the daily currency refresh only while the Calculator and Live Currency Rates are on and Tor isn't the

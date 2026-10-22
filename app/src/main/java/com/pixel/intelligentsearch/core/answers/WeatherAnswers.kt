@@ -287,11 +287,15 @@ class WeatherRepository(
     fun peekForecast(latitude: Double, longitude: Double, unit: TemperatureUnit): ForecastData? =
         forecasts.peek(forecastKey(latitude, longitude, unit))
 
-    suspend fun fetchForecast(latitude: Double, longitude: Double, unit: TemperatureUnit): ForecastData? {
+    /**
+     * Fetches the forecast for the coordinates. [onDisk] false keeps it in memory only: a forecast for the phone's own
+     * location would otherwise leave where the phone was in the app's files.
+     */
+    suspend fun fetchForecast(latitude: Double, longitude: Double, unit: TemperatureUnit, onDisk: Boolean = true): ForecastData? {
         val body = http.fetch(OpenMeteoParser.forecastUrl(latitude, longitude, unit), OpenMeteoParser.MAX_BYTES)
             ?.toString(Charsets.UTF_8) ?: return null
         val data = OpenMeteoParser.parseForecast(body) ?: return null
-        forecasts.put(forecastKey(latitude, longitude, unit), data, body)
+        forecasts.put(forecastKey(latitude, longitude, unit), data, body.takeIf { onDisk })
         return data
     }
 
@@ -307,6 +311,12 @@ class WeatherRepository(
         val found = OpenMeteoParser.parsePlaces(body) ?: return null
         places.put(placeKey(name, language), found, body)
         return found
+    }
+
+    /** Deletes the forecasts and places kept on disk past their lifetime. Touches the disk. */
+    fun pruneExpired() {
+        forecasts.pruneExpired()
+        places.pruneExpired()
     }
 
     /** Forgets every forecast and place kept, for when the user turns Weather Answers off. */

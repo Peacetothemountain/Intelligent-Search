@@ -55,6 +55,22 @@ class AnswerCacheTest {
     }
 
     @Test
+    fun expiredCopiesAreDeletedWithoutBeingAskedFor() {
+        val dir = folder.newFolder("answers")
+        val disk = DiskAnswerCache(dir, 10)
+        disk.write("old", "old body", now)
+        disk.write("new", "new body", now + 30_000)
+        java.io.File(dir, "answer123.tmp").writeText("left behind by a failed write")
+        java.io.File(dir, "broken.answer").writeText("no time line")
+
+        now += 60_000
+        AnswerCache<String>(60_000, 4, disk, now = { now }).pruneExpired()
+        assertNull(disk.read("old", Long.MAX_VALUE, now))
+        assertEquals("new body", disk.read("new", 60_000, now)?.body)
+        assertEquals(1, dir.listFiles()!!.size)
+    }
+
+    @Test
     fun aDiskCopyThatNoLongerDecodesIsDropped() {
         val dir = folder.newFolder("answers")
         AnswerCache<String>(60_000, 4, DiskAnswerCache(dir, 10), now = { now }).put("word", "parsed", body = "raw")

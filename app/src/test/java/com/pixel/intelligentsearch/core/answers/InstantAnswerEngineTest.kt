@@ -30,6 +30,8 @@ import java.util.Locale
 @RunWith(RobolectricTestRunner::class)
 class InstantAnswerEngineTest {
 
+    @get:org.junit.Rule val folder = org.junit.rules.TemporaryFolder()
+
     private lateinit var prefs: SharedPreferences
 
     private fun fixture(name: String): String =
@@ -236,6 +238,78 @@ class InstantAnswerEngineTest {
         val here = answers(engine(), "weather").single() as LiveAnswer.Weather
         assertEquals(InstantAnswerEngine.YOUR_LOCATION, here.report.placeName)
         assertTrue(http.requests.last(), http.requests.last().contains("latitude=48.86&longitude=2.35"))
+    }
+
+    /** An engine whose definitions and forecasts are also kept on disk, in [dir]. */
+    private fun diskEngine(dir: java.io.File) = InstantAnswerEngine(
+        prefs = { prefs },
+        dictionary = DictionaryRepository(http, AnswerCache(60_000, 16, DiskAnswerCache(java.io.File(dir, "dictionary"), 10)), AnswerCache(60_000, 16)),
+        weather = WeatherRepository(
+            http,
+            AnswerCache(60_000, 16, DiskAnswerCache(java.io.File(dir, "forecast"), 10)),
+            AnswerCache(60_000, 16, DiskAnswerCache(java.io.File(dir, "places"), 10))
+        ),
+        screenTime = { null },
+        location = location,
+        locale = { Locale.US },
+        debounceMs = 0,
+        cacheCleaner = { it.run() }
+    )
+
+    private fun filesIn(dir: java.io.File, name: String) = java.io.File(dir, name).listFiles()?.size ?: 0
+
+    @Test
+    fun theForecastForThePhonesOwnLocationIsNeverWrittenToDisk() {
+        val dir = folder.newFolder("answers")
+        allowWebAnswers()
+        prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "36.31,-82.35;Johnson City, Tennessee")
+            .put(SettingsManager.WEATHER_USE_DEVICE_LOCATION, true).commit()
+        location.allowed = true
+        val here = answers(diskEngine(dir), "weather").single() as LiveAnswer.Weather
+        assertEquals(InstantAnswerEngine.YOUR_LOCATION, here.report.placeName)
+        assertEquals("nothing about where the phone is was saved", 0, filesIn(dir, "forecast"))
+
+        // The home location's forecast is the user's own choice of place, and is kept.
+        location.allowed = false
+        answers(diskEngine(dir), "weather")
+        assertEquals(1, filesIn(dir, "forecast"))
+    }
+
+    @Test
+    fun switchingAnAnswerOffFromAnywhereForgetsWhatWasKept() {
+        val dir = folder.newFolder("answers")
+        allowWebAnswers()
+        prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "36.31,-82.35;Johnson City, Tennessee").commit()
+        val engine = diskEngine(dir)
+        answers(engine, "define serendipity")
+        answers(engine, "weather")
+        assertEquals(1, filesIn(dir, "dictionary"))
+        assertEquals(1, filesIn(dir, "forecast"))
+
+        // Not the settings page: a restore or the debug menu writes the setting directly.
+        prefs.edit().put(SettingsManager.DICTIONARY_ANSWERS, false).commit()
+        assertEquals(0, filesIn(dir, "dictionary"))
+        assertEquals(1, filesIn(dir, "forecast"))
+        prefs.edit().put(SettingsManager.WEATHER_ANSWERS, false).commit()
+        assertEquals(0, filesIn(dir, "forecast"))
+
+        allowWebAnswers()
+        answers(engine, "define serendipity")
+        assertEquals("asked again, nothing was kept", 3, http.requests.size)
+    }
+
+    @Test
+    fun eachStartDropsWhatAFeatureThatIsOffKept() = runBlocking {
+        val dir = folder.newFolder("answers")
+        allowWebAnswers()
+        answers(diskEngine(dir), "define serendipity")
+        assertEquals(1, filesIn(dir, "dictionary"))
+        // Turned off while this engine wasn't listening (an older version, a cleared process).
+        prefs.edit().putBoolean(SettingsManager.DICTIONARY_ANSWERS.name, false).commit()
+        java.io.File(dir, "dictionary").mkdirs()
+        DiskAnswerCache(java.io.File(dir, "dictionary"), 10).write("en:serendipity", "{}", System.currentTimeMillis())
+        diskEngine(dir).syncCaches()
+        assertEquals(0, filesIn(dir, "dictionary"))
     }
 
     // ---------------------------------------------------------------------------------------------

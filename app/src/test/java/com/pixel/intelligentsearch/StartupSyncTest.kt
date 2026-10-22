@@ -40,6 +40,10 @@ class StartupSyncTest {
         HttpsGet { _, _, _ -> error("startup never downloads") }
     )
 
+    private fun sync() = kotlinx.coroutines.runBlocking {
+        StartupSync.afterUnlock(context, repository(), com.pixel.intelligentsearch.core.answers.InstantAnswerEngine(context, settings))
+    }
+
     private fun pending(work: String) =
         workManager.getWorkInfosForUniqueWork(work).get().filter { it.state == WorkInfo.State.ENQUEUED }
 
@@ -52,13 +56,13 @@ class StartupSyncTest {
         settings.prefs.edit().putBoolean("search_from_selected_text", false).commit()
         context.packageManager.setComponentEnabledSetting(entry, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
 
-        StartupSync.afterUnlock(context, repository())
+        sync()
         assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, context.packageManager.getComponentEnabledSetting(entry))
     }
 
     @Test
     fun theNextDoodleRedrawIsArranged() {
-        StartupSync.afterUnlock(context, repository())
+        sync()
         assertTrue(pending("widget_doodle_change").isNotEmpty())
     }
 
@@ -68,7 +72,7 @@ class StartupSyncTest {
         assertTrue(pending(CurrencyRateWork.DAILY_WORK).isNotEmpty())
 
         settings.prefs.edit().put(SettingsManager.SEARCH_CALCULATOR, false).commit()
-        StartupSync.afterUnlock(context, repository())
+        sync()
 
         assertTrue(pending(CurrencyRateWork.DAILY_WORK).isEmpty())
     }

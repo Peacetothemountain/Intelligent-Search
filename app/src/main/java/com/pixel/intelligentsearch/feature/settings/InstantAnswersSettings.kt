@@ -69,7 +69,6 @@ internal fun webAnswerSubtitle(what: String, service: String, block: NetworkPoli
 fun InstantAnswersCard() {
     val context = LocalContext.current
     val engine = remember { context.appEntryPoint.instantAnswerEngine() }
-    val scope = rememberCoroutineScope()
     val web by rememberSetting(SettingsManager.SEARCH_WEB)
     val webSuggestions by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
     val searchEngine by rememberSetting(SettingsManager.SEARCH_ENGINE)
@@ -82,11 +81,8 @@ fun InstantAnswersCard() {
             subtitle = webAnswerSubtitle("Definitions", "the Free Dictionary API (dictionaryapi.dev)", block),
             icon = Icons.AutoMirrored.Outlined.MenuBook,
             isChecked = dictionary,
-            onCheckedChange = { on ->
-                dictionary = on
-                // Off means off: the definitions kept from before go too.
-                if (!on) scope.launch { engine.clearCache(InstantAnswerEngine.Feature.DICTIONARY) }
-            },
+            // Off means off: the engine deletes the definitions kept from before.
+            onCheckedChange = { dictionary = it },
             showDivider = true
         )
         var weather by rememberSetting(SettingsManager.WEATHER_ANSWERS)
@@ -95,10 +91,7 @@ fun InstantAnswersCard() {
             subtitle = webAnswerSubtitle("Forecasts", "Open-Meteo (open-meteo.com)", block),
             icon = Icons.Outlined.WbSunny,
             isChecked = weather,
-            onCheckedChange = { on ->
-                weather = on
-                if (!on) scope.launch { engine.clearCache(InstantAnswerEngine.Feature.WEATHER) }
-            },
+            onCheckedChange = { weather = it },
             showDivider = weather
         )
         AnimatedVisibility(visible = weather) {
@@ -189,7 +182,9 @@ private fun HomeLocationDialog(
     var results by remember { mutableStateOf<List<GeoPlace>?>(null) }
     var searching by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
-    val allowed = NetworkPolicy.webAnswersAllowed(context.appEntryPoint.settingsManager().prefs, SettingsManager.WEATHER_ANSWERS)
+    val prefs = context.appEntryPoint.settingsManager().prefs
+    val block = NetworkPolicy.webAnswersBlock(prefs)
+    val allowed = NetworkPolicy.webAnswersAllowed(prefs, SettingsManager.WEATHER_ANSWERS)
 
     fun search() {
         if (name.isBlank() || searching) return
@@ -212,10 +207,12 @@ private fun HomeLocationDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
-                    text = if (allowed) {
-                        "Search for your city. The name you type is sent to Open-Meteo to find it."
-                    } else {
-                        "Place search needs Web Suggestions on, and is off while Tor is your search engine."
+                    text = when {
+                        allowed -> "Search for your city. The name you type is sent to Open-Meteo to find it."
+                        block == NetworkPolicy.Block.TOR -> "Place search is off while Tor is your search engine."
+                        block == NetworkPolicy.Block.WEB_OFF -> "Place search needs Web on in Search Sources."
+                        block == NetworkPolicy.Block.WEB_SUGGESTIONS_OFF -> "Place search needs Web Suggestions on."
+                        else -> "Place search needs Weather Answers on."
                     },
                     style = MaterialTheme.typography.bodyMedium
                 )

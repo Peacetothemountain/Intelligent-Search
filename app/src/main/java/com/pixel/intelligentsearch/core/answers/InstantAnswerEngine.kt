@@ -4,12 +4,14 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.runtime.Immutable
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.net.HttpsClient
 import com.pixel.intelligentsearch.core.net.HttpsGet
 import com.pixel.intelligentsearch.core.security.NetworkPolicy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -18,6 +20,7 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
+import java.util.concurrent.Executor
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -54,9 +57,14 @@ class InstantAnswerEngine internal constructor(
     private val screenTime: () -> ScreenTimeReport?,
     private val location: DeviceLocation,
     private val locale: () -> Locale = Locale::getDefault,
-    private val debounceMs: Long = DEBOUNCE_MS
+    private val debounceMs: Long = DEBOUNCE_MS,
+    /** Where a switched-off feature's saved answers are deleted, off the main thread the change arrives on. */
+    private val cacheCleaner: Executor = Dispatchers.IO.asExecutor()
 ) {
-    enum class Feature { DICTIONARY, WEATHER }
+    enum class Feature(val setting: BooleanSetting) {
+        DICTIONARY(SettingsManager.DICTIONARY_ANSWERS),
+        WEATHER(SettingsManager.WEATHER_ANSWERS)
+    }
 
     @Inject
     constructor(@ApplicationContext context: Context, settingsManager: SettingsManager) : this(
@@ -110,6 +118,8 @@ class InstantAnswerEngine internal constructor(
             debounced = true
         }
 
+        // The phone's own location is never written to disk: its forecast is kept in memory only.
+        var onDisk = true
         val place: GeoPlace = if (question.place != null) {
             val language = locale().language
             val found = weather.peekPlaces(question.place, language) ?: weather.cachedPlaces(question.place, language)
@@ -117,23 +127,21 @@ class InstantAnswerEngine internal constructor(
             // "Weather in Paris" means the Paris most people mean: the most populous of the places by that name.
             found?.maxByOrNull { it.population } ?: return
         } else {
-            homePlace(settings) ?: return emit(LiveAnswer.WeatherNeedsLocation(query))
+            deviceLocation(settings)?.also { onDisk = false }
+                ?: HomeLocationCodec.decode(settings[SettingsManager.WEATHER_HOME_LOCATION])
+                ?: return emit(LiveAnswer.WeatherNeedsLocation(query))
         }
         val forecast = weather.peekForecast(place.latitude, place.longitude, unit)
-            ?: weather.cachedForecast(place.latitude, place.longitude, unit)
-            ?: run { once(); weather.fetchForecast(place.latitude, place.longitude, unit) }
+            ?: (if (onDisk) weather.cachedForecast(place.latitude, place.longitude, unit) else null)
+            ?: run { once(); weather.fetchForecast(place.latitude, place.longitude, unit, onDisk) }
             ?: return
         WeatherReport.from(forecast, place.shortName, unit, question.day)?.let { emit(LiveAnswer.Weather(query, it)) }
     }
 
-    /** Where "the weather" is for: the phone's approximate location when chosen and allowed, else the home location. */
-    private suspend fun homePlace(settings: SharedPreferences): GeoPlace? {
-        if (settings[SettingsManager.WEATHER_USE_DEVICE_LOCATION] && location.permitted()) {
-            location.approximate()?.let { (latitude, longitude) ->
-                return GeoPlace(YOUR_LOCATION, null, null, latitude, longitude)
-            }
-        }
-        return HomeLocationCodec.decode(settings[SettingsManager.WEATHER_HOME_LOCATION])
+    /** The phone's approximate location for "the weather", when chosen and allowed; otherwise the home location is used. */
+    private suspend fun deviceLocation(settings: SharedPreferences): GeoPlace? {
+        if (!settings[SettingsManager.WEATHER_USE_DEVICE_LOCATION] || !location.permitted()) return null
+        return location.approximate()?.let { (latitude, longitude) -> GeoPlace(YOUR_LOCATION, null, null, latitude, longitude) }
     }
 
     /** The Google Translate card for [question]: into the language named, else the phone's, else English. */
@@ -144,12 +152,45 @@ class InstantAnswerEngine internal constructor(
         target = question.targetLanguage ?: TranslationLanguages.codeFor(locale()) ?: ENGLISH
     )
 
-    /** Forgets saved answers for [feature], for when the user turns it off. */
-    suspend fun clearCache(feature: Feature) = withContext(Dispatchers.IO) {
+    /** Forgets saved answers for [feature], for when it is turned off. */
+    suspend fun clearCache(feature: Feature) = withContext(Dispatchers.IO) { clearNow(feature) }
+
+    private fun clearNow(feature: Feature) {
         when (feature) {
             Feature.DICTIONARY -> dictionary.clear()
             Feature.WEATHER -> weather.clear()
         }
+    }
+
+    /**
+     * Brings the saved answers in line with the settings, at every start: a feature that is off keeps nothing, and
+     * answers past their lifetime are deleted rather than left on disk.
+     */
+    suspend fun syncCaches() = withContext(Dispatchers.IO) {
+        val settings = prefs()
+        for (feature in Feature.entries) {
+            if (!settings[feature.setting]) clearNow(feature) else when (feature) {
+                Feature.DICTIONARY -> dictionary.pruneExpired()
+                Feature.WEATHER -> weather.pruneExpired()
+            }
+        }
+    }
+
+    /**
+     * Off means off, wherever it was switched (the settings page, a restore, the debug menu): when Dictionary or
+     * Weather Answers turns off, what it kept goes too. Held here, as SharedPreferences only keeps listeners weakly.
+     */
+    private val switchedOff = SharedPreferences.OnSharedPreferenceChangeListener { changed, key ->
+        // A null key means every setting was cleared, which turns both off.
+        for (feature in Feature.entries) {
+            if ((key == null || key in feature.setting.allNames) && !changed[feature.setting]) {
+                runCatching { cacheCleaner.execute { clearNow(feature) } }
+            }
+        }
+    }
+
+    init {
+        runCatching { prefs().registerOnSharedPreferenceChangeListener(switchedOff) }
     }
 
     /** Places called [name], for choosing a home location in settings; null when the lookup failed or isn't allowed. */

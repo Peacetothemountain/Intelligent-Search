@@ -131,6 +131,9 @@ class DictionaryRepository(
         return entry
     }
 
+    /** Deletes the definitions kept on disk past their lifetime. Touches the disk. */
+    fun pruneExpired() = cache.pruneExpired()
+
     /** Forgets every definition kept, for when the user turns Dictionary Answers off. */
     fun clear() {
         cache.clear()

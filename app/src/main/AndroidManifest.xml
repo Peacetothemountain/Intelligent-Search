@@ -384,6 +384,19 @@
             android:exported="true">
         </service>
 
+        <!-- Search Your Notifications and At a Glance's codes and timers: reads notifications into memory only, and
+             only while the user has the opt-in on (it unbinds itself otherwise). Android binds it once the user grants
+             notification access; see NotificationSearchListener for the Play policy justification. -->
+        <service
+            android:name=".core.glance.NotificationSearchListener"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- AppFunctions (Android 16+): lets on-device assistants run local app, contact and calculator search -->
         <service
             android:name=".feature.appfunctions.IntelligentSearchAppFunctionService"

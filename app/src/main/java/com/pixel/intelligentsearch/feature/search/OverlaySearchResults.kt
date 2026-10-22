@@ -331,7 +331,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         }
 
         // AI Answers: "Ask Claude" for a question, sending it only when tapped; then its answer, for this query only.
-        val aiOffer = uiState.aiOffer
+        val aiOffer = uiState.askAi
         val aiAnswer = uiState.aiAnswer
         val question = com.pixel.intelligentsearch.core.ai.AiAnswers.questionIn(uiState.query)
         if (aiAnswer != null) {

@@ -352,7 +352,7 @@ internal fun navSources(s: OverlayScope): NavSources {
     return NavSources(
         spellingSuggestion = uiState.spellingSuggestion,
         directActions = uiState.directActions,
-        aiAsk = uiState.aiOffer?.let { provider -> AiAnswers.questionIn(query)?.let { provider to it } },
+        aiAsk = uiState.askAi?.let { provider -> AiAnswers.questionIn(query)?.let { provider to it } },
         aiAnswer = uiState.aiAnswer,
         savedLinks = uiState.savedLinks,
         bestMatch = s.bestMatch,

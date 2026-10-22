@@ -117,7 +117,18 @@ data class SearchUiState(
     val aiOffer: com.pixel.intelligentsearch.core.ai.AiProvider? = null,
     /** The answer to the question the user tapped Ask on, for this query only. */
     val aiAnswer: com.pixel.intelligentsearch.core.ai.AiAnswerState? = null
-)
+) {
+    /**
+     * The provider the Ask row shows for, or null when there is no row: besides [aiOffer], the query must not already
+     * have an answer that would contradict it at the top, an action Enter runs ("ask sarah at 6pm" is a reminder) or
+     * a definition ("what does serendipity mean?" shows its meaning).
+     */
+    val askAi: com.pixel.intelligentsearch.core.ai.AiProvider?
+        get() = aiOffer?.takeIf {
+            enterAction == null &&
+                (liveAnswer as? com.pixel.intelligentsearch.core.answers.LiveAnswer.Definition)?.query != query
+        }
+}
 
 /**
  * This state without anything from the Private Space: its apps and the App Info rows for them in the settings
@@ -1231,7 +1242,7 @@ class SearchViewModel @Inject constructor(
      */
     fun askAi() {
         val query = _uiState.value.query
-        if (_uiState.value.aiOffer == null) return
+        if (_uiState.value.askAi == null) return
         aiJob?.cancel()
         aiJob = viewModelScope.launch {
             aiAnswers.ask(query).collect { state ->

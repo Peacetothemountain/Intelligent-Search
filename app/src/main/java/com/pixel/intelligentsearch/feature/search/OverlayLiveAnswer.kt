@@ -77,19 +77,20 @@ internal fun OverlayLiveAnswer(s: OverlayScope, answer: LiveAnswer) {
         is LiveAnswer.WeatherNeedsLocation -> WeatherLocationPrompt(s)
         is LiveAnswer.Translation -> TranslationOneBox(
             answer = answer,
-            onOpenGoogleTranslate = {
-                s.ui.hasStartedTyping = false
-                // The Google Translate app with the text, as the widget's Translate shortcut opens; else its web page.
-                val app = GoogleTranslate.appIntent(answer.text, answer.source, answer.target) {
-                    context.packageManager.resolveActivityCompat(it) != null
-                }
-                if (app == null || !launchSafeIntent(context, app)) {
-                    s.openWebAddress(GoogleTranslate.webAddress(answer.text, answer.source, answer.target))
-                }
-            }
+            onOpenGoogleTranslate = { openInGoogleTranslate(context, s, answer.text, answer.source, answer.target) }
         )
         is LiveAnswer.ScreenTime -> ScreenTimePrompt(s, answer)
     }
+}
+
+/**
+ * Hands [text] to Google Translate, [source] to [target]: the app with the text, as the widget's Translate shortcut
+ * opens, else its web page. For the translation card's button and the keyboard's Enter on it.
+ */
+internal fun openInGoogleTranslate(context: android.content.Context, s: OverlayScope, text: String, source: String?, target: String) {
+    s.ui.hasStartedTyping = false
+    val app = GoogleTranslate.appIntent(text, source, target) { context.packageManager.resolveActivityCompat(it) != null }
+    if (app == null || !launchSafeIntent(context, app)) s.openWebAddress(GoogleTranslate.webAddress(text, source, target))
 }
 
 /** The weather card asking where "here" is, and the approximate-location request behind its button. */

@@ -82,6 +82,7 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
                         shape = pillShape
                     )
                     .clip(pillShape)
+                    .keyboardHighlight(s, ResultListKeys.recent(recentQuery), pillShape)
                     .moreOptions(openMenu)
                     .bouncyClickable(onLongClick = openMenu) { launchWebSearch(recentQuery) }
                     .padding(horizontal = 16.dp, vertical = 11.dp),

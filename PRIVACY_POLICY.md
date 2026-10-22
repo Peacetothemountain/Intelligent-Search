@@ -76,16 +76,20 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Purpose**: On Android 16 and later, on-device assistants can ask Intelligent Search to search your installed apps, run a calculation, or (only if you turn on **Settings -> Search Sources -> Contacts -> Share with Assistants**, which is off by default) search your contacts.
 * **Processing & Security**: Requests are answered on the device. Hidden apps are never returned, and contacts are never shared while contact search or sharing is off, or contacts access is not granted.
 
-### K. Notifications (Notification Access, `BIND_NOTIFICATION_LISTENER_SERVICE`)
+### L. Notifications (Notification Access, `BIND_NOTIFICATION_LISTENER_SERVICE`)
 * **Purpose**: Only if you turn on **Settings -> Search Sources -> Notifications** (Search Your Notifications, off by default), Intelligent Search reads the notifications showing on your phone so that typed searches can find them, and so that **At a Glance** can show running timers and stopwatches. Google Play allows notification access for an app's core feature; here it is used for nothing else.
 * **Consent**: Turning the switch on first explains what is read, then opens Android's own Notification Access screen, where you grant access yourself. You can revoke it there at any time, or turn the switch off.
 * **Processing & Security**: Notifications are held in the app's memory only, while they are showing: their title, text, app and time. Nothing read is ever written to storage, the database, preferences or backups, and nothing is sent anywhere. Turning the switch off or revoking access forgets everything at once, and the listener stops reading. Intelligent Search sees only what each notification itself shows; it cannot open your messages, Gmail or other emails behind them.
 * **Now Playing**: Android lets an app with notification access see which media apps are playing. At a Glance uses this to show what is playing with play, pause and skip, on the device only.
 * **Widget Media Controls**: The search bar widget's optional **Media Controls** row (Widget Customization -> Widget Shortcuts, off by default) uses the same access to show the playing title and artist with play/pause and next. Only the active media sessions are read, on the device; nothing is stored or sent. One grant of Notification Access covers notification search, Now Playing and the widget's media controls; revoke it any time in Android Settings -> Notifications -> Device & app notifications.
 
-### L. At a Glance (Alarms, Battery & Media)
+### M. At a Glance (Alarms, Battery & Media)
 * **Purpose**: Above the empty search, At a Glance can show your next alarm, the battery when it is low or charging, what is playing, birthdays this week and running timers. Each has its own switch in **Settings -> Search Behavior -> At a Glance**.
 * **Processing & Security**: These are read from Android on the device, only while the search is on screen, and are never stored or transmitted. No new permission is needed for the alarm and battery.
+
+### N. Clipboard (Smart Clipboard Suggestions)
+* **Purpose**: Only if you turn on **Settings -> Search Behavior -> Smart Clipboard Suggestions** (off by default), the empty search offers an action for what you copied: open a link, call a number, search the text, or **Search with Lens** for a copied image.
+* **Processing & Security**: The clipboard is read only while the search is on screen and in focus, as Android requires. Clips marked sensitive (passwords) are never offered. For an image, only its description (that it is an image, and when it was copied) is read to offer the action; the image's address is read only when you tap **Search with Lens**, and is then shared to Google Lens or the Google app with read access to that one image. Intelligent Search never reads, stores or uploads the image itself, and offers nothing for images while Tor is your search engine.
 
 ---
 

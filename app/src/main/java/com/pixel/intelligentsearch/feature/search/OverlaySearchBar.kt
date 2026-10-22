@@ -39,6 +39,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
@@ -95,9 +97,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
     val calculatorKeyboard by viewModel.calculatorKeyboard.collectAsStateWithLifecycle()
     val performAppLaunch = s.performAppLaunch
     val closeOverlay = s.closeOverlay
-    val launchWebSearch = s.launchWebSearch
     val openWebAddress = s.openWebAddress
-    val submitQuery = s.submitQuery
     val visibleApps = s.visibleApps
     val bestMatch = s.bestMatch
     val bestMatchText = s.bestMatchText
@@ -109,6 +109,8 @@ internal fun OverlaySearchBar(s: OverlayScope) {
     val coroutineScope = rememberCoroutineScope()
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
+    val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
+    val usedKeyPresses = remember { mutableSetOf<androidx.compose.ui.input.key.Key>() }
 
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         AnimatedVisibility(
@@ -262,7 +264,14 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                             }
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .focusRequester(focusRequester)
+                        // With Show Keyboard When Search Opens off, a tap on the field itself brings the keyboard
+                        // up; from then on it may come back on its own, as after any open.
+                        .onFocusChanged { if (it.isFocused && !voice.active) isKeyboardDismissedByUser = false }
+                        // A physical keyboard's arrows, Tab, Enter and Escape move through the results first.
+                        .onPreviewKeyEvent { s.onResultsKey(it, context, rtl, usedKeyPresses) },
                     textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontFamily = GoogleSansFlex),
                     singleLine = true,
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
@@ -276,18 +285,8 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
                         hasStartedTyping = false
                         keyboardController?.hide()
-                        // The collected uiState can lag a keystroke behind; read the live value so Enter
-                        // never acts on a query missing its last character. submitQuery waits for its results.
-                        val submitted = viewModel.uiState.value.query
-                        // Exactly a trigger word, sent with Enter, opens its result rather than searching.
-                        val quickKey = viewModel.quickKeyTarget(submitted, submitted = true)
-                        if (quickKey != null) {
-                            textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
-                            viewModel.onQueryChanged("")
-                            openResult(context, s, quickKey, LaunchSource.keyboard())
-                        } else {
-                            submitQuery(submitted, false)
-                        }
+                        // A trigger word, then the phrasing's action or Enter Key Action (OverlayEnterKey).
+                        s.onEnter(context, highlighted = null)
                     }),
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart) {

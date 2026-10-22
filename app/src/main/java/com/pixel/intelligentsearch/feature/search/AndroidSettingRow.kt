@@ -43,9 +43,9 @@ internal const val ANDROID_SETTING_APP_ICON_TAG = "android_setting_app_icon"
 
 /** One Android Settings result, laid out like a contact or file row; TalkBack reads it as e.g. "Battery settings". */
 @Composable
-internal fun AndroidSettingRow(result: AndroidSettingResult, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
+internal fun AndroidSettingRow(result: AndroidSettingResult, modifier: Modifier = Modifier, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .semantics(mergeDescendants = true) { contentDescription = result.spokenLabel }
             .moreOptions(onLongClick)

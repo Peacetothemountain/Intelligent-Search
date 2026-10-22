@@ -57,7 +57,6 @@ fun Modifier.bouncyClickable(
     // Read only while drawing, so gaining or losing focus redraws the ring without recomposing.
     val isFocused = effectiveInteractionSource.collectIsFocusedAsState()
     val indication = LocalIndication.current
-    val focusRingColor = MaterialTheme.colorScheme.secondary
     val outlineShape = shape as? Shape ?: RectangleShape
 
     val context = LocalContext.current
@@ -98,20 +97,7 @@ fun Modifier.bouncyClickable(
         // Android 17's press: the control's shape morphs on the fast spatial spring instead of shrinking.
         .expressivePress(effectiveInteractionSource, shape as? Shape, enabled)
         // Ahead of the clickable, so the ring is drawn over the ripple's focus layer rather than under it.
-        .drawWithContent {
-            drawContent()
-            if (isFocused.value) {
-                val ringWidth = FOCUS_RING_WIDTH.toPx()
-                // Inset by half the stroke so the whole ring stays inside the (possibly clipped) bounds.
-                inset(ringWidth / 2f) {
-                    drawOutline(
-                        outline = outlineShape.createOutline(size, layoutDirection, this),
-                        color = focusRingColor,
-                        style = Stroke(width = ringWidth)
-                    )
-                }
-            }
-        }
+        .focusRing(outlineShape) { isFocused.value }
         .combinedClickable(
             role = role,
             interactionSource = effectiveInteractionSource,
@@ -128,6 +114,30 @@ fun Modifier.bouncyClickable(
 
 /** The width of [bouncyClickable]'s keyboard focus ring. */
 internal val FOCUS_RING_WIDTH = 3.dp
+
+/**
+ * The keyboard focus ring: a [FOCUS_RING_WIDTH] line in the theme's secondary colour along [shape], drawn over the
+ * content while [visible] says so. [bouncyClickable] draws it for real focus; the search overlay draws it on the
+ * result the arrow keys highlight, so both look the same. [visible] is read only while drawing, so the ring comes and
+ * goes without recomposing.
+ */
+fun Modifier.focusRing(shape: Shape = RectangleShape, visible: () -> Boolean): Modifier = composed {
+    val focusRingColor = MaterialTheme.colorScheme.secondary
+    drawWithContent {
+        drawContent()
+        if (visible()) {
+            val ringWidth = FOCUS_RING_WIDTH.toPx()
+            // Inset by half the stroke so the whole ring stays inside the (possibly clipped) bounds.
+            inset(ringWidth / 2f) {
+                drawOutline(
+                    outline = shape.createOutline(size, layoutDirection, this),
+                    color = focusRingColor,
+                    style = Stroke(width = ringWidth)
+                )
+            }
+        }
+    }
+}
 
 /**
  * Material 3 Expressive Row Clickable.

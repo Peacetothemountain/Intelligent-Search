@@ -57,7 +57,8 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .keyboardHighlight(s, ResultListKeys.BEST_MATCH, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh

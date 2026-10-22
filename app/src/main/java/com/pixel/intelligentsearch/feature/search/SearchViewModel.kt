@@ -76,7 +76,7 @@ data class SearchUiState(
     val filteredApps: List<AppItem> = emptyList(),
     val contacts: List<ContactItem> = emptyList(),
     val files: List<FileItem> = emptyList(),
-    val webSuggestions: List<String> = emptyList(),
+    val webSuggestions: List<WebSuggestion> = emptyList(),
     /** Android Settings pages (and App Info pages) matching the query; see [resultSectionOrder] for where they show. */
     val androidSettings: List<com.pixel.intelligentsearch.core.search.AndroidSettingResult> = emptyList(),
     val mathResult: String? = null,
@@ -110,6 +110,16 @@ internal fun SearchUiState.withoutPrivateProfile(): SearchUiState {
 
 /** How long typing must pause before a query is spell checked for "Did you mean". */
 private const val SPELLING_PAUSE_MS = 450L
+
+/**
+ * The least time between two web suggestion requests: Chrome's omnibox default
+ * (`kDefaultMinimumTimeBetweenSuggestQueriesMs`), measured from the last request rather than the last keystroke.
+ */
+internal const val SUGGEST_REQUEST_SPACING_MS = 100L
+
+/** How long to hold a suggestion request whose predecessor went out [sinceLastRequestMs] ago: none once spaced out. */
+internal fun suggestRequestDelay(sinceLastRequestMs: Long): Long =
+    (SUGGEST_REQUEST_SPACING_MS - sinceLastRequestMs).coerceIn(0L, SUGGEST_REQUEST_SPACING_MS)
 
 /** The debug menu's Simulate Web Latency delay before web suggestions are fetched. */
 private const val SIMULATED_LATENCY_MS = 2_000L
@@ -160,6 +170,13 @@ class SearchViewModel @Inject constructor(
     fun takeVoiceRequest(): Boolean = voiceRequestPending.also { voiceRequestPending = false }
 
     private val _remoteSearchQueryFlow = MutableStateFlow("")
+    /** When the last web suggestion request went out ([android.os.SystemClock.elapsedRealtime]). */
+    private var lastSuggestRequestAtMs = Long.MIN_VALUE / 2
+    /**
+     * The query the shown web suggestions were fetched for. A request can now answer before the local search for the
+     * same keystroke publishes, and that publish must keep them rather than fall back to the cache or a filtered list.
+     */
+    @Volatile private var webSuggestionsQuery: String? = null
     private var searchJob: Job? = null
 
     /** Completed once the latest search's local results are published (before its "did you mean" pause). */
@@ -191,15 +208,17 @@ class SearchViewModel @Inject constructor(
             if (query.isNotBlank()) executeLocalSearch(query)
         }
 
-        // Tier 2: Debounced Remote Web Suggestions (80ms human-pause debounce)
+        // Tier 2: remote web suggestions, paced like Chrome's omnibox: a request goes out at once unless the last one
+        // left under SUGGEST_REQUEST_SPACING_MS ago, and each keystroke cancels the request still in flight.
         viewModelScope.launch {
+            // A StateFlow only emits changes, so a repeated query never re-sends.
             _remoteSearchQueryFlow
-                .debounce(80L)
-                .distinctUntilChanged()
                 .collectLatest { query ->
                     if (query.isBlank()) {
                         _uiState.update { it.copy(webSuggestions = emptyList()) }
                     } else {
+                        delay(suggestRequestDelay(android.os.SystemClock.elapsedRealtime() - lastSuggestRequestAtMs))
+                        lastSuggestRequestAtMs = android.os.SystemClock.elapsedRealtime()
                         fetchRemoteWebSuggestions(query)
                     }
                 }
@@ -480,6 +499,8 @@ class SearchViewModel @Inject constructor(
 
     fun onQueryChanged(newQuery: String) {
         val previousQuery = _uiState.value.query
+        // Suggestions fetched for another query no longer count as this one's answer.
+        if (newQuery != previousQuery) webSuggestionsQuery = null
         _uiState.update { it.copy(query = newQuery) }
         
         if (newQuery.isBlank()) {
@@ -539,7 +560,7 @@ class SearchViewModel @Inject constructor(
         // TIER 1: ZERO-DEBOUNCE (0ms) Immediate Local Execution across all corpuses
         executeLocalSearch(newQuery, previousQuery)
 
-        // TIER 2: Debounced Web Suggestions (80ms human-pause debounce)
+        // TIER 2: Web suggestions, paced in init
         if (settingsState.value.searchWeb) {
             _remoteSearchQueryFlow.value = newQuery
         } else {
@@ -563,7 +584,7 @@ class SearchViewModel @Inject constructor(
 
             if (forceSearchError) {
                 _uiState.update { it.copy(
-                    webSuggestions = listOf("Error: Unable to connect to search API")
+                    webSuggestions = listOf(WebSuggestion("Error: Unable to connect to search API"))
                 ) }
                 return@launch
             }
@@ -732,9 +753,14 @@ class SearchViewModel @Inject constructor(
                 if (current.query != newQuery) return@update current
                 val resolvedSuggestions = if (!suggestionsEnabled) {
                     emptyList()
+                } else if (webSuggestionsQuery == newQuery) {
+                    // The engine has already answered this very query.
+                    current.webSuggestions
                 } else {
                     cachedWebSuggestions ?: if (previousQuery.isNotBlank() && newQuery.startsWith(previousQuery, ignoreCase = true)) {
-                        current.webSuggestions.filter { it.contains(newQuery, ignoreCase = true) }
+                        // The engine's bold marks were for the shorter query; the row works them out again.
+                        current.webSuggestions.filter { it.query.contains(newQuery, ignoreCase = true) }
+                            .map { it.copy(boldRanges = emptyList()) }
                     } else {
                         emptyList()
                     }
@@ -856,6 +882,8 @@ class SearchViewModel @Inject constructor(
                 currentCoroutineContext().ensureActive()
                 _uiState.update { current ->
                     if (current.query == query) {
+                        // Marked inside the update, so a local publish that loses the race to it re-reads the mark.
+                        webSuggestionsQuery = query
                         current.copy(webSuggestions = suggestions)
                     } else current
                 }

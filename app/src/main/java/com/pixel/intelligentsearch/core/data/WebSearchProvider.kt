@@ -6,23 +6,44 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.job
-import org.json.JSONArray
 import java.net.HttpURLConnection
 import java.net.URLEncoder
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicReference
 
 object WebSearchProvider {
-    private val suggestionCache = LruCache<String, List<String>>(128)
+    private val suggestionCache = LruCache<String, List<WebSuggestion>>(128)
 
     /** Where tests send suggestion requests instead of the engine (the query is appended); null in the app. */
     @androidx.annotation.VisibleForTesting
     internal var endpointForTests: String? = null
 
-    fun getCachedSuggestions(query: String, engine: String = "Google"): List<String>? {
+    /** Drops every cached suggestion, so a test starts from an empty cache. */
+    @androidx.annotation.VisibleForTesting
+    internal fun clearCacheForTests() = synchronized(suggestionCache) { suggestionCache.evictAll() }
+
+    private fun suggestsFor(engine: String) = engine != "Tor Project" && engine != "Tor Browser" && engine != "Custom"
+
+    fun getCachedSuggestions(query: String, engine: String = "Google"): List<WebSuggestion>? {
         val trimmed = query.trim().lowercase()
-        if (trimmed.isBlank() || engine == "Tor Project" || engine == "Tor Browser" || engine == "Custom") return null
+        if (trimmed.isBlank() || !suggestsFor(engine)) return null
         val cacheKey = "$engine:$trimmed"
         return synchronized(suggestionCache) { suggestionCache.get(cacheKey) }
+    }
+
+    /**
+     * The address suggestions for [encodedQuery] come from. Google is asked the way its own mobile search page asks
+     * (`client=mobile-gws-wiz-hp`), which is the answer that carries entity names, descriptions and thumbnails and
+     * marks the completion bold; `client=chrome` sends bare strings only. `hl` is the phone's language, as Google's
+     * page sends it.
+     */
+    internal fun suggestUrl(engine: String, encodedQuery: String, locale: Locale = Locale.getDefault()): String = when (engine) {
+        "DuckDuckGo" -> "https://duckduckgo.com/ac/?q=$encodedQuery&type=list"
+        "Bing" -> "https://api.bing.com/osjson.aspx?query=$encodedQuery"
+        else -> {
+            val hl = URLEncoder.encode(locale.toLanguageTag().ifBlank { "en" }, "UTF-8")
+            "https://suggestqueries.google.com/complete/search?client=mobile-gws-wiz-hp&xssi=t&hl=$hl&q=$encodedQuery"
+        }
     }
 
     /**
@@ -34,10 +55,10 @@ object WebSearchProvider {
         engine: String = "Google",
         timeoutMs: Int = 600,
         onConnection: (HttpURLConnection) -> Unit = {}
-    ): List<String> {
+    ): List<WebSuggestion> {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return emptyList()
-        if (engine == "Tor Project" || engine == "Tor Browser" || engine == "Custom") return emptyList()
+        if (!suggestsFor(engine)) return emptyList()
 
         val cacheKey = "$engine:${trimmed.lowercase()}"
         synchronized(suggestionCache) {
@@ -45,13 +66,9 @@ object WebSearchProvider {
             if (cached != null) return cached
         }
 
-        val suggestions = mutableListOf<String>()
+        var suggestions = emptyList<WebSuggestion>()
         val encodedQuery = URLEncoder.encode(trimmed, "UTF-8")
-        val primaryUrl = endpointForTests?.let { it + encodedQuery } ?: when (engine) {
-            "DuckDuckGo" -> "https://duckduckgo.com/ac/?q=$encodedQuery&type=list"
-            "Bing" -> "https://api.bing.com/osjson.aspx?query=$encodedQuery"
-            else -> "https://suggestqueries.google.com/complete/search?client=chrome&q=$encodedQuery"
-        }
+        val primaryUrl = endpointForTests?.let { it + encodedQuery } ?: suggestUrl(engine, encodedQuery)
 
         var connection: HttpURLConnection? = null
         try {
@@ -64,13 +81,8 @@ object WebSearchProvider {
 
             if (connection.responseCode == HttpURLConnection.HTTP_OK) {
                 // Reading the body to the end and closing it returns the socket to the keep-alive pool.
-                val response = connection.inputStream.bufferedReader().use { it.readText() }
-                val suggestionsArray = JSONArray(response).optJSONArray(1)
-                if (suggestionsArray != null) {
-                    for (i in 0 until suggestionsArray.length()) {
-                        suggestionsArray.optString(i).takeIf { it.isNotBlank() }?.let(suggestions::add)
-                    }
-                }
+                val response = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
+                suggestions = WebSuggestionParser.parse(response)
             } else {
                 connection.disconnect()
             }
@@ -86,7 +98,7 @@ object WebSearchProvider {
         return suggestions
     }
 
-    suspend fun getWebSuggestions(query: String, engine: String = "Google", timeoutMs: Int = 800): List<String> {
+    suspend fun getWebSuggestions(query: String, engine: String = "Google", timeoutMs: Int = 800): List<WebSuggestion> {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return emptyList()
         // A blocking socket read ignores thread interrupts, so cancelling (the next query replaces this one) closes the

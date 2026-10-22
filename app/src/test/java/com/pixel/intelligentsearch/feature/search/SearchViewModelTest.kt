@@ -73,8 +73,14 @@ class FakeDeviceSearchSources : DeviceSearchSources {
     override suspend fun contextAwareQuickApps(hiddenApps: Set<String>) = recentApps(hiddenApps)
     override suspend fun upcomingEvents() = events
     override suspend fun contacts(query: String) = contactBook.filter { it.name.contains(query, ignoreCase = true) }
-    override fun cachedWebSuggestions(query: String, engine: String): List<String>? = null
-    override suspend fun webSuggestions(query: String, engine: String) = webSuggestions.filter { it.startsWith(query) }
+    /** When set, the local search waits here (on its own thread) until a test lets it go on. */
+    @Volatile var holdCachedSuggestionLookup: java.util.concurrent.CountDownLatch? = null
+    override fun cachedWebSuggestions(query: String, engine: String): List<com.pixel.intelligentsearch.core.data.WebSuggestion>? {
+        holdCachedSuggestionLookup?.await(10, java.util.concurrent.TimeUnit.SECONDS)
+        return null
+    }
+    override suspend fun webSuggestions(query: String, engine: String) =
+        webSuggestions.filter { it.startsWith(query) }.map { com.pixel.intelligentsearch.core.data.WebSuggestion(it) }
 }
 
 /**
@@ -177,11 +183,26 @@ class SearchViewModelTest {
         prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
         start()
         viewModel.onQueryChanged("weather")
-        assertEquals(listOf("weather today", "weather tomorrow"), await("web suggestions") { it.webSuggestions.isNotEmpty() }.webSuggestions)
+        assertEquals(listOf("weather today", "weather tomorrow"), await("web suggestions") { it.webSuggestions.isNotEmpty() }.webSuggestions.map { it.query })
 
         viewModel.onQueryChanged("")
         val cleared = await("cleared") { it.query.isEmpty() && it.webSuggestions.isEmpty() }
         assertEquals("", cleared.query)
+    }
+
+    @Test
+    fun suggestionsThatArriveBeforeTheLocalResultsAreKept() {
+        prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
+        // The local search is held at its cached-suggestion lookup until the engine's answer has landed.
+        val localSearch = java.util.concurrent.CountDownLatch(1)
+        device.holdCachedSuggestionLookup = localSearch
+        start()
+        viewModel.onQueryChanged("weather")
+        await("web suggestions") { it.webSuggestions.isNotEmpty() }
+        localSearch.countDown()
+
+        val local = await("local results") { it.instantAnswer != null }
+        assertEquals(listOf("weather today", "weather tomorrow"), local.webSuggestions.map { it.query })
     }
 
     @Test

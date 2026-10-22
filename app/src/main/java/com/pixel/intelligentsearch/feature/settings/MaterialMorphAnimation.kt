@@ -176,9 +176,6 @@ private const val DARK_SHADOW_BOOST = 1.7f
 /** Haptics are spaced at least this far apart, so shapes landing together feel like one tap, not a buzz. */
 private const val HAPTIC_SPACING_MS = 90L
 
-/** The membrane giving under a shape is felt as a softer, deeper tap than the hard floor's, by this share. */
-private const val MEMBRANE_HAPTIC_SHARE = 0.6f
-
 /** Test tag on the Material Morph animation's area. */
 internal const val MORPH_ANIMATION_TAG = "material_morph_animation"
 
@@ -289,8 +286,8 @@ private fun rememberPowerSaveMode(): State<Boolean> {
  * back up. The second time the floor is real: the shape bounces off it, hard, and flies up and out past a side of the
  * screen, spinning. That is the only way a shape leaves: nothing fades. The motion is real physics, see
  * [MorphBouncePhysics]: heavy, dense shapes under real gravity, knocking into each other, rolling and spinning off the
- * floor's friction, and giving a haptic tap whose strength follows the impact (softer as the floor gives, full on
- * the hard bounce). Shapes come at random, one or a burst of two or three, never more than three at a time.
+ * floor's friction, and giving the app's one haptic tap (the back gesture's) on each landing worth feeling. Shapes
+ * come at random, one or a burst of two or three, never more than three at a time.
  *
  * It looks and moves like Google's Material 3 Expressive UI on Pixel:
  * - the shapes are the Material 3 Expressive shape set, MaterialShapes (see [MaterialMorphShapes]), drawn flat and
@@ -399,15 +396,13 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
         SideEffect { physics.resize(scene.widthMetres, scene.heightMetres, scene.radiiMetres) }
         LaunchedEffect(Unit) {
             var lastHaptic = 0L
-            val onBounce = MorphBouncePhysics.BounceListener { body, impactSpeed ->
+            val onBounce = MorphBouncePhysics.BounceListener { _, _ ->
                 sceneInfo.bouncesFelt++
                 val now = SystemClock.uptimeMillis()
                 if (now - lastHaptic >= HAPTIC_SPACING_MS) {
                     lastHaptic = now
-                    // A gentle landing is a soft tick, a hard one the full standard tick; the membrane gives, so its
-                    // tap is softer.
-                    val strength = 0.25f + 0.75f * ((impactSpeed - 1f) / 5f).coerceIn(0f, 1f)
-                    hapticEngine.performImpactHaptic(view, if (body.bounces == 1) strength * MEMBRANE_HAPTIC_SHARE else strength)
+                    // Every landing worth feeling gets the app's one haptic, soft or hard.
+                    hapticEngine.performPredictiveBackHaptic(view)
                 }
             }
             snapshotFlow { onScreen.value }.collectLatest { visible ->

@@ -30,7 +30,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.pixel.intelligentsearch.core.haptics.PixelHapticType
 import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 
@@ -53,7 +52,6 @@ fun Modifier.bouncyClickable(
     shape: Any? = null,
     interactionSource: MutableInteractionSource? = null,
     suppressClickHaptic: Boolean = false,
-    customClickHaptic: PixelHapticType? = null,
     role: Role = Role.Button,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
@@ -89,18 +87,10 @@ fun Modifier.bouncyClickable(
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
 
-    val clickAction = remember(view, sensoryEngine, suppressClickHaptic, customClickHaptic, enabled, effectiveInteractionSource) {
+    val clickAction = remember(view, sensoryEngine, suppressClickHaptic, enabled, effectiveInteractionSource) {
         {
             if (enabled && ClickDebouncer.canClick(120L, effectiveInteractionSource)) {
-                if (!suppressClickHaptic) {
-                    if (customClickHaptic != null) {
-                        if (sensoryEngine.isHapticEnabled) {
-                            sensoryEngine.hapticEngine.performHaptic(view, customClickHaptic)
-                        }
-                    } else {
-                        sensoryEngine.click(view)
-                    }
-                }
+                if (!suppressClickHaptic) sensoryEngine.click(view)
                 currentOnClick()
             }
         }
@@ -110,9 +100,7 @@ fun Modifier.bouncyClickable(
         if (onLongClick != null) {
             {
                 if (enabled && ClickDebouncer.canClick(120L, effectiveInteractionSource)) {
-                    if (sensoryEngine.isHapticEnabled) {
-                        sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
-                    }
+                    sensoryEngine.click(view)
                     currentOnLongClick?.invoke()
                 }
             }
@@ -212,9 +200,7 @@ fun Modifier.expressiveRowClickable(
         if (onLongClick != null) {
             {
                 if (enabled && ClickDebouncer.canClick(180L, effectiveInteractionSource)) {
-                    if (sensoryEngine.isHapticEnabled) {
-                        sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
-                    }
+                    sensoryEngine.click(view)
                     currentOnLongClick?.invoke()
                 }
             }

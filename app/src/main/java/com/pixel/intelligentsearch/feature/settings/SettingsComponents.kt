@@ -356,7 +356,7 @@ fun SettingsRowToggle(
     val applyToggle: (Boolean) -> Unit = remember(view, sensoryEngine, debounceKey) {
         { next ->
             if (ClickDebouncer.canClick(120L, debounceKey)) {
-                sensoryEngine.toggle(view, next)
+                sensoryEngine.toggle(view)
                 currentOnCheckedChange(next)
             }
         }
@@ -706,7 +706,7 @@ fun Android17Slider(
         if (snapped != currentValue) {
             currentOnValueChange(snapped)
             if (enableHaptics && steps > 0) {
-                hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
+                hapticEngine.performPredictiveBackHaptic(view)
             }
         }
     }
@@ -861,6 +861,7 @@ fun Android17Slider(
     }
 }
 
+/** The app's one haptic for a click with no view to hand; the vibrator plays it as a touch vibration. */
 fun performClickHaptic(context: android.content.Context) {
     com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click()
 }

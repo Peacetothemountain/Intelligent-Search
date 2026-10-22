@@ -1,12 +1,8 @@
 package com.pixel.intelligentsearch.core.haptics
 
 import com.pixel.intelligentsearch.di.appEntryPoint
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Singleton
 import javax.inject.Inject
-import com.pixel.intelligentsearch.core.data.settings.put
-import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
 import android.os.SystemClock
 import android.view.View
@@ -15,110 +11,51 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 
 /**
- * The app's haptic feedback by occasion: clicks, ticks, scroll detents, toggles, app launches and the like. Each call
- * checks the Vibration setting and plays its [PixelHapticEngine] waveform. It is haptics only; nothing is played as
- * sound.
+ * The app's haptic feedback by occasion: clicks, ticks, scroll detents, toggles, app launches and the like. Every
+ * occasion plays the one app haptic, [PixelHapticEngine.performPredictiveBackHaptic], which checks the Vibration
+ * setting; the names say where a haptic belongs, not how it feels. It is haptics only; nothing is played as sound.
  */
 @Singleton
-class TactileSonicEngine @Inject constructor(
-    @param:ApplicationContext private val context: Context,
-    val hapticEngine: PixelHapticEngine
-) {
+class TactileSonicEngine @Inject constructor(val hapticEngine: PixelHapticEngine) {
 
     companion object {
         /** The app-wide instance, for composables and other places without injection. */
         fun get(context: Context): TactileSonicEngine = context.appEntryPoint.tactileSonicEngine()
+
+        /** Scroll detents closer together than this are dropped, so a fast fling doesn't buzz. */
+        private const val SCROLL_DETENT_SPACING_MS = 38L
     }
 
-
-    private val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
-
-    var isHapticEnabled: Boolean
-        get() = prefs[SettingsManager.VIBRATION]
-        set(value) {
-            prefs.edit().put(SettingsManager.VIBRATION, value).apply()
-        }
-
-    // High-frequency debouncing timestamps
     private var lastScrollDetentTimestamp: Long = 0L
 
-    /**
-     * Standard interactive click (buttons, list items, search pills).
-     */
-    fun click(view: View? = null, scale: Float = 1.0f) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.CLICK, scale)
-        }
-    }
+    /** Standard interactive click (buttons, list items, search pills). */
+    fun click(view: View? = null) = hapticEngine.performPredictiveBackHaptic(view)
 
-    /**
-     * Subtle micro tick (sliders, segmented tabs, step increments).
-     */
-    fun tick(view: View? = null, scale: Float = 1.0f) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.TICK, scale)
-        }
-    }
+    /** Touch down and step increments (presses, sliders, segmented tabs). */
+    fun tick(view: View? = null) = hapticEngine.performPredictiveBackHaptic(view)
 
-    /**
-     * Velocity-proportional detent tick when scrolling through search results.
-     * Enforces a refractory period (38ms) to prevent actuator voice-coil saturation.
-     */
-    fun scrollDetent(view: View? = null, velocity: Float = 0f) {
+    /** A detent while scrolling through search results, at most one every [SCROLL_DETENT_SPACING_MS]. */
+    fun scrollDetent(view: View? = null) {
         val now = SystemClock.uptimeMillis()
-        if (now - lastScrollDetentTimestamp < 38L) return
+        if (now - lastScrollDetentTimestamp < SCROLL_DETENT_SPACING_MS) return
         lastScrollDetentTimestamp = now
-
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.SCROLL_DETENT, 1.0f, velocity)
-        }
+        hapticEngine.performPredictiveBackHaptic(view)
     }
 
-    /**
-     * App launch tactile tick.
-     */
-    fun appLaunch(view: View? = null) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.APP_LAUNCH)
-        }
-    }
+    /** An app launch. */
+    fun appLaunch(view: View? = null) = hapticEngine.performPredictiveBackHaptic(view)
 
-    /**
-     * Toggle switch snap.
-     */
-    fun toggle(view: View? = null, isChecked: Boolean) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, if (isChecked) PixelHapticType.TOGGLE_ON else PixelHapticType.TOGGLE_OFF)
-        }
-    }
+    /** A toggle switched on or off. */
+    fun toggle(view: View? = null) = hapticEngine.performPredictiveBackHaptic(view)
 
-    /**
-     * Math calculation live completion tick.
-     */
-    fun mathCalculation(view: View? = null) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.LOW_TICK)
-        }
-    }
+    /** A calculation's live result appearing. */
+    fun mathCalculation(view: View? = null) = hapticEngine.performPredictiveBackHaptic(view)
 
-    /**
-     * Delete / clear confirmation tick.
-     */
-    fun deleteThud(view: View? = null) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.DELETE_THUD)
-        }
-    }
+    /** A delete or dismissal going through. */
+    fun deleteThud(view: View? = null) = hapticEngine.performPredictiveBackHaptic(view)
 
-    /**
-     * Overlay collapse settling tick.
-     */
-    fun overlayDismiss(view: View? = null) {
-        if (isHapticEnabled) {
-            hapticEngine.performHaptic(view, PixelHapticType.GESTURE_THRESHOLD)
-        }
-    }
-
+    /** The search overlay closing. */
+    fun overlayDismiss(view: View? = null) = hapticEngine.performPredictiveBackHaptic(view)
 }
 
 /**

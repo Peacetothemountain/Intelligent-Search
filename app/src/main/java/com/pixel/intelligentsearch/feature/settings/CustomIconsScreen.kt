@@ -363,7 +363,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             modifier = Modifier.pointerInput(currentPkg) {
                                                 detectVerticalDragGestures(
                                                     onDragStart = {
-                                                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
+                                                        hapticEngine.performPredictiveBackHaptic(view)
                                                         draggingPackage = currentPkg
                                                         itemDragOffset = 0f
                                                         autoScrollVelocity = 0f
@@ -406,13 +406,13 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                                                             if (from != -1) {
                                                                 if (itemDragOffset > itemHeight / 2f && from < localPillList.size - 1) {
-                                                                    hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.REORDER_SWAP)
+                                                                    hapticEngine.performPredictiveBackHaptic(view)
                                                                     val currentList = localPillList.toMutableList()
                                                                     java.util.Collections.swap(currentList, from, from + 1)
                                                                     localPillList = currentList
                                                                     itemDragOffset -= itemHeight
                                                                 } else if (itemDragOffset < -itemHeight / 2f && from > 0) {
-                                                                    hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.REORDER_SWAP)
+                                                                    hapticEngine.performPredictiveBackHaptic(view)
                                                                     val currentList = localPillList.toMutableList()
                                                                     java.util.Collections.swap(currentList, from, from - 1)
                                                                     localPillList = currentList

@@ -12,7 +12,6 @@ import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import com.pixel.intelligentsearch.feature.settings.TutorialSpotlightOverlay
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
 import com.pixel.intelligentsearch.feature.settings.SettingsViewModel
-import com.pixel.intelligentsearch.core.haptics.PixelHapticType
 import com.pixel.intelligentsearch.core.haptics.rememberTactileSonicEngine
 import com.pixel.intelligentsearch.core.haptics.rememberScrollDetentController
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -518,7 +517,7 @@ fun SearchOverlayScreen(
             }
         } catch (_: java.util.concurrent.CancellationException) {
             kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                sensoryEngine.hapticEngine.performHaptic(view, PixelHapticType.SPRING_RELEASE)
+                sensoryEngine.hapticEngine.performPredictiveBackCancelHaptic(view)
                 predictiveBackProgress.animateTo(
                     targetValue = 0f,
                     animationSpec = ExpressiveMotionTokens.morphSpring()

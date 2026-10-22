@@ -26,9 +26,8 @@ data class SearchIconColors(
     /** The lens's sparkle: the G's left arc. */
     @get:ColorInt val lensSparkle: Int get() = g.leftArc
 
-    /** The mic's capsule and its sparkle: the third, lightest tier. */
+    /** The mic's capsule: the third, lightest tier. */
     @get:ColorInt val micCapsule: Int get() = tiers.thirdLighter
-    @get:ColorInt val micSparkle: Int get() = tiers.thirdLighter
     /** The mic's stem and the left of its cradle: the second tier. */
     @get:ColorInt val micStem: Int get() = tiers.secondLighter
     @get:ColorInt val micLeftCradle: Int get() = tiers.secondLighter

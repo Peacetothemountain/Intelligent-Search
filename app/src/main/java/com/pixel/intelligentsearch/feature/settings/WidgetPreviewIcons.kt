@@ -28,7 +28,6 @@ import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import com.pixel.intelligentsearch.core.occasion.Occasion
 import com.pixel.intelligentsearch.feature.search.SearchIconPaths
 import com.pixel.intelligentsearch.feature.search.SearchLensDrawing
-import com.pixel.intelligentsearch.feature.search.SparkleMicDrawing
 
 internal val PACKAGE_NAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")
 
@@ -51,6 +50,11 @@ private val searchActionPath1 by lazy { androidx.compose.ui.graphics.vector.Path
 private val searchActionPath2 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString(SearchIconPaths.LENS_TOP).toPath() }
 private val searchActionPath3 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString(SearchIconPaths.LENS_HANDLE).toPath() }
 private val searchActionPath4 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString(SearchIconPaths.LENS_SPARKLE).toPath() }
+
+private val micCapsulePath by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString(SearchIconPaths.MIC_CAPSULE).toPath() }
+private val micStemPath by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString(SearchIconPaths.MIC_STEM).toPath() }
+private val micLeftCradlePath by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString(SearchIconPaths.MIC_LEFT_CRADLE).toPath() }
+private val micRightCradlePath by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString(SearchIconPaths.MIC_RIGHT_CRADLE).toPath() }
 
 private val assistantActionPath1 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M11.5,9.5 L9.0,4.0 L6.5,9.5 L1.0,12.0 l5.5,2.5 L9.0,20.0 l2.5,-5.5 L17.0,12.0 l-5.5,-2.5 Z").toPath() }
 private val assistantActionPath2 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M19.0,9.0 l1.25,-2.75 L23.0,5.0 l-2.75,-1.25 L19.0,1.0 l-1.25,2.75 L15.0,5.0 l2.75,1.25 L19.0,9.0 Z").toPath() }
@@ -75,12 +79,21 @@ private fun OverlayLens(colors: SearchIconColors, modifier: Modifier) = SearchLe
     sparkle = Color(colors.lensSparkle), modifier = modifier
 )
 
-/** The search overlay's sparkle mic in its colours. */
+/**
+ * The widget's mic, as the widget draws it: the search overlay's mic in its colours, centred and without the
+ * overlay's sparkle, which only the overlay's mic has.
+ */
 @Composable
-private fun OverlaySparkleMic(colors: SearchIconColors, modifier: Modifier) = SparkleMicDrawing(
-    capsule = Color(colors.micCapsule), stem = Color(colors.micStem), leftCradle = Color(colors.micLeftCradle),
-    rightCradle = Color(colors.micRightCradle), sparkle = Color(colors.micSparkle), modifier = modifier
-)
+private fun WidgetMic(colors: SearchIconColors, modifier: Modifier) {
+    androidx.compose.foundation.Canvas(modifier = modifier) {
+        scale(size.width / 24f, size.height / 24f, pivot = Offset.Zero) {
+            drawPath(path = micCapsulePath, color = Color(colors.micCapsule))
+            drawPath(path = micStemPath, color = Color(colors.micStem))
+            drawPath(path = micLeftCradlePath, color = Color(colors.micLeftCradle))
+            drawPath(path = micRightCradlePath, color = Color(colors.micRightCradle))
+        }
+    }
+}
 
 @Composable
 fun ComposeActionIcon(
@@ -198,7 +211,7 @@ fun ComposeThemedShortcutIcon(
     val tLighter = remember(colors) { androidx.compose.ui.graphics.Color(colors.tiers.thirdLighter) }
 
     if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_mic) {
-        OverlaySparkleMic(colors, modifier)
+        WidgetMic(colors, modifier)
     } else if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_camera) {
         val path1 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M75.0365 83.3333C79.6388 83.3333 83.3698 79.6023 83.3698 75C83.3698 70.3976 79.6388 66.6666 75.0365 66.6666C70.4341 66.6666 66.7031 70.3976 66.7031 75C66.7031 79.6023 70.4341 83.3333 75.0365 83.3333Z").toPath() }
         val path2 = remember { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M50.0364 66.6666C56.9399 66.6666 62.5364 61.0702 62.5364 54.1666C62.5364 47.2631 56.9399 41.6666 50.0364 41.6666C43.1328 41.6666 37.5364 47.2631 37.5364 54.1666C37.5364 61.0702 43.1328 66.6666 50.0364 66.6666Z").toPath() }

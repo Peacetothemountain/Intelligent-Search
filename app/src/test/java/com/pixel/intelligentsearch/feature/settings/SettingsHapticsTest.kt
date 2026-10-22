@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.feature.settings
 import android.content.Context
 import android.os.VibrationAttributes
 import android.os.VibrationEffect
-import android.os.VibratorManager
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -29,7 +28,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
@@ -39,8 +37,8 @@ import org.robolectric.shadows.ShadowViewRootImpl
 /**
  * Every tap gives exactly one haptic, whichever way a control was written: a reset button that adds its own
  * click haptic must not also get the wrapper's, and Back arrows get the wrapper's predictive-back haptic.
- * The test vibrator supports every primitive, so each haptic ends in one vibration or one view haptic; both are
- * counted.
+ * Each haptic is the app's one haptic, played as one view haptic, or one vibration where there is no view; both
+ * are counted.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -60,7 +58,6 @@ class SettingsHapticsTest {
     @Before fun setUp() {
         hilt.inject()
         prefs.edit().clear().put(SettingsManager.VIBRATION, true).commit()
-        shadowOf(context.getSystemService(VibratorManager::class.java).defaultVibrator).setSupportedPrimitives((1..8).toList())
     }
 
     private fun show(content: @Composable () -> Unit) {

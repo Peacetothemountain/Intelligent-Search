@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
@@ -91,6 +92,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
     val searchProviderName = s.searchProviderName
     val focusRequester = s.focusRequester
     val voice = s.voice
+    val calculatorKeyboard by viewModel.calculatorKeyboard.collectAsStateWithLifecycle()
     val performAppLaunch = s.performAppLaunch
     val closeOverlay = s.closeOverlay
     val launchWebSearch = s.launchWebSearch
@@ -267,7 +269,8 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.None,
                         autoCorrectEnabled = false,
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                        // The widget's Calculator shortcut asks for the number pad (digits, + - * / and brackets).
+                        keyboardType = if (calculatorKeyboard) androidx.compose.ui.text.input.KeyboardType.Phone else androidx.compose.ui.text.input.KeyboardType.Text,
                         imeAction = androidx.compose.ui.text.input.ImeAction.Search
                     ),
                     keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
@@ -289,7 +292,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (uiState.query.isEmpty()) {
-                                Text(if (voice.active) "Listening..." else "Search...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex)
+                                Text(if (voice.active) "Listening..." else if (calculatorKeyboard) "Calculate..." else "Search...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex)
                             } else if (ghostTextAnnotated != null) {
                                 Text(
                                     text = ghostTextAnnotated,

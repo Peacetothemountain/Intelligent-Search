@@ -86,6 +86,8 @@ fun getShortcutIconRes(shortcut: String, isMaterialYou: Boolean = true): Int {
         "Finance" -> R.drawable.ic_finance
         "Saved" -> R.drawable.ic_saved
         "News" -> R.drawable.ic_news
+        "Calculator" -> R.drawable.ic_calculator
+        "Discover" -> R.drawable.ic_discover
         else -> R.drawable.ic_camera
     }
 }
@@ -257,9 +259,45 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
         "Finance" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/finance")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "Saved" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://google.com/save")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "News" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://news.google.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        "Calculator" -> getCalculatorIntent(context)
+        "Discover" -> getDiscoverIntent(context)
         else -> getLensSearchIntent(context)
     }
 }
+
+/** The Calculator shortcut tells the search overlay to open with the number pad, ready to calculate as you type. */
+const val EXTRA_CALCULATOR = "com.pixel.intelligentsearch.extra.CALCULATOR"
+
+/**
+ * The Calculator shortcut: the search overlay, which works sums out as they're typed (its math engine), opened with
+ * the number pad (digits, + - * / and brackets) instead of the letters. The extra is honoured only through the
+ * private WidgetActivity. With the overlay switched off it opens Google search like the bar does.
+ */
+fun getCalculatorIntent(context: Context): Intent =
+    Intent(context, WidgetActivity::class.java).apply {
+        action = ACTION_LAUNCH_CALCULATOR
+        putExtra(EXTRA_CALCULATOR, true)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+    }
+
+private const val ACTION_LAUNCH_CALCULATOR = "com.pixel.intelligentsearch.LAUNCH_CALCULATOR"
+
+/** The Google app, whose home tab is the Discover feed. */
+const val GOOGLE_APP_PACKAGE = "com.google.android.googlequicksearchbox"
+
+/** Whether the Discover shortcut can open Discover: the Google app is installed and can be opened. */
+fun isDiscoverAvailable(context: Context): Boolean = context.packageManager.getLaunchIntentForPackage(GOOGLE_APP_PACKAGE) != null
+
+/**
+ * The Discover shortcut. Google publishes no intent for the Discover feed itself (launchers reach it through a
+ * private overlay service only Google's launcher may bind), so this opens the Google app's main screen, whose home
+ * tab is the Discover feed. Without the Google app it opens the app's Play Store page.
+ */
+fun getDiscoverIntent(context: Context): Intent =
+    context.packageManager.getLaunchIntentForPackage(GOOGLE_APP_PACKAGE)?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        ?: Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$GOOGLE_APP_PACKAGE".toUri()).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
 
 fun getCustomIntentOrDefault(context: Context, shortcut: String, defaultIntent: () -> Intent): Intent {
     val prefs = SearchWidgetProvider.getSafeSharedPreferences(context)

@@ -185,6 +185,16 @@ class SearchViewModel @Inject constructor(
     }
     fun takeVoiceRequest(): Boolean = voiceRequestPending.also { voiceRequestPending = false }
 
+    private val _calculatorKeyboard = MutableStateFlow(false)
+    /**
+     * Whether the search field asks for the number pad: the widget's Calculator shortcut opened the screen. A plain
+     * open puts the letters back ([setCalculatorKeyboard] with false).
+     */
+    val calculatorKeyboard: StateFlow<Boolean> = _calculatorKeyboard.asStateFlow()
+    fun setCalculatorKeyboard(numberPad: Boolean) {
+        _calculatorKeyboard.value = numberPad
+    }
+
     private val _remoteSearchQueryFlow = MutableStateFlow("")
 
     /** A query's instant-answer question; [attempt] changes to ask again (after a permission grant). */

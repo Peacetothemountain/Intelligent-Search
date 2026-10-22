@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The rows a search bar widget can show above its bar once it is tall enough (see SearchWidgetProvider's responsive
+    sizes): the favourite apps, then what's playing. Both start hidden, so a one-row widget is only its bar.
+-->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Favourite apps: up to five 40dp icons, each in its own share of the row and a 48dp touch target. -->
+    <LinearLayout
+        android:id="@+id/widget_favourites"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginBottom="4dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:baselineAligned="false"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/widget_favourite_0"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:padding="4dp"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/widget_favourite_1"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:padding="4dp"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/widget_favourite_2"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:padding="4dp"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/widget_favourite_3"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:padding="4dp"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@null" />
+
+        <ImageView
+            android:id="@+id/widget_favourite_4"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:padding="4dp"
+            android:scaleType="fitCenter"
+            android:visibility="gone"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@null" />
+    </LinearLayout>
+
+    <!-- What's playing: the pill's colour and shape, the title, then play/pause and next in 48dp touch targets.
+         Its height is the pill's (set by the provider); tapping the title opens the app that's playing. -->
+    <FrameLayout
+        android:id="@+id/widget_media"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginBottom="4dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:id="@+id/widget_media_background"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:src="@drawable/bg_widget_r28"
+            android:scaleType="fitXY"
+            android:importantForAccessibility="no" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:baselineAligned="false"
+            android:paddingStart="4dp"
+            android:paddingEnd="4dp">
+
+            <LinearLayout
+                android:id="@+id/widget_media_open"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:paddingStart="12dp"
+                android:paddingEnd="4dp"
+                android:clickable="true"
+                android:focusable="true">
+
+                <ImageView
+                    android:id="@+id/widget_media_icon"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:src="@drawable/ic_music"
+                    android:scaleType="fitCenter"
+                    android:importantForAccessibility="no" />
+
+                <TextView
+                    android:id="@+id/widget_media_title"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:fontFamily="@font/google_sans_flex"
+                    android:textSize="14sp"
+                    android:singleLine="true"
+                    android:ellipsize="end"
+                    android:importantForAccessibility="no" />
+            </LinearLayout>
+
+            <ImageView
+                android:id="@+id/widget_media_play_pause"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="12dp"
+                android:src="@drawable/ic_media_play"
+                android:scaleType="fitCenter"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/widget_talkback_media_play" />
+
+            <ImageView
+                android:id="@+id/widget_media_next"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="-8dp"
+                android:padding="12dp"
+                android:src="@drawable/ic_media_next"
+                android:scaleType="fitCenter"
+                android:clickable="true"
+                android:focusable="true"
+                android:contentDescription="@string/widget_talkback_media_next" />
+        </LinearLayout>
+    </FrameLayout>
+</merge>

@@ -47,7 +47,7 @@ import com.pixel.intelligentsearch.core.ai.AiProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.security.AiKeyVault
-import com.pixel.intelligentsearch.core.security.SafeWebLaunch
+import com.pixel.intelligentsearch.core.security.NetworkPolicy
 import com.pixel.intelligentsearch.di.appEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -55,7 +55,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * AI Answers, reached from Web Search: the opt-in switch, the provider and model, and the user's own API key, saved
- * encrypted on the phone (never in backups) and shown masked, with Remove Key. Off while Tor is the search engine.
+ * encrypted on the phone (never in backups) and shown masked, with Remove Key. Off while Tor is the search engine or Web is off.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,8 +67,9 @@ fun AiAnswersScreen(onBack: () -> Unit) {
     var providerId by rememberSetting(SettingsManager.AI_PROVIDER)
     var model by rememberSetting(SettingsManager.AI_MODEL)
     val engine by rememberSetting(SettingsManager.SEARCH_ENGINE)
+    val web by rememberSetting(SettingsManager.SEARCH_WEB)
     val provider = AiProvider.fromId(providerId)
-    val tor = SafeWebLaunch.isTorEngine(engine)
+    val block = NetworkPolicy.aiBlock(web, engine)
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -85,11 +86,11 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                     SettingsCard {
                         SettingsRowToggle(
                             title = "AI Answers",
-                            subtitle = if (tor) "Off While Tor Is Your Search Engine." else
-                                "Questions Ending with ? or Starting with Ask Offer an Ask Row. Only the Question You Tap Ask On Is Sent, with Your Own Key.",
+                            subtitle = block?.let(NetworkPolicy::blockSubtitle)
+                                ?: "Questions Ending with ? or Starting with Ask Offer an Ask Row. Only the Question You Tap Ask On Is Sent, with Your Own Key.",
                             icon = Icons.Outlined.AutoAwesome,
-                            isChecked = enabled && !tor,
-                            onCheckedChange = { if (!tor) enabled = it },
+                            isChecked = enabled && block == null,
+                            onCheckedChange = { if (block == null) enabled = it },
                             showDivider = false
                         )
                     }

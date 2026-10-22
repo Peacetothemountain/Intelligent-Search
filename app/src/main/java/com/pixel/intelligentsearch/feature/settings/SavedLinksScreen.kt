@@ -52,7 +52,7 @@ import com.pixel.intelligentsearch.core.data.SavedLink
 import com.pixel.intelligentsearch.core.data.SavedLinks
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import com.pixel.intelligentsearch.core.security.SafeWebLaunch
+import com.pixel.intelligentsearch.core.security.NetworkPolicy
 import com.pixel.intelligentsearch.di.appEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -211,7 +211,7 @@ internal fun SavedLinkDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (link != null) {
-                    val tor = SafeWebLaunch.isTorEngine(engine)
+                    val tor = NetworkPolicy.isTorEngine(engine)
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedButton(
                         enabled = !tor && !fetching,
@@ -230,7 +230,7 @@ internal fun SavedLinkDialog(
                         Text("Fetch Icon")
                     }
                     Text(
-                        text = if (tor) "Off While Tor Is Your Search Engine." else "Downloads the Icon Once from ${link.host}.",
+                        text = if (tor) NetworkPolicy.blockSubtitle(NetworkPolicy.Block.TOR) else "Downloads the Icon Once from ${link.host}.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

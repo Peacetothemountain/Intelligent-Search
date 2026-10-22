@@ -7,7 +7,7 @@ import androidx.core.graphics.scale
 import androidx.core.net.toUri
 import com.pixel.intelligentsearch.core.currency.HttpsRatesClient
 import com.pixel.intelligentsearch.core.currency.RatesHttpClient
-import com.pixel.intelligentsearch.core.security.SafeWebLaunch
+import com.pixel.intelligentsearch.core.security.NetworkPolicy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.security.MessageDigest
@@ -42,7 +42,7 @@ class SavedLinkIcons internal constructor(
      * main thread. False when Tor is the engine, the site has no icon, or it isn't an image.
      */
     fun fetch(url: String): Boolean {
-        if (SafeWebLaunch.isTorEngine(settingsManager[SettingsManager.SEARCH_ENGINE])) return false
+        if (!NetworkPolicy.userFetchAllowed(settingsManager.prefs)) return false
         val site = url.toUri()
         if (site.scheme != "https" || site.host.isNullOrBlank()) return false
         val origin = "https://${site.encodedAuthority}"

@@ -6,9 +6,8 @@ import androidx.compose.runtime.Immutable
 import com.pixel.intelligentsearch.core.currency.HttpsRatesClient
 import com.pixel.intelligentsearch.core.currency.RatesHttpClient
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
 import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.security.SafeWebLaunch
+import com.pixel.intelligentsearch.core.security.NetworkPolicy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -39,17 +38,6 @@ sealed interface LiveAnswer {
 
     /** Today's screen time, or null [report] when Usage Access isn't granted. */
     data class ScreenTime(override val query: String, val report: ScreenTimeReport?) : LiveAnswer
-}
-
-/**
- * When an instant answer may reach the network. Definitions and forecasts send what was typed (a word, a place) to a
- * third party, so they follow the same switches as live web suggestions: Web and Web Suggestions on, the feature's
- * own switch on, and never while Tor is the search engine.
- */
-object AnswerPrivacy {
-    fun webAnswersAllowed(prefs: SharedPreferences, feature: BooleanSetting): Boolean =
-        prefs[feature] && prefs[SettingsManager.SEARCH_WEB] && prefs[SettingsManager.SEARCH_WEB_SUGGESTIONS] &&
-            !SafeWebLaunch.isTorEngine(prefs[SettingsManager.SEARCH_ENGINE])
 }
 
 /**
@@ -104,7 +92,7 @@ class InstantAnswerEngine internal constructor(
     }.flowOn(Dispatchers.IO)
 
     private suspend fun FlowCollector<LiveAnswer>.define(question: InstantAnswerQuery.Define, query: String) {
-        if (!AnswerPrivacy.webAnswersAllowed(prefs(), SettingsManager.DICTIONARY_ANSWERS)) return
+        if (!NetworkPolicy.webAnswersAllowed(prefs(), SettingsManager.DICTIONARY_ANSWERS)) return
         val cached = dictionary.peek(question.word) ?: dictionary.cached(question.word)
         if (cached != null) return emit(LiveAnswer.Definition(query, cached))
         if (dictionary.recentlyMissed(question.word)) return
@@ -114,7 +102,7 @@ class InstantAnswerEngine internal constructor(
 
     private suspend fun FlowCollector<LiveAnswer>.weather(question: InstantAnswerQuery.Weather, query: String) {
         val settings = prefs()
-        if (!AnswerPrivacy.webAnswersAllowed(settings, SettingsManager.WEATHER_ANSWERS)) return
+        if (!NetworkPolicy.webAnswersAllowed(settings, SettingsManager.WEATHER_ANSWERS)) return
         val unit = TemperatureUnit.forLocale(locale())
         var debounced = false
         suspend fun once() {
@@ -166,7 +154,7 @@ class InstantAnswerEngine internal constructor(
 
     /** Places called [name], for choosing a home location in settings; null when the lookup failed or isn't allowed. */
     suspend fun findPlaces(name: String): List<GeoPlace>? = withContext(Dispatchers.IO) {
-        if (!AnswerPrivacy.webAnswersAllowed(prefs(), SettingsManager.WEATHER_ANSWERS) || name.isBlank()) return@withContext null
+        if (!NetworkPolicy.webAnswersAllowed(prefs(), SettingsManager.WEATHER_ANSWERS) || name.isBlank()) return@withContext null
         val language = locale().language
         weather.cachedPlaces(name, language) ?: weather.fetchPlaces(name, language)
     }

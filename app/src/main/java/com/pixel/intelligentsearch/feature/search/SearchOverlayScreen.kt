@@ -339,7 +339,7 @@ fun SearchOverlayScreen(
         hasStartedTyping = false
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
-        val torBangAddress = if (com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(settingsState.searchEngine)) {
+        val torBangAddress = if (com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(settingsState.searchEngine)) {
             viewModel.resolveBangWebAddress(searchQuery)
         } else null
         if (torBangAddress != null) {
@@ -375,7 +375,7 @@ fun SearchOverlayScreen(
         viewModel.onQueryChanged("")
         if (!launchSafeIntent(context, intent)) {
             // A failed Tor launch must not fall back to a normal browser search.
-            if (com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)) {
+            if (com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(engine)) {
                 showTorInstallPopup = true
                 return@launchWebSearch
             }

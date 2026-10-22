@@ -582,10 +582,9 @@ class SearchViewModel @Inject constructor(
             val engine = settings.searchEngine
             if (ClipboardLens.isImage(clipboard?.primaryClipDescription)) {
                 // An image is offered to Lens from its description alone; the clip itself is read only when the
-                // suggestion is tapped. Not under Tor: it would hand the picture to Google.
-                if (!com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)) {
-                    ClipboardLens.suggestionFor(context, clipboard?.primaryClipDescription)?.let(clipboardActions::add)
-                }
+                // suggestion is tapped. Lens is an app hand-off, not a request of ours, so it is offered under Tor as
+                // well, like the search bar's Lens button.
+                ClipboardLens.suggestionFor(context, clipboard?.primaryClipDescription)?.let(clipboardActions::add)
                 return clipboardActions
             }
             if (!isSensitive && clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
@@ -890,7 +889,7 @@ class SearchViewModel @Inject constructor(
             // The user's own named addresses, ranked like every result (pins first, nicknames found).
             val savedLinks = SavedLinks.search(newQuery, savedLinkStore.current, resultShortcutStore.current).take(MAX_SAVED_LINK_RESULTS)
 
-            val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
+            val suggestionsEnabled = com.pixel.intelligentsearch.core.security.NetworkPolicy.webSuggestionsAllowed(customPrefs)
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
                 sources.cachedWebSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(1))
@@ -1049,13 +1048,8 @@ class SearchViewModel @Inject constructor(
             return
         }
         val engine = settings.searchEngine
-        if (engine == "Tor Project" || engine == "Tor Browser") {
-            _uiState.update { it.copy(webSuggestions = emptyList()) }
-            return
-        }
-
-        val suggestionsEnabled = customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
-        if (!suggestionsEnabled) {
+        // Tor, Web Suggestions off or a custom engine: nothing is asked of any suggestion service.
+        if (!com.pixel.intelligentsearch.core.security.NetworkPolicy.webSuggestionsAllowed(customPrefs)) {
             _uiState.update { it.copy(webSuggestions = emptyList()) }
             return
         }
@@ -1108,7 +1102,7 @@ class SearchViewModel @Inject constructor(
         val trimmed = query.trim()
         if (trimmed.isBlank()) return
         val settings = settingsState.value
-        if (!settings.searchPreviousSearches || isTorSearchEngine(settings.searchEngine)) return
+        if (!settings.searchPreviousSearches || com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(settings.searchEngine)) return
         _uiState.update { state ->
             val updated = (listOf(trimmed) + state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) }).take(25)
             state.copy(recentSearches = updated)
@@ -1315,10 +1309,3 @@ class SearchViewModel @Inject constructor(
         initialDataJob = null
     }
 }
-
-
-
-
-
-/** Whether [engine] (the stored search-engine choice) routes searches through Tor Browser. */
-internal fun isTorSearchEngine(engine: String): Boolean = com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)

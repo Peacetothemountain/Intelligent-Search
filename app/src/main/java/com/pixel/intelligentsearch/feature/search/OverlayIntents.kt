@@ -123,7 +123,7 @@ internal fun systemWebSearchIntent(query: String): Intent = Intent(Intent.ACTION
  */
 internal fun webSearchLaunch(context: Context, engine: String, customUrl: String, query: String): com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch {
     val safe = com.pixel.intelligentsearch.core.security.SafeWebLaunch
-    if (safe.isTorEngine(engine)) return safe.torSearch(context, query)
+    if (com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(engine)) return safe.torSearch(context, query)
     fun viewOrFallback(url: String): Intent {
         val view = Intent(Intent.ACTION_VIEW, url.toUri()).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)

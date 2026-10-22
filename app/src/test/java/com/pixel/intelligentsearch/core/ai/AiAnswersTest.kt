@@ -73,7 +73,7 @@ class AiAnswersTest {
     }
 
     @Test
-    fun nothingIsOfferedOrSentWhileOffUnderTorOrWithoutAKey() {
+    fun nothingIsOfferedOrSentWhileOffUnderTorWithWebOffOrWithoutAKey() {
         settings.prefs.edit().put(SettingsManager.AI_ANSWERS_ENABLED, false).commit()
         assertNull(answers.offerFor("how tall is everest?"))
         assertEquals(AiProblem.OFF, (ask("how tall is everest?").single() as AiAnswerState.Failed).problem)
@@ -82,7 +82,12 @@ class AiAnswersTest {
         assertNull(answers.offerFor("how tall is everest?"))
         assertEquals(AiProblem.TOR, (ask("how tall is everest?").single() as AiAnswerState.Failed).problem)
 
-        settings.prefs.edit().put(SettingsManager.SEARCH_ENGINE, "Google").commit()
+        // Web off in Search Sources means no web traffic, AI questions included.
+        settings.prefs.edit().put(SettingsManager.SEARCH_ENGINE, "Google").put(SettingsManager.SEARCH_WEB, false).commit()
+        assertNull(answers.offerFor("how tall is everest?"))
+        assertEquals(AiProblem.WEB_OFF, (ask("how tall is everest?").single() as AiAnswerState.Failed).problem)
+
+        settings.prefs.edit().put(SettingsManager.SEARCH_WEB, true).commit()
         vault.remove(AiProvider.ANTHROPIC)
         assertNull(answers.offerFor("how tall is everest?"))
         assertEquals(AiProblem.NO_KEY, (ask("how tall is everest?").single() as AiAnswerState.Failed).problem)

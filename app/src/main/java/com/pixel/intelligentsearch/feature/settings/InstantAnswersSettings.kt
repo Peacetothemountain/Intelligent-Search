@@ -42,13 +42,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
-import com.pixel.intelligentsearch.core.answers.AnswerPrivacy
 import com.pixel.intelligentsearch.core.answers.GeoPlace
 import com.pixel.intelligentsearch.core.answers.HomeLocationCodec
 import com.pixel.intelligentsearch.core.answers.InstantAnswerEngine
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import com.pixel.intelligentsearch.core.security.SafeWebLaunch
+import com.pixel.intelligentsearch.core.security.NetworkPolicy
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.feature.search.LocationRationaleDialog
@@ -56,13 +55,11 @@ import kotlinx.coroutines.launch
 
 /**
  * What a web instant answer's subtitle says: the service it uses, or why it can't run right now (the switches it
- * depends on). Each subtitle names its service, as every feature that reaches a third party must.
+ * depends on, [NetworkPolicy.webAnswersBlock]). Each subtitle names its service, as every feature that reaches a
+ * third party must.
  */
-internal fun webAnswerSubtitle(what: String, service: String, webSuggestions: Boolean, engine: String): String = when {
-    SafeWebLaunch.isTorEngine(engine) -> "Off While Tor Is Your Search Engine. Uses $service."
-    !webSuggestions -> "Needs Web Suggestions On. Uses $service."
-    else -> "Show $what Inline from $service."
-}
+internal fun webAnswerSubtitle(what: String, service: String, block: NetworkPolicy.Block?): String =
+    block?.let { "${NetworkPolicy.blockSubtitle(it)} Uses $service." } ?: "Show $what Inline from $service."
 
 /**
  * The Web Search page's Instant Answers card: definitions from the Free Dictionary API and forecasts from Open-Meteo,
@@ -73,14 +70,16 @@ fun InstantAnswersCard() {
     val context = LocalContext.current
     val engine = remember { context.appEntryPoint.instantAnswerEngine() }
     val scope = rememberCoroutineScope()
+    val web by rememberSetting(SettingsManager.SEARCH_WEB)
     val webSuggestions by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
     val searchEngine by rememberSetting(SettingsManager.SEARCH_ENGINE)
+    val block = NetworkPolicy.webAnswersBlock(web, webSuggestions, searchEngine)
 
     SettingsCard {
         var dictionary by rememberSetting(SettingsManager.DICTIONARY_ANSWERS)
         SettingsRowToggle(
             title = "Dictionary Answers",
-            subtitle = webAnswerSubtitle("Definitions", "the Free Dictionary API (dictionaryapi.dev)", webSuggestions, searchEngine),
+            subtitle = webAnswerSubtitle("Definitions", "the Free Dictionary API (dictionaryapi.dev)", block),
             icon = Icons.AutoMirrored.Outlined.MenuBook,
             isChecked = dictionary,
             onCheckedChange = { on ->
@@ -93,7 +92,7 @@ fun InstantAnswersCard() {
         var weather by rememberSetting(SettingsManager.WEATHER_ANSWERS)
         SettingsRowToggle(
             title = "Weather Answers",
-            subtitle = webAnswerSubtitle("Forecasts", "Open-Meteo (open-meteo.com)", webSuggestions, searchEngine),
+            subtitle = webAnswerSubtitle("Forecasts", "Open-Meteo (open-meteo.com)", block),
             icon = Icons.Outlined.WbSunny,
             isChecked = weather,
             onCheckedChange = { on ->
@@ -190,7 +189,7 @@ private fun HomeLocationDialog(
     var results by remember { mutableStateOf<List<GeoPlace>?>(null) }
     var searching by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
-    val allowed = AnswerPrivacy.webAnswersAllowed(context.appEntryPoint.settingsManager().prefs, SettingsManager.WEATHER_ANSWERS)
+    val allowed = NetworkPolicy.webAnswersAllowed(context.appEntryPoint.settingsManager().prefs, SettingsManager.WEATHER_ANSWERS)
 
     fun search() {
         if (name.isBlank() || searching) return

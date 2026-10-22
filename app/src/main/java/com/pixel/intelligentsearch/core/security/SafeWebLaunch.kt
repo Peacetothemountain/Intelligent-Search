@@ -20,9 +20,6 @@ object SafeWebLaunch {
         data object NotAWebAddress : Launch
     }
 
-    fun isTorEngine(engine: String): Boolean =
-        engine.equals("Tor Project", ignoreCase = true) || engine.equals("Tor Browser", ignoreCase = true)
-
     private const val TOR_SEARCH_URL = "https://duckduckgogg42xjoc72x3sjasowoarfbgcmvfimaftt6twagswzczad.onion/?q="
 
     /** A search for [query] on DuckDuckGo's onion service, opened only in Tor Browser. */
@@ -54,7 +51,7 @@ object SafeWebLaunch {
         }
         val intent = CustomSearchUrl.browsableViewIntent(uri)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        if (isTorEngine(searchEngine)) {
+        if (NetworkPolicy.isTorEngine(searchEngine)) {
             intent.setPackage(installedTorBrowser(context) ?: return Launch.NeedsTorBrowser)
         }
         return Launch.Open(intent)

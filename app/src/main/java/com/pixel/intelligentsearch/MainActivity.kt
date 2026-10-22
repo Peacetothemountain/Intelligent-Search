@@ -108,7 +108,18 @@ open class MainActivity : AppCompatActivity() {
         } else {
             searchViewModel.onQueryChanged("")
         }
+        applyCalculatorRequest(intent)
         requestVoiceIfAsked(intent, restoreKeyboard = true)
+    }
+
+    /**
+     * The widget's Calculator shortcut opens search with the number pad; any other open has the letters. Asked only
+     * through the private WidgetActivity: SearchActivity is exported, so there the extra is ignored.
+     */
+    private fun applyCalculatorRequest(intent: Intent?) {
+        val asked = this !is com.pixel.intelligentsearch.feature.search.SearchActivity &&
+            intent?.getBooleanExtra(com.pixel.intelligentsearch.feature.widget.EXTRA_CALCULATOR, false) == true
+        searchViewModel.setCalculatorKeyboard(asked)
     }
 
     /**
@@ -214,6 +225,7 @@ open class MainActivity : AppCompatActivity() {
         }
         // Only a fresh open starts voice: a recreated activity (rotation) still carries the extra but must not restart it.
         if (savedInstanceState == null) requestVoiceIfAsked(intent)
+        if (savedInstanceState == null) applyCalculatorRequest(intent)
 
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()

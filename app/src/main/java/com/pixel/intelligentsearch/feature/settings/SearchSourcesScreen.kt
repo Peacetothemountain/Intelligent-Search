@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Translate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -295,6 +296,15 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                                 showDivider = true
                             )
                         }
+                        var onDeviceTranslation by rememberSetting(SettingsManager.ON_DEVICE_TRANSLATION)
+                        SettingsRowToggle(
+                            title = "On-Device Translation",
+                            subtitle = "Translate on Your Phone; Each Language Downloads from Google Once.",
+                            icon = Icons.Outlined.Translate,
+                            isChecked = onDeviceTranslation,
+                            onCheckedChange = { onDeviceTranslation = it },
+                            showDivider = true
+                        )
                         var searchCalendar by rememberSetting(SettingsManager.SEARCH_CALENDAR)
                         val calendarPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
                             // An empty result (a request already in flight) is not a grant.

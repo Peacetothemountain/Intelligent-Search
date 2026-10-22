@@ -12,6 +12,8 @@ class AiRequest(val url: String, val headers: Map<String, String>, val body: Str
 /** What one line of a provider's event stream says. */
 sealed interface AiEvent {
     data class Text(val text: String) : AiEvent
+    /** The answer ended normally: the provider said why it stopped and it wasn't the limit or a refusal. */
+    data object Finished : AiEvent
     /** The answer reached the output limit and was cut short. */
     data object Truncated : AiEvent
     /** The provider declined to answer. */
@@ -153,10 +155,14 @@ object AiRequests {
         }
     }
 
-    /** The end that stop reason [reason] means: [truncated], one of [refused], or neither. */
+    /**
+     * The end that stop reason [reason] means: [truncated], one of [refused], a normal finish, or none yet (no
+     * reason, or JSON null, which org.json reads as "null").
+     */
     private fun endOf(reason: String?, truncated: String, refused: Set<String>): AiEvent? = when (reason) {
+        null, "", "null" -> null
         truncated -> AiEvent.Truncated
         in refused -> AiEvent.Refused
-        else -> null
+        else -> AiEvent.Finished
     }
 }

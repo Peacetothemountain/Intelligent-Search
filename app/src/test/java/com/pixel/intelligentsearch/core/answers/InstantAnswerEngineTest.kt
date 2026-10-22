@@ -1,15 +1,17 @@
 package com.pixel.intelligentsearch.core.answers
 
+import com.pixel.intelligentsearch.core.net.HttpsGet
+import com.pixel.intelligentsearch.core.net.HttpsCall
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider
-import com.pixel.intelligentsearch.core.currency.RatesHttpClient
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -34,9 +36,9 @@ class InstantAnswerEngineTest {
         requireNotNull(javaClass.classLoader?.getResource("answers/$name")) { "missing fixture $name" }.readText()
 
     /** Answers by address prefix and records every request, so a test can tell whether anything was sent. */
-    private inner class FakeHttp : RatesHttpClient {
+    private inner class FakeHttp : HttpsGet {
         val requests: MutableList<String> = Collections.synchronizedList(mutableListOf())
-        override fun get(url: String, maxBytes: Int): ByteArray? {
+        override fun get(url: String, maxBytes: Int, call: HttpsCall): ByteArray? {
             requests += url
             return when {
                 url.endsWith("/en/serendipity") -> fixture("dictionary_serendipity.json")
@@ -272,5 +274,43 @@ class InstantAnswerEngineTest {
         screenTime = ScreenTimeReport(60_000, listOf(ScreenTimeApp("maps", "Maps", 60_000)))
         assertEquals(listOf(LiveAnswer.ScreenTime("screen time", screenTime)), answers(engine(), "screen time"))
         assertEquals(emptyList<String>(), http.requests)
+    }
+
+    /**
+     * The next keystroke cancels a definition being fetched, and that ends the request at once rather than at its
+     * timeout. The stand-in blocks the way a socket read does, ignoring interrupts, until its call is cancelled; the
+     * cancelled lookup isn't remembered as "not found".
+     */
+    @Test(timeout = 15_000)
+    fun aKeystrokeEndsTheRequestInFlight() {
+        allowWebAnswers()
+        val reached = java.util.concurrent.CountDownLatch(1)
+        val released = java.util.concurrent.CountDownLatch(1)
+        val blocking = HttpsGet { _, _, call ->
+            call.onCancel { released.countDown() }
+            reached.countDown()
+            while (!call.isCancelled) java.util.concurrent.locks.LockSupport.parkNanos(1_000_000)
+            null
+        }
+        val dictionary = DictionaryRepository(blocking, AnswerCache(60_000, 16), AnswerCache(60_000, 16))
+        val engine = InstantAnswerEngine(
+            prefs = { prefs },
+            dictionary = dictionary,
+            weather = WeatherRepository(blocking, AnswerCache(60_000, 16), AnswerCache(60_000, 16)),
+            screenTime = { null },
+            location = location,
+            locale = { Locale.US },
+            debounceMs = 0
+        )
+        runBlocking {
+            val job = launch(kotlinx.coroutines.Dispatchers.Default) {
+                engine.answer(requireNotNull(InstantAnswerParser.parse("define serendipity")), "define serendipity").toList()
+            }
+            assertTrue("the request never went out", reached.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            job.cancel()
+            assertTrue("cancelling didn't end the request", released.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            job.join()
+        }
+        assertFalse("a cancelled lookup isn't a miss", dictionary.recentlyMissed("serendipity"))
     }
 }

@@ -32,17 +32,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -54,9 +50,7 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.security.NetworkPolicy
 import com.pixel.intelligentsearch.di.appEntryPoint
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * Saved Links, reached from Search Sources: named web addresses that come up in search by name and open in the
@@ -68,13 +62,13 @@ fun SavedLinksScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val store = remember(context) { context.appEntryPoint.savedLinkStore() }
     val icons = remember(context) { context.appEntryPoint.savedLinkIcons() }
+    val scope = rememberCoroutineScope()
     // The page reads the setting the store writes, so a save shows at once.
     val json by rememberSetting(SettingsManager.SAVED_LINKS)
     val links = remember(json) { SavedLinks.fromJson(json) }
     val morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED)
     // null: no dialog; a link: editing it; the blank link: adding one.
     var editing by remember { mutableStateOf<SavedLink?>(null) }
-    var iconVersion by remember { mutableIntStateOf(0) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -91,9 +85,7 @@ fun SavedLinksScreen(onBack: () -> Unit) {
                     SettingsSectionHeader("Your Links")
                     SettingsCard {
                         links.forEach { link ->
-                            val icon by produceState<ImageBitmap?>(null, link.url, iconVersion) {
-                                value = withContext(Dispatchers.IO) { icons.load(link.url)?.asImageBitmap() }
-                            }
+                            val icon = com.pixel.intelligentsearch.feature.search.rememberSavedLinkIcon(link)
                             SettingsRow(
                                 title = link.name,
                                 subtitle = "${link.host}.",
@@ -140,15 +132,14 @@ fun SavedLinksScreen(onBack: () -> Unit) {
                     if (current == BLANK) list + saved else list.map { if (it == current) saved else it }
                 }
                 // A changed address is a different site: its old icon goes.
-                if (current != BLANK && current.url != saved.url) icons.delete(current.url)
+                if (current != BLANK && current.url != saved.url) scope.launch { icons.delete(current.url) }
                 editing = null
             },
             onDelete = {
                 store.update { list -> list - current }
-                icons.delete(current.url)
+                scope.launch { icons.delete(current.url) }
                 editing = null
             },
-            onIconFetched = { iconVersion++ },
             onDismiss = { editing = null }
         )
     }
@@ -167,7 +158,6 @@ internal fun SavedLinkDialog(
     taken: Set<String>,
     onSave: (SavedLink) -> Unit,
     onDelete: () -> Unit,
-    onIconFetched: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -219,9 +209,9 @@ internal fun SavedLinkDialog(
                             fetching = true
                             scope.launch {
                                 val icons = context.appEntryPoint.savedLinkIcons()
-                                val ok = withContext(Dispatchers.IO) { icons.fetch(link.url) }
+                                val ok = icons.fetch(link.url)
                                 fetching = false
-                                if (ok) onIconFetched() else Toast.makeText(context, "This Site Has No Icon to Fetch.", Toast.LENGTH_SHORT).show()
+                                if (!ok) Toast.makeText(context, "This Site Has No Icon to Fetch.", Toast.LENGTH_SHORT).show()
                             }
                         }
                     ) {

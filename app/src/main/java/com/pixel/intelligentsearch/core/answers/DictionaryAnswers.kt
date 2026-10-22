@@ -1,7 +1,8 @@
 package com.pixel.intelligentsearch.core.answers
 
 import androidx.compose.runtime.Immutable
-import com.pixel.intelligentsearch.core.currency.RatesHttpClient
+import com.pixel.intelligentsearch.core.net.HttpsGet
+import com.pixel.intelligentsearch.core.net.fetch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -101,7 +102,7 @@ object DictionaryResponseParser {
  * class only fetches.
  */
 class DictionaryRepository(
-    private val http: RatesHttpClient,
+    private val http: HttpsGet,
     private val cache: AnswerCache<DictionaryEntry>,
     private val misses: AnswerCache<Boolean>
 ) {
@@ -114,9 +115,12 @@ class DictionaryRepository(
     /** The cached entry for [word], reading the disk cache if needed. Blocking: call off the main thread. */
     fun cached(word: String): DictionaryEntry? = cache.get(key(word), DictionaryResponseParser::parse)
 
-    /** Fetches [word]'s entry. Blocking: call off the main thread. Null when it isn't found or can't be fetched. */
-    fun fetch(word: String): DictionaryEntry? {
-        val bytes = http.get(DictionaryResponseParser.urlFor(word), DictionaryResponseParser.MAX_BYTES)
+    /**
+     * Fetches [word]'s entry; null when it isn't found or can't be fetched. Cancelling the caller (the next keystroke)
+     * ends the request and records nothing.
+     */
+    suspend fun fetch(word: String): DictionaryEntry? {
+        val bytes = http.fetch(DictionaryResponseParser.urlFor(word), DictionaryResponseParser.MAX_BYTES)
         val body = bytes?.toString(Charsets.UTF_8)
         val entry = body?.let(DictionaryResponseParser::parse)
         if (entry == null) {

@@ -108,6 +108,7 @@ class AiRequestsTest {
         assertEquals(emptyList<AiEvent>(), AiRequests.parseLine(p, "event: message_start"))
         assertEquals(listOf(AiEvent.Truncated), AiRequests.parseLine(p, """data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"}}"""))
         assertEquals(listOf(AiEvent.Refused), AiRequests.parseLine(p, """data: {"type":"message_delta","delta":{"stop_reason":"refusal"}}"""))
+        assertEquals(listOf(AiEvent.Finished), AiRequests.parseLine(p, """data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}"""))
         assertEquals(listOf(AiEvent.Error("Overloaded")), AiRequests.parseLine(p, """data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}"""))
     }
 
@@ -121,5 +122,8 @@ class AiRequestsTest {
             AiRequests.parseLine(AiProvider.GEMINI, """data: {"candidates":[{"content":{"parts":[{"text":"8,849 m"}]},"finishReason":"MAX_TOKENS"}]}""")
         )
         assertEquals(listOf(AiEvent.Refused), AiRequests.parseLine(AiProvider.GEMINI, """data: {"candidates":[{"finishReason":"SAFETY"}]}"""))
+        // A normal end is told apart from a stream that just stops.
+        assertEquals(listOf(AiEvent.Finished), AiRequests.parseLine(AiProvider.OPENAI, """data: {"choices":[{"delta":{},"finish_reason":"stop"}]}"""))
+        assertEquals(listOf(AiEvent.Text("Done"), AiEvent.Finished), AiRequests.parseLine(AiProvider.GEMINI, """data: {"candidates":[{"content":{"parts":[{"text":"Done"}]},"finishReason":"STOP"}]}"""))
     }
 }

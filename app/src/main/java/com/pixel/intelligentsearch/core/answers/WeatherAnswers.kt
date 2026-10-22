@@ -1,7 +1,8 @@
 package com.pixel.intelligentsearch.core.answers
 
 import androidx.compose.runtime.Immutable
-import com.pixel.intelligentsearch.core.currency.RatesHttpClient
+import com.pixel.intelligentsearch.core.net.HttpsGet
+import com.pixel.intelligentsearch.core.net.fetch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -272,10 +273,11 @@ object OpenMeteoParser {
 /**
  * Forecasts (kept 15 minutes) and place lookups (kept a month) for the overlay's weather answers. The forecast
  * request carries only coordinates rounded to about a kilometre; a lookup carries the place name typed. Callers
- * check the privacy settings first; this class only fetches. Blocking: call off the main thread.
+ * check the privacy settings first; this class only fetches. The cache reads block: call off the main thread; a fetch
+ * stops when its caller is cancelled.
  */
 class WeatherRepository(
-    private val http: RatesHttpClient,
+    private val http: HttpsGet,
     private val forecasts: AnswerCache<ForecastData>,
     private val places: AnswerCache<List<GeoPlace>>
 ) {
@@ -285,8 +287,8 @@ class WeatherRepository(
     fun peekForecast(latitude: Double, longitude: Double, unit: TemperatureUnit): ForecastData? =
         forecasts.peek(forecastKey(latitude, longitude, unit))
 
-    fun fetchForecast(latitude: Double, longitude: Double, unit: TemperatureUnit): ForecastData? {
-        val body = http.get(OpenMeteoParser.forecastUrl(latitude, longitude, unit), OpenMeteoParser.MAX_BYTES)
+    suspend fun fetchForecast(latitude: Double, longitude: Double, unit: TemperatureUnit): ForecastData? {
+        val body = http.fetch(OpenMeteoParser.forecastUrl(latitude, longitude, unit), OpenMeteoParser.MAX_BYTES)
             ?.toString(Charsets.UTF_8) ?: return null
         val data = OpenMeteoParser.parseForecast(body) ?: return null
         forecasts.put(forecastKey(latitude, longitude, unit), data, body)
@@ -299,8 +301,8 @@ class WeatherRepository(
     fun peekPlaces(name: String, language: String): List<GeoPlace>? = places.peek(placeKey(name, language))
 
     /** Places called [name]; empty when there are none, null when the lookup failed. */
-    fun fetchPlaces(name: String, language: String): List<GeoPlace>? {
-        val body = http.get(OpenMeteoParser.geocodeUrl(name, language), OpenMeteoParser.MAX_BYTES)
+    suspend fun fetchPlaces(name: String, language: String): List<GeoPlace>? {
+        val body = http.fetch(OpenMeteoParser.geocodeUrl(name, language), OpenMeteoParser.MAX_BYTES)
             ?.toString(Charsets.UTF_8) ?: return null
         val found = OpenMeteoParser.parsePlaces(body) ?: return null
         places.put(placeKey(name, language), found, body)

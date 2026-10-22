@@ -3,10 +3,10 @@ package com.pixel.intelligentsearch.core.answers
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.runtime.Immutable
-import com.pixel.intelligentsearch.core.currency.HttpsRatesClient
-import com.pixel.intelligentsearch.core.currency.RatesHttpClient
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.net.HttpsClient
+import com.pixel.intelligentsearch.core.net.HttpsGet
 import com.pixel.intelligentsearch.core.security.NetworkPolicy
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -62,10 +62,10 @@ class InstantAnswerEngine internal constructor(
     constructor(@ApplicationContext context: Context, settingsManager: SettingsManager) : this(
         context = context.applicationContext,
         settingsManager = settingsManager,
-        http = HttpsRatesClient(timeoutMs = 8_000, totalTimeoutMs = 12_000L, accept = HttpsRatesClient.ACCEPT_JSON)
+        http = HttpsClient(timeoutMs = 8_000, totalTimeoutMs = 12_000L, accept = HttpsClient.ACCEPT_JSON)
     )
 
-    private constructor(context: Context, settingsManager: SettingsManager, http: RatesHttpClient) : this(
+    private constructor(context: Context, settingsManager: SettingsManager, http: HttpsGet) : this(
         prefs = { settingsManager.prefs },
         dictionary = DictionaryRepository(
             http,

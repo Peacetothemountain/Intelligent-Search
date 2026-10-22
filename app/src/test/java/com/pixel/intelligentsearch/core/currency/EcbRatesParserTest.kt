@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.core.currency
 
+import com.pixel.intelligentsearch.core.net.HttpsClient
+import com.pixel.intelligentsearch.core.net.HttpsCall
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -169,7 +171,7 @@ class EcbRatesParserTest {
     @Test
     fun aBodyIsReadOnlyUpToTheLimit() {
         val small = ecbFile().toByteArray()
-        assertArrayEquals(small, HttpsRatesClient.readCapped(ByteArrayInputStream(small), EcbRatesParser.MAX_BYTES))
+        assertArrayEquals(small, HttpsClient.readCapped(ByteArrayInputStream(small), EcbRatesParser.MAX_BYTES))
 
         // An endless body: reading stops just past the limit instead of running out of memory.
         var served = 0L
@@ -181,16 +183,16 @@ class EcbRatesParserTest {
                 return len
             }
         }
-        assertNull(HttpsRatesClient.readCapped(endless, EcbRatesParser.MAX_BYTES))
+        assertNull(HttpsClient.readCapped(endless, EcbRatesParser.MAX_BYTES))
         assertTrue("read $served bytes", served <= EcbRatesParser.MAX_BYTES + 8 * 1024)
     }
 
     @Test
     fun plainHttpAndOtherSchemesAreRefusedWithoutAConnection() {
-        val client = HttpsRatesClient()
-        assertNull(client.get("http://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml", EcbRatesParser.MAX_BYTES))
-        assertNull(client.get("file:///etc/hosts", EcbRatesParser.MAX_BYTES))
-        assertNull(client.get("not a url", EcbRatesParser.MAX_BYTES))
+        val client = HttpsClient()
+        assertNull(client.get("http://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml", EcbRatesParser.MAX_BYTES, HttpsCall()))
+        assertNull(client.get("file:///etc/hosts", EcbRatesParser.MAX_BYTES, HttpsCall()))
+        assertNull(client.get("not a url", EcbRatesParser.MAX_BYTES, HttpsCall()))
     }
 
     companion object {

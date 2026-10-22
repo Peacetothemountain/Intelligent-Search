@@ -1,12 +1,12 @@
 package com.pixel.intelligentsearch.core.data
 
+import com.pixel.intelligentsearch.core.net.HttpsGet
 import android.content.Context
 import android.net.Uri
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.backup.BackupManager
 import com.pixel.intelligentsearch.core.backup.BackupPreferenceSchema
-import com.pixel.intelligentsearch.core.currency.RatesHttpClient
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.search.ResultKeys
 import com.pixel.intelligentsearch.core.search.ResultKind
@@ -107,20 +107,25 @@ class SavedLinksTest {
     }
 
     @Test
-    fun anIconIsFetchedOnlyWhenAskedAndNeverUnderTor() {
+    fun anIconIsFetchedOnlyWhenAskedAndNeverUnderTor() = kotlinx.coroutines.runBlocking {
         val asked = mutableListOf<String>()
         val png = run {
             val bitmap = android.graphics.Bitmap.createBitmap(4, 4, android.graphics.Bitmap.Config.ARGB_8888)
             java.io.ByteArrayOutputStream().also { bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
         }
-        val icons = SavedLinkIcons(File(context.cacheDir, "icons"), RatesHttpClient { url, _ -> asked += url; png }, settings)
+        val icons = SavedLinkIcons(File(context.cacheDir, "icons"), HttpsGet { url, _, _ -> asked += url; png }, settings)
         assertFalse(icons.load(bank.url) != null)
         assertTrue(asked.isEmpty())
 
+        val before = icons.changes.value
         assertTrue(icons.fetch(bank.url))
         assertEquals(listOf("https://bank.example.com/favicon.ico"), asked)
+        // Shown at once from memory, and from disk after that.
+        assertTrue(icons.peek(bank.url) != null)
         assertTrue(icons.load(bank.url) != null)
+        assertTrue("a fetch tells the rows to read again", icons.changes.value > before)
         icons.delete(bank.url)
+        assertFalse(icons.peek(bank.url) != null)
         assertFalse(icons.load(bank.url) != null)
 
         settings.prefs.edit().put(SettingsManager.SEARCH_ENGINE, "Tor Project").commit()

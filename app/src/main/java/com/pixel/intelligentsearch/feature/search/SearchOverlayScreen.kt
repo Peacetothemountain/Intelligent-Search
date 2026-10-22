@@ -544,8 +544,8 @@ fun SearchOverlayScreen(
             BestMatch.find(
                 uiState.query,
                 listOf(
-                    BestMatch.Domain(appWeight, settingsState.searchApps, visibleApps) { it.name },
-                    BestMatch.Domain(contactWeight, settingsState.searchContacts, uiState.contacts) { it.name },
+                    BestMatch.Domain(appWeight, settingsState.searchApps, visibleApps, { uiState.shortcuts.nicknamesOf(com.pixel.intelligentsearch.core.search.ResultKeys.app(it)) }) { it.name },
+                    BestMatch.Domain(contactWeight, settingsState.searchContacts, uiState.contacts, { uiState.shortcuts.nicknamesOf(com.pixel.intelligentsearch.core.search.ResultKeys.contact(it)) }) { it.name },
                     BestMatch.Domain(fileWeight, settingsState.searchFiles, uiState.files) { it.name }
                 )
             )

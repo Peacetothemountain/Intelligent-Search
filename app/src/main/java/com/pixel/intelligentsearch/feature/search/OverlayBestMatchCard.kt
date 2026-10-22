@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.graphics.drawable.toBitmap
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
+import com.pixel.intelligentsearch.core.search.ResultKeys
 import androidx.compose.runtime.Composable
 
 /** The Best Match card at the top of the results: the most likely app, contact or file, with its quick actions. */
@@ -119,56 +120,59 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
 
             when (val match = bestMatch) {
                 is ContactItem -> Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .bouncyClickable {
-                                hasStartedTyping = false
-                                focusManager.clearFocus(force = true)
-                                keyboardController?.hide()
-                                launchSafeIntent(context, ContactActions.openIntent(match, settingsState.contactDirectCall))
+                    ResultMenuBox(s, if (ResultKeys.contact(match) != null) ResultMenuTarget.Contact(match) else null) { openMenu ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .moreOptions(openMenu)
+                                .bouncyClickable(onLongClick = openMenu) {
+                                    hasStartedTyping = false
+                                    focusManager.clearFocus(force = true)
+                                    keyboardController?.hide()
+                                    launchSafeIntent(context, ContactActions.openIntent(match, settingsState.contactDirectCall))
+                                }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            ContactAvatar(match, 48.dp) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
                             }
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        ContactAvatar(match, 48.dp) {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Person,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    modifier = Modifier.size(24.dp)
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    match.name,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontFamily = GoogleSansFlex
+                                )
+                                Text(
+                                    match.phoneNumber,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp,
+                                    fontFamily = GoogleSansFlex
                                 )
                             }
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                match.name,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                fontFamily = GoogleSansFlex
-                            )
-                            Text(
-                                match.phoneNumber,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontSize = 13.sp,
-                                fontFamily = GoogleSansFlex
+                            val isDirectCall = settingsState.contactDirectCall
+                            Icon(
+                                imageVector = if (isDirectCall) Icons.Default.Call else Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = if (isDirectCall) "Call" else "Open",
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        val isDirectCall = settingsState.contactDirectCall
-                        Icon(
-                            imageVector = if (isDirectCall) Icons.Default.Call else Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = if (isDirectCall) "Call" else "Open",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp)
-                        )
                     }
                     val contactActions = remember(match, s.contactActionTargets, settingsState.contactActions) {
                         ContactActions.forContact(match, s.contactActionTargets, settingsState.contactActions)
@@ -203,45 +207,48 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                     } else null
 
                     Column {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .bouncyClickable { performAppLaunch(match, LaunchSource.tap(LaunchIconKeys.BEST_MATCH)) }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (appIcon != null) {
-                                Image(
-                                    bitmap = appIcon.bitmap,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(52.dp).launchIcon(launchIcons, LaunchIconKeys.BEST_MATCH),
-                                    colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
+                        ResultMenuBox(s, ResultMenuTarget.App(match)) { openMenu ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .moreOptions(openMenu)
+                                    .bouncyClickable(onLongClick = openMenu) { performAppLaunch(match, LaunchSource.tap(LaunchIconKeys.BEST_MATCH)) }
+                                    .padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                if (appIcon != null) {
+                                    Image(
+                                        bitmap = appIcon.bitmap,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(52.dp).launchIcon(launchIcons, LaunchIconKeys.BEST_MATCH),
+                                        colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
+                                    )
+                                } else if (fallbackBitmap != null) {
+                                    Image(bitmap = fallbackBitmap, contentDescription = null, modifier = Modifier.size(52.dp).launchIcon(launchIcons, LaunchIconKeys.BEST_MATCH))
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        match.name,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        fontSize = 20.sp,
+                                        fontFamily = GoogleSansFlex,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        "Application",
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        fontSize = 13.sp,
+                                        fontFamily = GoogleSansFlex
+                                    )
+                                }
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = "Open",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(20.dp)
                                 )
-                            } else if (fallbackBitmap != null) {
-                                Image(bitmap = fallbackBitmap, contentDescription = null, modifier = Modifier.size(52.dp).launchIcon(launchIcons, LaunchIconKeys.BEST_MATCH))
                             }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    match.name,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    fontSize = 20.sp,
-                                    fontFamily = GoogleSansFlex,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Text(
-                                    "Application",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    fontSize = 13.sp,
-                                    fontFamily = GoogleSansFlex
-                                )
-                            }
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = "Open",
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(20.dp)
-                            )
                         }
                         if (match.actions.isNotEmpty() && !otherProfile) {
                             Spacer(modifier = Modifier.height(10.dp))
@@ -271,11 +278,12 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                         }
                     }
                 }
-                is FileItem -> {
+                is FileItem -> ResultMenuBox(s, ResultMenuTarget.File(match)) { openMenu ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .bouncyClickable {
+                            .moreOptions(openMenu)
+                            .bouncyClickable(onLongClick = openMenu) {
                                 hasStartedTyping = false
                                 val intent = buildOpenFileIntent(match.uri, match.mimeType)
                                 if (!launchSafeIntent(context, intent)) {

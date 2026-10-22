@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.Badge
+import com.pixel.intelligentsearch.core.navigation.Route
 import androidx.compose.material.icons.outlined.AlignVerticalBottom
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.VerticalAlignBottom
@@ -38,7 +40,7 @@ import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+fun SearchBehaviorScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize()) {
         val morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED) {}
@@ -91,6 +93,13 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             icon = Icons.Outlined.ViewCompact,
                             isChecked = compactList,
                             onCheckedChange = { compactList = it },
+                            showDivider = true
+                        )
+                        SettingsRow(
+                            title = "Nicknames & Triggers",
+                            subtitle = "Your Own Names for Results and Trigger Words That Open Them.",
+                            icon = Icons.Outlined.Badge,
+                            onClick = { onNavigate(Route.NicknamesTriggers) },
                             showDivider = true
                         )
                         var contextAwareApps by rememberSetting(SettingsManager.CONTEXT_AWARE_QUICK_APPS)

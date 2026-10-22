@@ -61,75 +61,78 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
             .swipeToDismiss(swipe, recentQuery)
     ) {
         val pillShape = RoundedCornerShape(28.dp)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 5.dp)
-                .background(
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f),
-                            MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.52f),
-                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f)
-                        )
-                    ),
-                    shape = pillShape
-                )
-                .border(
-                    width = 1.dp,
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f),
-                    shape = pillShape
-                )
-                .clip(pillShape)
-                .bouncyClickable { launchWebSearch(recentQuery) }
-                .padding(horizontal = 16.dp, vertical = 11.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.History,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(14.dp))
-            Text(
-                text = recentQuery,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontSize = 15.sp,
-                fontFamily = GoogleSansFlex,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            IconButton(
-                onClick = { viewModel.removeSearchHistory(recentQuery) },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Remove",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    modifier = Modifier.size(16.dp)
-                )
-            }
-            IconButton(
-                onClick = {
-                    hasStartedTyping = true
-                    textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
-                        text = recentQuery,
-                        selection = androidx.compose.ui.text.TextRange(recentQuery.length)
+        ResultMenuBox(s, ResultMenuTarget.History(recentQuery)) { openMenu ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 5.dp)
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f),
+                                MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.52f),
+                                MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f)
+                            )
+                        ),
+                        shape = pillShape
                     )
-                    viewModel.onQueryChanged(recentQuery)
-                },
-                modifier = Modifier.size(32.dp)
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f),
+                        shape = pillShape
+                    )
+                    .clip(pillShape)
+                    .moreOptions(openMenu)
+                    .bouncyClickable(onLongClick = openMenu) { launchWebSearch(recentQuery) }
+                    .padding(horizontal = 16.dp, vertical = 11.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Default.NorthWest,
-                    contentDescription = "Insert query",
+                    imageVector = Icons.Default.History,
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
+                    modifier = Modifier.size(20.dp)
                 )
+                Spacer(modifier = Modifier.width(14.dp))
+                Text(
+                    text = recentQuery,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontSize = 15.sp,
+                    fontFamily = GoogleSansFlex,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                IconButton(
+                    onClick = { viewModel.removeSearchHistory(recentQuery) },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Remove",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                IconButton(
+                    onClick = {
+                        hasStartedTyping = true
+                        textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                            text = recentQuery,
+                            selection = androidx.compose.ui.text.TextRange(recentQuery.length)
+                        )
+                        viewModel.onQueryChanged(recentQuery)
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.NorthWest,
+                        contentDescription = "Insert query",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
     }

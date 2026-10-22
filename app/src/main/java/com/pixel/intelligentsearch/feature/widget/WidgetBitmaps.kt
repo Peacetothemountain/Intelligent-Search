@@ -4,15 +4,20 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.SweepGradient
 import android.util.Log
 import android.util.LruCache
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.core.graphics.PathParser
 import androidx.core.graphics.createBitmap
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.theme.SearchIconColors
+import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
 import com.pixel.intelligentsearch.feature.search.SearchIconPaths
 
 private const val TAG = "SearchWidgetProvider"
@@ -122,6 +127,42 @@ internal fun createCustomMaterialGBitmap(
     } catch (e: Throwable) {
         // The caller falls back to the plain G drawable; a blank bitmap would leave an invisible tap target.
         Log.w(TAG, "Failed to create custom material G bitmap", e)
+        null
+    }
+}
+
+/** The favourite apps row's icon size, in dp. */
+internal const val FAVOURITE_ICON_DP = 40
+
+/**
+ * [packageName]'s icon for the favourite apps row, as the search overlay picks it ([getThemedAppIcon]): the icon
+ * pack's when one is chosen and has it, else the app's themed (monochrome) icon, else a Material outline, else the
+ * app's own icon. A monochrome icon sits on a [plate] circle (the bar's pill colour) in the [accent], as Pixel's
+ * themed icons do; any other is drawn as it is. Cached by what it's drawn from; null for an app with no icon.
+ */
+internal fun createFavouriteAppBitmap(context: Context, packageName: String, accent: Int, plate: Int): Bitmap? {
+    val icon = getThemedAppIcon(context, packageName) ?: return null
+    val source = icon.bitmap.asAndroidBitmap()
+    val metrics = context.resources.displayMetrics
+    val sizePx = (FAVOURITE_ICON_DP * metrics.density).toInt().coerceAtLeast(1)
+    val cacheKey = "favourite_${packageName}_${System.identityHashCode(source)}_${icon.isMonochrome}_${accent}_${plate}_${sizePx}_${metrics.densityDpi}"
+    bitmapCache.get(cacheKey)?.let { return it }
+    return try {
+        val bitmap = createBitmap(sizePx, sizePx).apply { density = metrics.densityDpi }
+        val canvas = Canvas(bitmap)
+        val bounds = android.graphics.RectF(0f, 0f, sizePx.toFloat(), sizePx.toFloat())
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        if (icon.isMonochrome) {
+            paint.color = plate
+            canvas.drawOval(bounds, paint)
+            paint.color = Color.WHITE
+            paint.colorFilter = PorterDuffColorFilter(accent or Color.BLACK, PorterDuff.Mode.SRC_IN)
+        }
+        canvas.drawBitmap(source, null, bounds, paint)
+        bitmapCache.put(cacheKey, bitmap)
+        bitmap
+    } catch (e: Throwable) {
+        Log.w(TAG, "Failed to draw the favourite app icon for $packageName", e)
         null
     }
 }

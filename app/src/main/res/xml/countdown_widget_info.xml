@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Redrawn just after each local midnight by WorkManager (CountdownWidgetProvider), so no update period is needed.
+     Set up through SettingsActivity, which hands it on to CountdownConfigActivity. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="56dp"
+    android:minResizeWidth="80dp"
+    android:minResizeHeight="48dp"
+    android:maxResizeWidth="400dp"
+    android:maxResizeHeight="400dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_countdown"
+    android:previewLayout="@layout/widget_countdown"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen|keyguard"
+    android:widgetFeatures="reconfigurable"
+    android:configure="com.pixel.intelligentsearch.feature.settings.SettingsActivity"
+    android:description="@string/widget_countdown_description" />

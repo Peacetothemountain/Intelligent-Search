@@ -56,6 +56,10 @@ internal class WidgetDraftFields(active: MutableState<WidgetDesignSettings>, mat
     var shortcut3 by draftField(active, { it.shortcut3 }) { d, v -> d.copy(shortcut3 = v) }
     var slotOrderStr by draftField(active, { it.slotOrder }) { d, v -> d.copy(slotOrder = v) }
     var keepSystemG by draftField(active, { it.keepSystemG }) { d, v -> d.copy(keepSystemG = v) }
+    var favouriteApps by draftField(active, { it.favouriteApps }) { d, v -> d.copy(favouriteApps = v) }
+    var showMedia by draftField(active, { it.showMedia }) { d, v -> d.copy(showMedia = v) }
+    var outlineThickness by draftField(active, { it.outlineThickness }) { d, v -> d.copy(outlineThickness = v) }
+    var cornerRadius by draftField(active, { it.cornerRadius }) { d, v -> d.copy(cornerRadius = v) }
     // Material-only settings.
     var lockBlack by draftField(material, { it.lockBlack }) { d, v -> d.copy(lockBlack = v) }
     var actionIcon by draftField(material, { it.actionIcon }) { d, v -> d.copy(actionIcon = v) }
@@ -79,6 +83,11 @@ internal class WidgetEditorState(initialSlotItemHeightPx: Float) {
     var slotItemHeightPx by mutableFloatStateOf(initialSlotItemHeightPx)
     var itemDragOffset by mutableFloatStateOf(0f)
     var selectedTabName by mutableStateOf("Appearance")
+    var showFavouritesSheet by mutableStateOf(false)
+    var showMediaAccessDialog by mutableStateOf(false)
+    /** The saved theme being renamed, or the name field of a new one ("" while saving the current design). */
+    var themeNameDialogFor by mutableStateOf<String?>(null)
+    var themeNameInput by mutableStateOf("")
 }
 
 /** The element being coloured in the Color Studio and its HSV sliders; starts over when the user switches design. */

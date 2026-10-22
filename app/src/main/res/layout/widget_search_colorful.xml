@@ -1,15 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
     android:padding="0dp">
 
-    <!-- Centered capsule container matching 1:1 preview (56dp height) with system background ID for Android 12-17 corner rounding -->
+    <include layout="@layout/widget_bar_extras" />
+
+    <!-- Centered capsule container matching 1:1 preview (56dp height, plus the outline when one is chosen: the provider
+         sets the height and the pill's inset). It clips to its own bounds, which tells the launcher the widget draws
+         its own corners, so the launcher doesn't round it again and cut them off. -->
     <FrameLayout
         android:id="@android:id/background"
         android:layout_width="match_parent"
         android:layout_height="56dp"
-        android:layout_gravity="center">
+        android:layout_gravity="center"
+        android:clipToOutline="true">
+
+        <!-- The optional outline around the pill, in the theme's accent; hidden while the outline is 0. -->
+        <ImageView
+            android:id="@+id/widget_outer_background"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:src="@drawable/bg_widget_r28"
+            android:scaleType="fitXY"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
 
         <FrameLayout
             android:id="@+id/widget_pill_container"
@@ -137,13 +154,6 @@
     </FrameLayout>
 
     <!-- Invisible stub IDs to satisfy SearchWidgetProvider references safely without impacting UI -->
-    <ImageView
-        android:id="@+id/widget_outer_background"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:visibility="gone"
-        android:importantForAccessibility="no" />
-
     <FrameLayout
         android:id="@+id/widget_sound_search"
         android:layout_width="0dp"
@@ -162,4 +172,4 @@
             android:importantForAccessibility="no" />
     </FrameLayout>
 
-</FrameLayout>
+</LinearLayout>

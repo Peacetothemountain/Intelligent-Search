@@ -5,17 +5,24 @@
     Inner ImageViews provide the dark pill and circle backgrounds.
     Matches 1:1 with Widget Customization preview in WidgetSettingsScreen.kt.
 -->
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_vertical"
     android:padding="0dp">
 
-    <!-- Centered capsule container matching 1:1 preview (64dp total height: 48dp pill + 8dp top/bottom outer shell rim) -->
+    <include layout="@layout/widget_bar_extras" />
+
+    <!-- Centered capsule container matching 1:1 preview (64dp total height: 48dp pill + 8dp top/bottom outer shell rim;
+         the provider sets the height and rim for the chosen outline). It clips to its own bounds, which tells the
+         launcher the widget draws its own corners, so the launcher doesn't round it again and cut them off. -->
     <FrameLayout
         android:id="@android:id/background"
         android:layout_width="match_parent"
         android:layout_height="64dp"
-        android:layout_gravity="center">
+        android:layout_gravity="center"
+        android:clipToOutline="true">
 
         <!-- Outer rim capsule (accent-tinted border, 32dp corner radius) -->
         <ImageView
@@ -28,6 +35,7 @@
 
         <!-- Inner content row (insets 8dp to expose accent rim all around matching preview) -->
         <LinearLayout
+            android:id="@+id/widget_bar_row"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="horizontal"
@@ -198,4 +206,4 @@
 
         </LinearLayout>
     </FrameLayout>
-</FrameLayout>
+</LinearLayout>

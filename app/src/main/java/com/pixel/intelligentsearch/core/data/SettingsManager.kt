@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.core.data
 
+import com.pixel.intelligentsearch.core.data.widget.MAX_CORNER_RADIUS
+import com.pixel.intelligentsearch.core.data.widget.MAX_OUTLINE_THICKNESS
 import com.pixel.intelligentsearch.core.util.storageContext
 import android.content.Context
 import android.content.SharedPreferences
@@ -246,6 +248,24 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val GLANCE_BIRTHDAYS = BooleanSetting("glance.birthdays", true)
         val GLANCE_BATTERY = BooleanSetting("glance.battery", true)
 
+        // Each search bar widget design's extras, kept per design like the rest of its customization
+        // (WidgetSettingsStore reads and writes them). Favourite apps are package names, comma separated, in order.
+        val WIDGET_SYSTEM_FAVOURITE_APPS = StringSetting("widget_system_favourite_apps", "")
+        val WIDGET_MATERIAL_FAVOURITE_APPS = StringSetting("widget_material_favourite_apps", "")
+        /** The media row (current media title, play/pause, next); it needs notification access (MediaSessionAccess). */
+        val WIDGET_SYSTEM_SHOW_MEDIA = BooleanSetting("widget_system_show_media", false)
+        val WIDGET_MATERIAL_SHOW_MEDIA = BooleanSetting("widget_material_show_media", false)
+        /** The bar's outline in dp: the System design has none by default, the Material design's rim is 8dp. */
+        val WIDGET_SYSTEM_OUTLINE_THICKNESS = IntSetting("widget_system_outline_thickness", 0, 0..MAX_OUTLINE_THICKNESS)
+        val WIDGET_MATERIAL_OUTLINE_THICKNESS = IntSetting("widget_material_outline_thickness", 8, 0..MAX_OUTLINE_THICKNESS)
+        /** The bar's outer corner radius in dp; drawn at most half the bar's height (fully round). */
+        val WIDGET_SYSTEM_CORNER_RADIUS = IntSetting("widget_system_corner_radius", 28, 0..MAX_CORNER_RADIUS)
+        val WIDGET_MATERIAL_CORNER_RADIUS = IntSetting("widget_material_corner_radius", 32, 0..MAX_CORNER_RADIUS)
+        /** Named widget designs the user saved (WidgetThemeStore), as JSON. */
+        val WIDGET_SAVED_THEMES = StringSetting("widget_saved_themes", "[]")
+        /** What each placed countdown widget counts down to, by widget id (CountdownEvents), as JSON. */
+        val COUNTDOWN_EVENTS = StringSetting("countdown_widget_events", "{}")
+
         /** Every declared setting, for migration, backup validation and change filtering. */
         val ALL: List<SettingKey<*>> = listOf(
             THEME, SEARCH_APPS, SEARCH_CONTACTS, SEARCH_FILES, SEARCH_WEB, SEARCH_WEB_SUGGESTIONS,
@@ -268,7 +288,10 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_ALARM,
             GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_BIRTHDAYS, GLANCE_BATTERY, RESULT_SHORTCUTS,
             DICTIONARY_ANSWERS, WEATHER_ANSWERS,
-            WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION, FILES_EXCLUDED_TYPES, FILES_EXCLUDED_FOLDERS
+            WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION, FILES_EXCLUDED_TYPES, FILES_EXCLUDED_FOLDERS,
+            WIDGET_SYSTEM_FAVOURITE_APPS, WIDGET_MATERIAL_FAVOURITE_APPS, WIDGET_SYSTEM_SHOW_MEDIA,
+            WIDGET_MATERIAL_SHOW_MEDIA, WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
+            WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_SAVED_THEMES, COUNTDOWN_EVENTS
         ) + FILES_OPEN_WITH.values
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =

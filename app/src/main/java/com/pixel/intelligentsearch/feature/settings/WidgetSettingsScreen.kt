@@ -5,6 +5,7 @@ import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesignSettings
 import com.pixel.intelligentsearch.core.data.widget.WidgetElementColors
 import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
+import com.pixel.intelligentsearch.core.data.widget.WidgetThemeStore
 import com.pixel.intelligentsearch.feature.widget.WidgetColorRules
 import com.pixel.intelligentsearch.feature.widget.getShortcutIconRes
 import com.pixel.intelligentsearch.core.data.settings.put
@@ -130,7 +131,7 @@ internal data class PreviewTheme(
 
 /** Everything the live preview paints for one design, worked out from its draft. */
 internal data class WidgetPreviewColors(
-    /** The Material design's outer rim; transparent for the System design. */
+    /** The outline around the pill: the Material design's rim, or the System design's accent outline. */
     val rim: Color,
     /** The pill, whose fill the Material design's circle shares. */
     val pill: PreviewPill,
@@ -167,7 +168,7 @@ internal fun widgetPreviewColors(
     val effectiveColorAlpha = alpha(WidgetColorRules.customColorAlpha(draft))
     val accentColor = if (isCustomTheme) Color(draft.customColorInt) else theme.primary
 
-    val rim = if (isMaterialDesign) {
+    val materialRim = if (isMaterialDesign) {
         // Locked black, the widget rims its black pill in the dark theme's colours, whatever the theme.
         val (rimPrimary, rimContainer) = if (lockBlack && !theme.appDark) {
             widgetColors(true).let { Color(it.primary) to Color(it.primaryContainer) }
@@ -180,7 +181,7 @@ internal fun widgetPreviewColors(
             "Material" -> rimContainer.copy(alpha = rimAlpha)
             else -> rimPrimary.copy(alpha = rimAlpha)
         }
-    } else Color.Transparent
+    } else null
 
     val pill = previewPill(
         isMaterialDesign = isMaterialDesign,
@@ -201,6 +202,11 @@ internal fun widgetPreviewColors(
     // The Custom subtheme's accent and plain icons come from its seed, already in contrast with the pill.
     val customBar = if (isCustomTheme) WidgetColorRules.customBarColors(draft, isMaterialDesign) else null
 
+    val accentPrimary = customBar?.let { Color(it.accent) }
+        ?: Color(WidgetColorRules.iconColor(surfaceColors.primary, isMaterialDesign, lockBlack, isPillLight, 32.0))
+    // The System design's optional outline is its accent, as see-through as its pill.
+    val rim = materialRim ?: accentPrimary.copy(alpha = pill.fill.alpha)
+
     val systemIconTint = when {
         customBar != null -> Color(customBar.plainIcon)
         isPillLight && (!isMaterialDesign || !lockBlack) -> Color(surfaceColors.onSurface)
@@ -209,8 +215,7 @@ internal fun widgetPreviewColors(
     return WidgetPreviewColors(
         rim = rim,
         pill = pill,
-        accentPrimary = customBar?.let { Color(it.accent) }
-            ?: Color(WidgetColorRules.iconColor(surfaceColors.primary, isMaterialDesign, lockBlack, isPillLight, 32.0)),
+        accentPrimary = accentPrimary,
         materialIconAccents = WidgetColorRules.materialIconAccents(draft, isPillLight, iconAccents),
         systemIconTint = systemIconTint,
         customIcons = WidgetColorRules.customIconColors(draft, isMaterialDesign, isPillLight),
@@ -229,7 +234,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val pendingCustomShortcutTypes = ui.pendingCustomShortcutTypes
     val pendingCustomShortcutValues = ui.pendingCustomShortcutValues
     
-    val shortcutOptions = listOf(
+    // Discover is the Google app's feed, so it's offered only while the Google app is installed.
+    val discoverAvailable = remember(context) { com.pixel.intelligentsearch.feature.widget.isDiscoverAvailable(context) }
+    val shortcutOptions = listOfNotNull(
         "None" to Icons.Default.Close,
         "Google Lens" to ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_camera),
         "Live" to ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive),
@@ -242,7 +249,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         "Homework" to Icons.Default.School,
         "Finance" to Icons.AutoMirrored.Filled.TrendingUp,
         "Saved" to Icons.Default.Bookmark,
-        "News" to Icons.AutoMirrored.Filled.Article
+        "News" to Icons.AutoMirrored.Filled.Article,
+        "Calculator" to Icons.Default.Calculate,
+        ("Discover" to Icons.Default.Explore).takeIf { discoverAvailable }
     )
 
     val themeStyleState = remember { mutableStateOf(prefs[SettingsManager.WIDGET_THEME_STYLE]) }
@@ -263,6 +272,21 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
     // The design being edited; every "local" value below reads and writes its draft.
     val activeDraft = if (isSystem) systemDraft else materialDraft
+
+    // Named designs the user saved, for the design being edited.
+    val themeStore = remember(prefs) { WidgetThemeStore(prefs) }
+    var themesVersion by remember { mutableIntStateOf(0) }
+    val activeDesign = if (isSystem) WidgetDesign.SYSTEM else WidgetDesign.MATERIAL
+    val savedThemes = remember(themesVersion, activeDesign) {
+        val themes = themeStore.list(WidgetDefaults(defaultUserMaterialColor, isDynamicActive)).filter { it.design == activeDesign }
+        WidgetSavedThemes(
+            themes = themes,
+            save = { name -> themeStore.save(name, activeDesign, activeDraft.value); themesVersion++ },
+            apply = { theme -> activeDraft.value = theme.settings },
+            rename = { theme, name -> themeStore.rename(theme.name, theme.design, name).also { themesVersion++ } },
+            delete = { theme -> themeStore.delete(theme.name, theme.design); themesVersion++ }
+        )
+    }
     val fields = remember(isSystem) { WidgetDraftFields(activeDraft, materialDraft) }
     var localSubtheme by fields::subtheme
     var localMaterialGIconTheme by fields::materialGIconTheme
@@ -502,7 +526,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .height(150.dp)
+                    // Taller when the favourite apps or media row shows above the bar.
+                    .heightIn(min = 150.dp)
                     .matteShell(previewShellLook, RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center
             ) {
@@ -559,22 +584,46 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val mSecondary = androidx.compose.ui.graphics.Color(previewColors.materialIconAccents.secondary)
                     val mTertiary = androidx.compose.ui.graphics.Color(previewColors.materialIconAccents.tertiary)
 
+                    // The bar's outline and corners, as the widget draws them.
+                    val barShape = com.pixel.intelligentsearch.feature.widget.WidgetBarShape.of(activeDraft.value, previewIsMaterialYou)
+                    val draft = activeDraft.value
+                    Column(
+                        modifier = Modifier.padding(vertical = if (draft.favouriteApps.isNotEmpty() || draft.showMedia) 20.dp else 0.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                    if (draft.favouriteApps.isNotEmpty()) {
+                        WidgetPreviewFavourites(
+                            apps = draft.favouriteApps,
+                            accent = gPrimary,
+                            plate = previewPillColorAlpha,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                    if (draft.showMedia) {
+                        WidgetPreviewMedia(
+                            shape = barShape,
+                            fill = previewPillColorAlpha,
+                            titleColor = previewColors.systemIconTint,
+                            accent = gPrimary,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                             .then(
-                                Modifier.background(rimBrush, RoundedCornerShape(if (previewIsMaterialYou) 32.dp else 28.dp))
+                                if (barShape.outline > 0) Modifier.background(rimBrush, RoundedCornerShape(barShape.outerRadius.dp)) else Modifier
                             )
-                            .padding(if (previewIsMaterialYou) 8.dp else 0.dp),
+                            .padding(barShape.outline.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             modifier = Modifier
                                 .weight(1f)
-                                .height(if (previewIsMaterialYou) 48.dp else 56.dp)
+                                .height(barShape.pillHeight.dp)
                                 .then(
-                                    Modifier.background(previewPillColorAlpha, RoundedCornerShape(if (previewIsMaterialYou) 24.dp else 28.dp))
+                                    Modifier.background(previewPillColorAlpha, RoundedCornerShape(barShape.pillRadius.dp))
                                 )
                                 .padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -675,7 +724,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             Box(
                                 modifier = Modifier
                                     .size(48.dp)
-                                    .background(previewPillColorAlpha, androidx.compose.foundation.shape.CircleShape),
+                                    .background(
+                                        previewPillColorAlpha,
+                                        if (barShape.circleIsRound) androidx.compose.foundation.shape.CircleShape else RoundedCornerShape(barShape.circleRadius.dp)
+                                    ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 val hasCustomAction = effectiveGIconTheme == "Custom G Icon"
@@ -703,6 +755,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 )
                             }
                         }
+                    }
                     }
             }
 
@@ -799,7 +852,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                 when (activeTabName) {
-                    "Appearance" -> WidgetAppearanceTab(fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState, computedCustomColorInt = computedCustomColorInt, view = view, hapticEngine = hapticEngine)
+                    "Appearance" -> WidgetAppearanceTab(fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState, computedCustomColorInt = computedCustomColorInt, view = view, hapticEngine = hapticEngine, savedThemes = savedThemes)
 
                     "Color Studio" -> WidgetColorStudioTab(fields = fields, ui = ui, computedCustomColorInt = computedCustomColorInt)
 

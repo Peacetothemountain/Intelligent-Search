@@ -3,7 +3,11 @@ package com.pixel.intelligentsearch.core.data.widget
 import android.content.SharedPreferences
 import android.graphics.Color
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
+import com.pixel.intelligentsearch.core.data.settings.IntSetting
+import com.pixel.intelligentsearch.core.data.settings.StringSetting
 import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 
 /** The two widget designs, each with its own saved customization under its own key prefix. */
@@ -12,6 +16,16 @@ enum class WidgetDesign(val prefix: String, val themeStyle: String) {
     MATERIAL("widget_material", "Material You (Minimal)");
 
     val savedFlagKey: String get() = "${prefix}_design_saved"
+
+    /** The design's favourite apps row, media row, outline and corner settings. */
+    val favouriteAppsKey: StringSetting
+        get() = if (this == SYSTEM) SettingsManager.WIDGET_SYSTEM_FAVOURITE_APPS else SettingsManager.WIDGET_MATERIAL_FAVOURITE_APPS
+    val showMediaKey: BooleanSetting
+        get() = if (this == SYSTEM) SettingsManager.WIDGET_SYSTEM_SHOW_MEDIA else SettingsManager.WIDGET_MATERIAL_SHOW_MEDIA
+    val outlineThicknessKey: IntSetting
+        get() = if (this == SYSTEM) SettingsManager.WIDGET_SYSTEM_OUTLINE_THICKNESS else SettingsManager.WIDGET_MATERIAL_OUTLINE_THICKNESS
+    val cornerRadiusKey: IntSetting
+        get() = if (this == SYSTEM) SettingsManager.WIDGET_SYSTEM_CORNER_RADIUS else SettingsManager.WIDGET_MATERIAL_CORNER_RADIUS
 }
 
 /** Custom colours for each widget element (used by the "Custom" G icon style). */
@@ -49,7 +63,15 @@ data class WidgetDesignSettings(
     val lockBlack: Boolean,
     val actionIcon: String,
     /** Whether the G gets the day's animated doodle on holidays and the first day of each season (only while it's shown). */
-    val showDoodles: Boolean = true
+    val showDoodles: Boolean = true,
+    /** Up to [MAX_FAVOURITE_APPS] apps, by package name, shown in a row above the bar when the widget is tall enough. */
+    val favouriteApps: List<String> = emptyList(),
+    /** Whether a row above the bar shows what's playing, with play/pause and next, when the widget is tall enough. */
+    val showMedia: Boolean = false,
+    /** The bar's outline in dp (the Material design's rim), 0 to [MAX_OUTLINE_THICKNESS]. */
+    val outlineThickness: Int = 0,
+    /** The bar's outer corner radius in dp, 0 to [MAX_CORNER_RADIUS]; drawn at most half the bar's height. */
+    val cornerRadius: Int = 28
 ) {
     /**
      * The custom pill colour these settings produce (what the widget draws for the "Custom" subtheme): the HCT seed
@@ -163,7 +185,11 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
             slotOrder = string("shortcut_order", "widget_shortcut_order", DEFAULT_SLOT_ORDER),
             lockBlack = prefs.getBoolean("${p}_lock_black", true),
             actionIcon = string("action_icon", "widget_action_icon", "Search"),
-            showDoodles = prefs.getBoolean("${p}_show_doodles", true)
+            showDoodles = prefs.getBoolean("${p}_show_doodles", true),
+            favouriteApps = favouriteApps(prefs[design.favouriteAppsKey]),
+            showMedia = prefs[design.showMediaKey],
+            outlineThickness = prefs[design.outlineThicknessKey],
+            cornerRadius = prefs[design.cornerRadiusKey]
         )
     }
 
@@ -196,6 +222,10 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
             .putInt("${p}_custom_lightness", settings.lightness.toInt())
             .putInt("${p}_custom_color_opacity", settings.colorOpacity.toInt())
             .putInt("${p}_custom_color_int", settings.customColorInt)
+            .put(design.favouriteAppsKey, settings.favouriteApps.distinct().take(MAX_FAVOURITE_APPS).joinToString(","))
+            .put(design.showMediaKey, settings.showMedia)
+            .put(design.outlineThicknessKey, settings.outlineThickness)
+            .put(design.cornerRadiusKey, settings.cornerRadius)
             .putInt("${p}_background_transparency", settings.transparency.toInt())
             .putBoolean("${p}_show_g_icon", settings.showGIcon)
             .putBoolean("${p}_show_doodles", settings.showDoodles)
@@ -214,8 +244,21 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
     companion object {
         const val DEFAULT_SLOT_ORDER = "shortcut1,mic,shortcut2,shortcut3"
 
+        /** The stored favourite apps: distinct package names, in order, at most [MAX_FAVOURITE_APPS]. */
+        fun favouriteApps(stored: String): List<String> =
+            stored.split(",").map { it.trim() }.filter { it.isNotEmpty() }.distinct().take(MAX_FAVOURITE_APPS)
+
         /** Set once [design]'s Hue, Saturation and Lightness are stored as an HCT seed rather than as HSV. */
         fun hctFlagKey(design: WidgetDesign): String = "${design.prefix}_custom_color_hct"
         private const val GOOGLE_BLUE_PLACEHOLDER = 0xFF4285F4.toInt()
     }
 }
+
+/** The most apps the favourite apps row holds. */
+const val MAX_FAVOURITE_APPS = 5
+
+/** The thickest outline the bar can have, in dp. */
+const val MAX_OUTLINE_THICKNESS = 12
+
+/** The largest corner radius that can be stored, in dp (the bar draws at most half its height). */
+const val MAX_CORNER_RADIUS = 40

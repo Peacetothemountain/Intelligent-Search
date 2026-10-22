@@ -120,15 +120,15 @@ internal val DirectActionRowShape = RoundedCornerShape(32.dp)
 
 /**
  * "Ask Claude": the row that sends [question] to [provider], and only when it is tapped (or chosen with the keyboard).
- * [highlight] draws the keyboard's ring on the pill.
+ * [modifier] goes on the pill itself, under the press (the keyboard's highlight ring).
  */
 @Composable
-internal fun AskAiRow(provider: AiProvider, question: String, highlight: Modifier = Modifier, onAsk: () -> Unit) {
+internal fun AskAiRow(provider: AiProvider, question: String, modifier: Modifier = Modifier, onAsk: () -> Unit) {
     DirectActionRow(
         title = "Ask ${provider.displayName}",
         subtitle = question,
         icon = Icons.Filled.AutoAwesome,
-        gestures = highlight,
+        gestures = modifier,
         onClick = onAsk
     )
 }

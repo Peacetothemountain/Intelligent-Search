@@ -1,12 +1,10 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.ui.rememberAppIcon
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Context
 import com.pixel.intelligentsearch.core.ui.uniqueItems
 import com.pixel.intelligentsearch.core.ui.getAppName
-import com.pixel.intelligentsearch.core.ui.AppIconResult
-import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
-import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
 import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -116,21 +114,13 @@ internal fun QuickAppPill(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
-    val appIconState = remember(packageName, activeIconPack) {
-        mutableStateOf<AppIconResult?>(peekThemedAppIcon(packageName, activeIconPack))
-    }
+    val appIcon = rememberAppIcon(packageName, activeIconPack).themed
     val appNameState = remember(packageName) { mutableStateOf(knownName) }
-    LaunchedEffect(packageName, activeIconPack) {
-        if (appIconState.value == null || appNameState.value == null) {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                if (appIconState.value == null) {
-                    appIconState.value = getThemedAppIcon(context, packageName, activePackOverride = activeIconPack)
-                }
-                if (appNameState.value == null) appNameState.value = appLabel(context, packageName)
-            }
+    LaunchedEffect(packageName) {
+        if (appNameState.value == null) {
+            appNameState.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { appLabel(context, packageName) }
         }
     }
-    val appIcon = appIconState.value
     val appName = appNameState.value
     if (appIcon != null && appName != null) {
         SearchPill(iconBitmap = appIcon, title = appName, scale = scale, launchIcon = launchIcon, onClick = onClick)

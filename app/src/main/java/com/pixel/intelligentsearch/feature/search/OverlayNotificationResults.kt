@@ -1,6 +1,8 @@
 package com.pixel.intelligentsearch.feature.search
 
-import androidx.compose.foundation.Image
+import androidx.compose.runtime.getValue
+import com.pixel.intelligentsearch.core.ui.rememberAppIcon
+import com.pixel.intelligentsearch.core.ui.AppIconImage
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,14 +23,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -41,10 +39,7 @@ import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import com.pixel.intelligentsearch.core.glance.NotificationIndex
 import com.pixel.intelligentsearch.core.system.openPendingOrApp
-import com.pixel.intelligentsearch.core.ui.AppIconResult
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
-import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
-import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
 import com.pixel.intelligentsearch.core.ui.uniqueItems
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
@@ -73,7 +68,7 @@ internal fun rememberNotificationHits(query: String, hiddenApps: Set<String>): L
 }
 
 /** The Notifications section of a search's results. [onOpened] runs as a result opens. */
-internal fun LazyListScope.notificationResultItems(hits: List<IndexedNotification>, onOpened: () -> Unit) {
+internal fun LazyListScope.notificationResultItems(hits: List<IndexedNotification>, iconPack: String?, onOpened: () -> Unit) {
     if (hits.isEmpty()) return
     item(key = "notifications_divider", contentType = "divider") {
         HorizontalDivider(
@@ -87,6 +82,7 @@ internal fun LazyListScope.notificationResultItems(hits: List<IndexedNotificatio
         NotificationResultRow(
             entry,
             now = System.currentTimeMillis(),
+            iconPack = iconPack,
             onOpened = onOpened,
             modifier = Modifier.animateItem(
                 placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
@@ -116,7 +112,7 @@ internal fun NotificationsHeader() {
  * which app and how long ago. A tap does what tapping the notification does, or opens the app.
  */
 @Composable
-internal fun NotificationResultRow(entry: IndexedNotification, now: Long, onOpened: () -> Unit, modifier: Modifier = Modifier) {
+internal fun NotificationResultRow(entry: IndexedNotification, now: Long, iconPack: String?, onOpened: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     Row(
         modifier = modifier
@@ -128,7 +124,7 @@ internal fun NotificationResultRow(entry: IndexedNotification, now: Long, onOpen
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        NotificationAppIcon(entry.packageName)
+        NotificationAppIcon(entry.packageName, iconPack)
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -160,27 +156,13 @@ internal fun NotificationResultRow(entry: IndexedNotification, now: Long, onOpen
 
 /** The app's themed icon in a 40 dp circle, as the quick apps show it; a bell until it has loaded. */
 @Composable
-private fun NotificationAppIcon(packageName: String) {
-    val context = LocalContext.current
-    var icon by remember(packageName) { mutableStateOf<AppIconResult?>(peekThemedAppIcon(packageName)) }
-    LaunchedEffect(packageName) {
-        if (icon == null) icon = withContext(Dispatchers.IO) { getThemedAppIcon(context.applicationContext, packageName) }
-    }
+private fun NotificationAppIcon(packageName: String, iconPack: String?) {
     Box(
         modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        val loaded = icon
-        if (loaded == null) {
+        AppIconImage(rememberAppIcon(packageName, iconPack), Modifier.size(40.dp)) {
             Icon(Icons.Outlined.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else {
-            Image(
-                bitmap = loaded.bitmap,
-                contentDescription = null,
-                // A monochrome (themed) icon takes the theme's colour, as on the home screen.
-                colorFilter = if (loaded.isMonochrome) ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null,
-                modifier = Modifier.size(40.dp)
-            )
         }
     }
 }

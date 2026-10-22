@@ -1,8 +1,10 @@
 package com.pixel.intelligentsearch.feature.search
 
+import androidx.compose.runtime.getValue
+import com.pixel.intelligentsearch.core.ui.rememberAppIcon
+import com.pixel.intelligentsearch.core.ui.AppIconImage
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Intent
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -26,14 +28,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -46,11 +44,7 @@ import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.haptics.rememberTactileSonicEngine
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
-import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
-import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
  * The Best Match card's contact buttons: labelled chips like an app's quick actions, so WhatsApp and WhatsApp
@@ -140,22 +134,7 @@ internal fun ContactActionIcon(action: ContactAction, activeIconPack: String, ti
         Icon(imageVector = vector, contentDescription = null, tint = tint, modifier = Modifier.size(size))
         return
     }
-    val context = LocalContext.current
-    var appIcon by remember(iconPackage, activeIconPack) { mutableStateOf(peekThemedAppIcon(iconPackage, activeIconPack)) }
-    LaunchedEffect(iconPackage, activeIconPack) {
-        if (appIcon == null) {
-            appIcon = withContext(Dispatchers.IO) { getThemedAppIcon(context, iconPackage, activePackOverride = activeIconPack) }
-        }
-    }
-    val icon = appIcon
-    if (icon != null) {
-        Image(
-            bitmap = icon.bitmap,
-            contentDescription = null,
-            modifier = Modifier.size(size),
-            colorFilter = if (icon.isMonochrome) ColorFilter.tint(tint) else null
-        )
-    } else {
+    AppIconImage(rememberAppIcon(iconPackage, activeIconPack), Modifier.size(size), tint = tint) {
         Icon(imageVector = Icons.AutoMirrored.Filled.Chat, contentDescription = null, tint = tint, modifier = Modifier.size(size))
     }
 }

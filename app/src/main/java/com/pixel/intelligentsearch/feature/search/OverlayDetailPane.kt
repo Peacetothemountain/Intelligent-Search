@@ -1,10 +1,12 @@
 package com.pixel.intelligentsearch.feature.search
 
+import androidx.compose.runtime.getValue
+import com.pixel.intelligentsearch.core.ui.rememberAppIcon
+import com.pixel.intelligentsearch.core.ui.AppIconImage
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,14 +42,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -61,7 +58,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import androidx.core.net.toUri
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
@@ -70,12 +66,9 @@ import com.pixel.intelligentsearch.core.data.SavedLink
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.search.AndroidSettingResult
-import com.pixel.intelligentsearch.core.ui.AppIconResult
 import com.pixel.intelligentsearch.core.ui.MathResultOneBox
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
-import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
-import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
 import com.pixel.intelligentsearch.core.util.findActivity
 
 /** The test tag of the detail pane beside the results on large screens. */
@@ -337,32 +330,9 @@ private fun DetailSymbol(icon: ImageVector) {
 /** An app's icon at the pane's size, themed as the results draw it; another profile's copy keeps its badged icon. */
 @Composable
 private fun DetailAppIcon(app: AppItem, iconPack: String, otherProfile: Boolean) {
-    val context = LocalContext.current
-    val themed = remember(app.packageName, iconPack, otherProfile) {
-        mutableStateOf<AppIconResult?>(if (otherProfile) null else peekThemedAppIcon(app.packageName, iconPack))
-    }
-    LaunchedEffect(app.packageName, iconPack, otherProfile) {
-        if (themed.value == null && !otherProfile) {
-            themed.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                getThemedAppIcon(context, app.packageName, activePackOverride = iconPack)
-            }
-        }
-    }
-    val icon by themed
     val px = with(LocalDensity.current) { DETAIL_PICTURE_SIZE.roundToPx() }
-    val current = icon
-    if (current != null) {
-        Image(
-            bitmap = current.bitmap,
-            contentDescription = null,
-            modifier = Modifier.size(DETAIL_PICTURE_SIZE),
-            colorFilter = if (current.isMonochrome) ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
-        )
-    } else {
-        val fallback = remember(app.packageName, px) { runCatching { app.icon.toBitmap(px, px).asImageBitmap() }.getOrNull() }
-        if (fallback != null) Image(bitmap = fallback, contentDescription = null, modifier = Modifier.size(DETAIL_PICTURE_SIZE))
-        else DetailSymbol(Icons.AutoMirrored.Outlined.ArrowForward)
-    }
+    val icon = rememberAppIcon(app.packageName, iconPack, otherProfile, fallback = app.icon, sizePx = px)
+    AppIconImage(icon, Modifier.size(DETAIL_PICTURE_SIZE)) { DetailSymbol(Icons.AutoMirrored.Outlined.ArrowForward) }
 }
 
 /** The pane's actions, flowing onto more lines at large text sizes. */

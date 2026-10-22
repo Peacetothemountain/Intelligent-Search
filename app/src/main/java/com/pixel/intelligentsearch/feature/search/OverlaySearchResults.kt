@@ -604,6 +604,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     ResultMenuBox(s, ResultMenuTarget.App(app)) { openMenu ->
                                         AppGridItem(
                                             app,
+                                            settingsState.activeIconPack,
                                             launchIcon = LaunchIconTarget(launchIcons, iconKey),
                                             onLongClick = openMenu,
                                             modifier = Modifier.keyboardHighlight(s, ResultListKeys.inRow(ResultListKeys.APPS_ROW, ResultListKeys.app(app)), ResultHighlightTileShape)
@@ -783,7 +784,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         }
 
         // Search Your Notifications: matching notifications after the phone's other results.
-        if (uiState.query.isNotEmpty()) notificationResultItems(notificationHits) { hasStartedTyping = false }
+        if (uiState.query.isNotEmpty()) notificationResultItems(notificationHits, settingsState.activeIconPack) { hasStartedTyping = false }
 
         if (!isBottomResults) {
             renderInlineShortcuts()

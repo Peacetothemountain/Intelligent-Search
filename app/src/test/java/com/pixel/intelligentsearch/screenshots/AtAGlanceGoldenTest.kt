@@ -111,7 +111,7 @@ class AtAGlanceGoldenTest(private val state: String, private val dark: Boolean) 
                             "glance" -> GlanceSection(items)
                             else -> {
                                 NotificationsHeader()
-                                notifications.forEach { NotificationResultRow(it, now = NOW, onOpened = {}) }
+                                notifications.forEach { NotificationResultRow(it, now = NOW, iconPack = null, onOpened = {}) }
                             }
                         }
                     }

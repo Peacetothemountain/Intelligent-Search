@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.core.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -45,12 +47,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,8 +76,6 @@ import com.pixel.intelligentsearch.core.answers.WeatherCodes
 import com.pixel.intelligentsearch.core.answers.WeatherReport
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
@@ -534,12 +531,8 @@ fun ScreenTimeOneBox(
 /** An app's themed icon in a circle, or its initial while there is none (or the app is gone). */
 @Composable
 private fun ScreenTimeAppIcon(packageName: String, label: String) {
-    val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
-    var icon by remember(packageName) { mutableStateOf(peekThemedAppIcon(packageName)) }
-    LaunchedEffect(packageName) {
-        if (icon == null) icon = withContext(Dispatchers.IO) { getThemedAppIcon(context, packageName) }
-    }
+    val icon = rememberAppIcon(packageName, iconPack = null).themed
     Box(
         modifier = Modifier
             .size(36.dp)

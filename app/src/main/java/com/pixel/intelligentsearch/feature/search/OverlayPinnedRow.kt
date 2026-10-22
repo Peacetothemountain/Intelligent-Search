@@ -111,7 +111,7 @@ internal fun OverlayPinnedRow(s: OverlayScope) {
                     when (result) {
                         is AppItem -> {
                             val iconKey = pinnedIconKey(result)
-                            AppGridItem(result, launchIcon = LaunchIconTarget(s.launchIcons, iconKey), onLongClick = openMenu, modifier = highlight) {
+                            AppGridItem(result, s.settingsState.activeIconPack, launchIcon = LaunchIconTarget(s.launchIcons, iconKey), onLongClick = openMenu, modifier = highlight) {
                                 openResult(context, s, result, LaunchSource.tap(iconKey))
                             }
                         }

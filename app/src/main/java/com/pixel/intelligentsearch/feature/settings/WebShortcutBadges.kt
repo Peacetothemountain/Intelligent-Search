@@ -26,6 +26,10 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
@@ -77,14 +81,16 @@ fun SynchronizedMorphingShortcutBadge(
             }
         }
 
+        // Longer triggers ("!youtube") shrink to fit on one line; ones that already fit keep their usual size.
         Text(
             text = shortcut,
             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
-            fontSize = if (shortcut.length > 3) 10.sp else 12.sp,
             color = contentColor,
             textAlign = TextAlign.Center,
-            maxLines = 1
+            softWrap = false,
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(minFontSize = 6.sp, maxFontSize = if (shortcut.length > 3) 10.sp else 12.sp)
         )
     }
 }
@@ -177,6 +183,11 @@ fun SlideToRemoveAllBar(
                     .background(
                         if (isThresholdReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0.90f)
                     )
+                    // TalkBack can't slide the thumb, so it offers Remove All as an action. It isn't a click, so a
+                    // tap still can't remove everything by accident.
+                    .semantics(mergeDescendants = true) {
+                        customActions = listOf(CustomAccessibilityAction("Remove all") { currentOnRemoveAll(); true })
+                    }
                     .pointerInput(maxDragPx) {
                         detectHorizontalDragGestures(
                             onDragEnd = {

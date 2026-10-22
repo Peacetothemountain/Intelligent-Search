@@ -140,6 +140,19 @@ class SearchBangManager @Inject constructor(
                 description = "Search Songs and Artists on Spotify."
             )
         )
+
+        /** A built-in's prefix with the "!" trigger, whatever trigger it was written with. */
+        fun canonicalBuiltInPrefix(prefix: String): String =
+            "!" + prefix.lowercase(Locale.ROOT).trim().trimStart { !it.isLetterOrDigit() }
+
+        /**
+         * The built-ins the user has removed, for the editor to offer back. Like [buildBangs] it compares canonical
+         * prefixes, so one removed under an older trigger symbol is still listed.
+         */
+        fun availableBuiltIns(disabled: Set<String>): List<SearchBang> {
+            val disabledCanonical = disabled.map(::canonicalBuiltInPrefix).toSet()
+            return BUILT_IN_BANGS.filter { canonicalBuiltInPrefix(it.displayPrefix) in disabledCanonical }
+        }
     }
 
     private fun getPrefs(): SharedPreferences = settingsManager.prefs
@@ -151,6 +164,7 @@ class SearchBangManager @Inject constructor(
             cachedTriggerSymbol = null
             cachedSyncBangs = null
         }
+        if (key == null || key == SettingsManager.SEARCH_QUICK_SHORTCUTS.name) cachedQuickShortcutsEnabled = null
     }
 
     init {
@@ -165,6 +179,17 @@ class SearchBangManager @Inject constructor(
     fun getTriggerSymbol(): String =
         cachedTriggerSymbol ?: getPrefs()[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL].ifBlank { "!" }
             .also { cachedTriggerSymbol = it }
+
+    @Volatile
+    private var cachedQuickShortcutsEnabled: Boolean? = null
+
+    /**
+     * The "Enable Quick Web Shortcuts" switch. While it's off no query is read as a shortcut and none are
+     * suggested, so "!yt cats" is searched as typed; the editor still lists the shortcuts through [bangsFlow].
+     */
+    private fun quickShortcutsEnabled(): Boolean =
+        cachedQuickShortcutsEnabled ?: getPrefs()[SettingsManager.SEARCH_QUICK_SHORTCUTS]
+            .also { cachedQuickShortcutsEnabled = it }
 
     val bangsFlow: Flow<List<SearchBang>> = settingsManager.settingsFlow.map { settings ->
         val trigger = settings.webShortcutTriggerSymbol.ifBlank { "!" }
@@ -196,13 +221,9 @@ class SearchBangManager @Inject constructor(
             .distinctBy { it.displayPrefix }
     }
 
-    /** A built-in's prefix with the "!" trigger, whatever trigger it was written with. */
-    private fun canonicalBuiltInPrefix(prefix: String): String =
-        "!" + prefix.lowercase(Locale.ROOT).trim().trimStart { !it.isLetterOrDigit() }
-
     fun parseBangQuery(query: String, availableBangs: List<SearchBang> = getAllBangsSync()): ParsedBangQuery? {
         val trimmed = query.trim()
-        if (trimmed.isEmpty()) return null
+        if (trimmed.isEmpty() || !quickShortcutsEnabled()) return null
         val triggerSymbol = getTriggerSymbol()
 
         // Fast-path: Bangs strictly require the active trigger symbol or universal fallback '!'
@@ -259,7 +280,7 @@ class SearchBangManager @Inject constructor(
 
     fun getBangSuggestions(partialToken: String, availableBangs: List<SearchBang> = getAllBangsSync()): List<SearchBang> {
         val token = partialToken.trim().lowercase()
-        if (token.isEmpty()) return emptyList()
+        if (token.isEmpty() || !quickShortcutsEnabled()) return emptyList()
         val triggerSymbol = getTriggerSymbol().lowercase()
 
         val startsWithTrigger = token.startsWith(triggerSymbol) || token.startsWith("!")

@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
@@ -36,6 +37,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 
 /**
@@ -141,6 +143,8 @@ fun GoogleMessagesSwitch(
     )
 
     var dragAccumulator by remember { mutableFloatStateOf(0f) }
+    // Drag amounts are screen left-to-right, but in a right-to-left layout "on" is at the left end.
+    val isRtl by rememberUpdatedState(LocalLayoutDirection.current == LayoutDirection.Rtl)
 
     val stateDesc = if (checked) "On" else "Off"
 
@@ -179,7 +183,7 @@ fun GoogleMessagesSwitch(
                     },
                     onDragCancel = { dragAccumulator = 0f },
                     onHorizontalDrag = { _, dragAmount ->
-                        dragAccumulator += dragAmount
+                        dragAccumulator += if (isRtl) -dragAmount else dragAmount
                     }
                 )
             }

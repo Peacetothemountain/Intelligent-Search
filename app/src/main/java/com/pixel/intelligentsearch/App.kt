@@ -4,7 +4,9 @@ import com.pixel.intelligentsearch.di.ApplicationScope
 import com.pixel.intelligentsearch.core.system.WidgetUpdater
 import com.pixel.intelligentsearch.di.appEntryPoint
 import android.app.Application
+import android.content.res.Configuration
 import android.os.Build
+import android.os.LocaleList
 import android.os.StrictMode
 import android.util.Log
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -30,9 +32,6 @@ class App : Application() {
     lateinit var multiProfileManager: dagger.Lazy<MultiProfileManager>
 
     @Inject
-    lateinit var systemToggleManager: dagger.Lazy<SystemToggleManager>
-
-    @Inject
     lateinit var settingsManager: SettingsManager
 
     @Inject
@@ -50,8 +49,12 @@ class App : Application() {
         const val KEY_RETIRED_SECRETS_REMOVED = "retired_secrets_removed_v1"
     }
 
+    /** The languages the cached app list's labels are in; null until known. */
+    private var appListLocales: LocaleList? = null
+
     override fun onCreate() {
         super.onCreate()
+        appListLocales = resources.configuration.locales
 
         setupStrictMode()
         deleteLegacyCrashLog()
@@ -90,9 +93,20 @@ class App : Application() {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        if (level >= TRIM_MEMORY_UI_HIDDEN) {
-            com.pixel.intelligentsearch.core.data.SystemDataProvider.invalidateAppsCache()
+        // UI_HIDDEN arrives every time the overlay is dismissed, so the app list stays: dropping it there made every
+        // reopen rescan every installed app. Icons and thumbnails go once the process is in the background.
+        if (level >= TRIM_MEMORY_BACKGROUND) {
             com.pixel.intelligentsearch.feature.search.clearAllUiMemoryCaches()
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // App labels are read in the current language, so a new language needs a fresh app list; other changes
+        // (rotation, dark theme) keep it.
+        if (newConfig.locales != appListLocales) {
+            appListLocales = newConfig.locales
+            SystemDataProvider.invalidateAppsCache()
         }
     }
 
@@ -125,9 +139,10 @@ class App : Application() {
                 settingsManager.migrateToSingleStore()
                 settingsManager.startDirectBootMirror()
                 StartupSync.afterUnlock(this@App, currencyRates.get())
-                // Built lazily: a process started only for a widget or the boot receiver shouldn't pay for
-                // camera, network and profile registration on the main thread.
-                systemToggleManager.get().clearLegacyAppNightModeOverride()
+                // A process started only for a widget or the boot receiver shouldn't pay for camera, network and
+                // profile registration on the main thread: the night-mode clean-up needs no toggle manager, and the
+                // profile manager is built lazily.
+                SystemToggleManager.clearLegacyNightModeOverrideIfNeeded(this@App)
                 multiProfileManager.get().refreshProfiles()
                 removeRetiredSecretsOnce()
                 SystemDataProvider.getAllApps(this@App, forceRefresh = false)

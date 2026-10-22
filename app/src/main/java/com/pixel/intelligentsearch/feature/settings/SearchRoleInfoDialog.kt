@@ -65,6 +65,19 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
             attestationVerifier.generateAndVerifyAttestation()
         }
     }
+    // Read once per opening: a screen lock can't change while this dialog is in front.
+    val deviceSecure = remember {
+        (context.getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager)?.isDeviceSecure == true
+    }
+    val posture = remember(hardwareLevel, attestationResult, deviceSecure) {
+        com.pixel.intelligentsearch.core.security.SecurityPosture.score(
+            keyLevel = hardwareLevel,
+            attestation = attestationResult,
+            securityPatch = android.os.Build.VERSION.SECURITY_PATCH,
+            today = java.time.LocalDate.now(),
+            deviceSecure = deviceSecure
+        )
+    }
     val view = androidx.compose.ui.platform.LocalView.current
 
     AlertDialog(
@@ -79,8 +92,8 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                 Text(
                     text = when (pagerState.currentPage) {
                         0 -> "Developer Note"
-                        1 -> "Hardware & Security"
-                        else -> "Battery & System Diagnostics"
+                        1 -> "Battery & System Diagnostics"
+                        else -> "Hardware & Security"
                     },
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
@@ -270,11 +283,10 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                         }
-                                        val adbCommands = "adb shell settings put secure user_setup_search_engine com.pixel.intelligentsearch\nadb shell settings put secure selected_search_engine com.pixel.intelligentsearch"
                                         IconButton(
                                             onClick = {
                                                 val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                                clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", adbCommands))
+                                                clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS))
                                                 Toast.makeText(context, "ADB commands copied to clipboard", Toast.LENGTH_SHORT).show()
                                             },
                                             modifier = Modifier.size(32.dp)
@@ -359,97 +371,10 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                         }
                     }
                     1 -> {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.Security,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                        modifier = Modifier.size(26.dp)
-                                    )
-                                    Text(
-                                        text = hardwareInfo.title,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                                    )
-                                }
-                            }
-                            Text(
-                                text = hardwareInfo.description,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                                ) {
-                                    Text(
-                                        text = "Device: ${hardwareInfo.deviceDisplayName}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = "Hardware Security: ${hardwareInfo.chipName}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = "TEE Architecture: ${hardwareInfo.teeName}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = "SoC Platform: ${hardwareInfo.socDisplayName}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text(
-                                        text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): " + when {
-                                            attestationResult == null -> "Verifying..."
-                                            attestationResult?.isHardwareAttested == true -> "Hardware Verified ✓"
-                                            // Only a verified chain earns "Verified"; otherwise just name where the key lives.
-                                            attestationResult?.securityLevel == com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.STRONGBOX -> "StrongBox Backed (unverified)"
-                                            attestationResult?.securityLevel == com.pixel.intelligentsearch.core.security.HardwareSecurityLevel.TEE -> "TEE Backed (TrustZone)"
-                                            else -> "Software Backed"
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (attestationResult?.isHardwareAttested == true) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = "Certificate Chain Depth: ${attestationResult?.certificateCount ?: "..."} certificates",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
+                        BatteryAndMemoryDiagnosticsPage(context = context)
                     }
                     else -> {
-                        BatteryAndMemoryDiagnosticsPage(context = context)
+                        HardwareSecurityPage(hardwareInfo = hardwareInfo, attestationResult = attestationResult, posture = posture)
                     }
                 }
             }
@@ -465,14 +390,15 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                         TextButton(onClick = {
                             coroutineScope.launch { pagerState.animateScrollToPage(1) }
                         }) {
-                            Text("Security Info")
+                            Text("Diagnostics")
                         }
                         TextButton(onClick = {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                            val clip = android.content.ClipData.newPlainText("ADB Command", "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch")
+                            // Both commands: selecting the app alone fails while it isn't on the search engine list.
+                            val clip = android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS)
                             clipboard?.setPrimaryClip(clip)
                             com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click(view)
-                            Toast.makeText(context, "ADB command copied to clipboard", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "ADB commands copied to clipboard", Toast.LENGTH_SHORT).show()
                         }) {
                             Text("Copy Command")
                         }
@@ -482,7 +408,7 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                     TextButton(onClick = {
                         coroutineScope.launch { pagerState.animateScrollToPage(2) }
                     }) {
-                        Text("Diagnostics")
+                        Text("Security Info")
                     }
                 }
                 else -> {
@@ -509,7 +435,7 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                     TextButton(onClick = {
                         coroutineScope.launch { pagerState.animateScrollToPage(1) }
                     }) {
-                        Text("Security Info")
+                        Text("Diagnostics")
                     }
                 }
             }

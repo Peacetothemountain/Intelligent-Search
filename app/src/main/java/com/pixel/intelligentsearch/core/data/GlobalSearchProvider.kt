@@ -208,15 +208,13 @@ class GlobalSearchProvider : ContentProvider() {
                             contact.phoneNumber.ifBlank { "Contact" },
                             "android.resource://${safeCtx?.packageName}/drawable/ic_search_lens_expressive",
                             Intent.ACTION_VIEW,
-                            contact.lookupUri.ifBlank { "tel:${contact.phoneNumber}" },
+                            // The system parses this as a link: an encoded number keeps a '#' and what follows it.
+                            contact.lookupUri.ifBlank { Uri.fromParts("tel", contact.phoneNumber, null).toString() },
                             contact.name,
                             "contact:${contact.name.hashCode()}"
                         ))
                     }
                 }
-
-                // App shortcuts are not offered here: a suggestion row can only carry an intent URI, which can't
-                // start a launcher shortcut (that needs LauncherApps.startShortcut), so a row would just open the app.
             }
 
             // 5. Dynamic Autocomplete Suggestions

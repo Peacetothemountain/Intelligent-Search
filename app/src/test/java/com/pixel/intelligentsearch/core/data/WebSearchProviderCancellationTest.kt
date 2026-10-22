@@ -1,0 +1,47 @@
+package com.pixel.intelligentsearch.core.data
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import java.net.InetAddress
+import java.net.ServerSocket
+import java.net.Socket
+import java.util.concurrent.CopyOnWriteArrayList
+import kotlin.concurrent.thread
+import kotlin.system.measureTimeMillis
+
+/**
+ * Each keystroke replaces the last query's web suggestion request. The replaced request must stop when cancelled, or
+ * the next query's suggestions wait behind it until it times out.
+ */
+@RunWith(RobolectricTestRunner::class)
+class WebSearchProviderCancellationTest {
+
+    @After fun useTheEngineAgain() {
+        WebSearchProvider.endpointForTests = null
+    }
+
+    @Test
+    fun aCancelledRequestStopsAtOnce() = runBlocking {
+        ServerSocket(0, 1, InetAddress.getLoopbackAddress()).use { server ->
+            // A server that takes the connection and never answers.
+            val held = CopyOnWriteArrayList<Socket>()
+            thread(isDaemon = true) { runCatching { while (true) held += server.accept() } }
+            WebSearchProvider.endpointForTests = "http://127.0.0.1:${server.localPort}/complete?q="
+
+            val request = launch(Dispatchers.IO) { WebSearchProvider.getWebSuggestions("stalled ${System.nanoTime()}", timeoutMs = 5_000) }
+            delay(100)
+            val took = measureTimeMillis { request.cancelAndJoin() }
+
+            held.forEach { it.close() }
+            assertTrue("cancelling took $took ms", took < 500)
+        }
+    }
+}

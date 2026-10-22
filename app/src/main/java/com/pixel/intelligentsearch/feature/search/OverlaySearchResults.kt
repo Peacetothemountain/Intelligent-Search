@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.core.ui.uniqueItems
-import androidx.core.net.toUri
 import com.pixel.intelligentsearch.feature.widget.getLensSearchIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceActionIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent
@@ -20,7 +19,6 @@ import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.AppItem
 import android.content.Intent
 import android.net.Uri
-import android.content.Context
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.*
@@ -92,6 +90,20 @@ internal fun resultSectionOrder(
     return sections.toMutableList().apply { add(after.maxOf { sections.indexOf(it) } + 1, "android_settings") }
 }
 
+/** The icon on a suggested action, by its [DirectAction.iconType]; a type with no icon of its own falls back to the clipboard. */
+internal fun directActionIcon(type: String): androidx.compose.ui.graphics.vector.ImageVector = when (type) {
+    "link" -> Icons.Default.Link
+    "phone" -> Icons.Default.Call
+    "search" -> Icons.Default.Search
+    "calendar" -> Icons.Default.Event
+    "message" -> Icons.AutoMirrored.Filled.Message
+    "timer" -> Icons.Default.Timer
+    "alarm" -> Icons.Default.Alarm
+    "navigation" -> Icons.Default.Directions
+    "private_space" -> Icons.Default.Lock
+    else -> Icons.Default.ContentPaste
+}
+
 /** The overlay's results list: suggested actions, best match, recents, calendar, shortcuts, one-boxes, and the app, Android Settings, web, people and file sections. */
 @Composable
 internal fun OverlaySearchResults(s: OverlayScope) {
@@ -106,6 +118,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val fileWeight = s.fileWeight
     val suggestionsEnabled = s.suggestionsEnabled
     val performAppLaunch = s.performAppLaunch
+    val launchIcons = s.launchIcons
+    val appLaunch = s.appLaunch
     val launchWebSearch = s.launchWebSearch
     val openWebAddress = s.openWebAddress
     val visibleApps = s.visibleApps
@@ -295,14 +309,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         )
                         .swipeOffset(swipe)
                 ) {
-                    val actionIcon = when (action.iconType) {
-                        "link" -> Icons.Default.Link
-                        "phone" -> Icons.Default.Call
-                        "search" -> Icons.Default.Search
-                        "calendar" -> Icons.Default.Event
-                        "message" -> Icons.AutoMirrored.Filled.Message
-                        else -> Icons.Default.ContentPaste
-                    }
+                    val actionIcon = directActionIcon(action.iconType)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -517,7 +524,12 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
-                            Text(event.startTime.split(":").first(), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            // The badge holds the hour; an all-day event has none, so it gets the event icon.
+                            if (event.allDay) {
+                                Icon(imageVector = Icons.Default.Event, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+                            } else {
+                                Text(event.startTime.split(":").first(), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column {
@@ -528,29 +540,6 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 }
             }
             item(key = "calendar_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-        }
-
-        if (settingsState.searchShortcuts && uiState.shortcuts.isNotEmpty()) {
-            uniqueItems(uiState.shortcuts, key = { shortcut -> "shortcut_${shortcut.packageName}_${shortcut.id}_${shortcut.userHandle.hashCode()}" }, contentType = { "app_shortcut" }) { shortcut ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().expressiveRowClickable {
-                        hasStartedTyping = false
-                        focusManager.clearFocus(force = true)
-                        keyboardController?.hide()
-                        val launcherApps = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as? android.content.pm.LauncherApps
-                        try {
-                            launcherApps?.startShortcut(shortcut.packageName, shortcut.id, null, null, shortcut.userHandle)
-                            viewModel.onQueryChanged("")
-                        } catch (e: Exception) { android.util.Log.w("IntelligentSearch", "Unexpected error", e) }
-                    }.padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(Icons.Default.MoreVert, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                    Spacer(modifier = Modifier.width(16.dp))
-                    Text(shortcut.shortLabel, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                }
-            }
-            item(key = "shortcuts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
         }
 
         if (uiState.mathResult != null) {
@@ -577,7 +566,12 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         ConversionOneBox(conversionText = instantAnswer.title)
                     }
                     "currency" -> {
-                        ConversionOneBox(conversionText = instantAnswer.title, ratesLabel = instantAnswer.subtitle)
+                        ConversionOneBox(
+                            conversionText = instantAnswer.title,
+                            ratesLabel = instantAnswer.subtitle,
+                            header = "CURRENCY CONVERSION",
+                            clipLabel = "Currency Conversion"
+                        )
                     }
                     "dictionary" -> {
                         DictionaryOneBox(
@@ -649,7 +643,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     }
                                 }
                                 uniqueItems(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
-                                    AppGridItem(app) { performAppLaunch(app) }
+                                    val iconKey = LaunchIconKeys.app(app)
+                                    AppGridItem(app, launchIcon = LaunchIconTarget(launchIcons, iconKey)) { performAppLaunch(app, LaunchSource.tap(iconKey)) }
                                 }
                             }
                         }
@@ -777,16 +772,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     .fillMaxWidth()
                                     .expressiveRowClickable {
                                         hasStartedTyping = false
-                                        val intent = if (isDirectCall && contact.phoneNumber.isNotBlank()) {
-                                            Intent(Intent.ACTION_DIAL, "tel:${contact.phoneNumber}".toUri())
-                                        } else if (contact.lookupUri.isNotBlank()) {
-                                            Intent(Intent.ACTION_VIEW, contact.lookupUri.toUri()) // Contacts reads it with its own permission; no grant needed
-                                        } else if (contact.phoneNumber.isNotBlank()) {
-                                            Intent(Intent.ACTION_DIAL, "tel:${contact.phoneNumber}".toUri())
-                                        } else {
-                                            Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
-                                        }
-                                        launchSafeIntent(context, intent)
+                                        launchSafeIntent(context, ContactActions.openIntent(contact, isDirectCall))
                                     }
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -814,7 +800,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     onClick = {
                                         if (contact.phoneNumber.isNotBlank()) {
                                             hasStartedTyping = false
-                                            launchSafeIntent(context, Intent(Intent.ACTION_DIAL, "tel:${contact.phoneNumber}".toUri()))
+                                            launchSafeIntent(context, ContactActions.callIntent(contact.phoneNumber))
                                         }
                                     }
                                 ) {

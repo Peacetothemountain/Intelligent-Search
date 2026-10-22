@@ -57,4 +57,28 @@ class WidgetSettingsSaveTest {
         assertFalse(prefs.getBoolean("widget_material_design_saved", false))
         assertFalse(prefs.contains("widget_material_subtheme"))
     }
+
+    @Test
+    fun switchingToMaterialKeepsItsInnerPillState() {
+        val prefs = ApplicationProvider.getApplicationContext<Context>()
+            .getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit()
+            .putBoolean("widget_material_design_saved", true)
+            .putBoolean("widget_material_lock_black", false)
+            .putString(SettingsManager.WIDGET_THEME_STYLE.name, "System Default")
+            .commit()
+        com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations()
+        compose.mainClock.autoAdvance = false
+        compose.setContent { IntelligentSearchTheme(darkTheme = false) { WidgetSettingsScreen(prefs) {} } }
+        compose.settle()
+
+        compose.onNodeWithText("Material Design", useUnmergedTree = true).performClick()
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Save", useUnmergedTree = true).performClick()
+        compose.settle(steps = 5)
+
+        assertEquals("Material You (Minimal)", prefs.getString(SettingsManager.WIDGET_THEME_STYLE.name, null))
+        // Switching design only shows the Material design; its "Inner Pill & Circle State" stays as the user left it.
+        assertFalse(prefs.getBoolean("widget_material_lock_black", true))
+    }
 }

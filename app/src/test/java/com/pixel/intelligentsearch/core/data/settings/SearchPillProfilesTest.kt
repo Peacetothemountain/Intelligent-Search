@@ -49,6 +49,14 @@ class SearchPillProfilesTest {
         assertEquals("c", prefs[SettingsManager.SEARCH_PILLS])
     }
 
+    /** Tapping the profile already shown must not swap in its older working copy. */
+    @Test
+    fun switchingToTheActiveProfileKeepsItsPills() {
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, "r1,r2").putString("app_search_profile_1", "a,b").commit()
+        assertEquals(listOf("r1", "r2"), profiles.switchTo(1))
+        assertEquals(listOf("r1", "r2"), profiles.pills())
+    }
+
     @Test
     fun resetReturnsToTheSavedState() {
         profiles.setPills(listOf("x"))
@@ -65,6 +73,51 @@ class SearchPillProfilesTest {
         profiles.switchTo(3)
         profiles.setPills(listOf("q"))
         assertEquals(emptyList<String>(), profiles.resetToSaved())
+    }
+
+    /** Max Quick Panel Apps caps the panel; an app just added to Quick Launch must not be the one left out. */
+    @Test
+    fun addingAppsPastTheMaxRaisesItSoTheyShow() {
+        assertEquals(6, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
+        profiles.setPills(defaults + listOf("g", "h"))
+        assertEquals(8, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
+    }
+
+    @Test
+    fun removingOrReorderingAppsLeavesTheMaxAlone() {
+        prefs.edit().put(SettingsManager.SHORTCUT_RESULTS_COUNT, 3).commit()
+        profiles.setPills(defaults.reversed())
+        profiles.setPills(defaults.take(2))
+        assertEquals(3, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
+    }
+
+    @Test
+    fun aMaxTheUserLoweredHoldsUntilAnAppIsAdded() {
+        prefs.edit().put(SettingsManager.SHORTCUT_RESULTS_COUNT, 2).commit()
+        profiles.setPills(defaults.take(4))
+        assertEquals(2, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
+        profiles.setPills(defaults.take(5))
+        assertEquals(5, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
+    }
+
+    /** Only adding apps raises it: switching profiles back and forth keeps a max the user chose. */
+    @Test
+    fun switchingProfilesKeepsTheMax() {
+        profiles.switchTo(2)
+        profiles.setPills((1..9).map { "p$it" })
+        assertEquals(9, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
+        prefs.edit().put(SettingsManager.SHORTCUT_RESULTS_COUNT, 4).commit()
+        profiles.switchTo(1)
+        profiles.switchTo(2)
+        assertEquals(4, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
+    }
+
+    /** With Context Aware Quick Apps on the panel shows recent apps, so editing the chosen list changes nothing there. */
+    @Test
+    fun contextAwarePanelsKeepTheirMax() {
+        prefs.edit().put(SettingsManager.CONTEXT_AWARE_QUICK_APPS, true).commit()
+        profiles.setPills(defaults + listOf("g", "h"))
+        assertEquals(6, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
     }
 
     @Test

@@ -22,15 +22,6 @@ data class SearchBang(
     val displayPrefix: String
         get() = prefix.lowercase()
 
-    fun buildWebUrl(query: String): String {
-        val encodedQuery = android.net.Uri.encode(query.trim())
-        return if (urlTemplate.contains("%s")) {
-            urlTemplate.replace("%s", encodedQuery)
-        } else {
-            "$urlTemplate$encodedQuery"
-        }
-    }
-
     fun buildAppUri(query: String): android.net.Uri? {
         val template = appIntentUriTemplate ?: return null
         val encodedQuery = android.net.Uri.encode(query.trim())

@@ -4,6 +4,7 @@ import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
+import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandHorizontally
@@ -32,7 +33,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -45,8 +45,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -56,19 +63,29 @@ import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
+import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/** An installed app with its icon already drawn at row size. */
+private class HiddenAppRow(val app: AppItem, val icon: ImageBitmap?)
+
+/** [loadApps] lists the installed apps; tests pass their own. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+fun ManageHiddenAppsScreen(
+    prefs: SharedPreferences,
+    onBack: () -> Unit,
+    loadApps: suspend (Context) -> List<AppItem> = { SystemDataProvider.getAllApps(it) }
+) {
     val context = LocalContext.current
-    val viewModel = LocalSettingsViewModel.current
     var hiddenApps by remember { mutableStateOf(prefs[SettingsManager.HIDDEN_APPS]) }
-    var installedApps by remember { mutableStateOf<List<AppItem>>(emptyList()) }
+    var installedApps by remember { mutableStateOf<List<HiddenAppRow>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
-    
+    val searchFocus = remember { FocusRequester() }
+    val iconPx = with(LocalDensity.current) { 24.dp.roundToPx() }
+
     val isAuthenticated = rememberProtectedPageUnlock(
         title = "Unlock Private Search",
         subtitle = "Verify identity to view hidden items",
@@ -78,11 +95,18 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             // Hiding works per package, and work/private-profile copies share it; duplicate LazyColumn keys crash.
-            val apps = SystemDataProvider.getAllApps(context).distinctBy { it.packageName }.sortedBy { it.name.lowercase() }
+            // Each icon is drawn once here at row size, not on the main thread while the list scrolls.
+            val apps = loadApps(context).distinctBy { it.packageName }.sortedBy { it.name.lowercase() }
+                .map { app -> HiddenAppRow(app, runCatching { app.icon.toBitmap(iconPx, iconPx).asImageBitmap() }.getOrNull()) }
             withContext(Dispatchers.Main) {
                 installedApps = apps
             }
         }
+    }
+
+    // Opening search puts the cursor in the field, so typing can start straight away.
+    LaunchedEffect(isSearching) {
+        if (isSearching) searchFocus.requestFocus()
     }
 
     Scaffold(containerColor = Color.Transparent, topBar = {
@@ -132,7 +156,10 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 14.sp
                                     ),
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .focusRequester(searchFocus)
+                                        .semantics { contentDescription = "Search apps" }
                                 )
                             }
                         }
@@ -145,15 +172,18 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 }
             },
             actions = {
-                IconButton(onClick = { 
-                    if (isSearching) {
-                        isSearching = false
-                        searchQuery = ""
-                    } else {
-                        isSearching = true 
+                // Nothing to search until the page is unlocked.
+                if (isAuthenticated) {
+                    IconButton(onClick = {
+                        if (isSearching) {
+                            isSearching = false
+                            searchQuery = ""
+                        } else {
+                            isSearching = true
+                        }
+                    }) {
+                        Icon(if (isSearching) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = if (isSearching) "Close search" else "Search")
                     }
-                }) {
-                    Icon(if (isSearching) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = if (isSearching) "Close search" else "Search")
                 }
             },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -199,27 +229,27 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     val filteredApps = if (searchQuery.isBlank()) {
                         installedApps
                     } else {
-                        installedApps.filter { it.name.contains(searchQuery, ignoreCase = true) || it.packageName.contains(searchQuery, ignoreCase = true) }
+                        installedApps.filter { it.app.name.contains(searchQuery, ignoreCase = true) || it.app.packageName.contains(searchQuery, ignoreCase = true) }
                     }
 
                     items(
                         count = filteredApps.size,
-                        key = { index -> filteredApps[index].packageName }
+                        key = { index -> filteredApps[index].app.packageName }
                     ) { index ->
-                        val app = filteredApps[index]
+                        val row = filteredApps[index]
+                        val app = row.app
                         val isHidden = hiddenApps.contains(app.packageName)
-                        
+
                         SettingsRowToggle(
                             title = app.name,
                             subtitle = app.packageName,
-                            icon = app.icon,
+                            icon = row.icon,
                             isChecked = isHidden,
                             onCheckedChange = { hide ->
                                 val newSet = hiddenApps.toMutableSet()
                                 if (hide) newSet.add(app.packageName) else newSet.remove(app.packageName)
                                 hiddenApps = newSet
                                 prefs.edit().put(SettingsManager.HIDDEN_APPS, newSet).apply()
-                                viewModel?.updateSetting(SettingsManager.HIDDEN_APPS, newSet)
                             },
                             showDivider = index < filteredApps.size - 1
                         )
@@ -228,6 +258,14 @@ fun ManageHiddenAppsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         item {
                             Text(
                                 "Loading apps...",
+                                modifier = Modifier.padding(16.dp),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else if (filteredApps.isEmpty()) {
+                        item {
+                            Text(
+                                "No Apps Match",
                                 modifier = Modifier.padding(16.dp),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

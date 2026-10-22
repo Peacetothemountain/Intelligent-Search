@@ -65,6 +65,39 @@ class MorphBouncePhysicsTest {
     }
 
     @Test
+    fun inAreasOfEveryShapeEveryShapeLeavesInTimeHavingMadeItsPlannedBounces() {
+        // Width x height in dp, and pixels per dp: the smallest area, a phone's, a tall phone's, a wide and short one,
+        // a tablet's in landscape and a tall tablet's. Wide areas take more than one flight to cross; in tall ones
+        // every flight is long and shapes knock each other high.
+        val areas = listOf(
+            Triple(320, 40, 3f), Triple(360, 160, 4f), Triple(411, 600, 3f),
+            Triple(1280, 160, 2f), Triple(1280, 500, 2f), Triple(840, 900, 3f)
+        )
+        for ((widthDp, heightDp, density) in areas) {
+            val scene = morphSceneFor(widthDp * density, heightDp * density, density)!!
+            for (seed in 1..500) {
+                val where = "${widthDp}x$heightDp dp, seed $seed"
+                val physics = MorphBouncePhysics(Random(seed)).apply { resize(scene.widthMetres, scene.heightMetres, scene.radiiMetres) }
+                val alive = mutableMapOf<Int, MorphBouncePhysics.Body>()
+                var left = 0
+                run(physics, 20f, onFrame = {
+                    for (b in physics.bodies) {
+                        assertTrue("$where: shape ${b.id} still on screen after ${b.age}s", b.age < MorphBouncePhysics.MAX_LIFETIME)
+                        alive[b.id] = b
+                    }
+                    val ids = physics.bodies.map { it.id }.toSet()
+                    for (id in alive.keys - ids) {
+                        val b = alive.remove(id)!!
+                        assertTrue("$where: shape $id left after ${b.bounces} bounces, planned ${b.plannedBounces}", b.bounces >= b.plannedBounces)
+                        left++
+                    }
+                })
+                assertTrue("$where: only $left shapes came and went", left >= 4)
+            }
+        }
+    }
+
+    @Test
     fun theOpeningWaveDropsFourOrFiveShapes() {
         val physics = world()
         var peak = 0
@@ -240,6 +273,47 @@ class MorphBouncePhysicsTest {
         run(physics, 3f)
         assertEquals(0f, spinBefore, 0f)
         assertTrue("spin ${body.spin}", body.bounces == 0 || kotlin.math.abs(body.spin) > 0.1f || body !in physics.bodies)
+    }
+
+    @Test
+    fun aKnockNeverPushesAShapeComingInBackUnderTheCard() {
+        val physics = quietWorld(2)
+        val coming = physics.spawn(bounces = 3, slot = 0, slots = 1)!!
+        val below = physics.spawn(bounces = 3, slot = 0, slots = 1)!!
+        // A shape just in the area, rising fast, right under one that is still coming in.
+        coming.x = 2f; coming.y = -coming.radius; coming.vx = 0f; coming.vy = 0.5f
+        below.x = 2f; below.y = below.radius + 0.01f; below.vx = 0f; below.vy = -4f
+        var highest = coming.y
+        run(physics, 0.5f, onFrame = { highest = minOf(highest, coming.y) })
+        assertTrue("pushed up to ${highest + coming.radius} m above where it came in", highest >= -coming.radius - 1e-3f)
+    }
+
+    @Test
+    fun whenTheAreaShrinksEveryShapeIsKeptInsideIt() {
+        for (seed in 1..20) {
+            val physics = world(seed)
+            run(physics, 2f)
+            assertTrue("seed $seed: no shapes in the air", physics.bodies.isNotEmpty())
+            // As when the phone turns to landscape or the text grows while the page is open.
+            physics.resize(4.11f, 0.9f, listOf(0.085f, 0.10f, 0.115f, 0.13f))
+            for (b in physics.bodies) {
+                assertTrue("seed $seed: shape ${b.id} too big for the area", b.radius <= physics.height * MorphBouncePhysics.MAX_RADIUS_SHARE)
+                assertTrue("seed $seed: shape ${b.id} at ${b.y} under a ${physics.height} m floor", b.y + b.radius <= physics.height + 1e-4f)
+                if (!b.exiting) assertTrue("seed $seed: shape ${b.id} at ${b.x}", b.x >= b.radius - 1e-4f && b.x <= physics.width - b.radius + 1e-4f)
+            }
+            // Every bounce after it, the first included, is a real one: felt as a tap.
+            val bouncesBefore = physics.bodies.associateWith { it.bounces }
+            val seen = physics.bodies.toMutableSet()
+            var felt = 0
+            run(physics, 10f, onFrame = {
+                seen += physics.bodies
+                for (b in physics.bodies) {
+                    assertTrue("seed $seed: shape ${b.id} ${b.penetration} m into the bed", b.penetration < 0.3f)
+                    if (b.entered) assertTrue("seed $seed: shape ${b.id} rose to ${b.y - b.radius}", b.y - b.radius >= -1e-3f)
+                }
+            }, listener = { _, _ -> felt++ })
+            assertEquals("seed $seed: bounces felt", seen.sumOf { it.bounces - (bouncesBefore[it] ?: 0) }, felt)
+        }
     }
 
     @Test

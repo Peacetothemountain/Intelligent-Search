@@ -27,9 +27,6 @@ class RadixTreeIndex<T> {
         val children: MutableList<RadixNode<T>> = mutableListOf(),
         val values: LinkedHashSet<T> = LinkedHashSet()
     ) {
-        val isTerminal: Boolean
-            get() = values.isNotEmpty()
-
         /**
          * Stores [value] on this node. If an equal element is already present it is replaced by the
          * new instance, so re-indexing an entity (same identity, updated payload) never leaves a stale
@@ -350,16 +347,5 @@ class RadixTreeIndex<T> {
             }
         }
         return node.children.isEmpty() && node.values.isEmpty()
-    }
-
-    /**
-     * Clears all indexed edges and payloads.
-     */
-    fun clear() {
-        lock.write {
-            root.children.clear()
-            root.values.clear()
-            totalEntries = 0
-        }
     }
 }

@@ -120,7 +120,7 @@ class ResponsiveLayoutAuditTest(private val screen: String, private val device: 
             "search_behavior" -> SearchBehaviorScreen(prefs, back)
             "launch_portal" -> LaunchPortalScreen(prefs, back)
             "app_search" -> AppSearchScreen(prefs, {}, back)
-            "search_pills" -> SearchPillsScreen(prefs, back, {})
+            "search_pills" -> SearchPillsScreen(prefs, back)
             "web_search" -> WebSearchScreen(prefs, back)
             "contact_search" -> ContactSearchScreen(prefs, back)
             "file_search" -> FileSearchScreen(prefs, back)
@@ -132,7 +132,7 @@ class ResponsiveLayoutAuditTest(private val screen: String, private val device: 
                 val query = OVERLAY_QUERIES.getValue(name)
                 val viewModel: SearchViewModel = hiltViewModel()
                 if (query.isNotEmpty()) LaunchedEffect(Unit) { viewModel.onQueryChanged(query) }
-                SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
+                SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
             }
         }
     }

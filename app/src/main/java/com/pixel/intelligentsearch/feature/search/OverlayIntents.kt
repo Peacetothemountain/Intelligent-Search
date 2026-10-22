@@ -111,7 +111,10 @@ internal fun webSearchLaunch(context: Context, engine: String, customUrl: String
         "Bing" -> viewOrFallback("https://www.bing.com/search?q=$encoded")
         else -> {
             val google = systemWebSearchIntent(query).setPackage("com.google.android.googlequicksearchbox")
-            if (context.packageManager.resolveActivity(google, 0) != null) google else systemWebSearchIntent(query)
+            // Without the Google app the system web search would come back to this app, which answers it as the
+            // search engine; open Google's results page instead.
+            if (context.packageManager.resolveActivity(google, 0) != null) google
+            else viewOrFallback("https://www.google.com/search?q=$encoded")
         }
     }
     return com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open(intent)
@@ -130,7 +133,8 @@ internal fun quickAppSearchIntent(context: Context, packageName: String, query: 
         "com.android.chrome" -> Intent(Intent.ACTION_VIEW, "https://google.com/search?q=$encoded".toUri()).setPackage(packageName)
         "com.google.android.apps.maps" -> Intent(Intent.ACTION_VIEW, "geo:0,0?q=$encoded".toUri()).setPackage(packageName)
         "com.google.android.youtube" -> Intent(Intent.ACTION_SEARCH).setPackage(packageName).putExtra("query", query)
-        "com.android.vending" -> Intent(Intent.ACTION_VIEW, "market://search?q=$encoded".toUri())
+        // Other stores answer market:// links too; the pill is the Play Store's.
+        "com.android.vending" -> Intent(Intent.ACTION_VIEW, "market://search?q=$encoded".toUri()).setPackage(packageName)
         "com.google.android.contacts" -> pm.getLaunchIntentForPackage(packageName)
             ?: Intent(Intent.ACTION_PICK).apply { type = android.provider.ContactsContract.Contacts.CONTENT_TYPE }
         "com.google.android.apps.nbu.files" -> pm.getLaunchIntentForPackage(packageName)

@@ -33,6 +33,12 @@ object UserGrantedFiles {
     private const val LEGACY_KEY_FOLDER_URI = "search.files.uri"
     private const val LEGACY_KEY_PHOTO_COUNT = "search.files.photo_count"
 
+    /**
+     * Keys that only mean something on this phone: Android grants access to picked folders and photos per
+     * device, so another phone can't open them. Backups leave them out and a restore never replaces them.
+     */
+    val DEVICE_LOCAL_KEYS = setOf(KEY_FOLDER_URIS, KEY_MEDIA_URIS, LEGACY_KEY_FOLDER_URI, LEGACY_KEY_PHOTO_COUNT)
+
     /** Keys whose change means the file index has to be rebuilt. */
     val INDEX_KEYS = setOf(
         KEY_FOLDER_URIS, KEY_MEDIA_URIS, LEGACY_KEY_FOLDER_URI

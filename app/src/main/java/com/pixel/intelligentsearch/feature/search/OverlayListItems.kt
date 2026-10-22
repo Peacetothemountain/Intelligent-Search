@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -32,8 +33,9 @@ import androidx.core.graphics.drawable.toBitmap
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 
+/** An app in the app row: its icon and name. The icon is marked as [launchIcon], so the app opens out of it. */
 @Composable
-fun AppGridItem(app: AppItem, onClick: () -> Unit) {
+fun AppGridItem(app: AppItem, launchIcon: LaunchIconTarget? = null, onClick: () -> Unit) {
     val context = LocalContext.current
     // Another profile's copy keeps its own (badged) icon: themed icons are looked up by package, i.e. the personal app.
     val otherProfile = app.userHandle != null && app.userHandle != android.os.Process.myUserHandle()
@@ -54,9 +56,15 @@ fun AppGridItem(app: AppItem, onClick: () -> Unit) {
         }
     }
     val appIcon = appIconState.value
-    val fallbackBitmap = remember(app.packageName) {
-        runCatching { app.icon.toBitmap().asImageBitmap() }.getOrNull()
-    }
+    // The app's own icon fills the slot only while the themed one loads, so it is rasterised only then, and at the
+    // size shown rather than full size: on the main thread, for every result, the full-size copy was wasted work.
+    // It stays on the main thread so a cold cache never leaves the slot blank for a frame.
+    val iconPx = with(LocalDensity.current) { 48.dp.roundToPx() }
+    val fallbackBitmap = if (appIcon == null) {
+        remember(app.packageName, iconPx) {
+            runCatching { app.icon.toBitmap(iconPx, iconPx).asImageBitmap() }.getOrNull()
+        }
+    } else null
 
     Column(
         modifier = Modifier
@@ -69,14 +77,14 @@ fun AppGridItem(app: AppItem, onClick: () -> Unit) {
             Image(
                 bitmap = appIcon.bitmap,
                 contentDescription = label,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(48.dp).launchIcon(launchIcon),
                 colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
             )
         } else if (fallbackBitmap != null) {
             Image(
                 bitmap = fallbackBitmap,
                 contentDescription = label,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(48.dp).launchIcon(launchIcon)
             )
         }
         Spacer(modifier = Modifier.height(8.dp))

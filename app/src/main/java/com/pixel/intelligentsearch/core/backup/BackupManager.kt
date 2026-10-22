@@ -9,10 +9,14 @@ import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
 import com.pixel.intelligentsearch.core.data.HistoryDao
 import com.pixel.intelligentsearch.core.data.HistoryEntity
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.UserGrantedFiles
+import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
+import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
 import com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -56,7 +60,6 @@ class BackupManager @Inject constructor(
             "searchWeb" to SettingsManager.SEARCH_WEB,
             "searchCalculator" to SettingsManager.SEARCH_CALCULATOR,
             "searchCalendar" to SettingsManager.SEARCH_CALENDAR,
-            "searchShortcuts" to SettingsManager.SEARCH_SHORTCUTS,
             "showWallpaper" to SettingsManager.SHOW_WALLPAPER,
             "filesHiddenFiles" to SettingsManager.FILES_HIDDEN_FILES,
             "filesThumbnails" to SettingsManager.FILES_THUMBNAILS,
@@ -92,7 +95,8 @@ class BackupManager @Inject constructor(
 
         private fun isBlockedInternalKey(key: String): Boolean {
             if (key.isBlank() || key.length > 128) return true
-            return key.endsWith("_vault") ||
+            return key in UserGrantedFiles.DEVICE_LOCAL_KEYS ||
+                key.endsWith("_vault") ||
                 key.endsWith("_iv") ||
                 key.endsWith("_level") ||
                 key.startsWith("saved_passphrase") ||
@@ -101,7 +105,9 @@ class BackupManager @Inject constructor(
                 key == "blind_seed" ||
                 key == "datastore_migration_v1_completed" ||
                 key == "profile_1_restored_to_default_v918" ||
-                key == "app_night_mode_override_cleared_v1"
+                key == "app_night_mode_override_cleared_v1" ||
+                key == SettingsManager.PILL_OPACITY_LINEAR_KEY ||
+                key == SettingsManager.QUICK_PANEL_CAPS_CHOSEN_APPS_KEY
         }
 
         /** The backup file's type label for a declared setting. */
@@ -156,7 +162,6 @@ class BackupManager @Inject constructor(
         prefsMap["searchWeb"] = currentSettings.searchWeb.toString()
         prefsMap["searchCalculator"] = currentSettings.searchCalculator.toString()
         prefsMap["searchCalendar"] = currentSettings.searchCalendar.toString()
-        prefsMap["searchShortcuts"] = currentSettings.searchShortcuts.toString()
         prefsMap["backgroundBlur"] = currentSettings.backgroundBlur.toString()
         prefsMap["showWallpaper"] = currentSettings.showWallpaper.toString()
         prefsMap["backgroundTransparency"] = currentSettings.backgroundTransparency.toString()
@@ -189,7 +194,7 @@ class BackupManager @Inject constructor(
         val allCustomPrefs = sharedPrefs.all
         val spJsonObj = JSONObject()
         for ((k, v) in allCustomPrefs) {
-            if (v == null) continue
+            if (v == null || k in UserGrantedFiles.DEVICE_LOCAL_KEYS) continue
             val itemObj = JSONObject()
             when (v) {
                 is Boolean -> {
@@ -315,7 +320,8 @@ class BackupManager @Inject constructor(
         val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, key, iv)
         return EncryptedBackupEnvelope(
             isHardwareBacked = false,
-            hardwareChip = hwInfo.chipName,
+            // Where this phone keeps its keys: a phone without StrongBox must not name a security chip it doesn't use.
+            hardwareChip = hwInfo.keyHolderName,
             deviceModel = hwInfo.deviceDisplayName,
             kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt)),
             cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
@@ -485,6 +491,18 @@ class BackupManager @Inject constructor(
     private suspend fun restorePayload(payload: BackupContentPayload): Int = withContext(Dispatchers.IO) {
         var restoredCount = 0
         val sharedPrefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        // Files saved before the pill opacity became linear hold 50 for an opaque pill (schema 1 files never say).
+        val pillOpacityIsLinear = runCatching {
+            JSONObject(payload.sharedPreferencesJson).optJSONObject(SettingsManager.PILL_OPACITY_LINEAR_KEY)
+                ?.optBoolean("value") == true
+        }.getOrDefault(false)
+        // Files saved before Max Quick Panel Apps capped the chosen apps showed every one of them.
+        val quickPanelCapsChosenApps = runCatching {
+            JSONObject(payload.sharedPreferencesJson).optJSONObject(SettingsManager.QUICK_PANEL_CAPS_CHOSEN_APPS_KEY)
+                ?.optBoolean("value") == true
+        }.getOrDefault(false)
+        fun restoredInt(setting: SettingKey<*>?, value: Int): Int =
+            if (setting == SettingsManager.PILL_OPACITY && !pillOpacityIsLinear) SettingsManager.pillOpacityFromOldScale(value) else value
 
         // 1. Restore all rich typed preferences from sharedPreferencesJson (Schema 2+)
         if (payload.sharedPreferencesJson.isNotBlank() && payload.sharedPreferencesJson != "{}") {
@@ -493,6 +511,7 @@ class BackupManager @Inject constructor(
                 require(spObj.length() <= BackupPreferenceSchema.MAX_KEYS) { "Backup has too many settings" }
                 val editor = sharedPrefs.edit()
                 val localValues = sharedPrefs.all
+                var typedRestored = 0
                 val keys = spObj.keys()
                 while (keys.hasNext()) {
                     val key = keys.next()
@@ -505,8 +524,8 @@ class BackupManager @Inject constructor(
                     runCatching {
                         val itemObj = spObj.getJSONObject(key)
                         val type = itemObj.optString("type")
-                        // Known keys must carry the type the app reads them with. Keys the schema doesn't
-                        // name (per-shortcut custom values etc.) must at least match what is stored here now.
+                        // Known keys (including per-shortcut custom actions and pill profiles) must carry the type
+                        // the app reads them with. Keys the schema doesn't name must at least match what is stored here now.
                         val expectedType = setting?.let(::sharedPrefTypeName)
                             ?: BackupPreferenceSchema.expectedType(key)
                             ?: localValues[key]?.let { sharedPrefTypeName(it) }
@@ -523,7 +542,7 @@ class BackupManager @Inject constructor(
                                 val intVal = itemObj.getInt("value")
                                 val range = (setting as? IntSetting)?.range ?: BackupPreferenceSchema.intRange(key)
                                 if (range != null && intVal !in range) return@runCatching
-                                editor.putInt(target, intVal)
+                                editor.putInt(target, restoredInt(setting, intVal))
                             }
                             "LONG" -> editor.putLong(target, itemObj.getLong("value"))
                             "FLOAT" -> {
@@ -551,10 +570,22 @@ class BackupManager @Inject constructor(
                         }
                         // The restored canonical value replaces any old spelling still stored locally.
                         setting?.legacyNames?.forEach(editor::remove)
-                        restoredCount++
+                        typedRestored++
                     }
                 }
-                editor.commit()
+                // A widget design's colour sliders from a file older than the HCT seed are HSV, so they mustn't be
+                // read as a seed because of a flag this phone set.
+                for (design in WidgetDesign.entries) {
+                    val flag = WidgetSettingsStore.hctFlagKey(design)
+                    val restoresSliders = listOf("hue", "saturation", "lightness").any { spObj.has("${design.prefix}_custom_$it") }
+                    if (restoresSliders && !spObj.has(flag)) editor.remove(flag)
+                }
+                if (editor.commit()) {
+                    restoredCount += typedRestored
+                } else {
+                    // None of them reached storage, so none count as restored.
+                    Log.w("BackupManager", "Restored typed SharedPreferences could not be saved")
+                }
             } catch (e: Throwable) {
                 android.util.Log.w("BackupManager", "Failed to restore typed SharedPreferences", e)
             }
@@ -570,7 +601,7 @@ class BackupManager @Inject constructor(
             } ?: INT_SETTING_KEYS[k]?.let { key ->
                 v.toIntOrNull()
                     ?.takeIf { value -> BackupPreferenceSchema.intRange(key.name)?.contains(value) ?: true }
-                    ?.let { settingsManager.updateSetting(key, it) }
+                    ?.let { settingsManager.updateSetting(key, restoredInt(key, it)) }
             } ?: STRING_SETTING_KEYS[k]?.let { key ->
                 if (key == SettingsManager.CUSTOM_SEARCH_ENGINE_URL && !isValidCustomSearchUrl(v)) {
                     null
@@ -579,6 +610,9 @@ class BackupManager @Inject constructor(
                 }
             }
             if (restored != null) restoredCount++
+        }
+        if (!quickPanelCapsChosenApps) {
+            sharedPrefs.edit { SettingsManager.fitQuickPanelToChosenApps(sharedPrefs, this) }
         }
 
         // 3. Restore Custom Bangs & Section Configs (including empty "[]" or emptyList() so clean backups clear prior items)

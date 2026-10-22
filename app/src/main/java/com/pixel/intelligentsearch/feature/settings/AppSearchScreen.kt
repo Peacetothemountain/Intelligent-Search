@@ -13,16 +13,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.ListAlt
 import androidx.compose.material.icons.outlined.Animation
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Spellcheck
 import androidx.compose.material.icons.outlined.ViewCarousel
+import androidx.compose.material.icons.outlined.ViewCompact
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -34,10 +32,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.SearchPillProfiles
 import com.pixel.intelligentsearch.core.navigation.Route
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,7 +62,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("App Settings", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp))
+            SettingsSectionHeader("App Settings")
             SettingsCard {
                 SettingsRow(
                     title = "Application Search",
@@ -97,33 +98,21 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                 )
             }
 
-            Text("Include in search result", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp))
+            // The overlay's quick-app panel: the same switch as Search Behavior's Quick App Panel, and how many of the
+            // apps chosen under Application Search (or recent apps, when context aware) it shows.
+            SettingsSectionHeader("Quick Panel Apps")
             SettingsCard {
-                var searchShortcuts by rememberSetting(SettingsManager.SEARCH_SHORTCUTS)
+                var quickAppPanel by rememberSetting(SettingsManager.QUICK_SEARCH_HORIZONTAL)
                 SettingsRowToggle(
-                    title = "Shortcuts",
-                    subtitle = "Manage Shortcuts for 20 Apps.",
-                    icon = Icons.AutoMirrored.Outlined.ListAlt,
-                    isChecked = searchShortcuts,
-                    onCheckedChange = { searchShortcuts = it },
+                    title = "Quick App Panel",
+                    subtitle = "Show Your Quick Launch Apps Next to the Search Bar.",
+                    icon = Icons.Outlined.ViewCompact,
+                    isChecked = quickAppPanel,
+                    onCheckedChange = { quickAppPanel = it },
                     showDivider = true
                 )
-                
-                var recentShortcuts by rememberSetting(SettingsManager.SHORTCUT_RECENT)
-                SettingsRowToggle(
-                    title = "Include Recent Shortcuts",
-                    subtitle = "Show Recently Used Shortcuts as Suggestions.",
-                    icon = null,
-                    isChecked = recentShortcuts,
-                    onCheckedChange = { recentShortcuts = it },
-                    showDivider = false
-                )
-            }
-            
-            Text("Results preferences", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 4.dp))
-            SettingsCard {
-                var shortcutResultsCount by rememberSetting(SettingsManager.SHORTCUT_RESULTS_COUNT)
-                val viewModel = LocalSettingsViewModel.current
+
+                var maxQuickPanelApps by rememberSetting(SettingsManager.SHORTCUT_RESULTS_COUNT)
 
                 Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(
@@ -131,42 +120,52 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Max Shortcuts Suggestions", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                        IconButton(
+                        Text(
+                            "Max Quick Panel Apps",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+                        // Material's own IconButton: the click haptic below is this button's one haptic.
+                        androidx.compose.material3.IconButton(
                             onClick = {
                                 performClickHaptic(context)
-                                shortcutResultsCount = 6
+                                maxQuickPanelApps = SettingsManager.SHORTCUT_RESULTS_COUNT.default
                             },
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.RestartAlt,
-                                contentDescription = "Reset to Default",
+                                contentDescription = "Reset Max Quick Panel Apps",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
                     }
+                    // 1 to 20, the most apps Application Search lets you choose: past six the pills shrink to fit, and
+                    // the panel scrolls for the rest.
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                        Text("$shortcutResultsCount", modifier = Modifier.padding(end = 16.dp), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("$maxQuickPanelApps", modifier = Modifier.padding(end = 16.dp), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Android17Slider(
-                            label = "Max shortcut suggestions",
-                            value = shortcutResultsCount.toFloat(),
-                            onValueChange = { newValue -> 
-                                val newCount = newValue.toInt().coerceIn(1, 20)
-                                shortcutResultsCount = newCount
+                            label = "Max Quick Panel Apps",
+                            valueDescription = if (maxQuickPanelApps == 1) "1 app" else "$maxQuickPanelApps apps",
+                            value = maxQuickPanelApps.toFloat(),
+                            onValueChange = { newValue ->
+                                maxQuickPanelApps = newValue.toInt().coerceIn(1, SearchPillProfiles.MAX_PILLS)
                             },
-                            valueRange = 1f..20f,
-                            steps = 18,
+                            valueRange = 1f..SearchPillProfiles.MAX_PILLS.toFloat(),
+                            steps = SearchPillProfiles.MAX_PILLS - 2,
                             isSquiggly = false,
                             modifier = Modifier.weight(1f).padding(vertical = 16.dp)
                         )
                     }
                 }
+            }
 
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
-
-                PrioritySetting(SettingsManager.SEARCH_WEIGHT_APPS, "App", largeTitle = true)
+            SettingsSectionHeader("Results Preferences")
+            SettingsCard {
+                PrioritySetting(SettingsManager.SEARCH_WEIGHT_APPS, "App")
             }
         }
     }

@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.feature.settings.IconButton
 import com.pixel.intelligentsearch.core.ui.uniqueItems
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics

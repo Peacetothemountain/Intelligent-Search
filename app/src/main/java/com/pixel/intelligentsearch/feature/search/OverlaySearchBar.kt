@@ -249,7 +249,15 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                                 /* closeOverlay() */
                             }
                         } else {
-                            viewModel.onQueryChanged(newQuery)
+                            // A trigger word and a space ("sp ") opens its result at once.
+                            val quickKey = viewModel.quickKeyTarget(newQuery, submitted = false)
+                            if (quickKey != null) {
+                                textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
+                                viewModel.onQueryChanged("")
+                                openResult(context, s, quickKey, LaunchSource.keyboard())
+                            } else {
+                                viewModel.onQueryChanged(newQuery)
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
@@ -267,7 +275,16 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         keyboardController?.hide()
                         // The collected uiState can lag a keystroke behind; read the live value so Enter
                         // never acts on a query missing its last character. submitQuery waits for its results.
-                        submitQuery(viewModel.uiState.value.query, false)
+                        val submitted = viewModel.uiState.value.query
+                        // Exactly a trigger word, sent with Enter, opens its result rather than searching.
+                        val quickKey = viewModel.quickKeyTarget(submitted, submitted = true)
+                        if (quickKey != null) {
+                            textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
+                            viewModel.onQueryChanged("")
+                            openResult(context, s, quickKey, LaunchSource.keyboard())
+                        } else {
+                            submitQuery(submitted, false)
+                        }
                     }),
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart) {

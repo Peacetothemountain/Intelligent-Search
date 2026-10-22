@@ -9,7 +9,8 @@ import kotlin.math.pow
  * - Match Precision: Exact, Prefix, Word-Boundary, Acronym, Substring, Phonetic, Fuzzy
  * - Usage Frequency: Sub-linear logarithmic scaling
  * - Recency Decay: Exponential half-life decay function
- * - Pin/Favorite Weight: User-pinned preference multipliers
+ * - Pin/Favorite Weight: a pinned result that matches at all outranks every unpinned one in its domain
+ * - Nicknames: the user's own names for a result, matched whole or by their start only
  * - Domain Weight: Intent priority weighting across entity domains
  */
 object SearchScoringEngine {
@@ -51,7 +52,17 @@ object SearchScoringEngine {
     // Frequency & Recency Parameters
     private const val FREQUENCY_WEIGHT = 120.0f
     private const val RECENCY_MAX_BONUS = 350.0f
-    private const val PIN_BONUS = 500.0f
+    /**
+     * More than any unpinned result can reach (an exact match, 1000, plus the most frequency and recency add, about
+     * 680), so a pinned result that matches the query at all ranks first in its domain, as Pin to Top promises.
+     */
+    private const val PIN_BONUS = 2000.0f
+
+    /**
+     * Added to a nickname match on top of what the same match on a title scores: a name the user gave a result
+     * ("dad", "bank") means that result more surely than another result's title merely starting the same way.
+     */
+    private const val NICKNAME_BONUS = 400.0f
 
     // Half-life durations in milliseconds
     private const val HALF_LIFE_APP_MS = 48.0 * 60 * 60 * 1000 // 48 hours
@@ -77,7 +88,8 @@ object SearchScoringEngine {
         domainWeightMultiplier: Float = 1.0f,
         precomputedQueryMetaphone: DoubleMetaphone.MetaphoneResult? = null,
         precomputedTargetMetaphone: DoubleMetaphone.MetaphoneResult? = null,
-        targetSubtitle: String? = null
+        targetSubtitle: String? = null,
+        nicknames: List<String> = emptyList()
     ): ScoreBreakdown {
         val q = query.trim().lowercase()
         val title = targetTitle.trim().lowercase()
@@ -110,7 +122,9 @@ object SearchScoringEngine {
             0.0f
         }
 
-        val matchScore = maxOf(titleMatchScore, subtitleMatchScore)
+        val nicknameMatchScore = if (nicknames.isNotEmpty()) computeNicknameMatchScore(foldedQuery, nicknames) else 0.0f
+
+        val matchScore = maxOf(titleMatchScore, subtitleMatchScore, nicknameMatchScore)
         if (matchScore <= 0.0f) {
             return ScoreBreakdown(0f, 0f, 0f, 0f, 0f, metadata.domain.weight * domainWeightMultiplier)
         }
@@ -141,6 +155,29 @@ object SearchScoringEngine {
             pinScore = pinScore,
             domainMultiplier = effectiveMultiplier
         )
+    }
+
+    /**
+     * The best score of [foldedQuery] against a result's [nicknames]: only the whole nickname or its start counts (no
+     * typos or sound-alikes, which would let a short nickname catch unrelated queries), plus [NICKNAME_BONUS].
+     */
+    private fun computeNicknameMatchScore(foldedQuery: String, nicknames: List<String>): Float {
+        if (foldedQuery.isEmpty()) return 0.0f
+        var best = 0.0f
+        for (nickname in nicknames) {
+            val folded = QueryNormalizer.normalize(nickname)
+            if (folded.isEmpty()) continue
+            val score = when {
+                folded == foldedQuery -> SCORE_EXACT_MATCH
+                folded.startsWith(foldedQuery) -> {
+                    val lengthRatio = (foldedQuery.length.toFloat() / folded.length.toFloat()).coerceIn(0.05f, 1.0f)
+                    SCORE_PREFIX_MAX * lengthRatio + 150.0f
+                }
+                else -> continue
+            }
+            best = maxOf(best, score + NICKNAME_BONUS)
+        }
+        return best
     }
 
     /**

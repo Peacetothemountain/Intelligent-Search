@@ -108,6 +108,13 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
         return if (startsAName) pages.filter { it.isStrongMatch } else pages
     }
 
+    /** Catalogue page [id] as a result, if it opens on this phone: for pinned pages and trigger words. */
+    fun page(id: String): AndroidSettingResult? {
+        val page = index.firstOrNull { it.page.id == id }?.page ?: return null
+        if (!isAvailable(page.id) { Intent(page.action) }) return null
+        return AndroidSettingResult(page.id, page.title, SUBTITLE, page.iconType, Intent(page.action))
+    }
+
     private fun pageResults(query: String): List<AndroidSettingResult> {
         if (query in unlisted || query in TOO_GENERIC) return emptyList()
         val queryWords = query.split(' ')

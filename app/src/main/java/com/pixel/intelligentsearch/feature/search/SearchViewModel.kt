@@ -91,7 +91,14 @@ data class SearchUiState(
     val bangSuggestions: List<com.pixel.intelligentsearch.core.bangs.SearchBang> = emptyList(),
     val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null,
     /** The query with an obvious typo fixed, offered as "Did you mean"; null when nothing is misspelled. */
-    val spellingSuggestion: String? = null
+    val spellingSuggestion: String? = null,
+    /** What the user pinned, nicknamed or gave a trigger word, for the results' long-press menus. */
+    val shortcuts: com.pixel.intelligentsearch.core.search.ResultShortcuts = com.pixel.intelligentsearch.core.search.ResultShortcuts.EMPTY,
+    /**
+     * The pinned results that can be shown now, in pin order, for the empty overlay's Pinned row: [AppItem],
+     * [ContactItem], [FileItem] or [com.pixel.intelligentsearch.core.search.AndroidSettingResult].
+     */
+    val pinned: List<Any> = emptyList()
 )
 
 /**
@@ -142,7 +149,8 @@ class SearchViewModel @Inject constructor(
     private val privateSpaceManager: com.pixel.intelligentsearch.core.data.PrivateSpaceManager,
     private val systemToggleManager: dagger.Lazy<com.pixel.intelligentsearch.core.system.SystemToggleManager>,
     private val directBootManager: com.pixel.intelligentsearch.core.system.DirectBootManager,
-    private val androidSettingsSearch: com.pixel.intelligentsearch.core.search.AndroidSettingsSearch
+    private val androidSettingsSearch: com.pixel.intelligentsearch.core.search.AndroidSettingsSearch,
+    private val resultShortcutStore: com.pixel.intelligentsearch.core.data.ResultShortcutStore
 ) : ViewModel() {
     
     private val settingsState = settingsManager.settingsFlow
@@ -178,6 +186,7 @@ class SearchViewModel @Inject constructor(
      */
     @Volatile private var webSuggestionsQuery: String? = null
     private var searchJob: Job? = null
+    private var pinnedJob: Job? = null
 
     /** Completed once the latest search's local results are published (before its "did you mean" pause). */
     private var localResultsReady: kotlinx.coroutines.CompletableDeferred<Unit>? = null
@@ -206,6 +215,20 @@ class SearchViewModel @Inject constructor(
             corpusIndexManager.isIndexReady.first { it }
             val query = _uiState.value.query
             if (query.isNotBlank()) executeLocalSearch(query)
+            refreshPinned()
+        }
+
+        // Pins, nicknames and trigger words, from the menus here, the settings page or a restore. A change ranks the
+        // current results again at once, so a result pinned from its menu moves to the top.
+        viewModelScope.launch {
+            var first = true
+            resultShortcutStore.flow.collect { shortcuts ->
+                _uiState.update { it.copy(shortcuts = shortcuts) }
+                refreshPinned()
+                val query = _uiState.value.query
+                if (!first && query.isNotBlank()) executeLocalSearch(query)
+                first = false
+            }
         }
 
         // Tier 2: remote web suggestions, paced like Chrome's omnibox: a request goes out at once unless the last one
@@ -437,6 +460,7 @@ class SearchViewModel @Inject constructor(
                     recentApps = recentApps,
                     calendarEvents = events
                 ) }
+                refreshPinned()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 android.util.Log.w("IntelligentSearch", "Unexpected error", e)
@@ -706,7 +730,11 @@ class SearchViewModel @Inject constructor(
                         } else emptyList()
                     },
                     peopleNames = localContacts.map { it.name }
-                )
+                ).let { pages ->
+                    // Pinned pages first, the rest in their own order (the sort is stable).
+                    val shortcuts = resultShortcutStore.current
+                    pages.sortedByDescending { shortcuts.isPinned(com.pixel.intelligentsearch.core.search.ResultKeys.setting(it)) }
+                }
             } else emptyList()
 
             val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
@@ -995,6 +1023,88 @@ class SearchViewModel @Inject constructor(
     fun dismissCalendarEvent(event: CalendarEvent) {
         _uiState.update { state ->
             state.copy(calendarEvents = state.calendarEvents.filter { it != event })
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Pins, nicknames and trigger words (the results' long-press menus)
+    // ---------------------------------------------------------------------------------------------
+
+
+    /** Finds the pinned results that can be shown now (indexed, their source on, not hidden) for the empty overlay. */
+    private fun refreshPinned() {
+        pinnedJob?.cancel()
+        pinnedJob = viewModelScope.launch(Dispatchers.Default) {
+            val pinned = resultShortcutStore.current.pinned.mapNotNull { resolveShortcut(it.key) }
+            ensureActive()
+            _uiState.update { if (it.pinned == pinned) it else it.copy(pinned = pinned) }
+        }
+    }
+
+    /**
+     * The result a [com.pixel.intelligentsearch.core.search.ResultKeys] key names, if it can be offered now: an
+     * [AppItem], [ContactItem], [FileItem] or [com.pixel.intelligentsearch.core.search.AndroidSettingResult]. Its
+     * source must be on, and a hidden app stays hidden.
+     */
+    private fun resolveShortcut(key: String): Any? {
+        val settings = settingsState.value
+        return when (com.pixel.intelligentsearch.core.search.ResultKeys.kindOf(key)) {
+            com.pixel.intelligentsearch.core.search.ResultKind.APP -> if (!settings.searchApps) null else {
+                val app = unifiedSearchCoordinator.indexedResult(key) as? AppItem
+                    ?: _uiState.value.allApps.firstOrNull { com.pixel.intelligentsearch.core.search.ResultKeys.app(it) == key }
+                app?.takeIf { it.packageName !in settings.hiddenApps }
+            }
+            com.pixel.intelligentsearch.core.search.ResultKind.CONTACT ->
+                if (settings.searchContacts) unifiedSearchCoordinator.indexedResult(key) as? ContactItem else null
+            com.pixel.intelligentsearch.core.search.ResultKind.FILE ->
+                if (settings.searchFiles) unifiedSearchCoordinator.indexedResult(key) as? FileItem else null
+            com.pixel.intelligentsearch.core.search.ResultKind.SETTING -> if (!settings.searchAndroidSettings) null else
+                com.pixel.intelligentsearch.core.search.ResultKeys.settingId(key)?.let(androidSettingsSearch::page)
+            null -> null
+        }
+    }
+
+    /**
+     * The result to open for a trigger word: as [query] is typed (the word and a space) or when it is sent with Enter
+     * ([submitted]: exactly the word). Null when it is no trigger, or its result can't be opened now.
+     */
+    fun quickKeyTarget(query: String, submitted: Boolean): Any? {
+        val shortcuts = resultShortcutStore.current
+        val entry = if (submitted) com.pixel.intelligentsearch.core.search.QuickKeys.matchSubmitted(query, shortcuts)
+        else com.pixel.intelligentsearch.core.search.QuickKeys.matchTyped(query, shortcuts)
+        return entry?.let { resolveShortcut(it.key) }
+    }
+
+    /** The symbol web shortcuts start with, which trigger words can't. */
+    val webShortcutSymbol: String get() = bangManager.getTriggerSymbol()
+
+    fun setPinned(key: String, title: String, pinned: Boolean) =
+        resultShortcutStore.update { it.withPinned(key, title, pinned) }
+
+    fun addNickname(key: String, title: String, nickname: String) =
+        resultShortcutStore.update { it.withNickname(key, title, nickname) }
+
+    /** Whether [word] can be [key]'s trigger word, or why not. */
+    fun checkTrigger(key: String, word: String): com.pixel.intelligentsearch.core.search.QuickKeys.Check =
+        com.pixel.intelligentsearch.core.search.QuickKeys.check(word, key, resultShortcutStore.current, webShortcutSymbol)
+
+    /** Sets [key]'s trigger word (blank removes it); false, changing nothing, when [checkTrigger] rejects it. */
+    fun setTrigger(key: String, title: String, word: String): Boolean {
+        if (word.isNotBlank() && checkTrigger(key, word) != com.pixel.intelligentsearch.core.search.QuickKeys.Check.Ok) return false
+        resultShortcutStore.update { it.withTrigger(key, title, word, webShortcutSymbol) }
+        return true
+    }
+
+    /** Hide from Results: the app joins the hidden apps (Manage Hidden Apps lists it) and leaves the results now. */
+    fun hideApp(packageName: String) {
+        val hidden = settingsManager[SettingsManager.HIDDEN_APPS]
+        if (packageName in hidden) return
+        settingsManager.set(SettingsManager.HIDDEN_APPS, hidden + packageName)
+        _uiState.update { state ->
+            state.copy(
+                filteredApps = state.filteredApps.filterNot { it.packageName == packageName },
+                pinned = state.pinned.filterNot { it is AppItem && it.packageName == packageName }
+            )
         }
     }
 

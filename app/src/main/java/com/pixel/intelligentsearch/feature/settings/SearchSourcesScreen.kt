@@ -329,6 +329,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             },
                             showDivider = true
                         )
+                        NotificationSearchRow(showDivider = true)
                         var searchAndroidSettings by rememberSetting(SettingsManager.SEARCH_ANDROID_SETTINGS)
                         SettingsRowToggle(
                             title = "Android Settings",

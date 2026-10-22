@@ -15,57 +15,26 @@ import com.pixel.intelligentsearch.R
 
 import androidx.compose.ui.text.font.FontVariation
 
+/**
+ * Google Sans Flex, the variable typeface of Pixel's system UI and of Google's apps, bundled so every phone shows it.
+ * One file serves every weight the app uses (300 to 700), upright, at normal width and grade, with the square (ROND 0)
+ * letterforms of running text; Pixel keeps the rounded ones for expressive moments such as its lock screen clock.
+ * Optical size stays at the font's default (18) for every size.
+ */
 val GoogleSansFlex = FontFamily(
-    Font(
-        R.font.google_sans_flex,
-        FontWeight.Light,
-        variationSettings = FontVariation.Settings(
-            FontVariation.weight(300),
-            FontVariation.width(100f),
-            FontVariation.slant(0f),
-            FontVariation.grade(0)
+    listOf(FontWeight.Light, FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold).map { weight ->
+        Font(
+            R.font.google_sans_flex,
+            weight,
+            variationSettings = FontVariation.Settings(
+                FontVariation.weight(weight.weight),
+                FontVariation.width(100f),
+                FontVariation.slant(0f),
+                FontVariation.grade(0),
+                FontVariation.Setting("ROND", 0f)
+            )
         )
-    ),
-    Font(
-        R.font.google_sans_flex,
-        FontWeight.Normal,
-        variationSettings = FontVariation.Settings(
-            FontVariation.weight(400),
-            FontVariation.width(100f),
-            FontVariation.slant(0f),
-            FontVariation.grade(0)
-        )
-    ),
-    Font(
-        R.font.google_sans_flex,
-        FontWeight.Medium,
-        variationSettings = FontVariation.Settings(
-            FontVariation.weight(500),
-            FontVariation.width(100f),
-            FontVariation.slant(0f),
-            FontVariation.grade(0)
-        )
-    ),
-    Font(
-        R.font.google_sans_flex,
-        FontWeight.SemiBold,
-        variationSettings = FontVariation.Settings(
-            FontVariation.weight(600),
-            FontVariation.width(100f),
-            FontVariation.slant(0f),
-            FontVariation.grade(0)
-        )
-    ),
-    Font(
-        R.font.google_sans_flex,
-        FontWeight.Bold,
-        variationSettings = FontVariation.Settings(
-            FontVariation.weight(700),
-            FontVariation.width(100f),
-            FontVariation.slant(0f),
-            FontVariation.grade(0)
-        )
-    )
+    }
 )
 
 /**

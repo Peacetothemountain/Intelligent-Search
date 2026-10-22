@@ -154,7 +154,8 @@ fun ManageHiddenAppsScreen(
                                     singleLine = true,
                                     textStyle = TextStyle(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 14.sp
+                                        fontSize = 14.sp,
+                                        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex
                                     ),
                                     modifier = Modifier
                                         .fillMaxWidth()

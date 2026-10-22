@@ -96,9 +96,9 @@ internal fun AutoBackupCard(obtainPassphrase: (onReady: (String?) -> Unit) -> Un
     SettingsCard(modifier = Modifier.backupCard("backup_card_auto")) {
         BackupCardTitle("Automatic Backup")
         BackupCardDescription(
-            "Backs up weekly to a folder you choose, encrypted with your passphrase above so it restores on any phone. Keeps the latest ${AutoBackup.KEEP}."
+            "Weekly to a folder you choose, encrypted with your passphrase above. Keeps the latest ${AutoBackup.KEEP}."
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         if (!enabled) {
             Button(
                 onClick = {
@@ -182,6 +182,5 @@ internal fun AutoBackupCard(obtainPassphrase: (onReady: (String?) -> Unit) -> Un
                 }
             }
         }
-        Spacer(modifier = Modifier.height(4.dp))
     }
 }

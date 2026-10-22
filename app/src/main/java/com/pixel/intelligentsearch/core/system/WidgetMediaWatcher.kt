@@ -1,40 +1,37 @@
 package com.pixel.intelligentsearch.core.system
 
+import android.content.ComponentName
+import android.content.Context
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.Handler
 import android.os.Looper
-import android.service.notification.NotificationListenerService
 import android.util.Log
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
 import com.pixel.intelligentsearch.core.util.storageContext
-import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.di.ApplicationScope
-import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
- * The notification listener Android asks for before it shares media sessions ([MediaSessionAccess]). Android binds it
- * only while the user has granted notification access. It ignores notifications entirely: it watches the media
- * sessions and redraws the widgets when what's playing changes, so a widget's media row keeps up, and only while a
- * widget design shows that row. (Play policy: notification access is used solely for the media controls the user
- * turned on; nothing is read from, stored from or sent from notifications.)
+ * Keeps the widgets' media row up to date: watches the active media sessions and redraws the widgets when what's
+ * playing changes, once a burst of changes settles. Driven by the app's one notification listener
+ * ([com.pixel.intelligentsearch.core.glance.NotificationAccessListener]) while it is connected and a widget design
+ * shows the row; it never reads notifications, only the media sessions Android shares with that listener.
  */
-@AndroidEntryPoint
-class MediaSessionListenerService : NotificationListenerService() {
-
-    @Inject lateinit var widgetUpdater: WidgetUpdater
-
-    @Inject @ApplicationScope lateinit var scope: CoroutineScope
-
+class WidgetMediaWatcher(
+    private val context: Context,
+    private val listener: ComponentName,
+    private val widgetUpdater: WidgetUpdater,
+    private val scope: CoroutineScope
+) {
     private val handler = Handler(Looper.getMainLooper())
     private var watched: List<MediaController> = emptyList()
+    private var started = false
     /** What the widgets last showed, so a session reporting the same thing again doesn't redraw them. */
     @Volatile private var lastShown: MediaSessionAccess.NowPlaying? = null
 
@@ -51,33 +48,36 @@ class MediaSessionListenerService : NotificationListenerService() {
 
     private val redraw = Runnable {
         scope.launch(Dispatchers.IO) {
-            val prefs = storageContext().getSharedPreferences(SettingsManager.PREFS_NAME, MODE_PRIVATE)
-            if (WidgetDesign.entries.none { prefs[it.showMediaKey] }) return@launch
-            val now = MediaSessionAccess.nowPlaying(this@MediaSessionListenerService)?.copy(sessionActivity = null)
+            if (!anyWidgetShowsMedia(context)) return@launch
+            val now = MediaSessionAccess.nowPlaying(context)?.copy(sessionActivity = null)
             if (now == lastShown) return@launch
             lastShown = now
             widgetUpdater.updateAll()
         }
     }
 
-    override fun onListenerConnected() {
-        super.onListenerConnected()
+    /** Starts watching; on the main thread, from the listener. Does nothing if already watching. */
+    fun start() {
+        if (started) return
         try {
-            val manager = getSystemService(MediaSessionManager::class.java) ?: return
-            val component = MediaSessionAccess.listenerComponent(this)
-            manager.addOnActiveSessionsChangedListener(sessionsListener, component, handler)
-            watch(manager.getActiveSessions(component))
+            val manager = context.getSystemService(MediaSessionManager::class.java) ?: return
+            manager.addOnActiveSessionsChangedListener(sessionsListener, listener, handler)
+            started = true
+            watch(manager.getActiveSessions(listener))
             scheduleRedraw()
         } catch (e: SecurityException) {
             Log.w(TAG, "Media sessions aren't readable", e)
         }
     }
 
-    override fun onListenerDisconnected() {
-        runCatching { getSystemService(MediaSessionManager::class.java)?.removeOnActiveSessionsChangedListener(sessionsListener) }
+    /** Stops watching (the listener disconnected, or no widget shows the row any more). */
+    fun stop() {
+        if (started) {
+            runCatching { context.getSystemService(MediaSessionManager::class.java)?.removeOnActiveSessionsChangedListener(sessionsListener) }
+            started = false
+        }
         watch(emptyList())
         handler.removeCallbacks(redraw)
-        super.onListenerDisconnected()
     }
 
     private fun watch(controllers: List<MediaController>) {
@@ -92,8 +92,14 @@ class MediaSessionListenerService : NotificationListenerService() {
         handler.postDelayed(redraw, SETTLE_MS)
     }
 
-    private companion object {
-        const val TAG = "MediaSessionListener"
-        const val SETTLE_MS = 300L
+    companion object {
+        private const val TAG = "WidgetMediaWatcher"
+        private const val SETTLE_MS = 300L
+
+        /** Whether any widget design shows the media row (Widget Customization -> Media Controls). */
+        fun anyWidgetShowsMedia(context: Context): Boolean {
+            val prefs = context.storageContext().getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+            return WidgetDesign.entries.any { prefs[it.showMediaKey] }
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch
 
 import android.content.Context
 import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
+import com.pixel.intelligentsearch.feature.launch.LaunchSurfaces
 import com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity
 import com.pixel.intelligentsearch.feature.widget.WidgetDoodles
 
@@ -20,5 +21,8 @@ internal object StartupSync {
         // Keep the daily currency refresh only while the Calculator and Live Currency Rates are on and Tor isn't the
         // engine.
         currencyRates.syncSchedule()
+        // Launch Portal's Search Notification, floating button and edge swipe, when on and allowed. This start also runs
+        // after a reboot (the boot receiver starts the process) and brings back a notification the user swiped away.
+        LaunchSurfaces.start(context)
     }
 }

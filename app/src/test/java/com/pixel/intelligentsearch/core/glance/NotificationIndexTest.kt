@@ -150,7 +150,7 @@ class NotificationIndexTest {
         val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
         prefs.edit().put(SettingsManager.SEARCH_NOTIFICATIONS, true).commit()
         val notifications = shadowOf(context.getSystemService(NotificationManager::class.java))
-        val component = NotificationSearchListener.component(context)
+        val component = NotificationAccessListener.component(context)
         val index = NotificationIndex()
 
         notifications.setNotificationListenerAccessGranted(component, true)

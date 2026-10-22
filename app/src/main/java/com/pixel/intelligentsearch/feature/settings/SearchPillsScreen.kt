@@ -358,7 +358,12 @@ fun SearchPillsScreen(
                     selected = activeProfile,
                     onSelect = { id -> switchProfile(id) },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                    itemHeight = 60.dp
+                    itemHeight = 60.dp,
+                    // The profile chips' own colours: no track, the active one on the primary container, the rest outlined.
+                    gap = 8.dp,
+                    contentPadding = 0.dp,
+                    indicatorShape = RoundedCornerShape(16.dp),
+                    unselectedBorder = FilterChipDefaults.filterChipBorder(enabled = true, selected = false)
                 ) { id, isSelected ->
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -385,7 +390,10 @@ fun SearchPillsScreen(
                     com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
+                            .padding(16.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = null
                     ) {
                         Column(
                             modifier = Modifier.padding(24.dp),
@@ -595,6 +603,9 @@ fun SearchPillsScreen(
                                             }
                                         }
 
+                                        val containerBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                            .compositeOver(MaterialTheme.colorScheme.background)
+
                                         com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -606,6 +617,8 @@ fun SearchPillsScreen(
                                                         if (itemIndex < localPillList.lastIndex) add(CustomAccessibilityAction("Move down") { movePill(packageName, 1) })
                                                     }
                                                 },
+                                            containerColor = containerBg,
+                                            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
                                             shape = RoundedCornerShape(24.dp)
                                         ) {
                                             Row(

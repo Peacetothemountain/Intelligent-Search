@@ -51,6 +51,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -281,12 +282,20 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             } else {
                                 MaterialTheme.colorScheme.surfaceContainer
                             }
+                            val borderColor = if (isSelected) {
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+                            } else {
+                                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f)
+                            }
+
+                            // The card's own colour, outline and drag shadow, with the matte grain on its surface.
                             com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .shadow(elevation, RoundedCornerShape(24.dp), clip = false),
                                 shape = RoundedCornerShape(24.dp),
                                 containerColor = containerColor,
-                                accentRim = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.35f) else Color.Transparent,
-                                shadowElevation = maxOf(elevation, com.pixel.intelligentsearch.core.ui.expressive.MatteShellDefaults.ShadowElevation)
+                                border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
                             ) {
                                 // Only one pack is in use at a time (System Default is none), so each row is a radio
                                 // option: tapping anywhere on it picks the pack. Dragging the handle is touch-only, so

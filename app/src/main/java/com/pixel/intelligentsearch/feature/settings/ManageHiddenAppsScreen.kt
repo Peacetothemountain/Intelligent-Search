@@ -191,6 +191,8 @@ fun ManageHiddenAppsScreen(
     ) { padding ->
         com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
             shape = RoundedCornerShape(24.dp),
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            border = null,
             modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
         ) {
             if (!isAuthenticated) {

@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
@@ -34,8 +35,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * The one golden that keeps the matte shells' film grain. Every other golden leaves it out (it doesn't compress, see
- * [MatteGrain.drawn]), so this pins the grain, glow and rim of a top-level shell holding a nested shell and a
- * [ShellSelector], in both themes.
+ * [MatteGrain.drawn]), so this pins the grain on a settings card holding a nested shell and a [ShellSelector] on
+ * a matte track, in both themes: each the colour and outline it has without the grain, only matte.
  *
  * Record with `./gradlew testDebugUnitTest --tests "*MatteShellGoldenTest*" -Proborazzi.record=true`.
  */
@@ -77,18 +78,24 @@ class MatteShellGoldenTest(private val dark: Boolean) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Text("Matte Shell", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "Grain, a soft Material You glow and a rim light.",
+                                "The same colour as before, with only a matte texture.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            ShellSelector(options = OPTIONS, selected = OPTIONS[1], onSelect = {}) { option, selected ->
+                            ShellSelector(
+                                options = OPTIONS,
+                                selected = OPTIONS[1],
+                                onSelect = {},
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                shape = RoundedCornerShape(28.dp)
+                            ) { option, selected ->
                                 Text(
                                     option,
                                     modifier = Modifier.align(Alignment.Center),
                                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                                 )
                             }
-                            MatteShell(Modifier.fillMaxWidth(), nested = true) {
+                            MatteShell(Modifier.fillMaxWidth(), containerColor = MaterialTheme.colorScheme.surfaceContainerHigh) {
                                 Text("Nested", Modifier.padding(16.dp), style = MaterialTheme.typography.bodyLarge)
                             }
                         }

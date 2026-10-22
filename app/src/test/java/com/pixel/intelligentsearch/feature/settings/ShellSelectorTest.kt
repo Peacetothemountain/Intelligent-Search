@@ -33,7 +33,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * [ShellSelector], the tab and choice selector of every settings page: options announce whether they are selected,
- * a tap picks one, and the picked one is drawn in the indicator's content colour while the rest are muted.
+ * a tap picks one, and the picked one is drawn in the primary container's content colour while the rest are muted, as
+ * in the rows the selector replaced.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -55,7 +56,7 @@ class ShellSelectorTest {
     private fun show(role: Role = Role.RadioButton) {
         compose.setContent {
             MaterialTheme(colorScheme = dynamicDarkColorScheme(LocalContext.current)) {
-                selectedColor = MaterialTheme.colorScheme.onSecondaryContainer
+                selectedColor = MaterialTheme.colorScheme.onPrimaryContainer
                 mutedColor = MaterialTheme.colorScheme.onSurfaceVariant
                 var selected by remember { mutableStateOf("Home") }
                 ShellSelector(

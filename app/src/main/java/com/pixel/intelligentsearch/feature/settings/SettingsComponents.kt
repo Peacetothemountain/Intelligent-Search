@@ -57,24 +57,31 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.semantics.*
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
+import com.pixel.intelligentsearch.core.ui.expressive.expressivePress
 
 // REUSABLE COMPONENTS
 // -----------------------------------------------------------------------------------------
 /**
- * A group of settings rows, in the matte shell every settings page groups its controls in ([MatteShell]): grainy
- * surface-container tone, soft Material You glow, top rim light and shadow, and the same entrance on every page.
+ * A group of settings rows: a flat card in [containerColor] with a faint outline-variant hairline, drawn as a matte
+ * shell ([MatteShell]), so it keeps exactly that colour and only gains the matte grain on its surface.
  */
 @Composable
 fun SettingsCard(
     modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
     shape: androidx.compose.ui.graphics.Shape = ExpressiveCornerTokens.ShapeExtraLarge,
+    // A page's main cards, the ones holding its settings, have the light behind them; a card that only holds a
+    // selector (a design switch, an icon picker) doesn't.
+    lit: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
     com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
+        // Not clipped here: the shell clips its own content, and the light behind it has to show around the edge.
         modifier = modifier,
         shape = shape,
-        containerColor = containerColor
+        containerColor = containerColor,
+        border = com.pixel.intelligentsearch.core.ui.expressive.MatteShellDefaults.border(),
+        lit = lit
     ) {
         Column(modifier = Modifier.padding(vertical = 12.dp)) {
             content()
@@ -378,16 +385,6 @@ fun SettingsRowToggle(
     val rowRole = if (isPlainToggle) Role.Switch else Role.Button
 
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val pressScale by androidx.compose.animation.core.animateFloatAsState(
-        targetValue = if (isPressed) com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens.PRESS_SCALE_ROW else 1f,
-        animationSpec = if (isPressed) {
-            com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens.Effects.FastSpatial()
-        } else {
-            com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens.Spatial.ExpressiveDefault()
-        },
-        label = "messages_row_press_scale"
-    )
 
     Column(
         modifier = modifier
@@ -403,11 +400,11 @@ fun SettingsRowToggle(
                 .fillMaxWidth()
                 .then(
                     if (containerColor != Color.Transparent) {
-                        Modifier
-                            .clip(shape)
-                            .background(color = containerColor, shape = shape)
+                        Modifier.background(color = containerColor, shape = shape)
                     } else Modifier
                 )
+                // Android 17's press: the row's shape morphs on the fast spatial spring instead of shrinking.
+                .expressivePress(interactionSource, if (containerColor != Color.Transparent) shape else null)
                 .then(
                     if (onLongClick != null) {
                         Modifier.combinedClickable(
@@ -429,10 +426,6 @@ fun SettingsRowToggle(
                 .then(
                     if (isPlainToggle) Modifier.semantics { toggleableState = ToggleableState(isChecked) } else Modifier
                 )
-                .graphicsLayer {
-                    scaleX = pressScale
-                    scaleY = pressScale
-                }
                 .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {

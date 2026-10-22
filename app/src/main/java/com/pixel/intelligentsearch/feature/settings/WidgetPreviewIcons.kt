@@ -65,6 +65,11 @@ private val nowPlayingActionPath2 by lazy { androidx.compose.ui.graphics.vector.
 private val nowPlayingActionPath3 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 10,7 L 10,16").toPath() }
 private val nowPlayingActionPath4 by lazy { androidx.compose.ui.graphics.vector.PathParser().parsePathString("M 11.6,16.5 C 11.6,19.26 9.36,21.5 6.6,21.5 C 3.84,21.5 1.6,19.26 1.6,16.5 C 1.6,13.74 3.84,11.5 6.6,11.5 C 8.6,11.5 10.3,12.7 11.1,14.4 Z").toPath() }
 
+// The action icon's strokes, made once rather than on every frame of its selection animation.
+private val lensRimStroke = androidx.compose.ui.graphics.drawscope.Stroke(width = SearchIconPaths.LENS_RIM_WIDTH, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+private val lensHandleStroke = androidx.compose.ui.graphics.drawscope.Stroke(width = SearchIconPaths.LENS_HANDLE_WIDTH, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+private val nowPlayingStroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+
 /** The search overlay's icon colours ([SearchIconColors]) from [primary], [secondary] and [tertiary] on a light or dark pill. */
 @Composable
 private fun rememberSearchIconColors(primary: Color, secondary: Color, tertiary: Color, isPillLight: Boolean): SearchIconColors =
@@ -95,6 +100,12 @@ private fun WidgetMic(colors: SearchIconColors, modifier: Modifier) {
     }
 }
 
+/**
+ * The widget's action icon, [iconType], as the widget preview and the pickers draw it. [motion], where given, is
+ * the progress (0 to 1) of the icon's selection animation ([ActionIconMotion]), read only while drawing so it plays
+ * without recomposing; without it, or at rest, the icon is drawn exactly as it always is. The Material style's
+ * Search lens is the overlay's own drawing and doesn't animate.
+ */
 @Composable
 fun ComposeActionIcon(
     iconType: String,
@@ -104,7 +115,8 @@ fun ComposeActionIcon(
     tertiaryColor: androidx.compose.ui.graphics.Color,
     quaternaryColor: androidx.compose.ui.graphics.Color = primaryColor,
     isMaterialTheme: Boolean = false,
-    isPillLight: Boolean = false
+    isPillLight: Boolean = false,
+    motion: (() -> Float)? = null
 ) {
     // The Material G style draws the search overlay's icons in the overlay's colours, from these accents.
     val colors = rememberSearchIconColors(primaryColor, secondaryColor, tertiaryColor, isPillLight)
@@ -116,73 +128,42 @@ fun ComposeActionIcon(
         OverlayLens(colors, modifier)
         return
     }
+    val pose = remember { ActionIconPose() }
     androidx.compose.foundation.Canvas(modifier = modifier) {
+        ActionIconMotion.pose(iconType, motion?.invoke() ?: 1f, pose)
         val scaleX = size.width / 24f
         val scaleY = size.height / 24f
         scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
             when (iconType) {
                 "Search" -> {
-                    drawPath(
-                        path = searchActionPath1,
-                        color = primaryColor,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = SearchIconPaths.LENS_RIM_WIDTH, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                    )
-                    drawPath(
-                        path = searchActionPath2,
-                        color = tertiaryColor,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = SearchIconPaths.LENS_RIM_WIDTH, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                    )
-                    drawPath(
-                        path = searchActionPath3,
-                        color = secondaryColor,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = SearchIconPaths.LENS_HANDLE_WIDTH, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                    )
-                    drawPath(
-                        path = searchActionPath4,
-                        color = primaryColor
-                    )
+                    withPart(pose.body) {
+                        drawPath(path = searchActionPath1, color = primaryColor, style = lensRimStroke)
+                        drawPath(path = searchActionPath2, color = tertiaryColor, style = lensRimStroke)
+                        drawPath(path = searchActionPath3, color = secondaryColor, style = lensHandleStroke)
+                    }
+                    withPart(pose.accentA) {
+                        drawPath(path = searchActionPath4, color = primaryColor)
+                    }
                 }
                 "Assistant", "Gemini", "Voice" -> {
                     val starColor = if (isMaterialTheme) tLighter else primaryColor
                     val sparkle1Color = if (isMaterialTheme) pDarker else primaryColor
                     val sparkle2Color = if (isMaterialTheme) sLighter else secondaryColor
-                    drawPath(
-                        path = assistantActionPath1,
-                        color = starColor
-                    )
-                    drawPath(
-                        path = assistantActionPath2,
-                        color = sparkle1Color
-                    )
-                    drawPath(
-                        path = assistantActionPath3,
-                        color = sparkle2Color
-                    )
+                    withPart(pose.body) { drawPath(path = assistantActionPath1, color = starColor) }
+                    withPart(pose.accentA) { drawPath(path = assistantActionPath2, color = sparkle1Color) }
+                    withPart(pose.accentB) { drawPath(path = assistantActionPath3, color = sparkle2Color) }
                 }
                 "Now Playing" -> {
                     val wave1Color = if (isMaterialTheme) tLighter else tertiaryColor
                     val wave2Color = if (isMaterialTheme) sLighter else secondaryColor
                     val wave3Color = if (isMaterialTheme) pDarker else primaryColor
                     val noteHeadColor = if (isMaterialTheme) tLighter else quaternaryColor
-                    drawPath(
-                        path = nowPlayingActionPath1,
-                        color = wave1Color,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                    )
-                    drawPath(
-                        path = nowPlayingActionPath2,
-                        color = wave2Color,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                    )
-                    drawPath(
-                        path = nowPlayingActionPath3,
-                        color = wave3Color,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
-                    )
-                    drawPath(
-                        path = nowPlayingActionPath4,
-                        color = noteHeadColor
-                    )
+                    withPart(pose.accentB) { drawPath(path = nowPlayingActionPath1, color = wave1Color, style = nowPlayingStroke) }
+                    withPart(pose.accentA) { drawPath(path = nowPlayingActionPath2, color = wave2Color, style = nowPlayingStroke) }
+                    withPart(pose.body) {
+                        drawPath(path = nowPlayingActionPath3, color = wave3Color, style = nowPlayingStroke)
+                        drawPath(path = nowPlayingActionPath4, color = noteHeadColor)
+                    }
                 }
                 else -> {
                     // None or unmapped: draw nothing

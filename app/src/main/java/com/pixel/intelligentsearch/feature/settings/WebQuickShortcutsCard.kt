@@ -309,8 +309,8 @@ internal fun WebQuickShortcutsCard() {
                     com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(20.dp),
-                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        nested = true
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        border = null
                     ) {
                         Text(
                             text = "No Active Shortcuts. Tap Add or Restore Direct Shortcuts Below.",
@@ -397,7 +397,7 @@ internal fun WebQuickShortcutsCard() {
                                             },
                                         shape = RoundedCornerShape(24.dp),
                                         containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                                        nested = true
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
                                     ) {
                                         Row(
                                             modifier = Modifier
@@ -493,7 +493,7 @@ internal fun WebQuickShortcutsCard() {
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(24.dp),
                                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                    nested = true
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f))
                                 ) {
                                     Row(
                                         modifier = Modifier

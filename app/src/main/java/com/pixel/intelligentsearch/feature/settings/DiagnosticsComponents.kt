@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -52,10 +53,12 @@ internal fun DiagnosticsCard(
     trailing: @Composable () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
-    // The same matte shell every settings page groups its controls in (see SettingsCard).
+    // The card's own colour, shape and outline, with the matte grain on its surface.
     MatteShell(
         modifier = modifier.fillMaxWidth(),
-        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        shape = RoundedCornerShape(16.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
     ) {
         Column(
             modifier = Modifier
@@ -93,16 +96,25 @@ internal fun DiagnosticsCard(
     }
 }
 
-/** A small rounded label in the card header, e.g. a health or pressure rating. */
+/**
+ * A small rounded label in the card header, e.g. a health or pressure rating. [textModifier] goes on the text itself,
+ * inside the chip's padding (the posture chip draws its count-up there).
+ */
 @Composable
-internal fun DiagnosticsStatusChip(text: String, container: Color, content: Color, modifier: Modifier = Modifier) {
+internal fun DiagnosticsStatusChip(
+    text: String,
+    container: Color,
+    content: Color,
+    modifier: Modifier = Modifier,
+    textModifier: Modifier = Modifier
+) {
     Surface(modifier = modifier, shape = RoundedCornerShape(8.dp), color = container) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = content,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).then(textModifier)
         )
     }
 }

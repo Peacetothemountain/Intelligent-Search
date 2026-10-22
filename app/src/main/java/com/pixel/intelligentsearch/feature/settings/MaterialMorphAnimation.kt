@@ -29,6 +29,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -58,9 +60,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.collectLatest
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
-import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.atan2
-import kotlin.math.cos
+import kotlin.math.round
 import kotlin.math.sqrt
 import kotlin.random.Random
 
@@ -301,9 +303,16 @@ private fun rememberPowerSaveMode(): State<Boolean> {
  *   silhouette seen flat on the floor: sharp, dark and tight on the floor, with a dark ambient occlusion right at the
  *   contact, and wider, softer and fainter the higher it is (see [MorphBouncePhysics.shadowFor]); on a dark page it is
  *   drawn darker, with a faint reflection of the shape's colour;
- * - sunk into the floor, a shape is seen through it, its colour towards the floor's, with the floor closing dark round
- *   it; the silhouette it leaves is a darker inset of its outline with a soft rim in its colour, which lingers, then
- *   heals as the floor's surface rings back;
+ * - landing soft, a shape sends two or three thin ripples in its colour across the floor, each following its outline
+ *   seen flat on the floor and fading as it spreads; landing hard, one sharp, quick one;
+ * - sunk into the floor, a shape is in it: the floor membrane dips smoothly round it over nearly three radii, stretched
+ *   over it and catching the light along the stretch, and under the membrane's near edge only a ghost of the shape
+ *   shows through, its colour towards the floor's;
+ * - the silhouette it leaves is a real hollow in the floor's perspective, lit from above: crisp at its edge in its
+ *   outline and colour, its far wall in shadow softening to the centre, a thin bright lip on its near edge, and soft
+ *   occlusion just outside the rim; it lingers, then the floor fills it in from the rim on a spring
+ *   ([healShrink]), the rim's light fading last, and its last moment breaks into a few tiny pixels in the primary
+ *   colour that dissolve, as the floor's surface rings back;
  * - they flatten a little as they sink, wobble once off the hard floor, stretch a little along their path when
  *   falling fast and scale in on a spatial spring as they come out from under the card (see
  *   [MorphBouncePhysics.animateLook] and [morphPoseOf]).
@@ -351,22 +360,57 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val shadowColor = if (isDark) Color.Black else colorScheme.onSurface
     // The floor's own colour, a touch off the page's, which a shape sunk into it is seen through.
     val floorColor = lerp(colorScheme.background, colorScheme.onSurface, 0.12f)
+    // The last moment of a healing silhouette breaks into a few pixels of this.
+    val pixelColor = colorScheme.primary
     val shadowBrush = remember(shadowColor) { softFalloff(shadowColor) }
     val reflectionBrushes = remember(colors) { colors.map { softFalloff(it) } }
+    // Shade falling off from a hollow's far wall, and darkening down the membrane's slope into it.
+    val shadeDownBrush = remember(shadowColor) { verticalFade(shadowColor, darkAtTop = true) }
+    val shadeUpBrush = remember(shadowColor) { verticalFade(shadowColor, darkAtTop = false) }
+    // The light a hollow's near lip and the stretched membrane catch, from each shape's own colour.
+    val lipColors = remember(colors, isDark) { colors.map { if (isDark) lerp(it, Color.White, 0.3f) else it } }
+    val membraneLights = remember(colors, isDark) { colors.map { lerp(it, Color.White, if (isDark) 0.45f else 0.15f) } }
     // Everything a frame draws with is made here, once: paths, poses, the shadow, strokes.
     val builder = remember { MorphPathBuilder() }
     val bodyPaths = remember { Array(physics.maxBodies) { android.graphics.Path() } }
     val bodyComposePaths = remember(bodyPaths) { Array(bodyPaths.size) { bodyPaths[it].asComposePath() } }
     val poses = remember { Array(physics.maxBodies) { MorphPose() } }
+    // A sunk shape's floor: everything above the membrane, dipping round it.
+    val floorPaths = remember { Array(physics.maxBodies) { android.graphics.Path() } }
+    val floorComposePaths = remember(floorPaths) { Array(floorPaths.size) { floorPaths[it].asComposePath() } }
+    val sunk = remember { BooleanArray(physics.maxBodies) }
     val imprintPath = remember { android.graphics.Path() }
-    val imprintScreenPath = remember { android.graphics.Path() }
-    val imprintComposePath = remember(imprintScreenPath) { imprintScreenPath.asComposePath() }
+    val hollowPath = remember { android.graphics.Path() }
+    val hollowComposePath = remember(hollowPath) { hollowPath.asComposePath() }
+    val ripplePath = remember { android.graphics.Path() }
+    val rippleComposePath = remember(ripplePath) { ripplePath.asComposePath() }
     val matrix = remember { android.graphics.Matrix() }
     val shadow = remember { MorphBouncePhysics.Shadow() }
-    val insetStroke = remember(density) { Stroke(width = with(density) { 5.dp.toPx() }) }
-    val rimStroke = remember(density) { Stroke(width = with(density) { 1.25.dp.toPx() }) }
-    val rimGlowStroke = remember(density) { Stroke(width = with(density) { 3.5.dp.toPx() }) }
+    val rimStroke = remember(density) { Stroke(width = with(density) { 1.dp.toPx() }) }
+    val occlusionStroke = remember(density) { Stroke(width = with(density) { 3.dp.toPx() }) }
+    val wideOcclusionStroke = remember(density) { Stroke(width = with(density) { 7.dp.toPx() }) }
+    val rippleStroke = remember(density) { Stroke(width = with(density) { 1.dp.toPx() }) }
+    val hardRippleStroke = remember(density) { Stroke(width = with(density) { 1.5.dp.toPx() }) }
     val surfaceLinePx = with(density) { 1.dp.toPx() }
+    val innerShadowPx = with(density) { 2.5.dp.toPx() }
+    val lipPx = with(density) { 1.5.dp.toPx() }
+    val membraneBandPx = with(density) { 1.5.dp.toPx() }
+    val pixelPx = with(density) { 2.dp.toPx() }
+    // How strongly each part of the floor is drawn: a light page a lighter touch, a dark one deeper shade.
+    val occlusionAlpha = if (isDark) 0.22f else 0.08f
+    val hollowAlpha = if (isDark) 0.26f else 0.1f
+    val farWallAlpha = if (isDark) 0.5f else 0.2f
+    val innerShadowAlpha = if (isDark) 0.3f else 0.12f
+    val lipAlpha = if (isDark) 0.55f else 0.6f
+    val edgeAlpha = if (isDark) 0.5f else 0.7f
+    val softRippleAlpha = if (isDark) 0.42f else 0.6f
+    val hardRippleAlpha = if (isDark) 0.6f else 0.75f
+    val dipAlpha = if (isDark) 0.28f else 0.1f
+    val slopeAlpha = if (isDark) 0.45f else 0.18f
+    val membraneLightAlpha = if (isDark) 0.32f else 0.45f
+    val floorLineAlpha = if (isDark) 0.5f else 0.28f
+    val pixelAlphaMax = if (isDark) 0.75f else 0.6f
+    val scanlineAlphaMax = if (isDark) 0.35f else 0.28f
     // Bumped every frame; the Canvas reads it so only drawing reruns, never composition.
     val frame = remember { mutableLongStateOf(0L) }
 
@@ -430,9 +474,10 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                 morphPoseOf(body, poses[i], f)
             }
 
-            // The silhouettes left in the floor, under everything else, once their shapes have left them.
+            // The floor, under everything else: the silhouettes pressed into it, healing once their shapes have
+            // left them, and the ripples each landing sends across it.
             for (imprint in physics.imprints) {
-                if (!imprint.active || imprint.holding || imprint.strength <= 0f) continue
+                if (!imprint.active) continue
                 val step = morphFor(imprint.shapeIndex)
                 // The outline the shape had at its deepest, sized and pivoted as the shape was drawn then.
                 builder.build(step.morph, imprint.morphProgress, imprintPath)
@@ -441,28 +486,138 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                 val pivotY = step.from.centerY + (step.to.centerY - step.from.centerY) * t
                 val fitScale = step.from.scale + (step.to.scale - step.from.scale) * t
                 val radiusPx = imprint.radius * ppm
+                val sizePx = radiusPx * fitScale
                 val xPx = imprint.x * ppm
-                // Healing, the hollow fills back up towards the floor line as it fades.
-                val heal = 0.55f + 0.45f * imprint.strength
-                matrix.reset()
-                matrix.postTranslate(-pivotX, -pivotY)
-                matrix.postScale(radiusPx * fitScale, radiusPx * fitScale)
-                matrix.postRotate(imprint.rotationDegrees)
-                matrix.postScale(1f / (1f - imprint.squash), 1f - imprint.squash)
-                matrix.postTranslate(xPx, imprint.y * ppm)
-                matrix.postScale(1f, heal, xPx, floorPx)
-                imprintPath.transform(matrix, imprintScreenPath)
-                val s = imprint.strength
-                val rim = colors[imprint.bodyId % colors.size]
-                clipRect(top = floorPx) {
-                    drawPath(imprintComposePath, shadowColor, alpha = (if (isDark) 0.28f else 0.13f) * s)
-                    // The inset: darker just inside the outline, as a hollow's walls are.
-                    clipPath(imprintComposePath) {
-                        drawPath(imprintComposePath, shadowColor, alpha = (if (isDark) 0.3f else 0.14f) * s, style = insetStroke)
+                val colorIndex = imprint.bodyId % colors.size
+                if (!imprint.holding) {
+                    // The hollow: the floor fills it back in from the rim, so its outline closes on its centre.
+                    val heal = healProgress(imprint.sinceRelease)
+                    val shrink = healShrink(heal)
+                    val k = abs(shrink)
+                    val depthPx = imprint.depth * ppm
+                    val centreY = floorPx + depthPx * HOLLOW_CENTRE
+                    matrix.reset()
+                    matrix.postTranslate(-pivotX, -pivotY)
+                    matrix.postScale(sizePx, sizePx)
+                    matrix.postRotate(imprint.rotationDegrees)
+                    matrix.postScale(1f / (1f - imprint.squash), 1f - imprint.squash)
+                    matrix.postTranslate(xPx, imprint.y * ppm)
+                    matrix.postScale(k, k, xPx, centreY)
+                    imprintPath.transform(matrix, hollowPath)
+                    // Where the floor line crossed it, closing in with the rest.
+                    val top = centreY + (floorPx - centreY) * k
+                    val spanPx = radiusPx * MorphBouncePhysics.SHAPE_REACH * k
+                    val lip = lipColors[colorIndex]
+                    if (shrink > 0.01f) {
+                        val shade = healShade(heal)
+                        val rimLight = healRim(heal)
+                        clipRect(top = top) {
+                            if (shade > 0f) {
+                                // Just outside the rim, the floor curling over into the hollow: soft occlusion.
+                                clipPath(hollowComposePath, ClipOp.Difference) {
+                                    drawPath(hollowComposePath, shadowColor, alpha = occlusionAlpha * 0.5f * shade, style = wideOcclusionStroke)
+                                    drawPath(hollowComposePath, shadowColor, alpha = occlusionAlpha * shade, style = occlusionStroke)
+                                }
+                            }
+                            clipPath(hollowComposePath) {
+                                // Its floor, out of the light from above.
+                                drawPath(hollowComposePath, shadowColor, alpha = hollowAlpha * shade)
+                                // The far wall, under the floor line, darkest at the top, softening to the centre.
+                                drawUnitGradient(shadeDownBrush, xPx - spanPx, top, 2f * spanPx, (centreY - top) * 1.3f + 1f, farWallAlpha * shade)
+                                // The inner shadow under every upper edge of the outline (a lobe turned up).
+                                for (layer in 1..2) {
+                                    val d = innerShadowPx * layer
+                                    translate(top = d) {
+                                        clipPath(hollowComposePath, ClipOp.Difference) {
+                                            translate(top = -d) { drawPath(hollowComposePath, shadowColor, alpha = innerShadowAlpha * shade / layer) }
+                                        }
+                                    }
+                                }
+                                // The near wall faces the light: a thin bright lip along its lower edge.
+                                translate(top = -lipPx) {
+                                    clipPath(hollowComposePath, ClipOp.Difference) {
+                                        translate(top = lipPx) { drawPath(hollowComposePath, lip, alpha = lipAlpha * rimLight) }
+                                    }
+                                }
+                            }
+                            // The crisp edge, in the shape's own outline and colour, fading last.
+                            drawPath(hollowComposePath, colors[colorIndex], alpha = edgeAlpha * rimLight, style = rimStroke)
+                        }
+                    } else if (shrink < -0.005f) {
+                        // Closing, the floor overfills a touch: a tiny mound catching the light, settling flat.
+                        clipRect(top = top) {
+                            drawPath(hollowComposePath, lip, alpha = lipAlpha * 0.6f * (k / 0.09f).coerceAtMost(1f))
+                        }
                     }
-                    // The rim, catching the light, in the shape's own colour.
-                    drawPath(imprintComposePath, rim, alpha = (if (isDark) 0.12f else 0.22f) * s, style = rimGlowStroke)
-                    drawPath(imprintComposePath, rim, alpha = (if (isDark) 0.45f else 0.7f) * s, style = rimStroke)
+                    // The hollow's last moment breaks into a few tiny pixels, which dissolve.
+                    val phase = healPixelPhase(heal)
+                    if (phase > 0f && phase < 1f) {
+                        val halfWidth = radiusPx * 0.8f
+                        val mirror = if (imprint.bodyId % 2 == 0) 1f else -1f
+                        for (n in HEAL_PIXEL_X.indices) {
+                            val a = pixelAlpha(phase, HEAL_PIXEL_DELAY[n])
+                            if (a <= 0f) continue
+                            val local = (phase - HEAL_PIXEL_DELAY[n]) / PIXEL_LIFE
+                            val px = snapTo(xPx + mirror * HEAL_PIXEL_X[n] * halfWidth, pixelPx)
+                            val py = snapTo(centreY + HEAL_PIXEL_Y[n] * depthPx * 0.5f - pixelPx * 1.5f * local, pixelPx)
+                            val side = pixelPx * (1f - 0.45f * local)
+                            drawRect(pixelColor, topLeft = Offset(px - side / 2f, py - side / 2f), size = Size(side, side), alpha = a * pixelAlphaMax)
+                        }
+                        val scan = scanlineAlpha(phase)
+                        if (scan > 0f) {
+                            val half = halfWidth * (0.45f + 0.8f * k)
+                            for (line in 0..1) {
+                                val y = snapTo(centreY + (line - 0.5f) * pixelPx * 1.5f, pixelPx / 2f)
+                                drawLine(pixelColor, Offset(xPx - half, y), Offset(xPx + half, y), strokeWidth = surfaceLinePx * 0.75f, alpha = scan * scanlineAlphaMax * (1f - 0.4f * line))
+                            }
+                        }
+                    }
+                }
+                // The soft landing's ripples, each following the silhouette's outline, flat on the floor.
+                for (r in 0 until SOFT_RIPPLES) {
+                    val p = rippleProgress(imprint.sincePressed, r * SOFT_RIPPLE_GAP, SOFT_RIPPLE_TIME)
+                    val a = rippleAlpha(p) * softRippleAlpha * (1f - 0.3f * r)
+                    if (a < MorphBouncePhysics.SHADOW_VISIBLE) continue
+                    val spread = rippleScale(p, SOFT_RIPPLE_SPREAD - SOFT_RIPPLE_SPREAD_STEP * r, SOFT_RIPPLE_EASE)
+                    drawOutlineRipple(imprintPath, ripplePath, rippleComposePath, matrix, pivotX, pivotY, sizePx * spread, imprint.rotationDegrees, xPx, floorPx, colors[colorIndex], a, rippleStroke)
+                }
+            }
+
+            // A hard landing's one sharp, quick ripple.
+            for (ripple in physics.ripples) {
+                if (!ripple.active) continue
+                val p = rippleProgress(ripple.age, 0f, MorphBouncePhysics.HARD_RIPPLE_TIME)
+                val a = rippleAlpha(p) * hardRippleAlpha
+                if (a < MorphBouncePhysics.SHADOW_VISIBLE) continue
+                val step = morphFor(ripple.shapeIndex)
+                builder.build(step.morph, ripple.morphProgress, imprintPath)
+                val t = ripple.morphProgress.coerceIn(0f, 1f)
+                val pivotX = step.from.centerX + (step.to.centerX - step.from.centerX) * t
+                val pivotY = step.from.centerY + (step.to.centerY - step.from.centerY) * t
+                val fitScale = step.from.scale + (step.to.scale - step.from.scale) * t
+                val spread = rippleScale(p, HARD_RIPPLE_SPREAD, HARD_RIPPLE_EASE)
+                drawOutlineRipple(imprintPath, ripplePath, rippleComposePath, matrix, pivotX, pivotY, ripple.radius * ppm * fitScale * spread, ripple.rotationDegrees, ripple.x * ppm, floorPx, colors[ripple.bodyId % colors.size], a, hardRippleStroke)
+            }
+
+            // The membrane round a shape sunk into it: the floor curving smoothly down into the hollow it presses.
+            for (i in 0 until count) {
+                val imprint = bodies[i].imprint
+                sunk[i] = imprint != null && imprint.holding
+                if (imprint == null || !sunk[i]) continue
+                val xPx = imprint.x * ppm
+                val reach = imprint.radius * ppm * MEMBRANE_REACH
+                val sagPx = imprint.surface * ppm
+                buildMembraneClip(floorPaths[i], xPx, reach, floorPx, sagPx, size.width, size.height)
+                val stretch = membraneStretch(imprint.surface, imprint.radius)
+                if (stretch > 0f) {
+                    // The dipped floor, in the shade of the shape pressing it.
+                    drawSoft(shadowBrush, xPx, floorPx + sagPx * 0.6f, 2f * reach, dipAlpha * stretch)
+                    // Its slope, darkening as it falls away from the light.
+                    clipRect(top = floorPx) {
+                        clipPath(floorComposePaths[i]) {
+                            drawUnitGradient(shadeUpBrush, xPx - reach, floorPx, 2f * reach, sagPx.coerceAtLeast(1f), slopeAlpha * stretch)
+                        }
+                    }
                 }
             }
 
@@ -533,47 +688,167 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                 val cx = (body.prevX + (body.x - body.prevX) * f) * ppm
                 val cy = (body.prevY + (body.y - body.prevY) * f) * ppm
                 val path = bodyComposePaths[i]
+                val sizePx = radiusPx * pose.scale * fitScale
                 val surfacePx = floorPx + (body.imprint?.surface ?: 0f) * ppm
-                if (cy + radiusPx * MorphBouncePhysics.SHAPE_REACH <= surfacePx) {
-                    drawShape(path, cx, cy, radiusPx * pose.scale * fitScale, pivotX, pivotY, pose, baseColor, body.glow)
+                if (sunk[i]) {
+                    // In the membrane: above it the shape as it is; under its near edge, in the floor, only a ghost.
+                    val membrane = floorComposePaths[i]
+                    clipPath(membrane) {
+                        drawShape(path, cx, cy, sizePx, pivotX, pivotY, pose, baseColor, body.glow)
+                    }
+                    clipPath(membrane, ClipOp.Difference) {
+                        drawShape(path, cx, cy, sizePx, pivotX, pivotY, pose, lerp(baseColor, floorColor, IN_MEMBRANE_TINT), 0f)
+                    }
+                } else if (cy + radiusPx * MorphBouncePhysics.SHAPE_REACH <= surfacePx) {
+                    drawShape(path, cx, cy, sizePx, pivotX, pivotY, pose, baseColor, body.glow)
                 } else {
-                    // Sunk into the floor: above its surface the shape as it is, below it seen through the floor.
+                    // Below the floor line any other way (the area just shrank): seen through the floor.
                     clipRect(bottom = surfacePx) {
-                        drawShape(path, cx, cy, radiusPx * pose.scale * fitScale, pivotX, pivotY, pose, baseColor, body.glow)
+                        drawShape(path, cx, cy, sizePx, pivotX, pivotY, pose, baseColor, body.glow)
                     }
                     clipRect(top = surfacePx) {
-                        drawShape(path, cx, cy, radiusPx * pose.scale * fitScale, pivotX, pivotY, pose, lerp(baseColor, floorColor, SUBMERGED_TINT), 0f)
+                        drawShape(path, cx, cy, sizePx, pivotX, pivotY, pose, lerp(baseColor, floorColor, SUBMERGED_TINT), 0f)
                     }
                 }
             }
 
-            // The floor's surface, seen only where a shape has broken it: sagging round a sunk shape, then springing
-            // back past its rest line and ringing out.
+            // The floor's surface, seen only where a shape has broken it: dipping round a sunk shape, stretched over
+            // it and catching the light along the stretch, then springing back past its rest line and ringing out.
             for (imprint in physics.imprints) {
                 if (!imprint.active) continue
-                val reach = imprint.radius * ppm * 3.2f
+                val reach = imprint.radius * ppm * MEMBRANE_REACH
                 val sagPx = imprint.surface * ppm
-                val strength = (imprint.strength * 0.5f + kotlin.math.abs(imprint.surface) / (0.12f * imprint.radius)).coerceIn(0f, 1f)
+                val strength = (imprint.strength * 0.5f + abs(imprint.surface) / (0.12f * imprint.radius)).coerceIn(0f, 1f)
                 if (strength < 0.02f) continue
                 val xPx = imprint.x * ppm
-                var previousX = xPx - reach
-                var previousY = floorPx
-                for (k in 1..SURFACE_SEGMENTS) {
-                    val u = -1f + 2f * k / SURFACE_SEGMENTS
-                    val bump = 0.5f + 0.5f * cos(PI.toFloat() * u)
-                    val x = xPx + u * reach
-                    val y = floorPx + sagPx * bump
-                    val mid = 0.5f + 0.5f * cos(PI.toFloat() * (u - 1f / SURFACE_SEGMENTS))
-                    drawLine(shadowColor, Offset(previousX, previousY), Offset(x, y), strokeWidth = surfaceLinePx, alpha = (if (isDark) 0.5f else 0.28f) * strength * sqrt(mid))
-                    previousX = x
-                    previousY = y
+                val stretch = if (imprint.holding) membraneStretch(imprint.surface, imprint.radius) else 0f
+                if (stretch > 0f) {
+                    val light = membraneLights[imprint.bodyId % colors.size]
+                    for (band in 1..3) {
+                        drawMembraneCurve(light, xPx, reach, floorPx, sagPx, band * membraneBandPx, membraneBandPx * 1.2f, membraneLightAlpha * stretch / band, fadeToEdges = false)
+                    }
                 }
+                drawMembraneCurve(shadowColor, xPx, reach, floorPx, sagPx, 0f, surfaceLinePx, floorLineAlpha * strength, fadeToEdges = true)
             }
         }
     }
 }
 
-private const val SURFACE_SEGMENTS = 18
+private const val SURFACE_SEGMENTS = 24
+
+/** A healing hollow closes on this point, this share of its depth below the floor line. */
+private const val HOLLOW_CENTRE = 0.45f
+
+/** A shape pressed into the membrane is hidden under its near edge: only this much of a ghost of it shows through. */
+private const val IN_MEMBRANE_TINT = 0.72f
+
+/** Where the healing hollow's pixels sit (across its half width, down its half depth) and when each starts. */
+private val HEAL_PIXEL_X = floatArrayOf(-0.62f, -0.24f, 0.12f, 0.46f, -0.4f, 0.3f)
+private val HEAL_PIXEL_Y = floatArrayOf(-0.2f, 0.25f, -0.35f, 0.1f, 0.55f, 0.45f)
+private val HEAL_PIXEL_DELAY = floatArrayOf(0f, 0.16f, 0.06f, 0.24f, 0.32f, MAX_PIXEL_DELAY)
+
+private fun snapTo(value: Float, grid: Float): Float = round(value / grid) * grid
+
+/** A vertical fade of [color] over [UNIT], from full at the top to nothing ([darkAtTop]) or the other way, eased. */
+private fun verticalFade(color: Color, darkAtTop: Boolean): Brush = Brush.verticalGradient(
+    0f to color.copy(alpha = if (darkAtTop) color.alpha else 0f),
+    0.5f to color.copy(alpha = color.alpha * 0.35f),
+    1f to color.copy(alpha = if (darkAtTop) 0f else color.alpha),
+    startY = 0f,
+    endY = UNIT
+)
+
+/** [brush], made over a [UNIT] square, drawn over the rectangle at [left], [top], [width] by [height]. */
+private fun DrawScope.drawUnitGradient(brush: Brush, left: Float, top: Float, width: Float, height: Float, alpha: Float) {
+    if (width <= 0f || height <= 0f || alpha <= 0f) return
+    translate(left, top) {
+        scale(width / UNIT, height / UNIT, pivot = Offset.Zero) {
+            drawRect(brush, topLeft = Offset.Zero, size = Size(UNIT, UNIT), alpha = alpha.coerceAtMost(1f))
+        }
+    }
+}
+
+/**
+ * [path] becomes everything above the membrane round a shape sunk at [cx]: the floor line, dipping [sagPx] under
+ * the shape over [reach] each side ([membraneBump]), and all of the area above it.
+ */
+private fun buildMembraneClip(path: android.graphics.Path, cx: Float, reach: Float, floorPx: Float, sagPx: Float, width: Float, height: Float) {
+    path.rewind()
+    val left = minOf(0f, cx - reach) - 1f
+    val right = maxOf(width, cx + reach) + 1f
+    path.moveTo(left, -height)
+    path.lineTo(left, floorPx)
+    path.lineTo(cx - reach, floorPx)
+    for (k in 1..SURFACE_SEGMENTS) {
+        val u = -1f + 2f * k / SURFACE_SEGMENTS
+        path.lineTo(cx + u * reach, floorPx + sagPx * membraneBump(u))
+    }
+    path.lineTo(right, floorPx)
+    path.lineTo(right, -height)
+    path.close()
+}
+
+/**
+ * The membrane's surface round [cx], dipping [sagPx] (or bulging, negative) over [reach] each side, as a line in
+ * [color]; [offsetPx] lower where it dips, for the light along the stretch. It fades out towards the flat floor,
+ * sooner if [fadeToEdges] is false.
+ */
+private fun DrawScope.drawMembraneCurve(
+    color: Color,
+    cx: Float,
+    reach: Float,
+    floorPx: Float,
+    sagPx: Float,
+    offsetPx: Float,
+    strokeWidth: Float,
+    alpha: Float,
+    fadeToEdges: Boolean
+) {
+    if (alpha <= 0f) return
+    var previousX = cx - reach
+    var previousY = floorPx
+    for (k in 1..SURFACE_SEGMENTS) {
+        val u = -1f + 2f * k / SURFACE_SEGMENTS
+        val bump = membraneBump(u)
+        val x = cx + u * reach
+        val y = floorPx + (sagPx + offsetPx) * bump
+        val mid = membraneBump(u - 1f / SURFACE_SEGMENTS)
+        val fade = if (fadeToEdges) sqrt(mid) else mid
+        drawLine(color, Offset(previousX, previousY), Offset(x, y), strokeWidth = strokeWidth, alpha = (alpha * fade).coerceAtMost(1f))
+        previousX = x
+        previousY = y
+    }
+}
+
+/**
+ * A ripple on the floor: [source], a shape's outline in its polygon's units, drawn [sizePx] per unit about its pivot,
+ * turned [rotationDegrees] and seen flat on the floor round [cx], [cy], as a thin line in [color]. Transformed into
+ * [target] (whose Compose view is [targetCompose]), so the line keeps its width however far the ripple has spread.
+ */
+private fun DrawScope.drawOutlineRipple(
+    source: android.graphics.Path,
+    target: android.graphics.Path,
+    targetCompose: androidx.compose.ui.graphics.Path,
+    matrix: android.graphics.Matrix,
+    pivotX: Float,
+    pivotY: Float,
+    sizePx: Float,
+    rotationDegrees: Float,
+    cx: Float,
+    cy: Float,
+    color: Color,
+    alpha: Float,
+    stroke: Stroke
+) {
+    matrix.reset()
+    matrix.postTranslate(-pivotX, -pivotY)
+    matrix.postScale(sizePx, sizePx)
+    matrix.postRotate(rotationDegrees)
+    matrix.postScale(1f, FLOOR_FORESHORTENING)
+    matrix.postTranslate(cx, cy)
+    source.transform(matrix, target)
+    drawPath(targetCompose, color, alpha = alpha.coerceAtMost(1f), style = stroke)
+}
 
 /** A soft falloff ellipse [widthPx] wide (and [FLOOR_FORESHORTENING] as tall), centred on [cx], [cy], lying on the floor. */
 private fun DrawScope.drawSoft(brush: Brush, cx: Float, cy: Float, widthPx: Float, alpha: Float) {

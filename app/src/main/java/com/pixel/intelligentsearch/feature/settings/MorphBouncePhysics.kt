@@ -146,12 +146,31 @@ internal class MorphBouncePhysics(
         var squash = 0f
         /** True while its shape is still in it. */
         var holding = false
+        /** Seconds since its shape first pressed into it: the soft landing's ripples spread from that moment. */
+        var sincePressed = 0f
         var sinceRelease = 0f
         /** 1 fresh, falling to 0 as it heals. */
         var strength = 0f
         /** The floor's surface at the silhouette, metres below the floor line (negative bulging above it). */
         var surface = 0f
         var surfaceVelocity = 0f
+    }
+
+    /**
+     * The one sharp ripple a hard landing sends across the floor: where the shape struck and its outline then (as
+     * [Body.shapeIndex], [Body.morphProgress] and how it was turned), and how long ago, for drawing only. Gone after
+     * [HARD_RIPPLE_TIME].
+     */
+    class Ripple {
+        var active = false
+        /** The body that struck, for its colour. */
+        var bodyId = 0
+        var x = 0f
+        var radius = 0f
+        var shapeIndex = 0
+        var morphProgress = 1f
+        var rotationDegrees = 0f
+        var age = 0f
     }
 
     /** A shape's contact shadow on the floor, in metres, filled in by [shadowFor] so drawing allocates nothing. */
@@ -190,6 +209,8 @@ internal class MorphBouncePhysics(
 
     val bodies = mutableListOf<Body>()
     val imprints = Array(MAX_IMPRINTS) { Imprint() }
+    /** The hard landings' ripples, one per shape at most. */
+    val ripples = Array(MAX_SHAPES) { Ripple() }
     /** How far, as a share of [STEP], the time shown is past the last step; drawing interpolates by it. */
     var renderFraction = 0f
         private set
@@ -218,6 +239,7 @@ internal class MorphBouncePhysics(
             dropTimer = FIRST_DROP_MIN + random.nextFloat() * (FIRST_DROP_MAX - FIRST_DROP_MIN)
         }
         for (imprint in imprints) imprint.active = false
+        for (ripple in ripples) ripple.active = false
         var i = bodies.size - 1
         while (i >= 0) {
             if (bodies[i].radius > height * MAX_RADIUS_SHARE) bodies.removeAt(i)
@@ -256,6 +278,7 @@ internal class MorphBouncePhysics(
             }
             collide()
             healImprints(STEP)
+            ageRipples(STEP)
             removeGone()
         }
         renderFraction = (accumulator / STEP_SECONDS).toFloat().coerceIn(0f, 1f)
@@ -547,6 +570,7 @@ internal class MorphBouncePhysics(
      */
     private fun hardBounce(body: Body, impact: Float) {
         body.y = floor - body.radius
+        if (body.real && !shapeOffScreen(body)) newRipple(body)
         body.penetration = 0f
         val landing = impact.coerceAtLeast(0f)
         val normalImpulse = body.mass * (1f + body.liveliness) * landing
@@ -599,6 +623,7 @@ internal class MorphBouncePhysics(
         pick.radius = body.radius
         pick.depth = 0f
         pick.sinceRelease = 0f
+        pick.sincePressed = 0f
         pick.strength = 1f
         pick.surface = 0f
         pick.surfaceVelocity = 0f
@@ -630,13 +655,43 @@ internal class MorphBouncePhysics(
     /** Released silhouettes: the surface rings back past its rest line and settles; the silhouette heals. */
     private fun healImprints(dt: Float) {
         for (imprint in imprints) {
-            if (!imprint.active || imprint.holding) continue
+            if (!imprint.active) continue
+            imprint.sincePressed += dt
+            if (imprint.holding) continue
             imprint.sinceRelease += dt
             imprint.surfaceVelocity += springAcceleration(imprint.surface, imprint.surfaceVelocity, SURFACE_STIFFNESS, SURFACE_DAMPING) * dt
             imprint.surface += imprint.surfaceVelocity * dt
             val healing = ((imprint.sinceRelease - HEAL_DELAY) / HEAL_TIME).coerceIn(0f, 1f)
             imprint.strength = 1f - healing * healing * (3f - 2f * healing)
             if (imprint.strength <= 0f && abs(imprint.surface) < 1e-4f && abs(imprint.surfaceVelocity) < 1e-3f) imprint.active = false
+        }
+    }
+
+    /** A ripple for [body] striking the hard floor: a free one, or else the oldest. Drawing only; nothing moves by it. */
+    private fun newRipple(body: Body) {
+        var pick = ripples[0]
+        for (ripple in ripples) {
+            if (!ripple.active) {
+                pick = ripple
+                break
+            }
+            if (ripple.age > pick.age) pick = ripple
+        }
+        pick.active = true
+        pick.bodyId = body.id
+        pick.x = body.x
+        pick.radius = body.radius
+        pick.shapeIndex = body.shapeIndex
+        pick.morphProgress = body.morphProgress
+        pick.rotationDegrees = drawnRotation(body)
+        pick.age = 0f
+    }
+
+    private fun ageRipples(dt: Float) {
+        for (ripple in ripples) {
+            if (!ripple.active) continue
+            ripple.age += dt
+            if (ripple.age >= HARD_RIPPLE_TIME) ripple.active = false
         }
     }
 
@@ -744,6 +799,8 @@ internal class MorphBouncePhysics(
         const val HEAL_DELAY = 0.35f
         const val HEAL_TIME = 1.6f
         const val MAX_IMPRINTS = 6
+        /** A hard landing's ripple runs across the floor this long, seconds: sharp and quick. */
+        const val HARD_RIPPLE_TIME = 0.34f
 
         /** The hard floor gives back this share of a landing's speed: a lively bounce. */
         const val LIVELINESS_MIN = 0.74f

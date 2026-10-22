@@ -111,7 +111,7 @@ internal fun WidgetAppearanceTab(
             SettingsRowToggle(
                 title = "Doodles",
                 subtitle = "Show Mini Doodles Around the G Icon for Holidays and Special Events.",
-                icon = Icons.Outlined.Celebration,
+                icon = DoodleBrushIcon,
                 isChecked = localShowDoodles,
                 onCheckedChange = { localShowDoodles = it },
                 showDivider = false

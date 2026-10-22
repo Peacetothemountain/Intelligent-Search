@@ -212,7 +212,7 @@ private fun DoodlePreviewRow() {
         title = "Preview Widget Doodles",
         subtitle = shown?.let { "Showing ${resources.getString(it.title)} on Your Widgets. Tap to Open the Gallery." }
             ?: "Off. Tap to Browse and Test All ${com.pixel.intelligentsearch.core.occasion.Occasion.entries.size} Doodles.",
-        icon = Icons.Outlined.Celebration,
+        icon = DoodleBrushIcon,
         isChecked = shown != null,
         onCheckedChange = { on -> show(if (on) lastPicked else null) },
         onClick = { browsing = true },

@@ -6,7 +6,11 @@ import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Bundle
 import android.util.Log
+import android.widget.RemoteViews
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Pins a widget from the widget settings screen ([requestPinWidget]) and, through the launcher's success
@@ -51,10 +55,19 @@ class PinWidgetReceiver : BroadcastReceiver() {
         private const val REQUEST_CODE_MATERIAL = 1002
 
         /**
-         * Requests the system launcher to pin an Intelligent Search widget to the home screen.
+         * Requests the system launcher to pin an Intelligent Search widget to the home screen. The launcher's
+         * add-widget dialog shows the widget exactly as the user's saved design draws it
+         * ([SearchWidgetProvider.buildPinPreview]), and the widget it places is drawn from that same design.
          * Returns true if pinning is supported by the current launcher and the request was dispatched.
+         * [request] stands in for [AppWidgetManager.requestPinAppWidget] in tests.
          */
-        fun requestPinWidget(context: Context, isMaterial: Boolean): Boolean {
+        suspend fun requestPinWidget(
+            context: Context,
+            isMaterial: Boolean,
+            request: (AppWidgetManager, ComponentName, Bundle?, PendingIntent) -> Boolean = { manager, provider, extras, callback ->
+                manager.requestPinAppWidget(provider, extras, callback)
+            }
+        ): Boolean {
             val appWidgetManager = AppWidgetManager.getInstance(context) ?: return false
             if (!appWidgetManager.isRequestPinAppWidgetSupported) {
                 return false
@@ -82,12 +95,28 @@ class PinWidgetReceiver : BroadcastReceiver() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             )
 
+            // Drawing the preview draws bitmaps, so it's kept off the main thread. Without one the launcher shows the
+            // widget's default look, and pinning still works.
+            val preview = withContext(Dispatchers.Default) {
+                try {
+                    SearchWidgetProvider.buildPinPreview(context.applicationContext, isMaterialYou = isMaterial)
+                } catch (e: Throwable) {
+                    Log.w(TAG, "Couldn't draw the pin preview from the saved design", e)
+                    null
+                }
+            }
+
             return try {
-                appWidgetManager.requestPinAppWidget(provider, null, successIntent)
+                request(appWidgetManager, provider, pinRequestExtras(preview), successIntent)
             } catch (e: Throwable) {
                 Log.e(TAG, "Failed to request pin app widget", e)
                 false
             }
+        }
+
+        /** The extras of a pin request that has the launcher's dialog show [preview] rather than the default look. */
+        internal fun pinRequestExtras(preview: RemoteViews?): Bundle? = preview?.let {
+            Bundle().apply { putParcelable(AppWidgetManager.EXTRA_APPWIDGET_PREVIEW, it) }
         }
     }
 }

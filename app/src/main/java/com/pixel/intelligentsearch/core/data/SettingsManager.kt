@@ -286,6 +286,23 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val WIDGET_SAVED_THEMES = StringSetting("widget_saved_themes", "[]")
         /** What each placed countdown widget counts down to, by widget id (CountdownEvents), as JSON. */
         val COUNTDOWN_EVENTS = StringSetting("countdown_widget_events", "{}")
+        /**
+         * Launch Portal's extra ways to open search. Each is off by default and works only with its permission
+         * (notifications; display over other apps), so a restore never switches one on.
+         */
+        val SEARCH_NOTIFICATION_SHORTCUT = BooleanSetting("launch.search_notification", false)
+        val FLOATING_SEARCH_BUTTON = BooleanSetting("launch.floating_button", false)
+        /** The edge the floating button rests on, "left" or "right" (ScreenEdge). */
+        val FLOATING_BUTTON_EDGE = StringSetting("launch.floating_button_edge", "right")
+        /** Its height on that edge, per-mille of the height it can travel (0 top, 1000 bottom). */
+        val FLOATING_BUTTON_POSITION = IntSetting("launch.floating_button_position", 600, 0..1000)
+        val EDGE_SWIPE = BooleanSetting("launch.edge_swipe", false)
+        /** The edge the swipe strip runs along, "left" or "right" (ScreenEdge). */
+        val EDGE_SWIPE_EDGE = StringSetting("launch.edge_swipe_edge", "right")
+        /** Where the strip's centre is, in percent of the screen's usable height. */
+        val EDGE_SWIPE_POSITION = IntSetting("launch.edge_swipe_position", 50, 0..100)
+        /** How tall the strip is, in percent of the screen's usable height. */
+        val EDGE_SWIPE_HEIGHT = IntSetting("launch.edge_swipe_height", 25, 10..60)
 
         /** Every declared setting, for migration, backup validation and change filtering. */
         val ALL: List<SettingKey<*>> = listOf(
@@ -314,7 +331,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             WIDGET_SYSTEM_FAVOURITE_APPS, WIDGET_MATERIAL_FAVOURITE_APPS, WIDGET_SYSTEM_SHOW_MEDIA,
             WIDGET_MATERIAL_SHOW_MEDIA, WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_SAVED_THEMES, COUNTDOWN_EVENTS,
-            AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL, SAVED_LINKS
+            AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL, SAVED_LINKS,
+            SEARCH_NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION,
+            EDGE_SWIPE, EDGE_SWIPE_EDGE, EDGE_SWIPE_POSITION, EDGE_SWIPE_HEIGHT
         ) + FILES_OPEN_WITH.values
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =

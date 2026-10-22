@@ -92,6 +92,11 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Purpose**: Only if you turn on **Settings -> Search Behavior -> Smart Clipboard Suggestions** (off by default), the empty search offers an action for what you copied: open a link, call a number, search the text, or **Search with Lens** for a copied image.
 * **Processing & Security**: The clipboard is read only while the search is on screen and in focus, as Android requires. Clips marked sensitive (passwords) are never offered. For an image, only its description (that it is an image, and when it was copied) is read to offer the action; the image's address is read only when you tap **Search with Lens**, and is then shared to Google Lens or the Google app with read access to that one image. Intelligent Search never reads, stores or uploads the image itself, and offers nothing for images while Tor is your search engine.
 
+### O. Ways to Open Search (`POST_NOTIFICATIONS`, `SYSTEM_ALERT_WINDOW`)
+* **Purpose**: In **Settings -> Launch Portal -> Always Within Reach**, each off by default: the **Search Notification** (a silent notification that opens search, needing permission to post notifications on Android 13 and later), and the **Floating Search Button** and **Edge Swipe** (a small button, and an invisible strip along one screen edge, drawn over other apps, needing **Display over Other Apps**).
+* **Processing & Security**: Each permission is asked for when you switch its option on, after an in-app explanation; Display over Other Apps is granted by you on Android's own page. They only open search: nothing on screen or in other apps is read, nothing is stored apart from where you placed the button and strip, and nothing is sent anywhere. No accessibility service is used. The notification shows no content on the lock screen.
+* **User Control**: Switch the options off on the same page, or revoke the permissions in Android System Settings. A restored backup never switches them on (see Section 4).
+
 ---
 
 ## 3. Web Search, External Search Engines, Live Currency Rates, Instant Answers, AI Answers & Saved Links
@@ -139,7 +144,7 @@ When you execute a web search or request live autocomplete suggestions:
   * With a passphrase, the key is derived from it using **PBKDF2** (600,000 iterations, random salt), so the backup can be restored on any device.
   * Without a passphrase, the key is created inside this device's Android Keystore and never leaves it, so the backup can only be restored on the same device and installation.
   * Backup files are saved strictly to the storage location or cloud drive chosen by the user via the Android system file creator.
-  * Restoring a backup never switches on contact sharing, clipboard suggestions, web suggestions, notification search, Dictionary Answers, Weather Answers, Use Approximate Location, AI Answers or the **Live Currency Rates** switch itself; it can only leave them as you set them on this phone or switch them off. It does bring back your **Calculator** and search engine choices, which also decide whether currency rates are downloaded (see Section 3): with Live Currency Rates on, a restore that turns the Calculator on or changes your search engine from Tor to another lets the downloads resume.
+  * Restoring a backup never switches on contact sharing, clipboard suggestions, web suggestions, notification search, Dictionary Answers, Weather Answers, Use Approximate Location, AI Answers, the Search Notification, the Floating Search Button, the Edge Swipe or the **Live Currency Rates** switch itself; it can only leave them as you set them on this phone or switch them off. It does bring back your **Calculator** and search engine choices, which also decide whether currency rates are downloaded (see Section 3): with Live Currency Rates on, a restore that turns the Calculator on or changes your search engine from Tor to another lets the downloads resume.
   * A passphrase you choose to save on the phone is encrypted with an Android Keystore key that works only while the phone is unlocked and shortly after you authenticate.
 
 ---

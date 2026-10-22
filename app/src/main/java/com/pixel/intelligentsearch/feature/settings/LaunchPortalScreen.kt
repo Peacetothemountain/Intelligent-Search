@@ -157,6 +157,9 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             showDivider = false
                         )
                     }
+
+                    // A header and its card, spaced like Web Search's sections.
+                    AlwaysWithinReachSection()
                 }
             }
         }

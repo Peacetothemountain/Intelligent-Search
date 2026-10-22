@@ -74,7 +74,7 @@ class MaterialMorphAnimationScaleTest {
 
     /** The last row on each page: the bottom card ends just under it. */
     private val pages = mapOf(
-        "Launch Portal" to "Search from Selected Text",
+        "Launch Portal" to "Home Screen Shortcut",
         "Search Behavior" to "Start Assistant with Voice",
         "Search Sources" to "Android Settings"
     )

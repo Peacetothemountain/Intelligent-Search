@@ -193,15 +193,16 @@ class SelectedTextSearchActivityTest {
     }
 
     @Test
-    fun theSettingShowsAndHidesTheEntry() {
+    fun anEntryAnOlderVersionDisabledIsTurnedBackOn() {
         val pm = context.packageManager
-        SelectedTextSearchActivity.setEnabled(context, false)
-        assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DISABLED, pm.getComponentEnabledSetting(entry))
+        // What an older version's Search from Selected Text switch left behind when turned off.
+        pm.setComponentEnabledSetting(entry, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
         assertFalse(resolves(Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain")))
 
-        SelectedTextSearchActivity.setEnabled(context, true)
+        SelectedTextSearchActivity.ensureEnabled(context)
         assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, pm.getComponentEnabledSetting(entry))
         assertTrue(resolves(Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain")))
+        assertTrue(resolves(Intent(Intent.ACTION_SEND).setType("text/plain")))
     }
 
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
@@ -327,36 +328,11 @@ class SelectedTextSearchActivityTest {
     }
 
     @Test
-    fun syncFollowsTheSetting() {
-        val pm = context.packageManager
-        prefs.edit().put(SettingsManager.SEARCH_FROM_SELECTED_TEXT, false).commit()
-        SelectedTextSearchActivity.syncWithSetting(context)
-        assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DISABLED, pm.getComponentEnabledSetting(entry))
-
-        prefs.edit().put(SettingsManager.SEARCH_FROM_SELECTED_TEXT, true).commit()
-        SelectedTextSearchActivity.syncWithSetting(context)
-        assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, pm.getComponentEnabledSetting(entry))
-    }
-
-    @Test
-    fun aSlowSyncAppliesTheSettingAsItIsWhenItRuns() {
-        prefs.edit().put(SettingsManager.SEARCH_FROM_SELECTED_TEXT, true).commit()
-        SelectedTextSearchActivity.setEnabled(context, true)
-
-        // The start-up sync starts while the switch is being turned off, and waits for it.
-        val worker: Thread
-        synchronized(SelectedTextSearchActivity.componentLock) {
-            worker = Thread { SelectedTextSearchActivity.syncWithSetting(context) }
-            worker.start()
-            val deadline = System.currentTimeMillis() + 5_000
-            while (worker.state != Thread.State.BLOCKED && System.currentTimeMillis() < deadline) Thread.yield()
-            assertEquals(Thread.State.BLOCKED, worker.state)
-            prefs.edit().put(SettingsManager.SEARCH_FROM_SELECTED_TEXT, false).commit()
-            SelectedTextSearchActivity.setEnabled(context, false)
-        }
-        worker.join(5_000)
-
-        // It applies the new value, not the one it would have read on starting.
-        assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DISABLED, context.packageManager.getComponentEnabledSetting(entry))
+    fun theOldSwitchOffNoLongerHidesTheEntry() {
+        // The value an older version's Search from Selected Text switch stored when turned off.
+        prefs.edit().putBoolean("search_from_selected_text", false).commit()
+        SelectedTextSearchActivity.ensureEnabled(context)
+        assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, context.packageManager.getComponentEnabledSetting(entry))
+        assertTrue(resolves(Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain")))
     }
 }

@@ -74,7 +74,7 @@ import kotlinx.coroutines.delay
  * micro-press scale, elevation depth shift, chromatic lighting borders, and specular top sheens.
  */
 @Composable
-private fun ExpressiveOneBoxCard(
+internal fun ExpressiveOneBoxCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     enabled: Boolean = true,

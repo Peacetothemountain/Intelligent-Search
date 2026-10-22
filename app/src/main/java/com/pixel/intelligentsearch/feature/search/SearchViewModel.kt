@@ -91,7 +91,12 @@ data class SearchUiState(
     val bangSuggestions: List<com.pixel.intelligentsearch.core.bangs.SearchBang> = emptyList(),
     val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null,
     /** The query with an obvious typo fixed, offered as "Did you mean"; null when nothing is misspelled. */
-    val spellingSuggestion: String? = null
+    val spellingSuggestion: String? = null,
+    /**
+     * A definition, forecast, translation or screen time worked out for the query; shown in place of [instantAnswer]'s
+     * tap-through card while its [com.pixel.intelligentsearch.core.answers.LiveAnswer.query] is the query shown.
+     */
+    val liveAnswer: com.pixel.intelligentsearch.core.answers.LiveAnswer? = null
 )
 
 /**
@@ -142,7 +147,8 @@ class SearchViewModel @Inject constructor(
     private val privateSpaceManager: com.pixel.intelligentsearch.core.data.PrivateSpaceManager,
     private val systemToggleManager: dagger.Lazy<com.pixel.intelligentsearch.core.system.SystemToggleManager>,
     private val directBootManager: com.pixel.intelligentsearch.core.system.DirectBootManager,
-    private val androidSettingsSearch: com.pixel.intelligentsearch.core.search.AndroidSettingsSearch
+    private val androidSettingsSearch: com.pixel.intelligentsearch.core.search.AndroidSettingsSearch,
+    private val instantAnswers: com.pixel.intelligentsearch.core.answers.InstantAnswerEngine
 ) : ViewModel() {
     
     private val settingsState = settingsManager.settingsFlow
@@ -170,6 +176,14 @@ class SearchViewModel @Inject constructor(
     fun takeVoiceRequest(): Boolean = voiceRequestPending.also { voiceRequestPending = false }
 
     private val _remoteSearchQueryFlow = MutableStateFlow("")
+
+    /** A query's instant-answer question; [attempt] changes to ask again (after a download or a permission grant). */
+    private data class LiveAnswerRequest(
+        val query: String,
+        val question: com.pixel.intelligentsearch.core.answers.InstantAnswerQuery,
+        val attempt: Int = 0
+    )
+    private val liveAnswerRequests = MutableStateFlow<LiveAnswerRequest?>(null)
     /** When the last web suggestion request went out ([android.os.SystemClock.elapsedRealtime]). */
     private var lastSuggestRequestAtMs = Long.MIN_VALUE / 2
     /**
@@ -222,6 +236,22 @@ class SearchViewModel @Inject constructor(
                         fetchRemoteWebSuggestions(query)
                     }
                 }
+        }
+
+        // Instant answers: each keystroke's question cancels the last one's work (and its pending request).
+        viewModelScope.launch {
+            liveAnswerRequests.collectLatest { request ->
+                if (request == null) return@collectLatest
+                try {
+                    instantAnswers.answer(request.question, request.query).collect { answer ->
+                        _uiState.update { if (it.query == request.query) it.copy(liveAnswer = answer) else it }
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    android.util.Log.w("SearchViewModel", "Instant answer failed", e)
+                }
+            }
         }
 
         viewModelScope.launch {
@@ -501,10 +531,13 @@ class SearchViewModel @Inject constructor(
         val previousQuery = _uiState.value.query
         // Suggestions fetched for another query no longer count as this one's answer.
         if (newQuery != previousQuery) webSuggestionsQuery = null
-        _uiState.update { it.copy(query = newQuery) }
+        _uiState.update { it.copy(query = newQuery, liveAnswer = it.liveAnswer?.takeIf { answer -> answer.query == newQuery }) }
+        liveAnswerRequests.value = com.pixel.intelligentsearch.core.answers.InstantAnswerParser.parse(newQuery)
+            ?.let { LiveAnswerRequest(newQuery, it) }
         
         if (newQuery.isBlank()) {
             _remoteSearchQueryFlow.value = ""
+            liveAnswerRequests.value = null
             searchJob?.cancel()
             _uiState.update { it.copy(
                 filteredApps = emptyList(),
@@ -519,7 +552,8 @@ class SearchViewModel @Inject constructor(
                 volumeSlider = null,
                 bangSuggestions = emptyList(),
                 detectedBangQuery = null,
-                spellingSuggestion = null
+                spellingSuggestion = null,
+                liveAnswer = null
             ) }
             return
         }
@@ -716,6 +750,7 @@ class SearchViewModel @Inject constructor(
             } else null
 
             val q = newQuery.lowercase().trim()
+            val question = com.pixel.intelligentsearch.core.answers.InstantAnswerParser.parse(newQuery)
             val unitConv = mathResult as? com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion
             // Date arithmetic is calculation too, so it follows the Calculator switch.
             val dateAnswer = unifiedResults.dateAnswer.takeIf { settings.searchCalculator }
@@ -728,15 +763,16 @@ class SearchViewModel @Inject constructor(
                 InstantAnswer(dateAnswer.title, dateAnswer.subtitle, "date")
             } else if (q == "time" || q.startsWith("time in ")) {
                 buildTimeAnswer(q.removePrefix("time").removePrefix(" in ").trim())
-            } else if (q == "weather" || q.startsWith("weather in ")) {
-                // No weather data source is available offline, so offer the lookup rather than a made-up reading.
-                val place = q.removePrefix("weather").removePrefix(" in ").trim()
-                val title = if (place.isEmpty()) "Weather" else "Weather in ${place.toDisplayPlaceName()}"
-                InstantAnswer(title, "Tap for the current forecast", "weather")
-            } else if (q.startsWith("define ") || q.startsWith("meaning of ") || q.startsWith("definition of ")) {
-                val word = q.removePrefix("define ").removePrefix("meaning of ").removePrefix("definition of ").trim()
+            } else if (question is com.pixel.intelligentsearch.core.answers.InstantAnswerQuery.Weather) {
+                // The tap-through stands until (or unless) a live forecast replaces it: Weather Answers off, offline.
+                val title = question.place?.let { "Weather in ${it.toDisplayPlaceName()}" } ?: "Weather"
+                val subtitle = if (question.day == com.pixel.intelligentsearch.core.answers.ForecastDay.TOMORROW) {
+                    "Tap for tomorrow's forecast"
+                } else "Tap for the current forecast"
+                InstantAnswer(title, subtitle, "weather")
+            } else if (question is com.pixel.intelligentsearch.core.answers.InstantAnswerQuery.Define && question.explicit) {
                 val providerName = when (engine) { "DuckDuckGo" -> "DuckDuckGo"; "Bing" -> "Bing"; else -> "Dictionary" }
-                InstantAnswer(word.replaceFirstChar { it.uppercase() }, "$providerName • Tap for full definition", "dictionary")
+                InstantAnswer(question.word.replaceFirstChar { it.uppercase() }, "$providerName • Tap for full definition", "dictionary")
             } else if (looksLikeWebAddress(q)) {
                 InstantAnswer(newQuery.trim(), "Go to Website • Tap to open", "url")
             } else {
@@ -801,6 +837,29 @@ class SearchViewModel @Inject constructor(
                         _uiState.update { if (it.query == newQuery) it.copy(spellingSuggestion = corrected) else it }
                     }
                 }
+            }
+        }
+    }
+
+    /** Works the current query's instant answer out again: after a language download or a permission was granted. */
+    fun retryLiveAnswer() {
+        liveAnswerRequests.update { it?.copy(attempt = it.attempt + 1) }
+    }
+
+    /**
+     * Downloads the languages [answer] needs (on Wi-Fi only unless [useMobileData]), showing the card as downloading
+     * meanwhile, then translates. The download goes on if the user keeps typing; it is the user's to have asked for.
+     */
+    fun downloadTranslationLanguages(answer: com.pixel.intelligentsearch.core.answers.LiveAnswer.Translation, useMobileData: Boolean) {
+        val downloading = answer.copy(status = com.pixel.intelligentsearch.core.answers.TranslationStatus.Downloading)
+        _uiState.update { if (it.liveAnswer == answer) it.copy(liveAnswer = downloading) else it }
+        viewModelScope.launch {
+            val downloaded = instantAnswers.downloadLanguages(answer, useMobileData)
+            if (!downloaded) {
+                val failed = answer.copy(status = com.pixel.intelligentsearch.core.answers.TranslationStatus.Failed)
+                _uiState.update { if (it.query == answer.query) it.copy(liveAnswer = failed) else it }
+            } else if (_uiState.value.query == answer.query) {
+                retryLiveAnswer()
             }
         }
     }

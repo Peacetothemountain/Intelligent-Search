@@ -1,7 +1,7 @@
 # Privacy Policy & Privacy Governance
 
 **Effective Date:** October 4, 2026  
-**Last Updated:** October 20, 2026  
+**Last Updated:** October 22, 2026  
 **Application:** Intelligent Search (`com.pixel.intelligentsearch`)  
 **Developer / Publisher:** NG Designs  
 **Contact:** [support.ngdesigns@gmail.com](mailto:support.ngdesigns@gmail.com)  
@@ -13,7 +13,7 @@
 
 **Intelligent Search** is engineered and published by **NG Designs** with a strict, non-negotiable **On-Device First Privacy Architecture**. 
 
-We believe that your personal device search queries, contacts, schedule, files, and installed applications are your private property. Intelligent Search is built so that **your personal data stays on your device**. The exceptions are things you choose to send: web searches and live web suggestions go to the search engine you pick (see Section 3), and voice input may be handled by your device's speech recognizer (see Section 2.H). Live currency rates are downloaded from the European Central Bank without sending any of your data (see Section 3).
+We believe that your personal device search queries, contacts, schedule, files, and installed applications are your private property. Intelligent Search is built so that **your personal data stays on your device**. The exceptions are things you choose to send: web searches and live web suggestions go to the search engine you pick (see Section 3), and voice input may be handled by your device's speech recognizer (see Section 2.H). Live currency rates are downloaded from the European Central Bank without sending any of your data (see Section 3). Instant answers you switch on (dictionary definitions, weather forecasts and on-device translation) are described in Section 3; all are off until you turn them on.
 
 * **Zero Cloud Data Exfiltration**: We do not maintain, operate, or connect to remote servers that collect, store, profile, or analyze your searches or personal information.
 * **Zero Advertising & Zero Tracking**: Intelligent Search contains **no advertisements**, **no advertising SDKs**, **no commercial tracking beacons**, and **no third-party behavioral analytics libraries** (such as Firebase Analytics, Mixpanel, or Facebook SDK).
@@ -47,7 +47,7 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Data Guarantee**: File paths, thumbnails, and media contents are processed 100% locally and are never exfiltrated.
 
 ### E. App Usage Statistics (`android.permission.PACKAGE_USAGE_STATS`)
-* **Purpose**: Used optionally to rank your most frequently and recently used applications at the top of search suggestions.
+* **Purpose**: Used optionally to rank your most frequently and recently used applications at the top of search suggestions, and to answer "screen time" searches with today's total and the apps that took most of it.
 * **Processing & Security**: Queried locally via Android `UsageStatsManager`. Access requires explicit authorization through the Android "Usage Access" system settings screen. No usage metrics or device statistics are ever transmitted externally.
 
 ### F. System Settings & Toggles (`WRITE_SETTINGS`, `ACCESS_NOTIFICATION_POLICY`, `ACCESS_WIFI_STATE`, `ACCESS_NETWORK_STATE`)
@@ -67,13 +67,18 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Purpose**: `BLUETOOTH_CONNECT` lets the Bluetooth quick toggle show and change Bluetooth state. `WRITE_SECURE_SETTINGS` cannot be granted by installing the app; it only works if you grant it yourself over ADB, and is then used only to register Intelligent Search as the device's search engine choice.
 * **Processing & Security**: Read and applied locally only when you use these features.
 
-### J. On-Device Assistants (Android App Functions)
+### J. Approximate Location (`android.permission.ACCESS_COARSE_LOCATION`)
+* **Purpose**: Only if you turn on **Use Approximate Location** for Weather Answers, the weather for "here" uses your phone's approximate location instead of the home location you chose. Precise location is never requested.
+* **Processing & Security**: The permission is requested when you choose this, after an in-app explanation. The location is read only when you search for the weather, rounded to about a kilometre, and sent only to Open-Meteo for the forecast (see Section 3). It is never stored or sent anywhere else.
+* **User Control**: Turn off **Use Approximate Location** in **Settings -> Web Search -> Instant Answers**, or revoke the permission in Android System Settings.
+
+### K. On-Device Assistants (Android App Functions)
 * **Purpose**: On Android 16 and later, on-device assistants can ask Intelligent Search to search your installed apps, run a calculation, or (only if you turn on **Settings -> Search Sources -> Contacts -> Share with Assistants**, which is off by default) search your contacts.
 * **Processing & Security**: Requests are answered on the device. Hidden apps are never returned, and contacts are never shared while contact search or sharing is off, or contacts access is not granted.
 
 ---
 
-## 3. Web Search, External Search Engines & Live Currency Rates
+## 3. Web Search, External Search Engines, Live Currency Rates & Instant Answers
 
 When you execute a web search or request live autocomplete suggestions:
 1. **Direct Communication**: Search queries are transmitted directly and securely (via HTTPS) to your chosen search engine provider (e.g., Google, DuckDuckGo, Bing, or your configured Custom Search URL).
@@ -91,6 +96,12 @@ When you execute a web search or request live autocomplete suggestions:
 * **What is sent**: The request is the same for every user. It contains nothing you typed and no account, identifier or other personal information, and it names the app only as the fixed User-Agent `IntelligentSearch/1.0` instead of Android's default, which would name your phone model. As with any internet request, the European Central Bank can see your IP address.
 * **Tor and turning it off**: Nothing is downloaded while Tor is your search engine. Turning off **Live Currency Rates** or the **Calculator** stops the downloads at once. With Live Currency Rates off, conversions use the rates already on your device.
 
+**Instant Answers** show some answers inside the search overlay. Each is **off by default**, and you turn it on in **Settings -> Web Search -> Instant Answers** (Dictionary and Weather) or **Settings -> Search Sources** (On-Device Translation). Dictionary and Weather Answers also need Web and **Web Suggestions** on, and make no requests at all while Tor is your search engine. Every request is over HTTPS, carries no account or identifier, and names the app only as the fixed User-Agent `IntelligentSearch/1.0`; like any internet request, it lets the service see your IP address.
+* **Dictionary Answers** (Free Dictionary API, `https://api.dictionaryapi.dev`, built from Wiktionary): when you search for a definition ("define serendipity", "serendipity meaning", "serendipity?"), the word is sent to look it up. Definitions are kept on your device for up to 30 days so they show again offline; turning Dictionary Answers off deletes them. [Free Dictionary API](https://dictionaryapi.dev/)
+* **Weather Answers** (Open-Meteo, `https://api.open-meteo.com` and `https://geocoding-api.open-meteo.com`): when you search for the weather, the coordinates of the place (your home location, or your approximate location if you chose it), rounded to about a kilometre, are sent for the forecast. A place named in the search ("weather in Johnson City"), or typed when you choose your home location, is sent to Open-Meteo's place search to find it. Forecasts are kept on your device for 15 minutes and place lookups for 30 days; turning Weather Answers off deletes them. Your home location is saved in the app's settings and included in your encrypted backups. [Open-Meteo Terms & Privacy](https://open-meteo.com/en/terms)
+* **On-Device Translation** (Google ML Kit): searches like "translate hello to Spanish" are translated **on your phone**; the text you translate is never sent anywhere. Each language's model (about 30 MB) is downloaded from Google's servers once, only when you tap **Download Language** on a translation card, over Wi-Fi unless you choose **Use Mobile Data**, and never while Tor is your search engine. While translation is on and in use, Google's ML Kit library may send Google anonymous usage and performance information about the translation feature (such as which languages were used and how long it took), never the text. ML Kit does not start until you first translate with the switch on. [Google Privacy Policy](https://policies.google.com/privacy)
+* **Screen Time** answers are read from Android's usage statistics on your phone (Section 2.E) and send nothing.
+
 ---
 
 ## 4. Local Data Storage, Encryption, & Backup Security
@@ -102,15 +113,15 @@ When you execute a web search or request live autocomplete suggestions:
   * With a passphrase, the key is derived from it using **PBKDF2** (600,000 iterations, random salt), so the backup can be restored on any device.
   * Without a passphrase, the key is created inside this device's Android Keystore and never leaves it, so the backup can only be restored on the same device and installation.
   * Backup files are saved strictly to the storage location or cloud drive chosen by the user via the Android system file creator.
-  * Restoring a backup never switches on contact sharing, clipboard suggestions, web suggestions or the **Live Currency Rates** switch itself; it can only leave them as you set them on this phone or switch them off. It does bring back your **Calculator** and search engine choices, which also decide whether currency rates are downloaded (see Section 3): with Live Currency Rates on, a restore that turns the Calculator on or changes your search engine from Tor to another lets the downloads resume.
+  * Restoring a backup never switches on contact sharing, clipboard suggestions, web suggestions, Dictionary Answers, Weather Answers, Use Approximate Location, On-Device Translation or the **Live Currency Rates** switch itself; it can only leave them as you set them on this phone or switch them off. It does bring back your **Calculator** and search engine choices, which also decide whether currency rates are downloaded (see Section 3): with Live Currency Rates on, a restore that turns the Calculator on or changes your search engine from Tor to another lets the downloads resume.
   * A passphrase you choose to save on the phone is encrypted with an Android Keystore key that works only while the phone is unlocked and shortly after you authenticate.
 
 ---
 
 ## 5. Third-Party Libraries & Software Architecture
 
-* **Zero Analytics SDKs**: Intelligent Search contains **no** third-party analytics trackers, telemetric SDKs, or crash-reporting services that monitor user behavior.
-* **Open & Verifiable Dependencies**: The libraries integrated into Intelligent Search are open-source AndroidX (including Jetpack Compose, Room, DataStore, Media3, and App Functions), Material Components, Kotlin/KotlinX, and Hilt components maintained by Google, JetBrains, and the Android Open Source Project (AOSP).
+* **Zero Analytics SDKs**: Intelligent Search contains **no** third-party analytics trackers, telemetric SDKs, or crash-reporting services that monitor user behavior. The one library that reports anything to its maker is Google's ML Kit, which may send Google anonymous performance information about translation, and only once you have turned on and used On-Device Translation (see Section 3).
+* **Open & Verifiable Dependencies**: The libraries integrated into Intelligent Search are open-source AndroidX (including Jetpack Compose, Room, DataStore, Media3, and App Functions), Material Components, Kotlin/KotlinX, and Hilt components maintained by Google, JetBrains, and the Android Open Source Project (AOSP), plus Google's ML Kit Translation and Language Identification for On-Device Translation (see Section 3).
 
 ---
 
@@ -135,7 +146,7 @@ Because Intelligent Search operates on an On-Device First model and does not col
 ## 8. Compliance with International Privacy Regulations
 
 ### A. General Data Protection Regulation (GDPR / UK GDPR)
-Under the GDPR, Intelligent Search acts neither as a data controller nor as a data processor for personal data on remote servers, because the app sends no personal data to us or to any server we operate. What you choose to send to your search engine goes directly to that provider (see Section 3). Downloading live currency rates sends no personal data; like any internet request, it lets the European Central Bank see your IP address. All data subjects retain absolute local control, rectification, and erasure capabilities directly within the app.
+Under the GDPR, Intelligent Search acts neither as a data controller nor as a data processor for personal data on remote servers, because the app sends no personal data to us or to any server we operate. What you choose to send to your search engine goes directly to that provider (see Section 3). Downloading live currency rates sends no personal data; like any internet request, it lets the European Central Bank see your IP address. Instant Answers you turn on send only what each needs (a word to the Free Dictionary API, rounded coordinates or a place name to Open-Meteo, language downloads from Google), as described in Section 3. All data subjects retain absolute local control, rectification, and erasure capabilities directly within the app.
 
 ### B. California Consumer Privacy Act (CCPA / CPRA)
 * We do not collect personal information for commercial sale.

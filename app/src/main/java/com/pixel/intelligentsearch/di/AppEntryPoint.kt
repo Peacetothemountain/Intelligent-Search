@@ -31,6 +31,7 @@ interface AppEntryPoint {
     fun strongBoxSecurityManager(): StrongBoxSecurityManager
     fun backupManager(): com.pixel.intelligentsearch.core.backup.BackupManager
     fun currencyRateRepository(): com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
+    fun instantAnswerEngine(): com.pixel.intelligentsearch.core.answers.InstantAnswerEngine
 
     @ApplicationScope
     fun applicationScope(): CoroutineScope

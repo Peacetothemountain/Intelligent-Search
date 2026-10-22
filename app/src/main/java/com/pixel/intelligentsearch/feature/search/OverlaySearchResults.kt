@@ -558,8 +558,14 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             }
         }
 
+        // A live answer (definition, forecast, translation, screen time) takes the tap-through card's place.
+        val liveAnswer = uiState.liveAnswer?.takeIf { it.query == uiState.query }
         val instantAnswer = uiState.instantAnswer
-        if (instantAnswer != null) {
+        if (liveAnswer != null) {
+            item(key = "live_answer", contentType = "live_answer") {
+                OverlayLiveAnswer(s, liveAnswer)
+            }
+        } else if (instantAnswer != null) {
             item(key = "instant_answer", contentType = "instant_answer") {
                 when (instantAnswer.iconType) {
                     "conversion" -> {

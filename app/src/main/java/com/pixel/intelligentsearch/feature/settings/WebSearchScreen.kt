@@ -164,6 +164,9 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 PrioritySetting(SettingsManager.SEARCH_WEIGHT_WEB, "Web")
             }
 
+            SettingsSectionHeader("Instant Answers")
+            InstantAnswersCard()
+
             SettingsSectionHeader("Quick Web Shortcuts")
             WebQuickShortcutsCard()
         }

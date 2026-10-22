@@ -20,17 +20,19 @@ fun interface RatesHttpClient {
  * nothing cached, and the body read only up to the limit. Each read may take [timeoutMs], and the whole download
  * [totalTimeoutMs], so a server sending a byte at a time can't hold it open. The request is the same from every
  * phone: a fixed [USER_AGENT] in place of Android's default (which names the phone model and build), and no
- * cookies, account or identifier.
+ * cookies, account or identifier. [accept] names the kind of document wanted (the rates are XML; instant answers
+ * ask for JSON).
  */
 class HttpsRatesClient internal constructor(
     private val timeoutMs: Int,
     private val totalTimeoutMs: Long,
     private val open: (URL) -> HttpURLConnection?,
-    private val nanoTime: () -> Long
+    private val nanoTime: () -> Long,
+    private val accept: String = ACCEPT_XML
 ) : RatesHttpClient {
 
-    constructor(timeoutMs: Int = 15_000, totalTimeoutMs: Long = 30_000L) :
-        this(timeoutMs, totalTimeoutMs, { it.openConnection() as? HttpsURLConnection }, System::nanoTime)
+    constructor(timeoutMs: Int = 15_000, totalTimeoutMs: Long = 30_000L, accept: String = ACCEPT_XML) :
+        this(timeoutMs, totalTimeoutMs, { it.openConnection() as? HttpsURLConnection }, System::nanoTime, accept)
 
     override fun get(url: String, maxBytes: Int): ByteArray? {
         val address = runCatching { URI(url).toURL() }.getOrNull() ?: return null
@@ -45,7 +47,7 @@ class HttpsRatesClient internal constructor(
             connection.connectTimeout = timeoutMs
             connection.readTimeout = timeoutMs
             connection.setRequestProperty("User-Agent", USER_AGENT)
-            connection.setRequestProperty("Accept", "application/xml, text/xml")
+            connection.setRequestProperty("Accept", accept)
             when {
                 connection.responseCode != HttpURLConnection.HTTP_OK -> null
                 connection.contentLengthLong > maxBytes -> null
@@ -62,6 +64,9 @@ class HttpsRatesClient internal constructor(
     companion object {
         /** Sent instead of Android's default User-Agent; the same for every user and version. */
         const val USER_AGENT = "IntelligentSearch/1.0"
+
+        const val ACCEPT_XML = "application/xml, text/xml"
+        const val ACCEPT_JSON = "application/json"
 
         /** Closes downloads that outlive their deadline. One daemon thread, ended while idle. */
         private val WATCHDOG = ScheduledThreadPoolExecutor(1) { task -> Thread(task, "RatesDeadline").apply { isDaemon = true } }.apply {

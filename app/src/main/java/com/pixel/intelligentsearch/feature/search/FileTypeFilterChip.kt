@@ -50,7 +50,13 @@ internal fun fileTypeIcon(group: FileTypeGroup): ImageVector = when (group) {
  * same primary-container chip as a contact's action chips; tapping it removes the limit for this query.
  */
 @Composable
-internal fun FileTypeFilterChip(group: FileTypeGroup, onRemove: () -> Unit, modifier: Modifier = Modifier) {
+internal fun FileTypeFilterChip(
+    group: FileTypeGroup,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** The keyboard's highlight ring, drawn on the chip itself. */
+    highlight: Modifier = Modifier
+) {
     val view = LocalView.current
     val sensoryEngine = rememberTactileSonicEngine()
     AssistChip(
@@ -70,6 +76,7 @@ internal fun FileTypeFilterChip(group: FileTypeGroup, onRemove: () -> Unit, modi
         },
         modifier = modifier
             .padding(horizontal = 16.dp, vertical = 4.dp)
+            .then(highlight)
             .semantics { contentDescription = "Showing only ${group.label}. Remove filter" },
         colors = AssistChipDefaults.assistChipColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -78,6 +85,9 @@ internal fun FileTypeFilterChip(group: FileTypeGroup, onRemove: () -> Unit, modi
             trailingIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer
         ),
         border = null,
-        shape = RoundedCornerShape(16.dp)
+        shape = FileTypeFilterChipShape
     )
 }
+
+/** The chip's shape, which the keyboard's highlight ring follows. */
+internal val FileTypeFilterChipShape = RoundedCornerShape(16.dp)

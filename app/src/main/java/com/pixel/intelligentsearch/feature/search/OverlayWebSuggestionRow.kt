@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.data.WebSuggestion
 import com.pixel.intelligentsearch.core.data.highlightFor
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
+import com.pixel.intelligentsearch.feature.settings.focusRing
 import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
 
 /** The size of a suggestion row's leading picture, and of the slot every row's icon sits in, so all text lines up. */
@@ -76,7 +77,9 @@ internal fun OverlayWebSuggestionRow(
     onRemove: () -> Unit,
     onFill: () -> Unit,
     /** A past search's long-press menu (Remove from History); suggestions from the engine have none. */
-    onLongClick: (() -> Unit)? = null
+    onLongClick: (() -> Unit)? = null,
+    /** Whether the keyboard's highlight is on this row (read while drawing); it draws the focus ring then. */
+    highlighted: () -> Boolean = { false }
 ) {
     val label = remember(suggestion, typed) { suggestionLabel(suggestion, typed) }
     val subtitle = suggestion.subtitle?.takeIf { it.isNotBlank() && !isRecent }
@@ -88,6 +91,7 @@ internal fun OverlayWebSuggestionRow(
             .padding(horizontal = 16.dp, vertical = 3.dp)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh, pill)
             .clip(pill)
+            .focusRing(pill, highlighted)
             .moreOptions(onLongClick)
             .expressiveRowClickable(onLongClick = onLongClick, onClick = onSearch)
             // The leading slot sits as far in from the start as from the top and bottom of a two-line row, so a

@@ -546,7 +546,8 @@ class SearchViewModel @Inject constructor(
     private val dismissedClipTexts: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     /**
-     * Offers what is on the clipboard: open a link, call a number or search the text. Android hands the clipboard
+     * Offers what is on the clipboard: open a link, call a number, search the text, or search an image with Lens
+     * ([ClipboardLens]). Android hands the clipboard
      * only to the app in focus, so the screen calls this each time its window gains focus, which also keeps it
      * current on every reopen.
      */
@@ -568,6 +569,14 @@ class SearchViewModel @Inject constructor(
             val isSensitive = clipboard?.primaryClipDescription?.extras
                 ?.getBoolean("android.content.extra.IS_SENSITIVE", false) == true
             val engine = settings.searchEngine
+            if (ClipboardLens.isImage(clipboard?.primaryClipDescription)) {
+                // An image is offered to Lens from its description alone; the clip itself is read only when the
+                // suggestion is tapped. Not under Tor: it would hand the picture to Google.
+                if (!com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)) {
+                    ClipboardLens.suggestionFor(context, clipboard?.primaryClipDescription)?.let(clipboardActions::add)
+                }
+                return clipboardActions
+            }
             if (!isSensitive && clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
                 val item = clipboard.primaryClip?.getItemAt(0)
                 val text = item?.text?.toString() ?: item?.coerceToText(context)?.toString()

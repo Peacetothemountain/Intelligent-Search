@@ -85,6 +85,12 @@ private val EmphasizedAccelerate = androidx.compose.animation.core.CubicBezierEa
 /** How long the panel takes to leave after a swipe to home is released. */
 private const val BACK_EXIT_MS = 200
 
+/**
+ * Whether search opens with the field focused and the keyboard up (Show Keyboard When Search Opens). Every way in
+ * reads it: the overlay for its focus, and the activity for the window's keyboard mode.
+ */
+internal fun keyboardUpOnOpen(prefs: android.content.SharedPreferences): Boolean = prefs[SettingsManager.SHOW_KEYBOARD_ON_OPEN]
+
 /** The first-run tutorial's steps on the overlay; Settings carries on from step 3. */
 internal val OverlayTutorialSteps = mapOf(
     0 to TutorialStepInfo("Welcome!", "Hello! Thank you for installing Intelligent Search. Please follow the tutorial to show you around. [bugdroid]", Alignment.Center, showArrow = false, requireButtonPress = true),
@@ -114,6 +120,8 @@ fun SearchOverlayScreen(
     val contactWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_CONTACTS)
     val fileWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_FILES)
     val suggestionsEnabled by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
+    val enterKeyActionValue by rememberSetting(SettingsManager.ENTER_KEY_ACTION)
+    val enterKeyAction = com.pixel.intelligentsearch.core.data.settings.EnterKeyAction.from(enterKeyActionValue)
     val searchProviderName = remember(settingsState.searchEngine, settingsState.customSearchEngineUrl) {
         when (settingsState.searchEngine) {
             "DuckDuckGo" -> "DuckDuckGo"
@@ -125,7 +133,8 @@ fun SearchOverlayScreen(
     }
     // State the overlay's sections share; the screen binds it under the same names so its code reads the same.
     val savedHasStartedTyping = rememberSaveable { mutableStateOf(false) }
-    val savedKeyboardDismissed = rememberSaveable { mutableStateOf(false) }
+    // With Show Keyboard When Search Opens off, search opens as if the keyboard had been put away: the field waits for a tap.
+    val savedKeyboardDismissed = rememberSaveable { mutableStateOf(!keyboardUpOnOpen(prefs)) }
     val ui = remember { OverlayUiState(savedHasStartedTyping, savedKeyboardDismissed, initialQuery = uiState.query) }
     var hasStartedTyping by ui::hasStartedTyping
     var textFieldValue by ui::textFieldValue
@@ -134,6 +143,8 @@ fun SearchOverlayScreen(
         if (uiState.query.isNotEmpty()) {
             hasStartedTyping = true
         }
+        // New words, new results: the keyboard's highlight starts again from the search field.
+        ui.highlightedKey = null
         // uiState reaches composition asynchronously, so while typing it can still hold the query from a
         // few keystrokes ago. Adopting that stale echo overwrote the field and dropped characters; only
         // a value that is still the ViewModel's current query (an external change such as a clear,
@@ -438,8 +449,13 @@ fun SearchOverlayScreen(
                 hasStartedTyping = false
             } else if (event == Lifecycle.Event.ON_RESUME) {
                 hasStartedTyping = false
-                // Resuming into a voice request (the assistant gesture) keeps the keyboard down.
-                if (!voice.active) isKeyboardDismissedByUser = false
+                // Resuming into a voice request (the assistant gesture) keeps the keyboard down, and so does Show
+                // Keyboard When Search Opens being off (the field may still hold focus from before: it lets go).
+                if (!voice.active) isKeyboardDismissedByUser = !keyboardUpOnOpen(prefs)
+                if (!keyboardUpOnOpen(prefs)) {
+                    focusManager.clearFocus(force = true)
+                    keyboardController?.hide()
+                }
                 // Each return brings quick apps, upcoming events and contacts up to date, and app usage for ranking.
                 viewModel.reloadOnResume()
                 viewModel.refreshAppUsage()
@@ -588,22 +604,36 @@ fun SearchOverlayScreen(
         }
     }
 
-    // The one way to "go", for Enter and for the voice check button: a bang goes to its site; otherwise the best
-    // match opens, then a typed web address, Quick Launch, and finally a web search.
+    // The one way to "go" once the results are in, for Enter and for the voice check button, following Enter Key
+    // Action (OverlayEnterKey): a bang goes to its site; with Open Top Result the short phrasing's action runs, else
+    // the best match opens, then a typed web address, Quick Launch, and finally a web search; with Search the Web,
+    // a web search.
     val submitQuery: (String, Boolean) -> Unit = submit@{ submittedQuery, fromVoice ->
-        if (submittedQuery.isEmpty()) return@submit
-        if (viewModel.resolveBangIntent(submittedQuery) != null) {
+        val outcome = OverlayEnterKey.decide(
+            query = submittedQuery,
+            triggered = null,
+            highlighted = null,
+            phrasingAction = uiState.enterAction?.takeIf { it.intent != null },
             // A bang is an explicit request for that site: it must not be taken over by an app match or Quick Launch
             // ("!g maps" would otherwise open Maps).
-            launchWebSearch(submittedQuery)
-            return@submit
-        }
-        // "15 min", "7:30am", "set a timer for 10 minutes": the top action, which opens the clock or calendar to confirm.
-        // It is an action, not a search, so it isn't kept in the history.
-        uiState.enterAction?.intent?.let { action ->
-            ui.hasStartedTyping = false
-            launchSafeIntent(context, android.content.Intent(action))
-            return@submit
+            isBang = submittedQuery.isNotEmpty() && viewModel.resolveBangIntent(submittedQuery) != null,
+            setting = enterKeyAction
+        )
+        when (outcome) {
+            EnterOutcome.SearchWeb -> {
+                launchWebSearch(submittedQuery)
+                return@submit
+            }
+            // "15 min", "7:30am", "set a timer for 10 minutes": the top action, which opens the clock or calendar to
+            // confirm. It is an action, not a search, so it isn't kept in the history.
+            is EnterOutcome.RunAction -> {
+                ui.hasStartedTyping = false
+                outcome.action.intent?.let { launchSafeIntent(context, android.content.Intent(it)) }
+                return@submit
+            }
+            EnterOutcome.OpenTopResult -> Unit
+            // Nothing typed; a trigger word and the highlight were handled by onEnter before the results settled.
+            else -> return@submit
         }
         viewModel.addSearchHistory(submittedQuery)
         when (val match = bestMatch) {
@@ -665,6 +695,7 @@ fun SearchOverlayScreen(
         launchWebSearch = launchWebSearch,
         openWebAddress = openWebAddress,
         submitQuery = { query, fromVoice -> coroutineScope.launch { submitWhenSettled(query, fromVoice) } },
+        enterKeyAction = enterKeyAction,
         visibleApps = visibleApps,
         bestMatch = bestMatch,
         bestMatchText = bestMatchText,
@@ -809,20 +840,20 @@ fun SearchOverlayScreen(
             }
             
             val surfaceAlpha = if (isShowWallpaper) ((100 - isTransparency) / 100f).coerceIn(0f, 1f) else 1f
-            // Unfolded foldables and tablets (shorter side 600dp or more) get two panes: search bar and quick apps on
-            // the left, results beside them, in a wider panel. A phone in landscape is wide but short, so it keeps one
-            // column and the 720dp panel.
+            // Expanded screens (an unfolded Pixel Fold or a tablet in landscape) get list and detail: the search bar,
+            // quick apps and results at the start, the highlighted or top result's details beside them, in a wider
+            // panel. Everything narrower keeps one column in the 720dp panel (useListDetailLayout).
             // Measured from this window, so the app in half of a split screen counts as the half it has.
             val windowSize = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
             val windowWidthDp = with(density) { windowSize.width.toDp() }
             val windowHeightDp = with(density) { windowSize.height.toDp() }
-            val useTwoPane = minOf(windowWidthDp, windowHeightDp) >= 600.dp && windowWidthDp >= 700.dp
-            val searchPaneWidth = (windowWidthDp * 0.4f).coerceIn(300.dp, 420.dp)
+            val listDetail = useListDetailLayout(windowWidthDp.value, windowHeightDp.value)
+            val listPaneWidth = (windowWidthDp * 0.42f).coerceIn(360.dp, 520.dp)
 
             Box(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .widthIn(max = if (useTwoPane) 1200.dp else 720.dp)
+                    .widthIn(max = if (listDetail) 1200.dp else 720.dp)
                     .fillMaxWidth()
                     // Nearly edge to edge: just enough margin to keep the panel's rounded outline on screen.
                     .padding(horizontal = 4.dp)
@@ -879,36 +910,73 @@ fun SearchOverlayScreen(
                     .pointerInput(Unit) { detectTapGestures { } }
             ) {
                 
-                if (useTwoPane) {
-                    val paneOffsetPx = with(density) { 20.dp.toPx() }
-                    Row(modifier = Modifier.fillMaxSize()) {
-                        Column(
-                            modifier = Modifier.width(searchPaneWidth).fillMaxHeight(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            if (settingsState.bottomSearch) Spacer(modifier = Modifier.weight(1f))
-                            else {
-                                Spacer(modifier = Modifier.statusBarsPadding())
-                                Spacer(modifier = Modifier.height(8.dp))
+                // The search bar, quick apps and results: the whole panel on a phone, the start pane on a large screen.
+                val searchColumn = @Composable { columnModifier: Modifier ->
+                    Column(
+                        modifier = columnModifier,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        val contentOffsetPx = with(density) { 20.dp.toPx() }
+                        if (!settingsState.bottomSearch) {
+                            Spacer(modifier = Modifier.statusBarsPadding())
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(modifier = Modifier.graphicsLayer {
+                                val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
+                                alpha = p
+                                translationY = (1f - p) * contentOffsetPx
+                            }) { searchBarContent() }
+                            Box(modifier = Modifier.graphicsLayer {
+                                val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
+                                val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
+                                alpha = a
+                                translationY = (1f - a) * contentOffsetPx
+                            }) { quickAppPanelContent() }
+                            Box(modifier = Modifier.weight(1f).graphicsLayer {
+                                val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
+                                val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
+                                alpha = a
+                                translationY = (1f - a) * contentOffsetPx
                             }
-                            val searchBarPane = @Composable {
-                                Box(modifier = Modifier.graphicsLayer {
-                                    val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
-                                    alpha = p
-                                    translationY = (1f - p) * paneOffsetPx
-                                }) { searchBarContent() }
+                            ) {
+                                searchResultsContent()
                             }
-                            val quickAppsPane = @Composable {
-                                Box(modifier = Modifier.graphicsLayer {
-                                    val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
-                                    val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
-                                    alpha = a
-                                    translationY = (1f - a) * paneOffsetPx
-                                }) { quickAppPanelContent() }
+                        } else {
+                            Box(modifier = Modifier.weight(1f).graphicsLayer {
+                                val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
+                                val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
+                                alpha = a
+                                translationY = -(1f - a) * contentOffsetPx
                             }
-                            // Same order as on a phone: the bar sits nearest the edge it is anchored to.
-                            if (settingsState.bottomSearch) { quickAppsPane(); searchBarPane() } else { searchBarPane(); quickAppsPane() }
+                                // Android 18 progressive blur: only dissolves words as they are scrolled by under the bottom search pill
+                                .then(
+                                    if (searchResultsListState.canScrollForward) {
+                                        Modifier.progressiveEdgeBlur(
+                                            edge = ProgressiveBlurDirection.BottomToTop,
+                                            edgeHeight = 18.dp,
+                                            maxBlur = 10.dp
+                                        )
+                                    } else Modifier
+                                )
+                            ) {
+                                searchResultsContent()
+                            }
+                            Box(modifier = Modifier.graphicsLayer {
+                                val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
+                                val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
+                                alpha = a
+                                translationY = -(1f - a) * contentOffsetPx
+                            }) { quickAppPanelContent() }
+                            Box(modifier = Modifier.graphicsLayer {
+                                val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
+                                alpha = p
+                                translationY = -(1f - p) * contentOffsetPx
+                            }) { searchBarContent() }
                         }
+                    }
+                }
+                if (listDetail) {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        searchColumn(Modifier.width(listPaneWidth).fillMaxHeight())
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -918,72 +986,14 @@ fun SearchOverlayScreen(
                                     val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
                                     val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
                                     alpha = a
-                                    translationY = (1f - a) * paneOffsetPx
+                                    translationY = (1f - a) * with(density) { 20.dp.toPx() }
                                 }
                         ) {
-                            searchResultsContent()
+                            OverlayDetailPane(sections)
                         }
                     }
-                } else Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    val contentOffsetPx = with(density) { 20.dp.toPx() }
-                    if (!settingsState.bottomSearch) {
-                        Spacer(modifier = Modifier.statusBarsPadding())
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Box(modifier = Modifier.graphicsLayer {
-                            val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
-                            alpha = p
-                            translationY = (1f - p) * contentOffsetPx
-                        }) { searchBarContent() }
-                        Box(modifier = Modifier.graphicsLayer {
-                            val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
-                            val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
-                            alpha = a
-                            translationY = (1f - a) * contentOffsetPx
-                        }) { quickAppPanelContent() }
-                        Box(modifier = Modifier.weight(1f).graphicsLayer {
-                            val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
-                            val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
-                            alpha = a
-                            translationY = (1f - a) * contentOffsetPx
-                        }
-                        ) {
-                            searchResultsContent()
-                        }
-                    } else {
-                        Box(modifier = Modifier.weight(1f).graphicsLayer {
-                            val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
-                            val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
-                            alpha = a
-                            translationY = -(1f - a) * contentOffsetPx
-                        }
-                            // Android 18 progressive blur: only dissolves words as they are scrolled by under the bottom search pill
-                            .then(
-                                if (searchResultsListState.canScrollForward) {
-                                    Modifier.progressiveEdgeBlur(
-                                        edge = ProgressiveBlurDirection.BottomToTop,
-                                        edgeHeight = 18.dp,
-                                        maxBlur = 10.dp
-                                    )
-                                } else Modifier
-                            )
-                        ) {
-                            searchResultsContent()
-                        }
-                        Box(modifier = Modifier.graphicsLayer {
-                            val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
-                            val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
-                            alpha = a
-                            translationY = -(1f - a) * contentOffsetPx
-                        }) { quickAppPanelContent() }
-                        Box(modifier = Modifier.graphicsLayer {
-                            val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
-                            alpha = p
-                            translationY = -(1f - p) * contentOffsetPx
-                        }) { searchBarContent() }
-                    }
+                } else {
+                    searchColumn(Modifier.fillMaxSize())
                 }
             }
         }

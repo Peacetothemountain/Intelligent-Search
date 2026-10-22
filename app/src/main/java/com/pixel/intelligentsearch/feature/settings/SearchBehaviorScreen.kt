@@ -137,7 +137,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
 
                         SettingsRowToggle(
                             title = "Smart Clipboard Suggestions",
-                            subtitle = "Suggested Actions Based on Clipboard Text. I.E. Open Photos, Open Music Player, Etc.",
+                            subtitle = "Suggested Actions Based on What You Copied: Open a Link, Call a Number, Search Text, or Search an Image with Lens.",
                             icon = Icons.Outlined.ContentPaste,
                             isChecked = smartClipboard,
                             onCheckedChange = {
@@ -159,6 +159,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                             showDivider = false
                         )
                     }
+                    KeyboardSettingsCard()
                     AtAGlanceSettingsCard()
                 }
             }

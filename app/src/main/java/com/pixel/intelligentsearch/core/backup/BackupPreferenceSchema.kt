@@ -40,7 +40,8 @@ internal object BackupPreferenceSchema {
             "widget_system_show_doodles", "widget_system_show_g_icon", "widget_system_show_voice", "widget_system_lock_black",
             "search.notifications", "glance.enabled", "glance.alarm", "glance.timers", "glance.media", "glance.codes",
             "glance.birthdays", "glance.battery",
-            "dictionary_answers", "weather_answers", "weather_use_device_location", "on_device_translation"
+            "dictionary_answers", "weather_answers", "weather_use_device_location", "on_device_translation",
+            "show_keyboard_on_open"
         )
         // The per-design element colours the widget reads with getInt (WidgetDesignSettings).
         for (design in listOf("widget", "widget_system", "widget_material")) {
@@ -73,7 +74,8 @@ internal object BackupPreferenceSchema {
             "widget_shortcut_1", "widget_shortcut_2", "widget_shortcut_3", "widget_shortcut_order",
             "widget_subtheme", "widget_system_material_g_icon", "widget_system_shortcut_1",
             "widget_system_shortcut_2", "widget_system_shortcut_3", "widget_system_shortcut_order",
-            "widget_system_subtheme", "widget_theme_style", "weather_home_location"
+            "widget_system_subtheme", "widget_theme_style", "weather_home_location",
+            "enter_key_action"
         )
         typed("STRING_SET", "disabled_web_shortcuts", "hidden_apps")
     }

@@ -20,6 +20,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -43,7 +45,7 @@ import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 internal const val PINNED_ROW_TAG = "pinned_results_row"
 
 /** The launch icon key of a pinned app in the Pinned row (the app row's own key belongs to its results). */
-private fun pinnedIconKey(app: AppItem) = "pinned_${LaunchIconKeys.app(app)}"
+internal fun pinnedIconKey(app: AppItem) = "pinned_${LaunchIconKeys.app(app)}"
 
 /**
  * Opens a result the way its own row does: an app in its profile (out of [from]'s icon), a contact's card (or the
@@ -93,24 +95,35 @@ internal fun OverlayPinnedRow(s: OverlayScope) {
                 .padding(horizontal = 24.dp, vertical = 6.dp)
                 .semantics { heading() }
         )
-        LazyRow(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalArrangement = Arrangement.Start) {
-            uniqueItems(pinned, key = { menuTargetFor(it)?.key ?: it.hashCode().toString() }, contentType = { it::class.simpleName }) { result ->
+        val rowState = androidx.compose.foundation.lazy.rememberLazyListState()
+        val rowKey: (Any) -> String = { menuTargetFor(it)?.key ?: it.hashCode().toString() }
+        // A pin the arrow keys highlight is scrolled into view along the row.
+        val highlightedKey = s.ui.highlightedKey
+        val animationsOn by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
+        LaunchedEffect(highlightedKey) {
+            val result = pinned.firstOrNull { ResultListKeys.pinned(it) == highlightedKey } ?: return@LaunchedEffect
+            val key = rowKey(result)
+            rowState.scrollIntoView(key, isTowardEnd(rowState, pinned.map(rowKey), key), animationsOn)
+        }
+        LazyRow(state = rowState, modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp), horizontalArrangement = Arrangement.Start) {
+            uniqueItems(pinned, key = rowKey, contentType = { it::class.simpleName }) { result ->
+                val highlight = Modifier.keyboardHighlight(s, ResultListKeys.pinned(result), ResultHighlightTileShape)
                 ResultMenuBox(s, menuTargetFor(result)) { openMenu ->
                     when (result) {
                         is AppItem -> {
                             val iconKey = pinnedIconKey(result)
-                            AppGridItem(result, launchIcon = LaunchIconTarget(s.launchIcons, iconKey), onLongClick = openMenu) {
+                            AppGridItem(result, launchIcon = LaunchIconTarget(s.launchIcons, iconKey), onLongClick = openMenu, modifier = highlight) {
                                 openResult(context, s, result, LaunchSource.tap(iconKey))
                             }
                         }
-                        is ContactItem -> PinnedTile(result.name.ifBlank { result.phoneNumber }, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }) {
+                        is ContactItem -> PinnedTile(result.name.ifBlank { result.phoneNumber }, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }, modifier = highlight) {
                             ContactAvatar(result, 48.dp) { TileSymbol(Icons.Outlined.Person) }
                         }
-                        is FileItem -> PinnedTile(result.name, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }) {
+                        is FileItem -> PinnedTile(result.name, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }, modifier = highlight) {
                             if (s.settingsState.filesThumbnails) FileIconThumbnail(result.uri, result.mimeType, size = 48.dp)
                             else TileSymbol(Icons.AutoMirrored.Outlined.InsertDriveFile)
                         }
-                        is AndroidSettingResult -> PinnedTile(result.title, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }, spokenLabel = result.spokenLabel) {
+                        is AndroidSettingResult -> PinnedTile(result.title, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }, spokenLabel = result.spokenLabel, modifier = highlight) {
                             TileSymbol(androidSettingIcon(result.iconType))
                         }
                     }
@@ -137,11 +150,12 @@ private fun PinnedTile(
     label: String,
     onLongClick: (() -> Unit)?,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     spokenLabel: String = label,
     icon: @Composable () -> Unit
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .width(80.dp)
             .semantics(mergeDescendants = true) { contentDescription = spokenLabel }
             .moreOptions(onLongClick)

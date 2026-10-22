@@ -30,6 +30,8 @@ internal class OverlayUiState(
     var showDebugPill by mutableStateOf(false)
     var showHistoryClearedSnackbar by mutableStateOf(false)
     var showTorInstallPopup by mutableStateOf(false)
+    /** The result the arrow keys have highlighted ([NavStop.key]); null while the search field alone has focus. */
+    var highlightedKey by mutableStateOf<String?>(null)
 }
 
 /**
@@ -76,4 +78,7 @@ internal class OverlayScope(
     val filteredApps: List<AppItem>,
     val filteredFiles: List<FileItem>,
     val distinctRecents: List<String>
-)
+) {
+    /** What the arrow keys can reach in the results now, a row per result ([OverlayKeyboardNav]). */
+    val navRows: List<List<NavStop>> by lazy { navSources(this).rows() }
+}

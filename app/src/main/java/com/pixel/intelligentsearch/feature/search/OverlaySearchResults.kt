@@ -101,6 +101,7 @@ internal fun directActionIcon(type: String): androidx.compose.ui.graphics.vector
     "alarm" -> Icons.Default.Alarm
     "navigation" -> Icons.Default.Directions
     "private_space" -> Icons.Default.Lock
+    ClipboardLens.ICON_TYPE -> Icons.Default.ImageSearch
     else -> Icons.Default.ContentPaste
 }
 
@@ -148,26 +149,21 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val sortedResultSections = remember(appWeight, webWeight, contactWeight, fileWeight, settingsStrongMatch) {
         resultSectionOrder(appWeight, webWeight, contactWeight, fileWeight, settingsStrongMatch)
     }
-    val matchingRecent = remember(uiState.query, uiState.recentSearches, settingsState.searchPreviousSearches) {
-        val trimmed = uiState.query.trim()
-        if (!settingsState.searchPreviousSearches || trimmed.isEmpty()) {
-            emptyList()
-        } else {
-            uiState.recentSearches
-                .filter { it.contains(trimmed, ignoreCase = true) }
-                .distinct()
-        }
-    }
     // Past searches first, then the engine's suggestions, as Google lists them.
-    val allDisplaySuggestions = remember(matchingRecent, uiState.webSuggestions, settingsState.webResultsCount) {
-        val maxCount = settingsState.webResultsCount.coerceAtLeast(1)
-        val nonRecentWeb = uiState.webSuggestions.filter { webSugg ->
-            matchingRecent.none { it.equals(webSugg.query, ignoreCase = true) }
-        }
-        (matchingRecent.distinct().map { WebSuggestion(it) } + nonRecentWeb).distinctBy { it.query }.take(maxCount)
+    val allDisplaySuggestions = remember(uiState.query, uiState.recentSearches, settingsState.searchPreviousSearches, uiState.webSuggestions, settingsState.webResultsCount) {
+        displayedSuggestions(uiState.query, uiState.recentSearches, settingsState.searchPreviousSearches, uiState.webSuggestions, settingsState.webResultsCount)
     }
 
     val isBottomResults = settingsState.bottomSearch && settingsState.bottomSearchResult
+    // The keyboard's highlight is scrolled into view as it moves.
+    val highlightedKey = s.ui.highlightedKey
+    val animationsOn by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
+    LaunchedEffect(highlightedKey) {
+        val rows = s.navRows
+        val stop = rows.flatten().firstOrNull { it.key == highlightedKey } ?: return@LaunchedEffect
+        val order = rows.map { it.first().listKey }
+        searchResultsListState.scrollIntoView(stop.listKey, isTowardEnd(searchResultsListState, order, stop.listKey), animationsOn)
+    }
     val glanceItems = rememberGlanceItems(settingsState.hiddenApps)
     val notificationHits = rememberNotificationHits(uiState.query, settingsState.hiddenApps)
 
@@ -258,12 +254,13 @@ internal fun OverlaySearchResults(s: OverlayScope) {
 
         // "Did you mean": an obvious typo in a query that matched nothing on the phone. Tapping fills the fix in.
         uiState.spellingSuggestion?.let { corrected ->
-            item(key = "did_you_mean", contentType = "did_you_mean") {
+            item(key = ResultListKeys.DID_YOU_MEAN, contentType = "did_you_mean") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 4.dp)
                         .clip(RoundedCornerShape(28.dp))
+                        .keyboardHighlight(s, ResultListKeys.DID_YOU_MEAN, RoundedCornerShape(28.dp))
                         .expressiveRowClickable {
                             textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
                                 text = corrected,
@@ -299,7 +296,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         // Parsed intents (timers, alarms, events, messages, calls, navigation) always show; clipboard
         // actions are only added to this list when smart clipboard suggestions are enabled.
         if (uiState.directActions.isNotEmpty()) {
-            uniqueItems(uiState.directActions, key = { action -> "direct_action_${action.title}_${action.subtitle}" }, contentType = { "direct_action" }) { action ->
+            uniqueItems(uiState.directActions, key = ResultListKeys::directAction, contentType = { "direct_action" }) { action ->
                 val swipe = rememberSwipeToDismiss(sensoryEngine, view) { viewModel.dismissDirectAction(action) }
 
                 Box(
@@ -319,21 +316,13 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                             .padding(horizontal = 16.dp, vertical = 4.dp)
                             .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), RoundedCornerShape(32.dp))
                             .clip(RoundedCornerShape(32.dp))
+                            .keyboardHighlight(s, ResultListKeys.directAction(action), RoundedCornerShape(32.dp))
                             .swipeToDismiss(swipe, action)
                             .bouncyClickable {
                                 hasStartedTyping = false
                                 focusManager.clearFocus(force = true)
                                 keyboardController?.hide()
-                                if (action.iconType == "private_space") {
-                                    val act = context.findActivity()
-                                    if (act != null) {
-                                        viewModel.unlockPrivateSpace(act)
-                                    }
-                                } else {
-                                    action.intent?.let { intent ->
-                                        launchSafeIntent(context, intent)
-                                    }
-                                }
+                                runDirectAction(context, viewModel, action)
                             }
                             .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically
@@ -385,14 +374,14 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         if (uiState.query.isEmpty()) atAGlanceItems(glanceItems) { hasStartedTyping = false }
 
         if (bestMatch != null) {
-            item(key = "best_match_hero_card", contentType = "best_match") {
+            item(key = ResultListKeys.BEST_MATCH, contentType = "best_match") {
                 OverlayBestMatchCard(s, bestMatch)
             }
         }
 
         // What the user pinned, on the empty overlay; with a query, pinned results lead their own sections instead.
         if (uiState.query.isEmpty() && uiState.pinned.isNotEmpty()) {
-            item(key = "pinned_results", contentType = "pinned_results") { OverlayPinnedRow(s) }
+            item(key = ResultListKeys.PINNED, contentType = "pinned_results") { OverlayPinnedRow(s) }
         }
 
         // Debug menu: Mock Trending Queries fills the empty search state with stand-in topics.
@@ -499,7 +488,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     }
                 }
             }
-            uniqueItems(distinctRecents, key = { query -> "recent_$query" }, contentType = { "recent_query" }) { recentQuery ->
+            uniqueItems(distinctRecents, key = ResultListKeys::recent, contentType = { "recent_query" }) { recentQuery ->
                 OverlayRecentSearchRow(s, recentQuery)
             }
         }
@@ -554,18 +543,20 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         }
 
         if (uiState.mathResult != null) {
-            item(key = "math_result", contentType = "math_result") {
-                MathResultOneBox(
-                    expression = uiState.query,
-                    result = uiState.mathResult ?: "",
-                    onOpenCalculator = {
-                        hasStartedTyping = false
-                        try {
-                            val calcIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR)
-                            launchSafeIntent(context, calcIntent)
-                        } catch (_: Exception) {}
-                    }
-                )
+            item(key = ResultListKeys.MATH, contentType = "math_result") {
+                HighlightedCard(s, ResultListKeys.MATH) {
+                    MathResultOneBox(
+                        expression = uiState.query,
+                        result = uiState.mathResult ?: "",
+                        onOpenCalculator = {
+                            hasStartedTyping = false
+                            try {
+                                val calcIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR)
+                                launchSafeIntent(context, calcIntent)
+                            } catch (_: Exception) {}
+                        }
+                    )
+                }
             }
         }
 
@@ -573,71 +564,12 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         val liveAnswer = uiState.liveAnswer?.takeIf { it.query == uiState.query }
         val instantAnswer = uiState.instantAnswer
         if (liveAnswer != null) {
-            item(key = "live_answer", contentType = "live_answer") {
-                OverlayLiveAnswer(s, liveAnswer)
+            item(key = ResultListKeys.LIVE_ANSWER, contentType = "live_answer") {
+                HighlightedCard(s, ResultListKeys.LIVE_ANSWER) { OverlayLiveAnswer(s, liveAnswer) }
             }
         } else if (instantAnswer != null) {
-            item(key = "instant_answer", contentType = "instant_answer") {
-                when (instantAnswer.iconType) {
-                    "conversion" -> {
-                        ConversionOneBox(conversionText = instantAnswer.title)
-                    }
-                    "currency" -> {
-                        ConversionOneBox(
-                            conversionText = instantAnswer.title,
-                            ratesLabel = instantAnswer.subtitle,
-                            header = "CURRENCY CONVERSION",
-                            clipLabel = "Currency Conversion"
-                        )
-                    }
-                    "dictionary" -> {
-                        DictionaryOneBox(
-                            word = instantAnswer.title,
-                            providerName = searchProviderName,
-                            onClick = { launchWebSearch("define ${instantAnswer.title}") }
-                        )
-                    }
-                    "url" -> {
-                        UrlNavigationOneBox(
-                            url = instantAnswer.title,
-                            onClick = {
-                                hasStartedTyping = false
-                                openWebAddress(instantAnswer.title)
-                            }
-                        )
-                    }
-                    "date" -> {
-                        TimeWeatherOneBox(
-                            title = instantAnswer.title,
-                            subtitle = instantAnswer.subtitle,
-                            iconType = instantAnswer.iconType,
-                            onClick = { launchWebSearch(uiState.query) }
-                        )
-                    }
-                    "weather", "time" -> {
-                        TimeWeatherOneBox(
-                            title = instantAnswer.title,
-                            subtitle = instantAnswer.subtitle,
-                            iconType = instantAnswer.iconType,
-                            onClick = {
-                                hasStartedTyping = false
-                                if (instantAnswer.iconType == "time") {
-                                    launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
-                                } else {
-                                    launchWebSearch(uiState.query)
-                                }
-                            }
-                        )
-                    }
-                    else -> {
-                        TimeWeatherOneBox(
-                            title = instantAnswer.title,
-                            subtitle = instantAnswer.subtitle,
-                            iconType = "info",
-                            onClick = { launchWebSearch(uiState.query) }
-                        )
-                    }
-                }
+            item(key = ResultListKeys.INSTANT_ANSWER, contentType = "instant_answer") {
+                HighlightedCard(s, ResultListKeys.INSTANT_ANSWER) { OverlayInstantAnswer(s, instantAnswer) }
             }
         }
 
@@ -648,8 +580,16 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     val displayApps = if (filteredApps.isNotEmpty()) filteredApps else visibleApps
                     if (showApps && isAppsEnabled && displayApps.isNotEmpty()) {
                         item(key = "apps_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                        item(key = "apps_row", contentType = "apps_row") {
-                            LazyRow(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        item(key = ResultListKeys.APPS_ROW, contentType = "apps_row") {
+                            val appRowState = androidx.compose.foundation.lazy.rememberLazyListState()
+                            // A highlighted app is scrolled into view along the row.
+                            LaunchedEffect(highlightedKey) {
+                                val appKey = highlightedKey?.removePrefix(ResultListKeys.inRow(ResultListKeys.APPS_ROW, ""))
+                                    ?.takeIf { highlightedKey.startsWith(ResultListKeys.APPS_ROW + "/") } ?: return@LaunchedEffect
+                                val order = displayApps.map(ResultListKeys::app)
+                                appRowState.scrollIntoView(appKey, isTowardEnd(appRowState, order, appKey), animationsOn)
+                            }
+                            LazyRow(state = appRowState, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                                 if (uiState.query.isEmpty()) {
                                     item(key = "search_settings_shortcut", contentType = "settings_shortcut") {
                                         SearchSettingsItem {
@@ -659,10 +599,15 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         }
                                     }
                                 }
-                                uniqueItems(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
+                                uniqueItems(displayApps, key = ResultListKeys::app, contentType = { "app_item" }) { app ->
                                     val iconKey = LaunchIconKeys.app(app)
                                     ResultMenuBox(s, ResultMenuTarget.App(app)) { openMenu ->
-                                        AppGridItem(app, launchIcon = LaunchIconTarget(launchIcons, iconKey), onLongClick = openMenu) { performAppLaunch(app, LaunchSource.tap(iconKey)) }
+                                        AppGridItem(
+                                            app,
+                                            launchIcon = LaunchIconTarget(launchIcons, iconKey),
+                                            onLongClick = openMenu,
+                                            modifier = Modifier.keyboardHighlight(s, ResultListKeys.inRow(ResultListKeys.APPS_ROW, ResultListKeys.app(app)), ResultHighlightTileShape)
+                                        ) { performAppLaunch(app, LaunchSource.tap(iconKey)) }
                                     }
                                 }
                             }
@@ -672,11 +617,11 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 "android_settings" -> {
                     if (settingsState.searchAndroidSettings && uiState.query.isNotEmpty() && uiState.androidSettings.isNotEmpty()) {
                         item(key = "android_settings_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                        uniqueItems(uiState.androidSettings, key = { setting -> "android_setting_${setting.id}" }, contentType = { "android_setting" }) { setting ->
+                        uniqueItems(uiState.androidSettings, key = ResultListKeys::setting, contentType = { "android_setting" }) { setting ->
                             // App Info rows stand for an app, so they have no menu of their own.
                             val menuTarget = if (ResultKeys.setting(setting) != null) ResultMenuTarget.Setting(setting) else null
                             ResultMenuBox(s, menuTarget) { openMenu ->
-                                AndroidSettingRow(setting, onLongClick = openMenu) {
+                                AndroidSettingRow(setting, onLongClick = openMenu, modifier = Modifier.keyboardHighlight(s, ResultListKeys.setting(setting), ResultHighlightRowShape)) {
                                     hasStartedTyping = false
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
@@ -689,7 +634,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 "web" -> {
                     if (showWeb && (settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
                         if (allDisplaySuggestions.isNotEmpty()) {
-                            uniqueItems(allDisplaySuggestions, key = { suggestion -> "sugg_${suggestion.query}" }, contentType = { "web_suggestion" }) { suggestion ->
+                            uniqueItems(allDisplaySuggestions, key = { suggestion -> ResultListKeys.suggestion(suggestion.query) }, contentType = { "web_suggestion" }) { suggestion ->
                                 val query = suggestion.query
                                 val isRecent = uiState.recentSearches.any { it.equals(query, ignoreCase = true) }
                                 // Past searches have a menu (Remove from History); the engine's suggestions keep none.
@@ -709,6 +654,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         // The Show Thumbnails switch covers pictures of people, songs and videos too.
                                         showThumbnail = settingsState.filesThumbnails,
                                         onLongClick = openMenu,
+                                        highlighted = { s.ui.highlightedKey == ResultListKeys.suggestion(query) },
                                         onSearch = {
                                             viewModel.onQueryChanged(query)
                                             viewModel.addSearchHistory(query)
@@ -734,13 +680,14 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     val displayContacts = if (filteredContacts.isNotEmpty()) filteredContacts else uiState.contacts
                     if (showPeople && isContactsEnabled && displayContacts.isNotEmpty()) {
                         item(key = "contacts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                        uniqueItems(displayContacts, key = { contact -> "contact_${contact.lookupUri.ifBlank { "${contact.name}_${contact.phoneNumber}" }}" }, contentType = { "contact" }) { contact ->
+                        uniqueItems(displayContacts, key = ResultListKeys::contact, contentType = { "contact" }) { contact ->
                             val isDirectCall = settingsState.contactDirectCall
                             val menuTarget = if (ResultKeys.contact(contact) != null) ResultMenuTarget.Contact(contact) else null
                             ResultMenuBox(s, menuTarget) { openMenu ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .keyboardHighlight(s, ResultListKeys.contact(contact), ResultHighlightRowShape)
                                         .moreOptions(openMenu)
                                         .expressiveRowClickable(onLongClick = openMenu) {
                                             hasStartedTyping = false
@@ -790,11 +737,12 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     val displayFiles = if (filteredFiles.isNotEmpty()) filteredFiles else uiState.files
                     if (showFiles && isFilesEnabled && displayFiles.isNotEmpty()) {
                         item(key = "files_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                        uniqueItems(displayFiles, key = { file -> "file_${file.uri}" }, contentType = { "file" }) { file ->
+                        uniqueItems(displayFiles, key = ResultListKeys::file, contentType = { "file" }) { file ->
                             ResultMenuBox(s, ResultMenuTarget.File(file)) { openMenu ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .keyboardHighlight(s, ResultListKeys.file(file), ResultHighlightRowShape)
                                         .moreOptions(openMenu)
                                         .expressiveRowClickable(onLongClick = openMenu) {
                                             hasStartedTyping = false
@@ -832,6 +780,73 @@ internal fun OverlaySearchResults(s: OverlayScope) {
 
         if (!isBottomResults) {
             renderInlineShortcuts()
+        }
+    }
+}
+
+/** The tap-through answer card for [instantAnswer] (a conversion, a word, an address, the date, time or weather). */
+@Composable
+internal fun OverlayInstantAnswer(s: OverlayScope, instantAnswer: InstantAnswer) {
+    val context = LocalContext.current
+    val query = s.uiState.query
+    when (instantAnswer.iconType) {
+        "conversion" -> {
+            ConversionOneBox(conversionText = instantAnswer.title)
+        }
+        "currency" -> {
+            ConversionOneBox(
+                conversionText = instantAnswer.title,
+                ratesLabel = instantAnswer.subtitle,
+                header = "CURRENCY CONVERSION",
+                clipLabel = "Currency Conversion"
+            )
+        }
+        "dictionary" -> {
+            DictionaryOneBox(
+                word = instantAnswer.title,
+                providerName = s.searchProviderName,
+                onClick = { s.launchWebSearch("define ${instantAnswer.title}") }
+            )
+        }
+        "url" -> {
+            UrlNavigationOneBox(
+                url = instantAnswer.title,
+                onClick = {
+                    s.ui.hasStartedTyping = false
+                    s.openWebAddress(instantAnswer.title)
+                }
+            )
+        }
+        "date" -> {
+            TimeWeatherOneBox(
+                title = instantAnswer.title,
+                subtitle = instantAnswer.subtitle,
+                iconType = instantAnswer.iconType,
+                onClick = { s.launchWebSearch(query) }
+            )
+        }
+        "weather", "time" -> {
+            TimeWeatherOneBox(
+                title = instantAnswer.title,
+                subtitle = instantAnswer.subtitle,
+                iconType = instantAnswer.iconType,
+                onClick = {
+                    s.ui.hasStartedTyping = false
+                    if (instantAnswer.iconType == "time") {
+                        launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
+                    } else {
+                        s.launchWebSearch(query)
+                    }
+                }
+            )
+        }
+        else -> {
+            TimeWeatherOneBox(
+                title = instantAnswer.title,
+                subtitle = instantAnswer.subtitle,
+                iconType = "info",
+                onClick = { s.launchWebSearch(query) }
+            )
         }
     }
 }

@@ -86,6 +86,10 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Purpose**: Above the empty search, At a Glance can show your next alarm, the battery when it is low or charging, what is playing, birthdays this week, one-time codes and timers. Each has its own switch in **Settings -> Search Behavior -> At a Glance**.
 * **Processing & Security**: These are read from Android on the device, only while the search is on screen, and are never stored or transmitted. No new permission is needed for the alarm and battery.
 
+### M. Clipboard (Smart Clipboard Suggestions)
+* **Purpose**: Only if you turn on **Settings -> Search Behavior -> Smart Clipboard Suggestions** (off by default), the empty search offers an action for what you copied: open a link, call a number, search the text, or **Search with Lens** for a copied image.
+* **Processing & Security**: The clipboard is read only while the search is on screen and in focus, as Android requires. Clips marked sensitive (passwords) are never offered. For an image, only its description (that it is an image, and when it was copied) is read to offer the action; the image's address is read only when you tap **Search with Lens**, and is then shared to Google Lens or the Google app with read access to that one image. Intelligent Search never reads, stores or uploads the image itself, and offers nothing for images while Tor is your search engine.
+
 ---
 
 ## 3. Web Search, External Search Engines, Live Currency Rates & Instant Answers

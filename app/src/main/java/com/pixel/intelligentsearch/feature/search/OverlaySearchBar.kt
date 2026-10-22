@@ -54,7 +54,9 @@ import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
+import com.pixel.intelligentsearch.core.ui.geminiPlateIdleFlow
 import com.pixel.intelligentsearch.core.ui.materialYouGeminiPlate
+import com.pixel.intelligentsearch.core.ui.plateFlowsWhileIdle
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -156,6 +158,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
             label = "search_pill_shape_morph"
         )
         val searchBarShape = RoundedCornerShape(searchBarCornerRadius)
+        val showMic by rememberSetting(SettingsManager.OVERLAY_SHOW_MIC)
         Row(
             modifier = Modifier
                 .tutorialTarget(1, prefs)
@@ -169,6 +172,11 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                 // interior, light tone pooling along the bottom edge, ambient rim glow, bottom bevel
                 .materialYouGeminiPlate(
                     cornerRadius = searchBarCornerRadius,
+                    alpha = pillAlpha(settingsState.pillOpacity)
+                )
+                // While the bar sits idle, that bottom light flows gently.
+                .geminiPlateIdleFlow(
+                    idle = plateFlowsWhileIdle(textFieldValue.text, voice.active),
                     alpha = pillAlpha(settingsState.pillOpacity)
                 )
                 .listeningGlow(active = voice.active, level = { voice.level }, cornerRadius = searchBarCornerRadius)
@@ -322,6 +330,8 @@ internal fun OverlaySearchBar(s: OverlayScope) {
 
             // Voice search: the keyboard drops while the search bar listens; while listening the mic becomes
             // Rambler's check button, which finishes and keeps the words. Gboard draws it in the secondary colour.
+            // With Show Microphone in Search Bar off there is no mic, but listening started another way (the
+            // assistant gesture) still gets its check button.
             if (voice.active) {
                 androidx.compose.material3.FilledIconButton(
                     onClick = { voice.finish() },
@@ -331,7 +341,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     ),
                     modifier = Modifier.size(40.dp)
                 ) { Icon(Icons.Default.Check, contentDescription = "Done speaking", modifier = Modifier.size(22.dp)) }
-            } else {
+            } else if (showMic) {
                 // Gboard Rambler's sparkle mic, drawn in the same colours as the lens icon; no container.
                 IconButton(
                     onClick = {
@@ -349,7 +359,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
             }
 
             // A clear gap between the voice button and settings.
-            Spacer(modifier = Modifier.width(6.dp))
+            if (voice.active || showMic) Spacer(modifier = Modifier.width(6.dp))
 
             IconButton(
                 onClick = { 

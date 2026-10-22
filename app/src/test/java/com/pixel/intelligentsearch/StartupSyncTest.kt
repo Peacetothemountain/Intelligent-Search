@@ -46,12 +46,12 @@ class StartupSyncTest {
     @Before fun setUp() = WorkManagerTestInitHelper.initializeTestWorkManager(context)
 
     @Test
-    fun theSelectedTextEntryFollowsTheSetting() {
-        settings.prefs.edit().put(SettingsManager.SEARCH_FROM_SELECTED_TEXT, false).commit()
-        StartupSync.afterUnlock(context, repository())
-        assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DISABLED, context.packageManager.getComponentEnabledSetting(entry))
+    fun anEntryAnOlderVersionTurnedOffIsTurnedBackOn() {
+        // Older versions' Search from Selected Text switch disabled the entry; that switch is gone, so its stored value
+        // no longer counts and the entry is always on.
+        settings.prefs.edit().putBoolean("search_from_selected_text", false).commit()
+        context.packageManager.setComponentEnabledSetting(entry, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
 
-        settings.prefs.edit().put(SettingsManager.SEARCH_FROM_SELECTED_TEXT, true).commit()
         StartupSync.afterUnlock(context, repository())
         assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, context.packageManager.getComponentEnabledSetting(entry))
     }

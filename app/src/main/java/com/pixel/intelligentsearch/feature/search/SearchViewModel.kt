@@ -227,19 +227,30 @@ class SearchViewModel @Inject constructor(
      * same keystroke publishes, and that publish must keep them rather than fall back to the cache or a filtered list.
      */
     @Volatile private var webSuggestionsQuery: String? = null
-    private var searchJob: Job? = null
+    @Volatile private var searchJob: Job? = null
     private var pinnedJob: Job? = null
 
     /** Completed once the latest search's local results are published (before its "did you mean" pause). */
-    private var localResultsReady: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+    @Volatile private var localResultsReady: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
-    /** Waits for the local results of the latest [onQueryChanged], so a caller can act on the best match for it. */
+    /**
+     * Waits for the local results of the latest [onQueryChanged], so a caller can act on the best match for it. A
+     * search that is cancelled by a re-run (a removed file type chip, the next keystroke) hands over to that re-run:
+     * this only returns once the search it waited for is still the current one.
+     */
     suspend fun awaitSearch() {
-        val job = searchJob ?: return
-        val ready = localResultsReady ?: return job.join()
-        kotlinx.coroutines.selects.select<Unit> {
-            ready.onAwait {}
-            job.onJoin {}
+        while (true) {
+            val job = searchJob ?: return
+            val ready = localResultsReady
+            if (ready == null) {
+                job.join()
+            } else {
+                kotlinx.coroutines.selects.select<Unit> {
+                    ready.onAwait {}
+                    job.onJoin {}
+                }
+            }
+            if (job === searchJob) return
         }
     }
     private var initialDataJob: Job? = null

@@ -40,6 +40,16 @@ class FileTypeSources : DeviceSearchSources by FakeDeviceSearchSources() {
     override suspend fun recentFiles(limit: Int, includeHidden: Boolean) = FILES
     override suspend fun upcomingEvents() = emptyList<com.pixel.intelligentsearch.core.data.CalendarEvent>()
 
+    /** When set, the Nth local search to look up cached suggestions waits on the Nth latch (on its own thread). */
+    @Volatile var heldLookups: List<java.util.concurrent.CountDownLatch> = emptyList()
+    /** How many local searches have looked up cached suggestions while [heldLookups] was set. */
+    val lookups = java.util.concurrent.atomic.AtomicInteger()
+    override fun cachedWebSuggestions(query: String, engine: String): List<com.pixel.intelligentsearch.core.data.WebSuggestion>? {
+        val held = heldLookups
+        if (held.isNotEmpty()) held.getOrNull(lookups.getAndIncrement())?.await(10, java.util.concurrent.TimeUnit.SECONDS)
+        return null
+    }
+
     companion object {
         private fun file(name: String, mime: String, id: Int, modified: Long) =
             FileItem(name, "/storage/emulated/0/Documents/$name", mime, "content://media/external/file/$id", modified)
@@ -69,6 +79,7 @@ class FileTypeFilterTest {
     @get:Rule val hilt = HiltAndroidRule(this)
 
     @Inject lateinit var coordinator: UnifiedSearchCoordinator
+    @Inject lateinit var sources: DeviceSearchSources
 
     private lateinit var viewModel: SearchViewModel
     private val prefs get() = ApplicationProvider.getApplicationContext<Context>()
@@ -138,6 +149,59 @@ class FileTypeFilterTest {
         val again = search("pdf tax")
         assertEquals(FileTypeGroup.PDF, again.fileTypeFilter)
         assertEquals(listOf(FileTypeSources.TAX_PDF), again.files)
+    }
+
+    /**
+     * Removing the chip re-runs the search and cancels the one in flight. A caller already waiting for that search
+     * must wait for the re-run, not come back on the cancelled run with the chip still showing.
+     */
+    @Test
+    fun awaitSearchWaitsForTheRunThatReplacedTheOneItWasWaitingFor() {
+        // Web suggestions on (Google), so each local search looks the query up in the suggestion cache.
+        prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
+        assertEquals(FileTypeGroup.PDF, search("pdf invoice").fileTypeFilter)
+
+        val fake = sources as FileTypeSources
+        val first = java.util.concurrent.CountDownLatch(1)
+        val rerun = java.util.concurrent.CountDownLatch(1)
+        fake.lookups.set(0)
+        fake.heldLookups = listOf(first, rerun)
+        try {
+            viewModel.onQueryChanged("pdf invoice x")
+            waitFor("the first search to reach the cache") { fake.lookups.get() == 1 }
+            var returnedWith: SearchUiState? = null
+            viewModel.viewModelScope.launch(start = kotlinx.coroutines.CoroutineStart.UNDISPATCHED) {
+                viewModel.awaitSearch()
+                returnedWith = viewModel.uiState.value
+            }
+            viewModel.clearFileTypeFilter()
+            waitFor("the re-run to reach the cache") { fake.lookups.get() == 2 }
+
+            // The cancelled search ends while the re-run is still going: awaitSearch keeps waiting.
+            first.countDown()
+            repeat(10) {
+                shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(50))
+                Thread.sleep(20)
+            }
+            assertNull("awaitSearch came back on the cancelled search", returnedWith)
+
+            rerun.countDown()
+            await("awaitSearch to come back") { returnedWith != null }
+            assertNull(returnedWith!!.fileTypeFilter)
+            assertEquals("pdf invoice x", returnedWith!!.query)
+        } finally {
+            fake.heldLookups = emptyList()
+            first.countDown()
+            rerun.countDown()
+        }
+    }
+
+    private fun waitFor(what: String, condition: () -> Boolean) {
+        val deadline = System.currentTimeMillis() + 10_000
+        while (!condition()) {
+            if (System.currentTimeMillis() > deadline) throw AssertionError("timed out waiting for $what")
+            Thread.sleep(10)
+        }
     }
 
     @Test

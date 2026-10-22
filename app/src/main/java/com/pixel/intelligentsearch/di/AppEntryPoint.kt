@@ -33,6 +33,10 @@ interface AppEntryPoint {
     fun currencyRateRepository(): com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
     /** The in-memory notification index behind Search Your Notifications and At a Glance's codes and timers. */
     fun notificationIndex(): com.pixel.intelligentsearch.core.glance.NotificationIndex
+    /** AI Answers' Keystore-encrypted API keys, for its settings page. */
+    fun aiKeyVault(): com.pixel.intelligentsearch.core.security.AiKeyVault
+    fun savedLinkStore(): com.pixel.intelligentsearch.core.data.SavedLinkStore
+    fun savedLinkIcons(): com.pixel.intelligentsearch.core.data.SavedLinkIcons
 
     @ApplicationScope
     fun applicationScope(): CoroutineScope

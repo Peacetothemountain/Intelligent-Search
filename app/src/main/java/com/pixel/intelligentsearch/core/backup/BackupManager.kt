@@ -139,7 +139,8 @@ class BackupManager @Inject constructor(
             SettingsManager.SMART_CLIPBOARD_SUGGESTIONS.name,
             SettingsManager.SEARCH_WEB_SUGGESTIONS.name,
             SettingsManager.LIVE_CURRENCY_RATES.name,
-            SettingsManager.SEARCH_NOTIFICATIONS.name
+            SettingsManager.SEARCH_NOTIFICATIONS.name,
+            SettingsManager.AI_ANSWERS_ENABLED.name
         )
 
         private fun isPrivacyOptInKey(key: String): Boolean =

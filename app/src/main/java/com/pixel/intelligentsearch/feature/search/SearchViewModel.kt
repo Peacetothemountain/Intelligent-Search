@@ -84,6 +84,11 @@ data class SearchUiState(
     val systemToggle: com.pixel.intelligentsearch.core.ui.SystemToggleUiState? = null,
     val volumeSlider: com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider? = null,
     val directActions: List<DirectAction> = emptyList(),
+    /**
+     * The action Enter runs instead of searching: a timer, alarm or reminder the query plainly asks for ("15 min",
+     * "7:30am", "set a timer for 10 minutes"). Null when there is none or it may be meant as a search ("7:30").
+     */
+    val enterAction: DirectAction? = null,
     val calendarEvents: List<CalendarEvent> = emptyList(),
     val recentSearches: List<String> = emptyList(),
     val hasLockedPrivateSpace: Boolean = false,
@@ -98,7 +103,13 @@ data class SearchUiState(
      * The pinned results that can be shown now, in pin order, for the empty overlay's Pinned row: [AppItem],
      * [ContactItem], [FileItem] or [com.pixel.intelligentsearch.core.search.AndroidSettingResult].
      */
-    val pinned: List<Any> = emptyList()
+    val pinned: List<Any> = emptyList(),
+    /** Saved Links whose name (or nickname) the query starts, best first. */
+    val savedLinks: List<SavedLink> = emptyList(),
+    /** The provider the "Ask" row offers for a question; null when there is no row (see AiAnswers.offerFor). */
+    val aiOffer: com.pixel.intelligentsearch.core.ai.AiProvider? = null,
+    /** The answer to the question the user tapped Ask on, for this query only. */
+    val aiAnswer: com.pixel.intelligentsearch.core.ai.AiAnswerState? = null
 )
 
 /**
@@ -114,6 +125,9 @@ internal fun SearchUiState.withoutPrivateProfile(): SearchUiState {
         androidSettings = androidSettings.filterNot { it.app?.isPrivate() == true }
     )
 }
+
+/** The most Saved Links one query lists. */
+private const val MAX_SAVED_LINK_RESULTS = 5
 
 /** How long typing must pause before a query is spell checked for "Did you mean". */
 private const val SPELLING_PAUSE_MS = 450L
@@ -150,7 +164,9 @@ class SearchViewModel @Inject constructor(
     private val systemToggleManager: dagger.Lazy<com.pixel.intelligentsearch.core.system.SystemToggleManager>,
     private val directBootManager: com.pixel.intelligentsearch.core.system.DirectBootManager,
     private val androidSettingsSearch: com.pixel.intelligentsearch.core.search.AndroidSettingsSearch,
-    private val resultShortcutStore: com.pixel.intelligentsearch.core.data.ResultShortcutStore
+    private val resultShortcutStore: com.pixel.intelligentsearch.core.data.ResultShortcutStore,
+    private val savedLinkStore: SavedLinkStore,
+    private val aiAnswers: com.pixel.intelligentsearch.core.ai.AiAnswers
 ) : ViewModel() {
     
     private val settingsState = settingsManager.settingsFlow
@@ -227,6 +243,22 @@ class SearchViewModel @Inject constructor(
                 refreshPinned()
                 val query = _uiState.value.query
                 if (!first && query.isNotBlank()) executeLocalSearch(query)
+                first = false
+            }
+        }
+
+        // The key vault's small preferences file is read once here, off the main thread, so typing never waits on it.
+        viewModelScope.launch(Dispatchers.IO) { aiAnswers.unavailableReason() }
+
+        // Saved Links added, renamed or removed in settings (or restored) show in the results and Pinned row at once.
+        viewModelScope.launch {
+            var first = true
+            savedLinkStore.flow.collect {
+                if (!first) {
+                    refreshPinned()
+                    val query = _uiState.value.query
+                    if (query.isNotBlank()) executeLocalSearch(query)
+                }
                 first = false
             }
         }
@@ -524,8 +556,13 @@ class SearchViewModel @Inject constructor(
     fun onQueryChanged(newQuery: String) {
         val previousQuery = _uiState.value.query
         // Suggestions fetched for another query no longer count as this one's answer.
-        if (newQuery != previousQuery) webSuggestionsQuery = null
-        _uiState.update { it.copy(query = newQuery) }
+        if (newQuery != previousQuery) {
+            webSuggestionsQuery = null
+            // An answer belongs to the question it was asked for; typing on stops it.
+            aiJob?.cancel()
+            aiJob = null
+        }
+        _uiState.update { if (newQuery != previousQuery) it.copy(query = newQuery, aiAnswer = null) else it.copy(query = newQuery) }
         
         if (newQuery.isBlank()) {
             _remoteSearchQueryFlow.value = ""
@@ -537,13 +574,16 @@ class SearchViewModel @Inject constructor(
                 webSuggestions = emptyList(),
                 androidSettings = emptyList(),
                 directActions = if (settingsState.value.smartClipboardSuggestions) initialClipboardActions else emptyList(),
+                enterAction = null,
                 mathResult = null,
                 instantAnswer = null,
                 systemToggle = null,
                 volumeSlider = null,
                 bangSuggestions = emptyList(),
                 detectedBangQuery = null,
-                spellingSuggestion = null
+                spellingSuggestion = null,
+                savedLinks = emptyList(),
+                aiOffer = null
             ) }
             return
         }
@@ -570,6 +610,8 @@ class SearchViewModel @Inject constructor(
         _uiState.update { current ->
             current.copy(
                 spellingSuggestion = null,
+                // Offered only; nothing is sent until the row is tapped (askAi).
+                aiOffer = if (parsedBang == null) aiAnswers.offerFor(newQuery) else null,
                 bangSuggestions = bangSuggestions,
                 detectedBangQuery = parsedBang,
                 filteredApps = if (tier0.apps.isNotEmpty() && settingsState.value.searchApps) {
@@ -674,6 +716,20 @@ class SearchViewModel @Inject constructor(
                 }
             }
 
+            // Enter runs a timer, alarm or reminder the query asks for; calls, messages and the rest stay a tap away.
+            var enterAction: DirectAction? = when (unifiedResults.parsedIntent) {
+                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Timer,
+                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Alarm,
+                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Reminder -> directActions.firstOrNull()
+                else -> null
+            }
+            // The short phrasing ("15 min", "7:30am", "laundry in 2 hrs") is the top suggestion, above the results.
+            unifiedResults.shortAction?.let { action ->
+                val row = DirectAction(action.title, action.subtitle, action.iconType, action.intent)
+                directActions.add(0, row)
+                if (action.runsOnEnter) enterAction = row
+            }
+
             if (queryLower in listOf("private", "private space", "hidden", "hidden apps", "locked space", "private apps") && _uiState.value.hasLockedPrivateSpace) {
                 directActions.add(
                     DirectAction(
@@ -737,6 +793,9 @@ class SearchViewModel @Inject constructor(
                 }
             } else emptyList()
 
+            // The user's own named addresses, ranked like every result (pins first, nicknames found).
+            val savedLinks = SavedLinks.search(newQuery, savedLinkStore.current, resultShortcutStore.current).take(MAX_SAVED_LINK_RESULTS)
+
             val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
@@ -798,12 +857,14 @@ class SearchViewModel @Inject constructor(
                     contacts = shownContacts,
                     files = shownFiles,
                     androidSettings = androidSettings,
+                    savedLinks = savedLinks,
                     webSuggestions = resolvedSuggestions,
                     mathResult = mathStr,
                     instantAnswer = localInstantAnswer,
                     systemToggle = systemToggle,
                     volumeSlider = unifiedResults.systemAction as? com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider,
                     directActions = directActions,
+                    enterAction = enterAction,
                     lastQueryLatency = elapsed
                 )
             }
@@ -1016,7 +1077,8 @@ class SearchViewModel @Inject constructor(
         if (action in initialClipboardActions) dismissedClipTexts += action.subtitle
         initialClipboardActions = initialClipboardActions.filter { it != action }
         _uiState.update { state ->
-            state.copy(directActions = state.directActions.filter { it != action })
+            // A dismissed action is no longer what Enter runs.
+            state.copy(directActions = state.directActions.filter { it != action }, enterAction = state.enterAction.takeIf { it != action })
         }
     }
 
@@ -1060,7 +1122,25 @@ class SearchViewModel @Inject constructor(
                 if (settings.searchFiles) unifiedSearchCoordinator.indexedResult(key) as? FileItem else null
             com.pixel.intelligentsearch.core.search.ResultKind.SETTING -> if (!settings.searchAndroidSettings) null else
                 com.pixel.intelligentsearch.core.search.ResultKeys.settingId(key)?.let(androidSettingsSearch::page)
+            com.pixel.intelligentsearch.core.search.ResultKind.LINK -> savedLinkStore.forKey(key)
             null -> null
+        }
+    }
+
+    private var aiJob: Job? = null
+
+    /**
+     * Ask: sends the current query's question to the chosen AI provider (with the user's key) and streams its answer
+     * into [SearchUiState.aiAnswer]. Only the Ask row's tap calls this; typing on cancels it.
+     */
+    fun askAi() {
+        val query = _uiState.value.query
+        if (_uiState.value.aiOffer == null) return
+        aiJob?.cancel()
+        aiJob = viewModelScope.launch {
+            aiAnswers.ask(query).collect { state ->
+                _uiState.update { if (it.query == query) it.copy(aiAnswer = state) else it }
+            }
         }
     }
 

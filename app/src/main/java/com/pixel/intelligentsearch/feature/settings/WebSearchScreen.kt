@@ -27,7 +27,11 @@ import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
+fun WebSearchScreen(
+    prefs: SharedPreferences,
+    onBack: () -> Unit,
+    onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = {}
+) {
     val context = LocalContext.current
     val settingsViewModel = LocalSettingsViewModel.current
     Scaffold(
@@ -162,6 +166,19 @@ fun WebSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
                 PrioritySetting(SettingsManager.SEARCH_WEIGHT_WEB, "Web")
+            }
+
+            SettingsSectionHeader("AI Answers")
+            SettingsCard {
+                val aiAnswers by rememberSetting(SettingsManager.AI_ANSWERS_ENABLED)
+                SettingsRow(
+                    title = "AI Answers",
+                    subtitle = if (aiAnswers) "On. Ask Claude, ChatGPT or Gemini with Your Own Key When You Tap Ask." else
+                        "Off. Answer Questions with Claude, ChatGPT or Gemini Using Your Own Key.",
+                    icon = Icons.Outlined.AutoAwesome,
+                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.AiAnswers) },
+                    showDivider = false
+                )
             }
 
             SettingsSectionHeader("Quick Web Shortcuts")

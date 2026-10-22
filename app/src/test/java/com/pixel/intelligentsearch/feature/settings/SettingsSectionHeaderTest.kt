@@ -114,7 +114,7 @@ class SettingsSectionHeaderTest {
 
     @Test
     fun webSearchHeaderUsesTheSharedStyle() {
-        show { WebSearchScreen(prefs) {} }
+        show { WebSearchScreen(prefs, onBack = {}) }
         assertSectionHeader("Quick Web Shortcuts")
     }
 

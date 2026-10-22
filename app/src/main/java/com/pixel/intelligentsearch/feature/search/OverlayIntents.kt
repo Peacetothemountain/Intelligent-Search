@@ -129,6 +129,10 @@ internal fun quickAppSearchIntent(context: Context, packageName: String, query: 
     val pm = context.packageManager
     val flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
     val encoded = Uri.encode(query)
+    // An AI assistant's pill asks it the query: in its app through its own address (or Gemini's shared text).
+    com.pixel.intelligentsearch.core.bangs.AiAssistants.forPackage(packageName)?.let { assistant ->
+        return com.pixel.intelligentsearch.core.bangs.AiAssistants.launchIntent(context, assistant, query).addFlags(flags)
+    }
     return when (packageName) {
         "com.android.chrome" -> Intent(Intent.ACTION_VIEW, "https://google.com/search?q=$encoded".toUri()).setPackage(packageName)
         "com.google.android.apps.maps" -> Intent(Intent.ACTION_VIEW, "geo:0,0?q=$encoded".toUri()).setPackage(packageName)

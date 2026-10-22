@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.TouchApp
@@ -69,6 +70,7 @@ private fun kindIcon(kind: ResultKind?): ImageVector = when (kind) {
     ResultKind.APP -> Icons.Outlined.Apps
     ResultKind.CONTACT -> Icons.Outlined.Person
     ResultKind.FILE -> Icons.AutoMirrored.Outlined.InsertDriveFile
+    ResultKind.LINK -> Icons.Outlined.Link
     ResultKind.SETTING, null -> Icons.Outlined.Settings
 }
 

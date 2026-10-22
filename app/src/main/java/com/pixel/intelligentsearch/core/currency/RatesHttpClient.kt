@@ -26,11 +26,13 @@ class HttpsRatesClient internal constructor(
     private val timeoutMs: Int,
     private val totalTimeoutMs: Long,
     private val open: (URL) -> HttpURLConnection?,
-    private val nanoTime: () -> Long
+    private val nanoTime: () -> Long,
+    /** What the download asks for: the rates file by default, images for a Saved Link's icon. */
+    private val accept: String = "application/xml, text/xml"
 ) : RatesHttpClient {
 
-    constructor(timeoutMs: Int = 15_000, totalTimeoutMs: Long = 30_000L) :
-        this(timeoutMs, totalTimeoutMs, { it.openConnection() as? HttpsURLConnection }, System::nanoTime)
+    constructor(timeoutMs: Int = 15_000, totalTimeoutMs: Long = 30_000L, accept: String = "application/xml, text/xml") :
+        this(timeoutMs, totalTimeoutMs, { it.openConnection() as? HttpsURLConnection }, System::nanoTime, accept)
 
     override fun get(url: String, maxBytes: Int): ByteArray? {
         val address = runCatching { URI(url).toURL() }.getOrNull() ?: return null
@@ -45,7 +47,7 @@ class HttpsRatesClient internal constructor(
             connection.connectTimeout = timeoutMs
             connection.readTimeout = timeoutMs
             connection.setRequestProperty("User-Agent", USER_AGENT)
-            connection.setRequestProperty("Accept", "application/xml, text/xml")
+            connection.setRequestProperty("Accept", accept)
             when {
                 connection.responseCode != HttpURLConnection.HTTP_OK -> null
                 connection.contentLengthLong > maxBytes -> null

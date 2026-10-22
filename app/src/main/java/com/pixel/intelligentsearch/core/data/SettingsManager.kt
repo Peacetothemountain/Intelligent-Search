@@ -225,6 +225,18 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** Contacts' birthdays this week (needs contacts access). */
         val GLANCE_BIRTHDAYS = BooleanSetting("glance.birthdays", true)
         val GLANCE_BATTERY = BooleanSetting("glance.battery", true)
+        /**
+         * AI Answers: questions ("…?", "ask …") offer an Ask row that, only when tapped, sends that one question to
+         * [AI_PROVIDER] with the user's own key (kept in AiKeyVault, never here). Off by default; a backup can't
+         * switch it on.
+         */
+        val AI_ANSWERS_ENABLED = BooleanSetting("ai.answers.enabled", false)
+        /** The [com.pixel.intelligentsearch.core.ai.AiProvider] id AI Answers asks. */
+        val AI_PROVIDER = StringSetting("ai.answers.provider", "anthropic")
+        /** The chosen model of [AI_PROVIDER]; blank (or another provider's) means its default. */
+        val AI_MODEL = StringSetting("ai.answers.model", "")
+        /** Saved Links: named web addresses found by name in search, as JSON (SavedLinks); read through SavedLinkStore. */
+        val SAVED_LINKS = StringSetting("saved_links_json", "[]")
 
         /** Every declared setting, for migration, backup validation and change filtering. */
         val ALL: List<SettingKey<*>> = listOf(
@@ -246,7 +258,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, OVERLAY_SHOW_MIC, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
             DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_ALARM,
-            GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_CODES, GLANCE_BIRTHDAYS, GLANCE_BATTERY, RESULT_SHORTCUTS
+            GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_CODES, GLANCE_BIRTHDAYS, GLANCE_BATTERY, RESULT_SHORTCUTS,
+            AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL, SAVED_LINKS
         )
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =

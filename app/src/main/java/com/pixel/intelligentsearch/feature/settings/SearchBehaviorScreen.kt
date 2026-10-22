@@ -150,6 +150,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             showDivider = false
                         )
                     }
+                    AtAGlanceSettingsCard()
                 }
             }
         }

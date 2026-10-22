@@ -1,7 +1,7 @@
 # Privacy Policy & Privacy Governance
 
 **Effective Date:** October 4, 2026  
-**Last Updated:** October 20, 2026  
+**Last Updated:** October 22, 2026  
 **Application:** Intelligent Search (`com.pixel.intelligentsearch`)  
 **Developer / Publisher:** NG Designs  
 **Contact:** [support.ngdesigns@gmail.com](mailto:support.ngdesigns@gmail.com)  
@@ -26,7 +26,7 @@ We believe that your personal device search queries, contacts, schedule, files, 
 Intelligent Search requires certain Android platform permissions solely to enable search and device-management functionality on your local device. Every permission is handled with minimal privilege and strict user transparency:
 
 ### A. Contacts (`android.permission.READ_CONTACTS`)
-* **Purpose**: Allows you to search your contacts by name, display phone numbers, and trigger one-tap calls or SMS messages directly from the search bar.
+* **Purpose**: Allows you to search your contacts by name, display phone numbers, and trigger one-tap calls or SMS messages directly from the search bar. With the same permission, **At a Glance** shows contacts' birthdays in the coming week above the empty search (switch it off in **Settings -> Search Behavior -> At a Glance -> Birthdays**).
 * **Processing & Security**: Contact indexing is executed entirely within your device's local memory. Contact data is **never** transmitted over the internet, never backed up to remote servers, and never shared with third parties.
 * **User Control**: Contacts search is disabled by default. Enabling it requires your explicit runtime consent, preceded by an in-app prominent disclosure dialog explaining local-only usage. You can disable Contacts search at any time in **Settings -> Search Shortcuts -> Contacts**, or revoke the permission via Android System Settings.
 
@@ -71,6 +71,16 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Purpose**: On Android 16 and later, on-device assistants can ask Intelligent Search to search your installed apps, run a calculation, or (only if you turn on **Settings -> Search Sources -> Contacts -> Share with Assistants**, which is off by default) search your contacts.
 * **Processing & Security**: Requests are answered on the device. Hidden apps are never returned, and contacts are never shared while contact search or sharing is off, or contacts access is not granted.
 
+### K. Notifications (Notification Access, `BIND_NOTIFICATION_LISTENER_SERVICE`)
+* **Purpose**: Only if you turn on **Settings -> Search Sources -> Notifications** (Search Your Notifications, off by default), Intelligent Search reads the notifications showing on your phone so that typed searches can find them, and so that **At a Glance** can show one-time codes from messaging and email apps (for 10 minutes, with one-tap copy) and running timers and stopwatches. Google Play allows notification access for an app's core feature; here it is used for nothing else.
+* **Consent**: Turning the switch on first explains what is read, then opens Android's own Notification Access screen, where you grant access yourself. You can revoke it there at any time, or turn the switch off.
+* **Processing & Security**: Notifications are held in the app's memory only, while they are showing: their title, text, app and time. Nothing read is ever written to storage, the database, preferences or backups, and nothing is sent anywhere. Turning the switch off or revoking access forgets everything at once, and the listener stops reading. Intelligent Search sees only what each notification itself shows; it cannot open your messages, Gmail or other emails behind them. A copied one-time code is marked sensitive, so keyboards and clipboard previews treat it like a password.
+* **Now Playing**: Android lets an app with notification access see which media apps are playing. At a Glance uses this to show what is playing with play, pause and skip, on the device only.
+
+### L. At a Glance (Alarms, Battery & Media)
+* **Purpose**: Above the empty search, At a Glance can show your next alarm, the battery when it is low or charging, what is playing, birthdays this week, one-time codes and timers. Each has its own switch in **Settings -> Search Behavior -> At a Glance**.
+* **Processing & Security**: These are read from Android on the device, only while the search is on screen, and are never stored or transmitted. No new permission is needed for the alarm and battery.
+
 ---
 
 ## 3. Web Search, External Search Engines & Live Currency Rates
@@ -102,7 +112,7 @@ When you execute a web search or request live autocomplete suggestions:
   * With a passphrase, the key is derived from it using **PBKDF2** (600,000 iterations, random salt), so the backup can be restored on any device.
   * Without a passphrase, the key is created inside this device's Android Keystore and never leaves it, so the backup can only be restored on the same device and installation.
   * Backup files are saved strictly to the storage location or cloud drive chosen by the user via the Android system file creator.
-  * Restoring a backup never switches on contact sharing, clipboard suggestions, web suggestions or the **Live Currency Rates** switch itself; it can only leave them as you set them on this phone or switch them off. It does bring back your **Calculator** and search engine choices, which also decide whether currency rates are downloaded (see Section 3): with Live Currency Rates on, a restore that turns the Calculator on or changes your search engine from Tor to another lets the downloads resume.
+  * Restoring a backup never switches on contact sharing, clipboard suggestions, web suggestions, notification search or the **Live Currency Rates** switch itself; it can only leave them as you set them on this phone or switch them off. It does bring back your **Calculator** and search engine choices, which also decide whether currency rates are downloaded (see Section 3): with Live Currency Rates on, a restore that turns the Calculator on or changes your search engine from Tor to another lets the downloads resume.
   * A passphrase you choose to save on the phone is encrypted with an Android Keystore key that works only while the phone is unlocked and shortly after you authenticate.
 
 ---

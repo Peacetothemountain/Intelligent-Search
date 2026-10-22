@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -351,41 +352,40 @@ fun SearchPillsScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                // Segmented Profile Bar
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    for (id in 1..SearchPillProfiles.PROFILE_COUNT) {
-                        val isSelected = activeProfile == id
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { switchProfile(id) },
-                            label = { Text("Profile $id", fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                            leadingIcon = if (isSelected) {
-                                { Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(16.dp)) }
-                            } else null,
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            ),
-                            shape = RoundedCornerShape(16.dp)
+                // Segmented Profile Bar: each profile's outlined icon, filled while it is the active one.
+                ShellSelector(
+                    options = (1..SearchPillProfiles.PROFILE_COUNT).toList(),
+                    selected = activeProfile,
+                    onSelect = { id -> switchProfile(id) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                    itemHeight = 60.dp
+                ) { id, isSelected ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center,
+                        modifier = Modifier.padding(horizontal = 2.dp)
+                    ) {
+                        Icon(
+                            if (isSelected) Icons.Filled.AccountCircle else Icons.Outlined.AccountCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            "Profile $id",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            maxLines = 1,
+                            autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium)
                         )
                     }
                 }
 
                 if (localPillList.isEmpty()) {
-                    Surface(
+                    com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(16.dp)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
-                        color = Color.Transparent
                     ) {
                         Column(
                             modifier = Modifier.padding(24.dp),
@@ -595,14 +595,9 @@ fun SearchPillsScreen(
                                             }
                                         }
 
-                                        val containerBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-                                            .compositeOver(MaterialTheme.colorScheme.background)
-
-                                        Surface(
+                                        com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .clip(RoundedCornerShape(24.dp))
-                                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
                                                 // TalkBack can't swipe or drag the row, so removing and moving it are actions on it.
                                                 .semantics(mergeDescendants = true) {
                                                     customActions = buildList {
@@ -611,7 +606,6 @@ fun SearchPillsScreen(
                                                         if (itemIndex < localPillList.lastIndex) add(CustomAccessibilityAction("Move down") { movePill(packageName, 1) })
                                                     }
                                                 },
-                                            color = containerBg,
                                             shape = RoundedCornerShape(24.dp)
                                         ) {
                                             Row(

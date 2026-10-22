@@ -47,6 +47,7 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.SearchIconColors
+import com.pixel.intelligentsearch.core.ui.expressive.matteShell
 import com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
 
 // WIDGET SETTINGS SCREEN
@@ -486,14 +487,21 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Live Preview Card (Pinned at the top for real-time visual feedback)
+            // Live Preview Card (Pinned at the top for real-time visual feedback), a matte shell in the page's own
+            // colour, so the widget sits on what a Home screen would show behind it.
+            val previewShellLook = com.pixel.intelligentsearch.core.ui.expressive.rememberMatteShellLook(
+                containerColor = MaterialTheme.colorScheme.background
+            )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp)
                     .height(150.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(MaterialTheme.colorScheme.background),
+                    .matteShell(
+                        previewShellLook,
+                        RoundedCornerShape(24.dp),
+                        com.pixel.intelligentsearch.core.ui.expressive.MatteShellDefaults.ShadowElevation
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                     val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
@@ -697,82 +705,33 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             }
 
             // System vs Material Design Switcher
-            SettingsCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp)
-                        .padding(4.dp)
-                        .selectableGroup(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(if (isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
-                            .semantics { selected = isSystem }
-                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
-                                localThemeStyle = "System Default"
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "System Design",
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1,
-                            autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge),
-                            fontWeight = if (isSystem) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(if (!isSystem) MaterialTheme.colorScheme.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, RoundedCornerShape(24.dp))
-                            .semantics { selected = !isSystem }
-                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
-                                // Only shows the Material design; its own settings, like Inner Pill & Circle
-                                // State, stay as the user left them.
-                                localThemeStyle = "Material You (Minimal)"
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            "Material Design",
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1,
-                            autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge),
-                            fontWeight = if (!isSystem) FontWeight.Bold else FontWeight.Normal,
-                            color = if (!isSystem) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+            ShellSelector(
+                options = listOf("System Default", "Material You (Minimal)"),
+                selected = if (isSystem) "System Default" else "Material You (Minimal)",
+                // Only shows the other design; its own settings, like the Material design's Inner Pill & Circle
+                // State, stay as the user left them.
+                onSelect = { localThemeStyle = it },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                itemHeight = 44.dp
+            ) { option, isSel ->
+                Text(
+                    if (option == "System Default") "System Design" else "Material Design",
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1,
+                    autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge),
+                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                )
             }
 
             // Material 3 Expressive Segmented Tab Bar
             val isCustomActive = localSubtheme == "Custom"
+            // Each tab's outlined icon, and the filled one it shows while selected.
             val tabs = remember(isCustomActive) {
-                if (isCustomActive) {
-                    listOf(
-                        Pair("Appearance", Icons.Outlined.Palette),
-                        Pair("Color Studio", Icons.Outlined.Tune),
-                        Pair("Widget Shortcuts", Icons.Outlined.Widgets)
-                    )
-                } else {
-                    listOf(
-                        Pair("Appearance", Icons.Outlined.Palette),
-                        Pair("Widget Shortcuts", Icons.Outlined.Widgets)
-                    )
-                }
+                listOfNotNull(
+                    Triple("Appearance", Icons.Outlined.Palette, Icons.Filled.Palette),
+                    if (isCustomActive) Triple("Color Studio", Icons.Outlined.Tune, Icons.Filled.Tune) else null,
+                    Triple("Widget Shortcuts", Icons.Outlined.Widgets, Icons.Filled.Widgets)
+                )
             }
 
             // The tab is kept by name, so a design without the open tab (Color Studio needs the Custom subtheme)
@@ -783,55 +742,33 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 if (selectedTabName != activeTabName) selectedTabName = activeTabName
             }
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp)
-                    .clip(RoundedCornerShape(28.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .padding(4.dp)
-                    .selectableGroup(),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                tabs.forEach { tab ->
-                    val isSel = activeTabName == tab.first
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(
-                                if (isSel) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-                            )
-                            .semantics { selected = isSel }
-                            .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
-                                selectedTabName = tab.first
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        ) {
-                            Icon(
-                                imageVector = tab.second,
-                                contentDescription = null,
-                                tint = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = tab.first,
-                                autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSel) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                            )
-                        }
-                    }
+            ShellSelector(
+                options = tabs,
+                selected = tabs.first { it.first == activeTabName },
+                onSelect = { selectedTabName = it.first },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                itemHeight = 44.dp,
+                role = androidx.compose.ui.semantics.Role.Tab
+            ) { tab, isSel ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isSel) tab.third else tab.second,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = tab.first,
+                        autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
                 }
             }
 

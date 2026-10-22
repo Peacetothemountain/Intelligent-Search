@@ -181,10 +181,17 @@ internal fun WidgetShortcutsTab(
                             }
                         }
                 ) {
+                    // The card's own colour, outline and drag shadow, with the matte grain on its surface.
                     com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .shadow(elevation, RoundedCornerShape(24.dp)),
                         shape = RoundedCornerShape(24.dp),
-                        shadowElevation = maxOf(elevation, com.pixel.intelligentsearch.core.ui.expressive.MatteShellDefaults.ShadowElevation)
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                        )
                     ) {
                         Row(
                             modifier = Modifier

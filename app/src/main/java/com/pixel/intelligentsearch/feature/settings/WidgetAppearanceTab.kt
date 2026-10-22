@@ -19,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
@@ -91,7 +92,7 @@ internal fun WidgetAppearanceTab(
     val isMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
 
     // G Icon options
-    SettingsCard {
+    SettingsCard(lit = false) {
         SettingsRowToggle(
             title = "Display G Icon",
             subtitle = "Show Google Logo on Search Bar Widget.",
@@ -128,49 +129,75 @@ internal fun WidgetAppearanceTab(
             Triple("Now Playing", "Playing", com.pixel.intelligentsearch.R.drawable.ic_music)
         )
         val currentAction = if (localActionIcon == "Gemini") "Assistant" else localActionIcon
-        ShellSelector(
-            options = actionOptions,
-            selected = actionOptions.firstOrNull { it.first == currentAction } ?: actionOptions.first(),
-            onSelect = { localActionIcon = it.first },
-            itemHeight = 64.dp
-        ) { (optionKey, label, iconRes), isSel ->
-            val tint = LocalContentColor.current
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(4.dp)
-            ) {
-                if (iconRes != null) {
-                    ComposeActionIcon(
-                        iconType = optionKey,
-                        modifier = Modifier.size(22.dp),
-                        primaryColor = tint,
-                        secondaryColor = tint,
-                        tertiaryColor = tint
-                    )
-                } else {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = "None",
-                        modifier = Modifier.size(22.dp)
+        val actionTile = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        // In a settings card as it always was, each option its own soft tile and the chosen one primary.
+        SettingsCard(lit = false) {
+            ShellSelector(
+                options = actionOptions,
+                selected = actionOptions.firstOrNull { it.first == currentAction } ?: actionOptions.first(),
+                onSelect = { localActionIcon = it.first },
+                itemHeight = 64.dp,
+                contentPadding = 6.dp,
+                gap = 6.dp,
+                indicatorShape = RoundedCornerShape(20.dp),
+                unselectedColor = { actionTile }
+            ) { (optionKey, label, iconRes), isSel ->
+                val tint = LocalContentColor.current
+                // Choosing an option plays its icon's own short animation, clipped within the column's padding
+                // so it never leaves the tile; the label stays still.
+                val motion = rememberSelectionMotion(isSel, ActionIconMotion.durationMillis(optionKey))
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(4.dp)
+                ) {
+                    if (iconRes != null) {
+                        ComposeActionIcon(
+                            iconType = optionKey,
+                            modifier = Modifier.size(22.dp).clipAround(4.dp),
+                            primaryColor = tint,
+                            secondaryColor = tint,
+                            tertiaryColor = tint,
+                            motion = motion
+                        )
+                    } else {
+                        val pose = remember { ActionIconPose() }
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = "None",
+                            modifier = Modifier
+                                .size(22.dp)
+                                .clipAround(4.dp)
+                                .graphicsLayer {
+                                    ActionIconMotion.pose(optionKey, motion(), pose)
+                                    val unit = size.width / 24f
+                                    rotationZ = pose.body.rotation
+                                    scaleX = pose.body.scaleX
+                                    scaleY = pose.body.scaleY
+                                    translationX = pose.body.dx * unit
+                                    translationY = pose.body.dy * unit
+                                }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                        maxLines = 1,
+                        autoSize = oneLineAutoSize(MaterialTheme.typography.labelSmall)
                     )
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                    maxLines = 1,
-                    autoSize = oneLineAutoSize(MaterialTheme.typography.labelSmall)
-                )
             }
         }
     }
 
     // Floating Theme Pills
     // The Custom pill is painted in the custom colour, so its label is black or white to match. Unselected, the
-    // pill is a gradient up from half opacity and the label sits on its midpoint, both shown over the shell.
-    val shellColor = MaterialTheme.colorScheme.surfaceContainer
+    // pill is a gradient up from half opacity and the label sits on its midpoint, both shown over the page. The
+    // other pills are each a soft tile, the chosen one primary, straight on the page with no track behind them.
+    val pageColor = MaterialTheme.colorScheme.background
+    val pillTile = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
     val dynColor = androidx.compose.ui.graphics.Color(computedCustomColorInt)
     val subthemeOptions = if (localThemeStyle == "System Default") {
         listOf("System", "Light", "Dark", "Custom")
@@ -186,7 +213,12 @@ internal fun WidgetAppearanceTab(
                 localLockBlack = true
             }
         },
-        indicatorColor = { opt -> if (opt == "Custom") dynColor else androidx.compose.ui.graphics.Color.Unspecified }
+        modifier = Modifier.padding(vertical = 4.dp),
+        contentPadding = 0.dp,
+        gap = 8.dp,
+        indicatorShape = RoundedCornerShape(32.dp),
+        indicatorColor = { opt -> if (opt == "Custom") dynColor else androidx.compose.ui.graphics.Color.Unspecified },
+        unselectedColor = { opt -> if (opt == "Custom") androidx.compose.ui.graphics.Color.Transparent else pillTile }
     ) { opt, isSel ->
         val isCustom = opt == "Custom"
         if (isCustom && !isSel) {
@@ -197,16 +229,15 @@ internal fun WidgetAppearanceTab(
                         brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
                             colors = listOf(dynColor.copy(alpha = 0.5f), dynColor)
                         ),
-                        shape = ShellSelectorDefaults.ItemShape
+                        shape = RoundedCornerShape(32.dp)
                     )
             )
         }
         Text(
             opt,
             style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
             color = if (isCustom) {
-                subthemePillLabelColor(if (isSel) dynColor else dynColor.copy(alpha = 0.75f), shellColor)
+                subthemePillLabelColor(if (isSel) dynColor else dynColor.copy(alpha = 0.75f), pageColor)
             } else {
                 androidx.compose.ui.graphics.Color.Unspecified
             },
@@ -217,33 +248,36 @@ internal fun WidgetAppearanceTab(
 
     SettingsSectionHeader("G Icon Style")
     // G Icon Row with Custom G Icon button right beside Accented G Icon
-    ShellSelector(
-        options = listOf("System G Icon", "Material G Icon", "Accented G Icon", "Custom G Icon"),
-        selected = localMaterialGIconTheme,
-        onSelect = { localMaterialGIconTheme = it }
-    ) { opt, isSel ->
-        val label = when (opt) {
-            "System G Icon" -> "System"
-            "Material G Icon" -> "Material"
-            "Accented G Icon" -> "Accented"
-            "Custom G Icon" -> "Custom"
-            else -> opt
+    SettingsCard(lit = false) {
+        ShellSelector(
+            options = listOf("System G Icon", "Material G Icon", "Accented G Icon", "Custom G Icon"),
+            selected = localMaterialGIconTheme,
+            onSelect = { localMaterialGIconTheme = it },
+            indicatorShape = RoundedCornerShape(20.dp)
+        ) { opt, isSel ->
+            val label = when (opt) {
+                "System G Icon" -> "System"
+                "Material G Icon" -> "Material"
+                "Accented G Icon" -> "Accented"
+                "Custom G Icon" -> "Custom"
+                else -> opt
+            }
+            Text(
+                text = label,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                maxLines = 1,
+                autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
+            )
         }
-        Text(
-            text = label,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            maxLines = 1,
-            autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
-        )
     }
 
     // Material Design Inner Pill & Circle Switcher
     val isMaterialDesign = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
     if (isMaterialDesign) {
         Spacer(modifier = Modifier.height(8.dp))
-        SettingsCard {
+        SettingsCard(lit = false) {
             SettingsRowToggle(
                 title = "Inner Pill & Circle State",
                 subtitle = "Force Inner Pill & Circle to #121212.",
@@ -257,7 +291,7 @@ internal fun WidgetAppearanceTab(
 
     if (localMaterialGIconTheme == "Custom G Icon") {
         SettingsSectionHeader("Custom Icon Colors")
-        SettingsCard {
+        SettingsCard(lit = false) {
             Column(modifier = Modifier.padding(16.dp)) {
                 // 0. Default Google Color Palette Switch Row
                 Row(

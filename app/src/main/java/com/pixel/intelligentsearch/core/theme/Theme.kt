@@ -31,21 +31,12 @@ fun IntelligentSearchTheme(
         }
     }
 
+    // Compose's own haptics (long presses, text handles and the like) play the app's one haptic too.
     val expressiveHapticFeedback = androidx.compose.runtime.remember(context, view) {
         val hapticEngine = com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context)
         object : androidx.compose.ui.hapticfeedback.HapticFeedback {
             override fun performHapticFeedback(hapticFeedbackType: androidx.compose.ui.hapticfeedback.HapticFeedbackType) {
-                when (hapticFeedbackType) {
-                    androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress -> {
-                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.HEAVY_IMPACT)
-                    }
-                    androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove -> {
-                        hapticEngine.performHaptic(view, com.pixel.intelligentsearch.core.haptics.PixelHapticType.TICK)
-                    }
-                    else -> {
-                        hapticEngine.performPredictiveBackHaptic(view)
-                    }
-                }
+                hapticEngine.performPredictiveBackHaptic(view)
             }
         }
     }

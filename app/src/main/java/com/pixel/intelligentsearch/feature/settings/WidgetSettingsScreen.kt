@@ -492,21 +492,18 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Live Preview Card (Pinned at the top for real-time visual feedback), a matte shell in the page's own
-            // colour, so the widget sits on what a Home screen would show behind it.
+            // Live Preview Card (Pinned at the top for real-time visual feedback), in the page's own colour, so the
+            // widget sits on what a Home screen would show behind it, with only the matte grain added.
             val previewShellLook = com.pixel.intelligentsearch.core.ui.expressive.rememberMatteShellLook(
-                containerColor = MaterialTheme.colorScheme.background
+                containerColor = MaterialTheme.colorScheme.background,
+                border = null
             )
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp)
                     .height(150.dp)
-                    .matteShell(
-                        previewShellLook,
-                        RoundedCornerShape(24.dp),
-                        com.pixel.intelligentsearch.core.ui.expressive.MatteShellDefaults.ShadowElevation
-                    ),
+                    .matteShell(previewShellLook, RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center
             ) {
                     val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
@@ -709,23 +706,30 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
             }
 
-            // System vs Material Design Switcher
-            ShellSelector(
-                options = listOf("System Default", "Material You (Minimal)"),
-                selected = if (isSystem) "System Default" else "Material You (Minimal)",
-                // Only shows the other design; its own settings, like the Material design's Inner Pill & Circle
-                // State, stay as the user left them.
-                onSelect = { localThemeStyle = it },
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                itemHeight = 44.dp
-            ) { option, isSel ->
-                Text(
-                    if (option == "System Default") "System Design" else "Material Design",
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1,
-                    autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge),
-                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
-                )
+            // System vs Material Design Switcher, in a settings card as it always was.
+            SettingsCard(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                lit = false
+            ) {
+                ShellSelector(
+                    options = listOf("System Default", "Material You (Minimal)"),
+                    selected = if (isSystem) "System Default" else "Material You (Minimal)",
+                    // Only shows the other design; its own settings, like the Material design's Inner Pill & Circle
+                    // State, stay as the user left them.
+                    onSelect = { localThemeStyle = it },
+                    itemHeight = 44.dp,
+                    indicatorShape = RoundedCornerShape(24.dp)
+                ) { option, isSel ->
+                    Text(
+                        if (option == "System Default") "System Design" else "Material Design",
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 1,
+                        autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge),
+                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
             }
 
             // Material 3 Expressive Segmented Tab Bar
@@ -753,7 +757,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 onSelect = { selectedTabName = it.first },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 itemHeight = 44.dp,
-                role = androidx.compose.ui.semantics.Role.Tab
+                role = androidx.compose.ui.semantics.Role.Tab,
+                // The tab bar's own track, with the matte grain added.
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(28.dp),
+                indicatorShape = RoundedCornerShape(24.dp)
             ) { tab, isSel ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

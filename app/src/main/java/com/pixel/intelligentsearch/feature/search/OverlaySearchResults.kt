@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.core.ui.uniqueItems
+import com.pixel.intelligentsearch.core.search.ResultKeys
 import com.pixel.intelligentsearch.feature.widget.getLensSearchIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceActionIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent
@@ -384,6 +385,11 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             }
         }
 
+        // What the user pinned, on the empty overlay; with a query, pinned results lead their own sections instead.
+        if (uiState.query.isEmpty() && uiState.pinned.isNotEmpty()) {
+            item(key = "pinned_results", contentType = "pinned_results") { OverlayPinnedRow(s) }
+        }
+
         // Debug menu: Mock Trending Queries fills the empty search state with stand-in topics.
         if (mockTrendingOn && uiState.query.isEmpty()) {
             item(key = "header_trending", contentType = "recent_label") {
@@ -644,7 +650,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                 }
                                 uniqueItems(displayApps, key = { app -> "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}" }, contentType = { "app_item" }) { app ->
                                     val iconKey = LaunchIconKeys.app(app)
-                                    AppGridItem(app, launchIcon = LaunchIconTarget(launchIcons, iconKey)) { performAppLaunch(app, LaunchSource.tap(iconKey)) }
+                                    ResultMenuBox(s, ResultMenuTarget.App(app)) { openMenu ->
+                                        AppGridItem(app, launchIcon = LaunchIconTarget(launchIcons, iconKey), onLongClick = openMenu) { performAppLaunch(app, LaunchSource.tap(iconKey)) }
+                                    }
                                 }
                             }
                         }
@@ -654,11 +662,15 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     if (settingsState.searchAndroidSettings && uiState.query.isNotEmpty() && uiState.androidSettings.isNotEmpty()) {
                         item(key = "android_settings_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                         uniqueItems(uiState.androidSettings, key = { setting -> "android_setting_${setting.id}" }, contentType = { "android_setting" }) { setting ->
-                            AndroidSettingRow(setting) {
-                                hasStartedTyping = false
-                                focusManager.clearFocus(force = true)
-                                keyboardController?.hide()
-                                openAndroidSetting(context, setting)
+                            // App Info rows stand for an app, so they have no menu of their own.
+                            val menuTarget = if (ResultKeys.setting(setting) != null) ResultMenuTarget.Setting(setting) else null
+                            ResultMenuBox(s, menuTarget) { openMenu ->
+                                AndroidSettingRow(setting, onLongClick = openMenu) {
+                                    hasStartedTyping = false
+                                    focusManager.clearFocus(force = true)
+                                    keyboardController?.hide()
+                                    openAndroidSetting(context, setting)
+                                }
                             }
                         }
                     }
@@ -669,32 +681,39 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                             uniqueItems(allDisplaySuggestions, key = { suggestion -> "sugg_${suggestion.query}" }, contentType = { "web_suggestion" }) { suggestion ->
                                 val query = suggestion.query
                                 val isRecent = uiState.recentSearches.any { it.equals(query, ignoreCase = true) }
-                                OverlayWebSuggestionRow(
-                                    suggestion = suggestion,
-                                    typed = uiState.query,
-                                    isRecent = isRecent,
-                                    // The Show Thumbnails switch covers pictures of people, songs and videos too.
-                                    showThumbnail = settingsState.filesThumbnails,
+                                // Past searches have a menu (Remove from History); the engine's suggestions keep none.
+                                ResultMenuBox(
+                                    s,
+                                    if (isRecent) ResultMenuTarget.History(query) else null,
                                     modifier = Modifier.animateItem(
                                         placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
                                         fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
                                         fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-                                    ),
-                                    onSearch = {
-                                        viewModel.onQueryChanged(query)
-                                        viewModel.addSearchHistory(query)
-                                        launchWebSearch(query)
-                                    },
-                                    onRemove = { viewModel.removeSearchHistory(query) },
-                                    onFill = {
-                                        hasStartedTyping = true
-                                        textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
-                                            text = query,
-                                            selection = androidx.compose.ui.text.TextRange(query.length)
-                                        )
-                                        viewModel.onQueryChanged(query)
-                                    }
-                                )
+                                    )
+                                ) { openMenu ->
+                                    OverlayWebSuggestionRow(
+                                        suggestion = suggestion,
+                                        typed = uiState.query,
+                                        isRecent = isRecent,
+                                        // The Show Thumbnails switch covers pictures of people, songs and videos too.
+                                        showThumbnail = settingsState.filesThumbnails,
+                                        onLongClick = openMenu,
+                                        onSearch = {
+                                            viewModel.onQueryChanged(query)
+                                            viewModel.addSearchHistory(query)
+                                            launchWebSearch(query)
+                                        },
+                                        onRemove = { viewModel.removeSearchHistory(query) },
+                                        onFill = {
+                                            hasStartedTyping = true
+                                            textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                                                text = query,
+                                                selection = androidx.compose.ui.text.TextRange(query.length)
+                                            )
+                                            viewModel.onQueryChanged(query)
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -706,46 +725,50 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         item(key = "contacts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                         uniqueItems(displayContacts, key = { contact -> "contact_${contact.lookupUri.ifBlank { "${contact.name}_${contact.phoneNumber}" }}" }, contentType = { "contact" }) { contact ->
                             val isDirectCall = settingsState.contactDirectCall
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .expressiveRowClickable {
-                                        hasStartedTyping = false
-                                        launchSafeIntent(context, ContactActions.openIntent(contact, isDirectCall))
-                                    }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                ContactAvatar(contact, 40.dp) {
-                                    Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape), contentAlignment = Alignment.Center) {
-                                        Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    }
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                val contactActions = remember(contact, s.contactActionTargets, settingsState.contactActions) {
-                                    ContactActions.forContact(contact, s.contactActionTargets, settingsState.contactActions)
-                                }
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                                    Text(contact.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
-                                    if (contactActions.isNotEmpty()) {
-                                        Spacer(modifier = Modifier.height(4.dp))
-                                        // Pulled back by the touch target's margin so the first circle lines up with the name.
-                                        ContactActionButtons(contactActions, settingsState.activeIconPack, Modifier.offset(x = (-4).dp)) {
+                            val menuTarget = if (ResultKeys.contact(contact) != null) ResultMenuTarget.Contact(contact) else null
+                            ResultMenuBox(s, menuTarget) { openMenu ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .moreOptions(openMenu)
+                                        .expressiveRowClickable(onLongClick = openMenu) {
                                             hasStartedTyping = false
+                                            launchSafeIntent(context, ContactActions.openIntent(contact, isDirectCall))
                                         }
-                                    }
-                                }
-                                // The action buttons include Call; without them the row keeps its own call button.
-                                if (contactActions.isEmpty()) IconButton(
-                                    onClick = {
-                                        if (contact.phoneNumber.isNotBlank()) {
-                                            hasStartedTyping = false
-                                            launchSafeIntent(context, ContactActions.callIntent(contact.phoneNumber))
-                                        }
-                                    }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(imageVector = Icons.Default.Call, contentDescription = "Call", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                                    ContactAvatar(contact, 40.dp) {
+                                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape), contentAlignment = Alignment.Center) {
+                                            Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    val contactActions = remember(contact, s.contactActionTargets, settingsState.contactActions) {
+                                        ContactActions.forContact(contact, s.contactActionTargets, settingsState.contactActions)
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
+                                        Text(contact.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                                        if (contactActions.isNotEmpty()) {
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            // Pulled back by the touch target's margin so the first circle lines up with the name.
+                                            ContactActionButtons(contactActions, settingsState.activeIconPack, Modifier.offset(x = (-4).dp)) {
+                                                hasStartedTyping = false
+                                            }
+                                        }
+                                    }
+                                    // The action buttons include Call; without them the row keeps its own call button.
+                                    if (contactActions.isEmpty()) IconButton(
+                                        onClick = {
+                                            if (contact.phoneNumber.isNotBlank()) {
+                                                hasStartedTyping = false
+                                                launchSafeIntent(context, ContactActions.callIntent(contact.phoneNumber))
+                                            }
+                                        }
+                                    ) {
+                                        Icon(imageVector = Icons.Default.Call, contentDescription = "Call", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                                    }
                                 }
                             }
                         }
@@ -757,31 +780,34 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     if (showFiles && isFilesEnabled && displayFiles.isNotEmpty()) {
                         item(key = "files_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                         uniqueItems(displayFiles, key = { file -> "file_${file.uri}" }, contentType = { "file" }) { file ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .expressiveRowClickable {
-                                        hasStartedTyping = false
-                                        val intent = buildOpenFileIntent(file.uri, file.mimeType)
-                                        if (!launchSafeIntent(context, intent)) {
-                                            intent.setPackage(null)
-                                            launchSafeIntent(context, intent)
+                            ResultMenuBox(s, ResultMenuTarget.File(file)) { openMenu ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .moreOptions(openMenu)
+                                        .expressiveRowClickable(onLongClick = openMenu) {
+                                            hasStartedTyping = false
+                                            val intent = buildOpenFileIntent(file.uri, file.mimeType)
+                                            if (!launchSafeIntent(context, intent)) {
+                                                intent.setPackage(null)
+                                                launchSafeIntent(context, intent)
+                                            }
+                                        }
+                                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (settingsState.filesThumbnails) {
+                                        FileIconThumbnail(file.uri, file.mimeType)
+                                    } else {
+                                        Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
+                                            Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }
                                     }
-                                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (settingsState.filesThumbnails) {
-                                    FileIconThumbnail(file.uri, file.mimeType)
-                                } else {
-                                    Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
-                                        Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Spacer(modifier = Modifier.width(16.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(file.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(fileLocationLabel(file), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(file.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(fileLocationLabel(file), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                         }

@@ -3,14 +3,12 @@ package com.pixel.intelligentsearch.feature.search
 import android.app.Application
 import android.content.Intent
 import android.view.HapticFeedbackConstants
-import android.view.View
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
@@ -22,6 +20,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.ContactItem
+import com.pixel.intelligentsearch.core.haptics.RecordingViewHaptics
 import com.pixel.intelligentsearch.screenshots.confinedEffects
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -94,10 +93,10 @@ class ContactActionButtonsTest {
     }
 
     @Test
-    fun bestMatchChipsTickOnPressAndClickOnReleaseLikeTheCardsRow() {
-        lateinit var host: View
+    @Config(shadows = [RecordingViewHaptics::class])
+    fun bestMatchChipsGiveTheHapticOnPressAndOnReleaseLikeTheCardsRow() {
+        RecordingViewHaptics.played.clear()
         compose.setContent {
-            host = LocalView.current
             ContactActionChips(ContactActions.forContact(alex, targets), "system_default") { }
         }
         val chip = compose.onNodeWithContentDescription("Call Alex")
@@ -105,11 +104,11 @@ class ContactActionButtonsTest {
         // A press inside a scrolling row shows only after the tap delay.
         compose.mainClock.advanceTimeBy(500)
         compose.waitForIdle()
-        // No vibrator primitives under Robolectric, so the haptics fall back to the view's own feedback.
-        assertEquals(HapticFeedbackConstants.SEGMENT_TICK, shadowOf(host).lastHapticFeedbackPerformed())
+        // The app's one haptic, the back gesture's commit haptic, on the press and again on the click.
+        assertEquals(listOf(HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE), RecordingViewHaptics.played)
         chip.performTouchInput { up() }
         compose.waitForIdle()
-        assertEquals(HapticFeedbackConstants.KEYBOARD_TAP, shadowOf(host).lastHapticFeedbackPerformed())
+        assertEquals(List(2) { HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE }, RecordingViewHaptics.played)
     }
 
     @Test

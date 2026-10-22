@@ -25,8 +25,9 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * The widget editor's preview draws the Material G style's G, mic, shortcuts and circle button as the search overlay
- * draws its icons ([OverlayIconRecipe]): the lens and the sparkle mic, each part in the overlay's colour, from the
- * colours it is given, on a light and a dark pill, for the theme's colours and for a custom colour's.
+ * draws its icons ([OverlayIconRecipe]): the lens and the mic, each part in the overlay's colour, from the colours it
+ * is given, on a light and a dark pill, for the theme's colours and for a custom colour's. Its mic is the widget's:
+ * centred, with no sparkle.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -69,7 +70,8 @@ class WidgetPreviewIconsDrawingTest(private val custom: Boolean, private val lig
         val label = "${if (custom) "custom" else "theme"} ${if (light) "light" else "dark"} pill"
         fun drawn(tag: String) = compose.onNodeWithTag(tag).captureToImage().asAndroidBitmap()
         OverlayIconRecipe.assertDrawn("$label G", drawn("g"), OverlayIconRecipe.g(colors))
-        OverlayIconRecipe.assertDrawn("$label mic", drawn("mic"), OverlayIconRecipe.mic(colors))
+        OverlayIconRecipe.assertDrawn("$label mic", drawn("mic"), OverlayIconRecipe.widgetMic(colors))
+        OverlayIconRecipe.assertNoMicSparkle("$label mic", drawn("mic"))
         OverlayIconRecipe.assertDrawn("$label Live shortcut", drawn("live"), OverlayIconRecipe.lens(colors))
         OverlayIconRecipe.assertDrawn("$label Lens shortcut", drawn("camera"), OverlayIconRecipe.camera(colors), across = 100f)
         OverlayIconRecipe.assertDrawn("$label circle button", drawn("circle"), OverlayIconRecipe.lens(colors))

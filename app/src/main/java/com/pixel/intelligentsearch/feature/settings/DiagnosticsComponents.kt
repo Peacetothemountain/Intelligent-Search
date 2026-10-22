@@ -34,6 +34,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
 
 /** Space between the diagnostics cards, and between the parts inside one. */
 internal val DiagnosticsCardSpacing = 12.dp
@@ -52,10 +53,11 @@ internal fun DiagnosticsCard(
     trailing: @Composable () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Surface(
+    // The card's own colour, shape and outline, with the matte grain on its surface.
+    MatteShell(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
     ) {
         Column(
@@ -94,16 +96,25 @@ internal fun DiagnosticsCard(
     }
 }
 
-/** A small rounded label in the card header, e.g. a health or pressure rating. */
+/**
+ * A small rounded label in the card header, e.g. a health or pressure rating. [textModifier] goes on the text itself,
+ * inside the chip's padding (the posture chip draws its count-up there).
+ */
 @Composable
-internal fun DiagnosticsStatusChip(text: String, container: Color, content: Color, modifier: Modifier = Modifier) {
+internal fun DiagnosticsStatusChip(
+    text: String,
+    container: Color,
+    content: Color,
+    modifier: Modifier = Modifier,
+    textModifier: Modifier = Modifier
+) {
     Surface(modifier = modifier, shape = RoundedCornerShape(8.dp), color = container) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = content,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).then(textModifier)
         )
     }
 }

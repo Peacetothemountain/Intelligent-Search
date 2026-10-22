@@ -104,6 +104,8 @@ android {
           test.maxHeapSize = "2g"
           // Widget doodles follow the date; an ordinary day keeps screenshots from changing on holidays.
           test.systemProperty("intelligentsearch.doodleDate", "2026-03-03")
+          // The matte shells' film grain doesn't compress; goldens leave it out except the one that pins it.
+          test.systemProperty("intelligentsearch.matteGrain", "off")
           test.systemProperty("layoutAudit", if (project.hasProperty("layoutAudit")) "true" else "false")
           test.systemProperty("layoutAuditDir", layout.buildDirectory.dir("layout-audit").get().asFile.path)
         }

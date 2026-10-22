@@ -13,7 +13,8 @@ import kotlin.math.abs
  * From the theme's primary, secondary and tertiary for a light or dark bar: the lens in the Material G's four colours
  * (rim right arc, top of the rim top arc, handle bottom arc, sparkle left arc), the sparkle mic in the three accent
  * tiers (capsule and sparkle third, stem and left of the cradle second, right of the cradle first). The theme's
- * colours are the wallpaper's; a custom colour themes the icons as a wallpaper of its hue would.
+ * colours are the wallpaper's; a custom colour themes the icons as a wallpaper of its hue would. The sparkle is the
+ * overlay's alone: the widget and its preview draw the same mic parts in the same colours, centred, with no sparkle.
  */
 object OverlayIconRecipe {
 
@@ -62,14 +63,35 @@ object OverlayIconRecipe {
         Part("lens sparkle", 18.25f, 6.75f, c.lensSparkle)
     )
 
+    /** Where the overlay's mic has its sparkle. */
+    private const val MIC_SPARKLE_X = 19.75f
+    private const val MIC_SPARKLE_Y = 5.75f
+
     /** The overlay's sparkle mic: the mic a little left of centre, a sparkle at its top right. */
     fun mic(c: Colors) = listOf(
         Part("mic capsule", 9.75f, 8.75f, c.micCapsule),
         Part("mic stem", 9.25f, 21.25f, c.micStem),
         Part("mic left of the cradle", 3.75f, 13.25f, c.micLeftCradle),
         Part("mic right of the cradle", 15.25f, 13.25f, c.micRightCradle),
-        Part("mic sparkle", 19.75f, 5.75f, c.micSparkle)
+        Part("mic sparkle", MIC_SPARKLE_X, MIC_SPARKLE_Y, c.micSparkle)
     )
+
+    /** The widget's mic: the overlay's mic parts in the overlay's colours, centred, without the sparkle (see [assertNoMicSparkle]). */
+    fun widgetMic(c: Colors) = listOf(
+        Part("mic capsule", 12.25f, 8.25f, c.micCapsule),
+        Part("mic stem", 11.75f, 20.75f, c.micStem),
+        Part("mic left of the cradle", 6.25f, 12.75f, c.micLeftCradle),
+        Part("mic right of the cradle", 17.75f, 12.75f, c.micRightCradle)
+    )
+
+    /** Checks a mic drawn 24 units wide into [bitmap] has nothing where the overlay's mic has its sparkle. */
+    fun assertNoMicSparkle(label: String, bitmap: Bitmap) {
+        val scale = bitmap.width / 24f
+        // The icon's top left corner is empty in every icon, so it shows what lies behind it.
+        val behind = bitmap.getPixel(0, 0)
+        val pixel = bitmap.getPixel((MIC_SPARKLE_X * scale).toInt(), (MIC_SPARKLE_Y * scale).toInt())
+        assertTrue("$label: ${hex(pixel)} drawn where the overlay's mic has its sparkle, behind it ${hex(behind)}", pixel == behind)
+    }
 
     /** The Material G: its bar is solid, its arcs a sweep through the four colours (so a point is near, not on, one). */
     fun g(c: Colors) = listOf(

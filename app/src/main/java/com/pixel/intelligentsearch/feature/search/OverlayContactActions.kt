@@ -128,7 +128,7 @@ internal fun ContactActionButtons(actions: List<ContactAction>, activeIconPack: 
 
 /** The system actions' Material icon, or a chat app's own (themed) icon. */
 @Composable
-private fun ContactActionIcon(action: ContactAction, activeIconPack: String, tint: Color, size: Dp) {
+internal fun ContactActionIcon(action: ContactAction, activeIconPack: String, tint: Color, size: Dp) {
     val iconPackage = action.iconPackage
     if (iconPackage == null) {
         val vector = when (action.kind) {

@@ -199,7 +199,7 @@ fun TutorialSpotlightOverlay(
     val advanceToNextStep: () -> Unit = {
         if (!isAdvancing) {
             isAdvancing = true
-            hapticEngine.performHaptic(localView, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+            hapticEngine.performPredictiveBackHaptic(localView)
             stepForward()
         }
     }
@@ -747,7 +747,7 @@ fun TutorialSpotlightOverlay(
                             onClick = {
                                 if (!isAdvancing) {
                                     isAdvancing = true
-                                    hapticEngine.performHaptic(localView, com.pixel.intelligentsearch.core.haptics.PixelHapticType.OVERLAY_DISMISS)
+                                    hapticEngine.performPredictiveBackHaptic(localView)
                                     TutorialManager.completeTutorial(prefs)
                                     onComplete()
                                 }

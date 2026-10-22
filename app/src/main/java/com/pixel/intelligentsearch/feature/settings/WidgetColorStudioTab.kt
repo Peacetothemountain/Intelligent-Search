@@ -118,7 +118,7 @@ internal fun WidgetColorStudioTab(
 
     // Custom Color Palette Container on Top
     SettingsSectionHeader("Custom Color Palette")
-    SettingsCard {
+    SettingsCard(lit = false) {
         Column(modifier = Modifier.padding(16.dp)) {
             // 1. Hue Slider
             GradientSliderRow(

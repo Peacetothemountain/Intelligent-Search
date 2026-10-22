@@ -169,6 +169,9 @@ data class FileTypeQuery(val group: FileTypeGroup, val word: String, val rest: S
             words(FileTypeGroup.PRESENTATIONS, "slides", "presentation", "presentations")
         }
 
+        /** Every word that names a file type at the start of a query ("pdf", "photos", "sheets"). */
+        val typeWords: Set<String> get() = WORDS.keys
+
         /**
          * The file type [query] starts with, or null. Only a whole first word counts ("photography" and "pdf2"
          * don't), so bangs ("!pdf"), sums and the call/message/remind phrasings never match.

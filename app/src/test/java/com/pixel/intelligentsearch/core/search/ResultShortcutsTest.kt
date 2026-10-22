@@ -116,6 +116,25 @@ class ResultShortcutsTest {
         assertEquals(QuickKeys.Check.Empty, QuickKeys.check("  ", dad, set))
     }
 
+    /** A trigger word opens its result as it is typed, so it may not be a word search already starts on. */
+    @Test
+    fun wordsSearchReadsFirstAreNotTriggerWords() {
+        val set = ResultShortcuts.EMPTY
+        for (word in listOf("pdf", "photos", "sheets", "ask", "define", "translate", "weather", "forecast",
+            "remind", "timer", "alarm", "call", "text", "set", "Weather")) {
+            assertEquals(word, QuickKeys.Check.ReservedForSearch, QuickKeys.check(word, dad, set))
+        }
+        assertEquals("Already Used by Search.", QuickKeys.message(QuickKeys.Check.ReservedForSearch))
+        assertEquals(set, set.withTrigger(dad, "John", "remind"))
+        // Words that merely start like them are fine.
+        assertEquals(QuickKeys.Check.Ok, QuickKeys.check("pdfs2", dad, set))
+        assertEquals(QuickKeys.Check.Ok, QuickKeys.check("caller", dad, set))
+        // One saved by an older version is dropped as the set is read.
+        val older = """[{"key":"$dad","title":"John","nicknames":["dad"],"trigger":"weather"}]"""
+        assertEquals(listOf("dad"), ResultShortcuts.fromJson(older).nicknamesOf(dad))
+        assertEquals("", ResultShortcuts.fromJson(older)[dad]?.trigger)
+    }
+
     @Test
     fun triggerWordsAreUnique() {
         val set = ResultShortcuts.EMPTY.withTrigger(spotify, "Spotify", "sp")

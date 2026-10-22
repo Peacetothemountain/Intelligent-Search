@@ -212,7 +212,7 @@ class ResultShortcuts(val entries: List<ResultShortcut>) {
                     val nicknames = item.nicknames.mapNotNull(::cleanNickname)
                         .distinctBy { it.lowercase(Locale.ROOT) }.take(MAX_NICKNAMES)
                     val trigger = QuickKeys.normalize(item.trigger)
-                        .takeIf { QuickKeys.isWellFormed(it) && seenTriggers.add(it) }.orEmpty()
+                        .takeIf { QuickKeys.isWellFormed(it) && it !in QuickKeys.RESERVED && seenTriggers.add(it) }.orEmpty()
                     ResultShortcut(item.key, item.title.take(200), item.pinned, nicknames, trigger)
                 }
                 .filterNot { it.isEmpty }
@@ -242,7 +242,21 @@ object QuickKeys {
         data object LettersAndDigitsOnly : Check
         /** Another result already has it. */
         data class Taken(val title: String) : Check
+        /** Search itself reads it at the start of a query ("pdf", "weather", "remind", "ask"). */
+        data object ReservedForSearch : Check
     }
+
+    /**
+     * The first words search already acts on: the file types ("pdf invoice"), instant answers ("define", "weather",
+     * "translate"), actions ("remind", "timer", "alarm", "call", "text", "set", "navigate") and AI Answers ("ask").
+     * A trigger word opens its result as soon as it is typed with a space, so it would take these phrasings over.
+     */
+    val RESERVED: Set<String> = com.pixel.intelligentsearch.core.data.FileTypeQuery.typeWords + setOf(
+        "ask", "define", "definition", "meaning", "translate", "weather", "forecast",
+        "remind", "reminder", "timer", "alarm", "wake", "set", "start",
+        "call", "dial", "phone", "text", "message", "send",
+        "navigate", "directions", "route", "take", "add", "new", "meeting", "schedule"
+    )
 
     fun normalize(trigger: String): String = trigger.trim().lowercase(Locale.ROOT)
 
@@ -258,6 +272,7 @@ object QuickKeys {
             word.startsWith("!") || (bangSymbol.isNotBlank() && word.startsWith(bangSymbol)) -> Check.ReservedForWebShortcuts
             !word.all { it.isLetterOrDigit() } -> Check.LettersAndDigitsOnly
             word.length > MAX_LENGTH -> Check.TooLong
+            word in RESERVED -> Check.ReservedForSearch
             else -> shortcuts.forTrigger(word)?.takeIf { it.key != key }?.let { Check.Taken(it.title) } ?: Check.Ok
         }
     }
@@ -270,6 +285,7 @@ object QuickKeys {
         Check.ReservedForWebShortcuts -> "${bangSymbol.ifBlank { "!" }} Starts Web Shortcuts. Use Letters and Digits."
         Check.LettersAndDigitsOnly -> "Use Letters and Digits Only."
         is Check.Taken -> "Already Opens ${check.title}."
+        Check.ReservedForSearch -> "Already Used by Search."
     }
 
     /** The result to open as [query] is typed: a trigger word followed by one space ("sp "), nothing before it. */

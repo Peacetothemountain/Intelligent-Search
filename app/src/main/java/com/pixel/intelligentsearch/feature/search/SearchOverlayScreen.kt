@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.LiveRegionMode

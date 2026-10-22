@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager

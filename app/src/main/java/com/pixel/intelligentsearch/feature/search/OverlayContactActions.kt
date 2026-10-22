@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Intent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background

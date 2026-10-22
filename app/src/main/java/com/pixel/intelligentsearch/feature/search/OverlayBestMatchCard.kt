@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import androidx.core.net.toUri
 import com.pixel.intelligentsearch.core.ui.AppIconResult
 import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon

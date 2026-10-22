@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Context
 import com.pixel.intelligentsearch.core.ui.uniqueItems
 import com.pixel.intelligentsearch.core.ui.getAppName

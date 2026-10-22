@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Intent
 import android.provider.AlarmClock
 import androidx.compose.foundation.Image
@@ -69,8 +70,7 @@ import com.pixel.intelligentsearch.core.glance.GlanceSource
 import com.pixel.intelligentsearch.core.glance.GlanceTimer
 import com.pixel.intelligentsearch.core.glance.GlanceToggles
 import com.pixel.intelligentsearch.core.glance.glanceItems
-import com.pixel.intelligentsearch.core.glance.launchApp
-import com.pixel.intelligentsearch.core.glance.sendPendingIntent
+import com.pixel.intelligentsearch.core.system.openPendingOrApp
 import com.pixel.intelligentsearch.core.glance.timerReading
 import com.pixel.intelligentsearch.core.glance.untilLabel
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
@@ -284,8 +284,7 @@ private fun TimerCard(timer: GlanceTimer, onOpened: () -> Unit, modifier: Modifi
         subtitle = listOfNotNull(label, timer.appLabel.takeIf { it.isNotBlank() }).joinToString(" · "),
         onClick = {
             onOpened()
-            val opened = timer.contentIntent?.let { sendPendingIntent(context, it) } == true
-            if (!opened && !launchSafeIntent(context, Intent(AlarmClock.ACTION_SHOW_TIMERS))) launchApp(context, timer.packageName)
+            openPendingOrApp(context, timer.contentIntent, timer.packageName, fallback = Intent(AlarmClock.ACTION_SHOW_TIMERS))
         },
         modifier = modifier
     )

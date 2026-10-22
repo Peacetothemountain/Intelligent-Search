@@ -1,8 +1,6 @@
 package com.pixel.intelligentsearch.core.glance
 
-import android.app.ActivityOptions
 import android.app.AlarmManager
-import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -11,12 +9,12 @@ import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.os.BatteryManager
-import android.os.Build
 import android.os.SystemClock
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.scale
 import com.pixel.intelligentsearch.core.system.MediaSessionAccess
+import com.pixel.intelligentsearch.core.system.openPendingOrApp
 import com.pixel.intelligentsearch.core.system.battery.BatteryReadings
 import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import kotlinx.coroutines.Dispatchers
@@ -162,8 +160,7 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
         override fun pause() = controller.transportControls.pause()
         override fun next() = controller.transportControls.skipToNext()
         override fun open() {
-            val session = controller.sessionActivity
-            if (session == null || !sendPendingIntent(context, session)) launchApp(context, controller.packageName)
+            openPendingOrApp(context, controller.sessionActivity, controller.packageName)
         }
         override fun equals(other: Any?) = other is SessionControls && other.controller.sessionToken == controller.sessionToken
         override fun hashCode() = controller.sessionToken.hashCode()
@@ -192,32 +189,4 @@ fun batteryFrom(level: Int, scale: Int, plugged: Int, status: Int, chargingStatu
     // which the diagnostics page adds, don't belong here.
     val label = ChargingStatus.status(plugged, chargeState, usb = null, adbEnabled = false, chargingState = chargingStatus)?.shortLabel
     return GlanceBattery(percent, pluggedIn = chargeState != BatteryReadings.ChargeState.Discharging, statusLabel = label)
-}
-
-/**
- * Sends another app's [intent] (a notification's tap action, a player's activity) from the search on screen. From
- * Android 14 the sender has to say it lets the intent open an activity; the search is in front, so it may.
- */
-fun sendPendingIntent(context: Context, intent: PendingIntent): Boolean = try {
-    val options = when {
-        Build.VERSION.SDK_INT >= 36 -> ActivityOptions.makeBasic()
-            .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE)
-            .toBundle()
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> ActivityOptions.makeBasic()
-            .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-            .toBundle()
-        else -> null
-    }
-    intent.send(context, 0, null, null, null, null, options)
-    true
-} catch (_: PendingIntent.CanceledException) {
-    false
-} catch (_: RuntimeException) {
-    false
-}
-
-/** Opens [packageName]'s launcher activity; false if it has none. */
-fun launchApp(context: Context, packageName: String): Boolean {
-    val launch = context.packageManager.getLaunchIntentForPackage(packageName) ?: return false
-    return runCatching { context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess
 }

@@ -40,8 +40,7 @@ import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import com.pixel.intelligentsearch.core.glance.NotificationIndex
-import com.pixel.intelligentsearch.core.glance.launchApp
-import com.pixel.intelligentsearch.core.glance.sendPendingIntent
+import com.pixel.intelligentsearch.core.system.openPendingOrApp
 import com.pixel.intelligentsearch.core.ui.AppIconResult
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
@@ -124,8 +123,7 @@ internal fun NotificationResultRow(entry: IndexedNotification, now: Long, onOpen
             .fillMaxWidth()
             .expressiveRowClickable {
                 onOpened()
-                val opened = entry.contentIntent?.let { sendPendingIntent(context, it) } == true
-                if (!opened) launchApp(context, entry.packageName)
+                openPendingOrApp(context, entry.contentIntent, entry.packageName)
             }
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically

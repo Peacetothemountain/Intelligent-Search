@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.gestures.animateScrollBy

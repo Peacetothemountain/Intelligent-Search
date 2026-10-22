@@ -788,8 +788,15 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 "files" -> {
                     val isFilesEnabled = settingsState.searchFiles
                     val displayFiles = if (filteredFiles.isNotEmpty()) filteredFiles else uiState.files
-                    if (showFiles && isFilesEnabled && displayFiles.isNotEmpty()) {
+                    val fileTypeFilter = uiState.fileTypeFilter
+                    // A type named in the query shows its chip even before (or without) any file of that type.
+                    if (showFiles && isFilesEnabled && (displayFiles.isNotEmpty() || fileTypeFilter != null)) {
                         item(key = "files_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                        if (fileTypeFilter != null) {
+                            item(key = "files_type_filter", contentType = "file_type_filter") {
+                                FileTypeFilterChip(fileTypeFilter, onRemove = viewModel::clearFileTypeFilter)
+                            }
+                        }
                         uniqueItems(displayFiles, key = { file -> "file_${file.uri}" }, contentType = { "file" }) { file ->
                             ResultMenuBox(s, ResultMenuTarget.File(file)) { openMenu ->
                                 Row(
@@ -798,11 +805,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         .moreOptions(openMenu)
                                         .expressiveRowClickable(onLongClick = openMenu) {
                                             hasStartedTyping = false
-                                            val intent = buildOpenFileIntent(file.uri, file.mimeType)
-                                            if (!launchSafeIntent(context, intent)) {
-                                                intent.setPackage(null)
-                                                launchSafeIntent(context, intent)
-                                            }
+                                            openFileResult(context, s.prefs, file)
                                         }
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically

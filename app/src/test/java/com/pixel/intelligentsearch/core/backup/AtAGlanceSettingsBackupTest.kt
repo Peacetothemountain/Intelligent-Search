@@ -11,6 +11,7 @@ import com.pixel.intelligentsearch.core.system.WidgetUpdater
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,7 +27,7 @@ class AtAGlanceSettingsBackupTest {
 
     private val keys = listOf(
         SettingsManager.SEARCH_NOTIFICATIONS, SettingsManager.GLANCE_ENABLED, SettingsManager.GLANCE_ALARM,
-        SettingsManager.GLANCE_TIMERS, SettingsManager.GLANCE_MEDIA, SettingsManager.GLANCE_CODES,
+        SettingsManager.GLANCE_TIMERS, SettingsManager.GLANCE_MEDIA,
         SettingsManager.GLANCE_BIRTHDAYS, SettingsManager.GLANCE_BATTERY
     )
 
@@ -39,6 +40,13 @@ class AtAGlanceSettingsBackupTest {
         // Notification search is an opt-in, off until the user turns it on; every At a Glance item starts on.
         assertFalse(SettingsManager.SEARCH_NOTIFICATIONS.default)
         assertTrue(keys.drop(1).all { it.default })
+    }
+
+    @Test
+    fun theOneTimeCodesSwitchIsGone() {
+        // Android 15 hides one-time codes from notification listeners, so the card and its switch were removed.
+        assertNull(SettingsManager.keyFor("glance.codes"))
+        assertNull(BackupPreferenceSchema.expectedType("glance.codes"))
     }
 
     @Test

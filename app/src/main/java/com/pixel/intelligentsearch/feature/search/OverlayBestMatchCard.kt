@@ -285,11 +285,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                             .moreOptions(openMenu)
                             .bouncyClickable(onLongClick = openMenu) {
                                 hasStartedTyping = false
-                                val intent = buildOpenFileIntent(match.uri, match.mimeType)
-                                if (!launchSafeIntent(context, intent)) {
-                                    intent.setPackage(null)
-                                    launchSafeIntent(context, intent)
-                                }
+                                openFileResult(context, s.prefs, match)
                             }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically

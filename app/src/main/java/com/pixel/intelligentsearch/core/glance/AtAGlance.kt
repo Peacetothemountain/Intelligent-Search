@@ -62,7 +62,6 @@ data class GlanceSnapshot(
     val alarm: GlanceAlarm? = null,
     val timers: List<GlanceTimer> = emptyList(),
     val media: GlanceMedia? = null,
-    val codes: List<OneTimeCode> = emptyList(),
     val birthdays: List<GlanceBirthday> = emptyList(),
     val battery: GlanceBattery? = null
 ) {
@@ -78,22 +77,18 @@ data class GlanceToggles(
     val alarm: Boolean = true,
     val timers: Boolean = true,
     val media: Boolean = true,
-    val codes: Boolean = true,
     val birthdays: Boolean = true,
     val battery: Boolean = true,
     val notifications: Boolean = false
 ) {
     /** Whether anything at all can show, so nothing is read for an empty section. */
-    val anyOn: Boolean get() = enabled && (alarm || media || birthdays || battery || (notifications && (timers || codes)))
+    val anyOn: Boolean get() = enabled && (alarm || media || birthdays || battery || (notifications && timers))
 }
 
 /** One card in At a Glance; [key] keeps each in place in the list. */
 sealed interface GlanceItem {
     val key: String
 
-    data class Code(val code: OneTimeCode) : GlanceItem {
-        override val key get() = "glance_code_${code.notificationKey}_${code.code}"
-    }
     data class Timer(val timer: GlanceTimer) : GlanceItem {
         override val key get() = "glance_timer_${timer.key}"
     }
@@ -113,21 +108,16 @@ sealed interface GlanceItem {
 
 /** How far ahead the next alarm shows: half a day, as the Pixel's own At a Glance does. */
 const val GLANCE_ALARM_WINDOW_MS = 12 * 60 * 60 * 1000L
-const val GLANCE_MAX_CODES = 2
 const val GLANCE_MAX_TIMERS = 3
 
 /**
- * What At a Glance shows at [now], in order: fresh one-time codes (they expire), running timers and stopwatches,
- * the next alarm within [GLANCE_ALARM_WINDOW_MS], what is playing, birthdays this week, and the battery when low or
- * charging. Each only with its switch on; codes and timers also need Search Your Notifications.
+ * What At a Glance shows at [now], in order: running timers and stopwatches, the next alarm within
+ * [GLANCE_ALARM_WINDOW_MS], what is playing, birthdays this week, and the battery when low or charging. Each only
+ * with its switch on; timers also need Search Your Notifications.
  */
 fun glanceItems(snapshot: GlanceSnapshot, toggles: GlanceToggles, now: Long): List<GlanceItem> {
     if (!toggles.enabled) return emptyList()
     return buildList {
-        if (toggles.codes && toggles.notifications) {
-            snapshot.codes.filter { it.isFresh(now) }.sortedByDescending { it.postedAt }.take(GLANCE_MAX_CODES)
-                .forEach { add(GlanceItem.Code(it)) }
-        }
         if (toggles.timers && toggles.notifications) {
             snapshot.timers.take(GLANCE_MAX_TIMERS).forEach { add(GlanceItem.Timer(it)) }
         }

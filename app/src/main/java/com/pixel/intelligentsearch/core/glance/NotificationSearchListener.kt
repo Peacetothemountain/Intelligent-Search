@@ -23,12 +23,12 @@ import javax.inject.Inject
 
 /**
  * Reads the phone's notifications into the in-memory [NotificationIndex] for Search Your Notifications and At a
- * Glance's one-time codes and timers.
+ * Glance's timers.
  *
  * Google Play policy: notification listener access is allowed for an app's core feature with a prominent
  * disclosure. Here it is the user's own opt-in (Settings > Search Sources > Notifications, off by default), granted by
  * the user on Android's Notification Access screen after the app explains it (the rationale dialog there), and used
- * only to search notifications on the phone and to show codes and timers above the search. Nothing read is stored
+ * only to search notifications on the phone and to show timers above the search. Nothing read is stored
  * (memory only, cleared when access or the switch goes), backed up or sent anywhere, and the app sees only what each
  * notification itself shows, never the messages or emails behind it. With the switch off the listener unbinds itself
  * at once, so it never reads anything the user hasn't asked it to.
@@ -194,9 +194,7 @@ internal class NotificationExtractor(private val context: Context) {
             if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return null
             val extras = notification.extras ?: Bundle.EMPTY
             if (extras.containsKey(Notification.EXTRA_MEDIA_SESSION)) return null
-            val template = extras.getString(Notification.EXTRA_TEMPLATE)
             val messages = messagesOf(extras)
-            val isMessagingStyle = template == Notification.MessagingStyle::class.java.name || messages.isNotEmpty()
             val title = (extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)
                 ?: extras.getCharSequence(Notification.EXTRA_TITLE_BIG)
                 ?: extras.getCharSequence(Notification.EXTRA_TITLE))?.toString()?.trim().orEmpty()
@@ -218,7 +216,6 @@ internal class NotificationExtractor(private val context: Context) {
                 text = text,
                 postedAt = postedAt,
                 category = notification.category,
-                isMessagingStyle = isMessagingStyle,
                 contentIntent = notification.contentIntent,
                 chronometer = chronometer
             )

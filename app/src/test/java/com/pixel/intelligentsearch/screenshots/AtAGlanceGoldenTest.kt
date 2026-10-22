@@ -23,7 +23,6 @@ import com.pixel.intelligentsearch.core.glance.GlanceMedia
 import com.pixel.intelligentsearch.core.glance.GlanceTimer
 import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import com.pixel.intelligentsearch.core.glance.MediaControls
-import com.pixel.intelligentsearch.core.glance.OneTimeCode
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.search.GlanceClock
 import com.pixel.intelligentsearch.feature.search.GlanceSection
@@ -45,8 +44,8 @@ import java.time.LocalDate
 import java.util.TimeZone
 
 /**
- * Golden images of At a Glance with one of every card (a one-time code, a running timer, the next alarm, what is
- * playing with a stand-in cover, a birthday and the battery), and of the Notifications results section, in both
+ * Golden images of At a Glance with one of every card (a running timer, the next alarm, what is playing with a
+ * stand-in cover, a birthday and the battery), and of the Notifications results section, in both
  * themes. The data, the clock and the time zone are fixed, so nothing depends on the machine. See
  * [SettingsGoldenTest] for recording.
  */
@@ -85,7 +84,6 @@ class AtAGlanceGoldenTest(private val state: String, private val dark: Boolean) 
     }.asImageBitmap()
 
     private val items = listOf(
-        GlanceItem.Code(OneTimeCode("482913", "Messages", "com.google.android.apps.messaging", "k", NOW - 60_000L)),
         GlanceItem.Timer(GlanceTimer("t", GlanceTimer.Kind.Timer, "Pasta", NOW + 272_000L, "Clock", "com.google.android.deskclock", null)),
         // 07:00 UTC, five hours away.
         GlanceItem.Alarm(GlanceAlarm(NOW + 5 * 60 * 60 * 1000L)),

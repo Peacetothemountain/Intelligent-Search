@@ -21,7 +21,6 @@ import com.pixel.intelligentsearch.core.answers.OpenMeteoParser
 import com.pixel.intelligentsearch.core.answers.ScreenTimeApp
 import com.pixel.intelligentsearch.core.answers.ScreenTimeReport
 import com.pixel.intelligentsearch.core.answers.TemperatureUnit
-import com.pixel.intelligentsearch.core.answers.TranslationStatus
 import com.pixel.intelligentsearch.core.answers.WeatherReport
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.core.ui.DefinitionOneBox
@@ -52,14 +51,9 @@ internal object InstantAnswerSamples {
         requireNotNull(WeatherReport.from(data, "Johnson City, Tennessee", TemperatureUnit.FAHRENHEIT, ForecastDay.TODAY))
     }
 
-    val translation = LiveAnswer.Translation(
-        "translate good morning to spanish", "good morning", "en", detected = true, target = "es",
-        status = TranslationStatus.Done("buenos días")
-    )
+    val translation = LiveAnswer.Translation("translate good morning to spanish", "good morning", source = null, target = "es")
 
-    val translationDownload = translation.copy(
-        status = TranslationStatus.NeedsDownload(listOf("es"), onWifi = false, blocked = false)
-    )
+    val translationFromNamedSource = LiveAnswer.Translation("translate gato from spanish to english", "gato", source = "es", target = "en")
 
     // Made-up packages, so each app shows its initial rather than whatever this machine has installed.
     val screenTime = ScreenTimeReport(
@@ -83,8 +77,8 @@ internal object InstantAnswerSamples {
                 WeatherLocationOneBox(onUseApproximateLocation = {}, onSetHomeLocation = {})
             }
             "translation" -> {
-                TranslationOneBox(answer = translation, onDownload = {}, onOpenGoogleTranslate = {})
-                TranslationOneBox(answer = translationDownload, onDownload = {}, onOpenGoogleTranslate = {})
+                TranslationOneBox(answer = translation, onOpenGoogleTranslate = {})
+                TranslationOneBox(answer = translationFromNamedSource, onOpenGoogleTranslate = {})
             }
             "screen_time" -> {
                 ScreenTimeOneBox(report = screenTime, onAllowUsageAccess = {}, onOpenDetails = {})
@@ -96,8 +90,8 @@ internal object InstantAnswerSamples {
 
 /**
  * Golden images of the overlay's live instant-answer cards, light and dark: a definition, a forecast (and the card
- * asking where "here" is), a translation (and its first download) and screen time (and the card asking for Usage
- * Access). See [SettingsGoldenTest] for recording.
+ * asking where "here" is), translations to hand to Google Translate (into a language, and from one named) and screen
+ * time (and the card asking for Usage Access). See [SettingsGoldenTest] for recording.
  */
 @HiltAndroidTest
 @RunWith(ParameterizedRobolectricTestRunner::class)
@@ -164,7 +158,7 @@ class InstantAnswerLargeTextGoldenTest(private val dark: Boolean) {
                     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(vertical = 8.dp)) {
                         DefinitionOneBox(entry = InstantAnswerSamples.definition, onOpenFullDefinition = {})
                         WeatherOneBox(report = InstantAnswerSamples.weather, is24Hour = false, onOpenWeather = {})
-                        TranslationOneBox(answer = InstantAnswerSamples.translationDownload, onDownload = {}, onOpenGoogleTranslate = {})
+                        TranslationOneBox(answer = InstantAnswerSamples.translation, onOpenGoogleTranslate = {})
                         ScreenTimeOneBox(report = InstantAnswerSamples.screenTime, onAllowUsageAccess = {}, onOpenDetails = {})
                     }
                 }

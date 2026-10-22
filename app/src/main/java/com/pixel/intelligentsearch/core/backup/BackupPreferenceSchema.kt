@@ -38,9 +38,9 @@ internal object BackupPreferenceSchema {
             "widget_show_g_icon", "widget_show_gemini", "widget_show_voice", "widget_suppress_unsaved_warning",
             "widget_system_custom_keep_system_g", "widget_system_custom_sync_colors", "widget_system_design_saved",
             "widget_system_show_doodles", "widget_system_show_g_icon", "widget_system_show_voice", "widget_system_lock_black",
-            "search.notifications", "glance.enabled", "glance.alarm", "glance.timers", "glance.media", "glance.codes",
+            "search.notifications", "glance.enabled", "glance.alarm", "glance.timers", "glance.media",
             "glance.birthdays", "glance.battery",
-            "dictionary_answers", "weather_answers", "weather_use_device_location", "on_device_translation"
+            "dictionary_answers", "weather_answers", "weather_use_device_location"
         )
         // The per-design element colours the widget reads with getInt (WidgetDesignSettings).
         for (design in listOf("widget", "widget_system", "widget_material")) {
@@ -75,7 +75,9 @@ internal object BackupPreferenceSchema {
             "widget_system_shortcut_2", "widget_system_shortcut_3", "widget_system_shortcut_order",
             "widget_system_subtheme", "widget_theme_style", "weather_home_location"
         )
-        typed("STRING_SET", "disabled_web_shortcuts", "hidden_apps")
+        typed("STRING_SET", "disabled_web_shortcuts", "hidden_apps", "search.files.excluded_types")
+        // The app each file type opens with (Open Files With in File Search settings).
+        for (key in com.pixel.intelligentsearch.core.data.SettingsManager.FILES_OPEN_WITH.values) put(key.name, "STRING")
     }
 
     // The pill profiles' working copies and saved states, named by profile number (SearchPillProfiles).

@@ -103,7 +103,9 @@ data class SearchUiState(
      * A definition, forecast, translation or screen time worked out for the query; shown in place of [instantAnswer]'s
      * tap-through card while its [com.pixel.intelligentsearch.core.answers.LiveAnswer.query] is the query shown.
      */
-    val liveAnswer: com.pixel.intelligentsearch.core.answers.LiveAnswer? = null
+    val liveAnswer: com.pixel.intelligentsearch.core.answers.LiveAnswer? = null,
+    /** The file type the query names ("pdf invoice"), which [files] are limited to; null when there is none. */
+    val fileTypeFilter: com.pixel.intelligentsearch.core.data.FileTypeGroup? = null
 )
 
 /**
@@ -185,7 +187,7 @@ class SearchViewModel @Inject constructor(
 
     private val _remoteSearchQueryFlow = MutableStateFlow("")
 
-    /** A query's instant-answer question; [attempt] changes to ask again (after a download or a permission grant). */
+    /** A query's instant-answer question; [attempt] changes to ask again (after a permission grant). */
     private data class LiveAnswerRequest(
         val query: String,
         val question: com.pixel.intelligentsearch.core.answers.InstantAnswerQuery,
@@ -627,6 +629,24 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    /** The file type word whose chip the user removed; the query searches all files until it starts with another. */
+    @Volatile
+    private var dismissedFileTypeWord: String? = null
+
+    /** The file type [query] starts with, unless its chip was removed. */
+    private fun activeFileTypeQuery(query: String): com.pixel.intelligentsearch.core.data.FileTypeQuery? {
+        val parsed = com.pixel.intelligentsearch.core.data.FileTypeQuery.parse(query)
+        if (parsed?.word != dismissedFileTypeWord) dismissedFileTypeWord = null
+        return parsed?.takeIf { it.word != dismissedFileTypeWord }
+    }
+
+    /** Removes the file type filter chip: the current query searches files of every type again. */
+    fun clearFileTypeFilter() {
+        val query = _uiState.value.query
+        dismissedFileTypeWord = com.pixel.intelligentsearch.core.data.FileTypeQuery.parse(query)?.word ?: return
+        executeLocalSearch(query)
+    }
+
     private fun executeLocalSearch(newQuery: String, previousQuery: String = "") {
         val prefs = customPrefs
         val verboseLogging = debugSwitch(SettingsManager.DEBUG_VERBOSE_LOGGING)
@@ -745,9 +765,15 @@ class SearchViewModel @Inject constructor(
             } else emptyList()
 
             currentCoroutineContext().ensureActive()
-            val localFiles = if (settings.searchFiles) {
+            // A query starting with a file type ("pdf invoice") limits files to that type, until its chip is removed.
+            val fileTypeQuery = activeFileTypeQuery(newQuery).takeIf { settings.searchFiles }
+            val localFiles = if (!settings.searchFiles) {
+                emptyList()
+            } else if (fileTypeQuery != null) {
+                unifiedSearchCoordinator.searchFilesOfType(fileTypeQuery.rest, fileTypeQuery.group).take(settings.fileResultsCount)
+            } else {
                 unifiedResults.files.take(settings.fileResultsCount)
-            } else emptyList()
+            }
             // Debug menu: pad the lists past their usual caps to exercise long results.
             val shownContacts = if (mockLargeDataset) localContacts + DebugMocks.contacts else localContacts
             val shownFiles = if (mockLargeDataset) localFiles + DebugMocks.files else localFiles
@@ -833,6 +859,7 @@ class SearchViewModel @Inject constructor(
                     filteredApps = resolvedApps,
                     contacts = shownContacts,
                     files = shownFiles,
+                    fileTypeFilter = fileTypeQuery?.group,
                     androidSettings = androidSettings,
                     webSuggestions = resolvedSuggestions,
                     mathResult = mathStr,
@@ -869,27 +896,9 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    /** Works the current query's instant answer out again: after a language download or a permission was granted. */
+    /** Works the current query's instant answer out again: after a permission was granted. */
     fun retryLiveAnswer() {
         liveAnswerRequests.update { it?.copy(attempt = it.attempt + 1) }
-    }
-
-    /**
-     * Downloads the languages [answer] needs (on Wi-Fi only unless [useMobileData]), showing the card as downloading
-     * meanwhile, then translates. The download goes on if the user keeps typing; it is the user's to have asked for.
-     */
-    fun downloadTranslationLanguages(answer: com.pixel.intelligentsearch.core.answers.LiveAnswer.Translation, useMobileData: Boolean) {
-        val downloading = answer.copy(status = com.pixel.intelligentsearch.core.answers.TranslationStatus.Downloading)
-        _uiState.update { if (it.liveAnswer == answer) it.copy(liveAnswer = downloading) else it }
-        viewModelScope.launch {
-            val downloaded = instantAnswers.downloadLanguages(answer, useMobileData)
-            if (!downloaded) {
-                val failed = answer.copy(status = com.pixel.intelligentsearch.core.answers.TranslationStatus.Failed)
-                _uiState.update { if (it.query == answer.query) it.copy(liveAnswer = failed) else it }
-            } else if (_uiState.value.query == answer.query) {
-                retryLiveAnswer()
-            }
-        }
     }
 
     /** Opened on first use, on the main thread (the spell checker answers on the thread that opened it). */

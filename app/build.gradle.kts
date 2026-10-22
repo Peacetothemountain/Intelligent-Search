@@ -205,11 +205,6 @@ dependencies {
   // AppFunctions: exposes local search to on-device assistants
   implementation(libs.androidx.appfunctions)
   ksp(libs.androidx.appfunctions.compiler)
-
-  // On-device translation inside search ("translate hello to spanish"). The translate artifact has no bundled
-  // models: each language pair is downloaded from Google the first time it's used, and only when the user asks.
-  implementation(libs.mlkit.translate)
-  implementation(libs.mlkit.language.id)
 }
 
 tasks.register<Zip>("packageNativeDebugSymbols") {

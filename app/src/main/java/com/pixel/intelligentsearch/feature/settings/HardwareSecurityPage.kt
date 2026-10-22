@@ -27,6 +27,7 @@ import com.pixel.intelligentsearch.core.security.AttestationResult
 import com.pixel.intelligentsearch.core.security.HardwareSecurityLevel
 import com.pixel.intelligentsearch.core.security.SecurityHardwareInfo
 import com.pixel.intelligentsearch.core.security.SecurityPosture
+import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
 
 /**
  * The Developer Note's Hardware & Security page: where this app's keys are kept, the key attestation result, and the
@@ -73,10 +74,9 @@ internal fun HardwareSecurityPage(
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface
         )
-        Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            modifier = Modifier.fillMaxWidth()
+        MatteShell(
+            modifier = Modifier.fillMaxWidth(),
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ) {
             Column(
                 modifier = Modifier.padding(12.dp),

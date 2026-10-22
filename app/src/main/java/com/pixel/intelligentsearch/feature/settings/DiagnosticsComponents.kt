@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -34,6 +33,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
 
 /** Space between the diagnostics cards, and between the parts inside one. */
 internal val DiagnosticsCardSpacing = 12.dp
@@ -52,11 +52,10 @@ internal fun DiagnosticsCard(
     trailing: @Composable () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Surface(
+    // The same matte shell every settings page groups its controls in (see SettingsCard).
+    MatteShell(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Column(
             modifier = Modifier

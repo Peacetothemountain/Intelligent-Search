@@ -139,7 +139,7 @@ fun Modifier.matteShell(look: MatteShellLook, shape: Shape, shadowElevation: Dp 
             )
             // Stroked on the outline and clipped to it, so half the width shows: a 1dp rim.
             val rimStroke = Stroke(width = 2.dp.toPx())
-            val grain = MatteGrain.brush(MatteGrain.cellPxFor(density))
+            val grain = if (MatteGrain.drawn) MatteGrain.brush(MatteGrain.cellPxFor(density)) else null
             val hasGlow = look.glowPrimary.alpha > 0f || look.glowTertiary.alpha > 0f
             val hasAccent = look.accentRim.alpha > 0f
             onDrawWithContent {
@@ -148,7 +148,7 @@ fun Modifier.matteShell(look: MatteShellLook, shape: Shape, shadowElevation: Dp 
                     drawRect(glowFromBelow)
                     drawRect(glowFromTopEnd)
                 }
-                drawRect(grain, alpha = look.grainAlpha)
+                if (grain != null) drawRect(grain, alpha = look.grainAlpha)
                 drawContent()
                 drawOutline(outline, rim, style = rimStroke)
                 if (hasAccent) drawOutline(outline, look.accentRim, style = rimStroke)
@@ -241,6 +241,14 @@ object MatteGrain {
     private const val SEED = 0x5EED_6A1EL
     private val brushes = HashMap<Int, ShaderBrush>()
     private val tiles = HashMap<Int, ImageBitmap>()
+
+    /**
+     * Whether shells draw the grain. Screenshot tests turn it off (system property `intelligentsearch.matteGrain`
+     * = `off`, set for every unit test run): random specks don't compress, and with them each settings golden is
+     * about 1 MB. `MatteShellGoldenTest` turns it back on to pin the grain itself.
+     */
+    @Volatile
+    var drawn: Boolean = System.getProperty("intelligentsearch.matteGrain") != "off"
 
     /** Grain cells about 0.75dp across, never below a pixel: fine, but visible on a dense screen. */
     fun cellPxFor(density: Float): Int = max(1, (density * 0.75f).roundToInt())

@@ -1,8 +1,12 @@
 package com.pixel.intelligentsearch.core.backup
 
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
 import com.pixel.intelligentsearch.core.data.settings.IntSetting
 import com.pixel.intelligentsearch.core.data.settings.SearchPillProfiles
+import com.pixel.intelligentsearch.core.data.settings.SettingKey
+import com.pixel.intelligentsearch.core.data.settings.StringSetSetting
+import com.pixel.intelligentsearch.core.data.settings.StringSetting
 
 /**
  * What a restored SharedPreferences entry is allowed to look like. Backup files are user-supplied, so a
@@ -23,7 +27,10 @@ internal object BackupPreferenceSchema {
     const val MAX_STRING_LENGTH = 64 * 1024
     const val MAX_STRING_SET_SIZE = 1_000
 
-    /** Types of every key the app reads with a fixed literal name. */
+    /**
+     * Types of keys the app reads with a fixed literal name that aren't declared settings (older spellings, widget
+     * keys). A declared setting ([SettingsManager.keyFor]) needs no entry: its own type is used.
+     */
     private val READ_TYPES: Map<String, String> = buildMap {
         fun typed(type: String, vararg keys: String) { for (key in keys) put(key, type) }
         typed(
@@ -31,7 +38,7 @@ internal object BackupPreferenceSchema {
             "app.fuzzy.search", "app_animations", "app_fuzzy_search", "app_quick_launch", "bottom_search",
             "bottom_search_result", "contact.direct.call", "contact_actions", "contact_direct_call", "context_aware_quick_apps",
             "diagnostics_overlay_enabled", "dynamic_icon_masking", "force_tutorial", "g_icon_enabled", "live_currency_rates",
-            "matrix_animation_enabled", "never_show_icon_pack_warning", "overlay_show_mic", "quick.search.horizontal",
+            "matrix_animation_enabled", "never_show_icon_pack_warning", "quick.search.horizontal",
             "quick_search_horizontal", "quick_search_maps", "quick_search_play_store", "quick_search_wikipedia",
             "quick_search_youtube", "search.android.settings", "search.apps", "search.background.show.wall", "search.calculator",
             "search.calendar", "search.contacts", "search.files", "search.files.hidden.files",
@@ -47,12 +54,7 @@ internal object BackupPreferenceSchema {
             "widget_material_show_doodles", "widget_material_show_g_icon", "widget_material_show_voice",
             "widget_show_g_icon", "widget_show_gemini", "widget_show_voice", "widget_suppress_unsaved_warning",
             "widget_system_custom_keep_system_g", "widget_system_custom_sync_colors", "widget_system_design_saved",
-            "widget_system_show_doodles", "widget_system_show_g_icon", "widget_system_show_voice", "widget_system_lock_black",
-            "search.notifications", "glance.enabled", "glance.alarm", "glance.timers", "glance.media",
-            "glance.birthdays", "glance.battery",
-            "dictionary_answers", "weather_answers", "weather_use_device_location", "ai.answers.enabled",
-            "show_keyboard_on_open",
-            "launch.search_notification", "launch.floating_button", "launch.edge_swipe"
+            "widget_system_show_doodles", "widget_system_show_g_icon", "widget_system_show_voice", "widget_system_lock_black"
         )
         // The per-design element colours the widget reads with getInt (WidgetDesignSettings).
         for (design in listOf("widget", "widget_system", "widget_material")) {
@@ -72,13 +74,12 @@ internal object BackupPreferenceSchema {
             "widget_material_custom_color_opacity", "widget_material_custom_hue", "widget_material_custom_lightness",
             "widget_material_custom_saturation", "widget_system_background_transparency",
             "widget_system_custom_color_int", "widget_system_custom_color_opacity", "widget_system_custom_hue",
-            "widget_system_custom_lightness", "widget_system_custom_saturation",
-            "launch.floating_button_position", "launch.edge_swipe_position", "launch.edge_swipe_height"
+            "widget_system_custom_lightness", "widget_system_custom_saturation"
         )
         typed(
             "STRING",
             "active_icon_pack", "adaptive_icon_shape", "custom_bangs_json", "custom_icon_packs_order",
-            "custom_icon_pills", "custom_search_engine_url", "night.mode", "result_shortcuts_json", "search.engine", "search.pills",
+            "custom_icon_pills", "custom_search_engine_url", "night.mode", "search.engine", "search.pills",
             "search_pills", "search_sections_config_json", "theme", "web_shortcut_trigger_symbol",
             "widget.theme.style", "widget_action_icon", "widget_material_action_icon", "widget_material_g_icon",
             "widget_material_material_g_icon", "widget_material_shortcut_1", "widget_material_shortcut_2",
@@ -86,20 +87,27 @@ internal object BackupPreferenceSchema {
             "widget_shortcut_1", "widget_shortcut_2", "widget_shortcut_3", "widget_shortcut_order",
             "widget_subtheme", "widget_system_material_g_icon", "widget_system_shortcut_1",
             "widget_system_shortcut_2", "widget_system_shortcut_3", "widget_system_shortcut_order",
-            "widget_system_subtheme", "widget_theme_style", "weather_home_location",
-            "ai.answers.provider", "ai.answers.model", "saved_links_json", "enter_key_action",
-            "launch.floating_button_edge", "launch.edge_swipe_edge"
+            "widget_system_subtheme", "widget_theme_style"
         )
-        typed("STRING_SET", "disabled_web_shortcuts", "hidden_apps", "search.files.excluded_types")
-        // The app each file type opens with (Open Files With in File Search settings).
-        for (key in com.pixel.intelligentsearch.core.data.SettingsManager.FILES_OPEN_WITH.values) put(key.name, "STRING")
+        typed("STRING_SET", "disabled_web_shortcuts", "hidden_apps")
     }
 
     // The pill profiles' working copies and saved states, named by profile number (SearchPillProfiles).
     private val PILL_PROFILE_KEY = Regex("app_search_profile_\\d+(_saved)?")
 
-    /** The type the app reads [key] with, including keys it names at runtime; null for keys nothing reads by type. */
-    fun expectedType(key: String): String? = READ_TYPES[key] ?: when {
+    /** The backup file's type label for a declared [setting]. */
+    fun typeOf(setting: SettingKey<*>): String = when (setting) {
+        is BooleanSetting -> "BOOLEAN"
+        is IntSetting -> "INT"
+        is StringSetting -> "STRING"
+        is StringSetSetting -> "STRING_SET"
+    }
+
+    /**
+     * The type the app reads [key] with: a declared setting's own type first, then the literal names above and keys
+     * it names at runtime; null for keys nothing reads by type.
+     */
+    fun expectedType(key: String): String? = SettingsManager.keyFor(key)?.let(::typeOf) ?: READ_TYPES[key] ?: when {
         // A widget shortcut's custom action, named after the shortcut.
         key.endsWith("_custom_type") || key.endsWith("_custom_value") -> "STRING"
         PILL_PROFILE_KEY.matches(key) -> "STRING"

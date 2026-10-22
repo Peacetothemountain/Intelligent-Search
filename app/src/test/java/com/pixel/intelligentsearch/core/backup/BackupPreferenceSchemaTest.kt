@@ -43,6 +43,17 @@ class BackupPreferenceSchemaTest {
         assertNull(BackupPreferenceSchema.expectedType("some_future_key"))
     }
 
+    /** A declared setting needs no literal entry in the schema: its own type is the one checked, old spellings too. */
+    @Test
+    fun everyDeclaredSettingCarriesItsOwnType() {
+        for (setting in SettingsManager.ALL) {
+            val type = BackupPreferenceSchema.typeOf(setting)
+            for (name in setting.allNames) assertEquals(name, type, BackupPreferenceSchema.expectedType(name))
+        }
+        assertEquals("INT", BackupPreferenceSchema.expectedType(SettingsManager.EDGE_SWIPE_HEIGHT.name))
+        assertEquals("STRING", BackupPreferenceSchema.expectedType(SettingsManager.SAVED_LINKS.name))
+    }
+
     @Test
     fun androidSettingsSourceIsRegisteredAsABoolean() {
         assertEquals("BOOLEAN", BackupPreferenceSchema.expectedType(SettingsManager.SEARCH_ANDROID_SETTINGS.name))

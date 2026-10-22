@@ -1,10 +1,7 @@
 package com.pixel.intelligentsearch.core.backup
 
 import com.pixel.intelligentsearch.core.system.WidgetUpdater
-import com.pixel.intelligentsearch.core.data.settings.StringSetSetting
-import com.pixel.intelligentsearch.core.data.settings.StringSetting
 import com.pixel.intelligentsearch.core.data.settings.IntSetting
-import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
 import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import android.content.Context
 import android.net.Uri
@@ -109,14 +106,6 @@ class BackupManager @Inject constructor(
                 key == SettingsManager.PILL_OPACITY_LINEAR_KEY ||
                 key == SettingsManager.QUICK_PANEL_CAPS_CHOSEN_APPS_KEY ||
                 key in SettingsManager.REMOVED_NAMES
-        }
-
-        /** The backup file's type label for a declared setting. */
-        private fun sharedPrefTypeName(setting: SettingKey<*>): String = when (setting) {
-            is BooleanSetting -> "BOOLEAN"
-            is IntSetting -> "INT"
-            is StringSetting -> "STRING"
-            is StringSetSetting -> "STRING_SET"
         }
 
         private fun sharedPrefTypeName(value: Any): String? = when (value) {
@@ -554,8 +543,7 @@ class BackupManager @Inject constructor(
                         val type = itemObj.optString("type")
                         // Known keys (including per-shortcut custom actions and pill profiles) must carry the type
                         // the app reads them with. Keys the schema doesn't name must at least match what is stored here now.
-                        val expectedType = setting?.let(::sharedPrefTypeName)
-                            ?: BackupPreferenceSchema.expectedType(key)
+                        val expectedType = BackupPreferenceSchema.expectedType(key)
                             ?: localValues[key]?.let { sharedPrefTypeName(it) }
                         if (expectedType != null && expectedType != type) {
                             return@runCatching

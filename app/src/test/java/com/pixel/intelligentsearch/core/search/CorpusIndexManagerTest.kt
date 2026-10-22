@@ -58,8 +58,8 @@ class CorpusIndexManagerTest {
         override suspend fun contextAwareQuickApps(hiddenApps: Set<String>) = emptyList<AppItem>()
         override suspend fun upcomingEvents() = emptyList<CalendarEvent>()
         override suspend fun contacts(query: String) = emptyList<ContactItem>()
-        override fun cachedWebSuggestions(query: String, engine: String): List<String>? = null
-        override suspend fun webSuggestions(query: String, engine: String) = emptyList<String>()
+        override fun cachedWebSuggestions(query: String, engine: String): List<com.pixel.intelligentsearch.core.data.WebSuggestion>? = null
+        override suspend fun webSuggestions(query: String, engine: String) = emptyList<com.pixel.intelligentsearch.core.data.WebSuggestion>()
     }
 
     /** A device with one contact that, like the real provider, reads back only once READ_CONTACTS is granted. */

@@ -7,6 +7,9 @@
         <item name="android:activityCloseExitAnimation">@anim/slide_out_right</item>
     </style>
     <style name="Theme.IntelligentSearch" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Text drawn by Android's own views in the app's windows is Google Sans Flex too, like the Compose text. -->
+        <item name="android:fontFamily">@font/google_sans_flex</item>
+        <item name="fontFamily">@font/google_sans_flex</item>
         <item name="android:windowAnimationStyle">@style/Theme.IntelligentSearch.Animation</item>
     </style>
     <style name="Theme.IntelligentSearch.Animation.None">
@@ -35,6 +38,9 @@
     </style>
 
     <style name="Theme.IntelligentSearch.Overlay" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Text drawn by Android's own views in the app's windows is Google Sans Flex too, like the Compose text. -->
+        <item name="android:fontFamily">@font/google_sans_flex</item>
+        <item name="fontFamily">@font/google_sans_flex</item>
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowShowWallpaper">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>

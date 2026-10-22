@@ -172,6 +172,13 @@ internal fun BugdroidClip.fittedScale(vw: Float, vh: Float, scaleFactor: Float):
     return scale
 }
 
+/**
+ * View pixels per pixel of the 1920x1080 frame once [applyClipTransform] has placed the clip in a [vw] x [vh]
+ * view, so things drawn around the character (the backup bugdroid's shadows) can follow its size and place.
+ */
+internal fun BugdroidClip.viewPixelsPerFramePixel(vw: Float, vh: Float, scaleFactor: Float): Float =
+    maxOf(vw / BugdroidClip.SOURCE_WIDTH, vh / BugdroidClip.SOURCE_HEIGHT) * fittedScale(vw, vh, scaleFactor)
+
 /** Empty space kept around a character that had to be shrunk to fit, as a share of the view's shorter side. */
 private const val FIT_MARGIN = 0.03f
 

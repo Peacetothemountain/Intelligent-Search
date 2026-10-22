@@ -20,7 +20,9 @@ import org.intellij.lang.annotations.Language
 enum class ProgressiveBlurDirection(val id: Int) {
     TopToBottom(0),
     BottomToTop(1),
-    Radial(2)
+    Radial(2),
+    /** The same strength everywhere (a swiped-away row dissolving as a whole). */
+    Uniform(3)
 }
 
 /**
@@ -36,7 +38,7 @@ object AGSLBackdropShader {
         uniform float uMaxBlurPx;
         uniform float uStartFraction;
         uniform float uEndFraction;
-        uniform int uDirection; // 0: TopToBottom, 1: BottomToTop, 2: Radial
+        uniform int uDirection; // 0: TopToBottom, 1: BottomToTop, 2: Radial, 3: Uniform
         layout(color) uniform half4 uMonetTint;
 
         float hash(float2 p) {
@@ -52,10 +54,13 @@ object AGSLBackdropShader {
             } else if (uDirection == 1) {
                 // Bottom to top: bottom has max blur, fading to zero at top
                 progress = smoothstep(uStartFraction, uEndFraction, uv.y);
-            } else {
+            } else if (uDirection == 2) {
                 // Radial from center
                 float d = distance(uv, float2(0.5, 0.5)) * 2.0;
                 progress = smoothstep(uStartFraction, uEndFraction, d);
+            } else {
+                // Uniform: the whole layer at full strength (uMaxBlurPx sets how strong)
+                progress = 1.0;
             }
             
             float effectiveRadius = uMaxBlurPx * progress;
@@ -142,6 +147,49 @@ private class EdgeBlurEffectCache(
         lastWidth = width
         lastHeight = height
         return rebuilt
+    }
+}
+
+/**
+ * The scroll edge's blur and grain ([AGSL_PROGRESSIVE_BLUR_SHADER]) at one strength over a whole layer, for a row
+ * that dissolves as it is swiped away. Strength changes on every frame of a drag, while Skia snapshots uniforms when
+ * an effect is made, so the effect is rebuilt only when the strength moves by a quarter pixel or the size changes.
+ * Below API 33, or at no strength, there is no effect (the row still fades).
+ */
+class DissolveEffectCache {
+    private var lastWidth = -1f
+    private var lastHeight = -1f
+    private var lastBlurPx = -1f
+    private var effect: androidx.compose.ui.graphics.RenderEffect? = null
+
+    fun effectFor(width: Float, height: Float, blurPx: Float): androidx.compose.ui.graphics.RenderEffect? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU || blurPx < 0.5f) return null
+        val step = Math.round(blurPx * 4f) / 4f
+        if (step == lastBlurPx && width == lastWidth && height == lastHeight) return effect
+        effect = DissolveShader.build(width, height, step)
+        lastWidth = width
+        lastHeight = height
+        lastBlurPx = step
+        return effect
+    }
+}
+
+/** One shader shared by every dissolving row: each effect copies the uniforms it was made with. */
+@RequiresApi(Build.VERSION_CODES.TIRAMISU)
+private object DissolveShader {
+    private val shader: RuntimeShader? by lazy { AGSLBackdropShader.createProgressiveShader() }
+
+    fun build(width: Float, height: Float, blurPx: Float): androidx.compose.ui.graphics.RenderEffect? {
+        val shader = shader ?: return null
+        return runCatching {
+            shader.setColorUniform("uMonetTint", 0)
+            shader.setFloatUniform("uResolution", width.coerceAtLeast(1f), height.coerceAtLeast(1f))
+            shader.setFloatUniform("uMaxBlurPx", blurPx)
+            shader.setFloatUniform("uStartFraction", 0f)
+            shader.setFloatUniform("uEndFraction", 1f)
+            shader.setIntUniform("uDirection", ProgressiveBlurDirection.Uniform.id)
+            RenderEffect.createRuntimeShaderEffect(shader, "compositedImage").asComposeRenderEffect()
+        }.getOrNull()
     }
 }
 

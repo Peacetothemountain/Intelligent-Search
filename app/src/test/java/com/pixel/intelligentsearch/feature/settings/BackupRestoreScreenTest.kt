@@ -17,7 +17,9 @@ import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
@@ -28,6 +30,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.core.app.ActivityOptionsCompat
@@ -64,6 +67,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 import org.robolectric.annotation.Implementation
 import org.robolectric.annotation.Implements
 import org.robolectric.util.ReflectionHelpers
@@ -300,6 +304,69 @@ class BackupRestoreScreenTest {
         compose.settle(steps = 1)
         assertEquals(1, CountingHaptics.predictiveBackHaptics)
         assertEquals(1, backs)
+    }
+
+    /** How far the page can scroll, in pixels: 0 when everything fits on the screen. */
+    private fun scrollRange(): Float =
+        compose.onNode(hasScrollAction()).fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].maxValue()
+
+    /** The bugdroid's height in dp (the window is xhdpi), whether or not it is scrolled into view. */
+    private fun bugdroidHeightDp(): Float = compose.onNodeWithTag("backup_bugdroid").fetchSemanticsNode().size.height / 2f
+
+    /** The page doesn't scroll, and the bugdroid shows whole below the cards, legs included, at a size it can be made out. */
+    private fun assertTheWholePageFits() {
+        assertEquals(0f, scrollRange())
+        val page = compose.onRoot().fetchSemanticsNode().boundsInRoot
+        val bugdroid = compose.onNodeWithTag("backup_bugdroid").fetchSemanticsNode().boundsInRoot
+        val lastCard = compose.onNodeWithTag("backup_card_auto").fetchSemanticsNode().boundsInRoot
+        // The video keeps the whole character (key, head, arms and legs) inside its view, so the view on screen is enough.
+        assertTrue("bugdroid $bugdroid below the cards $lastCard", bugdroid.top >= lastCard.bottom)
+        assertTrue("bugdroid $bugdroid on the page $page", bugdroid.bottom <= page.bottom)
+        assertTrue("bugdroid ${bugdroidHeightDp()} dp", bugdroidHeightDp() >= BUGDROID_MIN_HEIGHT.value)
+    }
+
+    // Text has its real size only with native graphics; the default mode measures every line the same.
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = "w412dp-h915dp-xhdpi")
+    fun atTheDefaultSizesOfAPixelProXlThePageFitsWithoutScrolling() {
+        showPage()
+        assertTheWholePageFits()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = "w448dp-h921dp-xhdpi")
+    fun onAWiderPhoneThePageFitsWithoutScrolling() {
+        // A 1344 px wide screen at 3x, less the status and navigation bars.
+        showPage()
+        assertTheWholePageFits()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = "w412dp-h915dp-xhdpi", fontScale = 2f)
+    fun withLargeTextThePageStillScrolls() {
+        showPage()
+        assertTrue(scrollRange() > 0f)
+        // The bugdroid keeps its smallest size below the cards rather than being squeezed out.
+        assertEquals(BUGDROID_MIN_HEIGHT.value, bugdroidHeightDp(), 0.5f)
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    @Config(qualifiers = "w412dp-h640dp-xhdpi")
+    fun onAShortScreenThePageStillScrolls() {
+        showPage()
+        assertTrue(scrollRange() > 0f)
+        assertEquals(BUGDROID_MIN_HEIGHT.value, bugdroidHeightDp(), 0.5f)
+    }
+
+    @Test
+    fun withRoomToSpareTheBugdroidStopsAtItsFullSize() {
+        showPage()
+        assertEquals(BUGDROID_MAX_HEIGHT.value, bugdroidHeightDp(), 0.5f)
+        assertEquals(0f, scrollRange())
     }
 
     private companion object {

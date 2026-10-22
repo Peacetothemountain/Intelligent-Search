@@ -12,6 +12,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
+import com.pixel.intelligentsearch.core.data.settings.EnterKeyAction
 import com.pixel.intelligentsearch.core.data.settings.IntSetting
 import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import com.pixel.intelligentsearch.core.data.settings.StringSetSetting
@@ -221,6 +222,14 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val VIBRATION = BooleanSetting("vibration_enabled", true)
         /** The voice search (mic) button in the search overlay's search bar; off removes it from the bar. */
         val OVERLAY_SHOW_MIC = BooleanSetting("overlay_show_mic", true)
+        /**
+         * Show Keyboard When Search Opens: the overlay opens with the search field focused and the keyboard up. Off, it
+         * opens with the field unfocused and the keyboard down until the field is tapped. Every way in (the widget,
+         * the assistant gesture, a launcher shortcut) follows it.
+         */
+        val SHOW_KEYBOARD_ON_OPEN = BooleanSetting("show_keyboard_on_open", true)
+        /** What Enter does when no result is highlighted, as an [EnterKeyAction]'s stored value. */
+        val ENTER_KEY_ACTION = StringSetting("enter_key_action", EnterKeyAction.OPEN_TOP_RESULT.storedValue)
         val DEBUG_UNLOCKED = BooleanSetting("debug_unlocked", false)
         val DEBUG_VERBOSE_LOGGING = BooleanSetting("debug.verbose_logging", false)
         val DEBUG_SHOW_PERF_STATS = BooleanSetting("debug.show_perf_stats", false)
@@ -296,6 +305,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             WEB_SHORTCUT_TRIGGER_SYMBOL, SEARCH_QUICK_SHORTCUTS, SHOW_AVAILABLE_DIRECT_SHORTCUTS,
             ADAPTIVE_ICON_SHAPE, DYNAMIC_ICON_MASKING, DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, OVERLAY_SHOW_MIC, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
+            SHOW_KEYBOARD_ON_OPEN, ENTER_KEY_ACTION,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
             DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_ALARM,
             GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_BIRTHDAYS, GLANCE_BATTERY, RESULT_SHORTCUTS,

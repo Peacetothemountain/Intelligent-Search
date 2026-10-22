@@ -136,7 +136,7 @@ open class MainActivity : AppCompatActivity() {
             searchViewModel.requestVoice()
         } else if (restoreKeyboard) {
             val prefs = getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
-            applySoftInputMode(keyboardVisible = !com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs))
+            applySoftInputMode(keyboardVisible = keyboardVisibleOnOpen(prefs))
         }
     }
 
@@ -197,8 +197,7 @@ open class MainActivity : AppCompatActivity() {
         // history, so Android must require device unlock before it is shown from the keyguard.
         com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
-        val isTutorial = com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs)
-        applySoftInputMode(keyboardVisible = !isTutorial)
+        applySoftInputMode(keyboardVisible = keyboardVisibleOnOpen(prefs))
         super.onCreate(savedInstanceState)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -335,6 +334,14 @@ open class MainActivity : AppCompatActivity() {
      * the overlay's keyboard-docked layout was tuned against, and is isolated here so the suppression
      * stays narrowly scoped.
      */
+    /**
+     * Whether the window opens with the keyboard up: not under the first-run tutorial, and only with Show Keyboard When
+     * Search Opens on. Every way in (widget, tile, assistant gesture, launcher) comes through here.
+     */
+    private fun keyboardVisibleOnOpen(prefs: android.content.SharedPreferences): Boolean =
+        !com.pixel.intelligentsearch.feature.settings.TutorialManager.isTutorialActive(prefs) &&
+            com.pixel.intelligentsearch.feature.search.keyboardUpOnOpen(prefs)
+
     private fun applySoftInputMode(keyboardVisible: Boolean) {
         @Suppress("DEPRECATION")
         val adjustResize = android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE

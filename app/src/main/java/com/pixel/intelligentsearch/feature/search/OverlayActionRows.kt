@@ -70,7 +70,7 @@ internal fun DirectActionRow(
     gestures: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val shape = RoundedCornerShape(32.dp)
+    val shape = DirectActionRowShape
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -115,13 +115,20 @@ internal fun DirectActionRow(
     }
 }
 
-/** "Ask Claude": the row that sends [question] to [provider], and only when it is tapped. */
+/** The suggested actions' pill, which the keyboard's highlight ring follows too. */
+internal val DirectActionRowShape = RoundedCornerShape(32.dp)
+
+/**
+ * "Ask Claude": the row that sends [question] to [provider], and only when it is tapped (or chosen with the keyboard).
+ * [highlight] draws the keyboard's ring on the pill.
+ */
 @Composable
-internal fun AskAiRow(provider: AiProvider, question: String, onAsk: () -> Unit) {
+internal fun AskAiRow(provider: AiProvider, question: String, highlight: Modifier = Modifier, onAsk: () -> Unit) {
     DirectActionRow(
         title = "Ask ${provider.displayName}",
         subtitle = question,
         icon = Icons.Filled.AutoAwesome,
+        gestures = highlight,
         onClick = onAsk
     )
 }
@@ -288,9 +295,15 @@ internal fun markdownLite(text: String, codeBackground: androidx.compose.ui.grap
  * name's first letter, then its name and site. Opens in the browser, or the site's own app.
  */
 @Composable
-internal fun SavedLinkRow(link: SavedLink, icon: ImageBitmap?, onLongClick: (() -> Unit)?, onClick: () -> Unit) {
+internal fun SavedLinkRow(
+    link: SavedLink,
+    icon: ImageBitmap?,
+    onLongClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .moreOptions(onLongClick)
             .expressiveRowClickable(onLongClick = onLongClick, onClick = onClick)

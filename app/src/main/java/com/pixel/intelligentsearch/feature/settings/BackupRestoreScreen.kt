@@ -78,8 +78,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.media3.exoplayer.ExoPlayer
 import com.pixel.intelligentsearch.core.backup.AutoBackup
 import com.pixel.intelligentsearch.core.backup.EncryptedBackupEnvelope
 import kotlinx.coroutines.Dispatchers
@@ -489,13 +493,11 @@ fun BackupRestoreScreen(
             )
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        CardsAboveBugdroid(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            // Below Android 13 the bugdroid video can't be shown (see isBugdroidVideoSupported), so neither are the
+            // room kept for it and the shadows under its feet.
+            bugdroid = if (isBugdroidVideoSupported) { { BackupBugdroid(backupExoPlayer) } } else null
         ) {
             SettingsCard(modifier = Modifier.backupCard("backup_card_passphrase")) {
                 BackupCardTitle("Encryption Passphrase")
@@ -686,13 +688,12 @@ fun BackupRestoreScreen(
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
             }
 
             SettingsCard(modifier = Modifier.backupCard("backup_card_export")) {
                 BackupCardTitle("Export Configuration")
-                BackupCardDescription("Includes Settings, Search History, Shortcuts, and Priority Weights.")
-                Spacer(modifier = Modifier.height(8.dp))
+                BackupCardDescription("Settings, History, Shortcuts, and Priority Weights.")
+                Spacer(modifier = Modifier.height(4.dp))
                 Button(
                     onClick = {
                         hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
@@ -718,13 +719,12 @@ fun BackupRestoreScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Export Encrypted Backup", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
                 }
-                Spacer(modifier = Modifier.height(4.dp))
             }
 
             SettingsCard(modifier = Modifier.backupCard("backup_card_restore")) {
                 BackupCardTitle("Restore from Backup")
-                BackupCardDescription("Select an Existing .json Backup File to Decrypt, Verify SHA-256 Integrity, and Restore.")
-                Spacer(modifier = Modifier.height(8.dp))
+                BackupCardDescription("Decrypted and SHA-256 Verified Before Restoring.")
+                Spacer(modifier = Modifier.height(4.dp))
                 OutlinedButton(
                     onClick = {
                         hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
@@ -740,125 +740,172 @@ fun BackupRestoreScreen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(if (restoring) "Restoring…" else "Select Backup to Restore", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
                 }
-                Spacer(modifier = Modifier.height(4.dp))
             }
 
             AutoBackupCard(obtainPassphrase = { onReady -> withPassphrase(forBackup = true, onReady = onReady) })
-
-            // Below Android 13 the bugdroid video can't be shown (see isBugdroidVideoSupported), so neither are the
-            // room kept for it and the shadows under its feet.
-            if (isBugdroidVideoSupported) {
-                // Extra room above the bugdroid so its whole video shows below the cards.
-                Spacer(modifier = Modifier.height(40.dp))
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    val isDark = isSystemInDarkTheme()
-                    val infiniteTransition = rememberInfiniteTransition(label = "BugdroidFeetShadowTransition")
-                    // The animated values stay State and are read only inside the Canvas, so the pulse redraws
-                    // the shadow without recomposing this part of the screen every frame.
-                    val pulseScale = infiniteTransition.animateFloat(
-                        initialValue = 0.94f,
-                        targetValue = 1.06f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(2400, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "shadowPulseScale"
-                    )
-                    val pulseAlpha = infiniteTransition.animateFloat(
-                        initialValue = 0.85f,
-                        targetValue = 1.0f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(2400, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "shadowPulseAlpha"
-                    )
-                    val swayOffset = infiniteTransition.animateFloat(
-                        initialValue = -1.5f,
-                        targetValue = 1.5f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(2800, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "shadowSwayOffset"
-                    )
-
-                    Canvas(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(340.dp)
-                            .testTag("backup_bugdroid_shadow")
-                    ) {
-                        val alpha = pulseAlpha.value
-                        val scale = pulseScale.value
-                        // On narrow screens the bugdroid shrinks to fit; its shadows shrink with it about the same centre.
-                        val fit = BugdroidClip.BACKUP.fittedScale(size.width, size.height, 1f)
-                        val contactShadowColor = Color.Black.copy(alpha = (if (isDark) 0.70f else 0.38f) * alpha)
-                        val ambientShadowColor = Color.Black.copy(alpha = (if (isDark) 0.32f else 0.16f) * alpha)
-                        val centerX = size.width / 2f + swayOffset.value.dp.toPx() * fit
-                        val groundY = size.height / 2f + (292.dp.toPx() - size.height / 2f) * fit
-
-                        // Ambient ground diffusion shadow
-                        val ambientWidth = 110.dp.toPx() * scale * fit
-                        val ambientHeight = 22.dp.toPx() * scale * fit
-                        drawOval(
-                            brush = Brush.radialGradient(
-                                colors = listOf(ambientShadowColor, Color.Transparent),
-                                center = Offset(centerX, groundY),
-                                radius = ambientWidth / 2f
-                            ),
-                            topLeft = Offset(centerX - ambientWidth / 2f, groundY - ambientHeight / 2f),
-                            size = Size(ambientWidth, ambientHeight)
-                        )
-
-                        // Left foot contact shadow (grounded directly beneath left foot)
-                        val leftFootCenterX = centerX - 28.dp.toPx() * fit
-                        val footWidth = 36.dp.toPx() * scale * fit
-                        val footHeight = 12.dp.toPx() * scale * fit
-                        drawOval(
-                            brush = Brush.radialGradient(
-                                colors = listOf(contactShadowColor, Color.Transparent),
-                                center = Offset(leftFootCenterX, groundY),
-                                radius = footWidth / 2f
-                            ),
-                            topLeft = Offset(leftFootCenterX - footWidth / 2f, groundY - footHeight / 2f),
-                            size = Size(footWidth, footHeight)
-                        )
-
-                        // Right foot contact shadow (grounded directly beneath right foot)
-                        val rightFootCenterX = centerX + 24.dp.toPx() * fit
-                        drawOval(
-                            brush = Brush.radialGradient(
-                                colors = listOf(contactShadowColor, Color.Transparent),
-                                center = Offset(rightFootCenterX, groundY),
-                                radius = footWidth / 2f
-                            ),
-                            topLeft = Offset(rightFootCenterX - footWidth / 2f, groundY - footHeight / 2f),
-                            size = Size(footWidth, footHeight)
-                        )
-                    }
-
-                    BugdroidPlayer(
-                        player = backupExoPlayer,
-                        clip = BugdroidClip.BACKUP,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(340.dp),
-                        scaleFactor = 1.0f
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
+
+/** Space around the page's content. The bugdroid, when shown, goes down to the bottom edge instead. */
+private val BACKUP_PAGE_PADDING = 16.dp
+
+/** Space between the last card and the bugdroid's view; the video keeps its own margin around the character. */
+private val BUGDROID_GAP = 4.dp
+
+/**
+ * The bugdroid's height limits. Below [BUGDROID_MIN_HEIGHT] it would be too small to make out, so the page scrolls
+ * instead; at [BUGDROID_MAX_HEIGHT] (its full size) any room left stays empty below it.
+ */
+internal val BUGDROID_MIN_HEIGHT = 120.dp
+internal val BUGDROID_MAX_HEIGHT = 340.dp
+
+/**
+ * The page's [cards] with [bugdroid] below them. The bugdroid gets the room the cards leave on the visible page,
+ * within [BUGDROID_MIN_HEIGHT]..[BUGDROID_MAX_HEIGHT], so where everything fits the page doesn't scroll and shows the
+ * whole bugdroid, legs included. Where the cards leave less than the minimum (large text, display zoom, short
+ * screens) the page is taller than the screen and scrolls. The video's fitting keeps the whole character (key, head,
+ * arms and legs) inside whatever height it gets.
+ */
+@Composable
+private fun CardsAboveBugdroid(
+    modifier: Modifier,
+    bugdroid: (@Composable () -> Unit)?,
+    cards: @Composable ColumnScope.() -> Unit
+) {
+    Layout(
+        contents = listOf({ Column(verticalArrangement = Arrangement.spacedBy(12.dp), content = cards) }, bugdroid ?: {}),
+        modifier = modifier
+            .verticalScroll(rememberScrollState())
+            // The video keeps its own margin below the character, so the bugdroid needs no padding under it.
+            .padding(
+                start = BACKUP_PAGE_PADDING,
+                top = BACKUP_PAGE_PADDING,
+                end = BACKUP_PAGE_PADDING,
+                bottom = if (bugdroid == null) BACKUP_PAGE_PADDING else 0.dp
+            )
+    ) { (cardMeasurables, bugdroidMeasurables), constraints ->
+        val width = constraints.maxWidth
+        val cardPlaceables = cardMeasurables.map { it.measure(Constraints(maxWidth = width)) }
+        val cardsHeight = cardPlaceables.sumOf { it.height }
+        val gap = if (bugdroidMeasurables.isEmpty()) 0 else BUGDROID_GAP.roundToPx()
+        // verticalScroll lifts only the maximum height, so the minimum is still the visible page, less the padding.
+        val bugdroidHeight = (constraints.minHeight - cardsHeight - gap)
+            .coerceIn(BUGDROID_MIN_HEIGHT.roundToPx(), BUGDROID_MAX_HEIGHT.roundToPx())
+        val bugdroidPlaceables = bugdroidMeasurables.map { it.measure(Constraints.fixed(width, bugdroidHeight)) }
+        val height = cardsHeight + gap + bugdroidPlaceables.sumOf { it.height }
+        layout(width, height.coerceAtLeast(constraints.minHeight)) {
+            cardPlaceables.fold(0) { y, placeable -> placeable.place(0, y); y + placeable.height }
+            bugdroidPlaceables.forEach { it.place(0, cardsHeight + gap) }
+        }
+    }
+}
+
+/**
+ * The backup bugdroid holding its key, standing on soft shadows that pulse and sway with it. The shadows are placed
+ * in the clip's 1920x1080 frame, so they follow wherever the fitting puts the character, at any view size.
+ */
+@Composable
+private fun BackupBugdroid(player: ExoPlayer?) {
+    Box(modifier = Modifier.fillMaxSize().testTag("backup_bugdroid"), contentAlignment = Alignment.Center) {
+        val isDark = isSystemInDarkTheme()
+        val infiniteTransition = rememberInfiniteTransition(label = "BugdroidFeetShadowTransition")
+        // The animated values stay State and are read only inside the Canvas, so the pulse redraws
+        // the shadow without recomposing this part of the screen every frame.
+        val pulseScale = infiniteTransition.animateFloat(
+            initialValue = 0.94f,
+            targetValue = 1.06f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2400, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "shadowPulseScale"
+        )
+        val pulseAlpha = infiniteTransition.animateFloat(
+            initialValue = 0.85f,
+            targetValue = 1.0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2400, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "shadowPulseAlpha"
+        )
+        // In frame pixels, like the sizes below.
+        val swayOffset = infiniteTransition.animateFloat(
+            initialValue = -4.8f,
+            targetValue = 4.8f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2800, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "shadowSwayOffset"
+        )
+
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .testTag("backup_bugdroid_shadow")
+        ) {
+            val alpha = pulseAlpha.value
+            val scale = pulseScale.value
+            // View pixels per frame pixel: the shadows grow and shrink with the bugdroid, about the same centre.
+            val px = BugdroidClip.BACKUP.viewPixelsPerFramePixel(size.width, size.height, 1f)
+            val contactShadowColor = Color.Black.copy(alpha = (if (isDark) 0.70f else 0.38f) * alpha)
+            val ambientShadowColor = Color.Black.copy(alpha = (if (isDark) 0.32f else 0.16f) * alpha)
+            val centerX = size.width / 2f + swayOffset.value * px
+            val groundY = size.height / 2f + (FEET_GROUND_Y - BugdroidClip.SOURCE_HEIGHT / 2f) * px
+
+            // Ambient ground diffusion shadow
+            val ambientWidth = 350f * scale * px
+            val ambientHeight = 70f * scale * px
+            drawOval(
+                brush = Brush.radialGradient(
+                    colors = listOf(ambientShadowColor, Color.Transparent),
+                    center = Offset(centerX, groundY),
+                    radius = ambientWidth / 2f
+                ),
+                topLeft = Offset(centerX - ambientWidth / 2f, groundY - ambientHeight / 2f),
+                size = Size(ambientWidth, ambientHeight)
+            )
+
+            // Left foot contact shadow (grounded directly beneath left foot)
+            val leftFootCenterX = centerX - 89f * px
+            val footWidth = 114f * scale * px
+            val footHeight = 38f * scale * px
+            drawOval(
+                brush = Brush.radialGradient(
+                    colors = listOf(contactShadowColor, Color.Transparent),
+                    center = Offset(leftFootCenterX, groundY),
+                    radius = footWidth / 2f
+                ),
+                topLeft = Offset(leftFootCenterX - footWidth / 2f, groundY - footHeight / 2f),
+                size = Size(footWidth, footHeight)
+            )
+
+            // Right foot contact shadow (grounded directly beneath right foot)
+            val rightFootCenterX = centerX + 76f * px
+            drawOval(
+                brush = Brush.radialGradient(
+                    colors = listOf(contactShadowColor, Color.Transparent),
+                    center = Offset(rightFootCenterX, groundY),
+                    radius = footWidth / 2f
+                ),
+                topLeft = Offset(rightFootCenterX - footWidth / 2f, groundY - footHeight / 2f),
+                size = Size(footWidth, footHeight)
+            )
+        }
+
+        BugdroidPlayer(
+            player = player,
+            clip = BugdroidClip.BACKUP,
+            modifier = Modifier.fillMaxSize(),
+            scaleFactor = 1.0f
+        )
+    }
+}
+
+/** Where the backup bugdroid's feet meet the ground, as a y in its 1920x1080 frame. */
+private const val FEET_GROUND_Y = 928f
 
 /**
  * Whether a failed restore should ask for the passphrase (again). Only a backup made with a passphrase can be

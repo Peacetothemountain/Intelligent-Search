@@ -21,17 +21,38 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
+import com.pixel.intelligentsearch.core.ui.DissolveEffectCache
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/** The swipe fraction (of the fade distance) at which a swiped row's dissolve reaches full strength. */
+internal const val SWIPE_DISSOLVE_FULL_AT = 0.5f
+
+/** The strongest blur a swiped row dissolves into: gentler than the scroll edge's 10 dp, so the text stays legible. */
+internal val SWIPE_DISSOLVE_MAX_BLUR = 6.dp
+
+/** How opaque a row dragged [fraction] of its fade distance is: fading with the drag, never below 1 - [maxFade]. */
+internal fun swipeAlpha(fraction: Float, maxFade: Float): Float = 1f - fraction.coerceIn(0f, maxFade)
+
+/**
+ * How strongly a row dragged [fraction] of its fade distance dissolves, from 0 (at rest: no effect at all) to 1 (at
+ * [SWIPE_DISSOLVE_FULL_AT] and beyond). It eases in, so a small nudge barely shows, and holds at the cap after.
+ */
+internal fun swipeDissolve(fraction: Float): Float {
+    val t = (fraction / SWIPE_DISSOLVE_FULL_AT).coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)
+}
+
 /**
  * A result row the user can swipe away (recent searches, suggested actions, calendar events). Dragging fades the
- * row; past the threshold it flies off in the drag direction and [onDismissed] runs, otherwise it springs back.
- * TalkBack users get the same through a "Dismiss" action. [threshold] is the drag distance that dismisses;
- * the row fades up to [maxDragFade] over [fadeDistance] while dragged.
+ * row and dissolves it with the same grainy blur rows get as they scroll under the search pill, both growing with
+ * the drag; past the threshold it flies off in the drag direction and [onDismissed] runs, otherwise it springs back
+ * and comes clear again. TalkBack users get the same through a "Dismiss" action. [threshold] is the drag distance
+ * that dismisses; the row fades up to [maxDragFade] over [fadeDistance] while dragged.
  */
 @Stable
 internal class SwipeToDismissState(
@@ -49,6 +70,11 @@ internal class SwipeToDismissState(
     var direction by mutableFloatStateOf(1f)
         private set
 
+    /** How far the row is out, as a share of [fadeDistance] (0 at rest, 1 from there on). */
+    val dragFraction: Float get() = (kotlin.math.abs(offsetX.value) / fadeDistance).coerceIn(0f, 1f)
+
+    internal val dissolveEffect = DissolveEffectCache()
+
     fun dismiss() {
         dismissed = true
     }
@@ -57,7 +83,7 @@ internal class SwipeToDismissState(
         scope.launch {
             val newOffset = offsetX.value + amount
             offsetX.snapTo(newOffset)
-            alpha.snapTo(1f - (kotlin.math.abs(newOffset) / fadeDistance).coerceIn(0f, maxDragFade))
+            alpha.snapTo(swipeAlpha(kotlin.math.abs(newOffset) / fadeDistance, maxDragFade))
         }
     }
 
@@ -113,10 +139,18 @@ internal fun rememberSwipeToDismiss(
     return state
 }
 
-/** Moves and fades the row with the swipe. */
+/**
+ * Moves, fades and dissolves the row with the swipe. The dissolve follows the offset, so it eases off as a released
+ * row springs back; at rest there is no effect on the layer at all.
+ */
 internal fun Modifier.swipeOffset(state: SwipeToDismissState): Modifier = graphicsLayer {
     translationX = state.offsetX.value
     alpha = state.alpha.value
+    renderEffect = state.dissolveEffect.effectFor(
+        width = size.width,
+        height = size.height,
+        blurPx = swipeDissolve(state.dragFraction) * SWIPE_DISSOLVE_MAX_BLUR.toPx()
+    )
 }
 
 /** The horizontal drag that dismisses the row, and the matching TalkBack action. */

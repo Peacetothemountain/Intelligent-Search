@@ -52,7 +52,8 @@ class BugdroidPlayerTransformTest {
     /** Narrow views used to crop the backup bugdroid's fan; the whole character must always stay inside. */
     @Test
     fun theWholeCharacterStaysInsideTheView() {
-        val sizes = listOf(1440 to 1190, 560 to 700, 1440 to 962, 300 to 900, 984 to 1020, 1140 to 1020, 280 to 280)
+        // The last two: the backup page's short, wide bugdroid at its smallest (120 dp) and as fitted on a 412 dp phone.
+        val sizes = listOf(1440 to 1190, 560 to 700, 1440 to 962, 300 to 900, 984 to 1020, 1140 to 1020, 280 to 280, 760 to 240, 760 to 286)
         for (clip in BugdroidClip.entries) for ((w, h) in sizes) for (scale in listOf(0.69f, 0.95f, 1f)) {
             val view = TextureView(ApplicationProvider.getApplicationContext())
             view.layout(0, 0, w, h)
@@ -70,6 +71,25 @@ class BugdroidPlayerTransformTest {
             assertTrue("$where top ${corners[1]}", corners[1] >= -0.5f)
             assertTrue("$where right ${corners[2]}", corners[2] <= w + 0.5f)
             assertTrue("$where bottom ${corners[3]}", corners[3] <= h + 0.5f)
+        }
+    }
+
+    /** The backup bugdroid's shadows are drawn at this scale, so it must be the scale the video is drawn at. */
+    @Test
+    fun framePixelsScaleLikeTheVideo() {
+        for ((w, h) in listOf(760 to 240, 760 to 680, 1440 to 680, 300 to 900)) {
+            val view = TextureView(ApplicationProvider.getApplicationContext())
+            view.layout(0, 0, w, h)
+            val clip = BugdroidClip.BACKUP
+            applyClipTransform(view, clip, 1f)
+            // Two frame points 1000 px apart, as they sit in the cropped stream stretched over the view.
+            val points = floatArrayOf(clip.cropLeft.toFloat(), clip.cropTop.toFloat(), clip.cropLeft + 1000f, clip.cropTop.toFloat())
+            for (i in points.indices step 2) {
+                points[i] = (points[i] - clip.cropLeft) / clip.cropWidth * w
+                points[i + 1] = (points[i + 1] - clip.cropTop) / clip.cropHeight * h
+            }
+            view.getTransform(null).mapPoints(points)
+            assertEquals("$w x $h", clip.viewPixelsPerFramePixel(w.toFloat(), h.toFloat(), 1f) * 1000f, points[2] - points[0], 0.5f)
         }
     }
 

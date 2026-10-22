@@ -84,7 +84,7 @@ class CountdownConfigActivity : AppCompatActivity() {
         }
         // Backing out of a new widget's setup cancels placing it.
         setResult(RESULT_CANCELED, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId))
-        val prefs = SearchWidgetProvider.getSafeSharedPreferences(this)
+        val prefs = SettingsManager.storedPrefs(this)
         val events = CountdownEvents(prefs)
         val initial = events.get(appWidgetId)
         val today = CountdownWidgetProvider.now().toLocalDate()

@@ -195,7 +195,7 @@ private fun DoodlePreviewRow() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val resources = androidx.compose.ui.platform.LocalResources.current
     val doodles = com.pixel.intelligentsearch.feature.widget.WidgetDoodles
-    val prefs = remember(context) { com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.getSafeSharedPreferences(context) }
+    val prefs = remember(context) { SettingsManager.storedPrefs(context) }
     var shown by remember { mutableStateOf(doodles.previewing(prefs)) }
     var lastPicked by remember { mutableStateOf(shown ?: com.pixel.intelligentsearch.core.occasion.Occasion.entries.first()) }
     var browsing by remember { mutableStateOf(false) }

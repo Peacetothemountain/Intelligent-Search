@@ -212,7 +212,7 @@ internal fun DoodleGallery(
                 onWidgets = previewing == selected,
                 onShowOnWidgets = { onPreview(if (previewing == selected) null else selected) },
                 onTestTap = {
-                    val prefs = SearchWidgetProvider.getSafeSharedPreferences(context)
+                    val prefs = com.pixel.intelligentsearch.core.data.SettingsManager.storedPrefs(context)
                     runCatching {
                         context.startActivity(
                             SearchWidgetProvider.doodleSearchIntent(context, prefs, 0, selected)

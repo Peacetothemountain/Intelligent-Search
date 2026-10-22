@@ -8,7 +8,6 @@ import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.util.storageContext
 
 /**
  * Notification Access, the one grant behind Search Your Notifications, At a Glance's Now Playing and the widget's
@@ -29,7 +28,7 @@ object NotificationAccess {
 
     /** Whether notifications are read now: the user's Search Your Notifications switch and Android's grant. */
     fun isActive(context: Context): Boolean =
-        context.storageContext().getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)[SettingsManager.SEARCH_NOTIFICATIONS] &&
+        SettingsManager.storedPrefs(context)[SettingsManager.SEARCH_NOTIFICATIONS] &&
             isGranted(context)
 
     /** Android's page for granting this app's listener, or the list of all listeners where the page is missing. */

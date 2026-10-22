@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.widget
 
 import com.pixel.intelligentsearch.di.appEntryPoint
-import com.pixel.intelligentsearch.core.util.storageContext
 import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -194,15 +193,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        fun getSafeSharedPreferences(context: Context, name: String = SettingsManager.PREFS_NAME): SharedPreferences =
-            context.storageContext().getSharedPreferences(name, Context.MODE_PRIVATE)
-
         fun updateAllWidgets(context: Context, pendingResult: android.content.BroadcastReceiver.PendingResult? = null) {
             val appContext = context.applicationContext
             context.appEntryPoint.applicationScope().launch(Dispatchers.IO) {
                 try {
                     val appWidgetManager = AppWidgetManager.getInstance(appContext) ?: return@launch
-                    val prefs = getSafeSharedPreferences(appContext)
+                    val prefs = SettingsManager.storedPrefs(appContext)
                     val isDark = ThemeMode.from(prefs[SettingsManager.THEME])
                         .isDark(ThemeMode.systemIsDark(appContext.resources.configuration))
                     val widgetColors = DynamicThemeDetector.resolveWidgetColors(appContext, isDark)
@@ -368,7 +364,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             appWidgetIds: IntArray,
             forcedIsMaterial: Boolean? = null
         ) {
-            val prefs = getSafeSharedPreferences(context)
+            val prefs = SettingsManager.storedPrefs(context)
             val isDark = ThemeMode.from(prefs[SettingsManager.THEME])
                 .isDark(ThemeMode.systemIsDark(context.resources.configuration))
 
@@ -419,7 +415,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             context: Context,
             appWidgetId: Int,
             isMaterialYou: Boolean,
-            prefs: SharedPreferences = getSafeSharedPreferences(context)
+            prefs: SharedPreferences = SettingsManager.storedPrefs(context)
         ): Map<SizeF, RemoteViews> {
             val isDark = ThemeMode.from(prefs[SettingsManager.THEME])
                 .isDark(ThemeMode.systemIsDark(context.resources.configuration))
@@ -506,7 +502,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         internal fun buildPinPreview(
             context: Context,
             isMaterialYou: Boolean,
-            prefs: SharedPreferences = getSafeSharedPreferences(context)
+            prefs: SharedPreferences = SettingsManager.storedPrefs(context)
         ): RemoteViews {
             val isDark = ThemeMode.from(prefs[SettingsManager.THEME])
                 .isDark(ThemeMode.systemIsDark(context.resources.configuration))

@@ -345,6 +345,13 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** The declared setting stored under [storedName] (canonical or legacy spelling), if any. */
         fun keyFor(storedName: String): SettingKey<*>? = BY_STORED_NAME[storedName]
 
+        /**
+         * The settings file as it can be read right now, for code without a [SettingsManager] (widgets, receivers,
+         * services): normal storage once the user has unlocked since boot, device-protected storage before that.
+         */
+        fun storedPrefs(context: Context): SharedPreferences =
+            context.storageContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
         /** Settings keys retired with their features; removed by the migration. */
         private val RETIRED_NAMES = listOf("search_sections_config_json", "datastore_migration_v1_completed")
 
@@ -388,7 +395,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
      * there see defaults (and widgets render defaults) until unlock.
      */
     val prefs: SharedPreferences
-        get() = context.storageContext().getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        get() = storedPrefs(context)
 
     operator fun <T : Any> get(key: SettingKey<T>): T = prefs[key]
 

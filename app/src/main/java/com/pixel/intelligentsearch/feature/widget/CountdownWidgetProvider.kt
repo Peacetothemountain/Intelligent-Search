@@ -63,7 +63,7 @@ class CountdownWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
-        CountdownEvents(SearchWidgetProvider.getSafeSharedPreferences(context)).remove(appWidgetIds)
+        CountdownEvents(SettingsManager.storedPrefs(context)).remove(appWidgetIds)
     }
 
     override fun onDisabled(context: Context) {
@@ -98,7 +98,7 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         }
 
         private fun update(context: Context, manager: AppWidgetManager, appWidgetIds: IntArray) {
-            val prefs = SearchWidgetProvider.getSafeSharedPreferences(context)
+            val prefs = SettingsManager.storedPrefs(context)
             val events = CountdownEvents(prefs)
             for (id in appWidgetIds) {
                 manager.updateAppWidget(id, buildViews(context, id, events.get(id), prefs))

@@ -38,7 +38,7 @@ import org.robolectric.annotation.GraphicsMode
 class PinWidgetPreviewTest {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
-    private val prefs by lazy { SearchWidgetProvider.getSafeSharedPreferences(context) }
+    private val prefs by lazy { SettingsManager.storedPrefs(context) }
     private val defaultNow = OccasionCalendar.now
 
     @Before fun pinningIsSupported() {

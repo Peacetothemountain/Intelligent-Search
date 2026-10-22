@@ -6,7 +6,6 @@ import android.os.Handler
 import android.os.Looper
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.util.storageContext
 import java.lang.ref.WeakReference
 
 /**
@@ -31,7 +30,7 @@ object LaunchSurfaces {
     private var listenedApp: WeakReference<Context>? = null
 
     internal fun prefs(context: Context): SharedPreferences =
-        context.storageContext().getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        SettingsManager.storedPrefs(context)
 
     /** Shows what is switched on and allowed, and keeps following the settings. Safe from any thread, and to repeat. */
     fun start(context: Context) {

@@ -12,7 +12,6 @@ import android.util.Log
 import android.widget.Toast
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.util.storageContext
 import com.pixel.intelligentsearch.feature.widget.WidgetActivity
 import com.pixel.intelligentsearch.feature.widget.resolveActivityCompat
 
@@ -180,7 +179,7 @@ class SelectedTextSearchActivity : Activity() {
         }
 
         private fun settings(context: Context): SharedPreferences =
-            context.storageContext().getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+            SettingsManager.storedPrefs(context)
 
         /**
          * Turns "Intelligent Search" in other apps' selection menus and share sheets back on where an older version's

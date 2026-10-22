@@ -12,7 +12,6 @@ import android.util.Log
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
-import com.pixel.intelligentsearch.core.util.storageContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -98,7 +97,7 @@ class WidgetMediaWatcher(
 
         /** Whether any widget design shows the media row (Widget Customization -> Media Controls). */
         fun anyWidgetShowsMedia(context: Context): Boolean {
-            val prefs = context.storageContext().getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+            val prefs = SettingsManager.storedPrefs(context)
             return WidgetDesign.entries.any { prefs[it.showMediaKey] }
         }
     }

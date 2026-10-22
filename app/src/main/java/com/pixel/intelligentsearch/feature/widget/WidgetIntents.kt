@@ -300,7 +300,7 @@ fun getDiscoverIntent(context: Context): Intent =
         }
 
 fun getCustomIntentOrDefault(context: Context, shortcut: String, defaultIntent: () -> Intent): Intent {
-    val prefs = SearchWidgetProvider.getSafeSharedPreferences(context)
+    val prefs = com.pixel.intelligentsearch.core.data.SettingsManager.storedPrefs(context)
     val customType = prefs.getString("${shortcut}_custom_type", "default")
     val customValue = prefs.getString("${shortcut}_custom_value", "")
 

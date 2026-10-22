@@ -238,6 +238,23 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** Contacts' birthdays this week (needs contacts access). */
         val GLANCE_BIRTHDAYS = BooleanSetting("glance.birthdays", true)
         val GLANCE_BATTERY = BooleanSetting("glance.battery", true)
+        /**
+         * Launch Portal's extra ways to open search. Each is off by default and works only with its permission
+         * (notifications; display over other apps), so a restore never switches one on.
+         */
+        val SEARCH_NOTIFICATION_SHORTCUT = BooleanSetting("launch.search_notification", false)
+        val FLOATING_SEARCH_BUTTON = BooleanSetting("launch.floating_button", false)
+        /** The edge the floating button rests on, "left" or "right" (ScreenEdge). */
+        val FLOATING_BUTTON_EDGE = StringSetting("launch.floating_button_edge", "right")
+        /** Its height on that edge, per-mille of the height it can travel (0 top, 1000 bottom). */
+        val FLOATING_BUTTON_POSITION = IntSetting("launch.floating_button_position", 600, 0..1000)
+        val EDGE_SWIPE = BooleanSetting("launch.edge_swipe", false)
+        /** The edge the swipe strip runs along, "left" or "right" (ScreenEdge). */
+        val EDGE_SWIPE_EDGE = StringSetting("launch.edge_swipe_edge", "right")
+        /** Where the strip's centre is, in percent of the screen's usable height. */
+        val EDGE_SWIPE_POSITION = IntSetting("launch.edge_swipe_position", 50, 0..100)
+        /** How tall the strip is, in percent of the screen's usable height. */
+        val EDGE_SWIPE_HEIGHT = IntSetting("launch.edge_swipe_height", 25, 10..60)
 
         /** Every declared setting, for migration, backup validation and change filtering. */
         val ALL: List<SettingKey<*>> = listOf(
@@ -261,7 +278,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_ALARM,
             GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_CODES, GLANCE_BIRTHDAYS, GLANCE_BATTERY, RESULT_SHORTCUTS,
             DICTIONARY_ANSWERS, WEATHER_ANSWERS,
-            WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION, ON_DEVICE_TRANSLATION
+            WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION, ON_DEVICE_TRANSLATION,
+            SEARCH_NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION,
+            EDGE_SWIPE, EDGE_SWIPE_EDGE, EDGE_SWIPE_POSITION, EDGE_SWIPE_HEIGHT
         )
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =

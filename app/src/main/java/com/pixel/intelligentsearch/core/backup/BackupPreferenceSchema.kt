@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.core.backup
 
+import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.IntSetting
 import com.pixel.intelligentsearch.core.data.settings.SearchPillProfiles
 
 /**
@@ -40,7 +42,8 @@ internal object BackupPreferenceSchema {
             "widget_system_show_doodles", "widget_system_show_g_icon", "widget_system_show_voice", "widget_system_lock_black",
             "search.notifications", "glance.enabled", "glance.alarm", "glance.timers", "glance.media", "glance.codes",
             "glance.birthdays", "glance.battery",
-            "dictionary_answers", "weather_answers", "weather_use_device_location", "on_device_translation"
+            "dictionary_answers", "weather_answers", "weather_use_device_location", "on_device_translation",
+            "launch.search_notification", "launch.floating_button", "launch.edge_swipe"
         )
         // The per-design element colours the widget reads with getInt (WidgetDesignSettings).
         for (design in listOf("widget", "widget_system", "widget_material")) {
@@ -60,7 +63,8 @@ internal object BackupPreferenceSchema {
             "widget_material_custom_color_opacity", "widget_material_custom_hue", "widget_material_custom_lightness",
             "widget_material_custom_saturation", "widget_system_background_transparency",
             "widget_system_custom_color_int", "widget_system_custom_color_opacity", "widget_system_custom_hue",
-            "widget_system_custom_lightness", "widget_system_custom_saturation"
+            "widget_system_custom_lightness", "widget_system_custom_saturation",
+            "launch.floating_button_position", "launch.edge_swipe_position", "launch.edge_swipe_height"
         )
         typed(
             "STRING",
@@ -73,7 +77,8 @@ internal object BackupPreferenceSchema {
             "widget_shortcut_1", "widget_shortcut_2", "widget_shortcut_3", "widget_shortcut_order",
             "widget_subtheme", "widget_system_material_g_icon", "widget_system_shortcut_1",
             "widget_system_shortcut_2", "widget_system_shortcut_3", "widget_system_shortcut_order",
-            "widget_system_subtheme", "widget_theme_style", "weather_home_location"
+            "widget_system_subtheme", "widget_theme_style", "weather_home_location",
+            "launch.floating_button_edge", "launch.edge_swipe_edge"
         )
         typed("STRING_SET", "disabled_web_shortcuts", "hidden_apps")
     }
@@ -99,7 +104,8 @@ internal object BackupPreferenceSchema {
         key.contains("blur") || key.contains("transparency") || key.endsWith("opacity") -> 0..100
         key == "tutorial_step" -> 0..20
         key == "active_app_search_profile" -> 1..SearchPillProfiles.PROFILE_COUNT
-        else -> null
+        // Any other declared setting with a range (the Launch Portal positions) is held to it.
+        else -> (SettingsManager.keyFor(key) as? IntSetting)?.range
     }
 
     /** Debug-only switches are never imported: a backup must not turn on developer behaviour. */

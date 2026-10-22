@@ -28,8 +28,9 @@ import java.io.File
 import java.time.LocalDate
 
 /**
- * The widget's favourite apps, media row, outline, corners, saved themes and countdown events are settings like any
- * other: a backup carries them back, and a backup can't plant an outline or corner the sliders couldn't set.
+ * The widget's favourite apps, outline, corners and saved themes are settings like any other: a backup carries them
+ * back (the media row only ever off, countdown events not at all), and a backup can't plant an outline or corner the
+ * sliders couldn't set.
  */
 @RunWith(RobolectricTestRunner::class)
 class WidgetExtrasBackupTest {
@@ -67,11 +68,13 @@ class WidgetExtrasBackupTest {
 
         val restored = store.load(WidgetDesign.MATERIAL, defaults)
         assertEquals(material.favouriteApps, restored.favouriteApps)
-        assertTrue(restored.showMedia)
+        // Media Controls read other apps' media sessions: a restore can't switch them on (RestorePrivacyGuardsTest).
+        assertFalse(restored.showMedia)
         assertEquals(4, restored.outlineThickness)
         assertEquals(12, restored.cornerRadius)
         assertEquals(listOf("Dusk"), WidgetThemeStore(prefs).list(defaults).map { it.name })
-        assertEquals("Halloween", CountdownEvents(prefs).get(5)?.title)
+        // A countdown belongs to a widget placed on this phone, by its id: it stays with the phone.
+        assertEquals(null, CountdownEvents(prefs).get(5))
     }
 
     @Test

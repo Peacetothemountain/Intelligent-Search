@@ -155,7 +155,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val FILES_EXCLUDED_TYPES = StringSetSetting("search.files.excluded_types", emptySet())
         /**
          * Subfolders of the chosen folders that file search skips, as tree URIs. Like the chosen folders themselves
-         * they only mean something on this phone, so backups leave them out ([UserGrantedFiles.DEVICE_LOCAL_KEYS]).
+         * they only mean something on this phone, so backups leave them out (BackupPreferenceSchema.DEVICE_LOCAL_KEYS).
          */
         val FILES_EXCLUDED_FOLDERS = StringSetSetting("search.files.excluded_folders", emptySet())
         /** The app each file type opens with ([OpenWithChoice]); the phone's default app unless chosen. */
@@ -284,7 +284,10 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val WIDGET_MATERIAL_CORNER_RADIUS = IntSetting("widget_material_corner_radius", 32, 0..MAX_CORNER_RADIUS)
         /** Named widget designs the user saved (WidgetThemeStore), as JSON. */
         val WIDGET_SAVED_THEMES = StringSetting("widget_saved_themes", "[]")
-        /** What each placed countdown widget counts down to, by widget id (CountdownEvents), as JSON. */
+        /**
+         * What each placed countdown widget counts down to, by widget id (CountdownEvents), as JSON. Widget ids are
+         * this phone's own, so backups leave it out (BackupPreferenceSchema.DEVICE_LOCAL_KEYS).
+         */
         val COUNTDOWN_EVENTS = StringSetting("countdown_widget_events", "{}")
         /**
          * Launch Portal's extra ways to open search. Each is off by default and works only with its permission

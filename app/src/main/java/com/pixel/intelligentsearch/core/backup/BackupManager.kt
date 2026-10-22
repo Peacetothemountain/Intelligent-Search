@@ -95,7 +95,7 @@ class BackupManager @Inject constructor(
 
         private fun isBlockedInternalKey(key: String): Boolean {
             if (key.isBlank() || key.length > 128) return true
-            return key in UserGrantedFiles.DEVICE_LOCAL_KEYS ||
+            return key in BackupPreferenceSchema.DEVICE_LOCAL_KEYS ||
                 key.endsWith("_vault") ||
                 key.endsWith("_iv") ||
                 key.endsWith("_level") ||
@@ -132,10 +132,12 @@ class BackupManager @Inject constructor(
         /**
          * Opt-ins that share data or reach the network. A backup may switch them off but never on: a file someone
          * else made must not be able to start sharing contacts with assistants, sending clipboard text and keystrokes
-         * out, reading notifications, or making requests the user turned off (definitions, forecasts, location use).
+         * out, reading notifications or media sessions, or making requests the user turned off (web searches and
+         * suggestions, definitions, forecasts, location use).
          */
         private val PRIVACY_OPT_IN_KEYS = setOf(
             SettingsManager.APP_FUNCTIONS_SHARE_CONTACTS.name,
+            SettingsManager.SEARCH_WEB.name,
             SettingsManager.SMART_CLIPBOARD_SUGGESTIONS.name,
             SettingsManager.SEARCH_WEB_SUGGESTIONS.name,
             SettingsManager.LIVE_CURRENCY_RATES.name,
@@ -144,6 +146,9 @@ class BackupManager @Inject constructor(
             SettingsManager.WEATHER_ANSWERS.name,
             SettingsManager.WEATHER_USE_DEVICE_LOCATION.name,
             SettingsManager.AI_ANSWERS_ENABLED.name,
+            // The widgets' Media Controls read other apps' media sessions through Notification Access.
+            SettingsManager.WIDGET_SYSTEM_SHOW_MEDIA.name,
+            SettingsManager.WIDGET_MATERIAL_SHOW_MEDIA.name,
             // Launch Portal's notification, floating button and edge swipe need permissions this phone may not have
             // granted, and draw over other apps; like the opt-ins above, only the user switches them on.
             SettingsManager.SEARCH_NOTIFICATION_SHORTCUT.name,
@@ -153,6 +158,16 @@ class BackupManager @Inject constructor(
 
         private fun isPrivacyOptInKey(key: String): Boolean =
             key in PRIVACY_OPT_IN_KEYS || SettingsManager.keyFor(key)?.name in PRIVACY_OPT_IN_KEYS
+
+        /**
+         * Whether restoring [value] into [target] would move a phone searching through Tor off it: another engine, or
+         * a custom search address. A restore never does; only the user leaves Tor.
+         */
+        private fun leavesTor(torHere: Boolean, target: String, value: String): Boolean = torHere && when (target) {
+            SettingsManager.SEARCH_ENGINE.name -> !com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(value)
+            SettingsManager.CUSTOM_SEARCH_ENGINE_URL.name -> true
+            else -> false
+        }
 
         /** Blank (no custom engine) or an address that passes the same checks as one typed in settings. */
         private fun isValidCustomSearchUrl(url: String): Boolean =
@@ -205,7 +220,7 @@ class BackupManager @Inject constructor(
         val allCustomPrefs = sharedPrefs.all
         val spJsonObj = JSONObject()
         for ((k, v) in allCustomPrefs) {
-            if (v == null || k in UserGrantedFiles.DEVICE_LOCAL_KEYS) continue
+            if (v == null || k in BackupPreferenceSchema.DEVICE_LOCAL_KEYS) continue
             val itemObj = JSONObject()
             when (v) {
                 is Boolean -> {
@@ -502,6 +517,8 @@ class BackupManager @Inject constructor(
     private suspend fun restorePayload(payload: BackupContentPayload): Int = withContext(Dispatchers.IO) {
         var restoredCount = 0
         val sharedPrefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        // Read before anything is restored: a phone on Tor stays on Tor whatever the file says.
+        val torHere = com.pixel.intelligentsearch.core.security.NetworkPolicy.torSelected(sharedPrefs)
         // Files saved before the pill opacity became linear hold 50 for an opaque pill (schema 1 files never say).
         val pillOpacityIsLinear = runCatching {
             JSONObject(payload.sharedPreferencesJson).optJSONObject(SettingsManager.PILL_OPACITY_LINEAR_KEY)
@@ -566,6 +583,7 @@ class BackupManager @Inject constructor(
                                 if (target == SettingsManager.CUSTOM_SEARCH_ENGINE_URL.name && !isValidCustomSearchUrl(strVal)) {
                                     return@runCatching
                                 }
+                                if (leavesTor(torHere, target, strVal)) return@runCatching
                                 editor.putString(target, strVal)
                             }
                             "STRING_SET" -> {
@@ -615,6 +633,8 @@ class BackupManager @Inject constructor(
                     ?.let { settingsManager.updateSetting(key, restoredInt(key, it)) }
             } ?: STRING_SETTING_KEYS[k]?.let { key ->
                 if (key == SettingsManager.CUSTOM_SEARCH_ENGINE_URL && !isValidCustomSearchUrl(v)) {
+                    null
+                } else if (leavesTor(torHere, key.name, v)) {
                     null
                 } else {
                     settingsManager.updateSetting(key, v)

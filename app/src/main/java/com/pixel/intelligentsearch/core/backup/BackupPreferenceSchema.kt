@@ -12,6 +12,14 @@ import com.pixel.intelligentsearch.core.data.settings.SearchPillProfiles
 internal object BackupPreferenceSchema {
 
     const val MAX_KEYS = 2_000
+
+    /**
+     * Settings that only mean something on this phone, so backups leave them out and a restore keeps this phone's
+     * own: the folders and photos granted to it, and what each placed countdown widget counts down to (keyed by
+     * widget ids, which another phone or a reinstall numbers differently).
+     */
+    val DEVICE_LOCAL_KEYS: Set<String> =
+        com.pixel.intelligentsearch.core.data.UserGrantedFiles.DEVICE_LOCAL_KEYS + SettingsManager.COUNTDOWN_EVENTS.name
     const val MAX_STRING_LENGTH = 64 * 1024
     const val MAX_STRING_SET_SIZE = 1_000
 

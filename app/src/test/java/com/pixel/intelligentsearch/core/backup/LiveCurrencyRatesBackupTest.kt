@@ -87,7 +87,7 @@ class LiveCurrencyRatesBackupTest {
     }
 
     @Test
-    fun restoringTheCalculatorOrAnEngineOtherThanTorResumesDownloadsAsThePrivacyPolicySays() = runBlocking {
+    fun restoringTheCalculatorResumesDownloadsButARestoreNeverLeavesTorAsThePrivacyPolicySays() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         WorkManagerTestInitHelper.initializeTestWorkManager(context)
         val db = Room.inMemoryDatabaseBuilder(context, IntelligentSearchDatabase::class.java).allowMainThreadQueries().build()
@@ -104,9 +104,7 @@ class LiveCurrencyRatesBackupTest {
         // Each pair: the setting as backed up (fetching allowed), then as it is on this phone (fetching stopped).
         val calculatorOn: suspend () -> Unit = { settingsManager.updateSetting(SettingsManager.SEARCH_CALCULATOR, true) }
         val calculatorOff: suspend () -> Unit = { settingsManager.updateSetting(SettingsManager.SEARCH_CALCULATOR, false) }
-        val google: suspend () -> Unit = { settingsManager.updateSetting(SettingsManager.SEARCH_ENGINE, "Google") }
-        val tor: suspend () -> Unit = { settingsManager.updateSetting(SettingsManager.SEARCH_ENGINE, "Tor Project") }
-        val cases = listOf(calculatorOn to calculatorOff, google to tor)
+        val cases = listOf(calculatorOn to calculatorOff)
         for ((backedUp, onThisPhone) in cases) {
             backedUp()
             backupManager.exportToFile(uri, "correct horse battery").getOrThrow()
@@ -119,6 +117,15 @@ class LiveCurrencyRatesBackupTest {
             assertTrue(currencyRates.liveRatesAllowed())
             assertTrue(dailyWork().any { it.state == WorkInfo.State.ENQUEUED })
         }
+
+        // A backup made with Google can't take a phone on Tor off it, so the downloads stay stopped.
+        settingsManager.updateSetting(SettingsManager.SEARCH_ENGINE, "Google")
+        backupManager.exportToFile(uri, "correct horse battery").getOrThrow()
+        settingsManager.updateSetting(SettingsManager.SEARCH_ENGINE, "Tor Project")
+        currencyRates.syncSchedule()
+        backupManager.importFromFile(uri, "correct horse battery").getOrThrow()
+        assertEquals("Tor Project", settingsManager[SettingsManager.SEARCH_ENGINE])
+        assertTrue(dailyWork().all { it.state == WorkInfo.State.CANCELLED })
         db.close()
 
         // So the policy may not say a restore never lets rates be fetched: it names the settings that can.

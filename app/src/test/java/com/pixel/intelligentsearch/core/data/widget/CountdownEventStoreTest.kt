@@ -19,7 +19,7 @@ import java.time.ZonedDateTime
  * saving does that night.
  */
 @RunWith(RobolectricTestRunner::class)
-class CountdownEventsTest {
+class CountdownEventStoreTest {
 
     private val halloween = CountdownEvent("Halloween", LocalDate.of(2026, 10, 31), yearly = true)
 
@@ -61,12 +61,12 @@ class CountdownEventsTest {
             val dates = mutableListOf<LocalDate>()
             repeat(20) {
                 dates += now.toLocalDate()
-                now = CountdownEvents.nextMidnight(now).plusSeconds(30)
+                now = CountdownEventStore.nextMidnight(now).plusSeconds(30)
             }
             dates.zipWithNext().forEach { (day, next) -> assertEquals(zone, day.plusDays(1), next) }
         }
         val newYork = ZonedDateTime.parse("2026-10-29T08:00-04:00[America/New_York]")
-        val counts = generateSequence(newYork) { CountdownEvents.nextMidnight(it).plusSeconds(30) }
+        val counts = generateSequence(newYork) { CountdownEventStore.nextMidnight(it).plusSeconds(30) }
             .take(6).map { halloween.daysUntil(it.toLocalDate()) }.toList()
         assertEquals(listOf(2L, 1L, 0L, 364L, 363L, 362L), counts)
     }
@@ -74,23 +74,23 @@ class CountdownEventsTest {
     @Test
     fun theNextRedrawIsLocalMidnight() {
         val beforeFallBack = ZonedDateTime.parse("2026-11-01T00:30-04:00[America/New_York]")
-        assertEquals(ZonedDateTime.parse("2026-11-02T00:00-05:00[America/New_York]"), CountdownEvents.nextMidnight(beforeFallBack))
-        assertEquals(Duration.ofHours(24).plusMinutes(30), Duration.between(beforeFallBack, CountdownEvents.nextMidnight(beforeFallBack)))
+        assertEquals(ZonedDateTime.parse("2026-11-02T00:00-05:00[America/New_York]"), CountdownEventStore.nextMidnight(beforeFallBack))
+        assertEquals(Duration.ofHours(24).plusMinutes(30), Duration.between(beforeFallBack, CountdownEventStore.nextMidnight(beforeFallBack)))
 
         // Where daylight saving starts at midnight (Santiago, September 2026), the day starts at 1am instead.
         val santiago = ZonedDateTime.parse("2026-09-05T22:00-04:00[America/Santiago]")
-        assertEquals(LocalDate.of(2026, 9, 6), CountdownEvents.nextMidnight(santiago).toLocalDate())
+        assertEquals(LocalDate.of(2026, 9, 6), CountdownEventStore.nextMidnight(santiago).toLocalDate())
 
         // Across the date line, midnight is the phone's own.
         val tokyo = ZonedDateTime.parse("2026-10-30T23:00+09:00[Asia/Tokyo]")
-        assertEquals(ZonedDateTime.parse("2026-10-31T00:00+09:00[Asia/Tokyo]"), CountdownEvents.nextMidnight(tokyo))
+        assertEquals(ZonedDateTime.parse("2026-10-31T00:00+09:00[Asia/Tokyo]"), CountdownEventStore.nextMidnight(tokyo))
     }
 
     @Test
     fun eventsAreStoredPerWidgetInTheBackedUpSetting() {
         val prefs = ApplicationProvider.getApplicationContext<Context>().getSharedPreferences("countdown_test", Context.MODE_PRIVATE)
         prefs.edit().clear().commit()
-        val events = CountdownEvents(prefs)
+        val events = CountdownEventStore(prefs)
         assertNull(events.get(7))
 
         events.put(7, halloween)
@@ -108,9 +108,9 @@ class CountdownEventsTest {
     fun anUnreadableSettingReadsAsNoEvents() {
         val prefs = ApplicationProvider.getApplicationContext<Context>().getSharedPreferences("countdown_test_bad", Context.MODE_PRIVATE)
         prefs.edit().putString(SettingsManager.COUNTDOWN_EVENTS.name, "{\"3\":{\"title\":\"X\",\"date\":\"not a date\"},\"x\":1, \"4\":{\"title\":\"\",\"date\":\"2026-01-01\"}}").commit()
-        assertNull(CountdownEvents(prefs).get(3))
-        assertNull(CountdownEvents(prefs).get(4))
+        assertNull(CountdownEventStore(prefs).get(3))
+        assertNull(CountdownEventStore(prefs).get(4))
         prefs.edit().putString(SettingsManager.COUNTDOWN_EVENTS.name, "not json").commit()
-        assertNull(CountdownEvents(prefs).get(3))
+        assertNull(CountdownEventStore(prefs).get(3))
     }
 }

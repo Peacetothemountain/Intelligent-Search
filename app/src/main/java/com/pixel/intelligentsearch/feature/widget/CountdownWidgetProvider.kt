@@ -19,7 +19,7 @@ import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.widget.CountdownEvent
-import com.pixel.intelligentsearch.core.data.widget.CountdownEvents
+import com.pixel.intelligentsearch.core.data.widget.CountdownEventStore
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.di.appEntryPoint
@@ -63,7 +63,7 @@ class CountdownWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onDeleted(context: Context, appWidgetIds: IntArray) {
-        CountdownEvents(SettingsManager.storedPrefs(context)).remove(appWidgetIds)
+        CountdownEventStore(SettingsManager.storedPrefs(context)).remove(appWidgetIds)
     }
 
     override fun onDisabled(context: Context) {
@@ -99,7 +99,7 @@ class CountdownWidgetProvider : AppWidgetProvider() {
 
         private fun update(context: Context, manager: AppWidgetManager, appWidgetIds: IntArray) {
             val prefs = SettingsManager.storedPrefs(context)
-            val events = CountdownEvents(prefs)
+            val events = CountdownEventStore(prefs)
             for (id in appWidgetIds) {
                 manager.updateAppWidget(id, buildViews(context, id, events.get(id), prefs))
             }
@@ -108,7 +108,7 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         /** Arranges the redraw just after the next local midnight, replacing any arranged before. */
         fun scheduleMidnight(context: Context) {
             val current = now()
-            val delayMs = Duration.between(current, CountdownEvents.nextMidnight(current)).toMillis() + AFTER_MIDNIGHT_MS
+            val delayMs = Duration.between(current, CountdownEventStore.nextMidnight(current)).toMillis() + AFTER_MIDNIGHT_MS
             val request = OneTimeWorkRequestBuilder<CountdownMidnightWorker>().setInitialDelay(delayMs, TimeUnit.MILLISECONDS).build()
             runCatching {
                 WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(MIDNIGHT_WORK, ExistingWorkPolicy.REPLACE, request)

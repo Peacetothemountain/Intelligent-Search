@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.runtime.collectAsState
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -63,9 +64,7 @@ fun SavedLinksScreen(onBack: () -> Unit) {
     val store = remember(context) { context.appEntryPoint.savedLinkStore() }
     val icons = remember(context) { context.appEntryPoint.savedLinkIcons() }
     val scope = rememberCoroutineScope()
-    // The page reads the setting the store writes, so a save shows at once.
-    val json by rememberSetting(SettingsManager.SAVED_LINKS)
-    val links = remember(json) { SavedLinks.fromJson(json) }
+    val links by store.flow.collectAsState(store.current)
     val morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED)
     // null: no dialog; a link: editing it; the blank link: adding one.
     var editing by remember { mutableStateOf<SavedLink?>(null) }

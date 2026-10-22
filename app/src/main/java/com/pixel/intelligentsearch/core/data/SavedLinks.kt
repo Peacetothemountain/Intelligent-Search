@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.data
 
+import com.pixel.intelligentsearch.core.data.settings.ParsedSetting
 import androidx.compose.runtime.Immutable
 import androidx.core.net.toUri
 import com.pixel.intelligentsearch.core.search.QueryNormalizer
@@ -8,7 +9,6 @@ import com.pixel.intelligentsearch.core.search.ResultShortcuts
 import com.pixel.intelligentsearch.core.search.SearchScoringEngine
 import com.pixel.intelligentsearch.core.security.CustomSearchUrl
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
@@ -113,29 +113,19 @@ object SavedLinks {
 @Singleton
 class SavedLinkStore @Inject constructor(private val settingsManager: SettingsManager) {
 
-    @Volatile private var parsedFrom: String? = null
-    @Volatile private var parsed: List<SavedLink> = emptyList()
+    private val setting = ParsedSetting(
+        { settingsManager.prefs }, SettingsManager.SAVED_LINKS, { SavedLinks.fromJson(it) }, { SavedLinks.toJson(it) }
+    )
 
-    val current: List<SavedLink>
-        get() {
-            val json = settingsManager[SettingsManager.SAVED_LINKS]
-            if (json != parsedFrom) {
-                parsed = SavedLinks.fromJson(json)
-                parsedFrom = json
-            }
-            return parsed
-        }
+    /** The links saved right now. */
+    val current: List<SavedLink> get() = setting.current
 
-    val flow: Flow<List<SavedLink>> = settingsManager.observe(SettingsManager.SAVED_LINKS)
-        .map { SavedLinks.fromJson(it) }
-        .distinctUntilChanged()
+    /** The links saved now, then every change (the settings page, a restore). */
+    val flow: Flow<List<SavedLink>> = setting.observe(settingsManager)
 
+    /** Applies [change] and saves the result: one link per address, at most [SavedLinks.MAX_LINKS]. */
     fun update(change: (List<SavedLink>) -> List<SavedLink>) {
-        synchronized(this) {
-            val before = current
-            val after = change(before).distinctBy { it.url }.take(SavedLinks.MAX_LINKS)
-            if (after != before) settingsManager.set(SettingsManager.SAVED_LINKS, SavedLinks.toJson(after))
-        }
+        setting.update { change(it).distinctBy { link -> link.url }.take(SavedLinks.MAX_LINKS) }
     }
 
     /** The saved link a [ResultKeys.link] key names, if it is still saved. */

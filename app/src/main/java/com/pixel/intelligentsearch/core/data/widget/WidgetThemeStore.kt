@@ -1,14 +1,23 @@
 package com.pixel.intelligentsearch.core.data.widget
 
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.Serializable
+import com.pixel.intelligentsearch.core.data.settings.ParsedSetting
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
-import org.json.JSONArray
-import org.json.JSONException
-import org.json.JSONObject
 
 /** A widget design the user saved under a [name]: everything Widget Customization sets for that [design]. */
 data class SavedWidgetTheme(val name: String, val design: WidgetDesign, val settings: WidgetDesignSettings)
@@ -18,49 +27,40 @@ data class SavedWidgetTheme(val name: String, val design: WidgetDesign, val sett
  * carry them. A theme is the design's own stored values, written and read back by [WidgetSettingsStore] itself, so it
  * keeps every option the editor has, now and as options are added. Names are unique per design.
  */
-class WidgetThemeStore(private val prefs: SharedPreferences) {
+class WidgetThemeStore(prefs: SharedPreferences) {
 
-    fun list(defaults: WidgetDefaults): List<SavedWidgetTheme> = read().mapNotNull { entry ->
-        val design = WidgetDesign.entries.firstOrNull { it.name == entry.optString("design") } ?: return@mapNotNull null
-        val name = entry.optString("name").takeIf { it.isNotBlank() } ?: return@mapNotNull null
-        val values = entry.optJSONObject("values") ?: return@mapNotNull null
-        SavedWidgetTheme(name, design, settingsFrom(design, values, defaults))
+    /** One saved theme as stored: its name, its design and the design's own stored values. */
+    @Serializable
+    internal data class StoredTheme(val name: String, val design: String, val values: JsonObject) {
+        fun matches(name: String, design: WidgetDesign) = this.name == name && this.design == design.name
+    }
+
+    private val themes = ParsedSetting({ prefs }, SettingsManager.WIDGET_SAVED_THEMES, ::decode, ::encode)
+
+    fun list(defaults: WidgetDefaults): List<SavedWidgetTheme> = themes.current.mapNotNull { entry ->
+        val design = WidgetDesign.entries.firstOrNull { it.name == entry.design } ?: return@mapNotNull null
+        val name = entry.name.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+        SavedWidgetTheme(name, design, settingsFrom(design, entry.values, defaults))
     }
 
     /** Saves [settings] as [name] for [design], replacing a theme of that name; at most [MAX_THEMES] are kept. */
     fun save(name: String, design: WidgetDesign, settings: WidgetDesignSettings) {
         val trimmed = name.trim().take(MAX_NAME_LENGTH)
         require(trimmed.isNotEmpty()) { "A saved theme needs a name" }
-        val entry = JSONObject().put("name", trimmed).put("design", design.name).put("values", valuesOf(design, settings))
-        val kept = read().filterNot { it.matches(trimmed, design) }
-        write((kept + entry).takeLast(MAX_THEMES))
+        val entry = StoredTheme(trimmed, design.name, valuesOf(design, settings))
+        themes.update { stored -> (stored.filterNot { it.matches(trimmed, design) } + entry).takeLast(MAX_THEMES) }
     }
 
     /** Renames [design]'s theme [from] to [to]; false when [to] is blank or another of its themes has it. */
     fun rename(from: String, design: WidgetDesign, to: String): Boolean {
         val trimmed = to.trim().take(MAX_NAME_LENGTH)
-        val entries = read()
-        if (trimmed.isEmpty() || entries.any { it.matches(trimmed, design) && trimmed != from }) return false
-        write(entries.map { if (it.matches(from, design)) JSONObject(it.toString()).put("name", trimmed) else it })
+        if (trimmed.isEmpty() || themes.current.any { it.matches(trimmed, design) && trimmed != from }) return false
+        themes.update { stored -> stored.map { if (it.matches(from, design)) it.copy(name = trimmed) else it } }
         return true
     }
 
     fun delete(name: String, design: WidgetDesign) {
-        write(read().filterNot { it.matches(name, design) })
-    }
-
-    private fun JSONObject.matches(name: String, design: WidgetDesign) = optString("name") == name && optString("design") == design.name
-
-    private fun read(): List<JSONObject> = try {
-        val array = JSONArray(prefs[SettingsManager.WIDGET_SAVED_THEMES])
-        (0 until array.length()).mapNotNull { array.optJSONObject(it) }
-    } catch (e: JSONException) {
-        Log.w(TAG, "Unreadable saved widget themes", e)
-        emptyList()
-    }
-
-    private fun write(entries: List<JSONObject>) {
-        prefs.edit { put(SettingsManager.WIDGET_SAVED_THEMES, JSONArray(entries).toString()) }
+        themes.update { stored -> stored.filterNot { it.matches(name, design) } }
     }
 
     companion object {
@@ -68,24 +68,48 @@ class WidgetThemeStore(private val prefs: SharedPreferences) {
         const val MAX_THEMES = 20
         const val MAX_NAME_LENGTH = 40
 
+        private val JSON = Json { ignoreUnknownKeys = true }
+
+        /** The stored themes; an unreadable list reads as none, and an unreadable theme is left out. */
+        private fun decode(text: String): List<StoredTheme> {
+            val array = try {
+                JSON.parseToJsonElement(text) as? JsonArray
+            } catch (e: SerializationException) {
+                Log.w(TAG, "Unreadable saved widget themes", e)
+                null
+            } ?: return emptyList()
+            return array.mapNotNull { runCatching { JSON.decodeFromJsonElement(StoredTheme.serializer(), it) }.getOrNull() }
+        }
+
+        private fun encode(themes: List<StoredTheme>): String = JSON.encodeToString(ListSerializer(StoredTheme.serializer()), themes)
+
         /** What [WidgetSettingsStore.save] writes for [settings], by key without the design's prefix. */
-        internal fun valuesOf(design: WidgetDesign, settings: WidgetDesignSettings): JSONObject {
+        internal fun valuesOf(design: WidgetDesign, settings: WidgetDesignSettings): JsonObject {
             val recorded = RecordingEditor()
             WidgetSettingsStore(EmptyPreferences).save(design, settings, recorded)
-            val json = JSONObject()
-            for ((key, value) in recorded.values) json.put(key.removePrefix("${design.prefix}_"), value)
-            return json
+            return buildJsonObject {
+                for ((key, value) in recorded.values) {
+                    val name = key.removePrefix("${design.prefix}_")
+                    when (value) {
+                        is Boolean -> put(name, value)
+                        is Number -> put(name, value)
+                        else -> put(name, value.toString())
+                    }
+                }
+            }
         }
 
         /** The settings [values] hold, read as [WidgetSettingsStore] reads a design it saved. */
-        internal fun settingsFrom(design: WidgetDesign, values: JSONObject, defaults: WidgetDefaults): WidgetDesignSettings {
-            val stored = values.keys().asSequence().associate { key ->
-                val value = when (val raw = values.get(key)) {
-                    is Number -> raw.toInt()
-                    else -> raw
+        internal fun settingsFrom(design: WidgetDesign, values: JsonObject, defaults: WidgetDefaults): WidgetDesignSettings {
+            val stored = values.mapNotNull { (key, element) ->
+                val primitive = element as? JsonPrimitive ?: return@mapNotNull null
+                val value: Any = when {
+                    primitive.isString -> primitive.content
+                    primitive.booleanOrNull != null -> primitive.boolean
+                    else -> primitive.doubleOrNull?.toInt() ?: return@mapNotNull null
                 }
                 "${design.prefix}_$key" to value
-            }
+            }.toMap()
             return WidgetSettingsStore(MapPreferences(stored)).load(design, defaults)
         }
     }

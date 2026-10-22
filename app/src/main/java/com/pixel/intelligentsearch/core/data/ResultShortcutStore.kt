@@ -1,45 +1,31 @@
 package com.pixel.intelligentsearch.core.data
 
+import com.pixel.intelligentsearch.core.data.settings.ParsedSetting
 import com.pixel.intelligentsearch.core.search.ResultShortcuts
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Pins, nicknames and trigger words, kept as one setting ([SettingsManager.RESULT_SHORTCUTS]) so backups carry them
- * like every other setting. Reads are synchronous (SharedPreferences holds the text in memory) and parsed once per
- * change, so search can read them on every keystroke.
+ * like every other setting. Reads are synchronous and decoded once per change ([ParsedSetting]), so search can read
+ * them on every keystroke. The overlay's menu and the Nicknames & Triggers page both change them through here.
  */
 @Singleton
 class ResultShortcutStore @Inject constructor(private val settingsManager: SettingsManager) {
 
-    @Volatile private var parsedFrom: String? = null
-    @Volatile private var parsed: ResultShortcuts = ResultShortcuts.EMPTY
+    private val setting = ParsedSetting(
+        { settingsManager.prefs }, SettingsManager.RESULT_SHORTCUTS, { ResultShortcuts.fromJson(it) }, { it.toJson() }
+    )
 
     /** What is set right now. */
-    val current: ResultShortcuts
-        get() {
-            val json = settingsManager[SettingsManager.RESULT_SHORTCUTS]
-            if (json != parsedFrom) {
-                parsed = ResultShortcuts.fromJson(json)
-                parsedFrom = json
-            }
-            return parsed
-        }
+    val current: ResultShortcuts get() = setting.current
 
     /** What is set now, then every change (from the overlay, the settings page or a restore). */
-    val flow: Flow<ResultShortcuts> = settingsManager.observe(SettingsManager.RESULT_SHORTCUTS)
-        .map { ResultShortcuts.fromJson(it) }
-        .distinctUntilChanged()
+    val flow: Flow<ResultShortcuts> = setting.observe(settingsManager)
 
     /** Applies [change] to what is set and saves the result. */
     fun update(change: (ResultShortcuts) -> ResultShortcuts) {
-        synchronized(this) {
-            val before = current
-            val after = change(before)
-            if (after != before) settingsManager.set(SettingsManager.RESULT_SHORTCUTS, after.toJson())
-        }
+        setting.update(change)
     }
 }

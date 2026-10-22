@@ -8,7 +8,7 @@ import com.pixel.intelligentsearch.core.data.IntelligentSearchDatabase
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.widget.CountdownEvent
-import com.pixel.intelligentsearch.core.data.widget.CountdownEvents
+import com.pixel.intelligentsearch.core.data.widget.CountdownEventStore
 import com.pixel.intelligentsearch.core.data.widget.WidgetDefaults
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
@@ -60,7 +60,7 @@ class WidgetExtrasBackupTest {
         )
         prefs.edit().also { store.save(WidgetDesign.MATERIAL, material, it) }.commit()
         WidgetThemeStore(prefs).save("Dusk", WidgetDesign.MATERIAL, material)
-        CountdownEvents(prefs).put(5, CountdownEvent("Halloween", LocalDate.of(2026, 10, 31), yearly = true))
+        CountdownEventStore(prefs).put(5, CountdownEvent("Halloween", LocalDate.of(2026, 10, 31), yearly = true))
         backup.exportToFile(uri, PASSPHRASE).getOrThrow()
 
         prefs.edit().clear().commit()
@@ -74,7 +74,7 @@ class WidgetExtrasBackupTest {
         assertEquals(12, restored.cornerRadius)
         assertEquals(listOf("Dusk"), WidgetThemeStore(prefs).list(defaults).map { it.name })
         // A countdown belongs to a widget placed on this phone, by its id: it stays with the phone.
-        assertEquals(null, CountdownEvents(prefs).get(5))
+        assertEquals(null, CountdownEventStore(prefs).get(5))
     }
 
     @Test

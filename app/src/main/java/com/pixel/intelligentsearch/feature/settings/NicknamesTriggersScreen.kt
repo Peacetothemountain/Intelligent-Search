@@ -1,5 +1,8 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.di.appEntryPoint
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -81,8 +84,9 @@ private fun kindIcon(kind: ResultKind?): ImageVector = when (kind) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NicknamesTriggersScreen(onBack: () -> Unit) {
-    var json by rememberSetting(SettingsManager.RESULT_SHORTCUTS)
-    val shortcuts = remember(json) { ResultShortcuts.fromJson(json) }
+    val context = LocalContext.current
+    val store = remember(context) { context.appEntryPoint.resultShortcutStore() }
+    val shortcuts by store.flow.collectAsState(store.current)
     val bangSymbol by rememberSetting(SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL)
     var editing by remember { mutableStateOf<String?>(null) }
     val morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED)
@@ -151,12 +155,12 @@ fun NicknamesTriggersScreen(onBack: () -> Unit) {
                 // The dialog only lets a valid trigger word through; an entry left with nothing set (and no pin) goes.
                 val cleaned = nicknames.mapNotNull(ResultShortcuts::cleanNickname)
                     .distinctBy { it.lowercase() }.take(ResultShortcuts.MAX_NICKNAMES)
-                json = shortcuts.update(entry.key, entry.title) { it.copy(nicknames = cleaned, trigger = QuickKeys.normalize(trigger)) }.toJson()
+                store.update { it.update(entry.key, entry.title) { e -> e.copy(nicknames = cleaned, trigger = QuickKeys.normalize(trigger)) } }
                 editing = null
             },
             onDelete = {
                 // The pin stays: only the names go.
-                json = shortcuts.update(entry.key, entry.title) { it.copy(nicknames = emptyList(), trigger = "") }.toJson()
+                store.update { it.update(entry.key, entry.title) { e -> e.copy(nicknames = emptyList(), trigger = "") } }
                 editing = null
             },
             onDismiss = { editing = null }

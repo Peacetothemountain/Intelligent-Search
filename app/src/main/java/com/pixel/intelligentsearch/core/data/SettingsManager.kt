@@ -285,7 +285,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** Named widget designs the user saved (WidgetThemeStore), as JSON. */
         val WIDGET_SAVED_THEMES = StringSetting("widget_saved_themes", "[]")
         /**
-         * What each placed countdown widget counts down to, by widget id (CountdownEvents), as JSON. Widget ids are
+         * What each placed countdown widget counts down to, by widget id (CountdownEventStore), as JSON. Widget ids are
          * this phone's own, so backups leave it out (BackupPreferenceSchema.DEVICE_LOCAL_KEYS).
          */
         val COUNTDOWN_EVENTS = StringSetting("countdown_widget_events", "{}")

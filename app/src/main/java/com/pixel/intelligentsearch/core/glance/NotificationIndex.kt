@@ -21,7 +21,6 @@ data class IndexedNotification(
     val text: String,
     val postedAt: Long,
     val category: String? = null,
-    val isMessagingStyle: Boolean = false,
     val contentIntent: PendingIntent? = null,
     val chronometer: Chronometer? = null
 ) {

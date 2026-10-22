@@ -17,7 +17,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.provider.Telephony
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.scale
@@ -45,7 +44,7 @@ fun interface GlanceSource {
 /**
  * At a Glance from the phone: the next alarm (AlarmManager), the battery (its sticky broadcast), media sessions
  * (MediaSessionManager, which Android opens only to an app with notification access), contacts' birthdays, and the
- * codes and timers in the [index]. Only what [GlanceToggles] switches on is read, every receiver and listener is
+ * timers in the [index]. Only what [GlanceToggles] switches on is read, every receiver and listener is
  * removed when collection stops, and nothing touches the network or the disk beyond the contacts provider.
  */
 class AndroidGlanceSource(private val context: Context, private val index: NotificationIndex) : GlanceSource {
@@ -58,31 +57,18 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
         val birthdays = if (toggles.birthdays) {
             flow { emit(Birthdays.inWindow(Birthdays.load(context), LocalDate.now())) }.flowOn(Dispatchers.IO)
         } else flowOf(emptyList())
-        val fromNotifications = if (toggles.notifications && (toggles.codes || toggles.timers)) {
-            notificationItems(toggles, hiddenApps)
-        } else flowOf(emptyList<OneTimeCode>() to emptyList())
-        return combine(alarm, battery, media, birthdays, fromNotifications) { a, b, m, days, (codes, timers) ->
-            GlanceSnapshot(alarm = a, timers = timers, media = m, codes = codes, birthdays = days, battery = b)
+        val timers = if (toggles.notifications && toggles.timers) timerFlow(hiddenApps) else flowOf(emptyList())
+        return combine(alarm, battery, media, birthdays, timers) { a, b, m, days, t ->
+            GlanceSnapshot(alarm = a, timers = t, media = m, birthdays = days, battery = b)
         }
     }
 
-    private fun notificationItems(toggles: GlanceToggles, hiddenApps: Set<String>): Flow<Pair<List<OneTimeCode>, List<GlanceTimer>>> {
-        var smsPackage: String? = null
-        return index.entries
-            .onStart {
-                // Access revoked or the switch off since the last look: forget what was read before showing anything.
-                NotificationAccess.syncIndex(context, index)
-                smsPackage = runCatching { Telephony.Sms.getDefaultSmsPackage(context) }.getOrNull()
-            }
-            .map { all ->
-                val entries = all.filterNot { it.packageName in hiddenApps }
-                val codes = if (toggles.codes) OneTimeCodes.fromNotifications(entries, smsPackage) else emptyList()
-                val timers = if (toggles.timers) timersFrom(entries) else emptyList()
-                codes to timers
-            }
-            .distinctUntilChanged()
-            .flowOn(Dispatchers.Default)
-    }
+    private fun timerFlow(hiddenApps: Set<String>): Flow<List<GlanceTimer>> = index.entries
+        // Access revoked or the switch off since the last look: forget what was read before showing anything.
+        .onStart { NotificationAccess.syncIndex(context, index) }
+        .map { all -> timersFrom(all.filterNot { it.packageName in hiddenApps }) }
+        .distinctUntilChanged()
+        .flowOn(Dispatchers.Default)
 
     private fun alarmFlow(): Flow<GlanceAlarm?> = callbackFlow {
         val alarms = context.getSystemService(AlarmManager::class.java)

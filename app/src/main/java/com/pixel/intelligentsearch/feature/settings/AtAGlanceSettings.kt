@@ -9,7 +9,6 @@ import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.Cake
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.Password
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Today
 import androidx.compose.material3.AlertDialog
@@ -36,8 +35,8 @@ import com.pixel.intelligentsearch.di.appEntryPoint
 
 /** What the notification access dialog says before Android's own Notification Access screen opens. */
 internal const val NOTIFICATION_ACCESS_RATIONALE =
-    "Intelligent Search can read the notifications on your phone so you can search them and see one-time codes and " +
-        "timers above the search. It sees only what each notification shows, never your messages or emails " +
+    "Intelligent Search can read the notifications on your phone so you can search them and see running timers " +
+        "above the search. It sees only what each notification shows, never your messages or emails " +
         "themselves. Nothing is stored: notifications are held in memory only while they are showing, and nothing " +
         "leaves your phone. On the next screen, allow notification access for Intelligent Search."
 
@@ -124,8 +123,8 @@ internal fun NotificationSearchRow(showDivider: Boolean) {
 }
 
 /**
- * Search Behavior's At a Glance card: the section's own switch, then one per item in the order they show. Codes and
- * timers come from notifications, so they need Search Your Notifications; Now Playing needs notification access and
+ * Search Behavior's At a Glance card: the section's own switch, then one per item in the order they show. Timers
+ * come from notifications, so they need Search Your Notifications; Now Playing needs notification access and
  * Birthdays contacts access, and each says so.
  */
 @Composable
@@ -143,14 +142,6 @@ internal fun AtAGlanceSettingsCard() {
         )
         AnimatedVisibility(visible = enabled) {
             Column {
-                var codes by rememberSetting(SettingsManager.GLANCE_CODES)
-                SettingsRowToggle(
-                    title = "One-Time Codes",
-                    subtitle = "Copy Codes from Messages and Email for 10 Minutes. Needs Search Your Notifications.",
-                    icon = Icons.Outlined.Password,
-                    isChecked = codes,
-                    onCheckedChange = { codes = it }
-                )
                 var timers by rememberSetting(SettingsManager.GLANCE_TIMERS)
                 SettingsRowToggle(
                     title = "Timers & Stopwatch",

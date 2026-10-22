@@ -221,7 +221,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val RESULT_SHORTCUTS = StringSetting("result_shortcuts_json", "[]")
         /**
          * Search Your Notifications: the user's opt-in to let the notification listener read active notifications into
-         * memory for search and At a Glance's codes and timers. Off by default; it works only with notification access.
+         * memory for search and At a Glance's timers. Off by default; it works only with notification access.
          */
         val SEARCH_NOTIFICATIONS = BooleanSetting("search.notifications", false)
         /** At a Glance: timely cards above the empty search. Each item has its own switch below. */
@@ -231,8 +231,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val GLANCE_TIMERS = BooleanSetting("glance.timers", true)
         /** Now Playing, read from media sessions (needs notification access). */
         val GLANCE_MEDIA = BooleanSetting("glance.media", true)
-        /** One-time codes from messages and email (needs [SEARCH_NOTIFICATIONS]). */
-        val GLANCE_CODES = BooleanSetting("glance.codes", true)
         /** Contacts' birthdays this week (needs contacts access). */
         val GLANCE_BIRTHDAYS = BooleanSetting("glance.birthdays", true)
         val GLANCE_BATTERY = BooleanSetting("glance.battery", true)
@@ -257,7 +255,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, OVERLAY_SHOW_MIC, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
             DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_ALARM,
-            GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_CODES, GLANCE_BIRTHDAYS, GLANCE_BATTERY, RESULT_SHORTCUTS,
+            GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_BIRTHDAYS, GLANCE_BATTERY, RESULT_SHORTCUTS,
             DICTIONARY_ANSWERS, WEATHER_ANSWERS,
             WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION
         )

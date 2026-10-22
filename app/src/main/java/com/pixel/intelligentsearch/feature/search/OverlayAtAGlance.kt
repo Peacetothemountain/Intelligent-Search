@@ -1,11 +1,7 @@
 package com.pixel.intelligentsearch.feature.search
 
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.provider.AlarmClock
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,10 +24,7 @@ import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.BatteryAlert
 import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.Cake
-import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.MusicNote
-import androidx.compose.material.icons.outlined.Password
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -42,12 +35,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,10 +46,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -80,8 +68,6 @@ import com.pixel.intelligentsearch.core.glance.GlanceSnapshot
 import com.pixel.intelligentsearch.core.glance.GlanceSource
 import com.pixel.intelligentsearch.core.glance.GlanceTimer
 import com.pixel.intelligentsearch.core.glance.GlanceToggles
-import com.pixel.intelligentsearch.core.glance.OneTimeCode
-import com.pixel.intelligentsearch.core.glance.OneTimeCodes
 import com.pixel.intelligentsearch.core.glance.glanceItems
 import com.pixel.intelligentsearch.core.glance.launchApp
 import com.pixel.intelligentsearch.core.glance.sendPendingIntent
@@ -121,26 +107,25 @@ private fun rememberGlanceNow(periodMs: Long, enabled: Boolean = true): Long {
     }.value
 }
 
-/** The At a Glance switches in Search Behavior, with Search Your Notifications for the codes and timers. */
+/** The At a Glance switches in Search Behavior, with Search Your Notifications for the timers. */
 @Composable
 private fun rememberGlanceToggles(): GlanceToggles {
     val enabled by rememberSetting(SettingsManager.GLANCE_ENABLED)
     val alarm by rememberSetting(SettingsManager.GLANCE_ALARM)
     val timers by rememberSetting(SettingsManager.GLANCE_TIMERS)
     val media by rememberSetting(SettingsManager.GLANCE_MEDIA)
-    val codes by rememberSetting(SettingsManager.GLANCE_CODES)
     val birthdays by rememberSetting(SettingsManager.GLANCE_BIRTHDAYS)
     val battery by rememberSetting(SettingsManager.GLANCE_BATTERY)
     val notifications by rememberSetting(SettingsManager.SEARCH_NOTIFICATIONS)
-    return remember(enabled, alarm, timers, media, codes, birthdays, battery, notifications) {
-        GlanceToggles(enabled, alarm, timers, media, codes, birthdays, battery, notifications)
+    return remember(enabled, alarm, timers, media, birthdays, battery, notifications) {
+        GlanceToggles(enabled, alarm, timers, media, birthdays, battery, notifications)
     }
 }
 
 /**
  * What At a Glance shows now. Its sources are read off the main thread and only while the search is on screen
- * (started); leaving it removes every receiver and listener. Codes expire and alarms come into range on a coarse
- * clock; timers tick in their own rows.
+ * (started); leaving it removes every receiver and listener. Alarms come into range on a coarse clock; timers
+ * tick in their own rows.
  */
 @Composable
 internal fun rememberGlanceItems(hiddenApps: Set<String>): List<GlanceItem> {
@@ -157,12 +142,11 @@ internal fun rememberGlanceItems(hiddenApps: Set<String>): List<GlanceItem> {
             source.snapshots(toggles, hiddenApps).collect { value = it }
         }
     }
-    val timeBound = snapshot.codes.isNotEmpty() || snapshot.alarm != null
-    val now = rememberGlanceNow(GLANCE_COARSE_TICK_MS, enabled = timeBound)
+    val now = rememberGlanceNow(GLANCE_COARSE_TICK_MS, enabled = snapshot.alarm != null)
     return remember(snapshot, toggles, now) { glanceItems(snapshot, toggles, now) }
 }
 
-/** How often codes are checked for expiry and the alarm's "in" time moves on. */
+/** How often the alarm's "in" time moves on. */
 private const val GLANCE_COARSE_TICK_MS = 30_000L
 
 /** The At a Glance section of the empty search: its heading, then one card per item. [onOpened] runs as a card opens something. */
@@ -210,7 +194,6 @@ internal fun GlanceHeader(modifier: Modifier = Modifier) {
 @Composable
 internal fun GlanceCard(item: GlanceItem, onOpened: () -> Unit, modifier: Modifier = Modifier) {
     when (item) {
-        is GlanceItem.Code -> CodeCard(item.code, modifier)
         is GlanceItem.Timer -> TimerCard(item.timer, onOpened, modifier)
         is GlanceItem.Alarm -> AlarmCard(item.alarm.triggerAt, onOpened, modifier)
         is GlanceItem.Media -> MediaCard(item.media, onOpened, modifier)
@@ -281,55 +264,6 @@ private fun GlanceBadge(icon: ImageVector, size: Dp = 40.dp) {
     ) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(22.dp))
     }
-}
-
-/** "Code 482913" from an app, copied in one tap to the clipboard marked sensitive; it leaves when it expires. */
-@Composable
-private fun CodeCard(code: OneTimeCode, modifier: Modifier) {
-    val context = LocalContext.current
-    var copied by remember(code) { mutableStateOf(false) }
-    LaunchedEffect(copied) {
-        if (copied) {
-            delay(2_000)
-            copied = false
-        }
-    }
-    val spoken = code.code.toCharArray().joinToString(" ")
-    GlanceRow(
-        leading = { GlanceBadge(Icons.Outlined.Password) },
-        title = "Code ${code.code}",
-        subtitle = "From ${code.appLabel}",
-        onClick = {
-            if (copyCode(context, code.code)) copied = true
-        },
-        modifier = modifier,
-        description = if (copied) "Code copied" else "Code $spoken from ${code.appLabel}, copy",
-        trailing = {
-            Box(
-                modifier = Modifier.size(48.dp).semantics { liveRegion = LiveRegionMode.Polite },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
-        }
-    )
-}
-
-/** Puts [code] on the clipboard marked sensitive; Android 13 and later confirm a copy themselves. */
-internal fun copyCode(context: Context, code: String): Boolean = try {
-    val clipboard = context.getSystemService(ClipboardManager::class.java)
-    clipboard?.setPrimaryClip(OneTimeCodes.clipFor(code))
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-        Toast.makeText(context.applicationContext, "Code copied", Toast.LENGTH_SHORT).show()
-    }
-    clipboard != null
-} catch (_: RuntimeException) {
-    false
 }
 
 /** A running timer counting down each second, a timer that has run out, or a stopwatch counting up. */

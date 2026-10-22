@@ -26,7 +26,6 @@ class AtAGlanceTest {
         override fun open() {}
     }
 
-    private val code = OneTimeCode("482913", "Messages", "com.google.android.apps.messaging", "k", postedAt = now - 60_000L)
     private val timer = GlanceTimer("t", GlanceTimer.Kind.Timer, "5 min timer", now + 120_000L, "Clock", "com.google.android.deskclock", null)
     private val media = GlanceMedia("Song", "Artist", "Music", "com.example.music", isPlaying = true, artwork = null, controls = NoControls)
     private val birthday = GlanceBirthday(1, "lk", "Ana", 0, LocalDate.of(2027, 1, 15), turning = 30)
@@ -34,7 +33,6 @@ class AtAGlanceTest {
         alarm = GlanceAlarm(now + 2 * hour),
         timers = listOf(timer),
         media = media,
-        codes = listOf(code),
         birthdays = listOf(birthday),
         battery = GlanceBattery(15, pluggedIn = false, statusLabel = null)
     )
@@ -43,9 +41,9 @@ class AtAGlanceTest {
     private fun kinds(items: List<GlanceItem>) = items.map { it::class.simpleName }
 
     @Test
-    fun itemsShowInOrderCodesTimersAlarmMediaBirthdaysBattery() {
+    fun itemsShowInOrderTimersAlarmMediaBirthdaysBattery() {
         assertEquals(
-            listOf("Code", "Timer", "Alarm", "Media", "Birthday", "Battery"),
+            listOf("Timer", "Alarm", "Media", "Birthday", "Battery"),
             kinds(glanceItems(everything, allOn, now))
         )
     }
@@ -58,34 +56,20 @@ class AtAGlanceTest {
 
     @Test
     fun eachSwitchHidesItsOwnItem() {
-        assertEquals(listOf("Timer", "Alarm", "Media", "Birthday", "Battery"), kinds(glanceItems(everything, allOn.copy(codes = false), now)))
-        assertEquals(listOf("Code", "Alarm", "Media", "Birthday", "Battery"), kinds(glanceItems(everything, allOn.copy(timers = false), now)))
-        assertEquals(listOf("Code", "Timer", "Media", "Birthday", "Battery"), kinds(glanceItems(everything, allOn.copy(alarm = false), now)))
-        assertEquals(listOf("Code", "Timer", "Alarm", "Birthday", "Battery"), kinds(glanceItems(everything, allOn.copy(media = false), now)))
-        assertEquals(listOf("Code", "Timer", "Alarm", "Media", "Battery"), kinds(glanceItems(everything, allOn.copy(birthdays = false), now)))
-        assertEquals(listOf("Code", "Timer", "Alarm", "Media", "Birthday"), kinds(glanceItems(everything, allOn.copy(battery = false), now)))
+        assertEquals(listOf("Alarm", "Media", "Birthday", "Battery"), kinds(glanceItems(everything, allOn.copy(timers = false), now)))
+        assertEquals(listOf("Timer", "Media", "Birthday", "Battery"), kinds(glanceItems(everything, allOn.copy(alarm = false), now)))
+        assertEquals(listOf("Timer", "Alarm", "Birthday", "Battery"), kinds(glanceItems(everything, allOn.copy(media = false), now)))
+        assertEquals(listOf("Timer", "Alarm", "Media", "Battery"), kinds(glanceItems(everything, allOn.copy(birthdays = false), now)))
+        assertEquals(listOf("Timer", "Alarm", "Media", "Birthday"), kinds(glanceItems(everything, allOn.copy(battery = false), now)))
     }
 
     @Test
-    fun codesAndTimersNeedSearchYourNotifications() {
+    fun timersNeedSearchYourNotifications() {
         val withoutOptIn = GlanceToggles(notifications = false)
         assertEquals(listOf("Alarm", "Media", "Birthday", "Battery"), kinds(glanceItems(everything, withoutOptIn, now)))
         // With only notification items switched on and no opt-in, there is nothing to read at all.
         assertFalse(GlanceToggles(alarm = false, media = false, birthdays = false, battery = false, notifications = false).anyOn)
         assertTrue(GlanceToggles(alarm = false, media = false, birthdays = false, battery = false, notifications = true).anyOn)
-    }
-
-    @Test
-    fun anExpiredCodeLeaves() {
-        val items = glanceItems(everything, allOn, code.postedAt + OneTimeCodes.LIFETIME_MS)
-        assertTrue(items.none { it is GlanceItem.Code })
-    }
-
-    @Test
-    fun atMostTwoCodesShowNewestFirst() {
-        val codes = (1..4).map { code.copy(code = "11111$it", notificationKey = "k$it", postedAt = now - it * 1_000L) }
-        val shown = glanceItems(GlanceSnapshot(codes = codes), allOn, now).map { (it as GlanceItem.Code).code.code }
-        assertEquals(listOf("111111", "111112"), shown)
     }
 
     @Test

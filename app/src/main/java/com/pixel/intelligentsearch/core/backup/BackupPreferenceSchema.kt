@@ -38,7 +38,7 @@ internal object BackupPreferenceSchema {
             "widget_show_g_icon", "widget_show_gemini", "widget_show_voice", "widget_suppress_unsaved_warning",
             "widget_system_custom_keep_system_g", "widget_system_custom_sync_colors", "widget_system_design_saved",
             "widget_system_show_doodles", "widget_system_show_g_icon", "widget_system_show_voice", "widget_system_lock_black",
-            "search.notifications", "glance.enabled", "glance.alarm", "glance.timers", "glance.media", "glance.codes",
+            "search.notifications", "glance.enabled", "glance.alarm", "glance.timers", "glance.media",
             "glance.birthdays", "glance.battery",
             "dictionary_answers", "weather_answers", "weather_use_device_location"
         )

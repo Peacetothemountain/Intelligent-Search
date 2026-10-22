@@ -48,6 +48,7 @@ import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
+import kotlinx.coroutines.launch
 
 // WIDGET SETTINGS SCREEN
 // -----------------------------------------------------------------------------------------
@@ -460,14 +461,18 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             onClick = {
                                 // Pin the design shown in the preview, so apply any pending edits first.
                                 if (hasUnsavedChanges) saveSettings()
-                                val requested = com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
-                                    .requestPinWidget(context, isMaterial = !isSystem)
-                                if (!requested) {
-                                    android.widget.Toast.makeText(
-                                        context,
-                                        "Your launcher doesn't support adding widgets from apps",
-                                        android.widget.Toast.LENGTH_SHORT
-                                    ).show()
+                                val isMaterial = !isSystem
+                                coroutineScope.launch {
+                                    // The launcher's dialog previews the widget as just saved.
+                                    val requested = com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
+                                        .requestPinWidget(context, isMaterial = isMaterial)
+                                    if (!requested) {
+                                        android.widget.Toast.makeText(
+                                            context,
+                                            "Your launcher doesn't support adding widgets from apps",
+                                            android.widget.Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
                                 }
                             }
                         ) {

@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.launch
 
+import com.pixel.intelligentsearch.core.system.GoogleApps
 import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
@@ -15,7 +16,6 @@ import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.feature.voice.IntelligentVoiceInteractionSession
 import com.pixel.intelligentsearch.feature.widget.BackgroundLaunchOptions
 import com.pixel.intelligentsearch.feature.widget.WidgetActivity
-import com.pixel.intelligentsearch.feature.widget.resolveActivityCompat
 
 /**
  * Search Notification: an optional, silent, ongoing notification that opens search, like the search bar some phones
@@ -44,9 +44,6 @@ object SearchShortcutNotification {
     private const val ACTION_SEARCH = "com.pixel.intelligentsearch.NOTIFICATION_SEARCH"
     private const val ACTION_VOICE = "com.pixel.intelligentsearch.NOTIFICATION_VOICE"
 
-    private const val LENS_PACKAGE = "com.google.ar.lens"
-    private const val GOOGLE_APP = "com.google.android.googlequicksearchbox"
-    private const val LENS_DEEPLINK = "com.google.android.apps.search.lens.deeplink.LensDeeplink"
 
     /**
      * Whether this app may post it: on Android 13+ the notifications permission, and on every version notifications
@@ -75,13 +72,6 @@ object SearchShortcutNotification {
         lockscreenVisibility = Notification.VISIBILITY_PRIVATE
     }
 
-    /** Whether Google Lens can be opened: the Lens app, or the Google app's Lens. */
-    fun isLensAvailable(context: Context): Boolean = runCatching {
-        val pm = context.packageManager
-        pm.getLaunchIntentForPackage(LENS_PACKAGE) != null ||
-            pm.resolveActivityCompat(Intent().setClassName(GOOGLE_APP, LENS_DEEPLINK)) != null
-    }.getOrDefault(false)
-
     /** Opens the search overlay, the keyboard up, as the Quick Settings tile does. */
     fun searchIntent(context: Context): Intent = Intent(context, WidgetActivity::class.java).apply {
         action = ACTION_SEARCH
@@ -109,7 +99,7 @@ object SearchShortcutNotification {
     )
 
     /** The notification: the search glyph and "Search Your Phone", a tap to search, Voice, and Lens when installed. */
-    fun build(context: Context, lensAvailable: Boolean = isLensAvailable(context)): Notification {
+    fun build(context: Context, lensAvailable: Boolean = GoogleApps.isLensAvailable(context)): Notification {
         val glyph = Icon.createWithResource(context, R.drawable.ic_search_lens_expressive)
         val builder = Notification.Builder(context, CHANNEL_ID)
             .setSmallIcon(glyph)

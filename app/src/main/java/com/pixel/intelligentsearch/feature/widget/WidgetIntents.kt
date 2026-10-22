@@ -3,49 +3,21 @@ package com.pixel.intelligentsearch.feature.widget
 import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ApplicationInfo
-import android.content.pm.PackageManager
-import android.content.pm.ResolveInfo
 import android.net.Uri
-import android.os.Build
 import android.speech.RecognizerIntent
 import android.util.Log
 import androidx.core.net.toUri
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.answers.GoogleTranslate
+import com.pixel.intelligentsearch.core.system.GoogleApps
+import com.pixel.intelligentsearch.core.util.queryIntentActivitiesCompat
+import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 
 private const val TAG = "SearchWidgetProvider"
 
-internal fun PackageManager.resolveActivityCompat(intent: Intent, flags: Long = 0L): ResolveInfo? {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        resolveActivity(intent, PackageManager.ResolveInfoFlags.of(flags))
-    } else {
-        @Suppress("DEPRECATION")
-        resolveActivity(intent, flags.toInt())
-    }
-}
-
-internal fun PackageManager.queryIntentActivitiesCompat(intent: Intent, flags: Long = 0L): List<ResolveInfo> {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        queryIntentActivities(intent, PackageManager.ResolveInfoFlags.of(flags))
-    } else {
-        @Suppress("DEPRECATION")
-        queryIntentActivities(intent, flags.toInt())
-    }
-}
-
-internal fun PackageManager.getApplicationInfoCompat(packageName: String, flags: Long = 0L): ApplicationInfo {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        getApplicationInfo(packageName, PackageManager.ApplicationInfoFlags.of(flags))
-    } else {
-        @Suppress("DEPRECATION")
-        getApplicationInfo(packageName, flags.toInt())
-    }
-}
-
 fun getVoiceSearchIntent(context: Context): Intent {
     val googleVoice = Intent(Intent.ACTION_MAIN).apply {
-        setClassName("com.google.android.googlequicksearchbox", "com.google.android.googlequicksearchbox.VoiceSearchActivity")
+        setClassName(GoogleApps.GOOGLE_APP, GoogleApps.VOICE_SEARCH_ACTIVITY)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
     if (context.packageManager.resolveActivityCompat(googleVoice) != null) {
@@ -92,25 +64,10 @@ fun getShortcutIconRes(shortcut: String, isMaterialYou: Boolean = true): Int {
     }
 }
 
+/** The widget's Lens shortcut: Google Lens ([GoogleApps.lensIntent]), else Lens on the web, else the search overlay. */
 fun getLensSearchIntent(context: Context): Intent {
-    try {
-        val lensStandalone = context.packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        if (lensStandalone != null && context.packageManager.resolveActivityCompat(lensStandalone) != null) {
-            return lensStandalone
-        }
-
-        val lensIntent = Intent().apply {
-            setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        if (context.packageManager.resolveActivityCompat(lensIntent) != null) {
-            return lensIntent
-        }
-    } catch (_: Exception) {}
-
-    val webLens = Intent(Intent.ACTION_VIEW, Uri.parse("https://lens.google.com")).apply {
+    GoogleApps.lensIntent(context)?.let { return it }
+    val webLens = Intent(Intent.ACTION_VIEW, "https://lens.google.com".toUri()).apply {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
     if (context.packageManager.resolveActivityCompat(webLens) != null) {
@@ -122,30 +79,12 @@ fun getLensSearchIntent(context: Context): Intent {
     }
 }
 
-fun getLensTranslateIntent(context: Context): Intent {
-    try {
-        val lensStandalone = context.packageManager.getLaunchIntentForPackage("com.google.ar.lens")?.apply {
-            putExtra("lens_mode", "translate")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        if (lensStandalone != null && context.packageManager.resolveActivityCompat(lensStandalone) != null) {
-            return lensStandalone
-        }
-
-        val translateIntent = Intent().apply {
-            setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink")
-            putExtra("lens_mode", "translate")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        if (context.packageManager.resolveActivityCompat(translateIntent) != null) {
-            return translateIntent
-        }
-    } catch (_: Exception) {}
-    return Intent(context, WidgetActivity::class.java).apply {
+/** The widget's camera translate shortcut: Google Lens translating, else the search overlay's hand-off to it. */
+fun getLensTranslateIntent(context: Context): Intent =
+    GoogleApps.lensIntent(context, translate = true) ?: Intent(context, WidgetActivity::class.java).apply {
         action = "com.pixel.intelligentsearch.LAUNCH_LENS_TRANSLATE"
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
     }
-}
 
 /**
  * Opens the Gemini corner-swipe overlay for the widget's Search and Assistant buttons, exactly as the
@@ -175,7 +114,7 @@ fun launchGeminiCornerOverlay(context: Context): Boolean {
         android.util.Log.w("SearchWidgetProvider", "SearchManager.launchAssist failed", e)
     }
     val fallbacks = listOfNotNull(
-        Intent(Intent.ACTION_VOICE_COMMAND).setPackage("com.google.android.googlequicksearchbox"),
+        Intent(Intent.ACTION_VOICE_COMMAND).setPackage(GoogleApps.GOOGLE_APP),
         context.packageManager.getLaunchIntentForPackage("com.google.android.apps.bard"),
         getVoiceSearchIntent(context)
     )
@@ -217,7 +156,7 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
                 intentWeatherApp.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
             } else {
                 val intentSearchWeather = Intent(Intent.ACTION_VIEW).apply {
-                    setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.weather.WeatherExportedActivity")
+                    setClassName(GoogleApps.GOOGLE_APP, GoogleApps.WEATHER_ACTIVITY)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 if (context.packageManager.resolveActivityCompat(intentSearchWeather) != null) {
@@ -233,7 +172,7 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
         "Sports" -> getCustomIntentOrDefault(context, "Sports") {
             val intent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 putExtra("query", "Sports")
-                setPackage("com.google.android.googlequicksearchbox")
+                setPackage(GoogleApps.GOOGLE_APP)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             if (context.packageManager.resolveActivityCompat(intent) != null) {
@@ -282,11 +221,8 @@ fun getCalculatorIntent(context: Context): Intent =
 
 private const val ACTION_LAUNCH_CALCULATOR = "com.pixel.intelligentsearch.LAUNCH_CALCULATOR"
 
-/** The Google app, whose home tab is the Discover feed. */
-const val GOOGLE_APP_PACKAGE = "com.google.android.googlequicksearchbox"
-
 /** Whether the Discover shortcut can open Discover: the Google app is installed and can be opened. */
-fun isDiscoverAvailable(context: Context): Boolean = context.packageManager.getLaunchIntentForPackage(GOOGLE_APP_PACKAGE) != null
+fun isDiscoverAvailable(context: Context): Boolean = context.packageManager.getLaunchIntentForPackage(GoogleApps.GOOGLE_APP) != null
 
 /**
  * The Discover shortcut. Google publishes no intent for the Discover feed itself (launchers reach it through a
@@ -294,8 +230,8 @@ fun isDiscoverAvailable(context: Context): Boolean = context.packageManager.getL
  * tab is the Discover feed. Without the Google app it opens the app's Play Store page.
  */
 fun getDiscoverIntent(context: Context): Intent =
-    context.packageManager.getLaunchIntentForPackage(GOOGLE_APP_PACKAGE)?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-        ?: Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$GOOGLE_APP_PACKAGE".toUri()).apply {
+    context.packageManager.getLaunchIntentForPackage(GoogleApps.GOOGLE_APP)?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        ?: Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$GoogleApps.GOOGLE_APP".toUri()).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
@@ -380,7 +316,7 @@ fun getNowPlayingIntent(context: Context): Intent {
     // 5. Google Sound Search / Assistant Music Search
     try {
         val googleSoundSearchIntent = Intent("com.google.android.googlequicksearchbox.MUSIC_SEARCH").apply {
-            setPackage("com.google.android.googlequicksearchbox")
+            setPackage(GoogleApps.GOOGLE_APP)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         if (pm.resolveActivityCompat(googleSoundSearchIntent) != null || pm.queryIntentActivitiesCompat(googleSoundSearchIntent).isNotEmpty()) {

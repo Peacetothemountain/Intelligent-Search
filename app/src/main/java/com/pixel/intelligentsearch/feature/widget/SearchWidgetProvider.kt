@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.widget
 
+import com.pixel.intelligentsearch.core.util.getApplicationInfoCompat
+import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.core.data.settings.get
@@ -953,7 +955,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 }
             } else {
                 Intent("android.search.action.GLOBAL_SEARCH").apply {
-                    setPackage("com.google.android.googlequicksearchbox")
+                    setPackage(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 }.takeIf { context.packageManager.resolveActivityCompat(it) != null }
                     ?: Intent(Intent.ACTION_WEB_SEARCH).apply {

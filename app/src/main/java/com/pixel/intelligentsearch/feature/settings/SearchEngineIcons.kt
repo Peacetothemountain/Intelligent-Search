@@ -51,7 +51,7 @@ fun GoogleOfficialAppIcon(modifier: Modifier = Modifier) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val googleDrawable = remember(context) {
         runCatching {
-            context.packageManager.getApplicationIcon("com.google.android.googlequicksearchbox")
+            context.packageManager.getApplicationIcon(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
         }.getOrNull()
     }
     if (googleDrawable != null) {

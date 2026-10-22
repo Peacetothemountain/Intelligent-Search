@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.widget
 
+import com.pixel.intelligentsearch.core.system.GoogleApps
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Context
@@ -236,13 +237,13 @@ class WidgetExtrasViewsTest {
         assertFalse(isDiscoverAvailable(context))
         assertEquals("play.google.com", getDiscoverIntent(context).data?.host)
 
-        val google = ComponentName(GOOGLE_APP_PACKAGE, "$GOOGLE_APP_PACKAGE.SearchActivity")
+        val google = ComponentName(GoogleApps.GOOGLE_APP, "$GoogleApps.GOOGLE_APP.SearchActivity")
         shadowOf(context.packageManager).apply {
             addActivityIfNotPresent(google)
             addIntentFilterForActivity(google, IntentFilter(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) })
         }
         assertTrue(isDiscoverAvailable(context))
-        assertEquals(GOOGLE_APP_PACKAGE, getDiscoverIntent(context).`package` ?: getDiscoverIntent(context).component?.packageName)
+        assertEquals(GoogleApps.GOOGLE_APP, getDiscoverIntent(context).`package` ?: getDiscoverIntent(context).component?.packageName)
     }
 
     private companion object {

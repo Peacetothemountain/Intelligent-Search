@@ -13,7 +13,7 @@ import android.widget.Toast
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.feature.widget.WidgetActivity
-import com.pixel.intelligentsearch.feature.widget.resolveActivityCompat
+import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 
 /**
  * "Intelligent Search" in other apps' text selection menu (PROCESS_TEXT) and share sheet (SEND, plain text). Any app
@@ -171,7 +171,7 @@ class SelectedTextSearchActivity : Activity() {
         fun searchIntent(context: Context, query: String): Intent? {
             if (settings(context)[SettingsManager.SEARCH_OVERLAY_ENABLED]) return overlayIntent(context, query)
             val google = Intent("android.search.action.GLOBAL_SEARCH").apply {
-                setPackage("com.google.android.googlequicksearchbox")
+                setPackage(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
                 if (query.isNotBlank()) putExtra(SearchManager.QUERY, query)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }

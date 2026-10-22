@@ -11,7 +11,7 @@ import java.net.URLEncoder
  */
 object GoogleTranslate {
     /** Google Translate's app, which the widget's Translate (text) shortcut opens as well. */
-    const val PACKAGE = "com.google.android.apps.translate"
+    const val PACKAGE = com.pixel.intelligentsearch.core.system.GoogleApps.TRANSLATE_APP
 
     /** Google Translate on the web, for phones without the app. */
     const val WEB_HOME = "https://translate.google.com"

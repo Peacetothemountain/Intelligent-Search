@@ -403,7 +403,7 @@ internal fun openNavTarget(context: Context, s: OverlayScope, target: NavTarget)
                 AnswerAction.OpenCalculator -> launchSafeIntent(context, Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR))
                 AnswerAction.ShowAlarms -> launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
                 is AnswerAction.OpenWeather -> {
-                    val app = weatherAppIntent(context)
+                    val app = com.pixel.intelligentsearch.core.system.GoogleApps.weatherIntent(context)
                     if (app == null || !launchSafeIntent(context, app)) s.launchWebSearch(action.query)
                 }
                 is AnswerAction.Translate -> openInGoogleTranslate(context, s, action.text, action.source, action.target)

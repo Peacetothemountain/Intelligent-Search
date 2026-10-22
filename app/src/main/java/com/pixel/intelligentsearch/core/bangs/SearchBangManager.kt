@@ -36,7 +36,7 @@ class SearchBangManager @Inject constructor(
                 prefix = "!g",
                 name = "Google",
                 urlTemplate = "https://www.google.com/search?q=%s",
-                targetPackage = "com.google.android.googlequicksearchbox",
+                targetPackage = com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP,
                 isBuiltIn = true,
                 description = "Search Google Directly."
             ),

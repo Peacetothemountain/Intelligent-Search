@@ -119,7 +119,7 @@ internal fun webSearchLaunch(context: Context, engine: String, customUrl: String
         "DuckDuckGo" -> viewOrFallback("https://duckduckgo.com/?q=$encoded")
         "Bing" -> viewOrFallback("https://www.bing.com/search?q=$encoded")
         else -> {
-            val google = systemWebSearchIntent(query).setPackage("com.google.android.googlequicksearchbox")
+            val google = systemWebSearchIntent(query).setPackage(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
             // Without the Google app the system web search would come back to this app, which answers it as the
             // search engine; open Google's results page instead.
             if (context.packageManager.resolveActivity(google, 0) != null) google

@@ -84,7 +84,7 @@ fun AlwaysWithinReachSection() {
     var showNotificationRationale by remember { mutableStateOf(false) }
     var showNotificationSettings by remember { mutableStateOf(false) }
     var overlayRationaleFor by remember { mutableStateOf<OverlayRequest?>(null) }
-    val lens = remember { SearchShortcutNotification.isLensAvailable(context) }
+    val lens = remember { com.pixel.intelligentsearch.core.system.GoogleApps.isLensAvailable(context) }
 
     // From here on the surfaces follow their settings; this also shows any already on.
     LaunchedEffect(Unit) { LaunchSurfaces.start(context) }

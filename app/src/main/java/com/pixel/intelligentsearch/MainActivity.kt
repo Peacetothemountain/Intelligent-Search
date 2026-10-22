@@ -383,14 +383,10 @@ open class MainActivity : AppCompatActivity() {
         return true
     }
 
-    /** Opens Google Lens: the standalone app if installed, otherwise the Google app's Lens deep link. */
+    /** Opens Google Lens: the standalone app if installed, otherwise the Google app's Lens. */
     private fun launchLens(translate: Boolean) {
-        val lens = packageManager.getLaunchIntentForPackage("com.google.ar.lens") ?: Intent().setClassName(
-            "com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink"
-        )
-        lens.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (translate) lens.putExtra("lens_mode", "translate")
-        try { startActivity(lens) } catch (_: Exception) {}
+        com.pixel.intelligentsearch.core.system.GoogleApps.lensIntent(this, translate)
+            ?.let { com.pixel.intelligentsearch.core.system.launchSafeIntent(this, it) }
     }
 
     override fun onPause() {
@@ -430,7 +426,7 @@ open class MainActivity : AppCompatActivity() {
         if (!searchOverlayEnabled) {
             val queryExtra = (intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: "").take(512)
             val fallbackIntent = Intent("android.search.action.GLOBAL_SEARCH").apply {
-                setPackage("com.google.android.googlequicksearchbox")
+                setPackage(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
                 if (queryExtra.isNotEmpty()) {
                     putExtra(SearchManager.QUERY, queryExtra)
                 }

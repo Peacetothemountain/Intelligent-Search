@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.GoogleApps
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.ClipData
 import android.content.ClipDescription
@@ -8,7 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
-import com.pixel.intelligentsearch.feature.widget.resolveActivityCompat
+import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 import java.text.DateFormat
 import java.util.Date
 
@@ -26,10 +27,6 @@ internal object ClipboardLens {
     const val ICON_TYPE = "lens"
     const val TITLE = "Search with Lens"
 
-    private const val LENS_PACKAGE = "com.google.ar.lens"
-    private const val GOOGLE_PACKAGE = "com.google.android.googlequicksearchbox"
-    /** The Google app's "Search image with Lens" share target. */
-    private const val GOOGLE_LENS_SHARE = "com.google.android.apps.search.lens.LensShareEntryPointActivity"
     /** The type a probe intent asks about when the image's own type isn't known yet. */
     private const val ANY_IMAGE = "image/*"
     private const val IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
@@ -57,9 +54,9 @@ internal object ClipboardLens {
             configure()
         }
         return listOf(
-            send { setPackage(LENS_PACKAGE) },
-            send { setClassName(GOOGLE_PACKAGE, GOOGLE_LENS_SHARE) },
-            send { setPackage(GOOGLE_PACKAGE) }
+            send { setPackage(GoogleApps.LENS_APP) },
+            send { setClassName(GoogleApps.GOOGLE_APP, GoogleApps.LENS_SHARE_ACTIVITY) },
+            send { setPackage(GoogleApps.GOOGLE_APP) }
         )
     }
 

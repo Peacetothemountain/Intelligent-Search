@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.widget
 
+import com.pixel.intelligentsearch.core.util.getApplicationInfoCompat
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent

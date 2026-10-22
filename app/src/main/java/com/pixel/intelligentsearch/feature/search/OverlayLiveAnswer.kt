@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.GoogleApps
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.Manifest
 import android.content.Context
@@ -35,17 +36,7 @@ import com.pixel.intelligentsearch.core.ui.ScreenTimeOneBox
 import com.pixel.intelligentsearch.core.ui.TranslationOneBox
 import com.pixel.intelligentsearch.core.ui.WeatherLocationOneBox
 import com.pixel.intelligentsearch.core.ui.WeatherOneBox
-import com.pixel.intelligentsearch.feature.widget.resolveActivityCompat
-
-/** The weather app to open from a forecast: Pixel Weather, else the Google app's weather page; null for neither. */
-internal fun weatherAppIntent(context: Context): Intent? {
-    val pm = context.packageManager
-    pm.getLaunchIntentForPackage("com.google.android.apps.weather")?.let { return it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-    val google = Intent(Intent.ACTION_VIEW)
-        .setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.weather.WeatherExportedActivity")
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    return google.takeIf { pm.resolveActivity(it, 0) != null }
-}
+import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 
 /** Where today's screen time is broken down in full: Digital Wellbeing (Pixel's, or Samsung's), if the phone has it. */
 internal fun digitalWellbeingIntent(context: Context): Intent? =
@@ -71,7 +62,7 @@ internal fun OverlayLiveAnswer(s: OverlayScope, answer: LiveAnswer) {
             report = answer.report,
             onOpenWeather = {
                 s.ui.hasStartedTyping = false
-                val app = weatherAppIntent(context)
+                val app = GoogleApps.weatherIntent(context)
                 if (app == null || !launchSafeIntent(context, app)) s.launchWebSearch(answer.query)
             }
         )

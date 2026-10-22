@@ -80,9 +80,9 @@ class SearchShortcutNotificationTest {
 
     @Test
     fun lensIsOfferedOnlyWhenInstalled() {
-        assertFalse(SearchShortcutNotification.isLensAvailable(context))
+        assertFalse(com.pixel.intelligentsearch.core.system.GoogleApps.isLensAvailable(context))
         installLens()
-        assertTrue(SearchShortcutNotification.isLensAvailable(context))
+        assertTrue(com.pixel.intelligentsearch.core.system.GoogleApps.isLensAvailable(context))
 
         val notification = SearchShortcutNotification.build(context)
         assertEquals(listOf("Voice", "Lens"), notification.actions.map { it.title.toString() })

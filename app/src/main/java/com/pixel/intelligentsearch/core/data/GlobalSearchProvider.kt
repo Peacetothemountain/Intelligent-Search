@@ -221,7 +221,7 @@ class GlobalSearchProvider : ContentProvider() {
             val suggestions = if (isTorEngine || isCustomEngine || !suggestionsEnabled || !webOn) {
                 emptyList()
             } else {
-                WebSearchProvider.getCachedSuggestions(queryTerm, engine) ?: emptyList()
+                WebSearchProvider.getCachedSuggestions(queryTerm, engine)?.map { it.query } ?: emptyList()
             }
             for (suggestion in suggestions.take(5)) {
                 val suggestUrl = buildWebSearchUrl(suggestion)

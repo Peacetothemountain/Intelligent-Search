@@ -25,8 +25,8 @@ interface DeviceSearchSources {
     suspend fun upcomingEvents(): List<CalendarEvent>
     suspend fun contacts(query: String): List<ContactItem>
     /** Suggestions already fetched for [query], or null when none are cached. */
-    fun cachedWebSuggestions(query: String, engine: String): List<String>?
-    suspend fun webSuggestions(query: String, engine: String): List<String>
+    fun cachedWebSuggestions(query: String, engine: String): List<WebSuggestion>?
+    suspend fun webSuggestions(query: String, engine: String): List<WebSuggestion>
 }
 
 /** The real device, through the existing providers. */
@@ -41,8 +41,8 @@ class DeviceSearchSourcesImpl @Inject constructor(@ApplicationContext private va
     override suspend fun contextAwareQuickApps(hiddenApps: Set<String>): List<AppItem> = SystemDataProvider.getContextAwareQuickApps(context, hiddenApps)
     override suspend fun upcomingEvents(): List<CalendarEvent> = SystemDataProvider.getUpcomingEvents(context)
     override suspend fun contacts(query: String): List<ContactItem> = SystemDataProvider.getContacts(context, query)
-    override fun cachedWebSuggestions(query: String, engine: String): List<String>? = WebSearchProvider.getCachedSuggestions(query, engine)
-    override suspend fun webSuggestions(query: String, engine: String): List<String> = WebSearchProvider.getWebSuggestions(query, engine)
+    override fun cachedWebSuggestions(query: String, engine: String): List<WebSuggestion>? = WebSearchProvider.getCachedSuggestions(query, engine)
+    override suspend fun webSuggestions(query: String, engine: String): List<WebSuggestion> = WebSearchProvider.getWebSuggestions(query, engine)
 }
 
 @Module

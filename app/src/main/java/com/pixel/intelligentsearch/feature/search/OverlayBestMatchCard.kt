@@ -131,18 +131,20 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(24.dp)
-                            )
+                        ContactAvatar(match, 48.dp) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -285,7 +287,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (settingsState.filesThumbnails) {
-                            FileIconThumbnail(match.uri, match.mimeType)
+                            FileIconThumbnail(match.uri, match.mimeType, size = 48.dp)
                         } else {
                             Box(
                                 modifier = Modifier

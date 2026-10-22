@@ -29,7 +29,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
-import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -158,12 +157,13 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 .distinct()
         }
     }
+    // Past searches first, then the engine's suggestions, as Google lists them.
     val allDisplaySuggestions = remember(matchingRecent, uiState.webSuggestions, settingsState.webResultsCount) {
         val maxCount = settingsState.webResultsCount.coerceAtLeast(1)
         val nonRecentWeb = uiState.webSuggestions.filter { webSugg ->
-            matchingRecent.none { it.equals(webSugg, ignoreCase = true) }
+            matchingRecent.none { it.equals(webSugg.query, ignoreCase = true) }
         }
-        (matchingRecent + nonRecentWeb).distinct().take(maxCount)
+        (matchingRecent.distinct().map { WebSuggestion(it) } + nonRecentWeb).distinctBy { it.query }.take(maxCount)
     }
 
     val isBottomResults = settingsState.bottomSearch && settingsState.bottomSearchResult
@@ -666,96 +666,35 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 "web" -> {
                     if (showWeb && (settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
                         if (allDisplaySuggestions.isNotEmpty()) {
-                            uniqueItems(allDisplaySuggestions, key = { suggestion -> "sugg_$suggestion" }, contentType = { "web_suggestion" }) { suggestion ->
-                                val isRecent = uiState.recentSearches.any { it.equals(suggestion, ignoreCase = true) }
-                                val trimmed = uiState.query.trim()
-                                val annotatedSuggestion = remember(suggestion, trimmed) {
-                                    androidx.compose.ui.text.buildAnnotatedString {
-                                        if (trimmed.isNotEmpty() && suggestion.startsWith(trimmed, ignoreCase = true)) {
-                                            append(suggestion.substring(0, trimmed.length))
-                                            withStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold)) {
-                                                append(suggestion.substring(trimmed.length))
-                                            }
-                                        } else {
-                                            append(suggestion)
-                                        }
-                                    }
-                                }
-
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .animateItem(
-                                            placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
-                                            fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
-                                            fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
+                            uniqueItems(allDisplaySuggestions, key = { suggestion -> "sugg_${suggestion.query}" }, contentType = { "web_suggestion" }) { suggestion ->
+                                val query = suggestion.query
+                                val isRecent = uiState.recentSearches.any { it.equals(query, ignoreCase = true) }
+                                OverlayWebSuggestionRow(
+                                    suggestion = suggestion,
+                                    typed = uiState.query,
+                                    isRecent = isRecent,
+                                    // The Show Thumbnails switch covers pictures of people, songs and videos too.
+                                    showThumbnail = settingsState.filesThumbnails,
+                                    modifier = Modifier.animateItem(
+                                        placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
+                                        fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
+                                        fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
+                                    ),
+                                    onSearch = {
+                                        viewModel.onQueryChanged(query)
+                                        viewModel.addSearchHistory(query)
+                                        launchWebSearch(query)
+                                    },
+                                    onRemove = { viewModel.removeSearchHistory(query) },
+                                    onFill = {
+                                        hasStartedTyping = true
+                                        textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
+                                            text = query,
+                                            selection = androidx.compose.ui.text.TextRange(query.length)
                                         )
-                                        .padding(horizontal = 16.dp, vertical = 3.dp)
-                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(28.dp))
-                                        .clip(RoundedCornerShape(28.dp))
-                                        .expressiveRowClickable {
-                                            viewModel.onQueryChanged(suggestion)
-                                            viewModel.addSearchHistory(suggestion)
-                                            launchWebSearch(suggestion)
-                                        }
-                                        .padding(
-                                            start = if (isRecent) 16.dp else 20.dp,
-                                            end = 8.dp,
-                                            top = 10.dp,
-                                            bottom = 10.dp
-                                        ),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    if (isRecent) {
-                                        Icon(
-                                            imageVector = Icons.Default.History,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(14.dp))
+                                        viewModel.onQueryChanged(query)
                                     }
-                                    Text(
-                                        text = annotatedSuggestion,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        fontSize = 16.sp,
-                                        fontFamily = GoogleSansFlex,
-                                        modifier = Modifier.weight(1f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    if (isRecent) {
-                                        IconButton(
-                                            onClick = { viewModel.removeSearchHistory(suggestion) },
-                                            modifier = Modifier.size(40.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Close,
-                                                contentDescription = "Remove",
-                                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                    IconButton(
-                                        onClick = {
-                                            hasStartedTyping = true
-                                            textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
-                                                text = suggestion,
-                                                selection = androidx.compose.ui.text.TextRange(suggestion.length)
-                                            )
-                                            viewModel.onQueryChanged(suggestion)
-                                        },
-                                        modifier = Modifier.size(40.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.NorthWest,
-                                            contentDescription = "Insert query",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
+                                )
                             }
                         }
                     }
@@ -777,8 +716,10 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     .padding(horizontal = 16.dp, vertical = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape), contentAlignment = Alignment.Center) {
-                                    Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                ContactAvatar(contact, 40.dp) {
+                                    Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape), contentAlignment = Alignment.Center) {
+                                        Icon(imageVector = Icons.Default.Person, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
                                 val contactActions = remember(contact, s.contactActionTargets, settingsState.contactActions) {

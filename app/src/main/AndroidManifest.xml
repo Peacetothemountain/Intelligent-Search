@@ -328,10 +328,12 @@
                 android:resource="@xml/search_widget_material_info" />
         </receiver>
 
-        <!-- The countdown widget, redrawn after each local midnight and when the clock or time zone changes. -->
+        <!-- The countdown widget, redrawn after each local midnight and when the clock or time zone changes. Direct
+             boot aware like the search bar widgets, so a restart before unlock still draws it. -->
         <receiver
             android:name="com.pixel.intelligentsearch.feature.widget.CountdownWidgetProvider"
             android:label="@string/widget_countdown_label"
+            android:directBootAware="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />

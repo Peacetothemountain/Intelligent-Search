@@ -206,6 +206,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val DEBUG_MOCK_TRENDING = BooleanSetting("debug.mock_zero_state", false)
         /** The user's consent to let on-device assistants search contacts (AppFunctions); off by default. */
         val APP_FUNCTIONS_SHARE_CONTACTS = BooleanSetting("appfunctions_share_contacts", false)
+        /** Pinned results, nicknames and trigger words, as JSON (ResultShortcuts); read through ResultShortcutStore. */
+        val RESULT_SHORTCUTS = StringSetting("result_shortcuts_json", "[]")
 
         /** Every declared setting, for migration, backup validation and change filtering. */
         val ALL: List<SettingKey<*>> = listOf(
@@ -226,7 +228,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             ADAPTIVE_ICON_SHAPE, DYNAMIC_ICON_MASKING, DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, OVERLAY_SHOW_MIC, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
-            DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS
+            DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, RESULT_SHORTCUTS
         )
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =

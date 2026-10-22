@@ -33,9 +33,12 @@ import androidx.core.graphics.drawable.toBitmap
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 
-/** An app in the app row: its icon and name. The icon is marked as [launchIcon], so the app opens out of it. */
+/**
+ * An app in the app row: its icon and name. The icon is marked as [launchIcon], so the app opens out of it. A long
+ * press calls [onLongClick] (the result's menu), which TalkBack offers as "More options".
+ */
 @Composable
-fun AppGridItem(app: AppItem, launchIcon: LaunchIconTarget? = null, onClick: () -> Unit) {
+fun AppGridItem(app: AppItem, launchIcon: LaunchIconTarget? = null, onLongClick: (() -> Unit)? = null, onClick: () -> Unit) {
     val context = LocalContext.current
     // Another profile's copy keeps its own (badged) icon: themed icons are looked up by package, i.e. the personal app.
     val otherProfile = app.userHandle != null && app.userHandle != android.os.Process.myUserHandle()
@@ -69,7 +72,8 @@ fun AppGridItem(app: AppItem, launchIcon: LaunchIconTarget? = null, onClick: () 
     Column(
         modifier = Modifier
             .width(80.dp)
-            .bouncyClickable(onClick = onClick)
+            .moreOptions(onLongClick)
+            .bouncyClickable(onLongClick = onLongClick, onClick = onClick)
             .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {

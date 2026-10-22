@@ -8,6 +8,7 @@ import android.content.Intent
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
+import com.pixel.intelligentsearch.core.data.ResultShortcutStore
 import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -38,15 +39,23 @@ class UnifiedSearchCoordinator @Inject constructor(
     val systemActionRouter: SystemActionRouter,
     private val multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager,
     settingsManager: SettingsManager,
-    private val currencyRates: CurrencyRateRepository
+    private val currencyRates: CurrencyRateRepository,
+    /** Pins and nicknames, applied to ranking at search time. */
+    private val resultShortcuts: ResultShortcutStore
 ) {
-    /** Outside Hilt (tests): currency answers use the saved or built-in rates from a repository of its own. */
+    /**
+     * Outside Hilt (tests): currency answers use the saved or built-in rates from a repository of its own, and pins and
+     * nicknames are read from [settingsManager] through a store of its own.
+     */
     constructor(
         context: Context,
         systemActionRouter: SystemActionRouter,
         multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager,
         settingsManager: SettingsManager
-    ) : this(context, systemActionRouter, multiProfileManager, settingsManager, CurrencyRateRepository(context, settingsManager))
+    ) : this(
+        context, systemActionRouter, multiProfileManager, settingsManager,
+        CurrencyRateRepository(context, settingsManager), ResultShortcutStore(settingsManager)
+    )
 
     private val dateMath = DateMathEngine()
 
@@ -64,7 +73,9 @@ class UnifiedSearchCoordinator @Inject constructor(
         val domain: SearchScoringEngine.EntityDomain,
         val payload: Any,
         val metadata: SearchScoringEngine.ScoringMetadata = SearchScoringEngine.ScoringMetadata(),
-        val precomputedMetaphone: DoubleMetaphone.MetaphoneResult? = null
+        val precomputedMetaphone: DoubleMetaphone.MetaphoneResult? = null,
+        /** The result's [ResultKeys] name, under which pins and nicknames are stored; null when it can't have any. */
+        val shortcutKey: String? = null
     ) {
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
@@ -105,6 +116,11 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val contactRadixTree = RadixTreeIndex<SearchItem>()
     private val fileRadixTree = RadixTreeIndex<SearchItem>()
     private val phoneticIndex = ConcurrentHashMap<String, MutableSet<SearchItem>>()
+    /**
+     * Every indexed app, contact and file by its [SearchItem.shortcutKey]: nickname matches are looked up here, and the
+     * overlay finds pinned results and trigger words' targets here. Each replace swaps its own domain's entries.
+     */
+    @Volatile private var itemsByShortcutKey: Map<String, SearchItem> = emptyMap()
 
     private val prefs = settingsManager.prefs
     @Volatile private var appUsage: Map<String, SystemDataProvider.AppUsage> = emptyMap()
@@ -161,6 +177,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             fresh.add(item)
         }
         contactRadixTree.replaceAll(keys)
+        replaceShortcutItems(SearchScoringEngine.EntityDomain.CONTACT, fresh)
         removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.CONTACT && it !in fresh }
     }
 
@@ -170,13 +187,38 @@ class UnifiedSearchCoordinator @Inject constructor(
      */
     fun replaceFiles(files: List<FileItem>) {
         val keys = ArrayList<Pair<String, SearchItem>>(files.size * 3)
+        val items = ArrayList<SearchItem>(files.size)
         for (file in files) {
             val item = newFileItem(file, file.lastModifiedMs)
             keys.add(file.name to item)
             // Each word of the name as well: "resume" finds "My Resume.pdf".
             for (word in QueryNormalizer.tokenize(file.name)) keys.add(word to item)
+            items.add(item)
         }
         fileRadixTree.replaceAll(keys)
+        replaceShortcutItems(SearchScoringEngine.EntityDomain.FILE, items)
+    }
+
+    private val shortcutItemsLock = Any()
+
+    /** Swaps [domain]'s entries in [itemsByShortcutKey] for [items], leaving the other domains' as they are. */
+    private fun replaceShortcutItems(domain: SearchScoringEngine.EntityDomain, items: Collection<SearchItem>) {
+        synchronized(shortcutItemsLock) {
+            val next = HashMap<String, SearchItem>(itemsByShortcutKey.size + items.size)
+            for ((key, item) in itemsByShortcutKey) if (item.domain != domain) next[key] = item
+            for (item in items) item.shortcutKey?.let { next[it] = item }
+            itemsByShortcutKey = next
+        }
+    }
+
+    /**
+     * The indexed app ([AppItem]), contact ([ContactItem]) or file ([FileItem]) a [ResultKeys] key names, if it is
+     * indexed now; a locked Private Space's apps are never handed out.
+     */
+    fun indexedResult(key: String): Any? {
+        val item = itemsByShortcutKey[key] ?: return null
+        if (isPrivateSpaceItemBlocked(item, multiProfileManager.isPrivateSpaceLocked())) return null
+        return item.payload
     }
 
     private fun newFileItem(file: FileItem, modifiedMs: Long): SearchItem {
@@ -191,7 +233,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 lastUsedTimestampMs = modifiedMs,
                 domain = SearchScoringEngine.EntityDomain.FILE
             ),
-            precomputedMetaphone = DoubleMetaphone.encode(file.name)
+            precomputedMetaphone = DoubleMetaphone.encode(file.name),
+            shortcutKey = ResultKeys.file(file)
         )
     }
 
@@ -216,6 +259,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
         appRadixTree.replaceAll(keys)
         appPackageRadixTree.replaceAll(packageKeys)
+        replaceShortcutItems(SearchScoringEngine.EntityDomain.APPLICATION, fresh)
         removeFromPhoneticIndex { it.domain == SearchScoringEngine.EntityDomain.APPLICATION && it !in fresh }
     }
 
@@ -231,11 +275,39 @@ class UnifiedSearchCoordinator @Inject constructor(
         appUsage = usage
     }
 
-    /** [item]'s scoring metadata with current app usage applied; other domains are returned unchanged. */
-    private fun metadataFor(item: SearchItem): SearchScoringEngine.ScoringMetadata {
-        val app = item.payload as? AppItem ?: return item.metadata
-        val usage = appUsage[app.packageName] ?: return item.metadata
-        return item.metadata.copy(launchCount = usage.daysUsed, lastUsedTimestampMs = usage.lastUsedMs)
+    /** [item]'s scoring metadata with current app usage (apps only) and whether the user pinned it applied. */
+    private fun metadataFor(item: SearchItem, shortcuts: ResultShortcuts): SearchScoringEngine.ScoringMetadata {
+        var metadata = item.metadata
+        val usage = (item.payload as? AppItem)?.let { appUsage[it.packageName] }
+        if (usage != null) metadata = metadata.copy(launchCount = usage.daysUsed, lastUsedTimestampMs = usage.lastUsedMs)
+        if (shortcuts.isPinned(item.shortcutKey)) metadata = metadata.copy(isPinned = true)
+        return metadata
+    }
+
+    /** Scores [item] for [query] with its usage, pin and nicknames, as every search pipeline here does. */
+    private fun scoreItem(
+        query: String,
+        item: SearchItem,
+        shortcuts: ResultShortcuts,
+        now: Long,
+        queryMetaphone: DoubleMetaphone.MetaphoneResult
+    ): SearchScoringEngine.ScoreBreakdown = SearchScoringEngine.evaluateScore(
+        query = query,
+        targetTitle = item.title,
+        metadata = metadataFor(item, shortcuts),
+        currentTimeMs = now,
+        domainWeightMultiplier = 1.0f,
+        precomputedQueryMetaphone = queryMetaphone,
+        precomputedTargetMetaphone = item.precomputedMetaphone,
+        targetSubtitle = item.subtitle,
+        nicknames = shortcuts.nicknamesOf(item.shortcutKey)
+    )
+
+    /** Indexed items of [domain] with a nickname that is [query] or starts with it. */
+    private fun nicknameMatches(query: String, shortcuts: ResultShortcuts, domain: SearchScoringEngine.EntityDomain? = null): List<SearchItem> {
+        if (!shortcuts.hasNicknames) return emptyList()
+        val items = itemsByShortcutKey
+        return shortcuts.keysWithNicknameFor(query).mapNotNull { items[it] }.filter { domain == null || it.domain == domain }
     }
 
     private fun newAppItem(app: AppItem, metadata: SearchScoringEngine.ScoringMetadata): SearchItem {
@@ -246,7 +318,8 @@ class UnifiedSearchCoordinator @Inject constructor(
             domain = SearchScoringEngine.EntityDomain.APPLICATION,
             payload = app,
             metadata = metadata,
-            precomputedMetaphone = DoubleMetaphone.encode(app.name)
+            precomputedMetaphone = DoubleMetaphone.encode(app.name),
+            shortcutKey = ResultKeys.app(app)
         )
     }
 
@@ -290,7 +363,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 isPinned = false,
                 domain = SearchScoringEngine.EntityDomain.CONTACT
             ),
-            precomputedMetaphone = DoubleMetaphone.encode(contact.name)
+            precomputedMetaphone = DoubleMetaphone.encode(contact.name),
+            shortcutKey = ResultKeys.contact(contact)
         )
     }
 
@@ -364,6 +438,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
         appRadixTree.removeIf(isPrivateItem)
         appPackageRadixTree.removeIf(isPrivateItem)
+        synchronized(shortcutItemsLock) { itemsByShortcutKey = itemsByShortcutKey.filterValues { !isPrivateItem(it) } }
         removeFromPhoneticIndex(isPrivateItem)
     }
 
@@ -435,6 +510,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 candidates.addAll(initialMatches)
             }
         }
+        val shortcuts = resultShortcuts.current
+        candidates.addAll(nicknameMatches(query, shortcuts, SearchScoringEngine.EntityDomain.APPLICATION))
 
         val now = System.currentTimeMillis()
         val queryMetaphone = DoubleMetaphone.encode(query)
@@ -442,16 +519,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         val scoredApps = ArrayList<ScoredCandidate<AppItem>>(candidates.size)
         for (item in candidates) {
             if (isPrivateSpaceItemBlocked(item, isPrivateLocked)) continue
-            val score = SearchScoringEngine.evaluateScore(
-                query = query,
-                targetTitle = item.title,
-                metadata = metadataFor(item),
-                currentTimeMs = now,
-                domainWeightMultiplier = 1.0f,
-                precomputedQueryMetaphone = queryMetaphone,
-                precomputedTargetMetaphone = item.precomputedMetaphone,
-                targetSubtitle = item.subtitle
-            )
+            val score = scoreItem(query, item, shortcuts, now, queryMetaphone)
             if (score.totalScore > 0f) {
                 scoredApps.add(ScoredCandidate(item.payload as AppItem, score.totalScore))
             }
@@ -484,6 +552,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         if (normalized.isNotEmpty() && !normalized.equals(q, ignoreCase = true)) {
             appPrefixMatches(normalized, packageLimit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.APPLICATION }
         }
+        val shortcuts = resultShortcuts.current
+        candidates.addAll(nicknameMatches(q, shortcuts, SearchScoringEngine.EntityDomain.APPLICATION))
 
         val now = System.currentTimeMillis()
         val queryMetaphone = DoubleMetaphone.encode(q)
@@ -491,16 +561,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         val scoredApps = ArrayList<ScoredCandidate<AppItem>>(candidates.size)
         for (item in candidates) {
             if (isPrivateSpaceItemBlocked(item, isPrivateLocked)) continue
-            val score = SearchScoringEngine.evaluateScore(
-                query = q,
-                targetTitle = item.title,
-                metadata = metadataFor(item),
-                currentTimeMs = now,
-                domainWeightMultiplier = 1.0f,
-                precomputedQueryMetaphone = queryMetaphone,
-                precomputedTargetMetaphone = item.precomputedMetaphone,
-                targetSubtitle = item.subtitle
-            )
+            val score = scoreItem(q, item, shortcuts, now, queryMetaphone)
             if (score.totalScore > 0f) {
                 scoredApps.add(ScoredCandidate(item.payload as AppItem, score.totalScore))
             }
@@ -532,20 +593,14 @@ class UnifiedSearchCoordinator @Inject constructor(
         if (queryMetaphone.primary.isNotEmpty()) {
             phoneticIndex[queryMetaphone.primary]?.filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
         }
+        // "Call dad" reaches the contact nicknamed "dad" through here.
+        val shortcuts = resultShortcuts.current
+        candidates.addAll(nicknameMatches(q, shortcuts, SearchScoringEngine.EntityDomain.CONTACT))
 
         val now = System.currentTimeMillis()
         val scoredContacts = ArrayList<ScoredCandidate<ContactItem>>(candidates.size)
         for (item in candidates) {
-            val score = SearchScoringEngine.evaluateScore(
-                query = q,
-                targetTitle = item.title,
-                metadata = metadataFor(item),
-                currentTimeMs = now,
-                domainWeightMultiplier = 1.0f,
-                precomputedQueryMetaphone = queryMetaphone,
-                precomputedTargetMetaphone = item.precomputedMetaphone,
-                targetSubtitle = item.subtitle
-            )
+            val score = scoreItem(q, item, shortcuts, now, queryMetaphone)
             if (score.totalScore > 0f) {
                 scoredContacts.add(ScoredCandidate(item.payload as ContactItem, score.totalScore))
             }
@@ -616,6 +671,9 @@ class UnifiedSearchCoordinator @Inject constructor(
                 QueryNormalizer.containsAllTokens("${item.title} ${item.subtitle.orEmpty()}", tokens)
             }
         }
+        // The user's own names for results ("dad", "my bank"), after the filter above, which only reads titles.
+        val shortcuts = resultShortcuts.current
+        candidates.addAll(nicknameMatches(query, shortcuts))
 
         // 5. Phonetic Candidate Retrieval via Double Metaphone (< 0.2ms)
         cancellationCheck?.invoke()
@@ -662,16 +720,7 @@ class UnifiedSearchCoordinator @Inject constructor(
                 cancellationCheck?.invoke()
             }
             if (isPrivateSpaceItemBlocked(item, isPrivateLocked)) continue
-            val scoreBreakdown = SearchScoringEngine.evaluateScore(
-                query = query,
-                targetTitle = item.title,
-                metadata = metadataFor(item),
-                currentTimeMs = now,
-                domainWeightMultiplier = 1.0f,
-                precomputedQueryMetaphone = queryMetaphone,
-                precomputedTargetMetaphone = item.precomputedMetaphone,
-                targetSubtitle = item.subtitle
-            )
+            val scoreBreakdown = scoreItem(query, item, shortcuts, now, queryMetaphone)
             if (scoreBreakdown.totalScore > 0f) {
                 rankedResults.add(RankedSearchResult(item, scoreBreakdown))
             }

@@ -74,7 +74,9 @@ internal fun OverlayWebSuggestionRow(
     modifier: Modifier = Modifier,
     onSearch: () -> Unit,
     onRemove: () -> Unit,
-    onFill: () -> Unit
+    onFill: () -> Unit,
+    /** A past search's long-press menu (Remove from History); suggestions from the engine have none. */
+    onLongClick: (() -> Unit)? = null
 ) {
     val label = remember(suggestion, typed) { suggestionLabel(suggestion, typed) }
     val subtitle = suggestion.subtitle?.takeIf { it.isNotBlank() && !isRecent }
@@ -86,7 +88,8 @@ internal fun OverlayWebSuggestionRow(
             .padding(horizontal = 16.dp, vertical = 3.dp)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh, pill)
             .clip(pill)
-            .expressiveRowClickable(onClick = onSearch)
+            .moreOptions(onLongClick)
+            .expressiveRowClickable(onLongClick = onLongClick, onClick = onSearch)
             // The leading slot sits as far in from the start as from the top and bottom of a two-line row, so a
             // picture follows the pill's rounded end.
             .padding(start = 10.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),

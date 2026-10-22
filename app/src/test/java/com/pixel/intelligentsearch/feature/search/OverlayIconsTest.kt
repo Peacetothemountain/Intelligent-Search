@@ -53,6 +53,7 @@ class OverlayIconsTest(private val dark: Boolean) {
         val colors = OverlayIconRecipe.theme(context, isLight = !dark)
         val label = if (dark) "dark" else "light"
         OverlayIconRecipe.assertDrawn("$label overlay lens", compose.onNodeWithTag("lens").captureToImage().asAndroidBitmap(), OverlayIconRecipe.lens(colors))
+        // The overlay's mic keeps its sparkle, which the widget's mic doesn't have.
         OverlayIconRecipe.assertDrawn("$label overlay mic", compose.onNodeWithTag("mic").captureToImage().asAndroidBitmap(), OverlayIconRecipe.mic(colors))
     }
 

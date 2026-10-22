@@ -1,8 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
@@ -18,26 +16,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.inset
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import com.pixel.intelligentsearch.core.haptics.PixelHapticType
 import com.pixel.intelligentsearch.core.haptics.TactileSonicEngine
-import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
+import com.pixel.intelligentsearch.core.ui.expressive.expressivePress
 
 /**
  * Material 3 Expressive Tactile Bouncy Clickable.
  *
- * Provides physical spring scale compression (Effects.FastSpatial on press, Spatial.FastSpatial on release),
+ * Pressing morphs the control's shape as Android 17's Material 3 Expressive controls do ([expressivePress]),
  * touch-down tactile ticks, click completion feedback, shape clipping, and debouncing.
  * Conforms to Android 17 (Canary ZP11) explicit spring damping and stiffness specifications.
  *
@@ -53,7 +48,6 @@ fun Modifier.bouncyClickable(
     shape: Any? = null,
     interactionSource: MutableInteractionSource? = null,
     suppressClickHaptic: Boolean = false,
-    customClickHaptic: PixelHapticType? = null,
     role: Role = Role.Button,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
@@ -65,16 +59,6 @@ fun Modifier.bouncyClickable(
     val indication = LocalIndication.current
     val focusRingColor = MaterialTheme.colorScheme.secondary
     val outlineShape = shape as? Shape ?: RectangleShape
-
-    // Fast micro-compression on touch down, smooth critically damped release without bouncy wobble
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed && enabled) ExpressiveMotionTokens.PRESS_SCALE_BOUNCY else 1f,
-        animationSpec = spring(
-            stiffness = Spring.StiffnessMediumLow,
-            dampingRatio = Spring.DampingRatioNoBouncy
-        ),
-        label = "bouncy_click"
-    )
 
     val context = LocalContext.current
     val view = LocalView.current
@@ -89,18 +73,10 @@ fun Modifier.bouncyClickable(
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
 
-    val clickAction = remember(view, sensoryEngine, suppressClickHaptic, customClickHaptic, enabled, effectiveInteractionSource) {
+    val clickAction = remember(view, sensoryEngine, suppressClickHaptic, enabled, effectiveInteractionSource) {
         {
             if (enabled && ClickDebouncer.canClick(120L, effectiveInteractionSource)) {
-                if (!suppressClickHaptic) {
-                    if (customClickHaptic != null) {
-                        if (sensoryEngine.isHapticEnabled) {
-                            sensoryEngine.hapticEngine.performHaptic(view, customClickHaptic)
-                        }
-                    } else {
-                        sensoryEngine.click(view)
-                    }
-                }
+                if (!suppressClickHaptic) sensoryEngine.click(view)
                 currentOnClick()
             }
         }
@@ -110,9 +86,7 @@ fun Modifier.bouncyClickable(
         if (onLongClick != null) {
             {
                 if (enabled && ClickDebouncer.canClick(120L, effectiveInteractionSource)) {
-                    if (sensoryEngine.isHapticEnabled) {
-                        sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
-                    }
+                    sensoryEngine.click(view)
                     currentOnLongClick?.invoke()
                 }
             }
@@ -121,9 +95,8 @@ fun Modifier.bouncyClickable(
 
     val baseModifier = this
         .minimumInteractiveComponentSize()
-        .then(
-            if (shape is Shape) Modifier.clip(shape) else Modifier
-        )
+        // Android 17's press: the control's shape morphs on the fast spatial spring instead of shrinking.
+        .expressivePress(effectiveInteractionSource, shape as? Shape, enabled)
         // Ahead of the clickable, so the ring is drawn over the ripple's focus layer rather than under it.
         .drawWithContent {
             drawContent()
@@ -149,10 +122,6 @@ fun Modifier.bouncyClickable(
             hapticFeedbackEnabled = false,
             onClick = clickAction
         )
-        .graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-        }
 
     baseModifier
 }
@@ -162,7 +131,7 @@ internal val FOCUS_RING_WIDTH = 3.dp
 
 /**
  * Material 3 Expressive Row Clickable.
- * Features bounded ripple, subtle micro-scale, and tactile sonic haptics with critically damped return (zero overshoot).
+ * Features bounded ripple, Android 17's press shape morph ([expressivePress]) and the app's haptics.
  * Conforms to Android 17 (Canary ZP11) explicit spring damping and stiffness specifications.
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -174,17 +143,6 @@ fun Modifier.expressiveRowClickable(
 ): Modifier = composed {
     val effectiveInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
     val isPressed by effectiveInteractionSource.collectIsPressedAsState()
-
-    // Fast micro-compression on touch down, smooth critically damped release (damping=1.0f, stiffness=700f)
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed && enabled) ExpressiveMotionTokens.PRESS_SCALE_ROW else 1f,
-        animationSpec = if (isPressed) {
-            ExpressiveMotionTokens.Effects.FastSpatial()
-        } else {
-            ExpressiveMotionTokens.criticallyDampedSpring()
-        },
-        label = "expressive_row_scale"
-    )
 
     val context = LocalContext.current
     val view = LocalView.current
@@ -212,9 +170,7 @@ fun Modifier.expressiveRowClickable(
         if (onLongClick != null) {
             {
                 if (enabled && ClickDebouncer.canClick(180L, effectiveInteractionSource)) {
-                    if (sensoryEngine.isHapticEnabled) {
-                        sensoryEngine.hapticEngine.performPredictiveBackHaptic(view)
-                    }
+                    sensoryEngine.click(view)
                     currentOnLongClick?.invoke()
                 }
             }
@@ -223,6 +179,7 @@ fun Modifier.expressiveRowClickable(
 
     this
         .minimumInteractiveComponentSize()
+        .expressivePress(effectiveInteractionSource, enabled = enabled)
         .combinedClickable(
             role = androidx.compose.ui.semantics.Role.Button,
             interactionSource = effectiveInteractionSource,
@@ -231,8 +188,4 @@ fun Modifier.expressiveRowClickable(
             onLongClick = longClickAction,
             onClick = clickAction
         )
-        .graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-        }
 }

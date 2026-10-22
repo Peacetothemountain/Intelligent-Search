@@ -259,7 +259,7 @@ fun SystemToggleCard(
                     } else {
                         val newState = !isChecked
                         isChecked = newState
-                        sensoryEngine.toggle(view, isChecked = newState)
+                        sensoryEngine.toggle(view)
                         toggleState.onToggle(newState)
                     }
                 },
@@ -344,7 +344,7 @@ fun SystemToggleCard(
                     checked = isChecked,
                     onCheckedChange = { newState ->
                         isChecked = newState
-                        sensoryEngine.toggle(view, isChecked = newState)
+                        sensoryEngine.toggle(view)
                         toggleState.onToggle(newState)
                     },
                     modifier = Modifier.clearAndSetSemantics { }
@@ -418,7 +418,7 @@ fun VolumeSliderCard(
                     onValueChange = { newValue ->
                         val stepped = newValue.roundToInt().coerceIn(0, safeMax)
                         if (stepped != level.toInt()) {
-                            sensoryEngine.tick(view, scale = 0.6f)
+                            sensoryEngine.tick(view)
                             onVolumeChange(stepped)
                         }
                         level = stepped.toFloat()

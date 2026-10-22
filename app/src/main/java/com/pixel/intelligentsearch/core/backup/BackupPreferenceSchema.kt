@@ -62,7 +62,7 @@ internal object BackupPreferenceSchema {
         typed(
             "STRING",
             "active_icon_pack", "adaptive_icon_shape", "custom_bangs_json", "custom_icon_packs_order",
-            "custom_icon_pills", "custom_search_engine_url", "night.mode", "search.engine", "search.pills",
+            "custom_icon_pills", "custom_search_engine_url", "night.mode", "result_shortcuts_json", "search.engine", "search.pills",
             "search_pills", "search_sections_config_json", "theme", "web_shortcut_trigger_symbol",
             "widget.theme.style", "widget_action_icon", "widget_material_action_icon", "widget_material_g_icon",
             "widget_material_material_g_icon", "widget_material_shortcut_1", "widget_material_shortcut_2",

@@ -596,7 +596,7 @@ fun BackupRestoreScreen(
                                                 // Entered once, then gone: the passphrase lives only on the chip now.
                                                 passphrase = ""
                                                 passphraseVisible = false
-                                                hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                                                hapticEngine.performPredictiveBackHaptic()
                                                 safeShowToast("Passphrase saved to $keyHolder")
                                             }
                                             outcome == com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager.PassphraseSave.NEEDS_AUTHENTICATION && !afterPrompt -> {
@@ -652,7 +652,7 @@ fun BackupRestoreScreen(
                             onClick = {
                                 viewModel?.clearSavedPassphraseFromSecurityChip()
                                 isPassphraseSavedOnChip = false
-                                hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                                hapticEngine.performPredictiveBackHaptic()
                                 safeShowToast("Passphrase removed from $keyHolder")
                             },
                             shape = RoundedCornerShape(percent = 50)
@@ -696,7 +696,7 @@ fun BackupRestoreScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Button(
                     onClick = {
-                        hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                        hapticEngine.performPredictiveBackHaptic()
                         withPassphrase(forBackup = true) { chosen ->
                             if (chosen == null) {
                                 showNoPassphraseWarningDialog = true
@@ -727,7 +727,7 @@ fun BackupRestoreScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 OutlinedButton(
                     onClick = {
-                        hapticEngine.performHaptic(null, com.pixel.intelligentsearch.core.haptics.PixelHapticType.CLICK)
+                        hapticEngine.performPredictiveBackHaptic()
                         importLauncher.launch(arrayOf("application/json", "*/*"))
                     },
                     enabled = !restoring,

@@ -32,8 +32,9 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * The widget's Material icons (the Material G style's G, mic, shortcuts and circle button) are the search overlay's
- * icons in the overlay's colours ([OverlayIconRecipe]): the lens and the sparkle mic drawn as the overlay draws them,
- * every part in the colour the overlay gives it, for each design, subtheme and inner pill state, in light and dark,
+ * icons in the overlay's colours ([OverlayIconRecipe]): the lens and the mic drawn as the overlay draws them, every
+ * part in the colour the overlay gives it, except that the widget's mic is centred and has no sparkle (only the
+ * overlay's mic has one), for each design, subtheme and inner pill state, in light and dark,
  * picking the overlay's light or dark colours by the pill's lightness. The Custom subtheme's icons are the overlay's
  * as a wallpaper of the custom colour's hue would theme it. The editor's preview works out the same colours.
  */
@@ -47,7 +48,7 @@ class WidgetMaterialIconsMatchOverlayTest(private val bar: Bar, private val dark
     private val activity by lazy { Robolectric.buildActivity(Activity::class.java).setup().get() }
     private val p get() = if (bar.material) "widget_material" else "widget_system"
 
-    private fun render(s: Sliders): View {
+    private fun render(s: Sliders, order: String = "mic,shortcut1,shortcut2,shortcut3"): View {
         clearBitmapCache()
         prefs.edit().clear()
             .putString(SettingsManager.THEME.name, if (dark) "Material Dark" else "Material Light")
@@ -65,7 +66,7 @@ class WidgetMaterialIconsMatchOverlayTest(private val bar: Bar, private val dark
             .putBoolean("${p}_show_doodles", false)
             .putBoolean("${p}_show_g_icon", true)
             .putBoolean("${p}_show_voice", true)
-            .putString("${p}_shortcut_order", "mic,shortcut1,shortcut2,shortcut3")
+            .putString("${p}_shortcut_order", order)
             .putString("${p}_shortcut_1", "Live")
             .putString("${p}_shortcut_2", "Google Lens")
             .putString("${p}_shortcut_3", "None")
@@ -102,9 +103,14 @@ class WidgetMaterialIconsMatchOverlayTest(private val bar: Bar, private val dark
             val colors = overlayColors(s)
             val label = "$bar ${if (dark) "dark" else "light"} $s"
             OverlayIconRecipe.assertDrawn("$label G", widget.bitmap(R.id.widget_g_logo), OverlayIconRecipe.g(colors))
-            OverlayIconRecipe.assertDrawn("$label mic", widget.bitmap(R.id.widget_voice_search), OverlayIconRecipe.mic(colors))
+            OverlayIconRecipe.assertDrawn("$label mic", widget.bitmap(R.id.widget_voice_search), OverlayIconRecipe.widgetMic(colors))
+            OverlayIconRecipe.assertNoMicSparkle("$label mic", widget.bitmap(R.id.widget_voice_search))
             OverlayIconRecipe.assertDrawn("$label Live shortcut", widget.bitmap(R.id.widget_lens_search), OverlayIconRecipe.lens(colors))
             OverlayIconRecipe.assertDrawn("$label Lens shortcut", widget.bitmap(R.id.widget_shortcut_2), OverlayIconRecipe.camera(colors), across = 100f)
+            // Moved to another shortcut slot, the mic is still the widget's: no sparkle there either.
+            val movedMic = render(s, order = "shortcut1,mic,shortcut2,shortcut3").bitmap(R.id.widget_lens_search)
+            OverlayIconRecipe.assertDrawn("$label mic in the second slot", movedMic, OverlayIconRecipe.widgetMic(colors))
+            OverlayIconRecipe.assertNoMicSparkle("$label mic in the second slot", movedMic)
             if (bar.material) {
                 OverlayIconRecipe.assertDrawn("$label circle button", widget.bitmap(R.id.widget_sound_icon), OverlayIconRecipe.lens(colors))
             }

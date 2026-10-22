@@ -9,7 +9,6 @@ import android.util.Log
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
-import com.pixel.intelligentsearch.core.haptics.PixelHapticType
 import com.pixel.intelligentsearch.feature.widget.WidgetActivity
 
 /**
@@ -25,7 +24,7 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
 
     override fun onShow(args: Bundle?, showFlags: Int) {
         super.onShow(args, showFlags)
-        PixelHapticEngine.get(context).performHaptic(PixelHapticType.OVERLAY_OPEN)
+        PixelHapticEngine.get(context).performPredictiveBackHaptic()
         launchFullSearch(startVoice = startsWithVoice())
     }
 
@@ -40,7 +39,7 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
 
     override fun onHide() {
         // Every dismissal ends here, so the haptic plays once per hide.
-        if (!handingOffToSearch) PixelHapticEngine.get(context).performHaptic(PixelHapticType.OVERLAY_DISMISS)
+        if (!handingOffToSearch) PixelHapticEngine.get(context).performPredictiveBackHaptic()
         handingOffToSearch = false
         super.onHide()
     }

@@ -11,7 +11,11 @@ import android.os.Build
 import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.withContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.testTag
 import androidx.lifecycle.repeatOnLifecycle
 import android.content.Intent
 import android.graphics.drawable.Icon
@@ -78,8 +82,45 @@ internal data class BatteryTelemetrySnapshot(
     val thermalStatus: String,
     val isCharging: Boolean,
     val chargingRateStr: String,
-    val timeEstimateStr: String
+    val timeEstimateStr: String,
+    /** What the phone is plugged into and doing, or null on battery; [chargingRateStr] is its full label. */
+    val power: ChargingStatus.Status? = null
 )
+
+/** Test tag of the battery card's header chip, which shows the charging status (or a health warning). */
+internal const val BATTERY_STATUS_CHIP_TAG = "battery_status_chip"
+
+/**
+ * Fires when the phone is plugged in or unplugged, starts or stops charging, or changes USB mode, so the page can
+ * read again at once instead of at its next poll. Registered only while collected.
+ */
+internal fun powerChangeEvents(context: Context): kotlinx.coroutines.flow.Flow<Unit> = kotlinx.coroutines.flow.callbackFlow {
+    val appContext = context.applicationContext ?: context
+    // The battery broadcast also fires for every level and voltage step; only plug and charging changes count.
+    var lastPlugState: Pair<Int, Int>? = null
+    val receiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(receiverContext: Context?, intent: Intent?) {
+            intent ?: return
+            if (intent.action == Intent.ACTION_BATTERY_CHANGED) {
+                val plugState = intent.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) to
+                    intent.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)
+                val changed = lastPlugState != null && plugState != lastPlugState
+                lastPlugState = plugState
+                if (changed) trySend(Unit)
+            } else if (!isInitialStickyBroadcast) {
+                trySend(Unit)
+            }
+        }
+    }
+    val filter = android.content.IntentFilter().apply {
+        addAction(Intent.ACTION_BATTERY_CHANGED)
+        addAction(Intent.ACTION_POWER_CONNECTED)
+        addAction(Intent.ACTION_POWER_DISCONNECTED)
+        addAction(ChargingStatus.ACTION_USB_STATE)
+    }
+    androidx.core.content.ContextCompat.registerReceiver(appContext, receiver, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+    awaitClose { appContext.unregisterReceiver(receiver) }
+}
 
 /**
  * The memory pressure chip's background and label colours, as a pair: Material container roles with the text
@@ -104,7 +145,7 @@ internal fun interface DiagnosticsSampler {
 }
 
 /** The phone's own battery and memory readings. */
-private class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
+internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
     private val appContext = context.applicationContext ?: context
     private val actMgr = appContext.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
     private val bm = appContext.getSystemService(Context.BATTERY_SERVICE) as? android.os.BatteryManager
@@ -188,17 +229,31 @@ private class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
             }
         }
 
-        val bChargingRateStr: String
+        // What the phone is plugged into: the sticky USB state says whether a computer is on the other end and which
+        // USB modes are on; the debugging setting stands in when that broadcast can't be read.
+        val usbState = try {
+            androidx.core.content.ContextCompat.registerReceiver(
+                appContext, null, android.content.IntentFilter(ChargingStatus.ACTION_USB_STATE),
+                androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+        } catch (_: Throwable) { null }
+        val usbLink = usbState?.let { usb -> ChargingStatus.UsbLink.from { usb.getBooleanExtra(it, false) } }
+        val adbEnabled = try {
+            android.provider.Settings.Global.getInt(appContext.contentResolver, android.provider.Settings.Global.ADB_ENABLED, 0) == 1
+        } catch (_: Throwable) { false }
+        val power = ChargingStatus.status(
+            plugged = plugged,
+            chargeState = chargeState,
+            usb = usbLink,
+            adbEnabled = adbEnabled,
+            chargingState = batteryStatus?.getIntExtra(ChargingStatus.EXTRA_CHARGING_STATUS, 0) ?: 0,
+            fastCharging = (bWatts ?: 0f) >= 15f
+        )
+
+        val bChargingRateStr = power?.label ?: "Discharging"
         val bTimeEstimateStr: String
         when (chargeState) {
             DiagnosticsReadings.ChargeState.Charging -> {
-                bChargingRateStr = when (plugged) {
-                    android.os.BatteryManager.BATTERY_PLUGGED_AC -> if ((bWatts ?: 0f) >= 15f) "Fast charging" else "Charging via AC"
-                    android.os.BatteryManager.BATTERY_PLUGGED_USB -> "Charging via USB"
-                    android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Charging wirelessly"
-                    android.os.BatteryManager.BATTERY_PLUGGED_DOCK -> "Charging on dock"
-                    else -> "Charging"
-                }
                 val systemMs = try { bm?.computeChargeTimeRemaining() ?: -1L } catch (_: Throwable) { -1L }
                 // Until an unplugged reading has confirmed the vendor's sign, the direction is unproven:
                 // trust the CHARGING status for the estimate and never claim the phone is losing charge.
@@ -220,20 +275,13 @@ private class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
                 }
             }
             DiagnosticsReadings.ChargeState.Full -> {
-                bChargingRateStr = "Plugged in"
                 bTimeEstimateStr = "Fully charged"
             }
             DiagnosticsReadings.ChargeState.PluggedNotCharging -> {
                 // The charger is not adding charge; the phone may still be running down slowly.
-                bChargingRateStr = "Plugged in, not charging"
                 bTimeEstimateStr = untilEmpty(otherwise = "Charging paused")
             }
-            DiagnosticsReadings.ChargeState.PluggedUnknown -> {
-                bChargingRateStr = "Plugged in"
-                bTimeEstimateStr = untilEmpty(otherwise = "Estimating...")
-            }
-            DiagnosticsReadings.ChargeState.Discharging -> {
-                bChargingRateStr = "Discharging"
+            DiagnosticsReadings.ChargeState.PluggedUnknown, DiagnosticsReadings.ChargeState.Discharging -> {
                 bTimeEstimateStr = untilEmpty(otherwise = "Estimating...")
             }
         }
@@ -251,7 +299,8 @@ private class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
             isCharging = chargeState == DiagnosticsReadings.ChargeState.Charging ||
                 chargeState == DiagnosticsReadings.ChargeState.Full,
             chargingRateStr = bChargingRateStr,
-            timeEstimateStr = bTimeEstimateStr
+            timeEstimateStr = bTimeEstimateStr,
+            power = power
         )
 
         // Memory: the kernel's own MemAvailable, the same figure ActivityManager reports as availMem.
@@ -312,7 +361,8 @@ private class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
 @Composable
 internal fun BatteryAndMemoryDiagnosticsPage(
     context: Context,
-    newSampler: (Context) -> DiagnosticsSampler = ::DeviceDiagnosticsSampler
+    newSampler: (Context) -> DiagnosticsSampler = ::DeviceDiagnosticsSampler,
+    powerEvents: (Context) -> kotlinx.coroutines.flow.Flow<Unit> = ::powerChangeEvents
 ) {
     var batteryLevel by remember { mutableIntStateOf(0) }
     var batteryTemp by remember { mutableFloatStateOf(0f) }
@@ -326,6 +376,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
     var isCharging by remember { mutableStateOf(false) }
     var chargingRateStr by remember { mutableStateOf("Reading battery...") }
     var timeEstimateStr by remember { mutableStateOf("Estimating...") }
+    var power by remember { mutableStateOf<ChargingStatus.Status?>(null) }
 
     var totalRamGb by remember { mutableStateOf("0.0") }
     var usedRamGb by remember { mutableStateOf("0.0") }
@@ -342,18 +393,21 @@ internal fun BatteryAndMemoryDiagnosticsPage(
     var zRamUsedGb by remember { mutableStateOf("0.0") }
     var zRamTotalGb by remember { mutableStateOf("0.0") }
     var cachedRamGb by remember { mutableStateOf("0.0") }
-    var isLowMemory by remember { mutableStateOf(false) }
     var memoryPressure by remember { mutableStateOf("Normal") }
     var lmkThresholdMb by remember { mutableIntStateOf(0) }
     var topProcesses by remember { mutableStateOf<List<ProcessRamEntry>>(emptyList()) }
     var breakdownAvailable by remember { mutableStateOf(true) }
 
     val currentNewSampler by rememberUpdatedState(newSampler)
+    val currentPowerEvents by rememberUpdatedState(powerEvents)
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     // Reads only while the page is on screen; each time it comes back a new sampler starts the smoothing afresh.
     LaunchedEffect(lifecycle, context) {
         lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
             val sampler = currentNewSampler(context)
+            // Plugging in, unplugging or switching USB mode reads again at once instead of at the next poll.
+            val wake = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
+            launch { currentPowerEvents(context).collect { wake.trySend(Unit) } }
             while (true) {
                 try {
                     val (bSnap, mSnap) = withContext(Dispatchers.IO) { sampler.sample() }
@@ -371,6 +425,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                     isCharging = bSnap.isCharging
                     chargingRateStr = bSnap.chargingRateStr
                     timeEstimateStr = bSnap.timeEstimateStr
+                    power = bSnap.power
 
                     totalRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.totalGb)
                     usedRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.usedGb)
@@ -380,14 +435,13 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                     zRamUsedGb = String.format(java.util.Locale.US, "%.1f", mSnap.zRamUsedGb)
                     zRamTotalGb = String.format(java.util.Locale.US, "%.1f", mSnap.zRamTotalGb)
                     cachedRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.cachedGb)
-                    isLowMemory = mSnap.isLowMem
                     memoryPressure = mSnap.memPressure
                     lmkThresholdMb = mSnap.thresholdMb
                     topProcesses = mSnap.processes
                     breakdownAvailable = mSnap.breakdownAvailable
                 } catch (_: Throwable) {}
 
-                kotlinx.coroutines.delay(2500)
+                kotlinx.coroutines.withTimeoutOrNull(2500) { wake.receive() }
             }
         }
     }
@@ -406,770 +460,527 @@ internal fun BatteryAndMemoryDiagnosticsPage(
         label = "pointPulse"
     )
 
+    val scheme = MaterialTheme.colorScheme
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        verticalArrangement = Arrangement.spacedBy(DiagnosticsCardSpacing)
     ) {
         // --- TOP CARD: Battery Health ---
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 176.dp),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f, fill = false),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isCharging) Icons.Default.BatteryChargingFull else Icons.Default.BatteryFull,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            text = "Battery Health",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val (healthChipBg, healthChipFg) = when (batteryHealthSeverity) {
-                            DiagnosticsReadings.HealthSeverity.Bad ->
-                                MaterialTheme.colorScheme.errorContainer to MaterialTheme.colorScheme.onErrorContainer
-                            DiagnosticsReadings.HealthSeverity.Caution ->
-                                MaterialTheme.colorScheme.tertiaryContainer to MaterialTheme.colorScheme.onTertiaryContainer
-                            DiagnosticsReadings.HealthSeverity.Ok ->
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f) to MaterialTheme.colorScheme.onPrimaryContainer
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = healthChipBg
-                        ) {
-                            Text(
-                                text = batteryHealth,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = healthChipFg,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                            )
-                        }
-                    }
+        val (statusChipText, statusChipIsHealth) = ChargingStatus.headerChip(batteryHealth, batteryHealthSeverity, power)
+        DiagnosticsCard(
+            icon = if (isCharging) Icons.Default.BatteryChargingFull else Icons.Default.BatteryFull,
+            title = "Battery Health",
+            accent = scheme.primary,
+            trailing = {
+                val (chipBg, chipFg) = if (statusChipIsHealth) {
+                    healthChipColors(batteryHealthSeverity, scheme)
+                } else {
+                    scheme.primaryContainer.copy(alpha = 0.6f) to scheme.onPrimaryContainer
                 }
-
-                Row(
+                DiagnosticsStatusChip(
+                    text = statusChipText,
+                    container = chipBg,
+                    content = chipFg,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 86.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
-                    val scheme = MaterialTheme.colorScheme
-                    // Lighter Material You accented color from the user's dynamic palette (tone ~65: balanced between light & dark, never yellowish-white)
-                    val waveAccentColor = remember(scheme, isDark) {
-                        if (isDark) {
-                            androidx.compose.ui.graphics.lerp(scheme.primary, scheme.primaryContainer, 0.35f)
-                        } else {
-                            androidx.compose.ui.graphics.lerp(scheme.primary, scheme.primaryContainer, 0.50f)
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1.2f)
-                            .height(86.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-                            val w = size.width
-                            val h = size.height
-                            val fillHeight = (h * (batteryLevel / 100f).coerceIn(0.05f, 1f))
-                            val baseWaterY = h - fillHeight
-
-                            val path = androidx.compose.ui.graphics.Path().apply {
-                                moveTo(0f, h)
-                                lineTo(0f, baseWaterY)
-                                for (x in 0..w.toInt() step 4) {
-                                    val xf = x.toFloat()
-                                    val normX = xf / w
-                                    val waveOffset = kotlin.math.sin(normX * 6.28 + wavePhase) * 3.dp.toPx()
-                                    lineTo(xf, baseWaterY + waveOffset.toFloat())
-                                }
-                                lineTo(w, h)
-                                close()
-                            }
-                            drawPath(
-                                path = path,
-                                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                                    listOf(waveAccentColor.copy(alpha = 0.85f), waveAccentColor)
-                                )
-                            )
-                        }
-                        Text(
-                            text = "$batteryLevel%",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = if (isDark) Color.White else scheme.onPrimaryContainer
-                        )
-                    }
-
+                        .semantics(mergeDescendants = true) {}
+                        .testTag(BATTERY_STATUS_CHIP_TAG)
+                )
+            }
+        ) {
+            DiagnosticsHeroRow(
+                graphWeight = 1.2f,
+                detailsWeight = 1.1f,
+                graph = { graphModifier ->
+                    BatteryLevelWave(batteryLevel = batteryLevel, wavePhase = wavePhase, modifier = graphModifier)
+                },
+                details = { detailsModifier ->
                     Column(
-                        modifier = Modifier
-                            .weight(1.1f),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        modifier = detailsModifier,
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
                             text = chargingRateStr,
                             style = MaterialTheme.typography.bodySmall,
-                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
+                            color = scheme.primary,
+                            maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Text(
                             text = timeEstimateStr,
                             style = MaterialTheme.typography.bodySmall,
-                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = "${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C / ${String.format(java.util.Locale.US, "%.0f", batteryTemp * 1.8f + 32f)} °F  •  ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 9.5.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = scheme.onSurface,
                             maxLines = 2,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
-                    }
-                }
-
-                // Diagnostic Metric Chips for Battery
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val chipBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-
-                    // Cycle count chip
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = chipBg,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "Cycles",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = if (batteryCycles >= 0) "$batteryCycles" else "N/A",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-
-                    // Live Power chip (Watts)
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = chipBg,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "Power",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = batteryWatts?.let { "${String.format(java.util.Locale.US, "%.1f", it)}W" } ?: "N/A",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-
-                    // Thermal chip
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = chipBg,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "Thermals",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = thermalStatus,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = when (thermalStatus) {
-                                    "Severe", "Critical", "Emergency", "Shutdown" -> MaterialTheme.colorScheme.error
-                                    "Light", "Moderate" -> MaterialTheme.colorScheme.tertiary
-                                    else -> MaterialTheme.colorScheme.primary
-                                }
-                            )
-                        }
-                    }
-
-                    // Chemistry chip
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = chipBg,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "Type",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = batteryTechnology,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- BOTTOM CARD: System RAM Usage (Live Graph on Left, RAM Usage Breakdown on Right) ---
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 176.dp),
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f, fill = false),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Speed,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(18.dp)
-                        )
                         Text(
-                            text = "System RAM",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.secondary,
-                            maxLines = 1,
+                            text = "${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C / ${String.format(java.util.Locale.US, "%.0f", batteryTemp * 1.8f + 32f)} °F  •  ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V  •  $batteryTechnology",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.5.sp,
+                            color = scheme.onSurfaceVariant,
+                            maxLines = 3,
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val (pressureContainer, pressureContent) = pressureChipColors(memoryPressure, MaterialTheme.colorScheme)
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = pressureContainer
-                        ) {
-                            Text(
-                                text = memoryPressure,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = pressureContent,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                        Text(
-                            text = "${usedRamGb}G / ${totalRamGb}G (${physicalRamGb}G)",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    }
                 }
+            )
 
-                val materialAppColors = listOf(
-                    MaterialTheme.colorScheme.primary,
-                    MaterialTheme.colorScheme.secondary,
-                    MaterialTheme.colorScheme.tertiary,
-                    MaterialTheme.colorScheme.inversePrimary
+            DiagnosticsMetricGrid(
+                listOf(
+                    DiagnosticsMetric("Cycles", if (batteryCycles >= 0) "$batteryCycles" else "N/A"),
+                    DiagnosticsMetric("Power", batteryWatts?.let { "${String.format(java.util.Locale.US, "%.1f", it)}W" } ?: "N/A"),
+                    DiagnosticsMetric(
+                        "Thermals",
+                        thermalStatus,
+                        when (thermalStatus) {
+                            "Severe", "Critical", "Emergency", "Shutdown" -> scheme.error
+                            "Light", "Moderate" -> scheme.tertiary
+                            else -> scheme.primary
+                        }
+                    ),
+                    DiagnosticsMetric(
+                        "Health",
+                        batteryHealth,
+                        when (batteryHealthSeverity) {
+                            DiagnosticsReadings.HealthSeverity.Bad -> scheme.error
+                            DiagnosticsReadings.HealthSeverity.Caution -> scheme.tertiary
+                            DiagnosticsReadings.HealthSeverity.Ok -> Color.Unspecified
+                        }
+                    )
                 )
+            )
+        }
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 86.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // LEFT: Live App RAM Usage Distribution Graph
-                    val primaryColor = MaterialTheme.colorScheme.primary
-                    val outlineColor = MaterialTheme.colorScheme.outlineVariant
-                    val surfaceColor = MaterialTheme.colorScheme.surface
+        // --- BOTTOM CARD: System RAM Usage (Live Graph on Left, RAM Usage Breakdown on Right) ---
+        DiagnosticsCard(
+            icon = Icons.Outlined.Speed,
+            title = "System RAM",
+            accent = scheme.secondary,
+            trailing = {
+                val (pressureContainer, pressureContent) = pressureChipColors(memoryPressure, scheme)
+                DiagnosticsStatusChip(text = memoryPressure, container = pressureContainer, content = pressureContent)
+                Text(
+                    text = "${usedRamGb}G / ${totalRamGb}G (${physicalRamGb}G)",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = scheme.secondary
+                )
+            }
+        ) {
+            val materialAppColors = listOf(scheme.primary, scheme.secondary, scheme.tertiary, scheme.inversePrimary)
 
-                    val ceilingMb = if (topProcesses.isNotEmpty()) {
-                        val maxVal = (topProcesses.maxOfOrNull { it.ramMb } ?: 500f).coerceAtLeast(100f)
-                        (maxVal * 1.35f).toInt()
-                    } else 500
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1.25f)
-                            .height(86.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val gridDashEffect = remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 4f)) }
-                        val stemDashEffect = remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3f, 3f)) }
-                        val gradientBrush = remember(primaryColor) {
-                            androidx.compose.ui.graphics.Brush.verticalGradient(
-                                listOf(primaryColor.copy(alpha = 0.32f), primaryColor.copy(alpha = 0.04f), Color.Transparent)
-                            )
-                        }
-
-                        androidx.compose.foundation.Canvas(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 14.dp)
-                        ) {
-                            val w = size.width
-                            val h = size.height
-
-                            // Horizontal dashed grid lines
-                            val gridLines = 3
-                            for (g in 1..gridLines) {
-                                val gy = h * (g.toFloat() / (gridLines + 1))
-                                drawLine(
-                                    color = outlineColor.copy(alpha = 0.25f),
-                                    start = androidx.compose.ui.geometry.Offset(0f, gy),
-                                    end = androidx.compose.ui.geometry.Offset(w, gy),
-                                    strokeWidth = 0.8.dp.toPx(),
-                                    pathEffect = gridDashEffect
-                                )
-                            }
-
-                            if (topProcesses.isNotEmpty()) {
-                                val n = topProcesses.size
-                                val floatCeiling = ceilingMb.toFloat()
-
-                                // Calculate (X, Y) coordinate for each app's peak based on its actual RAM
-                                val appPoints = topProcesses.mapIndexed { i, proc ->
-                                    val px = if (n > 1) {
-                                        val margin = w * 0.12f
-                                        margin + (i.toFloat() / (n - 1)) * (w - 2f * margin)
-                                    } else {
-                                        w * 0.5f
-                                    }
-                                    val normY = (proc.ramMb / floatCeiling).coerceIn(0.15f, 0.88f)
-                                    val breathe = kotlin.math.sin(wavePhase + i * 1.4f) * 2.5.dp.toPx()
-                                    val py = (h - (h * normY) + breathe).clampSafely(4.dp.toPx(), h - 8.dp.toPx())
-                                    androidx.compose.ui.geometry.Offset(px, py)
-                                }
-
-                                // Build smooth spline mountain curve connecting the app peaks
-                                val linePath = androidx.compose.ui.graphics.Path()
-                                val fillPath = androidx.compose.ui.graphics.Path()
-
-                                fillPath.moveTo(0f, h)
-                                val firstPt = appPoints.first()
-                                val startY = (h + firstPt.y) / 2f
-                                fillPath.lineTo(0f, startY)
-                                linePath.moveTo(0f, startY)
-
-                                for (i in 0 until appPoints.size) {
-                                    val curr = appPoints[i]
-                                    if (i == 0) {
-                                        val cx = curr.x * 0.5f
-                                        linePath.cubicTo(cx, startY, cx, curr.y, curr.x, curr.y)
-                                        fillPath.cubicTo(cx, startY, cx, curr.y, curr.x, curr.y)
-                                    } else {
-                                        val prev = appPoints[i - 1]
-                                        val midX = (prev.x + curr.x) / 2f
-                                        val valleyY = ((prev.y + curr.y) / 2f + h * 0.18f).coerceAtMost(h - 4.dp.toPx())
-                                        linePath.cubicTo(
-                                            (prev.x + midX) / 2f, prev.y,
-                                            (prev.x + midX) / 2f, valleyY,
-                                            midX, valleyY
-                                        )
-                                        linePath.cubicTo(
-                                            (midX + curr.x) / 2f, valleyY,
-                                            (midX + curr.x) / 2f, curr.y,
-                                            curr.x, curr.y
-                                        )
-                                        fillPath.cubicTo(
-                                            (prev.x + midX) / 2f, prev.y,
-                                            (prev.x + midX) / 2f, valleyY,
-                                            midX, valleyY
-                                        )
-                                        fillPath.cubicTo(
-                                            (midX + curr.x) / 2f, valleyY,
-                                            (midX + curr.x) / 2f, curr.y,
-                                            curr.x, curr.y
-                                        )
-                                    }
-                                }
-
-                                val lastPt = appPoints.last()
-                                val endY = (h + lastPt.y) / 2f
-                                val endControlX = (lastPt.x + w) / 2f
-                                linePath.cubicTo(endControlX, lastPt.y, endControlX, endY, w, endY)
-                                fillPath.cubicTo(endControlX, lastPt.y, endControlX, endY, w, endY)
-                                fillPath.lineTo(w, h)
-                                fillPath.close()
-
-                                // Soft Material You primary vertical gradient fill
-                                drawPath(
-                                    path = fillPath,
-                                    brush = gradientBrush
-                                )
-
-                                // Crisp spline outline
-                                drawPath(
-                                    path = linePath,
-                                    color = primaryColor.copy(alpha = 0.85f),
-                                    style = androidx.compose.ui.graphics.drawscope.Stroke(
-                                        width = 2.dp.toPx(),
-                                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
-                                        join = androidx.compose.ui.graphics.StrokeJoin.Round
-                                    )
-                                )
-
-                                // Vertical dashed drop stems and pulsing peak dots for each app in its Material You color
-                                appPoints.forEachIndexed { i, pt ->
-                                    val appColor = materialAppColors[i % materialAppColors.size]
-
-                                    // Vertical dashed stem from peak down to baseline
-                                    drawLine(
-                                        color = appColor.copy(alpha = 0.45f),
-                                        start = pt,
-                                        end = androidx.compose.ui.geometry.Offset(pt.x, h),
-                                        strokeWidth = 1.dp.toPx(),
-                                        pathEffect = stemDashEffect
-                                    )
-
-                                    // Pulsing halo aura
-                                    drawCircle(
-                                        color = appColor.copy(alpha = 0.25f),
-                                        radius = pointPulse.dp.toPx() * 1.6f,
-                                        center = pt
-                                    )
-                                    // Clean surface ring
-                                    drawCircle(
-                                        color = surfaceColor,
-                                        radius = 3.5.dp.toPx(),
-                                        center = pt
-                                    )
-                                    // Solid center dot in app's Material You color
-                                    drawCircle(
-                                        color = appColor,
-                                        radius = 2.dp.toPx(),
-                                        center = pt
-                                    )
-                                }
-                            }
-                        }
-
-                        // X and Y Coordinate axis markings
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "${ceilingMb}M",
-                                fontSize = 7.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                                modifier = Modifier.align(Alignment.TopStart)
-                            )
-                            Text(
-                                text = "0M",
-                                fontSize = 7.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                                modifier = Modifier
-                                    .align(Alignment.BottomStart)
-                                    .padding(bottom = 10.dp)
-                            )
-                            Text(
-                                text = "RAM by Category",
-                                fontSize = 7.5.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .padding(bottom = 1.dp)
-                            )
-                        }
-                    }
-
-                    // RIGHT: RAM Usage Breakdown showing what apps/processes are using RAM
+            DiagnosticsHeroRow(
+                graphWeight = 1.25f,
+                detailsWeight = 1f,
+                graph = { graphModifier ->
+                    RamCategoryGraph(
+                        processes = topProcesses,
+                        appColors = materialAppColors,
+                        wavePhase = wavePhase,
+                        pointPulse = pointPulse,
+                        modifier = graphModifier
+                    )
+                },
+                details = { detailsModifier ->
+                    // RAM Usage Breakdown showing what apps/processes are using RAM
                     Column(
-                        modifier = Modifier
-                            .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                        modifier = detailsModifier,
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
                             text = "Used Memory",
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.secondary
+                            color = scheme.secondary
                         )
 
                         if (topProcesses.isEmpty()) {
                             Text(
                                 text = if (breakdownAvailable) "Reading memory..." else "Breakdown unavailable",
                                 style = MaterialTheme.typography.bodySmall,
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                fontSize = 10.5.sp,
+                                color = scheme.onSurfaceVariant
                             )
                         } else {
                             topProcesses.forEachIndexed { i, entry ->
-                                val appColor = materialAppColors[i % materialAppColors.size]
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp)
-                                            .clip(androidx.compose.foundation.shape.CircleShape)
-                                            .background(appColor)
-                                    )
-                                    Text(
-                                        text = entry.name,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontSize = 10.sp,
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        modifier = Modifier.weight(1f),
-                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = if (entry.ramMb >= 1000f) {
-                                            String.format(java.util.Locale.US, "%.1f GB", entry.ramMb / 1000f)
-                                        } else {
-                                            "${entry.ramMb.toInt()} MB"
-                                        },
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                RamLegendRow(
+                                    dotColor = materialAppColors[i % materialAppColors.size],
+                                    name = entry.name,
+                                    nameColor = scheme.onSurface,
+                                    value = if (entry.ramMb >= 1000f) {
+                                        String.format(java.util.Locale.US, "%.1f GB", entry.ramMb / 1000f)
+                                    } else {
+                                        "${entry.ramMb.toInt()} MB"
+                                    },
+                                    valueColor = scheme.onSurfaceVariant
+                                )
                             }
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(androidx.compose.foundation.shape.CircleShape)
-                                    .background(MaterialTheme.colorScheme.outlineVariant)
-                            )
-                            Text(
-                                text = "Available",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Text(
-                                text = "${availableRamGb} GB",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.secondary
-                            )
-                        }
+                        RamLegendRow(
+                            dotColor = scheme.outlineVariant,
+                            name = "Available",
+                            nameColor = scheme.onSurfaceVariant,
+                            value = "$availableRamGb GB",
+                            valueColor = scheme.secondary
+                        )
+                    }
+                }
+            )
+
+            DiagnosticsMetricGrid(
+                listOf(
+                    DiagnosticsMetric("Swapped", "${zRamUsedGb}G / ${zRamTotalGb}G"),
+                    DiagnosticsMetric("Cache/Buffers", "${cachedRamGb}G"),
+                    DiagnosticsMetric("Used", "$usedRamPercent%"),
+                    DiagnosticsMetric("Low-Mem Level", "${lmkThresholdMb}MB")
+                )
+            )
+        }
+    }
+}
+
+/** The health chip's background and label colours for each rating. */
+internal fun healthChipColors(severity: DiagnosticsReadings.HealthSeverity, scheme: ColorScheme): Pair<Color, Color> = when (severity) {
+    DiagnosticsReadings.HealthSeverity.Bad -> scheme.errorContainer to scheme.onErrorContainer
+    DiagnosticsReadings.HealthSeverity.Caution -> scheme.tertiaryContainer to scheme.onTertiaryContainer
+    DiagnosticsReadings.HealthSeverity.Ok -> scheme.primaryContainer.copy(alpha = 0.6f) to scheme.onPrimaryContainer
+}
+
+/** Height of the battery wave and the RAM graph. */
+private val HeroGraphHeight = 104.dp
+
+/**
+ * A card's graph beside its readings, or above them once the readings column would be too narrow for the text
+ * size (large fonts, display zoom or a narrow window), so the text wraps over the full width instead of clipping.
+ */
+@Composable
+private fun DiagnosticsHeroRow(
+    graphWeight: Float,
+    detailsWeight: Float,
+    graph: @Composable (Modifier) -> Unit,
+    details: @Composable (Modifier) -> Unit
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val gap = DiagnosticsCardSpacing
+        val detailsWidth = (maxWidth - gap) * (detailsWeight / (graphWeight + detailsWeight))
+        if (detailsWidth >= 104.dp * LocalDensity.current.fontScale) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(gap),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                graph(Modifier.weight(graphWeight).height(HeroGraphHeight))
+                details(Modifier.weight(detailsWeight))
+            }
+        } else {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(gap)
+            ) {
+                graph(Modifier.fillMaxWidth().height(HeroGraphHeight))
+                details(Modifier.fillMaxWidth())
+            }
+        }
+    }
+}
+
+/** The battery level as a gently rolling wave of Material You colour. */
+@Composable
+private fun BatteryLevelWave(batteryLevel: Int, wavePhase: Float, modifier: Modifier) {
+    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val scheme = MaterialTheme.colorScheme
+    // Lighter Material You accented color from the user's dynamic palette (tone ~65: balanced between light & dark, never yellowish-white)
+    val waveAccentColor = remember(scheme, isDark) {
+        if (isDark) {
+            androidx.compose.ui.graphics.lerp(scheme.primary, scheme.primaryContainer, 0.35f)
+        } else {
+            androidx.compose.ui.graphics.lerp(scheme.primary, scheme.primaryContainer, 0.50f)
+        }
+    }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(scheme.surfaceVariant.copy(alpha = 0.45f)),
+        contentAlignment = Alignment.Center
+    ) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val fillHeight = (h * (batteryLevel / 100f).coerceIn(0.05f, 1f))
+            val baseWaterY = h - fillHeight
+
+            val path = androidx.compose.ui.graphics.Path().apply {
+                moveTo(0f, h)
+                lineTo(0f, baseWaterY)
+                for (x in 0..w.toInt() step 4) {
+                    val xf = x.toFloat()
+                    val normX = xf / w
+                    val waveOffset = kotlin.math.sin(normX * 6.28 + wavePhase) * 3.dp.toPx()
+                    lineTo(xf, baseWaterY + waveOffset.toFloat())
+                }
+                lineTo(w, h)
+                close()
+            }
+            drawPath(
+                path = path,
+                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                    listOf(waveAccentColor.copy(alpha = 0.85f), waveAccentColor)
+                )
+            )
+        }
+        Text(
+            text = "$batteryLevel%",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.ExtraBold,
+            color = if (isDark) Color.White else scheme.onPrimaryContainer
+        )
+    }
+}
+
+/** One line of the RAM breakdown: a colour dot, the category and its size. */
+@Composable
+private fun RamLegendRow(dotColor: Color, name: String, nameColor: Color, value: String, valueColor: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(7.dp)
+                .clip(androidx.compose.foundation.shape.CircleShape)
+                .background(dotColor)
+        )
+        Text(
+            text = name,
+            style = MaterialTheme.typography.labelSmall,
+            fontSize = 10.5.sp,
+            color = nameColor,
+            maxLines = 1,
+            modifier = Modifier.weight(1f),
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.labelSmall,
+            fontSize = 10.5.sp,
+            fontWeight = FontWeight.Bold,
+            color = valueColor,
+            maxLines = 1
+        )
+    }
+}
+
+/** Live App RAM Usage Distribution Graph: a spline through each category's share, with pulsing peaks. */
+@Composable
+private fun RamCategoryGraph(
+    processes: List<ProcessRamEntry>,
+    appColors: List<Color>,
+    wavePhase: Float,
+    pointPulse: Float,
+    modifier: Modifier
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val outlineColor = MaterialTheme.colorScheme.outlineVariant
+    val surfaceColor = MaterialTheme.colorScheme.surface
+
+    val ceilingMb = if (processes.isNotEmpty()) {
+        val maxVal = (processes.maxOfOrNull { it.ramMb } ?: 500f).coerceAtLeast(100f)
+        (maxVal * 1.35f).toInt()
+    } else 500
+
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+        contentAlignment = Alignment.Center
+    ) {
+        val gridDashEffect = remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 4f)) }
+        val stemDashEffect = remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3f, 3f)) }
+        val gradientBrush = remember(primaryColor) {
+            androidx.compose.ui.graphics.Brush.verticalGradient(
+                listOf(primaryColor.copy(alpha = 0.32f), primaryColor.copy(alpha = 0.04f), Color.Transparent)
+            )
+        }
+
+        androidx.compose.foundation.Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 14.dp)
+        ) {
+            val w = size.width
+            val h = size.height
+
+            // Horizontal dashed grid lines
+            val gridLines = 3
+            for (g in 1..gridLines) {
+                val gy = h * (g.toFloat() / (gridLines + 1))
+                drawLine(
+                    color = outlineColor.copy(alpha = 0.25f),
+                    start = androidx.compose.ui.geometry.Offset(0f, gy),
+                    end = androidx.compose.ui.geometry.Offset(w, gy),
+                    strokeWidth = 0.8.dp.toPx(),
+                    pathEffect = gridDashEffect
+                )
+            }
+
+            if (processes.isNotEmpty()) {
+                val n = processes.size
+                val floatCeiling = ceilingMb.toFloat()
+
+                // Calculate (X, Y) coordinate for each app's peak based on its actual RAM
+                val appPoints = processes.mapIndexed { i, proc ->
+                    val px = if (n > 1) {
+                        val margin = w * 0.12f
+                        margin + (i.toFloat() / (n - 1)) * (w - 2f * margin)
+                    } else {
+                        w * 0.5f
+                    }
+                    val normY = (proc.ramMb / floatCeiling).coerceIn(0.15f, 0.88f)
+                    val breathe = kotlin.math.sin(wavePhase + i * 1.4f) * 2.5.dp.toPx()
+                    val py = (h - (h * normY) + breathe).clampSafely(4.dp.toPx(), h - 8.dp.toPx())
+                    androidx.compose.ui.geometry.Offset(px, py)
+                }
+
+                // Build smooth spline mountain curve connecting the app peaks
+                val linePath = androidx.compose.ui.graphics.Path()
+                val fillPath = androidx.compose.ui.graphics.Path()
+
+                fillPath.moveTo(0f, h)
+                val firstPt = appPoints.first()
+                val startY = (h + firstPt.y) / 2f
+                fillPath.lineTo(0f, startY)
+                linePath.moveTo(0f, startY)
+
+                for (i in 0 until appPoints.size) {
+                    val curr = appPoints[i]
+                    if (i == 0) {
+                        val cx = curr.x * 0.5f
+                        linePath.cubicTo(cx, startY, cx, curr.y, curr.x, curr.y)
+                        fillPath.cubicTo(cx, startY, cx, curr.y, curr.x, curr.y)
+                    } else {
+                        val prev = appPoints[i - 1]
+                        val midX = (prev.x + curr.x) / 2f
+                        val valleyY = ((prev.y + curr.y) / 2f + h * 0.18f).coerceAtMost(h - 4.dp.toPx())
+                        linePath.cubicTo(
+                            (prev.x + midX) / 2f, prev.y,
+                            (prev.x + midX) / 2f, valleyY,
+                            midX, valleyY
+                        )
+                        linePath.cubicTo(
+                            (midX + curr.x) / 2f, valleyY,
+                            (midX + curr.x) / 2f, curr.y,
+                            curr.x, curr.y
+                        )
+                        fillPath.cubicTo(
+                            (prev.x + midX) / 2f, prev.y,
+                            (prev.x + midX) / 2f, valleyY,
+                            midX, valleyY
+                        )
+                        fillPath.cubicTo(
+                            (midX + curr.x) / 2f, valleyY,
+                            (midX + curr.x) / 2f, curr.y,
+                            curr.x, curr.y
+                        )
                     }
                 }
 
-                // Diagnostic Metric Chips for RAM Breakdown
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val chipBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+                val lastPt = appPoints.last()
+                val endY = (h + lastPt.y) / 2f
+                val endControlX = (lastPt.x + w) / 2f
+                linePath.cubicTo(endControlX, lastPt.y, endControlX, endY, w, endY)
+                fillPath.cubicTo(endControlX, lastPt.y, endControlX, endY, w, endY)
+                fillPath.lineTo(w, h)
+                fillPath.close()
 
-                    // zRAM Swap Chip
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = chipBg,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "Swapped",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "${zRamUsedGb}G / ${zRamTotalGb}G",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
+                // Soft Material You primary vertical gradient fill
+                drawPath(
+                    path = fillPath,
+                    brush = gradientBrush
+                )
 
-                    // Cache & Buffers Chip
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = chipBg,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "Cache/Buffers",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "${cachedRamGb}G",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
+                // Crisp spline outline
+                drawPath(
+                    path = linePath,
+                    color = primaryColor.copy(alpha = 0.85f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = 2.dp.toPx(),
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                        join = androidx.compose.ui.graphics.StrokeJoin.Round
+                    )
+                )
 
-                    // Used RAM share Chip
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = chipBg,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "Used",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "$usedRamPercent%",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
+                // Vertical dashed drop stems and pulsing peak dots for each app in its Material You color
+                appPoints.forEachIndexed { i, pt ->
+                    val appColor = appColors[i % appColors.size]
 
-                    // ActivityManager low-memory threshold Chip
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = chipBg,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                text = "Low-Mem Level",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontSize = 9.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "${lmkThresholdMb}MB",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
+                    // Vertical dashed stem from peak down to baseline
+                    drawLine(
+                        color = appColor.copy(alpha = 0.45f),
+                        start = pt,
+                        end = androidx.compose.ui.geometry.Offset(pt.x, h),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = stemDashEffect
+                    )
+
+                    // Pulsing halo aura
+                    drawCircle(
+                        color = appColor.copy(alpha = 0.25f),
+                        radius = pointPulse.dp.toPx() * 1.6f,
+                        center = pt
+                    )
+                    // Clean surface ring
+                    drawCircle(
+                        color = surfaceColor,
+                        radius = 3.5.dp.toPx(),
+                        center = pt
+                    )
+                    // Solid center dot in app's Material You color
+                    drawCircle(
+                        color = appColor,
+                        radius = 2.dp.toPx(),
+                        center = pt
+                    )
                 }
             }
+        }
+
+        // X and Y Coordinate axis markings
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
+            Text(
+                text = "${ceilingMb}M",
+                fontSize = 7.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                modifier = Modifier.align(Alignment.TopStart)
+            )
+            Text(
+                text = "0M",
+                fontSize = 7.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(bottom = 10.dp)
+            )
+            Text(
+                text = "RAM by Category",
+                fontSize = 7.5.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 1.dp)
+            )
         }
     }
 }

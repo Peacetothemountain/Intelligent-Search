@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.answers
 
+import com.pixel.intelligentsearch.core.util.Durations
 import android.app.AppOpsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
@@ -85,18 +86,8 @@ object ScreenTimeCalculator {
         return ScreenTimeReport(perApp.values.sum(), named.take(top))
     }
 
-    /** "3h 12m", "45m", "under 1m". */
-    fun formatDuration(ms: Long): String {
-        val minutes = ms / 60_000L
-        val hours = minutes / 60
-        val rest = minutes % 60
-        return when {
-            hours > 0 && rest > 0 -> "${hours}h ${rest}m"
-            hours > 0 -> "${hours}h"
-            minutes > 0 -> "${minutes}m"
-            else -> "Under 1m"
-        }
-    }
+    /** "3 hr 12 min", "45 min", "Under 1 min", in the app's one duration style ([Durations.minutes]). */
+    fun formatDuration(ms: Long): String = Durations.minutes(ms)
 }
 
 /**

@@ -126,7 +126,7 @@ class DiagnosticsGoldenTest(
                 level = 72, temp = 31.4f, volt = 4.21f, watts = 7.6f, health = "Good",
                 healthSeverity = BatteryReadings.HealthSeverity.Ok, cycles = 143, technology = "Li-ion",
                 thermalStatus = "Normal", isCharging = true, chargingRateStr = USB_DEBUGGING!!.label,
-                timeEstimateStr = "1h 12m until full", power = USB_DEBUGGING
+                timeEstimateStr = "1 hr 12 min until full", power = USB_DEBUGGING
             ),
             memory = MemorySnapshot(
                 totalGb = 15.6, usedGb = 9.1, availGb = 6.5, pct = 58, zRamUsedGb = 1.2, zRamTotalGb = 8.0, cachedGb = 3.4,

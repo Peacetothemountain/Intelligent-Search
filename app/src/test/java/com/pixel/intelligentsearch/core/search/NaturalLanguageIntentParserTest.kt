@@ -32,6 +32,8 @@ class NaturalLanguageIntentParserTest {
         org.junit.Assert.assertEquals(86_400, day.durationSeconds)
         val mixed = NaturalLanguageIntentParser.parse("timer 1h 30m 15s") as NaturalLanguageIntentParser.ParsedIntent.Timer
         org.junit.Assert.assertEquals(5_415, mixed.durationSeconds)
+        // Named in the app's one duration style, as the short phrasing's timers are.
+        org.junit.Assert.assertEquals("Timer 1 hr 30 min 15 sec", mixed.label)
     }
 
     @org.junit.Test

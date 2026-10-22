@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.util.Durations
 import androidx.compose.runtime.getValue
 import com.pixel.intelligentsearch.core.ui.rememberAppIcon
 import com.pixel.intelligentsearch.core.ui.AppIconImage
@@ -144,7 +145,7 @@ internal fun NotificationResultRow(entry: IndexedNotification, now: Long, iconPa
                 )
             }
             Text(
-                text = listOf(entry.appLabel, notificationAge(now - entry.postedAt)).filter { it.isNotBlank() }.joinToString(" · "),
+                text = listOf(entry.appLabel, Durations.ago(now - entry.postedAt)).filter { it.isNotBlank() }.joinToString(" · "),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.labelMedium,
                 maxLines = 1,
@@ -167,14 +168,4 @@ private fun NotificationAppIcon(packageName: String, iconPack: String?) {
     }
 }
 
-/** How long ago a notification came: "Now", "5 min ago", "2 hr ago", "3 days ago". */
-internal fun notificationAge(ms: Long): String {
-    val minutes = ms.coerceAtLeast(0) / 60_000
-    return when {
-        minutes < 1 -> "Now"
-        minutes < 60 -> "$minutes min ago"
-        minutes < 24 * 60 -> "${minutes / 60} hr ago"
-        minutes / (24 * 60) == 1L -> "Yesterday"
-        else -> "${minutes / (24 * 60)} days ago"
-    }
-}
+

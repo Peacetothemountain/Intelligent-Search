@@ -757,7 +757,7 @@ class SearchViewModel @Inject constructor(
                         directActions.add(DirectAction("Add Calendar Event", intent.title, "calendar", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Alarm -> {
-                        directActions.add(DirectAction("Set Alarm", String.format(java.util.Locale.getDefault(), "%02d:%02d - %s", intent.hour, intent.minute, intent.message), "alarm", intent.intent))
+                        directActions.add(DirectAction("Set Alarm", com.pixel.intelligentsearch.core.util.Durations.timeOfDay(intent.hour, intent.minute, android.text.format.DateFormat.is24HourFormat(context)), "alarm", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Timer -> {
                         directActions.add(DirectAction("Set Timer", intent.label, "timer", intent.intent))

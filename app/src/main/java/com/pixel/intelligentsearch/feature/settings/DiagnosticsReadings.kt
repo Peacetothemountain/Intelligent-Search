@@ -12,11 +12,8 @@ import kotlin.math.roundToInt
  */
 internal object DiagnosticsReadings {
 
-    fun formatMinutes(minutes: Int): String {
-        val hours = minutes / 60
-        val mins = minutes % 60
-        return if (hours > 0) "${hours}h ${mins}m" else "${mins}m"
-    }
+    /** A time estimate in the app's one duration style: "4 hr 41 min", "12 min". */
+    fun formatMinutes(minutes: Int): String = com.pixel.intelligentsearch.core.util.Durations.minutes(minutes * 60_000L)
 
     /** Device-wide thermal throttling state. It describes the whole phone, not the battery. */
     fun thermalLabel(status: Int?): String? = when (status) {

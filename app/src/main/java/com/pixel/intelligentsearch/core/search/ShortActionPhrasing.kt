@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.search
 
+import com.pixel.intelligentsearch.core.util.Durations
 import android.content.Intent
 import java.util.Calendar
 import java.util.Locale
@@ -98,7 +99,7 @@ object ShortActionPhrasing {
         // Every phrasing has a number, but "in an hour": most queries leave here, before any pattern runs.
         if (original.none { it.isDigit() } && " in a" !in lower) return null
         return parseTimer(lower)
-            ?: parseAlarm(lower, nowMs, is24Hour, zone)
+            ?: parseAlarm(lower, nowMs, is24Hour, zone, locale)
             ?: parseReminder(original, nowMs, is24Hour, zone, locale)
     }
 
@@ -121,7 +122,7 @@ object ShortActionPhrasing {
         if (total <= 0 || total > MAX_TIMER_SECONDS) return null
         return Suggestion(
             kind = Kind.TIMER,
-            title = "Start ${durationLabel(total)} Timer",
+            title = "Start ${Durations.short(total.toLong())} Timer",
             subtitle = "Clock Timer",
             intent = NaturalLanguageIntentParser.timerIntent(total),
             runsOnEnter = true,
@@ -133,18 +134,6 @@ object ShortActionPhrasing {
         unit.startsWith("h") -> 'h'
         unit.startsWith("s") -> 's'
         else -> 'm'
-    }
-
-    /** "15 min", "1 hr 30 min", "1 min 30 sec": the duration as the row names it. */
-    internal fun durationLabel(seconds: Int): String {
-        val h = seconds / 3600
-        val m = (seconds % 3600) / 60
-        val s = seconds % 60
-        return buildList {
-            if (h > 0) add("$h hr")
-            if (m > 0) add("$m min")
-            if (s > 0) add("$s sec")
-        }.joinToString(" ")
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -169,7 +158,7 @@ object ShortActionPhrasing {
         return ClockTime(hour, minute, meridiem, explicitAt, hasMinutes = minuteText.isNotEmpty())
     }
 
-    private fun parseAlarm(lower: String, nowMs: Long, is24Hour: Boolean, zone: TimeZone): Suggestion? {
+    private fun parseAlarm(lower: String, nowMs: Long, is24Hour: Boolean, zone: TimeZone, locale: Locale): Suggestion? {
         val match = ALARM.matchEntire(lower) ?: return null
         val time = clockTime(match, first = 2, explicitAt = match.groupValues[1].isNotEmpty()) ?: return null
         val alarmWord = lower.endsWith(" alarm")
@@ -181,7 +170,7 @@ object ShortActionPhrasing {
         val day = if (today.timeInMillis <= nowMs) "Tomorrow" else "Today"
         return Suggestion(
             kind = Kind.ALARM,
-            title = "Set Alarm for ${formatTime(hour24, time.minute, is24Hour)}",
+            title = "Set Alarm for ${Durations.timeOfDay(hour24, time.minute, is24Hour, locale)}",
             subtitle = "Clock Alarm · $day",
             intent = NaturalLanguageIntentParser.alarmIntent(hour24, time.minute),
             // "7:30" alone may be meant as a search; "7:30am", "at 7:30" and "7:30 alarm" can't be.
@@ -289,7 +278,7 @@ object ShortActionPhrasing {
     private fun reminder(
         task: String, at: Calendar, nowMs: Long, is24Hour: Boolean, zone: TimeZone, locale: Locale, runsOnEnter: Boolean = true
     ): Suggestion {
-        val time = formatTime(at.get(Calendar.HOUR_OF_DAY), at.get(Calendar.MINUTE), is24Hour)
+        val time = Durations.timeOfDay(at.get(Calendar.HOUR_OF_DAY), at.get(Calendar.MINUTE), is24Hour, locale)
         val days = daysBetween(calendar(nowMs, zone), at)
         val whenText = when {
             days == 0 -> "at $time"
@@ -324,8 +313,4 @@ object ShortActionPhrasing {
 
     private fun calendar(ms: Long, zone: TimeZone): Calendar = Calendar.getInstance(zone).apply { timeInMillis = ms }
 
-    /** "7:30 AM" on a 12-hour clock, "07:30" on a 24-hour one. */
-    internal fun formatTime(hour24: Int, minute: Int, is24Hour: Boolean): String =
-        if (is24Hour) String.format(Locale.ROOT, "%02d:%02d", hour24, minute)
-        else String.format(Locale.ROOT, "%d:%02d %s", if (hour24 % 12 == 0) 12 else hour24 % 12, minute, if (hour24 < 12) "AM" else "PM")
 }

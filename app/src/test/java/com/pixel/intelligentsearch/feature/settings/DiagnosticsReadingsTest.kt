@@ -256,8 +256,8 @@ class DiagnosticsReadingsTest {
 
     @Test
     fun formatsMinutes() {
-        assertEquals("4h 41m", DiagnosticsReadings.formatMinutes(281))
-        assertEquals("12m", DiagnosticsReadings.formatMinutes(12))
+        assertEquals("4 hr 41 min", DiagnosticsReadings.formatMinutes(281))
+        assertEquals("12 min", DiagnosticsReadings.formatMinutes(12))
     }
 
     @Test

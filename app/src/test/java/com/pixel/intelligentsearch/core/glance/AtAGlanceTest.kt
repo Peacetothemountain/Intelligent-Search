@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.core.glance
 import android.app.Notification
 import android.media.session.PlaybackState
 import android.os.BatteryManager
+import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -164,15 +165,15 @@ class AtAGlanceTest {
         assertEquals("1:59 Left", timerReading(timer, now + 1_000L))
         assertEquals("Time's Up", timerReading(timer, now + 120_000L))
         assertEquals("1:02:03", timerReading(timer.copy(kind = GlanceTimer.Kind.Stopwatch, baseTime = now - 3_723_000L), now))
-        assertEquals("0:05", formatClock(5_400L))
-        assertEquals("12:30", formatClock(750_000L))
+        assertEquals("0:05", Durations.clock(5_400L))
+        assertEquals("12:30", Durations.clock(750_000L))
     }
 
     @Test
     fun alarmDistances() {
-        assertEquals("In 1 min", untilLabel(10_000L))
-        assertEquals("In 45 min", untilLabel(45 * 60_000L))
-        assertEquals("In 2 hr", untilLabel(2 * hour))
-        assertEquals("In 6 hr 20 min", untilLabel(6 * hour + 20 * 60_000L))
+        assertEquals("In 1 min", Durations.until(10_000L))
+        assertEquals("In 45 min", Durations.until(45 * 60_000L))
+        assertEquals("In 2 hr", Durations.until(2 * hour))
+        assertEquals("In 6 hr 20 min", Durations.until(6 * hour + 20 * 60_000L))
     }
 }

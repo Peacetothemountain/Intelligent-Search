@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Intent
 import android.provider.AlarmClock
@@ -72,7 +73,6 @@ import com.pixel.intelligentsearch.core.glance.GlanceToggles
 import com.pixel.intelligentsearch.core.glance.glanceItems
 import com.pixel.intelligentsearch.core.system.openPendingOrApp
 import com.pixel.intelligentsearch.core.glance.timerReading
-import com.pixel.intelligentsearch.core.glance.untilLabel
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
@@ -301,7 +301,7 @@ private fun AlarmCard(triggerAt: Long, onOpened: () -> Unit, modifier: Modifier)
     GlanceRow(
         leading = { GlanceBadge(Icons.Outlined.Alarm) },
         title = "Alarm · $time",
-        subtitle = untilLabel(triggerAt - now),
+        subtitle = Durations.until(triggerAt - now),
         onClick = {
             onOpened()
             launchSafeIntent(context, Intent(AlarmClock.ACTION_SHOW_ALARMS))

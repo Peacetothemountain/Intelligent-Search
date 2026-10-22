@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.search
 
+import com.pixel.intelligentsearch.core.util.Durations
 import android.content.Intent
 import android.net.Uri
 import android.provider.AlarmClock
@@ -186,7 +187,7 @@ object NaturalLanguageIntentParser {
 
         return ParsedIntent.Timer(
             durationSeconds = durationSeconds,
-            label = "Timer ${formatDuration(durationSeconds)}",
+            label = "Timer ${Durations.short(durationSeconds.toLong())}",
             intent = timerIntent(durationSeconds)
         )
     }
@@ -198,21 +199,6 @@ object NaturalLanguageIntentParser {
     private fun unitSeconds(match: MatchResult, secondsPerUnit: Long): Long {
         val amount = match.groupValues[1].toLongOrNull() ?: 0L
         return amount.coerceAtMost(MAX_TIMER_SECONDS) * secondsPerUnit
-    }
-
-    private fun formatDuration(sec: Int): String {
-        val h = sec / 3600
-        val m = (sec % 3600) / 60
-        val s = sec % 60
-        return when {
-            h > 0 && m > 0 && s > 0 -> "${h}h ${m}m ${s}s"
-            h > 0 && m > 0 -> "${h}h ${m}m"
-            h > 0 && s > 0 -> "${h}h ${s}s"
-            h > 0 -> "${h}h"
-            m > 0 && s > 0 -> "${m}m ${s}s"
-            m > 0 -> "${m}m"
-            else -> "${s}s"
-        }
     }
 
     // ---------------------------------------------------------------------------------------------

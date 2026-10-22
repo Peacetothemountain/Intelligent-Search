@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.glance
 
+import com.pixel.intelligentsearch.core.util.Durations
 import android.app.Notification
 import android.app.PendingIntent
 import androidx.compose.runtime.Immutable
@@ -146,28 +147,11 @@ fun timersFrom(entries: List<IndexedNotification>): List<GlanceTimer> = entries.
     GlanceTimer(entry.key, kind, entry.title, chronometer.baseTime, entry.appLabel, entry.packageName, entry.contentIntent)
 }.sortedWith(compareBy<GlanceTimer> { it.kind != GlanceTimer.Kind.TimesUp }.thenBy { it.kind }.thenBy { it.baseTime })
 
-/** A stopwatch-style reading: "4:05", "12:30", "1:02:03". */
-fun formatClock(ms: Long): String {
-    val total = (ms.coerceAtLeast(0) / 1000)
-    val h = total / 3600
-    val m = (total % 3600) / 60
-    val s = total % 60
-    val locale = java.util.Locale.getDefault()
-    return if (h > 0) String.format(locale, "%d:%02d:%02d", h, m, s) else String.format(locale, "%d:%02d", m, s)
-}
-
 /** What a timer card reads at [now]: the time left, "Time's Up", or a stopwatch's time so far. */
 fun timerReading(timer: GlanceTimer, now: Long): String = when (timer.kind) {
-    GlanceTimer.Kind.Timer -> if (timer.baseTime > now) "${formatClock(timer.baseTime - now + 999)} Left" else "Time's Up"
+    GlanceTimer.Kind.Timer -> if (timer.baseTime > now) "${Durations.clock(timer.baseTime - now + 999)} Left" else "Time's Up"
     GlanceTimer.Kind.TimesUp -> "Time's Up"
-    GlanceTimer.Kind.Stopwatch -> formatClock(now - timer.baseTime)
+    GlanceTimer.Kind.Stopwatch -> Durations.clock(now - timer.baseTime)
 }
 
-/** How long until something [ms] away: "In 45 min", "In 6 hr 20 min", "In 2 hr". */
-fun untilLabel(ms: Long): String {
-    val minutes = ((ms.coerceAtLeast(0) + 59_999) / 60_000)
-    if (minutes < 60) return "In $minutes min"
-    val h = minutes / 60
-    val m = minutes % 60
-    return if (m == 0L) "In $h hr" else "In $h hr $m min"
-}
+

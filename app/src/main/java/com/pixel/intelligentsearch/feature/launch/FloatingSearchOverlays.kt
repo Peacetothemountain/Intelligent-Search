@@ -40,23 +40,23 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * The floating search button and the edge swipe strip: small windows drawn over other apps.
+ * The floating search button: a small window drawn over other apps.
  *
- * Permission: both need "Display over other apps" (SYSTEM_ALERT_WINDOW), which the user grants on Android's own page
+ * Permission: it needs "Display over other apps" (SYSTEM_ALERT_WINDOW), which the user grants on Android's own page
  * after the in-app explanation. Google Play allows it for a user-visible utility like this one, a launcher for the
- * app's own search that the user turns on; it is a sensitive permission, so both options are off by default, nothing
- * is drawn without the grant, and a backup can never switch them on. No AccessibilityService is used: Play forbids
+ * app's own search that the user turns on; it is a sensitive permission, so the option is off by default, nothing
+ * is drawn without the grant, and a backup can never switch it on. No AccessibilityService is used: Play forbids
  * one for anything but accessibility.
  *
  * No foreground service: Android keeps a process that shows an overlay window at perceptible priority, and the
- * windows are added again at every app start (including the one after a reboot, through StartupSync), so a service
+ * window is added again at every app start (including the one after a reboot, through StartupSync), so a service
  * and its notification would add nothing. While the button is hidden (held down, a full-screen app, the search
  * itself open) its window stays attached but fully transparent and untouchable, so Android still delivers the
  * unlock that brings it back and taps pass through to the app below.
  *
  * Every method runs on the main thread.
  */
-@SuppressLint("RtlHardcoded") // Positions are physical: the button and strip sit on the screen's left or right edge.
+@SuppressLint("RtlHardcoded") // Positions are physical: the button sits on the screen's left or right edge.
 object FloatingSearchOverlays {
 
     private const val TAG = "FloatingSearch"
@@ -64,36 +64,27 @@ object FloatingSearchOverlays {
     /** The button's diameter, and how far it rests in from the edge. */
     internal const val BUTTON_SIZE_DP = 56
     private const val BUTTON_MARGIN_DP = 8
-    /** The strip's width; under gesture navigation it is at least as wide as Android's back-gesture zone. */
-    private const val STRIP_WIDTH_DP = 16
-    /** Android keeps the back gesture off at most 200dp of each edge for an app; a taller strip would lose the rest. */
-    private const val GESTURE_EXCLUSION_LIMIT_DP = 200
-    /** How far a swipe must come in from the edge to open search. */
-    internal const val SWIPE_THRESHOLD_DP = 48
 
-    // The windows live as long as the process and hold only the application context (and the window context made
+    // The window lives as long as the process and holds only the application context (and the window context made
     // from it), so nothing shorter-lived can leak through these.
     @SuppressLint("StaticFieldLeak")
     private var button: ButtonWindow? = null
     @SuppressLint("StaticFieldLeak")
-    private var strip: StripWindow? = null
-    @SuppressLint("StaticFieldLeak")
     private var hooks: Hooks? = null
 
-    /** Search screens started (the overlay itself): the windows stay out of its way. */
+    /** Search screens started (the overlay itself): the button stays out of its way. */
     private var searchScreens = 0
     private var hiddenUntilUnlock = false
 
     /** Whether the user has let this app display over other apps. */
     fun canDraw(context: Context): Boolean = Settings.canDrawOverlays(context)
 
-    /** Whether either window is up (for tests and the settings page). */
+    /** Whether the button's window is up (for tests and the settings page). */
     internal val isButtonShowing: Boolean get() = button != null
-    internal val isStripShowing: Boolean get() = strip != null
 
     /**
-     * Brings the windows in line with the settings: each shows while its switch is on and the permission granted,
-     * and follows a changed edge, position or height.
+     * Brings the button in line with the settings: it shows while its switch is on and the permission granted, and
+     * follows a changed edge or position.
      */
     @MainThread
     fun sync(context: Context) {
@@ -101,24 +92,17 @@ object FloatingSearchOverlays {
         val prefs = LaunchSurfaces.prefs(app)
         val allowed = canDraw(app)
         val wantButton = allowed && prefs[SettingsManager.FLOATING_SEARCH_BUTTON]
-        val wantStrip = allowed && prefs[SettingsManager.EDGE_SWIPE]
         try {
-            if (wantButton || wantStrip) installHooks(app)
+            if (wantButton) installHooks(app)
             when {
                 !wantButton -> removeButton()
                 button == null -> button = ButtonWindow(windowContext(app)).also { it.follow(prefs); it.add() }
                 else -> button?.follow(prefs)
             }
-            when {
-                !wantStrip -> removeStrip()
-                strip == null -> strip = StripWindow(windowContext(app)).also { it.follow(prefs); it.add() }
-                else -> strip?.follow(prefs)
-            }
         } catch (e: RuntimeException) {
             // WindowManager refuses the window (the grant was just revoked): show nothing rather than crash.
-            Log.w(TAG, "Floating search windows unavailable", e)
+            Log.w(TAG, "Floating search button unavailable", e)
             removeButton()
-            removeStrip()
         }
     }
 
@@ -129,11 +113,6 @@ object FloatingSearchOverlays {
         hooks?.stopListeningForUnlock()
     }
 
-    private fun removeStrip() {
-        strip?.remove()
-        strip = null
-    }
-
     private fun windowContext(app: Context): Context {
         val display = app.getSystemService(DisplayManager::class.java)?.getDisplay(Display.DEFAULT_DISPLAY)
             ?: return app
@@ -142,7 +121,6 @@ object FloatingSearchOverlays {
 
     private fun refreshVisibility() {
         button?.applyVisibility()
-        strip?.applyVisibility()
     }
 
     /** Opens the search overlay with the keyboard up, as the Quick Settings tile does. */
@@ -161,11 +139,11 @@ object FloatingSearchOverlays {
         refreshVisibility()
     }
 
-    // ---- What the windows follow: search screens, rotation and the unlock ----
+    // ---- What the button follows: search screens, rotation and the unlock ----
 
     /**
-     * Installed once per process the first time a window is wanted, and kept: counting search screens has to start
-     * before one opens, so it can't wait for a window to be switched on.
+     * Installed once per process the first time the button is wanted, and kept: counting search screens has to start
+     * before one opens, so it can't wait for the button to be switched on.
      */
     private fun installHooks(app: Context) {
         if (hooks?.app === app) return
@@ -215,9 +193,8 @@ object FloatingSearchOverlays {
         }
 
         override fun onConfigurationChanged(newConfig: Configuration) {
-            // Rotation or a new screen size: put both windows back where their settings say.
+            // Rotation or a new screen size: put the button back where its settings say.
             button?.place()
-            strip?.place()
         }
 
         override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) = Unit
@@ -229,7 +206,7 @@ object FloatingSearchOverlays {
         override fun onLowMemory() = Unit
     }
 
-    // ---- The windows ----
+    // ---- The window ----
 
     private fun overlayParams(): WindowManager.LayoutParams = WindowManager.LayoutParams(
         WindowManager.LayoutParams.WRAP_CONTENT,
@@ -254,7 +231,7 @@ object FloatingSearchOverlays {
         return SafeArea(bounds.left + insets.left, bounds.top + insets.top, bounds.right - insets.right, bounds.bottom - insets.bottom)
     }
 
-    /** Shared by both windows: attached, transparent and untouchable while hidden, laid out from the settings. */
+    /** An overlay window: attached, transparent and untouchable while hidden, laid out from the settings. */
     private abstract class OverlayWindow(val context: Context) {
         val wm: WindowManager = context.getSystemService(WindowManager::class.java)
         val params = overlayParams()
@@ -404,55 +381,4 @@ object FloatingSearchOverlays {
 
         override fun hideUntilUnlock() = hideButtonUntilUnlock()
     }
-
-    private class StripWindow(context: Context) : OverlayWindow(context), EdgeSwipeStripView.Host {
-        override val view = EdgeSwipeStripView(context, this)
-        private var edge = ScreenEdge.RIGHT
-        private var positionPercent = 50
-        private var heightPercent = 25
-
-        init {
-            params.title = "Edge swipe for search"
-        }
-
-        fun follow(prefs: android.content.SharedPreferences) {
-            val storedEdge = ScreenEdge.from(prefs[SettingsManager.EDGE_SWIPE_EDGE])
-            val storedPosition = prefs[SettingsManager.EDGE_SWIPE_POSITION]
-            val storedHeight = prefs[SettingsManager.EDGE_SWIPE_HEIGHT]
-            if (storedEdge == edge && storedPosition == positionPercent && storedHeight == heightPercent && attached) return
-            edge = storedEdge
-            positionPercent = storedPosition
-            heightPercent = storedHeight
-            place()
-        }
-
-        override fun place() {
-            val metrics = wm.currentWindowMetrics
-            val gestures = metrics.windowInsets.getInsetsIgnoringVisibility(WindowInsets.Type.systemGestures())
-            val tappable = metrics.windowInsets.getInsetsIgnoringVisibility(WindowInsets.Type.tappableElement())
-            val gestureNav = isGestureNavigation(gestures.left, gestures.right, tappable.left, tappable.right, tappable.bottom)
-            val backZone = if (edge == ScreenEdge.LEFT) gestures.left else gestures.right
-            val width = if (gestureNav) max(dp(STRIP_WIDTH_DP), backZone) else dp(STRIP_WIDTH_DP)
-            val bounds = edgeStripBounds(
-                edge, safeArea(wm), positionPercent, heightPercent, width,
-                maxHeightPx = if (gestureNav) dp(GESTURE_EXCLUSION_LIMIT_DP) else null
-            )
-            view.edge = edge
-            params.x = bounds.x
-            params.y = bounds.y
-            params.width = bounds.width
-            params.height = bounds.height
-            update()
-        }
-
-        override fun open() = openSearch(context)
-    }
 }
-
-/**
- * Whether the phone uses gesture navigation: Back is a swipe from the side edges there (they have gesture insets),
- * and nothing at the bottom or sides is a tappable button. With 3-button navigation the buttons are tappable, and
- * a sideways navigation bar in landscape is what gives a side its gesture inset.
- */
-internal fun isGestureNavigation(gestureLeft: Int, gestureRight: Int, tappableLeft: Int, tappableRight: Int, tappableBottom: Int): Boolean =
-    (gestureLeft > 0 || gestureRight > 0) && tappableLeft == 0 && tappableRight == 0 && tappableBottom == 0

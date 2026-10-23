@@ -138,7 +138,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Launch Portal",
-                    subtitle = "Search Tile, Home Screen Shortcut, Notification Shortcut, Floating Button and Edge Swipe.",
+                    subtitle = "Search Tile, Home Screen Shortcut, Notification Shortcut and Floating Button.",
                     icon = Icons.Outlined.RocketLaunch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal) },
                     showDivider = false,

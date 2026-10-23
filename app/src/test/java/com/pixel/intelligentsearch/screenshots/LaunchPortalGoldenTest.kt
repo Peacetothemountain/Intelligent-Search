@@ -33,8 +33,8 @@ import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadows.ShadowSettings
 
 /**
- * Launch Portal with its Always Within Reach options switched on and allowed: the Notification Shortcut, the floating
- * button and the edge swipe with its Edge, Position and Height controls. (SettingsGoldenTest has the page with them off.)
+ * Launch Portal with its Always Within Reach options switched on and allowed: the Notification Shortcut and the
+ * floating button. (SettingsGoldenTest has the page with them off.)
  */
 @HiltAndroidTest
 @RunWith(ParameterizedRobolectricTestRunner::class)
@@ -56,9 +56,6 @@ class LaunchPortalGoldenTest(private val dark: Boolean) {
         prefs.edit()
             .put(SettingsManager.NOTIFICATION_SHORTCUT, true)
             .put(SettingsManager.FLOATING_SEARCH_BUTTON, true)
-            .put(SettingsManager.EDGE_SWIPE, true)
-            .put(SettingsManager.EDGE_SWIPE_EDGE, "left")
-            .put(SettingsManager.EDGE_SWIPE_POSITION, 40)
             .commit()
     }
 

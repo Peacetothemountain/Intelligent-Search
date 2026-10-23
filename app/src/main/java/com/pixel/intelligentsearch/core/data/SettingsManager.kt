@@ -304,13 +304,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val FLOATING_BUTTON_EDGE = StringSetting("launch.floating_button_edge", "right")
         /** Its height on that edge, per-mille of the height it can travel (0 top, 1000 bottom). */
         val FLOATING_BUTTON_POSITION = IntSetting("launch.floating_button_position", 600, 0..1000)
-        val EDGE_SWIPE = BooleanSetting("launch.edge_swipe", false)
-        /** The edge the swipe strip runs along, "left" or "right" (ScreenEdge). */
-        val EDGE_SWIPE_EDGE = StringSetting("launch.edge_swipe_edge", "right")
-        /** Where the strip's centre is, in percent of the screen's usable height. */
-        val EDGE_SWIPE_POSITION = IntSetting("launch.edge_swipe_position", 50, 0..100)
-        /** How tall the strip is, in percent of the screen's usable height. */
-        val EDGE_SWIPE_HEIGHT = IntSetting("launch.edge_swipe_height", 25, 10..60)
 
         /** Every declared setting, for migration, backup validation and change filtering. */
         val ALL: List<SettingKey<*>> = listOf(
@@ -340,8 +333,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             WIDGET_MATERIAL_SHOW_MEDIA, WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,
             AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL,
-            NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION,
-            EDGE_SWIPE, EDGE_SWIPE_EDGE, EDGE_SWIPE_POSITION, EDGE_SWIPE_HEIGHT
+            NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION
         ) + FILES_OPEN_WITH.values + WIDGET_PROFILE_DESIGNS + WIDGET_PROFILE_SAVED_DESIGNS
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =
@@ -369,7 +361,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          */
         val REMOVED_NAMES: Set<String> = setOf(
             "search_from_selected_text", "glance.codes", "on_device_translation", "saved_links_json",
-            WidgetProfiles.SAVED_THEMES_KEY
+            WidgetProfiles.SAVED_THEMES_KEY,
+            // Launch Portal's Edge Swipe, removed.
+            "launch.edge_swipe", "launch.edge_swipe_edge", "launch.edge_swipe_position", "launch.edge_swipe_height"
         )
 
         /** The folder in the app's files where an older build kept Saved Links' site icons; deleted at start. */

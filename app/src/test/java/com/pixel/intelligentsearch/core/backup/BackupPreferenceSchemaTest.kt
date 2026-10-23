@@ -50,7 +50,7 @@ class BackupPreferenceSchemaTest {
             val type = BackupPreferenceSchema.typeOf(setting)
             for (name in setting.allNames) assertEquals(name, type, BackupPreferenceSchema.expectedType(name))
         }
-        assertEquals("INT", BackupPreferenceSchema.expectedType(SettingsManager.EDGE_SWIPE_HEIGHT.name))
+        assertEquals("INT", BackupPreferenceSchema.expectedType(SettingsManager.FLOATING_BUTTON_POSITION.name))
         assertEquals("STRING", BackupPreferenceSchema.expectedType(SettingsManager.RESULT_SHORTCUTS.name))
     }
 

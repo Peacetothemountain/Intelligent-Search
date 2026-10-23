@@ -9,7 +9,7 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import java.lang.ref.WeakReference
 
 /**
- * Launch Portal's always-there ways to open search: the Notification Shortcut, the floating button and the edge swipe.
+ * Launch Portal's always-there ways to open search: the Notification Shortcut and the floating button.
  * [start] runs at every app start (StartupSync, so also after a reboot) and from the Launch Portal page; from then on
  * the surfaces follow their settings, whoever changes them (the page, a backup restore).
  */
@@ -17,8 +17,7 @@ object LaunchSurfaces {
 
     private val NOTIFICATION_KEYS = SettingsManager.NOTIFICATION_SHORTCUT.allNames.toSet()
     private val WINDOW_KEYS = listOf(
-        SettingsManager.FLOATING_SEARCH_BUTTON, SettingsManager.FLOATING_BUTTON_EDGE, SettingsManager.FLOATING_BUTTON_POSITION,
-        SettingsManager.EDGE_SWIPE, SettingsManager.EDGE_SWIPE_EDGE, SettingsManager.EDGE_SWIPE_POSITION, SettingsManager.EDGE_SWIPE_HEIGHT
+        SettingsManager.FLOATING_SEARCH_BUTTON, SettingsManager.FLOATING_BUTTON_EDGE, SettingsManager.FLOATING_BUTTON_POSITION
     ).flatMap { it.allNames }.toSet()
 
     private val main = Handler(Looper.getMainLooper())

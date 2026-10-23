@@ -64,4 +64,21 @@ class SettingsStoreCleanupTest {
         assertFalse("the icon folder is gone", icons.exists())
         assertNull(SettingsManager.keyFor("saved_links_json"))
     }
+
+    /** Launch Portal's Edge Swipe was removed: an older build's switch, edge, position and height are dropped at start. */
+    @Test
+    fun anOlderBuildsEdgeSwipeSettingsAreDropped() = kotlinx.coroutines.runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val settingsManager = SettingsManager(context)
+        val names = listOf("launch.edge_swipe", "launch.edge_swipe_edge", "launch.edge_swipe_position", "launch.edge_swipe_height")
+        settingsManager.prefs.edit().putBoolean(names[0], true).putString(names[1], "left")
+            .putInt(names[2], 30).putInt(names[3], 40).commit()
+        settingsManager.migrateToSingleStore()
+        for (name in names) {
+            assertFalse(name, settingsManager.prefs.contains(name))
+            assertNull(name, SettingsManager.keyFor(name))
+        }
+        // The floating button, which stays, keeps its settings.
+        assertEquals(SettingsManager.FLOATING_SEARCH_BUTTON, SettingsManager.keyFor("launch.floating_button"))
+    }
 }

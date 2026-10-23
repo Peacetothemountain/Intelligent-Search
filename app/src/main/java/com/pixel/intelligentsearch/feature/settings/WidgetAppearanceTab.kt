@@ -58,8 +58,7 @@ internal fun WidgetAppearanceTab(
     themeStyle: MutableState<String>,
     computedCustomColorInt: Int,
     view: android.view.View,
-    hapticEngine: PixelHapticEngine,
-    savedThemes: WidgetSavedThemes
+    hapticEngine: PixelHapticEngine
 ) {
     var localSubtheme by fields::subtheme
     var localMaterialGIconTheme by fields::materialGIconTheme
@@ -636,8 +635,6 @@ internal fun WidgetAppearanceTab(
             }
         }
     }
-
-    WidgetSavedThemesSection(saved = savedThemes, ui = ui)
 }
 
 /**

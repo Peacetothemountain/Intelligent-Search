@@ -5,7 +5,8 @@ import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesignSettings
 import com.pixel.intelligentsearch.core.data.widget.WidgetElementColors
 import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
-import com.pixel.intelligentsearch.core.data.widget.WidgetThemeStore
+import com.pixel.intelligentsearch.core.data.widget.WidgetProfileDesign
+import com.pixel.intelligentsearch.core.data.widget.WidgetProfiles
 import com.pixel.intelligentsearch.feature.widget.WidgetColorRules
 import com.pixel.intelligentsearch.feature.widget.getShortcutIconRes
 import com.pixel.intelligentsearch.core.data.settings.put
@@ -273,20 +274,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     // The design being edited; every "local" value below reads and writes its draft.
     val activeDraft = if (isSystem) systemDraft else materialDraft
 
-    // Named designs the user saved, for the design being edited.
-    val themeStore = remember(prefs) { WidgetThemeStore(prefs) }
-    var themesVersion by remember { mutableIntStateOf(0) }
-    val activeDesign = if (isSystem) WidgetDesign.SYSTEM else WidgetDesign.MATERIAL
-    val savedThemes = remember(themesVersion, activeDesign) {
-        val themes = themeStore.list(WidgetDefaults(defaultUserMaterialColor, isDynamicActive)).filter { it.design == activeDesign }
-        WidgetSavedThemes(
-            themes = themes,
-            save = { name -> themeStore.save(name, activeDesign, activeDraft.value); themesVersion++ },
-            apply = { theme -> activeDraft.value = theme.settings },
-            rename = { theme, name -> themeStore.rename(theme.name, theme.design, name).also { themesVersion++ } },
-            delete = { theme -> themeStore.delete(theme.name, theme.design); themesVersion++ }
-        )
-    }
     val fields = remember(isSystem) { WidgetDraftFields(activeDraft, materialDraft) }
     var localSubtheme by fields::subtheme
     var localMaterialGIconTheme by fields::materialGIconTheme
@@ -313,11 +300,38 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var savedThemeStyle by remember { mutableStateOf(localThemeStyle) }
     var savedSystem by remember { mutableStateOf(systemDraft.value) }
     var savedMaterial by remember { mutableStateOf(materialDraft.value) }
+
+    // The widget's design profiles, as Application Search's pill profiles work. The profile on the widget is the one
+    // last saved; picking another puts its design in the editor, and Save puts it on the widget.
+    val profiles = remember(prefs) { WidgetProfiles(prefs, WidgetDefaults(defaultUserMaterialColor, isDynamicActive)) }
+    var widgetProfile by remember { mutableIntStateOf(profiles.activeProfile) }
+    var activeProfile by remember { mutableIntStateOf(widgetProfile) }
+    // Profiles left with changes during this visit: Save keeps them, leaving without saving discards them.
+    val leftProfiles = remember { mutableStateMapOf<Int, WidgetProfileDesign>() }
+    fun designOf(style: String) = if (style == "System Default") WidgetDesign.SYSTEM else WidgetDesign.MATERIAL
+    fun editorDesign() = WidgetProfileDesign(designOf(localThemeStyle), systemDraft.value, materialDraft.value)
+    fun widgetDesign() = WidgetProfileDesign(designOf(savedThemeStyle), savedSystem, savedMaterial)
+    fun loadDesign(design: WidgetProfileDesign) {
+        localThemeStyle = design.design.themeStyle
+        systemDraft.value = design.system
+        materialDraft.value = design.material
+    }
+    fun switchProfile(id: Int) {
+        if (id == activeProfile) return
+        val leaving = editorDesign()
+        if (leaving == profiles.design(activeProfile, widgetDesign())) leftProfiles.remove(activeProfile) else leftProfiles[activeProfile] = leaving
+        loadDesign(leftProfiles.remove(id) ?: profiles.design(id, widgetDesign()))
+        activeProfile = id
+    }
+    LaunchedEffect(profiles) { profiles.ensureDefaultSaved(widgetDesign()) }
+
     val hasUnsavedChanges by remember {
         derivedStateOf {
             localThemeStyle != savedThemeStyle ||
                 systemDraft.value != savedSystem ||
                 materialDraft.value != savedMaterial ||
+                activeProfile != widgetProfile ||
+                leftProfiles.isNotEmpty() ||
                 pendingCustomShortcutTypes.isNotEmpty() ||
                 pendingCustomShortcutValues.isNotEmpty()
         }
@@ -345,6 +359,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         if (isSystem || system != savedSystem) widgetStore.save(WidgetDesign.SYSTEM, system, editor)
         if (!isSystem || material != savedMaterial) widgetStore.save(WidgetDesign.MATERIAL, material, editor)
 
+        // The profile being edited goes on the widget; the one it replaces, and any left with changes, keep theirs.
+        profiles.commit(editor, activeProfile, leftProfiles.toMap(), previousLive = widgetDesign())
+
         val activeStyle = if (isSystem) "System Default" else "Material You (Minimal)"
         editor
             .put(SettingsManager.WIDGET_THEME_STYLE, activeStyle)
@@ -359,6 +376,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         savedThemeStyle = localThemeStyle
         savedSystem = system
         savedMaterial = material
+        widgetProfile = activeProfile
+        leftProfiles.clear()
     }
 
     val handleBack = {
@@ -478,6 +497,13 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     IconButton(onClick = handleBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
+                    // As on Application Search: Reset puts the profile's saved state in the editor (Save puts it on
+                    // the widget), and the save button records the editor's design as that saved state.
+                    ProfileStateActions(
+                        profile = activeProfile,
+                        onReset = { loadDesign(profiles.savedState(activeProfile, widgetDesign())) },
+                        onSave = { profiles.saveState(activeProfile, editorDesign()) }
+                    )
                     val canPinWidget = remember(context) {
                         android.appwidget.AppWidgetManager.getInstance(context)?.isRequestPinAppWidgetSupported == true
                     }
@@ -759,6 +785,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     }
             }
 
+            // Widget Profiles: five whole designs to switch between, as on Application Search.
+            ProfileSelector(
+                count = WidgetProfiles.PROFILE_COUNT,
+                selected = activeProfile,
+                onSelect = { id -> switchProfile(id) },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+
             // System vs Material Design Switcher, in a settings card as it always was.
             SettingsCard(
                 modifier = Modifier
@@ -852,7 +886,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                 when (activeTabName) {
-                    "Appearance" -> WidgetAppearanceTab(fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState, computedCustomColorInt = computedCustomColorInt, view = view, hapticEngine = hapticEngine, savedThemes = savedThemes)
+                    "Appearance" -> WidgetAppearanceTab(fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState, computedCustomColorInt = computedCustomColorInt, view = view, hapticEngine = hapticEngine)
 
                     "Color Studio" -> WidgetColorStudioTab(fields = fields, ui = ui, computedCustomColorInt = computedCustomColorInt)
 

@@ -12,7 +12,8 @@ import com.pixel.intelligentsearch.core.data.widget.CountdownEventStore
 import com.pixel.intelligentsearch.core.data.widget.WidgetDefaults
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
-import com.pixel.intelligentsearch.core.data.widget.WidgetThemeStore
+import com.pixel.intelligentsearch.core.data.widget.WidgetProfileDesign
+import com.pixel.intelligentsearch.core.data.widget.WidgetProfiles
 import com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
 import com.pixel.intelligentsearch.core.system.WidgetUpdater
 import kotlinx.coroutines.runBlocking
@@ -28,7 +29,7 @@ import java.io.File
 import java.time.LocalDate
 
 /**
- * The widget's favourite apps, outline, corners and saved themes are settings like any other: a backup carries them
+ * The widget's favourite apps, outline, corners and profiles are settings like any other: a backup carries them
  * back (the media row only ever off, countdown events not at all), and a backup can't plant an outline or corner the
  * sliders couldn't set.
  */
@@ -59,7 +60,10 @@ class WidgetExtrasBackupTest {
             cornerRadius = 12
         )
         prefs.edit().also { store.save(WidgetDesign.MATERIAL, material, it) }.commit()
-        WidgetThemeStore(prefs).save("Dusk", WidgetDesign.MATERIAL, material)
+        val profiles = WidgetProfiles(prefs, defaults)
+        val dusk = WidgetProfileDesign(WidgetDesign.MATERIAL, store.load(WidgetDesign.SYSTEM, defaults), material.copy(showMedia = false, cornerRadius = 20))
+        profiles.saveState(3, dusk)
+        prefs.edit().also { profiles.commit(it, active = 2, left = mapOf(3 to dusk), previousLive = dusk) }.commit()
         CountdownEventStore(prefs).put(5, CountdownEvent("Halloween", LocalDate.of(2026, 10, 31), yearly = true))
         backup.exportToFile(uri, PASSPHRASE).getOrThrow()
 
@@ -72,7 +76,14 @@ class WidgetExtrasBackupTest {
         assertFalse(restored.showMedia)
         assertEquals(4, restored.outlineThickness)
         assertEquals(12, restored.cornerRadius)
-        assertEquals(listOf("Dusk"), WidgetThemeStore(prefs).list(defaults).map { it.name })
+        // The profiles come back: which one is on the widget, each one's design and the state its Reset returns to.
+        val restoredProfiles = WidgetProfiles(prefs, defaults)
+        assertEquals(2, restoredProfiles.activeProfile)
+        val live = WidgetProfileDesign(WidgetDesign.SYSTEM, store.load(WidgetDesign.SYSTEM, defaults), restored)
+        assertEquals(dusk, restoredProfiles.design(3, live))
+        assertEquals(dusk, restoredProfiles.savedState(3, live))
+        // Profile 1 was on the widget when profile 2 replaced it, so it keeps the design the widget had.
+        assertEquals(dusk, restoredProfiles.design(1, live))
         // A countdown belongs to a widget placed on this phone, by its id: it stays with the phone.
         assertEquals(null, CountdownEventStore(prefs).get(5))
     }

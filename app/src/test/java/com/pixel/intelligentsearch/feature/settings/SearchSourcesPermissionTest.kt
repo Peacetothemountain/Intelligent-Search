@@ -79,14 +79,14 @@ class SearchSourcesPermissionTest {
     @Test
     fun decliningOnceJustLeavesContactsOff() {
         turnOnContactsAndDecline(androidWillAskAgain = true)
-        compose.onNodeWithText("Contacts Permission Required").assertDoesNotExist()
+        compose.onNodeWithText("Contacts Access Is Off").assertDoesNotExist()
         assertFalse(prefs[SettingsManager.SEARCH_CONTACTS])
     }
 
     @Test
     fun decliningForGoodOffersAndroidSettings() {
         turnOnContactsAndDecline(androidWillAskAgain = false)
-        compose.onNodeWithText("Contacts Permission Required").assertExists()
+        compose.onNodeWithText("Contacts Access Is Off").assertExists()
         assertFalse(prefs[SettingsManager.SEARCH_CONTACTS])
     }
 }

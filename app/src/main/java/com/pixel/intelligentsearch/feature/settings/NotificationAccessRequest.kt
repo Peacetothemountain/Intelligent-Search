@@ -1,9 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.system.openSettingsPage
 import android.widget.Toast
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.MutableState
@@ -15,7 +13,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -97,27 +94,19 @@ internal fun rememberNotificationAccessRequest(onResult: (granted: Boolean) -> U
 internal fun NotificationAccessDialog(request: NotificationAccessRequest) {
     if (!request.showRationale) return
     val context = LocalContext.current
-    AlertDialog(
-        onDismissRequest = request::decline,
-        title = { Text("Allow Notification Access?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-        text = { Text(NOTIFICATION_ACCESS_RATIONALE, style = MaterialTheme.typography.bodyLarge) },
-        confirmButton = {
-            TextButton(onClick = {
-                request.showRationale = false
-                request.awaitingGrant = true
-                if (!NotificationAccess.openSettings(context)) {
-                    request.awaitingGrant = false
-                    request.answerWith(false)
-                    Toast.makeText(context, "Notification access settings aren't available on this phone.", Toast.LENGTH_LONG).show()
-                }
-            }) {
-                Text("Open Settings", style = MaterialTheme.typography.labelLarge)
+    PermissionRationaleDialog(
+        title = "Allow Notification Access?",
+        text = NOTIFICATION_ACCESS_RATIONALE,
+        confirm = "Open Settings",
+        onConfirm = {
+            request.showRationale = false
+            request.awaitingGrant = true
+            if (!openSettingsPage(context, *NotificationAccess.settingsIntents(context).toTypedArray())) {
+                request.awaitingGrant = false
+                request.answerWith(false)
+                Toast.makeText(context, "Notification access settings aren't available on this phone.", Toast.LENGTH_LONG).show()
             }
         },
-        dismissButton = {
-            TextButton(onClick = request::decline) {
-                Text("Not Now", style = MaterialTheme.typography.labelLarge)
-            }
-        }
+        onDismiss = request::decline
     )
 }

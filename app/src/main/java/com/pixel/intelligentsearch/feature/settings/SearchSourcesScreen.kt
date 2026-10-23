@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.system.openSettingsPage
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.data.settings.put
@@ -31,7 +32,6 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -162,69 +162,31 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                         }
 
                         if (showContactsRationaleDialog) {
-                            AlertDialog(
-                                onDismissRequest = { showContactsRationaleDialog = false },
-                                title = { Text("Allow Contacts Access?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-                                text = {
-                                    Text(
-                                        "Intelligent Search needs permission to access your contacts so you can search, call, message, and view contact details directly from the search bar. Your contacts remain securely on your device.",
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
+                            PermissionRationaleDialog(
+                                title = "Allow Contacts Access?",
+                                text = CONTACTS_RATIONALE,
+                                confirm = "Allow",
+                                onConfirm = {
+                                    showContactsRationaleDialog = false
+                                    contactsPermissionLauncher.launch(arrayOf(Manifest.permission.READ_CONTACTS))
                                 },
-                                confirmButton = {
-                                    TextButton(
-                                        onClick = {
-                                            showContactsRationaleDialog = false
-                                            contactsPermissionLauncher.launch(arrayOf(Manifest.permission.READ_CONTACTS))
-                                        }
-                                    ) {
-                                        Text("Allow", style = MaterialTheme.typography.labelLarge)
-                                    }
-                                },
-                                dismissButton = {
-                                    TextButton(
-                                        onClick = {
-                                            showContactsRationaleDialog = false
-                                            searchContacts = false
-                                        }
-                                    ) {
-                                        Text("Not Now", style = MaterialTheme.typography.labelLarge)
-                                    }
+                                onDismiss = {
+                                    showContactsRationaleDialog = false
+                                    searchContacts = false
                                 }
                             )
                         }
 
                         if (showContactsSettingsDialog) {
-                            AlertDialog(
-                                onDismissRequest = { showContactsSettingsDialog = false },
-                                title = { Text("Contacts Permission Required", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-                                text = {
-                                    Text(
-                                        "Contacts permission is required to search your contacts. Please enable Contacts permission in Android App Settings.",
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
+                            PermissionRationaleDialog(
+                                title = "Contacts Access Is Off",
+                                text = "Contacts access for Intelligent Search is turned off. Allow it in Android settings to search your contacts.",
+                                confirm = "Open Settings",
+                                onConfirm = {
+                                    showContactsSettingsDialog = false
+                                    openSettingsPage(context, appDetailsSettings(context.packageName))
                                 },
-                                confirmButton = {
-                                    TextButton(
-                                        onClick = {
-                                            showContactsSettingsDialog = false
-                                            try {
-                                                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                                    data = Uri.fromParts("package", context.packageName, null)
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                }
-                                                context.startActivity(intent)
-                                            } catch (_: Throwable) {}
-                                        }
-                                    ) {
-                                        Text("Open Settings", style = MaterialTheme.typography.labelLarge)
-                                    }
-                                },
-                                dismissButton = {
-                                    TextButton(onClick = { showContactsSettingsDialog = false }) {
-                                        Text("Cancel", style = MaterialTheme.typography.labelLarge)
-                                    }
-                                }
+                                onDismiss = { showContactsSettingsDialog = false }
                             )
                         }
 

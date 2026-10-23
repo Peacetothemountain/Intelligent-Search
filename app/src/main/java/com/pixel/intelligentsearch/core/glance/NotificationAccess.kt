@@ -38,11 +38,6 @@ object NotificationAccess {
         Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
     ).map { it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
 
-    /** Opens Android's notification access page; false if no page could open. */
-    fun openSettings(context: Context): Boolean = settingsIntents(context).any { intent ->
-        runCatching { context.startActivity(intent) }.isSuccess
-    }
-
     /**
      * A feature that needs the listener connected (Search Your Notifications, a widget's media row) was switched on:
      * with access granted, asks Android to connect it. The listener unbinds itself while nothing needs it.

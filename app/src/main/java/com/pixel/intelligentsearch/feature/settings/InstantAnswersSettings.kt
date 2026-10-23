@@ -1,9 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import android.Manifest
-import android.content.pm.PackageManager
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -49,7 +46,6 @@ import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.security.NetworkPolicy
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 import com.pixel.intelligentsearch.di.appEntryPoint
-import com.pixel.intelligentsearch.feature.search.LocationRationaleDialog
 import kotlinx.coroutines.launch
 
 /**
@@ -135,11 +131,8 @@ private fun HomeLocationRow(engine: InstantAnswerEngine) {
 private fun ApproximateLocationRow() {
     val context = LocalContext.current
     var useDevice by rememberSetting(SettingsManager.WEATHER_USE_DEVICE_LOCATION)
-    var showRationale by remember { mutableStateOf(false) }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        useDevice = granted
-    }
-    val granted = context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+    val location = rememberApproximateLocationRequest { useDevice = true }
+    val granted = AndroidDeviceLocation(context).permitted()
     SettingsRowToggle(
         title = "Use Approximate Location",
         subtitle = "Use Your Phone's Approximate Location Instead of Home.",
@@ -147,23 +140,10 @@ private fun ApproximateLocationRow() {
         // Without the permission the switch can't be doing anything, so it doesn't show as on.
         isChecked = useDevice && granted,
         onCheckedChange = { on ->
-            when {
-                !on -> useDevice = false
-                granted -> useDevice = true
-                else -> showRationale = true
-            }
+            if (on) location.request() else useDevice = false
         },
         showDivider = false
     )
-    if (showRationale) {
-        LocationRationaleDialog(
-            onAllow = {
-                showRationale = false
-                permission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-            },
-            onDismiss = { showRationale = false }
-        )
-    }
 }
 
 /** Searches Open-Meteo's place names for the home location; nothing is sent until Search is pressed. */

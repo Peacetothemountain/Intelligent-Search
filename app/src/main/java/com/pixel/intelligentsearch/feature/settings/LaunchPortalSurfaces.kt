@@ -1,9 +1,8 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.system.openSettingsPage
 import android.Manifest
-import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -24,7 +23,6 @@ import androidx.compose.material.icons.outlined.Swipe
 import androidx.compose.material.icons.outlined.SwipeLeft
 import androidx.compose.material.icons.outlined.SwipeRight
 import androidx.compose.material.icons.outlined.UnfoldMore
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -216,7 +214,7 @@ fun AlwaysWithinReachSection() {
             confirm = "Open Settings",
             onConfirm = {
                 showNotificationSettings = false
-                openSafely(context, Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+                openSettingsPage(context, Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
             },
             onDismiss = { showNotificationSettings = false }
         )
@@ -231,10 +229,7 @@ fun AlwaysWithinReachSection() {
             onConfirm = {
                 overlayRationaleFor = null
                 pendingOverlay = request.name
-                openSafely(
-                    context,
-                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:${context.packageName}".toUri())
-                )
+                openSettingsPage(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:${context.packageName}".toUri()))
             },
             onDismiss = { overlayRationaleFor = null }
         )
@@ -279,36 +274,5 @@ private fun EdgeChoiceRow(edge: ScreenEdge, onSelect: (ScreenEdge) -> Unit) {
             modifier = Modifier.padding(start = 56.dp, end = 16.dp),
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
         )
-    }
-}
-
-@Composable
-private fun PermissionRationaleDialog(
-    title: String,
-    text: String,
-    confirm: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-        text = { Text(text, style = MaterialTheme.typography.bodyLarge) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(confirm, style = MaterialTheme.typography.labelLarge) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Not Now", style = MaterialTheme.typography.labelLarge) } }
-    )
-}
-
-private fun openSafely(context: Context, intent: Intent) {
-    try {
-        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    } catch (_: RuntimeException) {
-        // No such settings page on this device: fall back to the app's own page in Android settings.
-        runCatching {
-            context.startActivity(
-                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            )
-        }
     }
 }

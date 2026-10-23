@@ -13,7 +13,7 @@
 
 **Intelligent Search** is engineered and published by **NG Designs** with a strict, non-negotiable **On-Device First Privacy Architecture**. 
 
-We believe that your personal device search queries, contacts, schedule, files, and installed applications are your private property. Intelligent Search is built so that **your personal data stays on your device**. The exceptions are things you choose to send: web searches and live web suggestions go to the search engine you pick (see Section 3), voice input may be handled by your device's speech recognizer (see Section 2.H), and, only if you turn on AI Answers and tap Ask, that one question goes to the AI provider you chose with your own key (see Section 3). Live currency rates are downloaded from the European Central Bank without sending any of your data (see Section 3). Instant answers you switch on (dictionary definitions and weather forecasts) are described in Section 3; both are off until you turn them on. A Saved Link's icon is downloaded from that site only when you tap **Fetch Icon**, and a translation goes to Google Translate only when you tap to open it there (see Section 3).
+We believe that your personal device search queries, contacts, schedule, files, and installed applications are your private property. Intelligent Search is built so that **your personal data stays on your device**. The exceptions are things you choose to send: web searches and live web suggestions go to the search engine you pick (see Section 3), voice input may be handled by your device's speech recognizer (see Section 2.H), and, only if you turn on AI Answers and tap Ask, that one question goes to the AI provider you chose with your own key (see Section 3). Live currency rates are downloaded from the European Central Bank without sending any of your data (see Section 3). Instant answers you switch on (dictionary definitions and weather forecasts) are described in Section 3; both are off until you turn them on. A translation goes to Google Translate only when you tap to open it there (see Section 3).
 
 * **Zero Cloud Data Exfiltration**: We do not maintain, operate, or connect to remote servers that collect, store, profile, or analyze your searches or personal information.
 * **Zero Advertising & Zero Tracking**: Intelligent Search contains **no advertisements**, **no advertising SDKs**, **no commercial tracking beacons**, and **no third-party behavioral analytics libraries** (such as Firebase Analytics, Mixpanel, or Facebook SDK).
@@ -99,7 +99,7 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 
 ---
 
-## 3. Web Search, External Search Engines, Live Currency Rates, Instant Answers, AI Answers & Saved Links
+## 3. Web Search, External Search Engines, Live Currency Rates, Instant Answers & AI Answers
 
 When you execute a web search or request live autocomplete suggestions:
 1. **Direct Communication**: Search queries are transmitted directly and securely (via HTTPS) to your chosen search engine provider (e.g., Google, DuckDuckGo, Bing, or your configured Custom Search URL).
@@ -131,13 +131,11 @@ When you execute a web search or request live autocomplete suggestions:
 
 **AI assistant shortcuts** (`!gpt`, `!pplx`, `!gemini`, `!claude`, `!copilot`, and AI apps added to Quick Launch) open ChatGPT, Perplexity, Gemini, Claude or Copilot with your query, in their app or your browser, like any other web shortcut: the query goes to that service only when you use the shortcut.
 
-**Saved Links**: names and addresses you save are kept in the app's settings and backups. Nothing is downloaded for them unless you tap **Fetch Icon**, which downloads that site's own icon (`/favicon.ico` or `/apple-touch-icon.png`) once over HTTPS, sending nothing but the request; it is unavailable while Tor is your search engine.
-
 ---
 
 ## 4. Local Data Storage, Encryption, & Backup Security
 
-* **Local Storage**: Your search history is stored in a local database (`IntelligentSearchDatabase`, Android Room) and your settings and custom bangs in local app preferences. Instant Answers you turned on keep their recent answers in the app's cache folder (Section 3), Saved Links keep the icons you fetched as small images in the app's files, and an AI provider key you saved is kept, encrypted with an Android Keystore key, in its own file. What each countdown widget counts down to is kept for that widget on this phone and is not backed up. These are not separately encrypted; they are protected by Android's app sandbox and your device's storage encryption, and are excluded from Android cloud backup and device-to-device transfer.
+* **Local Storage**: Your search history is stored in a local database (`IntelligentSearchDatabase`, Android Room) and your settings and custom bangs in local app preferences. Instant Answers you turned on keep their recent answers in the app's cache folder (Section 3), and an AI provider key you saved is kept, encrypted with an Android Keystore key, in its own file. What each countdown widget counts down to is kept for that widget on this phone and is not backed up. These are not separately encrypted; they are protected by Android's app sandbox and your device's storage encryption, and are excluded from Android cloud backup and device-to-device transfer.
 * **Recent Search Cards**: The search overlay keeps your recent queries as cards for quick reuse. **Clear all** on those cards removes them, and the **Search History** switch in **Settings -> Search Sources -> Web** stops saving them. Your full web search history is kept by the browser or search engine you choose, under its own privacy policy.
 * **Encrypted Backups**: Intelligent Search provides an encrypted backup and restore mechanism. When exporting a backup file:
   * Application preferences, hidden apps, and search history are encrypted locally using **AES-256-GCM**.
@@ -177,7 +175,7 @@ Because Intelligent Search operates on an On-Device First model and does not col
 ## 8. Compliance with International Privacy Regulations
 
 ### A. General Data Protection Regulation (GDPR / UK GDPR)
-Under the GDPR, Intelligent Search acts neither as a data controller nor as a data processor for personal data on remote servers, because the app sends no personal data to us or to any server we operate. What you choose to send to your search engine goes directly to that provider (see Section 3). Downloading live currency rates sends no personal data; like any internet request, it lets the European Central Bank see your IP address. Instant Answers you turn on send only what each needs (a word to the Free Dictionary API, rounded coordinates or a place name to Open-Meteo), as described in Section 3. AI Answers send only the question you tap Ask on to the AI provider you chose, with your own key; Fetch Icon sends only the request for a Saved Link's icon to that site; and a translation is handed to Google Translate only when you open it there. All data subjects retain absolute local control, rectification, and erasure capabilities directly within the app.
+Under the GDPR, Intelligent Search acts neither as a data controller nor as a data processor for personal data on remote servers, because the app sends no personal data to us or to any server we operate. What you choose to send to your search engine goes directly to that provider (see Section 3). Downloading live currency rates sends no personal data; like any internet request, it lets the European Central Bank see your IP address. Instant Answers you turn on send only what each needs (a word to the Free Dictionary API, rounded coordinates or a place name to Open-Meteo), as described in Section 3. AI Answers send only the question you tap Ask on to the AI provider you chose, with your own key; and a translation is handed to Google Translate only when you open it there. All data subjects retain absolute local control, rectification, and erasure capabilities directly within the app.
 
 ### B. California Consumer Privacy Act (CCPA / CPRA)
 * We do not collect personal information for commercial sale.

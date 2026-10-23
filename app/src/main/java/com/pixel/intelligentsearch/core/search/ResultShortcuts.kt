@@ -14,8 +14,7 @@ enum class ResultKind(val prefix: String) {
     APP("app"),
     CONTACT("contact"),
     FILE("file"),
-    SETTING("setting"),
-    LINK("link")
+    SETTING("setting")
 }
 
 /**
@@ -48,10 +47,10 @@ object ResultKeys {
     fun setting(result: AndroidSettingResult): String? =
         if (result.app != null) null else "${ResultKind.SETTING.prefix}:${result.id}"
 
-    /** "link:<address>": a Saved Link, by its address (renaming it keeps its pin, nicknames and trigger word). */
-    fun link(link: com.pixel.intelligentsearch.core.data.SavedLink): String = "${ResultKind.LINK.prefix}:${link.url}"
-
-    /** The kind of result [key] names, or null for a key no version of the app writes. */
+    /**
+     * The kind of result [key] names, or null for a key this version doesn't write (a removed Saved Link's "link:"
+     * key among them), which reads as nothing set.
+     */
     fun kindOf(key: String): ResultKind? = ResultKind.entries.firstOrNull { key.startsWith(it.prefix + ":") && key.length > it.prefix.length + 1 }
 
     /** The catalogue page id in a [setting] key. */

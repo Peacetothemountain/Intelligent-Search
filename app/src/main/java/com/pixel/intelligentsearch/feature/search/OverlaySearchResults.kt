@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
 
-import com.pixel.intelligentsearch.core.ui.rememberSavedLinkIcon
 import com.pixel.intelligentsearch.feature.settings.IconButton
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import com.pixel.intelligentsearch.core.ui.uniqueItems
@@ -354,26 +353,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             }
         }
 
-        // Saved Links the query names, each with its long-press menu (pin, nickname, trigger word).
-        if (uiState.savedLinks.isNotEmpty()) {
-            item(key = "saved_links_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-            uniqueItems(uiState.savedLinks, key = ResultListKeys::savedLink, contentType = { "saved_link" }) { link ->
-                ResultMenuBox(s, ResultMenuTarget.Link(link)) { openMenu ->
-                    SavedLinkRow(
-                        link,
-                        rememberSavedLinkIcon(link),
-                        onLongClick = openMenu,
-                        modifier = Modifier.keyboardHighlight(s, ResultListKeys.savedLink(link), ResultHighlightRowShape)
-                    ) {
-                        openResult(context, s, link, LaunchSource.keyboard())
-                    }
-                }
-            }
-        }
-
-        // At a Glance: codes, timers, the next alarm, what's playing, birthdays and the battery, above the empty search.
+        // At a Glance, one card in the top start corner: timers, the next alarm, what's playing, birthdays and the battery.
         if (uiState.query.isEmpty()) {
-            atAGlanceItems(glanceItems, highlight = { key -> Modifier.keyboardHighlight(s, key, GlanceCardShape) }) { hasStartedTyping = false }
+            atAGlanceItems(glanceItems, highlight = { key -> Modifier.keyboardHighlight(s, key, GlanceRowShape) }) { hasStartedTyping = false }
         }
 
         if (bestMatch != null) {

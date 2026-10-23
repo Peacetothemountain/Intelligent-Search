@@ -157,39 +157,6 @@ class HttpsClientTest {
         assertNull(HttpsClient(timeoutMs = 1, totalTimeoutMs = 1, open = { null }, nanoTime = System::nanoTime).get(url, 10, HttpsCall()))
     }
 
-    @Test
-    fun aSameHostRedirectIsFollowedOnceWhenAllowed() {
-        val icon = "https://bank.example.com/favicon.ico"
-        val moved = "https://bank.example.com/static/favicon.ico"
-        val png = byteArrayOf(1, 2, 3)
-        val opened = mutableListOf<String>()
-        fun client(redirects: Int, answers: Map<String, () -> HttpURLConnection>) = HttpsClient(
-            timeoutMs = 15_000, totalTimeoutMs = 30_000L, open = { url -> opened += url.toString(); answers.getValue(url.toString())() },
-            nanoTime = System::nanoTime, accept = HttpsClient.ACCEPT_IMAGE, sameHostRedirects = redirects
-        )
-        val sameHost = mapOf(
-            icon to { FakeConnection(URL(icon), code = 301, location = "/static/favicon.ico") },
-            moved to { FakeConnection(URL(moved), body = ByteArrayInputStream(png)) }
-        )
-        assertArrayEquals(png, client(1, sameHost).get(icon, 100, HttpsCall()))
-        assertEquals(listOf(icon, moved), opened)
-
-        // Not allowed: refused unread, as for every other download.
-        opened.clear()
-        assertNull(client(0, sameHost).get(icon, 100, HttpsCall()))
-        assertEquals(listOf(icon), opened)
-
-        // Another host, plain http, or a second hop: refused.
-        for (target in listOf("https://tracker.example.net/favicon.ico", "http://bank.example.com/favicon.ico")) {
-            assertNull(target, client(1, mapOf(icon to { FakeConnection(URL(icon), code = 302, location = target) })).get(icon, 100, HttpsCall()))
-        }
-        val twice = mapOf(
-            icon to { FakeConnection(URL(icon), code = 301, location = moved) },
-            moved to { FakeConnection(URL(moved), code = 301, location = icon) }
-        )
-        assertNull(client(1, twice).get(icon, 100, HttpsCall()))
-    }
-
     @Test(timeout = 10_000)
     fun cancellingTheCallEndsABlockedReadAtOnce() {
         lateinit var connection: FakeConnection

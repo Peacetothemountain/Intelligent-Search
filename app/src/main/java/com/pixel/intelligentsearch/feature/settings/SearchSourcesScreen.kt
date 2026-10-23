@@ -30,7 +30,6 @@ import androidx.compose.material.icons.outlined.CurrencyExchange
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -251,13 +250,6 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             icon = Icons.Outlined.Settings,
                             isChecked = searchAndroidSettings,
                             onCheckedChange = { searchAndroidSettings = it },
-                            showDivider = true
-                        )
-                        SettingsRow(
-                            title = "Saved Links",
-                            subtitle = "Name Web Addresses to Open Them from Search.",
-                            icon = Icons.Outlined.Link,
-                            onClick = { onNavigate(Route.SavedLinks) },
                             showDivider = false
                         )
                     }

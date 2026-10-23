@@ -52,6 +52,16 @@ class NicknamesTriggersScreenTest {
         assertEquals("Trigger Word: sp.", shortcutSummary(ResultShortcut(spotify, "Spotify", trigger = "sp")))
     }
 
+    /** The how-to names only what search's long-press menus offer: Saved Links are gone, Web Shortcuts open sites. */
+    @Test
+    fun theHowToNamesOnlyWhatTheMenusOffer() {
+        assertEquals(
+            "In Search, Long-Press an App, Contact, File or Settings Page to Pin It or Set a Trigger Word. " +
+                "Apps and Contacts Can Also Get a Nickname Such as Dad or Bank.",
+            NICKNAMES_HOW_TO
+        )
+    }
+
     @Test
     fun everyNamedResultIsListed() {
         compose.setContent { NicknamesTriggersScreen(onBack = {}) }

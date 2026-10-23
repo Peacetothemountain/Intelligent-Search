@@ -5,7 +5,6 @@ import com.pixel.intelligentsearch.core.ui.AnswerHeader
 import com.pixel.intelligentsearch.core.ui.AnswerChips
 import com.pixel.intelligentsearch.core.ui.AnswerChip
 import com.pixel.intelligentsearch.core.ui.AnswerCard
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,7 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -46,11 +44,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.ai.AiAnswerState
 import com.pixel.intelligentsearch.core.ai.AiProvider
-import com.pixel.intelligentsearch.core.data.SavedLink
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.core.ui.AnimatedCopyChip
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
-import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
 
 /**
  * A suggested action at the top of the results ("Start 15 min Timer", "Call Mom", "Ask Claude"): its icon on a
@@ -234,56 +230,3 @@ internal fun markdownLite(text: String, codeBackground: androidx.compose.ui.grap
         if (index < lines.lastIndex) append('\n')
     }
 }
-
-/**
- * A Saved Link among the results: its icon (fetched from the site when the user asked) in the matte circle, or the
- * name's first letter, then its name and site. Opens in the browser, or the site's own app.
- */
-@Composable
-internal fun SavedLinkRow(
-    link: SavedLink,
-    icon: ImageBitmap?,
-    onLongClick: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .moreOptions(onLongClick)
-            .expressiveRowClickable(onLongClick = onLongClick, onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        SavedLinkIcon(link, icon, 40.dp)
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(link.name, color = MaterialTheme.colorScheme.onSurface, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(link.host, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-/** A Saved Link's picture: its site icon in a matte circle, or its first letter on the primary container. */
-@Composable
-internal fun SavedLinkIcon(link: SavedLink, icon: ImageBitmap?, size: androidx.compose.ui.unit.Dp) {
-    if (icon != null) {
-        Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(size).clip(CircleShape).matteRing())
-    } else {
-        Box(
-            modifier = Modifier.size(size).background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = monogramOf(link.name),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        }
-    }
-}
-
-/** The letter a link without an icon shows: its name's first letter or digit, upper case. */
-internal fun monogramOf(name: String): String =
-    name.firstOrNull { it.isLetterOrDigit() }?.uppercaseChar()?.toString() ?: "#"

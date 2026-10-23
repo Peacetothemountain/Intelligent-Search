@@ -237,26 +237,30 @@ class OverlayKeyboardNavTest {
         assertFalse(useListDetailLayout(915f, 412f))
     }
 
-    /** At a Glance's cards and matching notifications are stops like every other result, where the list shows them. */
+    /**
+     * At a Glance's items and matching notifications are stops like every other result, where the list shows them;
+     * each At a Glance item is a stop of its own, all in the one card's list item.
+     */
     @Test
-    fun glanceCardsAndNotificationsAreStops() {
+    fun glanceItemsAndNotificationsAreStops() {
         val battery = com.pixel.intelligentsearch.core.glance.GlanceItem.Battery(com.pixel.intelligentsearch.core.glance.GlanceBattery(15, pluggedIn = false, statusLabel = null))
-        val link = com.pixel.intelligentsearch.core.data.SavedLink("Bank", "https://bank.example.com")
+        val alarm = com.pixel.intelligentsearch.core.glance.GlanceItem.Alarm(com.pixel.intelligentsearch.core.glance.GlanceAlarm(1_000L))
         val note = com.pixel.intelligentsearch.core.glance.IndexedNotification("n1", "com.example.chat", "Chat", "Ana", "Dinner?", postedAt = 0L)
         val contact = ContactItem("Ana Lima", "+1 555 0100", "content://contacts/ana")
         val rows = NavSources(
-            savedLinks = listOf(link),
-            glance = listOf(battery),
+            glance = listOf(alarm, battery),
             bestMatch = contact,
             sectionOrder = listOf("contacts"),
             contacts = listOf(contact),
             notifications = listOf(note)
         ).rows().map { it.single() }
         assertEquals(
-            listOf(ResultListKeys.savedLink(link), battery.key, ResultListKeys.BEST_MATCH, ResultListKeys.contact(contact), ResultListKeys.notification(note)),
+            listOf(alarm.key, battery.key, ResultListKeys.BEST_MATCH, ResultListKeys.contact(contact), ResultListKeys.notification(note)),
             rows.map { it.key }
         )
+        assertEquals(NavTarget.Glance(alarm), rows[0].target)
         assertEquals(NavTarget.Glance(battery), rows[1].target)
+        assertEquals("both items sit in the one At a Glance card", listOf(ResultListKeys.GLANCE, ResultListKeys.GLANCE), rows.take(2).map { it.listKey })
         assertEquals(NavTarget.Notification(note), rows.last().target)
         // The list draws each notification under the same key, so the ring and the scroll find it.
         assertEquals("notification_n1", ResultListKeys.notification(note))

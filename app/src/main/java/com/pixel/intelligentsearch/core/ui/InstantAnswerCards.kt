@@ -89,11 +89,11 @@ import kotlin.math.roundToInt
 private const val COLLAPSED_SENSES = 3
 
 /** Which of the theme's accent pairs a card's header uses, as the other OneBox cards do. */
-private enum class AnswerTone { Primary, Secondary, Tertiary }
+internal enum class AnswerTone { Primary, Secondary, Tertiary }
 
 /** The header every answer card starts with: an icon in its accent container, the kind of answer, and its title. */
 @Composable
-private fun AnswerHeader(icon: ImageVector, label: String, title: String, subtitle: String? = null, tone: AnswerTone) {
+internal fun AnswerHeader(icon: ImageVector, label: String, title: String, subtitle: String? = null, tone: AnswerTone) {
     val scheme = MaterialTheme.colorScheme
     val (container, onContainer, accent) = when (tone) {
         AnswerTone.Primary -> Triple(scheme.primaryContainer, scheme.onPrimaryContainer, scheme.primary)
@@ -155,7 +155,7 @@ private val HEADER_SIDE_BY_SIDE_MIN_WIDTH = 160.dp
 
 /** An action on an answer card, styled like the calculator card's Open Calculator chip; [emphasized] for the main one. */
 @Composable
-private fun AnswerChip(label: String, icon: ImageVector, emphasized: Boolean = false, onClick: () -> Unit) {
+internal fun AnswerChip(label: String, icon: ImageVector, emphasized: Boolean = false, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     AssistChip(
         onClick = onClick,
@@ -176,7 +176,7 @@ private fun AnswerChip(label: String, icon: ImageVector, emphasized: Boolean = f
 
 /** A row of chips that flows onto a second line on narrow screens and at large text sizes. */
 @Composable
-private fun AnswerChips(content: @Composable () -> Unit) {
+internal fun AnswerChips(content: @Composable () -> Unit) {
     Spacer(modifier = Modifier.height(14.dp))
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
@@ -187,7 +187,7 @@ private fun AnswerChips(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun AnswerCard(modifier: Modifier, content: @Composable () -> Unit) {
+internal fun AnswerCard(modifier: Modifier, content: @Composable () -> Unit) {
     ExpressiveOneBoxCard(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         cornerRadius = ExpressiveCornerTokens.ExtraLarge,

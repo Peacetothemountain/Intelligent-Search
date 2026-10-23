@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.AlignVerticalBottom
 import androidx.compose.material.icons.outlined.ContentPaste
@@ -137,15 +136,6 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     smartClipboard = false
                                 }
                             },
-                            showDivider = true
-                        )
-                        var assistantVoice by rememberSetting(SettingsManager.ASSISTANT_STARTS_WITH_VOICE)
-                        SettingsRowToggle(
-                            title = "Start Assistant with Voice",
-                            subtitle = "Only Applies If Intelligent Search Is Your Default Digital Assistant. On, the Assistant Gesture Opens Search and Starts the Microphone Right Away. Off, It Opens Search as Show Keyboard When Search Opens Sets.",
-                            icon = Icons.Outlined.Mic,
-                            isChecked = assistantVoice,
-                            onCheckedChange = { assistantVoice = it },
                             showDivider = false
                         )
                     }

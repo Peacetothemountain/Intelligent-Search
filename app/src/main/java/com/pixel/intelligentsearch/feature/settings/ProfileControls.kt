@@ -80,7 +80,7 @@ internal fun ProfileStateActions(profile: Int, onReset: () -> Unit, onSave: () -
     }
     IconButton(onClick = {
         onSave()
-        Toast.makeText(context, "Profile $profile state saved.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Profile $profile saved.", Toast.LENGTH_SHORT).show()
     }) {
         Icon(Icons.Outlined.Save, contentDescription = "Save Profile State")
     }

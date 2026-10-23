@@ -188,11 +188,10 @@ internal object ContactActions {
     /**
      * The buttons [contact] gets: Call and Message with a number, Email with an address, and each installed chat app
      * once the number can be written internationally. Call and Message dial the number as saved; the chat apps get
-     * the contact's chat number (its default, else a mobile) when it has one. Nothing at all when the Contact
-     * Actions setting is off.
+     * the contact's chat number (its default, else a mobile) when it has one. They have no switch: contact results
+     * always offer them.
      */
-    fun forContact(contact: ContactItem, targets: ContactActionTargets, enabled: Boolean = true): List<ContactAction> {
-        if (!enabled) return emptyList()
+    fun forContact(contact: ContactItem, targets: ContactActionTargets): List<ContactAction> {
         val who = contact.name.ifBlank { contact.phoneNumber.ifBlank { contact.email } }
         val number = contact.phoneNumber.trim()
         val chatNumber = contact.chatNumber.trim().ifEmpty { number }

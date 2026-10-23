@@ -179,7 +179,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         ) {
             SettingsCard {
                 Text(
-                    text = "Intelligent Search only searches the folders and photos you choose here. Nothing else on your storage is read, so no storage permission is needed.",
+                    text = "Intelligent Search only searches the folders and photos you choose here. Nothing else on your storage is read, so no storage permission is needed. Start a search with a file type, like \"pdf invoice\", to search only that type.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -263,6 +263,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onCheckedChange = { thumbnails = it },
                     showDivider = true
                 )
+                OpenFilesWithRow(showDivider = true)
 
                 ResultsCountSetting(SettingsManager.FILE_RESULTS_COUNT, "File", defaultCount = 5)
 
@@ -270,12 +271,6 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 PrioritySetting(SettingsManager.SEARCH_WEIGHT_FILES, "File")
             }
-
-            SettingsSectionHeader("File Types")
-            FileTypesCard()
-
-            SettingsSectionHeader("Open Files With")
-            OpenFilesWithCard()
         }
     }
 }

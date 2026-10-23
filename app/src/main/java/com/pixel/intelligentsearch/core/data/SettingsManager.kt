@@ -67,7 +67,6 @@ data class IntelligentSearchSettings(
     val hiddenApps: Set<String> = SettingsManager.HIDDEN_APPS.default,
     val appQuickLaunch: Boolean = SettingsManager.APP_QUICK_LAUNCH.default,
     val contactDirectCall: Boolean = SettingsManager.CONTACT_DIRECT_CALL.default,
-    val contactActions: Boolean = SettingsManager.CONTACT_ACTIONS.default,
     val shortcutInline: Boolean = SettingsManager.SHORTCUT_INLINE.default,
     val appFuzzySearch: Boolean = SettingsManager.APP_FUZZY_SEARCH.default,
     val quickSearchHorizontal: Boolean = SettingsManager.QUICK_SEARCH_HORIZONTAL.default,
@@ -146,8 +145,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val CUSTOM_SEARCH_ENGINE_NAME = StringSetting("custom_search_engine_name", "Custom")
         val FILES_HIDDEN_FILES = BooleanSetting("search.files.hidden.files", false, "search_files_hidden_files")
         val FILES_THUMBNAILS = BooleanSetting("search.files.thumbnails", true, "search_files_thumbnails")
-        /** File types left out of file search, by [FileTypeGroup.id]; empty searches every type. */
-        val FILES_EXCLUDED_TYPES = StringSetSetting("search.files.excluded_types", emptySet())
         /**
          * Subfolders of the chosen folders that file search skips, as tree URIs. Like the chosen folders themselves
          * they only mean something on this phone, so backups leave them out (BackupPreferenceSchema.DEVICE_LOCAL_KEYS).
@@ -178,8 +175,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val HIDDEN_APPS = StringSetSetting("hidden_apps", emptySet())
         val APP_QUICK_LAUNCH = BooleanSetting("app_quick_launch", false)
         val CONTACT_DIRECT_CALL = BooleanSetting("contact_direct_call", false, "contact.direct.call")
-        /** Call, Message, Email and chat-app buttons on contact results. */
-        val CONTACT_ACTIONS = BooleanSetting("contact_actions", true)
         val SHORTCUT_INLINE = BooleanSetting("shortcut.inline", true, "shortcut_inline")
         val APP_FUZZY_SEARCH = BooleanSetting("app.fuzzy.search", true, "app_fuzzy_search")
         /** The overlay's quick-app panel; switched from Search Behavior and from App & Shortcut Search. */
@@ -301,7 +296,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             BOTTOM_SEARCH, BOTTOM_SEARCH_RESULT, TUTORIAL_COMPLETED, FORCE_TUTORIAL, TUTORIAL_STEP, G_ICON_ENABLED,
             WIDGET_SHOW_VOICE, WIDGET_SHOW_GEMINI, QUICK_SEARCH_YOUTUBE, QUICK_SEARCH_WIKIPEDIA,
             QUICK_SEARCH_PLAY_STORE, QUICK_SEARCH_MAPS, SEARCH_PILLS, WIDGET_THEME_STYLE, HIDDEN_APPS,
-            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, CONTACT_ACTIONS, SHORTCUT_INLINE, APP_FUZZY_SEARCH,
+            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, SHORTCUT_INLINE, APP_FUZZY_SEARCH,
             QUICK_SEARCH_HORIZONTAL, WEB_RESULTS_COUNT, CONTACT_RESULTS_COUNT, FILE_RESULTS_COUNT,
             SHORTCUT_RESULTS_COUNT, SEARCH_WEIGHT_APPS, SEARCH_WEIGHT_CONTACTS, SEARCH_WEIGHT_FILES,
             SEARCH_WEIGHT_WEB, CONTEXT_AWARE_QUICK_APPS, SMART_CLIPBOARD_SUGGESTIONS, ASSISTANT_STARTS_WITH_VOICE,
@@ -313,7 +308,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             SHOW_KEYBOARD_ON_OPEN, ENTER_KEY_ACTION,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
             DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_CLOCK,
-            RESULT_SHORTCUTS, WEATHER_HOME_LOCATION, FILES_EXCLUDED_TYPES, FILES_EXCLUDED_FOLDERS,
+            RESULT_SHORTCUTS, WEATHER_HOME_LOCATION, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,
             AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL,
@@ -343,8 +338,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * Saved Themes (moved into the widget profiles first, WidgetProfiles.migrateSavedThemes), the widgets'
          * favourite apps and media rows (removed; the Quick App Panel opens favourite apps), and the switches folded
          * into others: At a Glance's battery and per-item switches, Dictionary and Weather Answers and Use Approximate
-         * Location (Web Suggestions and the weather card decide now). A value an older build stored is dropped at every
-         * start, and backups never restore one.
+         * Location (Web Suggestions and the weather card decide now), Contact Actions and File Types. A value an older
+         * build stored is dropped at every start, and backups never restore one.
          */
         val REMOVED_NAMES: Set<String> = setOf(
             "search_from_selected_text", "glance.codes", "on_device_translation", "saved_links_json",
@@ -357,7 +352,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             // At a Glance's battery (removed) and its per-item switches (each item now shows when it can).
             "glance.battery", "glance.timers", "glance.alarm", "glance.media", "glance.birthdays",
             // Dictionary and weather answers follow Web Suggestions now; the weather card sets the location.
-            "dictionary_answers", "weather_answers", REMOVED_WEATHER_USE_DEVICE_LOCATION
+            "dictionary_answers", "weather_answers", REMOVED_WEATHER_USE_DEVICE_LOCATION,
+            // Contact actions always show with contact search; file search covers every file type.
+            "contact_actions", "search.files.excluded_types"
         )
 
         /**
@@ -469,7 +466,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         hiddenApps = sp[HIDDEN_APPS],
         appQuickLaunch = sp[APP_QUICK_LAUNCH],
         contactDirectCall = sp[CONTACT_DIRECT_CALL],
-        contactActions = sp[CONTACT_ACTIONS],
         shortcutInline = sp[SHORTCUT_INLINE],
         appFuzzySearch = sp[APP_FUZZY_SEARCH],
         quickSearchHorizontal = sp[QUICK_SEARCH_HORIZONTAL],

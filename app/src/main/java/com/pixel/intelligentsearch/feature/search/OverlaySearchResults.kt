@@ -675,8 +675,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         }
                                     }
                                     Spacer(modifier = Modifier.width(16.dp))
-                                    val contactActions = remember(contact, s.contactActionTargets, settingsState.contactActions) {
-                                        ContactActions.forContact(contact, s.contactActionTargets, settingsState.contactActions)
+                                    val contactActions = remember(contact, s.contactActionTargets) {
+                                        ContactActions.forContact(contact, s.contactActionTargets)
                                     }
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)

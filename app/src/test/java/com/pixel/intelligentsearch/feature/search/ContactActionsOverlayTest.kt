@@ -33,8 +33,8 @@ import org.robolectric.annotation.Config
 
 /**
  * The contact buttons in the real overlay: a search for two contacts puts one in the Best Match card (chips) and the
- * other in the contact rows (round buttons). Both follow the Contact Actions setting, and nothing is looked up while
- * it is off.
+ * other in the contact rows (round buttons). They have no switch of their own: with contact search on they always
+ * show, and with it off nothing is looked up.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -46,8 +46,7 @@ class ContactActionsOverlayTest {
 
     private val context: Application get() = ApplicationProvider.getApplicationContext()
 
-    /** Every chat button this app knows, as if every app were installed. */
-    private val everything = ContactActionTargets(ContactActionKind.entries.toSet(), "org.telegram.messenger", "US")
+    private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
 
     @Before fun setUp() {
         hilt.inject()
@@ -55,7 +54,6 @@ class ContactActionsOverlayTest {
         ContactActionTargets.cached = null
         FakeContactBook.install(context)
         FakeContactBook.installContactApps(context)
-        val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
         TutorialManager.completeTutorial(prefs)
         prefs.edit().putBoolean(SettingsManager.SEARCH_WEB_SUGGESTIONS.name, false).commit()
     }
@@ -65,8 +63,35 @@ class ContactActionsOverlayTest {
     }
 
     @Test
-    fun withTheSettingOnTheBestMatchAndTheRowsGetButtons() {
-        showOverlay(contactActions = true)
+    fun theBestMatchAndTheRowsGetButtons() {
+        showOverlay()
+        assertButtonsShown()
+        // The check made on resume is kept for the next overlay.
+        assertEquals(ContactActionTargets.resolve(context), ContactActionTargets.cached)
+    }
+
+    @Test
+    fun theOldContactActionsSwitchNoLongerHidesThem() {
+        // An older build's Contact Actions switch, left off, means nothing now.
+        prefs.edit().putBoolean("contact_actions", false).commit()
+        showOverlay()
+        assertButtonsShown()
+    }
+
+    @Test
+    fun theButtonsAreLookedUpWhileContactSearchIsOn() {
+        showOverlay()
+        assertNotNull(ContactActionTargets.cached)
+    }
+
+    @Test
+    fun withContactSearchOffNothingIsLookedUp() {
+        prefs.edit().putBoolean(SettingsManager.SEARCH_CONTACTS.name, false).commit()
+        showOverlay(expectContacts = false)
+        assertNull(ContactActionTargets.cached)
+    }
+
+    private fun assertButtonsShown() {
         // One Robin is the Best Match (chips), the other a row (round buttons); each has its own set.
         for (who in listOf("Robin Example", "Robin Sample")) {
             compose.onAllNodesWithContentDescription("Call $who").assertCountEquals(1)
@@ -74,34 +99,9 @@ class ContactActionsOverlayTest {
             compose.onAllNodesWithContentDescription("Message $who on WhatsApp").assertCountEquals(1)
         }
         compose.onAllNodesWithContentDescription("Email Robin Example").assertCountEquals(1)
-        // The check made on resume is kept for the next overlay.
-        assertEquals(ContactActionTargets.resolve(context), ContactActionTargets.cached)
     }
 
-    @Test
-    fun withTheSettingOffNeitherTheBestMatchNorTheRowsGetButtons() {
-        // Buttons an earlier overlay found are still known, so only the setting can hide them.
-        ContactActionTargets.cached = everything
-        showOverlay(contactActions = false)
-        compose.onAllNodesWithContentDescription("Robin", substring = true).assertCountEquals(0)
-        assertEquals(everything, ContactActionTargets.cached)
-    }
-
-    @Test
-    fun withTheSettingOffNothingIsLookedUp() {
-        showOverlay(contactActions = false)
-        assertNull(ContactActionTargets.cached)
-    }
-
-    @Test
-    fun withTheSettingOnTheButtonsAreLookedUp() {
-        showOverlay(contactActions = true)
-        assertNotNull(ContactActionTargets.cached)
-    }
-
-    private fun showOverlay(contactActions: Boolean) {
-        context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
-            .edit().putBoolean(SettingsManager.CONTACT_ACTIONS.name, contactActions).commit()
+    private fun showOverlay(expectContacts: Boolean = true) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) {
@@ -116,6 +116,7 @@ class ContactActionsOverlayTest {
             }
         }
         compose.settle()
+        if (!expectContacts) return
         // Both contacts are on screen, whatever the buttons.
         for (who in listOf("Robin Example", "Robin Sample")) {
             assertTrue("$who is shown", compose.onAllNodesWithText(who).fetchSemanticsNodes().isNotEmpty())

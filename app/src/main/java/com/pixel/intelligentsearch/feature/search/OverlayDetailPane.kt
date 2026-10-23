@@ -181,7 +181,7 @@ private fun DetailEmpty() {
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "Type to See the Top Result Here. Use the Arrow Keys to Look Through the Others.",
+            text = "Type to See the Top Result Here. Use the Arrow Keys to Move Through the Results.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -215,8 +215,8 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
             is ContactItem -> {
                 ContactAvatar(item, DETAIL_PICTURE_SIZE) { DetailSymbol(Icons.Outlined.Person) }
                 DetailTitle(item.name.ifBlank { item.phoneNumber }, listOf(item.phoneNumber, item.email).filter { it.isNotBlank() }.joinToString("\n").ifBlank { null })
-                val actions = remember(item, s.contactActionTargets, s.settingsState.contactActions) {
-                    ContactActions.forContact(item, s.contactActionTargets, s.settingsState.contactActions)
+                val actions = remember(item, s.contactActionTargets) {
+                    ContactActions.forContact(item, s.contactActionTargets)
                 }
                 DetailActions {
                     DetailAction("Open Contact", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true) {
@@ -279,7 +279,7 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
         }
         is NavTarget.RemoveFileTypeFilter -> {
             DetailSymbol(fileTypeIcon(target.group))
-            DetailTitle("${target.group.label} Only", "Files Are Limited to This Type.")
+            DetailTitle("${target.group.label} Only", "Only Files of This Type Are Shown.")
             DetailActions { DetailAction("Show All Files", Icons.Outlined.FilterListOff, emphasized = true, onClick = open) }
         }
         is NavTarget.Notification -> {

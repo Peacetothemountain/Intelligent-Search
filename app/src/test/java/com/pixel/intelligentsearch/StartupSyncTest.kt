@@ -41,7 +41,7 @@ class StartupSyncTest {
     )
 
     private fun sync() = kotlinx.coroutines.runBlocking {
-        StartupSync.afterUnlock(context, repository(), com.pixel.intelligentsearch.core.answers.InstantAnswerEngine(context, settings))
+        StartupSync.afterUnlock(context, repository(), com.pixel.intelligentsearch.core.answers.LiveAnswerEngine(context, settings))
     }
 
     private fun pending(work: String) =

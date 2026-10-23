@@ -1,18 +1,18 @@
 package com.pixel.intelligentsearch.core.answers
 
-import com.pixel.intelligentsearch.core.answers.InstantAnswerQuery.Define
-import com.pixel.intelligentsearch.core.answers.InstantAnswerQuery.ScreenTime
-import com.pixel.intelligentsearch.core.answers.InstantAnswerQuery.Translate
-import com.pixel.intelligentsearch.core.answers.InstantAnswerQuery.Weather
+import com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Define
+import com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.ScreenTime
+import com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Translate
+import com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Weather
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.util.Locale
 
 /** Which queries are read as instant-answer questions, and which are left as ordinary searches. */
-class InstantAnswerParserTest {
+class LiveAnswerParserTest {
 
-    private fun parse(query: String) = InstantAnswerParser.parse(query)
+    private fun parse(query: String) = LiveAnswerParser.parse(query)
 
     // ---------------------------------------------------------------------------------------------
     // Definitions
@@ -147,7 +147,7 @@ class InstantAnswerParserTest {
 
     @Test
     fun theTextToTranslateIsCapped() {
-        val long = "a".repeat(InstantAnswerParser.MAX_TRANSLATE_CHARS + 1)
+        val long = "a".repeat(LiveAnswerParser.MAX_TRANSLATE_CHARS + 1)
         assertNull(parse("translate $long to spanish"))
     }
 

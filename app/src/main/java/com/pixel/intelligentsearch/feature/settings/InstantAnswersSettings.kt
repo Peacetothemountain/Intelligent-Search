@@ -42,7 +42,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.answers.GeoPlace
 import com.pixel.intelligentsearch.core.answers.HomeLocationCodec
-import com.pixel.intelligentsearch.core.answers.InstantAnswerEngine
+import com.pixel.intelligentsearch.core.answers.LiveAnswerEngine
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.security.NetworkPolicy
@@ -65,7 +65,7 @@ internal fun webAnswerSubtitle(what: String, service: String, block: NetworkPoli
 @Composable
 fun InstantAnswersCard(onOpenAiAnswers: () -> Unit) {
     val context = LocalContext.current
-    val engine = remember { context.appEntryPoint.instantAnswerEngine() }
+    val engine = remember { context.appEntryPoint.liveAnswerEngine() }
     val web by rememberSetting(SettingsManager.SEARCH_WEB)
     val webSuggestions by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
     val searchEngine by rememberSetting(SettingsManager.SEARCH_ENGINE)
@@ -119,7 +119,7 @@ fun InstantAnswersCard(onOpenAiAnswers: () -> Unit) {
 }
 
 @Composable
-private fun HomeLocationRow(engine: InstantAnswerEngine) {
+private fun HomeLocationRow(engine: LiveAnswerEngine) {
     var home by rememberSetting(SettingsManager.WEATHER_HOME_LOCATION)
     var choosing by remember { mutableStateOf(false) }
     val place = HomeLocationCodec.decode(home)
@@ -169,7 +169,7 @@ private fun ApproximateLocationRow() {
 /** Searches Open-Meteo's place names for the home location; nothing is sent until Search is pressed. */
 @Composable
 private fun HomeLocationDialog(
-    engine: InstantAnswerEngine,
+    engine: LiveAnswerEngine,
     hasHome: Boolean,
     onChosen: (GeoPlace) -> Unit,
     onCleared: () -> Unit,

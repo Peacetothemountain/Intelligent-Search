@@ -138,7 +138,7 @@ class App : Application() {
                 // One-time: fold old setting spellings and the retired DataStore copy into the single store.
                 settingsManager.migrateToSingleStore()
                 settingsManager.startDirectBootMirror()
-                StartupSync.afterUnlock(this@App, currencyRates.get(), appEntryPoint.instantAnswerEngine())
+                StartupSync.afterUnlock(this@App, currencyRates.get(), appEntryPoint.liveAnswerEngine())
                 // A process started only for a widget or the boot receiver shouldn't pay for camera, network and
                 // profile registration on the main thread: the night-mode clean-up needs no toggle manager, and the
                 // profile manager is built lazily.

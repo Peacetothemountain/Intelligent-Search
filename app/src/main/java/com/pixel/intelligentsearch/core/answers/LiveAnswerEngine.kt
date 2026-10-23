@@ -50,7 +50,7 @@ sealed interface LiveAnswer {
  * out, and come from the cache at once when they can.
  */
 @Singleton
-class InstantAnswerEngine internal constructor(
+class LiveAnswerEngine internal constructor(
     private val prefs: () -> SharedPreferences,
     private val dictionary: DictionaryRepository,
     private val weather: WeatherRepository,
@@ -90,16 +90,16 @@ class InstantAnswerEngine internal constructor(
     )
 
     /** The answer to [question], which was read from [query]. */
-    fun answer(question: InstantAnswerQuery, query: String): Flow<LiveAnswer> = flow {
+    fun answer(question: LiveAnswerQuery, query: String): Flow<LiveAnswer> = flow {
         when (question) {
-            is InstantAnswerQuery.Define -> define(question, query)
-            is InstantAnswerQuery.Weather -> weather(question, query)
-            is InstantAnswerQuery.Translate -> emit(translation(question, query))
-            InstantAnswerQuery.ScreenTime -> emit(LiveAnswer.ScreenTime(query, screenTime()))
+            is LiveAnswerQuery.Define -> define(question, query)
+            is LiveAnswerQuery.Weather -> weather(question, query)
+            is LiveAnswerQuery.Translate -> emit(translation(question, query))
+            LiveAnswerQuery.ScreenTime -> emit(LiveAnswer.ScreenTime(query, screenTime()))
         }
     }.flowOn(Dispatchers.IO)
 
-    private suspend fun FlowCollector<LiveAnswer>.define(question: InstantAnswerQuery.Define, query: String) {
+    private suspend fun FlowCollector<LiveAnswer>.define(question: LiveAnswerQuery.Define, query: String) {
         if (!NetworkPolicy.webAnswersAllowed(prefs(), SettingsManager.DICTIONARY_ANSWERS)) return
         val cached = dictionary.peek(question.word) ?: dictionary.cached(question.word)
         if (cached != null) return emit(LiveAnswer.Definition(query, cached))
@@ -108,7 +108,7 @@ class InstantAnswerEngine internal constructor(
         dictionary.fetch(question.word)?.let { emit(LiveAnswer.Definition(query, it)) }
     }
 
-    private suspend fun FlowCollector<LiveAnswer>.weather(question: InstantAnswerQuery.Weather, query: String) {
+    private suspend fun FlowCollector<LiveAnswer>.weather(question: LiveAnswerQuery.Weather, query: String) {
         val settings = prefs()
         if (!NetworkPolicy.webAnswersAllowed(settings, SettingsManager.WEATHER_ANSWERS)) return
         val unit = TemperatureUnit.forLocale(locale())
@@ -145,7 +145,7 @@ class InstantAnswerEngine internal constructor(
     }
 
     /** The Google Translate card for [question]: into the language named, else the phone's, else English. */
-    private fun translation(question: InstantAnswerQuery.Translate, query: String) = LiveAnswer.Translation(
+    private fun translation(question: LiveAnswerQuery.Translate, query: String) = LiveAnswer.Translation(
         query = query,
         text = question.text,
         source = question.sourceLanguage,

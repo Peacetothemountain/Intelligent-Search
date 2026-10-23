@@ -28,7 +28,7 @@ import java.util.Locale
  * and how a keystroke cancels the last one's request.
  */
 @RunWith(RobolectricTestRunner::class)
-class InstantAnswerEngineTest {
+class LiveAnswerEngineTest {
 
     @get:org.junit.Rule val folder = org.junit.rules.TemporaryFolder()
 
@@ -62,7 +62,7 @@ class InstantAnswerEngineTest {
     private val location = FakeLocation()
     private var screenTime: ScreenTimeReport? = null
 
-    private fun engine(debounceMs: Long = 0L) = InstantAnswerEngine(
+    private fun engine(debounceMs: Long = 0L) = LiveAnswerEngine(
         prefs = { prefs },
         dictionary = DictionaryRepository(http, AnswerCache(60_000, 16), AnswerCache(60_000, 16)),
         weather = WeatherRepository(http, AnswerCache(60_000, 16), AnswerCache(60_000, 16)),
@@ -78,8 +78,8 @@ class InstantAnswerEngineTest {
         prefs.edit().clear().commit()
     }
 
-    private fun answers(engine: InstantAnswerEngine, query: String): List<LiveAnswer> = runBlocking {
-        engine.answer(requireNotNull(InstantAnswerParser.parse(query)), query).toList()
+    private fun answers(engine: LiveAnswerEngine, query: String): List<LiveAnswer> = runBlocking {
+        engine.answer(requireNotNull(LiveAnswerParser.parse(query)), query).toList()
     }
 
     private fun allowWebAnswers() {
@@ -149,8 +149,8 @@ class InstantAnswerEngineTest {
         answers(engine, "weather")
         assertEquals(2, http.requests.size)
 
-        engine.clearCache(InstantAnswerEngine.Feature.DICTIONARY)
-        engine.clearCache(InstantAnswerEngine.Feature.WEATHER)
+        engine.clearCache(LiveAnswerEngine.Feature.DICTIONARY)
+        engine.clearCache(LiveAnswerEngine.Feature.WEATHER)
         answers(engine, "define serendipity")
         answers(engine, "weather")
         assertEquals(4, http.requests.size)
@@ -176,7 +176,7 @@ class InstantAnswerEngineTest {
                 delay(40)
             }
         }.collectLatest { query ->
-            engine.answer(requireNotNull(InstantAnswerParser.parse(query)), query).collect { shown += it }
+            engine.answer(requireNotNull(LiveAnswerParser.parse(query)), query).collect { shown += it }
         }
         assertEquals(listOf("https://api.dictionaryapi.dev/api/v2/entries/en/serendipity"), http.requests)
         assertEquals(listOf("define serendipity"), shown.map { it.query })
@@ -236,12 +236,12 @@ class InstantAnswerEngineTest {
         assertEquals("Johnson City, Tennessee", (answers(engine(), "weather").single() as LiveAnswer.Weather).report.placeName)
         location.allowed = true
         val here = answers(engine(), "weather").single() as LiveAnswer.Weather
-        assertEquals(InstantAnswerEngine.YOUR_LOCATION, here.report.placeName)
+        assertEquals(LiveAnswerEngine.YOUR_LOCATION, here.report.placeName)
         assertTrue(http.requests.last(), http.requests.last().contains("latitude=48.86&longitude=2.35"))
     }
 
     /** An engine whose definitions and forecasts are also kept on disk, in [dir]. */
-    private fun diskEngine(dir: java.io.File) = InstantAnswerEngine(
+    private fun diskEngine(dir: java.io.File) = LiveAnswerEngine(
         prefs = { prefs },
         dictionary = DictionaryRepository(http, AnswerCache(60_000, 16, DiskAnswerCache(java.io.File(dir, "dictionary"), 10)), AnswerCache(60_000, 16)),
         weather = WeatherRepository(
@@ -266,7 +266,7 @@ class InstantAnswerEngineTest {
             .put(SettingsManager.WEATHER_USE_DEVICE_LOCATION, true).commit()
         location.allowed = true
         val here = answers(diskEngine(dir), "weather").single() as LiveAnswer.Weather
-        assertEquals(InstantAnswerEngine.YOUR_LOCATION, here.report.placeName)
+        assertEquals(LiveAnswerEngine.YOUR_LOCATION, here.report.placeName)
         assertEquals("nothing about where the phone is was saved", 0, filesIn(dir, "forecast"))
 
         // The home location's forecast is the user's own choice of place, and is kept.
@@ -367,7 +367,7 @@ class InstantAnswerEngineTest {
             null
         }
         val dictionary = DictionaryRepository(blocking, AnswerCache(60_000, 16), AnswerCache(60_000, 16))
-        val engine = InstantAnswerEngine(
+        val engine = LiveAnswerEngine(
             prefs = { prefs },
             dictionary = dictionary,
             weather = WeatherRepository(blocking, AnswerCache(60_000, 16), AnswerCache(60_000, 16)),
@@ -378,7 +378,7 @@ class InstantAnswerEngineTest {
         )
         runBlocking {
             val job = launch(kotlinx.coroutines.Dispatchers.Default) {
-                engine.answer(requireNotNull(InstantAnswerParser.parse("define serendipity")), "define serendipity").toList()
+                engine.answer(requireNotNull(LiveAnswerParser.parse("define serendipity")), "define serendipity").toList()
             }
             assertTrue("the request never went out", reached.await(5, java.util.concurrent.TimeUnit.SECONDS))
             job.cancel()

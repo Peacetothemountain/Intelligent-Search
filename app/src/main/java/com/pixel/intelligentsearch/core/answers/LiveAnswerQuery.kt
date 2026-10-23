@@ -6,27 +6,27 @@ import java.util.Locale
 enum class ForecastDay { TODAY, TOMORROW }
 
 /**
- * A question the overlay can answer inline, read from the query by [InstantAnswerParser]: a word to define, the
+ * A question the overlay can answer inline, read from the query by [LiveAnswerParser]: a word to define, the
  * weather somewhere, text to translate, or today's screen time.
  */
-sealed interface InstantAnswerQuery {
+sealed interface LiveAnswerQuery {
     /**
      * Define [word]. [explicit] when the query asked for a definition in so many words ("define x", "x meaning"); a
      * bare "word?" isn't, so it gets no tap-through card when no definition can be shown.
      */
-    data class Define(val word: String, val explicit: Boolean) : InstantAnswerQuery
+    data class Define(val word: String, val explicit: Boolean) : LiveAnswerQuery
 
     /** The forecast for [day] in [place], or at the user's home location when [place] is null. */
-    data class Weather(val place: String?, val day: ForecastDay) : InstantAnswerQuery
+    data class Weather(val place: String?, val day: ForecastDay) : LiveAnswerQuery
 
     /**
      * Translate [text] into [targetLanguage], one of [TranslationLanguages.CODES] (null: the phone's language), from
      * [sourceLanguage] (null: let Google Translate tell).
      */
-    data class Translate(val text: String, val targetLanguage: String?, val sourceLanguage: String?) : InstantAnswerQuery
+    data class Translate(val text: String, val targetLanguage: String?, val sourceLanguage: String?) : LiveAnswerQuery
 
     /** Today's screen time and the apps that took it. */
-    data object ScreenTime : InstantAnswerQuery
+    data object ScreenTime : LiveAnswerQuery
 }
 
 /**
@@ -34,7 +34,7 @@ sealed interface InstantAnswerQuery {
  * compiled once. Order matters where phrasings overlap: screen time, then "define ..." in so many words, then
  * translations ("weather in french" is a translation, not a place), then weather, then the looser definition forms.
  */
-object InstantAnswerParser {
+object LiveAnswerParser {
 
     private val WHITESPACE = Regex("\\s+")
 
@@ -112,7 +112,7 @@ object InstantAnswerParser {
     )
 
     /** What [rawQuery] asks to be answered inline, or null for an ordinary search. */
-    fun parse(rawQuery: String): InstantAnswerQuery? {
+    fun parse(rawQuery: String): LiveAnswerQuery? {
         val trimmed = rawQuery.trim()
         if (trimmed.isEmpty() || trimmed.length > MAX_TRANSLATE_CHARS + 40) return null
         val lower = trimmed.lowercase(Locale.ROOT).replace(WHITESPACE, " ")
@@ -120,7 +120,7 @@ object InstantAnswerParser {
         val sentence = lower.trimEnd('?', '.', '!').trim()
         if (sentence.isEmpty()) return null
 
-        if (SCREEN_TIME_PATTERNS.any { it.matches(sentence) }) return InstantAnswerQuery.ScreenTime
+        if (SCREEN_TIME_PATTERNS.any { it.matches(sentence) }) return LiveAnswerQuery.ScreenTime
 
         DEFINE_PREFIXES.firstOrNull { sentence.startsWith(it) }?.let { prefix ->
             return definition(sentence.removePrefix(prefix), explicit = true, strict = false)
@@ -141,18 +141,18 @@ object InstantAnswerParser {
     }
 
     /** [raw] as a word to define. [strict] leaves out words that more likely start a question ("what does it mean"). */
-    private fun definition(raw: String, explicit: Boolean, strict: Boolean): InstantAnswerQuery.Define? {
+    private fun definition(raw: String, explicit: Boolean, strict: Boolean): LiveAnswerQuery.Define? {
         val word = raw.trim().trim(*QUOTES).trim()
         if (word.isEmpty() || !DEFINABLE.matches(word) || word.split(' ').size > 3) return null
         if (strict && word in NOT_DEFINABLE) return null
-        return InstantAnswerQuery.Define(word, explicit)
+        return LiveAnswerQuery.Define(word, explicit)
     }
 
     // ---------------------------------------------------------------------------------------------
     // TRANSLATION
     // ---------------------------------------------------------------------------------------------
 
-    private fun parseTranslation(original: String, sentence: String): InstantAnswerQuery.Translate? {
+    private fun parseTranslation(original: String, sentence: String): LiveAnswerQuery.Translate? {
         TRANSLATE_FROM_TO.matchEntire(sentence)?.let { match ->
             val source = TranslationLanguages.codeFor(match.groupValues[2])
             val target = TranslationLanguages.codeFor(match.groupValues[3])
@@ -180,7 +180,7 @@ object InstantAnswerParser {
      * The text to translate, cut from [original] at [range] of its lowercased form so the user's own capitals stay.
      * Lowercasing and collapsing spaces can move characters, so the cut is only trusted when it reads the same.
      */
-    private fun translation(original: String, range: IntRange, target: String?, source: String?): InstantAnswerQuery.Translate? {
+    private fun translation(original: String, range: IntRange, target: String?, source: String?): LiveAnswerQuery.Translate? {
         val collapsed = original.trim().replace(WHITESPACE, " ")
         val lowered = collapsed.lowercase(Locale.ROOT)
         val sentence = lowered.trimEnd('?', '.', '!').trim()
@@ -192,31 +192,31 @@ object InstantAnswerParser {
         if (text.isEmpty() || text.length > MAX_TRANSLATE_CHARS) return null
         // "translate english" or "spanish in english" name languages, not text.
         if (target == null && TranslationLanguages.codeFor(text) != null) return null
-        return InstantAnswerQuery.Translate(text, target, source)
+        return LiveAnswerQuery.Translate(text, target, source)
     }
 
     // ---------------------------------------------------------------------------------------------
     // WEATHER
     // ---------------------------------------------------------------------------------------------
 
-    private fun parseWeather(sentence: String): InstantAnswerQuery.Weather? {
+    private fun parseWeather(sentence: String): LiveAnswerQuery.Weather? {
         val q = sentence.replace(WEATHER_LEAD, "").replace(WEATHER_LIKE, "weather")
-        WEATHER_ALONE.matchEntire(q)?.let { return InstantAnswerQuery.Weather(null, dayOf(it.groupValues[1])) }
+        WEATHER_ALONE.matchEntire(q)?.let { return LiveAnswerQuery.Weather(null, dayOf(it.groupValues[1])) }
         WEATHER_OWNED.matchEntire(q)?.let { match ->
             val owner = match.groupValues[1]
-            return InstantAnswerQuery.Weather(null, if (owner.startsWith("tomorrow")) ForecastDay.TOMORROW else ForecastDay.TODAY)
+            return LiveAnswerQuery.Weather(null, if (owner.startsWith("tomorrow")) ForecastDay.TOMORROW else ForecastDay.TODAY)
         }
         WEATHER_DAY_IN.matchEntire(q)?.let { match ->
-            return place(match.groupValues[2])?.let { InstantAnswerQuery.Weather(it, dayOf(match.groupValues[1])) }
+            return place(match.groupValues[2])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[1])) }
         }
         WEATHER_IN.matchEntire(q)?.let { match ->
-            return place(match.groupValues[1])?.let { InstantAnswerQuery.Weather(it, dayOf(match.groupValues[2])) }
+            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2])) }
         }
         WEATHER_PLACE_FIRST.matchEntire(q)?.let { match ->
-            return place(match.groupValues[1])?.let { InstantAnswerQuery.Weather(it, dayOf(match.groupValues[2])) }
+            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2])) }
         }
         WEATHER_BARE_PLACE.matchEntire(q)?.let { match ->
-            return place(match.groupValues[1])?.let { InstantAnswerQuery.Weather(it, ForecastDay.TODAY) }
+            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, ForecastDay.TODAY) }
         }
         return null
     }

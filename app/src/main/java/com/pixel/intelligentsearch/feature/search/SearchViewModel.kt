@@ -183,7 +183,7 @@ class SearchViewModel @Inject constructor(
     private val directBootManager: com.pixel.intelligentsearch.core.system.DirectBootManager,
     private val androidSettingsSearch: com.pixel.intelligentsearch.core.search.AndroidSettingsSearch,
     private val resultShortcutStore: com.pixel.intelligentsearch.core.data.ResultShortcutStore,
-    private val instantAnswers: com.pixel.intelligentsearch.core.answers.InstantAnswerEngine,
+    private val instantAnswers: com.pixel.intelligentsearch.core.answers.LiveAnswerEngine,
     private val savedLinkStore: SavedLinkStore,
     private val aiAnswers: com.pixel.intelligentsearch.core.ai.AiAnswers
 ) : ViewModel() {
@@ -227,7 +227,7 @@ class SearchViewModel @Inject constructor(
     /** A query's instant-answer question; [attempt] changes to ask again (after a permission grant). */
     private data class LiveAnswerRequest(
         val query: String,
-        val question: com.pixel.intelligentsearch.core.answers.InstantAnswerQuery,
+        val question: com.pixel.intelligentsearch.core.answers.LiveAnswerQuery,
         val attempt: Int = 0
     )
     private val liveAnswerRequests = MutableStateFlow<LiveAnswerRequest?>(null)
@@ -638,7 +638,7 @@ class SearchViewModel @Inject constructor(
             if (newQuery != previousQuery) it.copy(query = newQuery, liveAnswer = liveAnswer, aiAnswer = null)
             else it.copy(query = newQuery, liveAnswer = liveAnswer)
         }
-        liveAnswerRequests.value = com.pixel.intelligentsearch.core.answers.InstantAnswerParser.parse(newQuery)
+        liveAnswerRequests.value = com.pixel.intelligentsearch.core.answers.LiveAnswerParser.parse(newQuery)
             ?.let { LiveAnswerRequest(newQuery, it) }
         
         if (newQuery.isBlank()) {
@@ -906,7 +906,7 @@ class SearchViewModel @Inject constructor(
             } else null
 
             val q = newQuery.lowercase().trim()
-            val question = com.pixel.intelligentsearch.core.answers.InstantAnswerParser.parse(newQuery)
+            val question = com.pixel.intelligentsearch.core.answers.LiveAnswerParser.parse(newQuery)
             val unitConv = mathResult as? com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion
             // Date arithmetic is calculation too, so it follows the Calculator switch.
             val dateAnswer = unifiedResults.dateAnswer.takeIf { settings.searchCalculator }
@@ -919,14 +919,14 @@ class SearchViewModel @Inject constructor(
                 InstantAnswer(dateAnswer.title, dateAnswer.subtitle, "date")
             } else if (q == "time" || q.startsWith("time in ")) {
                 buildTimeAnswer(q.removePrefix("time").removePrefix(" in ").trim())
-            } else if (question is com.pixel.intelligentsearch.core.answers.InstantAnswerQuery.Weather) {
+            } else if (question is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Weather) {
                 // The tap-through stands until (or unless) a live forecast replaces it: Weather Answers off, offline.
                 val title = question.place?.let { "Weather in ${it.toDisplayPlaceName()}" } ?: "Weather"
                 val subtitle = if (question.day == com.pixel.intelligentsearch.core.answers.ForecastDay.TOMORROW) {
                     "Tap for tomorrow's forecast"
                 } else "Tap for the current forecast"
                 InstantAnswer(title, subtitle, "weather")
-            } else if (question is com.pixel.intelligentsearch.core.answers.InstantAnswerQuery.Define && question.explicit) {
+            } else if (question is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Define && question.explicit) {
                 val providerName = when (engine) { "DuckDuckGo" -> "DuckDuckGo"; "Bing" -> "Bing"; else -> "Dictionary" }
                 InstantAnswer(question.word.replaceFirstChar { it.uppercase() }, "$providerName • Tap for full definition", "dictionary")
             } else if (looksLikeWebAddress(q)) {

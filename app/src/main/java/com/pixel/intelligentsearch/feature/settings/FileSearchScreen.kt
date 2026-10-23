@@ -32,7 +32,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -90,9 +89,9 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val excludePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
             val message = when (UserGrantedFiles.addExcludedFolder(prefs, uri.toString())) {
-                UserGrantedFiles.ExcludeResult.ADDED -> "Subfolder skipped in search"
-                UserGrantedFiles.ExcludeResult.ALREADY_EXCLUDED -> "That folder is already skipped"
-                UserGrantedFiles.ExcludeResult.NOT_INSIDE_A_CHOSEN_FOLDER -> "Pick a folder inside one of the folders you search"
+                UserGrantedFiles.ExcludeResult.ADDED -> "Subfolder skipped in search."
+                UserGrantedFiles.ExcludeResult.ALREADY_EXCLUDED -> "That folder is already skipped."
+                UserGrantedFiles.ExcludeResult.NOT_INSIDE_A_CHOSEN_FOLDER -> "Pick a folder inside one of the folders you search."
             }
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
@@ -102,9 +101,9 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         if (uri != null) {
             if (UserGrantedFiles.addFolder(context, prefs, uri)) {
                 folderUris = UserGrantedFiles.folderUris(prefs)
-                Toast.makeText(context, "Folder added to search", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Folder added to search.", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(context, "Android didn't allow lasting access to that folder", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Android didn't allow lasting access to that folder.", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -120,7 +119,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 val message = if (added < uris.size && mediaCount >= UserGrantedFiles.MAX_PICKED_MEDIA) {
                     "Added $added. You can choose up to ${UserGrantedFiles.MAX_PICKED_MEDIA} photos and videos."
                 } else {
-                    "$added photos and videos added to search"
+                    "$added photos and videos added to search."
                 }
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
@@ -180,7 +179,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         ) {
             SettingsCard {
                 Text(
-                    text = "Intelligent Search only searches the folders and photos you choose here. Nothing else on your storage is read, so no storage permission is needed.",
+                    text = "Intelligent Search only searches the folders and photos you choose here. Nothing else on your storage is read, so no storage permission is needed. Start a search with a file type, like \"pdf invoice\", to search only that type.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
@@ -264,6 +263,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     onCheckedChange = { thumbnails = it },
                     showDivider = true
                 )
+                OpenFilesWithRow(showDivider = true)
 
                 ResultsCountSetting(SettingsManager.FILE_RESULTS_COUNT, "File", defaultCount = 5)
 
@@ -271,12 +271,6 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                 PrioritySetting(SettingsManager.SEARCH_WEIGHT_FILES, "File")
             }
-
-            SettingsSectionHeader("File Types")
-            FileTypesCard()
-
-            SettingsSectionHeader("Open Files With")
-            OpenFilesWithCard()
         }
     }
 }

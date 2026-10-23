@@ -19,8 +19,7 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.launch.FloatingSearchOverlays
-import com.pixel.intelligentsearch.feature.launch.ScreenEdge
-import com.pixel.intelligentsearch.feature.launch.SearchShortcutNotification
+import com.pixel.intelligentsearch.feature.launch.NotificationShortcut
 import com.pixel.intelligentsearch.screenshots.confinedEffects
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -40,7 +39,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowSettings
 
 /**
- * Launch Portal's Search Notification, Floating Search Button and Edge Swipe: none can be switched on without its
+ * Launch Portal's Notification Shortcut and Floating Search Button: neither can be switched on without its
  * permission; each explains itself first and sends the user to Android's page, and with the permission each
  * switches straight on.
  */
@@ -76,50 +75,47 @@ class LaunchPortalSurfacesTest {
     private fun switch(title: String) = compose.onNode(isToggleable() and hasText(title))
 
     @Test
-    fun theSubtitlesSayWhatEachDoesAndWarnAboutBack() {
+    fun theSubtitlesSayWhatEachDoes() {
         showPortal()
-        compose.onNodeWithText(searchNotificationSubtitle(lens = false)).assertExists()
+        compose.onNodeWithText(notificationShortcutSubtitle(lens = false)).assertExists()
         compose.onNodeWithText("Hold to Hide Until You Unlock", substring = true).assertExists()
-        compose.onNodeWithText(edgeSwipeSubtitle(ScreenEdge.RIGHT)).assertExists()
-        assertTrue(edgeSwipeSubtitle(ScreenEdge.LEFT).contains("Left Edge"))
-        assertTrue(edgeSwipeSubtitle(ScreenEdge.RIGHT).contains("Back Gesture"))
-        assertTrue(searchNotificationSubtitle(lens = true).contains("Voice and Lens"))
+        assertTrue(notificationShortcutSubtitle(lens = true).contains("Voice and Lens"))
     }
 
     @Test
     fun theNotificationExplainsFirstAndNotNowLeavesItOff() {
         showPortal()
-        switch("Search Notification").performScrollTo().performClick()
+        switch("Notification Shortcut").performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Allow Notifications?").assertExists()
         compose.onNodeWithText("Not Now").performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Allow Notifications?").assertDoesNotExist()
-        assertFalse(prefs[SettingsManager.SEARCH_NOTIFICATION_SHORTCUT])
-        assertEquals(null, shadowOf(manager).getNotification(SearchShortcutNotification.NOTIFICATION_ID))
+        assertFalse(prefs[SettingsManager.NOTIFICATION_SHORTCUT])
+        assertEquals(null, shadowOf(manager).getNotification(NotificationShortcut.NOTIFICATION_ID))
     }
 
     @Test
     fun withNotificationsAllowedItSwitchesOnAndPosts() {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
         showPortal()
-        switch("Search Notification").performScrollTo().performClick()
+        switch("Notification Shortcut").performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Allow Notifications?").assertDoesNotExist()
-        assertTrue(prefs[SettingsManager.SEARCH_NOTIFICATION_SHORTCUT])
-        assertNotNull(shadowOf(manager).getNotification(SearchShortcutNotification.NOTIFICATION_ID))
+        assertTrue(prefs[SettingsManager.NOTIFICATION_SHORTCUT])
+        assertNotNull(shadowOf(manager).getNotification(NotificationShortcut.NOTIFICATION_ID))
     }
 
     @Test
     fun switchedOffTheNotificationGoes() {
         shadowOf(context).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
-        prefs.edit().put(SettingsManager.SEARCH_NOTIFICATION_SHORTCUT, true).commit()
+        prefs.edit().put(SettingsManager.NOTIFICATION_SHORTCUT, true).commit()
         showPortal()
-        assertNotNull(shadowOf(manager).getNotification(SearchShortcutNotification.NOTIFICATION_ID))
-        switch("Search Notification").performScrollTo().performClick()
+        assertNotNull(shadowOf(manager).getNotification(NotificationShortcut.NOTIFICATION_ID))
+        switch("Notification Shortcut").performScrollTo().performClick()
         compose.waitForIdle()
-        assertFalse(prefs[SettingsManager.SEARCH_NOTIFICATION_SHORTCUT])
-        assertEquals(null, shadowOf(manager).getNotification(SearchShortcutNotification.NOTIFICATION_ID))
+        assertFalse(prefs[SettingsManager.NOTIFICATION_SHORTCUT])
+        assertEquals(null, shadowOf(manager).getNotification(NotificationShortcut.NOTIFICATION_ID))
     }
 
     @Test
@@ -139,37 +135,41 @@ class LaunchPortalSurfacesTest {
         assertFalse(FloatingSearchOverlays.isButtonShowing)
     }
 
+    /** The Edge Swipe was removed: no switch, and none of its edge, position or height controls, even with the permission. */
     @Test
-    fun withDisplayOverOtherAppsTheEdgeSwipeSwitchesOnAndShowsItsControls() {
+    fun theEdgeSwipeIsGone() {
+        ShadowSettings.setCanDrawOverlays(true)
+        prefs.edit().putBoolean("launch.edge_swipe", true).commit()
+        showPortal()
+        compose.onNodeWithText("Edge Swipe").assertDoesNotExist()
+        compose.onNodeWithText("Edge").assertDoesNotExist()
+        compose.onNodeWithText("Position").assertDoesNotExist()
+        compose.onNodeWithText("Height").assertDoesNotExist()
+        switch("Floating Search Button").performScrollTo().assertIsOff()
+    }
+
+    @Test
+    fun withDisplayOverOtherAppsTheFloatingButtonSwitchesOnAtOnce() {
         ShadowSettings.setCanDrawOverlays(true)
         showPortal()
-        compose.onNodeWithText("Edge").assertDoesNotExist()
-        switch("Edge Swipe").performScrollTo().performClick()
+        switch("Floating Search Button").performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Allow Display over Other Apps?").assertDoesNotExist()
-        assertTrue(prefs[SettingsManager.EDGE_SWIPE])
-        assertTrue(FloatingSearchOverlays.isStripShowing)
-        compose.onNodeWithText("Edge").assertExists()
-        compose.onNodeWithText("Position").assertExists()
-        compose.onNodeWithText("Height").assertExists()
-
-        compose.onNodeWithText("Left").performScrollTo().performClick()
-        compose.waitForIdle()
-        assertEquals("left", prefs[SettingsManager.EDGE_SWIPE_EDGE])
-        compose.onNodeWithText(edgeSwipeSubtitle(ScreenEdge.LEFT)).assertExists()
+        assertTrue(prefs[SettingsManager.FLOATING_SEARCH_BUTTON])
+        assertTrue(FloatingSearchOverlays.isButtonShowing)
     }
 
     @Test
     fun anOptionWhosePermissionWasRevokedShowsOffAndIsSwitchedOff() {
         prefs.edit()
             .put(SettingsManager.FLOATING_SEARCH_BUTTON, true)
-            .put(SettingsManager.SEARCH_NOTIFICATION_SHORTCUT, true)
+            .put(SettingsManager.NOTIFICATION_SHORTCUT, true)
             .commit()
         showPortal()
         switch("Floating Search Button").performScrollTo().assertIsOff()
-        switch("Search Notification").assertIsOff()
+        switch("Notification Shortcut").assertIsOff()
         assertFalse(prefs[SettingsManager.FLOATING_SEARCH_BUTTON])
-        assertFalse(prefs[SettingsManager.SEARCH_NOTIFICATION_SHORTCUT])
+        assertFalse(prefs[SettingsManager.NOTIFICATION_SHORTCUT])
         assertFalse(FloatingSearchOverlays.isButtonShowing)
     }
 

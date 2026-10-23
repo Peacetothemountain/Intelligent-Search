@@ -29,7 +29,7 @@ class ResultMenuCommandsTest {
         val app = ResultMenuTarget.App(spotify)
         assertEquals(
             listOf(
-                listOf(ResultCommand.PIN, ResultCommand.ADD_NICKNAME, ResultCommand.SET_TRIGGER),
+                listOf(ResultCommand.PIN),
                 listOf(ResultCommand.SPLIT_SCREEN),
                 listOf(ResultCommand.APP_INFO, ResultCommand.HIDE, ResultCommand.UNINSTALL)
             ),
@@ -38,7 +38,7 @@ class ResultMenuCommandsTest {
         // No split screen where the device can't, and no Uninstall for a system app.
         assertEquals(
             listOf(
-                listOf(ResultCommand.PIN, ResultCommand.ADD_NICKNAME, ResultCommand.SET_TRIGGER),
+                listOf(ResultCommand.PIN),
                 listOf(ResultCommand.APP_INFO, ResultCommand.HIDE)
             ),
             resultMenuCommands(app, ResultShortcuts.EMPTY)
@@ -46,26 +46,23 @@ class ResultMenuCommandsTest {
     }
 
     @Test
-    fun aPinnedResultOffersUnpinAndASetTriggerOffersChange() {
+    fun aPinnedResultOffersUnpin() {
         val app = ResultMenuTarget.App(spotify)
-        val set = ResultShortcuts.EMPTY.withPinned(app.key, "Spotify", true).withTrigger(app.key, "Spotify", "sp")
-        assertEquals(
-            listOf(ResultCommand.UNPIN, ResultCommand.ADD_NICKNAME, ResultCommand.CHANGE_TRIGGER),
-            resultMenuCommands(app, set).first()
-        )
+        val set = ResultShortcuts.EMPTY.withPinned(app.key, "Spotify", true)
+        assertEquals(listOf(ResultCommand.UNPIN), resultMenuCommands(app, set).first())
     }
 
     @Test
-    fun contactsOfferPinNicknameAndTrigger() {
+    fun contactsOfferPin() {
         assertEquals(
-            listOf(listOf(ResultCommand.PIN, ResultCommand.ADD_NICKNAME, ResultCommand.SET_TRIGGER)),
+            listOf(listOf(ResultCommand.PIN)),
             resultMenuCommands(ResultMenuTarget.Contact(john), ResultShortcuts.EMPTY, splitScreen = true, canUninstall = true)
         )
     }
 
     @Test
-    fun filesAndSettingsOfferPinAndTrigger() {
-        val expected = listOf(listOf(ResultCommand.PIN, ResultCommand.SET_TRIGGER))
+    fun filesAndSettingsOfferPin() {
+        val expected = listOf(listOf(ResultCommand.PIN))
         assertEquals(expected, resultMenuCommands(ResultMenuTarget.File(file), ResultShortcuts.EMPTY))
         assertEquals(expected, resultMenuCommands(ResultMenuTarget.Setting(battery), ResultShortcuts.EMPTY))
     }

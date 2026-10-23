@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.screenshots
 
+import com.pixel.intelligentsearch.core.system.battery.BatteryReadings
 import android.os.BatteryManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -24,8 +25,7 @@ import com.pixel.intelligentsearch.core.security.SecurityPosture
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.settings.BatteryAndMemoryDiagnosticsPage
 import com.pixel.intelligentsearch.feature.settings.BatteryTelemetrySnapshot
-import com.pixel.intelligentsearch.feature.settings.ChargingStatus
-import com.pixel.intelligentsearch.feature.settings.DiagnosticsReadings
+import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import com.pixel.intelligentsearch.feature.settings.DiagnosticsSample
 import com.pixel.intelligentsearch.feature.settings.DiagnosticsSampler
 import com.pixel.intelligentsearch.feature.settings.HardwareSecurityPage
@@ -93,7 +93,7 @@ class DiagnosticsGoldenTest(
                                 newSampler = { DiagnosticsSampler { BATTERY_SAMPLE } },
                                 powerEvents = { emptyFlow() }
                             )
-                            "security" -> HardwareSecurityPage(HARDWARE, ATTESTATION, POSTURE)
+                            "security" -> HardwareSecurityPage(HARDWARE, ATTESTATION, POSTURE, onVerifyAgain = {})
                             else -> error("unknown page $page")
                         }
                     }
@@ -116,7 +116,7 @@ class DiagnosticsGoldenTest(
 
         private val USB_DEBUGGING = ChargingStatus.status(
             plugged = BatteryManager.BATTERY_PLUGGED_USB,
-            chargeState = DiagnosticsReadings.ChargeState.Charging,
+            chargeState = BatteryReadings.ChargeState.Charging,
             usb = ChargingStatus.UsbLink(connected = true, configured = true, adb = true),
             adbEnabled = true
         )
@@ -124,9 +124,9 @@ class DiagnosticsGoldenTest(
         private val BATTERY_SAMPLE = DiagnosticsSample(
             battery = BatteryTelemetrySnapshot(
                 level = 72, temp = 31.4f, volt = 4.21f, watts = 7.6f, health = "Good",
-                healthSeverity = DiagnosticsReadings.HealthSeverity.Ok, cycles = 143, technology = "Li-ion",
+                healthSeverity = BatteryReadings.HealthSeverity.Ok, cycles = 143, technology = "Li-ion",
                 thermalStatus = "Normal", isCharging = true, chargingRateStr = USB_DEBUGGING!!.label,
-                timeEstimateStr = "1h 12m until full", power = USB_DEBUGGING
+                timeEstimateStr = "1 hr 12 min until full", power = USB_DEBUGGING
             ),
             memory = MemorySnapshot(
                 totalGb = 15.6, usedGb = 9.1, availGb = 6.5, pct = 58, zRamUsedGb = 1.2, zRamTotalGb = 8.0, cachedGb = 3.4,

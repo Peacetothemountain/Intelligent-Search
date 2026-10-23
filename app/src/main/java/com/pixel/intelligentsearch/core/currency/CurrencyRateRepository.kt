@@ -14,7 +14,10 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.security.SafeWebLaunch
+import com.pixel.intelligentsearch.core.net.HttpsClient
+import com.pixel.intelligentsearch.core.net.HttpsGet
+import com.pixel.intelligentsearch.core.net.fetch
+import com.pixel.intelligentsearch.core.security.NetworkPolicy
 import com.pixel.intelligentsearch.di.appEntryPoint
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -46,7 +49,7 @@ class CurrencyRateRepository internal constructor(
     private val context: Context,
     private val settingsManager: SettingsManager,
     private val store: CurrencyRateStore,
-    private val http: RatesHttpClient,
+    private val http: HttpsGet,
     private val clock: Clock = Clock.systemDefaultZone(),
     private val onMainThread: () -> Boolean = { false },
     private val loader: Executor = Dispatchers.IO.asExecutor()
@@ -54,7 +57,7 @@ class CurrencyRateRepository internal constructor(
 
     @Inject
     constructor(@ApplicationContext context: Context, settingsManager: SettingsManager) : this(
-        context, settingsManager, CurrencyRateStore(File(context.filesDir, FILE_NAME)), HttpsRatesClient(),
+        context, settingsManager, CurrencyRateStore(File(context.filesDir, FILE_NAME)), HttpsClient(),
         onMainThread = { Looper.myLooper() == Looper.getMainLooper() }
     )
 
@@ -93,15 +96,8 @@ class CurrencyRateRepository internal constructor(
         runCatching { loader.execute { load() } }.onFailure { loadStarted.set(false) }
     }
 
-    /**
-     * Whether rates may be fetched: the Calculator and Live Currency Rates are on and the search engine isn't Tor.
-     * With the Calculator off there are no currency answers, so nothing to fetch rates for.
-     */
-    fun liveRatesAllowed(): Boolean {
-        val prefs = settingsManager.prefs
-        return prefs[SettingsManager.SEARCH_CALCULATOR] && prefs[SettingsManager.LIVE_CURRENCY_RATES] &&
-            !SafeWebLaunch.isTorEngine(prefs[SettingsManager.SEARCH_ENGINE])
-    }
+    /** Whether rates may be fetched ([NetworkPolicy.liveRatesAllowed]). */
+    fun liveRatesAllowed(): Boolean = NetworkPolicy.liveRatesAllowed(settingsManager.prefs)
 
     /**
      * Called when a currency answer used [rates]. Starts the daily refresh, and when no rates have ever been fetched
@@ -150,8 +146,8 @@ class CurrencyRateRepository internal constructor(
         if (!prefs[SettingsManager.SEARCH_CALCULATOR] || !prefs[SettingsManager.LIVE_CURRENCY_RATES]) {
             return@withContext RefreshResult.SKIPPED_OFF
         }
-        if (SafeWebLaunch.isTorEngine(prefs[SettingsManager.SEARCH_ENGINE])) return@withContext RefreshResult.SKIPPED_TOR
-        val body = http.get(ECB_DAILY_URL, EcbRatesParser.MAX_BYTES) ?: return@withContext RefreshResult.FAILED
+        if (NetworkPolicy.torSelected(prefs)) return@withContext RefreshResult.SKIPPED_TOR
+        val body = http.fetch(ECB_DAILY_URL, EcbRatesParser.MAX_BYTES) ?: return@withContext RefreshResult.FAILED
         val today = LocalDate.now(clock)
         val fetched = EcbRatesParser.parse(body, today) ?: return@withContext RefreshResult.FAILED
         val saved = load().date

@@ -17,7 +17,7 @@ import org.robolectric.RobolectricTestRunner
 class CustomShortcutUrlTest {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
-    private val prefs get() = SearchWidgetProvider.getSafeSharedPreferences(context)
+    private val prefs get() = com.pixel.intelligentsearch.core.data.SettingsManager.storedPrefs(context)
 
     private fun weatherOpens(address: String) {
         prefs.edit().putString("Weather_custom_type", "url").putString("Weather_custom_value", address).commit()

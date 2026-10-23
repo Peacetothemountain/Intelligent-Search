@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.core.data.FileItem
@@ -86,28 +87,6 @@ internal fun fileLocationLabel(file: FileItem): String {
     return parent.ifBlank { file.mimeType }
 }
 
-/** Starts [intent]; returns false when nothing could handle it so callers can fall back. */
-internal fun launchSafeIntent(context: Context, intent: Intent, options: android.os.Bundle? = null): Boolean {
-    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    return try {
-        if (options != null) {
-            context.startActivity(intent, options)
-        } else {
-            context.startActivity(intent)
-        }
-        true
-    } catch (e: Exception) {
-        try {
-            val activity = context.findActivity() ?: return false
-            activity.startActivity(intent, options)
-            true
-        } catch (e2: Exception) {
-            android.util.Log.w("IntelligentSearch", "Unexpected error", e2)
-            false
-        }
-    }
-}
-
 /** The system's own web search for [query], answered by whichever app handles it. */
 internal fun systemWebSearchIntent(query: String): Intent = Intent(Intent.ACTION_WEB_SEARCH).apply {
     putExtra(android.app.SearchManager.QUERY, query)
@@ -123,7 +102,7 @@ internal fun systemWebSearchIntent(query: String): Intent = Intent(Intent.ACTION
  */
 internal fun webSearchLaunch(context: Context, engine: String, customUrl: String, query: String): com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch {
     val safe = com.pixel.intelligentsearch.core.security.SafeWebLaunch
-    if (safe.isTorEngine(engine)) return safe.torSearch(context, query)
+    if (com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(engine)) return safe.torSearch(context, query)
     fun viewOrFallback(url: String): Intent {
         val view = Intent(Intent.ACTION_VIEW, url.toUri()).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -140,7 +119,7 @@ internal fun webSearchLaunch(context: Context, engine: String, customUrl: String
         "DuckDuckGo" -> viewOrFallback("https://duckduckgo.com/?q=$encoded")
         "Bing" -> viewOrFallback("https://www.bing.com/search?q=$encoded")
         else -> {
-            val google = systemWebSearchIntent(query).setPackage("com.google.android.googlequicksearchbox")
+            val google = systemWebSearchIntent(query).setPackage(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
             // Without the Google app the system web search would come back to this app, which answers it as the
             // search engine; open Google's results page instead.
             if (context.packageManager.resolveActivity(google, 0) != null) google

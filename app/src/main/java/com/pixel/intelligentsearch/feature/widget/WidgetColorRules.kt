@@ -96,16 +96,43 @@ internal object WidgetColorRules {
     fun backgroundAlpha(settings: WidgetDesignSettings): Float =
         ((100 - settings.transparency.toInt()) / 100f).coerceIn(0f, 1f)
 
-    /** How opaque something painted in the custom colour is: its Color Opacity, with the bar's Transparency on top. */
-    fun customColorAlpha(settings: WidgetDesignSettings): Float =
-        ((settings.colorOpacity / 100f).coerceIn(0f, 1f) * backgroundAlpha(settings)).coerceIn(0f, 1f)
+    /**
+     * How see-through the bar's background is drawn ([backdropAlphas]). The outline (the Material design's rim), the
+     * pill and the circle are drawn as one group, the backdrop, and the icons over it, always fully opaque.
+     */
+    data class BackdropAlphas(
+        /** The whole backdrop's opacity, applied once to the group as it is drawn. */
+        val backdrop: Float,
+        /** The outline's opacity within the backdrop. The pill and the circle are opaque in it. */
+        val rim: Float
+    )
 
     /**
-     * How opaque the Material design's outer rim is. Painted in the custom colour it takes that colour's opacity;
-     * painted in the theme's colour only the bar's Transparency applies, as Color Opacity belongs to the custom colour.
+     * The backdrop's opacities for [settings] on the Material ([isMaterialDesign]) or System design. The pill and the
+     * circle sit over the outline (a filled shape the size of the whole bar), so they're opaque within the backdrop:
+     * the outline never shows through them, and they aren't painted twice where they overlap it. Transparency then
+     * fades the whole bar's background at once, so every part of it is exactly as see-through as the slider says,
+     * except a pill locked black ([LOCKED_PILL]), which stays solid.
+     *
+     * Color Opacity is the custom colour's own opacity. When the whole backdrop is the custom colour (the Custom
+     * subtheme's pill, circle and rim, or on the System design its pill and the outline that is as see-through as it)
+     * it fades the backdrop with Transparency, for the same reason.
+     *
+     * The Material design's Inner Pill & Circle State locks the pill and circle to a solid black: the backdrop stays
+     * fully opaque, and the rim alone takes Transparency (with Color Opacity when it's the custom colour). The opaque
+     * pill and circle cover the rim beneath them, so nothing is painted twice there either.
      */
-    fun rimAlpha(settings: WidgetDesignSettings): Float =
-        if (settings.subtheme == "Custom") customColorAlpha(settings) else backgroundAlpha(settings)
+    fun backdropAlphas(settings: WidgetDesignSettings, isMaterialDesign: Boolean): BackdropAlphas {
+        val transparency = backgroundAlpha(settings)
+        val opacity = (settings.colorOpacity / 100f).coerceIn(0f, 1f)
+        val isCustom = settings.subtheme == "Custom"
+        return when {
+            isMaterialDesign && settings.lockBlack ->
+                BackdropAlphas(backdrop = 1f, rim = if (isCustom) transparency * opacity else transparency)
+            !isCustom -> BackdropAlphas(backdrop = transparency, rim = 1f)
+            else -> BackdropAlphas(backdrop = transparency * opacity, rim = 1f)
+        }
+    }
 
     /** [alpha] as the 0..255 the widget's views take. */
     fun alphaInt(alpha: Float): Int = (alpha * 255).toInt().coerceIn(0, 255)

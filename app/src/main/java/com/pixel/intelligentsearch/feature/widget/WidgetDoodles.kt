@@ -37,7 +37,7 @@ object WidgetDoodles {
     fun preview(
         context: Context,
         doodle: Occasion?,
-        prefs: SharedPreferences = SearchWidgetProvider.getSafeSharedPreferences(context),
+        prefs: SharedPreferences = com.pixel.intelligentsearch.core.data.SettingsManager.storedPrefs(context),
         redraw: () -> Unit = { SearchWidgetProvider.updateAllWidgets(context) }
     ) {
         prefs.edit { if (doodle == null) remove(PREVIEW_KEY) else putString(PREVIEW_KEY, doodle.name) }

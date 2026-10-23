@@ -97,7 +97,7 @@ data class SearchUiState(
     val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null,
     /** The query with an obvious typo fixed, offered as "Did you mean"; null when nothing is misspelled. */
     val spellingSuggestion: String? = null,
-    /** What the user pinned, nicknamed or gave a trigger word, for the results' long-press menus. */
+    /** What the user pinned, for the results' long-press menus. */
     val shortcuts: com.pixel.intelligentsearch.core.search.ResultShortcuts = com.pixel.intelligentsearch.core.search.ResultShortcuts.EMPTY,
     /**
      * The pinned results that can be shown now, in pin order, for the empty overlay's Pinned row: [AppItem],
@@ -111,13 +111,22 @@ data class SearchUiState(
     val liveAnswer: com.pixel.intelligentsearch.core.answers.LiveAnswer? = null,
     /** The file type the query names ("pdf invoice"), which [files] are limited to; null when there is none. */
     val fileTypeFilter: com.pixel.intelligentsearch.core.data.FileTypeGroup? = null,
-    /** Saved Links whose name (or nickname) the query starts, best first. */
-    val savedLinks: List<SavedLink> = emptyList(),
     /** The provider the "Ask" row offers for a question; null when there is no row (see AiAnswers.offerFor). */
     val aiOffer: com.pixel.intelligentsearch.core.ai.AiProvider? = null,
     /** The answer to the question the user tapped Ask on, for this query only. */
     val aiAnswer: com.pixel.intelligentsearch.core.ai.AiAnswerState? = null
-)
+) {
+    /**
+     * The provider the Ask row shows for, or null when there is no row: besides [aiOffer], the query must not already
+     * have an answer that would contradict it at the top, an action Enter runs ("ask sarah at 6pm" is a reminder) or
+     * a definition ("what does serendipity mean?" shows its meaning).
+     */
+    val askAi: com.pixel.intelligentsearch.core.ai.AiProvider?
+        get() = aiOffer?.takeIf {
+            enterAction == null &&
+                (liveAnswer as? com.pixel.intelligentsearch.core.answers.LiveAnswer.Definition)?.query != query
+        }
+}
 
 /**
  * This state without anything from the Private Space: its apps and the App Info rows for them in the settings
@@ -132,9 +141,6 @@ internal fun SearchUiState.withoutPrivateProfile(): SearchUiState {
         androidSettings = androidSettings.filterNot { it.app?.isPrivate() == true }
     )
 }
-
-/** The most Saved Links one query lists. */
-private const val MAX_SAVED_LINK_RESULTS = 5
 
 /** How long typing must pause before a query is spell checked for "Did you mean". */
 private const val SPELLING_PAUSE_MS = 450L
@@ -172,8 +178,7 @@ class SearchViewModel @Inject constructor(
     private val directBootManager: com.pixel.intelligentsearch.core.system.DirectBootManager,
     private val androidSettingsSearch: com.pixel.intelligentsearch.core.search.AndroidSettingsSearch,
     private val resultShortcutStore: com.pixel.intelligentsearch.core.data.ResultShortcutStore,
-    private val instantAnswers: com.pixel.intelligentsearch.core.answers.InstantAnswerEngine,
-    private val savedLinkStore: SavedLinkStore,
+    private val instantAnswers: com.pixel.intelligentsearch.core.answers.LiveAnswerEngine,
     private val aiAnswers: com.pixel.intelligentsearch.core.ai.AiAnswers
 ) : ViewModel() {
     
@@ -216,7 +221,7 @@ class SearchViewModel @Inject constructor(
     /** A query's instant-answer question; [attempt] changes to ask again (after a permission grant). */
     private data class LiveAnswerRequest(
         val query: String,
-        val question: com.pixel.intelligentsearch.core.answers.InstantAnswerQuery,
+        val question: com.pixel.intelligentsearch.core.answers.LiveAnswerQuery,
         val attempt: Int = 0
     )
     private val liveAnswerRequests = MutableStateFlow<LiveAnswerRequest?>(null)
@@ -227,19 +232,30 @@ class SearchViewModel @Inject constructor(
      * same keystroke publishes, and that publish must keep them rather than fall back to the cache or a filtered list.
      */
     @Volatile private var webSuggestionsQuery: String? = null
-    private var searchJob: Job? = null
+    @Volatile private var searchJob: Job? = null
     private var pinnedJob: Job? = null
 
     /** Completed once the latest search's local results are published (before its "did you mean" pause). */
-    private var localResultsReady: kotlinx.coroutines.CompletableDeferred<Unit>? = null
+    @Volatile private var localResultsReady: kotlinx.coroutines.CompletableDeferred<Unit>? = null
 
-    /** Waits for the local results of the latest [onQueryChanged], so a caller can act on the best match for it. */
+    /**
+     * Waits for the local results of the latest [onQueryChanged], so a caller can act on the best match for it. A
+     * search that is cancelled by a re-run (a removed file type chip, the next keystroke) hands over to that re-run:
+     * this only returns once the search it waited for is still the current one.
+     */
     suspend fun awaitSearch() {
-        val job = searchJob ?: return
-        val ready = localResultsReady ?: return job.join()
-        kotlinx.coroutines.selects.select<Unit> {
-            ready.onAwait {}
-            job.onJoin {}
+        while (true) {
+            val job = searchJob ?: return
+            val ready = localResultsReady
+            if (ready == null) {
+                job.join()
+            } else {
+                kotlinx.coroutines.selects.select<Unit> {
+                    ready.onAwait {}
+                    job.onJoin {}
+                }
+            }
+            if (job === searchJob) return
         }
     }
     private var initialDataJob: Job? = null
@@ -260,7 +276,7 @@ class SearchViewModel @Inject constructor(
             refreshPinned()
         }
 
-        // Pins, nicknames and trigger words, from the menus here, the settings page or a restore. A change ranks the
+        // Pins, from the menus here or a restore. A change ranks the
         // current results again at once, so a result pinned from its menu moves to the top.
         viewModelScope.launch {
             var first = true
@@ -276,18 +292,6 @@ class SearchViewModel @Inject constructor(
         // The key vault's small preferences file is read once here, off the main thread, so typing never waits on it.
         viewModelScope.launch(Dispatchers.IO) { aiAnswers.unavailableReason() }
 
-        // Saved Links added, renamed or removed in settings (or restored) show in the results and Pinned row at once.
-        viewModelScope.launch {
-            var first = true
-            savedLinkStore.flow.collect {
-                if (!first) {
-                    refreshPinned()
-                    val query = _uiState.value.query
-                    if (query.isNotBlank()) executeLocalSearch(query)
-                }
-                first = false
-            }
-        }
 
         // Tier 2: remote web suggestions, paced like Chrome's omnibox: a request goes out at once unless the last one
         // left under SUGGEST_REQUEST_SPACING_MS ago, and each keystroke cancels the request still in flight.
@@ -505,13 +509,8 @@ class SearchViewModel @Inject constructor(
                 // The provider already tries Pixel Launcher predictions first, then usage stats. (Re-querying the
                 // launcher here returned apps outside the indexed list, which skipped the hidden-app filtering.)
                 val launcherPredictedDeferred = async { nativeAppPredictionProvider.getPredictedApps() }
-                val eventsDeferred = async {
-                    if (settingsState.value.searchCalendar) {
-                        sources.upcomingEvents()
-                    } else {
-                        emptyList()
-                    }
-                }
+                // Read whenever Android allows the calendar; without the permission the source returns nothing.
+                val eventsDeferred = async { sources.upcomingEvents() }
 
                 // Indexing belongs to CorpusIndexManager (serialized there); indexing this list here too raced it
                 // and could re-add an app uninstalled in between.
@@ -566,15 +565,13 @@ class SearchViewModel @Inject constructor(
         try {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
             // Password managers mark copied secrets sensitive; never show or search those.
-            val isSensitive = clipboard?.primaryClipDescription?.extras
-                ?.getBoolean("android.content.extra.IS_SENSITIVE", false) == true
+            val isSensitive = ClipboardLens.isSensitive(clipboard?.primaryClipDescription)
             val engine = settings.searchEngine
             if (ClipboardLens.isImage(clipboard?.primaryClipDescription)) {
                 // An image is offered to Lens from its description alone; the clip itself is read only when the
-                // suggestion is tapped. Not under Tor: it would hand the picture to Google.
-                if (!com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)) {
-                    ClipboardLens.suggestionFor(context, clipboard?.primaryClipDescription)?.let(clipboardActions::add)
-                }
+                // suggestion is tapped. Lens is an app hand-off, not a request of ours, so it is offered under Tor as
+                // well, like the search bar's Lens button.
+                ClipboardLens.suggestionFor(context, clipboard?.primaryClipDescription)?.let(clipboardActions::add)
                 return clipboardActions
             }
             if (!isSensitive && clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
@@ -618,7 +615,7 @@ class SearchViewModel @Inject constructor(
             if (newQuery != previousQuery) it.copy(query = newQuery, liveAnswer = liveAnswer, aiAnswer = null)
             else it.copy(query = newQuery, liveAnswer = liveAnswer)
         }
-        liveAnswerRequests.value = com.pixel.intelligentsearch.core.answers.InstantAnswerParser.parse(newQuery)
+        liveAnswerRequests.value = com.pixel.intelligentsearch.core.answers.LiveAnswerParser.parse(newQuery)
             ?.let { LiveAnswerRequest(newQuery, it) }
         
         if (newQuery.isBlank()) {
@@ -641,7 +638,6 @@ class SearchViewModel @Inject constructor(
                 detectedBangQuery = null,
                 spellingSuggestion = null,
                 liveAnswer = null,
-                savedLinks = emptyList(),
                 aiOffer = null
             ) }
             return
@@ -747,7 +743,7 @@ class SearchViewModel @Inject constructor(
                         directActions.add(DirectAction("Add Calendar Event", intent.title, "calendar", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Alarm -> {
-                        directActions.add(DirectAction("Set Alarm", String.format(java.util.Locale.getDefault(), "%02d:%02d - %s", intent.hour, intent.minute, intent.message), "alarm", intent.intent))
+                        directActions.add(DirectAction("Set Alarm", com.pixel.intelligentsearch.core.util.Durations.timeOfDay(intent.hour, intent.minute, android.text.format.DateFormat.is24HourFormat(context)), "alarm", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Timer -> {
                         directActions.add(DirectAction("Set Timer", intent.label, "timer", intent.intent))
@@ -860,7 +856,7 @@ class SearchViewModel @Inject constructor(
             // Settings pages complement the quick toggles above ("wifi" offers both). App Info looks apps up
             // through the same app index, leaving out hidden apps; it is an app result too, so it also needs the
             // Apps source. The contacts shown keep a name ("carrie") from turning into a setting ("carrier").
-            val androidSettings = if (settings.searchAndroidSettings) {
+            val androidSettings = run {
                 androidSettingsSearch.search(
                     newQuery,
                     findApps = { name ->
@@ -874,19 +870,16 @@ class SearchViewModel @Inject constructor(
                     val shortcuts = resultShortcutStore.current
                     pages.sortedByDescending { shortcuts.isPinned(com.pixel.intelligentsearch.core.search.ResultKeys.setting(it)) }
                 }
-            } else emptyList()
+            }
 
-            // The user's own named addresses, ranked like every result (pins first, nicknames found).
-            val savedLinks = SavedLinks.search(newQuery, savedLinkStore.current, resultShortcutStore.current).take(MAX_SAVED_LINK_RESULTS)
-
-            val suggestionsEnabled = settings.searchWeb && customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
+            val suggestionsEnabled = com.pixel.intelligentsearch.core.security.NetworkPolicy.webSuggestionsAllowed(customPrefs)
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
                 sources.cachedWebSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(1))
             } else null
 
             val q = newQuery.lowercase().trim()
-            val question = com.pixel.intelligentsearch.core.answers.InstantAnswerParser.parse(newQuery)
+            val question = com.pixel.intelligentsearch.core.answers.LiveAnswerParser.parse(newQuery)
             val unitConv = mathResult as? com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion
             // Date arithmetic is calculation too, so it follows the Calculator switch.
             val dateAnswer = unifiedResults.dateAnswer.takeIf { settings.searchCalculator }
@@ -899,14 +892,14 @@ class SearchViewModel @Inject constructor(
                 InstantAnswer(dateAnswer.title, dateAnswer.subtitle, "date")
             } else if (q == "time" || q.startsWith("time in ")) {
                 buildTimeAnswer(q.removePrefix("time").removePrefix(" in ").trim())
-            } else if (question is com.pixel.intelligentsearch.core.answers.InstantAnswerQuery.Weather) {
-                // The tap-through stands until (or unless) a live forecast replaces it: Weather Answers off, offline.
+            } else if (question is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Weather) {
+                // The tap-through stands until (or unless) a live forecast replaces it: Web Suggestions off, Tor, offline.
                 val title = question.place?.let { "Weather in ${it.toDisplayPlaceName()}" } ?: "Weather"
                 val subtitle = if (question.day == com.pixel.intelligentsearch.core.answers.ForecastDay.TOMORROW) {
                     "Tap for tomorrow's forecast"
                 } else "Tap for the current forecast"
                 InstantAnswer(title, subtitle, "weather")
-            } else if (question is com.pixel.intelligentsearch.core.answers.InstantAnswerQuery.Define && question.explicit) {
+            } else if (question is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Define && question.explicit) {
                 val providerName = when (engine) { "DuckDuckGo" -> "DuckDuckGo"; "Bing" -> "Bing"; else -> "Dictionary" }
                 InstantAnswer(question.word.replaceFirstChar { it.uppercase() }, "$providerName • Tap for full definition", "dictionary")
             } else if (looksLikeWebAddress(q)) {
@@ -943,7 +936,6 @@ class SearchViewModel @Inject constructor(
                     files = shownFiles,
                     fileTypeFilter = fileTypeQuery?.group,
                     androidSettings = androidSettings,
-                    savedLinks = savedLinks,
                     webSuggestions = resolvedSuggestions,
                     mathResult = mathStr,
                     instantAnswer = localInstantAnswer,
@@ -1038,13 +1030,8 @@ class SearchViewModel @Inject constructor(
             return
         }
         val engine = settings.searchEngine
-        if (engine == "Tor Project" || engine == "Tor Browser") {
-            _uiState.update { it.copy(webSuggestions = emptyList()) }
-            return
-        }
-
-        val suggestionsEnabled = customPrefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
-        if (!suggestionsEnabled) {
+        // Tor, Web Suggestions off or a custom engine: nothing is asked of any suggestion service.
+        if (!com.pixel.intelligentsearch.core.security.NetworkPolicy.webSuggestionsAllowed(customPrefs)) {
             _uiState.update { it.copy(webSuggestions = emptyList()) }
             return
         }
@@ -1097,7 +1084,7 @@ class SearchViewModel @Inject constructor(
         val trimmed = query.trim()
         if (trimmed.isBlank()) return
         val settings = settingsState.value
-        if (!settings.searchPreviousSearches || isTorSearchEngine(settings.searchEngine)) return
+        if (!settings.searchPreviousSearches || com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(settings.searchEngine)) return
         _uiState.update { state ->
             val updated = (listOf(trimmed) + state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) }).take(25)
             state.copy(recentSearches = updated)
@@ -1180,7 +1167,7 @@ class SearchViewModel @Inject constructor(
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Pins, nicknames and trigger words (the results' long-press menus)
+    // Pins (the results' long-press menus and the Pinned row)
     // ---------------------------------------------------------------------------------------------
 
 
@@ -1211,9 +1198,8 @@ class SearchViewModel @Inject constructor(
                 if (settings.searchContacts) unifiedSearchCoordinator.indexedResult(key) as? ContactItem else null
             com.pixel.intelligentsearch.core.search.ResultKind.FILE ->
                 if (settings.searchFiles) unifiedSearchCoordinator.indexedResult(key) as? FileItem else null
-            com.pixel.intelligentsearch.core.search.ResultKind.SETTING -> if (!settings.searchAndroidSettings) null else
+            com.pixel.intelligentsearch.core.search.ResultKind.SETTING ->
                 com.pixel.intelligentsearch.core.search.ResultKeys.settingId(key)?.let(androidSettingsSearch::page)
-            com.pixel.intelligentsearch.core.search.ResultKind.LINK -> savedLinkStore.forKey(key)
             null -> null
         }
     }
@@ -1226,7 +1212,7 @@ class SearchViewModel @Inject constructor(
      */
     fun askAi() {
         val query = _uiState.value.query
-        if (_uiState.value.aiOffer == null) return
+        if (_uiState.value.askAi == null) return
         aiJob?.cancel()
         aiJob = viewModelScope.launch {
             aiAnswers.ask(query).collect { state ->
@@ -1235,36 +1221,8 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    /**
-     * The result to open for a trigger word: as [query] is typed (the word and a space) or when it is sent with Enter
-     * ([submitted]: exactly the word). Null when it is no trigger, or its result can't be opened now.
-     */
-    fun quickKeyTarget(query: String, submitted: Boolean): Any? {
-        val shortcuts = resultShortcutStore.current
-        val entry = if (submitted) com.pixel.intelligentsearch.core.search.QuickKeys.matchSubmitted(query, shortcuts)
-        else com.pixel.intelligentsearch.core.search.QuickKeys.matchTyped(query, shortcuts)
-        return entry?.let { resolveShortcut(it.key) }
-    }
-
-    /** The symbol web shortcuts start with, which trigger words can't. */
-    val webShortcutSymbol: String get() = bangManager.getTriggerSymbol()
-
     fun setPinned(key: String, title: String, pinned: Boolean) =
         resultShortcutStore.update { it.withPinned(key, title, pinned) }
-
-    fun addNickname(key: String, title: String, nickname: String) =
-        resultShortcutStore.update { it.withNickname(key, title, nickname) }
-
-    /** Whether [word] can be [key]'s trigger word, or why not. */
-    fun checkTrigger(key: String, word: String): com.pixel.intelligentsearch.core.search.QuickKeys.Check =
-        com.pixel.intelligentsearch.core.search.QuickKeys.check(word, key, resultShortcutStore.current, webShortcutSymbol)
-
-    /** Sets [key]'s trigger word (blank removes it); false, changing nothing, when [checkTrigger] rejects it. */
-    fun setTrigger(key: String, title: String, word: String): Boolean {
-        if (word.isNotBlank() && checkTrigger(key, word) != com.pixel.intelligentsearch.core.search.QuickKeys.Check.Ok) return false
-        resultShortcutStore.update { it.withTrigger(key, title, word, webShortcutSymbol) }
-        return true
-    }
 
     /** Hide from Results: the app joins the hidden apps (Manage Hidden Apps lists it) and leaves the results now. */
     fun hideApp(packageName: String) {
@@ -1304,10 +1262,3 @@ class SearchViewModel @Inject constructor(
         initialDataJob = null
     }
 }
-
-
-
-
-
-/** Whether [engine] (the stored search-engine choice) routes searches through Tor Browser. */
-internal fun isTorSearchEngine(engine: String): Boolean = com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)

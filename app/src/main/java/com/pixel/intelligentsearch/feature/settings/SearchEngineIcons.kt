@@ -51,7 +51,7 @@ fun GoogleOfficialAppIcon(modifier: Modifier = Modifier) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val googleDrawable = remember(context) {
         runCatching {
-            context.packageManager.getApplicationIcon("com.google.android.googlequicksearchbox")
+            context.packageManager.getApplicationIcon(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
         }.getOrNull()
     }
     if (googleDrawable != null) {
@@ -260,7 +260,6 @@ fun CustomSearchAppIcon(modifier: Modifier = Modifier) {
     }
 }
 
-private val TOR_NAMES = listOf("Tor Project", "Tor", "Tor Browser")
 
 @Composable
 fun SearchAppColorfulIcon(
@@ -281,7 +280,7 @@ fun SearchAppColorfulIcon(
             BingOfficialAppIcon(modifier = modifier)
         }
         // Exact names only: a custom engine such as "Play Store" merely contains "tor".
-        TOR_NAMES.any { normalized.equals(it, ignoreCase = true) } -> {
+        com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(normalized) || normalized.equals("Tor", ignoreCase = true) -> {
             TorOfficialAppIcon(modifier = modifier)
         }
         normalized.equals("Custom", ignoreCase = true) || normalized.isBlank() -> {

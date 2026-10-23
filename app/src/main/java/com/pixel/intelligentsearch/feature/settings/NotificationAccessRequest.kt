@@ -1,10 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.system.openSettingsPage
 import android.widget.Toast
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.MutableState
@@ -16,27 +13,24 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pixel.intelligentsearch.core.glance.NotificationAccess
 
 /**
- * What the notification access dialog says before Android's own Notification Access screen opens. One grant covers
- * all three features, so every one of them explains all three the same way.
+ * What the notification access dialog says before Android's own Notification Access screen opens. The one grant also
+ * lets At a Glance show running timers and what's playing, so the dialog says so.
  */
 internal const val NOTIFICATION_ACCESS_RATIONALE =
-    "One Notification Access grant covers Search Your Notifications, Now Playing in At a Glance and the widget's " +
-        "Media Controls. Notifications are read only while Search Your Notifications is on, so you can search them " +
-        "and see running timers above the search. It sees only what each notification shows, never your messages " +
-        "or emails themselves, and holds them in memory only while they are showing. Now Playing and Media Controls " +
-        "see only what is playing. Nothing is stored and nothing leaves your phone. On the next screen, allow " +
-        "notification access for Intelligent Search."
+    "Notification access lets you search your notifications and see running timers and what's playing in At a " +
+        "Glance. Intelligent Search sees only what each notification shows, not the messages or emails behind it, " +
+        "and keeps it in memory only while the notification is showing. Nothing is stored and nothing leaves your " +
+        "phone. On the next screen, allow notification access for Intelligent Search."
 
 /**
- * The app's one way to ask for Notification Access ([NotificationAccess]), shared by Search Your Notifications, At a
- * Glance's Now Playing and the widget's Media Controls: with access already granted it answers at once; otherwise
+ * The app's one way to ask for Notification Access ([NotificationAccess]), from Search Your Notifications (the same
+ * grant lets At a Glance show timers and media): with access already granted it answers at once; otherwise
  * [request] shows the rationale ([NotificationAccessDialog]), "Open Settings" goes to Android's Notification Access
  * screen, and coming back says whether the user granted it. "Not Now" answers no.
  */
@@ -98,27 +92,19 @@ internal fun rememberNotificationAccessRequest(onResult: (granted: Boolean) -> U
 internal fun NotificationAccessDialog(request: NotificationAccessRequest) {
     if (!request.showRationale) return
     val context = LocalContext.current
-    AlertDialog(
-        onDismissRequest = request::decline,
-        title = { Text("Allow Notification Access?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-        text = { Text(NOTIFICATION_ACCESS_RATIONALE, style = MaterialTheme.typography.bodyLarge) },
-        confirmButton = {
-            TextButton(onClick = {
-                request.showRationale = false
-                request.awaitingGrant = true
-                if (!NotificationAccess.openSettings(context)) {
-                    request.awaitingGrant = false
-                    request.answerWith(false)
-                    Toast.makeText(context, "Notification access settings aren't available on this phone.", Toast.LENGTH_LONG).show()
-                }
-            }) {
-                Text("Open Settings", style = MaterialTheme.typography.labelLarge)
+    PermissionRationaleDialog(
+        title = "Allow Notification Access?",
+        text = NOTIFICATION_ACCESS_RATIONALE,
+        confirm = "Open Settings",
+        onConfirm = {
+            request.showRationale = false
+            request.awaitingGrant = true
+            if (!openSettingsPage(context, *NotificationAccess.settingsIntents(context).toTypedArray())) {
+                request.awaitingGrant = false
+                request.answerWith(false)
+                Toast.makeText(context, "Notification access settings aren't available on this phone.", Toast.LENGTH_LONG).show()
             }
         },
-        dismissButton = {
-            TextButton(onClick = request::decline) {
-                Text("Not Now", style = MaterialTheme.typography.labelLarge)
-            }
-        }
+        onDismiss = request::decline
     )
 }

@@ -5,61 +5,40 @@ import com.pixel.intelligentsearch.core.ai.AiAnswerState
 import com.pixel.intelligentsearch.core.ai.AiProvider
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.FileTypeGroup
-import com.pixel.intelligentsearch.core.data.SavedLink
-import com.pixel.intelligentsearch.core.data.settings.EnterKeyAction
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Enter's order once short action phrasing, trigger words, the keyboard highlight and Enter Key Action all apply:
- * a trigger word, then the highlight, then the phrasing's action (with Open Top Result), then Enter Key Action. And
- * the stops the arrow keys reach for the Ask row, an AI answer, Saved Links and the file-type chip.
+ * Enter's order once short action phrasing and the keyboard highlight both apply: the highlight, then a bang's site,
+ * then the phrasing's action, then the top result. And
+ * the stops the arrow keys reach for the Ask row, an AI answer and the file-type chip.
  */
 @RunWith(RobolectricTestRunner::class)
 class OverlayEnterKeyTest {
 
     private val timer = DirectAction("Start 15 min Timer", "15 minutes", "timer", Intent("android.intent.action.SET_TIMER"))
     private val highlighted = NavTarget.Correction("camera")
-    private val pinnedResult = "the trigger word's result"
 
     private fun decide(
         query: String = "15 min",
-        triggered: Any? = null,
         highlighted: NavTarget? = null,
         phrasing: DirectAction? = null,
-        isBang: Boolean = false,
-        setting: EnterKeyAction = EnterKeyAction.OPEN_TOP_RESULT
-    ) = OverlayEnterKey.decide(query, triggered, highlighted, phrasing, isBang, setting)
+        isBang: Boolean = false
+    ) = OverlayEnterKey.decide(query, highlighted, phrasing, isBang)
 
     @Test
-    fun aTriggerWordComesBeforeEverythingElse() {
-        for (setting in EnterKeyAction.entries) {
-            assertEquals(
-                EnterOutcome.OpenTriggered(pinnedResult),
-                decide(triggered = pinnedResult, highlighted = highlighted, phrasing = timer, isBang = true, setting = setting)
-            )
-        }
+    fun theHighlightComesBeforeEverythingElse() {
+        // A result the user moved to with the arrow keys opens, even on a bang.
+        assertEquals(EnterOutcome.OpenHighlighted(highlighted), decide(highlighted = highlighted, phrasing = timer, isBang = true))
+        assertEquals(EnterOutcome.OpenHighlighted(highlighted), decide(highlighted = highlighted, phrasing = timer))
     }
 
     @Test
-    fun theHighlightComesBeforeThePhrasingAndTheSetting() {
-        for (setting in EnterKeyAction.entries) {
-            assertEquals(EnterOutcome.OpenHighlighted(highlighted), decide(highlighted = highlighted, phrasing = timer, setting = setting))
-        }
-    }
-
-    @Test
-    fun withOpenTopResultThePhrasingsActionRuns() {
+    fun thePhrasingsActionRunsElseTheTopResultOpens() {
         assertEquals(EnterOutcome.RunAction(timer), decide(phrasing = timer))
         assertEquals(EnterOutcome.OpenTopResult, decide(query = "camera"))
-    }
-
-    @Test
-    fun searchTheWebSkipsThePhrasingsAction() {
-        assertEquals(EnterOutcome.SearchWeb, decide(phrasing = timer, setting = EnterKeyAction.SEARCH_WEB))
-        assertEquals(EnterOutcome.SearchWeb, decide(query = "camera", setting = EnterKeyAction.SEARCH_WEB))
     }
 
     @Test
@@ -74,20 +53,19 @@ class OverlayEnterKeyTest {
     }
 
     @Test
-    fun theAskRowAndSavedLinksFollowTheSuggestedActions() {
-        val link = SavedLink("Timesheet", "https://work.example.com/timesheet")
+    fun theAskRowFollowsTheSuggestedActions() {
+        val sky = FileItem("sky.pdf", "/sdcard/sky.pdf", "application/pdf", "content://files/sky")
         val rows = NavSources(
             directActions = listOf(timer),
             aiAsk = AiProvider.ANTHROPIC to "why is the sky blue",
-            savedLinks = listOf(link),
-            bestMatch = link
+            bestMatch = sky
         ).rows()
         assertEquals(
-            listOf(ResultListKeys.directAction(timer), ResultListKeys.ASK_AI, ResultListKeys.savedLink(link), ResultListKeys.BEST_MATCH),
+            listOf(ResultListKeys.directAction(timer), ResultListKeys.ASK_AI, ResultListKeys.BEST_MATCH),
             rows.map { it.single().key }
         )
         assertEquals(NavTarget.AskAi(AiProvider.ANTHROPIC, "why is the sky blue"), rows[1].single().target)
-        assertEquals(NavTarget.Result(link), rows[2].single().target)
+        assertEquals(NavTarget.Result(sky), rows[2].single().target)
     }
 
     @Test
@@ -110,12 +88,5 @@ class OverlayEnterKeyTest {
         // With no file of that type yet, the chip is still a stop.
         val chipOnly = NavSources(sectionOrder = listOf("files"), fileTypeFilter = FileTypeGroup.PDF).rows()
         assertEquals(listOf(ResultListKeys.FILE_TYPE_FILTER), chipOnly.map { it.single().key })
-    }
-
-    @Test
-    fun aPinnedSavedLinkHasItsOwnStop() {
-        val link = SavedLink("Docs", "https://docs.example.com")
-        val rows = NavSources(pinned = listOf(link)).rows()
-        assertEquals(ResultListKeys.inRow(ResultListKeys.PINNED, "link:https://docs.example.com"), rows.single().single().key)
     }
 }

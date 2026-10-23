@@ -65,6 +65,10 @@ open class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        // Cleared only once the overlay is out of sight, not as it starts to leave: an app opening from a result
+        // grows out of the icon that was tapped, which must still be there, and a dialog over the overlay (a
+        // permission) must not wipe what was typed.
+        searchViewModel.onQueryChanged("")
         try {
             unregisterReceiver(dismissOverlayReceiver)
         } catch (_: Exception) {}
@@ -77,7 +81,7 @@ open class MainActivity : AppCompatActivity() {
     private var settingsFingerprintAtResume = 0
 
     private fun settingsFingerprint(): Int = runCatching {
-        com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.getSafeSharedPreferences(this).all.hashCode()
+        SettingsManager.storedPrefs(this).all.hashCode()
     }.getOrDefault(0)
 
     override fun onResume() {
@@ -199,6 +203,8 @@ open class MainActivity : AppCompatActivity() {
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         applySoftInputMode(keyboardVisible = keyboardVisibleOnOpen(prefs))
         super.onCreate(savedInstanceState)
+        // What was typed stays on screen until the overlay stops, so Recents must not keep a picture of it.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) setRecentsScreenshotEnabled(false)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
@@ -292,7 +298,8 @@ open class MainActivity : AppCompatActivity() {
                                 },
                                 onLaunchApp = { packageName, user, activityName, launch ->
                                     searchViewModel.notifyAppLaunch(packageName)
-                                    searchViewModel.onQueryChanged("")
+                                    // The results stay as they are while the app opens out of the tapped icon (App
+                                    // Animations); the query is cleared once the overlay is out of sight (onStop).
                                     try {
                                         multiProfileManager.launchApp(
                                             packageName = packageName,
@@ -383,20 +390,15 @@ open class MainActivity : AppCompatActivity() {
         return true
     }
 
-    /** Opens Google Lens: the standalone app if installed, otherwise the Google app's Lens deep link. */
+    /** Opens Google Lens: the standalone app if installed, otherwise the Google app's Lens. */
     private fun launchLens(translate: Boolean) {
-        val lens = packageManager.getLaunchIntentForPackage("com.google.ar.lens") ?: Intent().setClassName(
-            "com.google.android.googlequicksearchbox", "com.google.android.apps.search.lens.deeplink.LensDeeplink"
-        )
-        lens.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        if (translate) lens.putExtra("lens_mode", "translate")
-        try { startActivity(lens) } catch (_: Exception) {}
+        com.pixel.intelligentsearch.core.system.GoogleApps.lensIntent(this, translate)
+            ?.let { com.pixel.intelligentsearch.core.system.launchSafeIntent(this, it) }
     }
 
     override fun onPause() {
         super.onPause()
-        searchViewModel.onQueryChanged("")
-        
+
         // Re-render widgets only if a setting changed while the overlay was open. Doing it on every dismissal
         // rebuilt every widget and spent the rate-limited widget-preview quota for nothing.
         try {
@@ -430,7 +432,7 @@ open class MainActivity : AppCompatActivity() {
         if (!searchOverlayEnabled) {
             val queryExtra = (intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: "").take(512)
             val fallbackIntent = Intent("android.search.action.GLOBAL_SEARCH").apply {
-                setPackage("com.google.android.googlequicksearchbox")
+                setPackage(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
                 if (queryExtra.isNotEmpty()) {
                     putExtra(SearchManager.QUERY, queryExtra)
                 }

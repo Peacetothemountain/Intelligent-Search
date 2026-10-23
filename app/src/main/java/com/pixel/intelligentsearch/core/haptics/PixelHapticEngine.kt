@@ -43,6 +43,14 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
         /** The app-wide instance, for composables and other places without injection. */
         fun get(context: Context): PixelHapticEngine = context.appEntryPoint.pixelHapticEngine()
 
+        /**
+         * A button's tap: the predictive back gesture's commit haptic, as every button in the app plays. Safe where the
+         * app's entry point isn't ready (it then plays nothing).
+         */
+        fun playButtonTap(context: Context, view: android.view.View?) {
+            runCatching { get(context) }.getOrNull()?.performPredictiveBackHaptic(view)
+        }
+
         /** The scale of the TICK primitive the system plays for [HapticFeedbackConstants.GESTURE_THRESHOLD_DEACTIVATE]. */
         internal const val DEACTIVATE_TICK_SCALE = 0.4f
     }

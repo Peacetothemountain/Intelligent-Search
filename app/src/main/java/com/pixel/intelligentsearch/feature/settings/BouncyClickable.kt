@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.draw.drawWithCache
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -16,12 +18,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.inset
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.Role
@@ -119,21 +119,25 @@ internal val FOCUS_RING_WIDTH = 3.dp
  * The keyboard focus ring: a [FOCUS_RING_WIDTH] line in the theme's secondary colour along [shape], drawn over the
  * content while [visible] says so. [bouncyClickable] draws it for real focus; the search overlay draws it on the
  * result the arrow keys highlight, so both look the same. [visible] is read only while drawing, so the ring comes and
- * goes without recomposing.
+ * goes without recomposing; its outline and stroke are made once per size, not on every frame.
  */
 fun Modifier.focusRing(shape: Shape = RectangleShape, visible: () -> Boolean): Modifier = composed {
     val focusRingColor = MaterialTheme.colorScheme.secondary
-    drawWithContent {
-        drawContent()
-        if (visible()) {
-            val ringWidth = FOCUS_RING_WIDTH.toPx()
-            // Inset by half the stroke so the whole ring stays inside the (possibly clipped) bounds.
-            inset(ringWidth / 2f) {
-                drawOutline(
-                    outline = shape.createOutline(size, layoutDirection, this),
-                    color = focusRingColor,
-                    style = Stroke(width = ringWidth)
-                )
+    drawWithCache {
+        val ringWidth = FOCUS_RING_WIDTH.toPx()
+        // Inset by half the stroke so the whole ring stays inside the (possibly clipped) bounds.
+        val inner = androidx.compose.ui.geometry.Size(
+            (size.width - ringWidth).coerceAtLeast(0f),
+            (size.height - ringWidth).coerceAtLeast(0f)
+        )
+        val outline = shape.createOutline(inner, layoutDirection, this)
+        val stroke = Stroke(width = ringWidth)
+        onDrawWithContent {
+            drawContent()
+            if (visible()) {
+                translate(ringWidth / 2f, ringWidth / 2f) {
+                    drawOutline(outline = outline, color = focusRingColor, style = stroke)
+                }
             }
         }
     }

@@ -69,6 +69,7 @@ private val nowPlayingActionPath4 by lazy { androidx.compose.ui.graphics.vector.
 private val lensRimStroke = androidx.compose.ui.graphics.drawscope.Stroke(width = SearchIconPaths.LENS_RIM_WIDTH, cap = androidx.compose.ui.graphics.StrokeCap.Round)
 private val lensHandleStroke = androidx.compose.ui.graphics.drawscope.Stroke(width = SearchIconPaths.LENS_HANDLE_WIDTH, cap = androidx.compose.ui.graphics.StrokeCap.Round)
 private val nowPlayingStroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 3.2f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+private val shortcutMusicStroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
 
 /** The search overlay's icon colours ([SearchIconColors]) from [primary], [secondary] and [tertiary] on a light or dark pill. */
 @Composable
@@ -224,13 +225,14 @@ fun ComposeThemedShortcutIcon(
     } else if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive) {
         OverlayLens(colors, modifier)
     } else if (isMaterialTheme && resId == com.pixel.intelligentsearch.R.drawable.ic_music) {
+        // The widget draws a Song Search shortcut's strokes 2.5 wide (createThemedShortcutBitmap); so does the preview.
         androidx.compose.foundation.Canvas(modifier = modifier) {
             val scaleX = size.width / 24f
             val scaleY = size.height / 24f
             scale(scaleX, scaleY, pivot = androidx.compose.ui.geometry.Offset.Zero) {
-                drawPath(path = nowPlayingActionPath1, color = tLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                drawPath(path = nowPlayingActionPath2, color = sLighter, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
-                drawPath(path = nowPlayingActionPath3, color = pDarker, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                drawPath(path = nowPlayingActionPath1, color = tLighter, style = shortcutMusicStroke)
+                drawPath(path = nowPlayingActionPath2, color = sLighter, style = shortcutMusicStroke)
+                drawPath(path = nowPlayingActionPath3, color = pDarker, style = shortcutMusicStroke)
                 drawPath(path = nowPlayingActionPath4, color = tLighter)
             }
         }

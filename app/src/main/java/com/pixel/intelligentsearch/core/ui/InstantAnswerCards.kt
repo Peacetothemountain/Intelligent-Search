@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.core.ui
 
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
@@ -45,12 +47,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,8 +76,6 @@ import com.pixel.intelligentsearch.core.answers.WeatherCodes
 import com.pixel.intelligentsearch.core.answers.WeatherReport
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
@@ -92,11 +89,11 @@ import kotlin.math.roundToInt
 private const val COLLAPSED_SENSES = 3
 
 /** Which of the theme's accent pairs a card's header uses, as the other OneBox cards do. */
-private enum class AnswerTone { Primary, Secondary, Tertiary }
+internal enum class AnswerTone { Primary, Secondary, Tertiary }
 
 /** The header every answer card starts with: an icon in its accent container, the kind of answer, and its title. */
 @Composable
-private fun AnswerHeader(icon: ImageVector, label: String, title: String, subtitle: String? = null, tone: AnswerTone) {
+internal fun AnswerHeader(icon: ImageVector, label: String, title: String, subtitle: String? = null, tone: AnswerTone) {
     val scheme = MaterialTheme.colorScheme
     val (container, onContainer, accent) = when (tone) {
         AnswerTone.Primary -> Triple(scheme.primaryContainer, scheme.onPrimaryContainer, scheme.primary)
@@ -158,7 +155,7 @@ private val HEADER_SIDE_BY_SIDE_MIN_WIDTH = 160.dp
 
 /** An action on an answer card, styled like the calculator card's Open Calculator chip; [emphasized] for the main one. */
 @Composable
-private fun AnswerChip(label: String, icon: ImageVector, emphasized: Boolean = false, onClick: () -> Unit) {
+internal fun AnswerChip(label: String, icon: ImageVector, emphasized: Boolean = false, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     AssistChip(
         onClick = onClick,
@@ -179,7 +176,7 @@ private fun AnswerChip(label: String, icon: ImageVector, emphasized: Boolean = f
 
 /** A row of chips that flows onto a second line on narrow screens and at large text sizes. */
 @Composable
-private fun AnswerChips(content: @Composable () -> Unit) {
+internal fun AnswerChips(content: @Composable () -> Unit) {
     Spacer(modifier = Modifier.height(14.dp))
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
@@ -190,7 +187,7 @@ private fun AnswerChips(content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun AnswerCard(modifier: Modifier, content: @Composable () -> Unit) {
+internal fun AnswerCard(modifier: Modifier, content: @Composable () -> Unit) {
     ExpressiveOneBoxCard(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         cornerRadius = ExpressiveCornerTokens.ExtraLarge,
@@ -308,6 +305,8 @@ fun WeatherOneBox(
     report: WeatherReport,
     modifier: Modifier = Modifier,
     is24Hour: Boolean = android.text.format.DateFormat.is24HourFormat(LocalContext.current),
+    /** Shown for a forecast of "here": choose another location for it. */
+    onChangeLocation: (() -> Unit)? = null,
     onOpenWeather: () -> Unit
 ) {
     val locale = LocalConfiguration.current.locales[0]
@@ -382,27 +381,28 @@ fun WeatherOneBox(
         Text(text = "Weather data by Open-Meteo.com", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         AnswerChips {
             AnswerChip(label = "Open Weather", icon = Icons.AutoMirrored.Filled.OpenInNew, onClick = onOpenWeather)
+            onChangeLocation?.let { AnswerChip(label = "Change Location", icon = Icons.Default.EditLocationAlt, onClick = it) }
         }
     }
 }
 
-/** Weather for "here" with no home location: offers the phone's approximate location or choosing a home location. */
+/** Weather for "here" with no location set: offers setting a location or using the phone's approximate one. */
 @Composable
 fun WeatherLocationOneBox(
     modifier: Modifier = Modifier,
     onUseApproximateLocation: () -> Unit,
-    onSetHomeLocation: () -> Unit
+    onSetLocation: () -> Unit
 ) {
     AnswerCard(modifier) {
         AnswerHeader(icon = Icons.Default.WbSunny, label = "WEATHER", title = "Where Are You?", tone = AnswerTone.Tertiary)
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "Choose a home location for weather answers, or let them use your phone's approximate location.",
+            text = "Set a location for the weather, or use your phone's approximate location.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         AnswerChips {
-            AnswerChip(label = "Set Home Location", icon = Icons.Default.EditLocationAlt, emphasized = true, onClick = onSetHomeLocation)
+            AnswerChip(label = "Set Location", icon = Icons.Default.EditLocationAlt, emphasized = true, onClick = onSetLocation)
             AnswerChip(label = "Use Approximate Location", icon = Icons.Default.MyLocation, onClick = onUseApproximateLocation)
         }
     }
@@ -534,12 +534,8 @@ fun ScreenTimeOneBox(
 /** An app's themed icon in a circle, or its initial while there is none (or the app is gone). */
 @Composable
 private fun ScreenTimeAppIcon(packageName: String, label: String) {
-    val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
-    var icon by remember(packageName) { mutableStateOf(peekThemedAppIcon(packageName)) }
-    LaunchedEffect(packageName) {
-        if (icon == null) icon = withContext(Dispatchers.IO) { getThemedAppIcon(context, packageName) }
-    }
+    val icon = rememberAppIcon(packageName, iconPack = null).themed
     Box(
         modifier = Modifier
             .size(36.dp)

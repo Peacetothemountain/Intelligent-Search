@@ -82,7 +82,7 @@ class OverlayBackSwipeTest {
 
     @Test
     @Config(sdk = [35])
-    fun aCancelledSwipeReturnsToTheNormalRefreshRate() {
+    fun aCancelledSwipeHandsTheRefreshRateBackToAndroid() {
         showOverlay()
         val dispatcher = compose.activity.onBackPressedDispatcher
         compose.runOnIdle {
@@ -94,8 +94,9 @@ class OverlayBackSwipeTest {
         compose.settle(steps = 10)
 
         val window = compose.activity.window
-        assertEquals(View.REQUESTED_FRAME_RATE_CATEGORY_NORMAL, window.decorView.requestedFrameRate)
-        assertFalse(window.attributes.frameRateBoostOnTouchEnabled)
+        // No preference and touch boost on, Android's defaults: not pinned near 60 Hz for whatever moves next.
+        assertEquals(View.REQUESTED_FRAME_RATE_CATEGORY_NO_PREFERENCE, window.decorView.requestedFrameRate)
+        assertTrue(window.attributes.frameRateBoostOnTouchEnabled)
         assertFalse(compose.activity.isFinishing)
     }
 

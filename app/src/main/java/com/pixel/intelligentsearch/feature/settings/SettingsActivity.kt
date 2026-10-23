@@ -34,7 +34,7 @@ class SettingsActivity : AppCompatActivity() {
     private var lastPushedFingerprint: Int? = null
 
     private fun settingsFingerprint(): Int = runCatching {
-        com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.getSafeSharedPreferences(this).all.hashCode()
+        SettingsManager.storedPrefs(this).all.hashCode()
     }.getOrDefault(0)
 
     override fun onCreate(savedInstanceState: Bundle?) {

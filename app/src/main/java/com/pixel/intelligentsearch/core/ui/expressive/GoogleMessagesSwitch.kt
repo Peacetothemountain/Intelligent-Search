@@ -4,8 +4,6 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -26,6 +24,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -78,7 +83,9 @@ fun GoogleMessagesSwitch(
     } else {
         MaterialTheme.colorScheme.surfaceContainerHighest
     }
-    val animatedTrackColor by animateColorAsState(
+    // Each animated value is a State read only while laying out or drawing, so a toggle animates without
+    // recomposing the switch on every frame.
+    val animatedTrackColor = animateColorAsState(
         targetValue = if (enabled) targetTrackColor else targetTrackColor.copy(alpha = 0.38f),
         animationSpec = spring(dampingRatio = 0.85f, stiffness = 650f),
         label = "messages_switch_track_color"
@@ -86,14 +93,14 @@ fun GoogleMessagesSwitch(
 
     // Dynamic track border: 2dp outline when OFF, 0dp when ON
     val targetBorderWidth = if (checked) 0.dp else 2.dp
-    val animatedBorderWidth by animateDpAsState(
+    val animatedBorderWidth = animateDpAsState(
         targetValue = targetBorderWidth,
         animationSpec = spring(dampingRatio = 0.85f, stiffness = 650f),
         label = "messages_switch_border_width"
     )
 
     val targetBorderColor = if (checked) Color.Transparent else MaterialTheme.colorScheme.outline
-    val animatedBorderColor by animateColorAsState(
+    val animatedBorderColor = animateColorAsState(
         targetValue = if (enabled) targetBorderColor else targetBorderColor.copy(alpha = 0.38f),
         animationSpec = spring(dampingRatio = 0.85f, stiffness = 650f),
         label = "messages_switch_border_color"
@@ -107,12 +114,12 @@ fun GoogleMessagesSwitch(
     }
     val targetThumbHeight = if (checked) 24.dp else 16.dp
 
-    val animatedThumbWidth by animateDpAsState(
+    val animatedThumbWidth = animateDpAsState(
         targetValue = targetThumbWidth,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 700f),
         label = "messages_switch_thumb_width"
     )
-    val animatedThumbHeight by animateDpAsState(
+    val animatedThumbHeight = animateDpAsState(
         targetValue = targetThumbHeight,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 700f),
         label = "messages_switch_thumb_height"
@@ -124,7 +131,7 @@ fun GoogleMessagesSwitch(
     } else {
         MaterialTheme.colorScheme.outline
     }
-    val animatedThumbColor by animateColorAsState(
+    val animatedThumbColor = animateColorAsState(
         targetValue = if (enabled) targetThumbColor else targetThumbColor.copy(alpha = 0.38f),
         animationSpec = spring(dampingRatio = 0.85f, stiffness = 650f),
         label = "messages_switch_thumb_color"
@@ -136,7 +143,7 @@ fun GoogleMessagesSwitch(
     val startOffset = 6.dp
     val endOffset = trackWidth - targetThumbWidth - 4.dp
     val targetOffset = if (checked) endOffset else startOffset
-    val animatedThumbOffset by animateDpAsState(
+    val animatedThumbOffset = animateDpAsState(
         targetValue = targetOffset,
         animationSpec = spring(dampingRatio = 0.82f, stiffness = 650f),
         label = "messages_switch_thumb_offset"
@@ -194,33 +201,41 @@ fun GoogleMessagesSwitch(
             .size(width = trackWidth, height = trackHeight)
             .then(semanticsModifier)
             .clip(CircleShape)
-            .background(color = animatedTrackColor, shape = CircleShape)
-            .then(
-                if (animatedBorderWidth > 0.dp) {
-                    Modifier.border(
-                        width = animatedBorderWidth,
-                        color = animatedBorderColor,
-                        shape = CircleShape
+            .drawBehind {
+                val radius = CornerRadius(size.height / 2f)
+                drawRoundRect(animatedTrackColor.value, cornerRadius = radius)
+                val border = animatedBorderWidth.value.toPx()
+                if (border > 0f) {
+                    // Inside the track, as Modifier.border draws it.
+                    drawRoundRect(
+                        animatedBorderColor.value,
+                        topLeft = Offset(border / 2f, border / 2f),
+                        size = Size(size.width - border, size.height - border),
+                        cornerRadius = CornerRadius((size.height - border) / 2f),
+                        style = Stroke(width = border)
                     )
-                } else Modifier
-            )
+                }
+            }
             .then(gestureModifier),
         contentAlignment = Alignment.CenterStart
     ) {
-        // Switch Thumb (Icon-free, clean Google Messages 20261002 pill)
+        // Switch Thumb (Icon-free, clean Google Messages 20261002 pill): slid by a layout-phase offset, sized in
+        // the measure pass and coloured while drawing, so its stretch and travel never recompose it.
         Box(
             modifier = Modifier
-                // Lambda offset reads the animated value in the layout phase, so the thumb slides
-                // without recomposing the switch on every animation frame.
-                .offset { IntOffset(animatedThumbOffset.roundToPx(), 0) }
-                .size(width = animatedThumbWidth, height = animatedThumbHeight)
+                .offset { IntOffset(animatedThumbOffset.value.roundToPx(), 0) }
+                .layout { measurable, _ ->
+                    val w = animatedThumbWidth.value.roundToPx().coerceAtLeast(0)
+                    val h = animatedThumbHeight.value.roundToPx().coerceAtLeast(0)
+                    val placeable = measurable.measure(Constraints.fixed(w, h))
+                    layout(w, h) { placeable.place(0, 0) }
+                }
                 .shadow(
                     elevation = if (checked) 2.dp else 0.dp,
                     shape = CircleShape,
                     clip = false
                 )
-                .clip(CircleShape)
-                .background(color = animatedThumbColor, shape = CircleShape)
+                .drawBehind { drawRoundRect(animatedThumbColor.value, cornerRadius = CornerRadius(size.minDimension / 2f)) }
         )
     }
 }

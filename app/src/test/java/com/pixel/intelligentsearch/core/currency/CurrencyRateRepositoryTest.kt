@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.currency
 
+import com.pixel.intelligentsearch.core.net.HttpsGet
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.NetworkType
@@ -38,7 +39,7 @@ class CurrencyRateRepositoryTest {
     private val requested = mutableListOf<String>()
 
     private fun repository(body: () -> ByteArray? = { EcbRatesParserTest.ecbFile().toByteArray() }) =
-        CurrencyRateRepository(context, settings, CurrencyRateStore(file), RatesHttpClient { url, maxBytes ->
+        CurrencyRateRepository(context, settings, CurrencyRateStore(file), HttpsGet { url, maxBytes, _ ->
             assertEquals(EcbRatesParser.MAX_BYTES, maxBytes)
             requested += url
             body()
@@ -170,7 +171,7 @@ class CurrencyRateRepositoryTest {
         loader: Executor = Executor { it.run() }
     ) = CurrencyRateRepository(
         context, settings, CurrencyRateStore(file),
-        RatesHttpClient { url, _ -> requested += url; EcbRatesParserTest.ecbFile().toByteArray() },
+        HttpsGet { url, _, _ -> requested += url; EcbRatesParserTest.ecbFile().toByteArray() },
         clock = Clock.fixed(LocalDate.parse(today).atTime(12, 0).toInstant(ZoneOffset.UTC), ZoneOffset.UTC),
         onMainThread = onMainThread,
         loader = loader

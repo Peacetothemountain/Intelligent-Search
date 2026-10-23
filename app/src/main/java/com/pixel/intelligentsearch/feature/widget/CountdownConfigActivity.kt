@@ -26,12 +26,12 @@ import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import com.pixel.intelligentsearch.feature.settings.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.pixel.intelligentsearch.feature.settings.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
@@ -50,7 +50,7 @@ import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.widget.CountdownEvent
-import com.pixel.intelligentsearch.core.data.widget.CountdownEvents
+import com.pixel.intelligentsearch.core.data.widget.CountdownEventStore
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
@@ -84,8 +84,8 @@ class CountdownConfigActivity : AppCompatActivity() {
         }
         // Backing out of a new widget's setup cancels placing it.
         setResult(RESULT_CANCELED, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId))
-        val prefs = SearchWidgetProvider.getSafeSharedPreferences(this)
-        val events = CountdownEvents(prefs)
+        val prefs = SettingsManager.storedPrefs(this)
+        val events = CountdownEventStore(prefs)
         val initial = events.get(appWidgetId)
         val today = CountdownWidgetProvider.now().toLocalDate()
         setContent {

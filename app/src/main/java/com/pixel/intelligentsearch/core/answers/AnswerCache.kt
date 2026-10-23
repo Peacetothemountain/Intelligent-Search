@@ -55,6 +55,11 @@ class AnswerCache<V : Any>(
         if (body != null) disk?.write(key, body, at)
     }
 
+    /** Deletes the disk copies older than [ttlMs], which would never be used again. Touches the disk. */
+    fun pruneExpired() {
+        disk?.pruneExpired(ttlMs, now())
+    }
+
     /** Forgets everything kept, in memory and on disk. Touches the disk: call off the main thread. */
     fun clear() {
         synchronized(memory) { memory.clear() }
@@ -70,7 +75,8 @@ class AnswerCache<V : Any>(
 /**
  * Small text responses in their own folder, one file per key (named by a hash of it, so what was looked up isn't in
  * the file name), each starting with the time it was saved. At most [maxEntries] files are kept, oldest removed
- * first. Writes go to a temporary file renamed over the old one, so a reader never sees half a response.
+ * first, and files past their cache's lifetime are deleted ([pruneExpired]) rather than left behind. Writes go to a
+ * temporary file renamed over the old one, so a reader never sees half a response.
  */
 class DiskAnswerCache(private val dir: File, private val maxEntries: Int, private val maxBytes: Int = 256 * 1024) {
 
@@ -118,6 +124,24 @@ class DiskAnswerCache(private val dir: File, private val maxEntries: Int, privat
         val files = dir.listFiles { file -> file.name.endsWith(SUFFIX) } ?: return
         if (files.size <= maxEntries) return
         files.sortedBy { it.lastModified() }.take(files.size - maxEntries).forEach { it.delete() }
+    }
+
+    /**
+     * Deletes every saved response older than [ttlMs] (by the time it was saved), every unreadable one, and any
+     * temporary file a write left behind.
+     */
+    fun pruneExpired(ttlMs: Long, nowMs: Long) {
+        val files = dir.listFiles() ?: return
+        for (file in files) {
+            runCatching {
+                if (!file.name.endsWith(SUFFIX)) {
+                    if (file.name.endsWith(".tmp")) file.delete()
+                    return@runCatching
+                }
+                val savedAt = file.bufferedReader(Charsets.UTF_8).use { it.readLine() }?.toLongOrNull()
+                if (savedAt == null || nowMs - savedAt !in 0 until ttlMs) file.delete()
+            }
+        }
     }
 
     private fun fileFor(key: String): File {

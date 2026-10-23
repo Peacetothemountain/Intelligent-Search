@@ -18,6 +18,7 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertSame
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -69,7 +70,7 @@ class AppIconFallbackTest {
         assertNotNull(peekThemedAppIcon(packageName))
 
         val icon = CountingIcon()
-        compose.setContent { AppGridItem(AppItem("Themed", packageName, icon)) {} }
+        compose.setContent { AppGridItem(AppItem("Themed", packageName, icon), iconPack = null) {} }
         compose.onNodeWithContentDescription("Themed").assertExists()
 
         assertEquals(0, icon.draws)
@@ -79,9 +80,34 @@ class AppIconFallbackTest {
     fun withoutACachedIconTheAppIconShowsAtOnce() {
         // A package nothing has loaded yet: the plain icon fills the slot while the themed one loads.
         val icon = CountingIcon()
-        compose.setContent { AppGridItem(AppItem("Not Cached", "org.example.notcached", icon)) {} }
+        compose.setContent { AppGridItem(AppItem("Not Cached", "org.example.notcached", icon), iconPack = null) {} }
         compose.onNodeWithContentDescription("Not Cached").assertExists()
 
         assertEquals(1, icon.draws)
+    }
+
+    /** The icon is keyed by the Custom Icons pack: choosing another pack reads the icon again. */
+    @Test
+    fun changingTheIconPackReadsTheIconAgain() {
+        val packageName = "org.example.packs"
+        shadowOf(context.packageManager).apply {
+            installPackage(
+                PackageInfo().apply {
+                    this.packageName = packageName
+                    applicationInfo = ApplicationInfo().apply { this.packageName = packageName }
+                }
+            )
+            setApplicationIcon(packageName, ColorDrawable(Color.BLUE))
+        }
+        val systemIcon = getThemedAppIcon(context, packageName, activePackOverride = "system_default")
+        val pack = androidx.compose.runtime.mutableStateOf("system_default")
+        var shown: com.pixel.intelligentsearch.core.ui.AppIconResult? = null
+        compose.setContent { shown = com.pixel.intelligentsearch.core.ui.rememberAppIcon(packageName, pack.value).themed }
+        compose.waitForIdle()
+        assertSame(systemIcon, shown)
+
+        pack.value = "com.example.missing.iconpack"
+        compose.waitUntil(5_000) { shown != null && shown !== systemIcon }
+        assertEquals(peekThemedAppIcon(packageName, "com.example.missing.iconpack"), shown)
     }
 }

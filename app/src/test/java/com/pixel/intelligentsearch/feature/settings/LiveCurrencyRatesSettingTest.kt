@@ -34,7 +34,8 @@ import org.robolectric.annotation.Config
 
 /**
  * Live Currency Rates sits under the Calculator, which gives currency answers: it is shown only while the Calculator
- * is on, and switching either off, or picking Tor as the search engine, cancels the daily rates download at once.
+ * is on, and switching either off, or picking Tor as the search engine, cancels the daily rates download straight
+ * away (the switches hand that to a background thread, so the tap itself never waits on WorkManager).
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -52,7 +53,17 @@ class LiveCurrencyRatesSettingTest {
         WorkManager.getInstance(context).getWorkInfosForUniqueWork(CurrencyRateWork.DAILY_WORK).get()
 
     private fun dailyWorkEnqueued() = dailyWork().any { it.state == WorkInfo.State.ENQUEUED }
-    private fun dailyWorkCancelled() = dailyWork().let { it.isNotEmpty() && it.all { work -> work.state == WorkInfo.State.CANCELLED } }
+    private fun dailyWorkCancelled() = eventually { dailyWork().let { it.isNotEmpty() && it.all { work -> work.state == WorkInfo.State.CANCELLED } } }
+
+    /** Whether [check] holds within a second, for work a switch hands to a background thread. */
+    private fun eventually(check: () -> Boolean): Boolean {
+        val deadline = System.currentTimeMillis() + 1_000
+        while (System.currentTimeMillis() < deadline) {
+            if (check()) return true
+            Thread.sleep(10)
+        }
+        return check()
+    }
 
     /** Scrolls to and taps the row titled [title], after the rows' tap debounce has passed. */
     private fun tap(title: String) {
@@ -70,7 +81,7 @@ class LiveCurrencyRatesSettingTest {
 
     @Test
     fun theRowIsShownOnlyWhileTheCalculatorIsOn() {
-        compose.setContent { IntelligentSearchTheme(darkTheme = false) { SearchSourcesScreen(prefs, {}, {}) } }
+        compose.setContent { IntelligentSearchTheme(darkTheme = false) { SearchSourcesScreen({}, {}) } }
         compose.onNodeWithText("Live Currency Rates").assertExists()
         compose.onNodeWithText("Update Currency Rates Daily from the European Central Bank.").assertExists()
 
@@ -84,7 +95,7 @@ class LiveCurrencyRatesSettingTest {
 
     @Test
     fun switchingTheCalculatorOrLiveRatesOffCancelsTheDailyDownload() {
-        compose.setContent { IntelligentSearchTheme(darkTheme = false) { SearchSourcesScreen(prefs, {}, {}) } }
+        compose.setContent { IntelligentSearchTheme(darkTheme = false) { SearchSourcesScreen({}, {}) } }
 
         currencyRates.onCurrencyConverted(CurrencyRates.BUILT_IN)
         assertTrue(dailyWorkEnqueued())

@@ -71,9 +71,9 @@ class ScreenTimeCalculatorTest {
 
     @Test
     fun durationsReadLikeDigitalWellbeing() {
-        assertEquals("3h 12m", ScreenTimeCalculator.formatDuration(192 * minute))
-        assertEquals("2h", ScreenTimeCalculator.formatDuration(120 * minute + 20_000))
-        assertEquals("45m", ScreenTimeCalculator.formatDuration(45 * minute))
-        assertEquals("Under 1m", ScreenTimeCalculator.formatDuration(30_000))
+        assertEquals("3 hr 12 min", ScreenTimeCalculator.formatDuration(192 * minute))
+        assertEquals("2 hr", ScreenTimeCalculator.formatDuration(120 * minute + 20_000))
+        assertEquals("45 min", ScreenTimeCalculator.formatDuration(45 * minute))
+        assertEquals("Under 1 min", ScreenTimeCalculator.formatDuration(30_000))
     }
 }

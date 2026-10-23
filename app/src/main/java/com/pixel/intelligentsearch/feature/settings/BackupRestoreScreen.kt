@@ -46,19 +46,15 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -652,7 +648,6 @@ fun BackupRestoreScreen(
                             onClick = {
                                 viewModel?.clearSavedPassphraseFromSecurityChip()
                                 isPassphraseSavedOnChip = false
-                                hapticEngine.performPredictiveBackHaptic()
                                 safeShowToast("Passphrase removed from $keyHolder")
                             },
                             shape = RoundedCornerShape(percent = 50)
@@ -696,7 +691,6 @@ fun BackupRestoreScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 Button(
                     onClick = {
-                        hapticEngine.performPredictiveBackHaptic()
                         withPassphrase(forBackup = true) { chosen ->
                             if (chosen == null) {
                                 showNoPassphraseWarningDialog = true
@@ -727,7 +721,6 @@ fun BackupRestoreScreen(
                 Spacer(modifier = Modifier.height(4.dp))
                 OutlinedButton(
                     onClick = {
-                        hapticEngine.performPredictiveBackHaptic()
                         importLauncher.launch(arrayOf("application/json", "*/*"))
                     },
                     enabled = !restoring,

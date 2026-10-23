@@ -38,13 +38,13 @@ class SelectedTextBackupRestoreTest {
 
         // A file whose settings carry the old switch, turned off, next to a setting that still exists.
         settingsManager.prefs.edit().putBoolean("search_from_selected_text", false).commit()
-        settingsManager.updateSetting(SettingsManager.SEARCH_CALENDAR, false)
+        settingsManager.updateSetting(SettingsManager.SEARCH_CALCULATOR, false)
         backupManager.exportToFile(uri, "correct horse battery").getOrThrow()
         settingsManager.prefs.edit().clear().commit()
 
         backupManager.importFromFile(uri, "correct horse battery").getOrThrow()
         assertFalse(settingsManager.prefs.contains("search_from_selected_text"))
-        assertEquals(false, settingsManager[SettingsManager.SEARCH_CALENDAR])
+        assertEquals(false, settingsManager[SettingsManager.SEARCH_CALCULATOR])
         assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, context.packageManager.getComponentEnabledSetting(entry))
 
         db.close()

@@ -19,27 +19,27 @@ import org.robolectric.RobolectricTestRunner
 import java.io.File
 
 /**
- * The At a Glance switches and Search Your Notifications are typed settings that backups carry; a backup may switch
- * notification search off but never on, as with the other privacy opt-ins.
+ * At a Glance's switches (the section, each item, Show Clock) and its Clock Style are typed settings that backups
+ * carry both ways. The battery item is gone.
  */
 @RunWith(RobolectricTestRunner::class)
 class AtAGlanceSettingsBackupTest {
 
-    private val keys = listOf(
-        SettingsManager.SEARCH_NOTIFICATIONS, SettingsManager.GLANCE_ENABLED, SettingsManager.GLANCE_ALARM,
-        SettingsManager.GLANCE_TIMERS, SettingsManager.GLANCE_MEDIA,
-        SettingsManager.GLANCE_BIRTHDAYS, SettingsManager.GLANCE_BATTERY
+    private val switches = listOf(
+        SettingsManager.GLANCE_ENABLED, SettingsManager.GLANCE_TIMERS, SettingsManager.GLANCE_ALARM,
+        SettingsManager.GLANCE_MEDIA, SettingsManager.GLANCE_BIRTHDAYS, SettingsManager.GLANCE_CLOCK
     )
 
     @Test
-    fun theSwitchesAreKnownBooleans() {
-        for (key in keys) {
+    fun theSwitchesAreKnownBooleansThatStartOn() {
+        for (key in switches) {
             assertTrue("$key is declared", key in SettingsManager.ALL)
             assertEquals("BOOLEAN", BackupPreferenceSchema.expectedType(key.name))
+            assertTrue("$key starts on", key.default)
         }
-        // Notification search is an opt-in, off until the user turns it on; every At a Glance item starts on.
-        assertFalse(SettingsManager.SEARCH_NOTIFICATIONS.default)
-        assertTrue(keys.drop(1).all { it.default })
+        assertTrue(SettingsManager.GLANCE_CLOCK_STYLE in SettingsManager.ALL)
+        assertEquals("STRING", BackupPreferenceSchema.expectedType(SettingsManager.GLANCE_CLOCK_STYLE.name))
+        assertEquals("cookie", SettingsManager.GLANCE_CLOCK_STYLE.default)
     }
 
     @Test
@@ -50,28 +50,30 @@ class AtAGlanceSettingsBackupTest {
     }
 
     @Test
-    fun aBackupCanSwitchNotificationSearchOffButNeverOn() = runBlocking {
+    fun theBatteryIsGone() {
+        assertNull(SettingsManager.keyFor("glance.battery"))
+        assertTrue("glance.battery" in SettingsManager.REMOVED_NAMES)
+        // The item switches are settings again, not dropped at start.
+        for (key in switches) assertFalse("${key.name} is kept", key.name in SettingsManager.REMOVED_NAMES)
+        assertFalse(SettingsManager.GLANCE_CLOCK_STYLE.name in SettingsManager.REMOVED_NAMES)
+    }
+
+    @Test
+    fun aBackupCarriesTheSwitchesAndTheClockStyle() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, IntelligentSearchDatabase::class.java).allowMainThreadQueries().build()
         val settingsManager = SettingsManager(context)
         val backupManager = BackupManager(context, settingsManager, db.historyDao(), StrongBoxSecurityManager(context), WidgetUpdater { })
-        val uri = Uri.fromFile(File(context.cacheDir, "notifications.json"))
+        val uri = Uri.fromFile(File(context.cacheDir, "glance.json"))
 
-        settingsManager.updateSetting(SettingsManager.SEARCH_NOTIFICATIONS, true)
-        settingsManager.updateSetting(SettingsManager.GLANCE_BATTERY, false)
+        for (key in switches) settingsManager.updateSetting(key, false)
+        settingsManager.updateSetting(SettingsManager.GLANCE_CLOCK_STYLE, "digital")
         backupManager.exportToFile(uri, "correct horse battery").getOrThrow()
-        settingsManager.updateSetting(SettingsManager.SEARCH_NOTIFICATIONS, false)
-        settingsManager.updateSetting(SettingsManager.GLANCE_BATTERY, true)
+        for (key in switches) settingsManager.updateSetting(key, true)
+        settingsManager.updateSetting(SettingsManager.GLANCE_CLOCK_STYLE, "cookie")
         backupManager.importFromFile(uri, "correct horse battery").getOrThrow()
-        assertEquals(false, settingsManager[SettingsManager.SEARCH_NOTIFICATIONS])
-        // Ordinary switches come back as they were.
-        assertEquals(false, settingsManager[SettingsManager.GLANCE_BATTERY])
-
-        settingsManager.updateSetting(SettingsManager.SEARCH_NOTIFICATIONS, false)
-        backupManager.exportToFile(uri, "correct horse battery").getOrThrow()
-        settingsManager.updateSetting(SettingsManager.SEARCH_NOTIFICATIONS, true)
-        backupManager.importFromFile(uri, "correct horse battery").getOrThrow()
-        assertEquals(false, settingsManager[SettingsManager.SEARCH_NOTIFICATIONS])
+        for (key in switches) assertEquals("${key.name} restored", false, settingsManager[key])
+        assertEquals("digital", settingsManager[SettingsManager.GLANCE_CLOCK_STYLE])
 
         db.close()
     }

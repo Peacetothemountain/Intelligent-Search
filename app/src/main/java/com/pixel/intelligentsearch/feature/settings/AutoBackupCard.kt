@@ -14,12 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Backup
 import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -75,7 +72,7 @@ internal fun AutoBackupCard(obtainPassphrase: (onReady: (String?) -> Unit) -> Un
         // The passphrase isn't kept in saved state, so if Android recreated the page while the picker was open it is
         // empty now; ask again rather than turn on backups nobody can restore.
         if (passphrase.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
-            Toast.makeText(context, "Type your passphrase again, then choose the folder", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Type your passphrase again, then choose the folder.", Toast.LENGTH_LONG).show()
             return@rememberLauncherForActivityResult
         }
         // Deriving the key (600k PBKDF2 rounds) and wrapping it in the Keystore takes seconds: never on the main thread.
@@ -106,7 +103,7 @@ internal fun AutoBackupCard(obtainPassphrase: (onReady: (String?) -> Unit) -> Un
                         if (chosen == null || chosen.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
                             Toast.makeText(
                                 context,
-                                "Enter a passphrase of at least ${AutoBackup.MIN_PASSPHRASE_LENGTH} characters above first",
+                                "Enter a passphrase of at least ${AutoBackup.MIN_PASSPHRASE_LENGTH} characters above first.",
                                 Toast.LENGTH_SHORT
                             ).show()
                         } else {
@@ -176,7 +173,7 @@ internal fun AutoBackupCard(obtainPassphrase: (onReady: (String?) -> Unit) -> Un
                 TextButton(onClick = {
                     autoBackup.disable()
                     revision++
-                    Toast.makeText(context, "Automatic backup is off", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Automatic backup is off.", Toast.LENGTH_SHORT).show()
                 }) {
                     Text("Turn Off", fontFamily = GoogleSansFlex)
                 }

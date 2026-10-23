@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch
 
+import com.pixel.intelligentsearch.core.net.HttpsGet
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
@@ -10,7 +11,6 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
 import com.pixel.intelligentsearch.core.currency.CurrencyRateStore
 import com.pixel.intelligentsearch.core.currency.CurrencyRateWork
-import com.pixel.intelligentsearch.core.currency.RatesHttpClient
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity
@@ -37,8 +37,12 @@ class StartupSyncTest {
 
     private fun repository() = CurrencyRateRepository(
         context, settings, CurrencyRateStore(File(context.filesDir, "startup_sync_rates.properties")),
-        RatesHttpClient { _, _ -> error("startup never downloads") }
+        HttpsGet { _, _, _ -> error("startup never downloads") }
     )
+
+    private fun sync() = kotlinx.coroutines.runBlocking {
+        StartupSync.afterUnlock(context, repository(), com.pixel.intelligentsearch.core.answers.LiveAnswerEngine(context, settings))
+    }
 
     private fun pending(work: String) =
         workManager.getWorkInfosForUniqueWork(work).get().filter { it.state == WorkInfo.State.ENQUEUED }
@@ -52,13 +56,13 @@ class StartupSyncTest {
         settings.prefs.edit().putBoolean("search_from_selected_text", false).commit()
         context.packageManager.setComponentEnabledSetting(entry, PackageManager.COMPONENT_ENABLED_STATE_DISABLED, PackageManager.DONT_KILL_APP)
 
-        StartupSync.afterUnlock(context, repository())
+        sync()
         assertEquals(PackageManager.COMPONENT_ENABLED_STATE_DEFAULT, context.packageManager.getComponentEnabledSetting(entry))
     }
 
     @Test
     fun theNextDoodleRedrawIsArranged() {
-        StartupSync.afterUnlock(context, repository())
+        sync()
         assertTrue(pending("widget_doodle_change").isNotEmpty())
     }
 
@@ -68,7 +72,7 @@ class StartupSyncTest {
         assertTrue(pending(CurrencyRateWork.DAILY_WORK).isNotEmpty())
 
         settings.prefs.edit().put(SettingsManager.SEARCH_CALCULATOR, false).commit()
-        StartupSync.afterUnlock(context, repository())
+        sync()
 
         assertTrue(pending(CurrencyRateWork.DAILY_WORK).isEmpty())
     }

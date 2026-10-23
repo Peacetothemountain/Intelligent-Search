@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -150,5 +151,5 @@ internal fun openAndroidSetting(context: Context, result: AndroidSettingResult) 
         // A copy: launching adds flags, and the result's intent is reused while the query stands.
         launchSafeIntent(context, Intent(result.intent))
     }
-    if (!opened) Toast.makeText(context, "Couldn’t open ${result.title}", Toast.LENGTH_SHORT).show()
+    if (!opened) Toast.makeText(context, "Couldn't open ${result.title}.", Toast.LENGTH_SHORT).show()
 }

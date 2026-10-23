@@ -135,8 +135,7 @@ class WidgetMaterialIconsMatchOverlayTest(private val bar: Bar, private val dark
                 primary = Color(theme.primary),
                 primaryContainer = Color(theme.primaryContainer),
                 surfaceContainer = Color(theme.surfaceContainer),
-                appDark = dark,
-                systemDark = dark
+                appDark = dark
             ),
             isDynamicColorActive = dynamic,
             iconAccents = { SearchIconColors.themeAccents(context, it) }

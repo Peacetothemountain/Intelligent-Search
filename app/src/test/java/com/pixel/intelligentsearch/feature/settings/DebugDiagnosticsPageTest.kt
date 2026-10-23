@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
+import com.pixel.intelligentsearch.core.system.battery.BatteryReadings
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -73,13 +75,13 @@ class DebugDiagnosticsPageTest {
         // Pixels stop rating battery health while plugged in, which left the card's status chip on "Not reported".
         val status = ChargingStatus.status(
             plugged = android.os.BatteryManager.BATTERY_PLUGGED_USB,
-            chargeState = DiagnosticsReadings.ChargeState.Charging,
+            chargeState = BatteryReadings.ChargeState.Charging,
             usb = ChargingStatus.UsbLink(connected = true, configured = true, adb = true),
             adbEnabled = true
         )
         val plugged = SAMPLE.copy(
             battery = SAMPLE.battery.copy(
-                health = DiagnosticsReadings.HEALTH_NOT_REPORTED, isCharging = true,
+                health = BatteryReadings.HEALTH_NOT_REPORTED, isCharging = true,
                 chargingRateStr = status!!.label, power = status
             )
         )
@@ -192,7 +194,7 @@ class DebugDiagnosticsPageTest {
         val SAMPLE = DiagnosticsSample(
             battery = BatteryTelemetrySnapshot(
                 level = 80, temp = 30f, volt = 4f, watts = null, health = "Good",
-                healthSeverity = DiagnosticsReadings.HealthSeverity.Ok, cycles = -1, technology = "Li-ion",
+                healthSeverity = BatteryReadings.HealthSeverity.Ok, cycles = -1, technology = "Li-ion",
                 thermalStatus = "Normal", isCharging = false, chargingRateStr = "Discharging", timeEstimateStr = "Estimating..."
             ),
             memory = MemorySnapshot(

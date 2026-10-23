@@ -149,16 +149,23 @@ class ClipboardLensTest {
     }
 
     @Test
-    fun nothingIsOfferedWithSmartClipboardOffUnderTorOrWithoutLens() {
+    fun nothingIsOfferedWithSmartClipboardOff() {
         installGoogleLens()
         copyImage()
         val viewModel = viewModel()
         runBlocking { viewModel.refreshClipboardActions() }
         assertEquals(emptyList<DirectAction>(), viewModel.uiState.value.directActions)
+    }
 
+    /** Lens is an app hand-off, not a request of this app's, so Tor keeps it like the search bar's Lens button. */
+    @Test
+    fun torKeepsTheLensSuggestion() {
+        installGoogleLens()
+        copyImage()
+        val viewModel = viewModel()
         prefs.edit().put(SettingsManager.SMART_CLIPBOARD_SUGGESTIONS, true).put(SettingsManager.SEARCH_ENGINE, "Tor Project").commit()
         runBlocking { viewModel.refreshClipboardActions() }
-        assertEquals(emptyList<DirectAction>(), viewModel.uiState.value.directActions)
+        assertEquals(listOf(ClipboardLens.ICON_TYPE), viewModel.uiState.value.directActions.map { it.iconType })
     }
 
     @Test

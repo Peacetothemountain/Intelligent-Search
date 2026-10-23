@@ -1,4 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.feature.settings.TextButton
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -120,8 +122,6 @@ fun SearchOverlayScreen(
     val contactWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_CONTACTS)
     val fileWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_FILES)
     val suggestionsEnabled by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
-    val enterKeyActionValue by rememberSetting(SettingsManager.ENTER_KEY_ACTION)
-    val enterKeyAction = com.pixel.intelligentsearch.core.data.settings.EnterKeyAction.from(enterKeyActionValue)
     val searchProviderName = remember(settingsState.searchEngine, settingsState.customSearchEngineUrl) {
         when (settingsState.searchEngine) {
             "DuckDuckGo" -> "DuckDuckGo"
@@ -203,7 +203,7 @@ fun SearchOverlayScreen(
             WindowFramePacing.setHighRefreshRateCategory(act)
             WindowFramePacing.setDynamicLtpoPacing(view, isMoving = true)
         } else {
-            WindowFramePacing.setNormalRefreshRateCategory(act)
+            WindowFramePacing.restoreDefaultRefreshRate(act)
             WindowFramePacing.setDynamicLtpoPacing(view, isMoving = false)
         }
     }
@@ -217,11 +217,15 @@ fun SearchOverlayScreen(
             AppLaunchAnimation.launch(view, appAnimations, launchIcons.bounds(from.iconKeys), launchOrigin.point.takeIf { from.byTouch })
         }
     }
-    val performLaunch: (String, android.os.UserHandle?, String?, LaunchSource) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager, appLaunch) {
+    val performLaunch: (String, android.os.UserHandle?, String?, LaunchSource) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager, appLaunch, appAnimations) {
         { packageName, user, activityName, from ->
             hasStartedTyping = false
-            focusManager.clearFocus(force = true)
-            keyboardController?.hide()
+            // With App Animations the app opens out of the icon, so the overlay must not move under it: hiding the
+            // keyboard first resizes the window mid-launch. Android hides it anyway as the app takes focus.
+            if (!appAnimations) {
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+            }
             sensoryEngine.appLaunch(view)
             onLaunchApp(packageName, user, activityName, appLaunch(from))
         }
@@ -339,7 +343,7 @@ fun SearchOverlayScreen(
         hasStartedTyping = false
         focusManager.clearFocus(force = true)
         keyboardController?.hide()
-        val torBangAddress = if (com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(settingsState.searchEngine)) {
+        val torBangAddress = if (com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(settingsState.searchEngine)) {
             viewModel.resolveBangWebAddress(searchQuery)
         } else null
         if (torBangAddress != null) {
@@ -375,12 +379,12 @@ fun SearchOverlayScreen(
         viewModel.onQueryChanged("")
         if (!launchSafeIntent(context, intent)) {
             // A failed Tor launch must not fall back to a normal browser search.
-            if (com.pixel.intelligentsearch.core.security.SafeWebLaunch.isTorEngine(engine)) {
+            if (com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(engine)) {
                 showTorInstallPopup = true
                 return@launchWebSearch
             }
             if (!launchSafeIntent(context, systemWebSearchIntent(searchQuery))) {
-                Toast.makeText(context, "No app available to search the web", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "No app available to search the web.", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -543,7 +547,7 @@ fun SearchOverlayScreen(
             // A swipe started while this one sprang back is already running at the high rate; resetting here
             // would drop it to the normal rate (and switch touch boost off) for the rest of that swipe.
             if (backSwipes.get() == swipe) {
-                com.pixel.intelligentsearch.core.ui.WindowFramePacing.setNormalRefreshRateCategory(context.findActivity())
+                com.pixel.intelligentsearch.core.ui.WindowFramePacing.restoreDefaultRefreshRate(context.findActivity())
             }
         }
     }
@@ -560,8 +564,8 @@ fun SearchOverlayScreen(
             BestMatch.find(
                 uiState.query,
                 listOf(
-                    BestMatch.Domain(appWeight, settingsState.searchApps, visibleApps, { uiState.shortcuts.nicknamesOf(com.pixel.intelligentsearch.core.search.ResultKeys.app(it)) }) { it.name },
-                    BestMatch.Domain(contactWeight, settingsState.searchContacts, uiState.contacts, { uiState.shortcuts.nicknamesOf(com.pixel.intelligentsearch.core.search.ResultKeys.contact(it)) }) { it.name },
+                    BestMatch.Domain(appWeight, settingsState.searchApps, visibleApps) { it.name },
+                    BestMatch.Domain(contactWeight, settingsState.searchContacts, uiState.contacts) { it.name },
                     BestMatch.Domain(fileWeight, settingsState.searchFiles, uiState.files) { it.name }
                 )
             )
@@ -586,7 +590,7 @@ fun SearchOverlayScreen(
             else uiState.contacts
         }
     }
-    val contactActionTargets = rememberContactActionTargets(settingsState.searchContacts && settingsState.contactActions)
+    val contactActionTargets = rememberContactActionTargets(settingsState.searchContacts)
     
     val filteredApps by remember {
         derivedStateOf {
@@ -604,20 +608,17 @@ fun SearchOverlayScreen(
         }
     }
 
-    // The one way to "go" once the results are in, for Enter and for the voice check button, following Enter Key
-    // Action (OverlayEnterKey): a bang goes to its site; with Open Top Result the short phrasing's action runs, else
-    // the best match opens, then a typed web address, Quick Launch, and finally a web search; with Search the Web,
-    // a web search.
+    // The one way to "go" once the results are in, for Enter and for the voice check button (OverlayEnterKey): a
+    // bang goes to its site; otherwise the short phrasing's action runs, else the best match opens, then a typed web
+    // address, Quick Launch, and finally a web search.
     val submitQuery: (String, Boolean) -> Unit = submit@{ submittedQuery, fromVoice ->
         val outcome = OverlayEnterKey.decide(
             query = submittedQuery,
-            triggered = null,
             highlighted = null,
             phrasingAction = uiState.enterAction?.takeIf { it.intent != null },
             // A bang is an explicit request for that site: it must not be taken over by an app match or Quick Launch
             // ("!g maps" would otherwise open Maps).
-            isBang = submittedQuery.isNotEmpty() && viewModel.resolveBangIntent(submittedQuery) != null,
-            setting = enterKeyAction
+            isBang = submittedQuery.isNotEmpty() && viewModel.resolveBangIntent(submittedQuery) != null
         )
         when (outcome) {
             EnterOutcome.SearchWeb -> {
@@ -632,7 +633,7 @@ fun SearchOverlayScreen(
                 return@submit
             }
             EnterOutcome.OpenTopResult -> Unit
-            // Nothing typed; a trigger word and the highlight were handled by onEnter before the results settled.
+            // Nothing typed; the highlight was handled by onEnter before the results settled.
             else -> return@submit
         }
         viewModel.addSearchHistory(submittedQuery)
@@ -670,6 +671,9 @@ fun SearchOverlayScreen(
         spokenQuery = null
     }
 
+    // Read here so the keyboard's stops and the results list see the same cards and notifications.
+    val glanceItems = rememberGlanceItems(settingsState.hiddenApps, active = uiState.query.isEmpty())
+    val notificationHits = rememberNotificationHits(uiState.query, settingsState.hiddenApps)
     val sections = OverlayScope(
         onOpenSettings = onOpenSettings,
         viewModel = viewModel,
@@ -695,7 +699,6 @@ fun SearchOverlayScreen(
         launchWebSearch = launchWebSearch,
         openWebAddress = openWebAddress,
         submitQuery = { query, fromVoice -> coroutineScope.launch { submitWhenSettled(query, fromVoice) } },
-        enterKeyAction = enterKeyAction,
         visibleApps = visibleApps,
         bestMatch = bestMatch,
         bestMatchText = bestMatchText,
@@ -703,7 +706,9 @@ fun SearchOverlayScreen(
         contactActionTargets = contactActionTargets,
         filteredApps = filteredApps,
         filteredFiles = filteredFiles,
-        distinctRecents = distinctRecents
+        distinctRecents = distinctRecents,
+        glanceItems = glanceItems,
+        notificationHits = notificationHits
     )
     val searchBarContent = @Composable { OverlaySearchBar(sections) }
 
@@ -741,7 +746,7 @@ fun SearchOverlayScreen(
                                     finishWithoutTransition(act)
                                 }
                             } finally {
-                                WindowFramePacing.setNormalRefreshRateCategory(act)
+                                WindowFramePacing.restoreDefaultRefreshRate(act)
                             }
                         }
                     },
@@ -755,7 +760,7 @@ fun SearchOverlayScreen(
                                     animationSpec = ExpressiveMotionTokens.criticallyDampedSpring()
                                 )
                             } finally {
-                                WindowFramePacing.setNormalRefreshRateCategory(act)
+                                WindowFramePacing.restoreDefaultRefreshRate(act)
                             }
                         }
                     },

@@ -14,6 +14,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -342,17 +345,28 @@ private fun PostureRing(
  */
 @Composable
 private fun PostureTiles(checks: List<SecurityPosture.AxisScore>, selected: Axis?, onSelect: (Axis) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        checks.chunked(2).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                row.forEach { check ->
-                    PostureTile(check, check.axis == selected, onSelect = { onSelect(check.axis) }, modifier = Modifier.weight(1f))
+    val fontScale = LocalDensity.current.fontScale
+    BoxWithConstraints {
+        val columns = postureTileColumns(maxWidth, fontScale)
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            checks.chunked(columns).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { check ->
+                        PostureTile(check, check.axis == selected, onSelect = { onSelect(check.axis) }, modifier = Modifier.weight(1f))
+                    }
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                 }
-                if (row.size == 1) Spacer(Modifier.weight(1f))
             }
         }
     }
 }
+
+/** The narrowest a tile can be at normal text size and still keep "StrongBox" and "Verified Boot" whole. */
+internal val POSTURE_TILE_MIN_WIDTH = 150.dp
+
+/** Two columns of tiles where each still fits [POSTURE_TILE_MIN_WIDTH] scaled by the text size, else one. */
+internal fun postureTileColumns(width: Dp, fontScale: Float): Int =
+    if ((width - 8.dp) / 2 >= POSTURE_TILE_MIN_WIDTH * fontScale) 2 else 1
 
 @Composable
 private fun PostureTile(check: SecurityPosture.AxisScore, isSelected: Boolean, onSelect: () -> Unit, modifier: Modifier) {

@@ -119,8 +119,6 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             },
                             showDivider = true
                         )
-                        var showContactsRationaleDialog by remember { mutableStateOf(false) }
-                        var showContactsSettingsDialog by remember { mutableStateOf(false) }
                         var searchContacts by rememberSetting(SettingsManager.SEARCH_CONTACTS)
                         var searchFiles by rememberSetting(SettingsManager.SEARCH_FILES)
 
@@ -146,48 +144,11 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             }
                         }
 
-                        val contactsPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-                            val granted = results.values.isNotEmpty() && results.values.all { it }
-                            if (granted) {
-                                searchContacts = true
-                                viewModel?.reindexContacts()
-                            } else {
-                                searchContacts = false
-                                // As with Calendar: declining once just leaves Contacts off. Only when Android won't
-                                // ask again (declined for good) is Android settings the way to allow it.
-                                if (context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS) == false) {
-                                    showContactsSettingsDialog = true
-                                }
-                            }
-                        }
-
-                        if (showContactsRationaleDialog) {
-                            PermissionRationaleDialog(
-                                title = "Allow Contacts Access?",
-                                text = CONTACTS_RATIONALE,
-                                confirm = "Allow",
-                                onConfirm = {
-                                    showContactsRationaleDialog = false
-                                    contactsPermissionLauncher.launch(arrayOf(Manifest.permission.READ_CONTACTS))
-                                },
-                                onDismiss = {
-                                    showContactsRationaleDialog = false
-                                    searchContacts = false
-                                }
-                            )
-                        }
-
-                        if (showContactsSettingsDialog) {
-                            PermissionRationaleDialog(
-                                title = "Contacts Access Is Off",
-                                text = "Contacts access for Intelligent Search is turned off. Allow it in Android settings to search your contacts.",
-                                confirm = "Open Settings",
-                                onConfirm = {
-                                    showContactsSettingsDialog = false
-                                    openSettingsPage(context, appDetailsSettings(context.packageName))
-                                },
-                                onDismiss = { showContactsSettingsDialog = false }
-                            )
+                        // As with Calendar: declining once just leaves Contacts off; declined for good, the
+                        // request offers Android's settings.
+                        val contactsRequest = rememberContactsRequest { granted ->
+                            searchContacts = granted
+                            if (granted) viewModel?.reindexContacts()
                         }
 
                         SettingsRowToggle(
@@ -196,16 +157,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             icon = Icons.Outlined.Contacts,
                             isChecked = searchContacts,
                             onCheckedChange = { isChecked -> 
-                                if (isChecked) {
-                                    if (context.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED) {
-                                        searchContacts = true
-                                        viewModel?.reindexContacts()
-                                    } else {
-                                        showContactsRationaleDialog = true
-                                    }
-                                } else {
-                                    searchContacts = false
-                                }
+                                if (isChecked) contactsRequest.request() else searchContacts = false
                             },
                             onClick = { 
                                 if (searchContacts) {

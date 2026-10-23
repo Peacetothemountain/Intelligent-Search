@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.util.findActivity
+import com.pixel.intelligentsearch.core.system.openSettingsPage
 import android.Manifest
 import android.content.Intent
 import android.net.Uri
@@ -48,6 +50,69 @@ internal fun appDetailsSettings(packageName: String): Intent =
 internal const val CONTACTS_RATIONALE =
     "Intelligent Search needs your contacts so you can search, call, message and see contact details from the " +
         "search bar, and see their birthdays in At a Glance. Your contacts stay on your phone."
+
+/** A way to ask for the contacts: [request] answers at once when allowed, else explains first. */
+internal fun interface ContactsRequest {
+    fun request()
+}
+
+/**
+ * The contacts, asked the one way the app asks for them (contact search, At a Glance's birthdays): when allowed
+ * [onResult] hears yes at once; otherwise [CONTACTS_RATIONALE] shows, then Android's prompt. Declining once just
+ * answers no; once Android won't ask again, the user is offered Android's settings instead. Shows its dialogs in
+ * place while they are up.
+ */
+@Composable
+internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): ContactsRequest {
+    val context = LocalContext.current
+    val currentOnResult by rememberUpdatedState(onResult)
+    var showRationale by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
+        val granted = results.values.isNotEmpty() && results.values.all { it }
+        currentOnResult(granted)
+        // Declined for good: only Android's settings can allow it now.
+        if (!granted && context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS) == false) {
+            showSettings = true
+        }
+    }
+    if (showRationale) {
+        PermissionRationaleDialog(
+            title = "Allow Contacts Access?",
+            text = CONTACTS_RATIONALE,
+            confirm = "Allow",
+            onConfirm = {
+                showRationale = false
+                permission.launch(arrayOf(Manifest.permission.READ_CONTACTS))
+            },
+            onDismiss = {
+                showRationale = false
+                currentOnResult(false)
+            }
+        )
+    }
+    if (showSettings) {
+        PermissionRationaleDialog(
+            title = "Contacts Access Is Off",
+            text = "Contacts access for Intelligent Search is turned off. Allow it in Android settings to search your contacts.",
+            confirm = "Open Settings",
+            onConfirm = {
+                showSettings = false
+                openSettingsPage(context, appDetailsSettings(context.packageName))
+            },
+            onDismiss = { showSettings = false }
+        )
+    }
+    return remember(context) {
+        ContactsRequest {
+            if (contactsAllowed(context)) currentOnResult(true) else showRationale = true
+        }
+    }
+}
+
+/** Whether the contacts may be read. */
+internal fun contactsAllowed(context: android.content.Context): Boolean =
+    context.checkSelfPermission(Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
 /** What weather answers say before Android asks for approximate location. */
 internal const val LOCATION_RATIONALE =

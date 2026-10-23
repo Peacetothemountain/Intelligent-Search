@@ -218,4 +218,17 @@ class WidgetProfilesTest {
         assertNull(SettingsManager.keyFor(WidgetProfiles.SAVED_THEMES_KEY))
         assertTrue(WidgetProfiles.SAVED_THEMES_KEY in SettingsManager.REMOVED_NAMES)
     }
+
+    @Test
+    fun aRestoredProfileNeverSwitchesTheMediaRowOn() {
+        val restored = """{"design":"MATERIAL","SYSTEM":{"show_media":true,"show_g_icon":true},"MATERIAL":{"show_media":true}}"""
+        val cleaned = WidgetProfiles.withoutRestoreOptIns(restored)
+        assertFalse(cleaned.contains("\"show_media\":true"))
+        assertTrue(cleaned.contains("\"show_g_icon\":true"))
+        assertTrue(WidgetProfiles.isProfileKey(SettingsManager.WIDGET_PROFILE_DESIGNS.first().name))
+        assertTrue(WidgetProfiles.isProfileKey(SettingsManager.WIDGET_PROFILE_SAVED_DESIGNS.last().name))
+        assertFalse(WidgetProfiles.isProfileKey(SettingsManager.WIDGET_ACTIVE_PROFILE.name))
+        // Text that isn't a profile comes back untouched.
+        assertEquals("not json", WidgetProfiles.withoutRestoreOptIns("not json"))
+    }
 }

@@ -1,17 +1,15 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import androidx.compose.animation.core.FastOutSlowInEasing
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.exp
-import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /*
  * The Hardware & Security page's motion, apart from Compose so it can be tested. The page itself, and every line of
  * text on it, is drawn at once, without an entrance. The banner's secure chip draws light in along its pins (quickly
- * while attestation is verifying, calmly afterwards), the chain carries a soft pulse from the app's key down to the
- * root, and the posture chip counts up as the radar draws out.
+ * while attestation is verifying, calmly afterwards), and the chain carries a soft pulse from the app's key down to the
+ * root. The posture radar's motion lives with it (SecurityPostureChart.kt).
  */
 
 /** One round of light into the secure chip, every pin in turn, while attestation is verifying. */
@@ -81,8 +79,6 @@ private const val CHAIN_PULSE_WIDTH = 0.9f
 /** One sway of the chain, as a hanging chain sways, in milliseconds. */
 internal const val CHAIN_SWAY_MILLIS = 2800
 
-/** How long the posture chip's count-up takes after the radar's first axis, so it lands as the radar settles. */
-private const val COUNT_UP_SETTLE_MILLIS = 700
 
 /**
  * How lit step [index] of [steps] (the links, then the root's key) is, 0 to 1, at [phase] (0 to 1) of the pulse's
@@ -108,14 +104,3 @@ internal fun chainSway(phase: Float, index: Int): Float {
     val p = phase - phase.toInt()
     return sin(2f * PI.toFloat() * (p - index * 0.11f))
 }
-
-/** The posture chip's percentage [progress] (0 to 1) of the way through its count-up to [target]: 0 to exactly [target]. */
-internal fun countUpValue(progress: Float, target: Int): Int = when {
-    progress <= 0f -> 0
-    progress >= 1f -> target
-    else -> (target * FastOutSlowInEasing.transform(progress)).roundToInt().coerceIn(0, target)
-}
-
-/** How long the posture chip counts up for a radar of [axisCount] axes, in step with the radar's staggered draw-in. */
-internal fun countUpMillis(axisCount: Int): Int =
-    (axisCount - 1).coerceAtLeast(0) * RADAR_ENTRY_STAGGER_MILLIS.toInt() + COUNT_UP_SETTLE_MILLIS

@@ -4,7 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The Hardware & Security page's motion: the secure chip's lights, the chain's pulse and sway, and the count-up. */
+/** The Hardware & Security page's motion: the secure chip's lights, and the chain's pulse and sway. */
 class SecurityPageMotionTest {
 
     @Test
@@ -95,28 +95,5 @@ class SecurityPageMotionTest {
         // Neighbouring links are out of step, and the sway repeats each cycle.
         assertTrue(kotlin.math.abs(chainSway(0.2f, 0) - chainSway(0.2f, 1)) > 0.05f)
         assertEquals(chainSway(0.3f, 2), chainSway(1.3f, 2), 1e-4f)
-    }
-
-    @Test
-    fun theCountUpRunsFromZeroToExactlyTheValue() {
-        for (target in listOf(0, 1, 7, 42, 98, 100)) {
-            assertEquals(0, countUpValue(0f, target))
-            assertEquals(0, countUpValue(-1f, target))
-            assertEquals(target, countUpValue(1f, target))
-            assertEquals(target, countUpValue(2f, target))
-            var last = 0
-            for (step in 0..200) {
-                val v = countUpValue(step / 200f, target)
-                assertTrue("$target at $step: $v", v in last..target)
-                last = v
-            }
-            assertEquals(target, last)
-        }
-    }
-
-    @Test
-    fun theCountUpLastsAsLongAsTheRadarTakesToDrawOut() {
-        assertTrue(countUpMillis(5) > countUpMillis(3))
-        assertEquals(countUpMillis(1) + 4 * RADAR_ENTRY_STAGGER_MILLIS.toInt(), countUpMillis(5))
     }
 }

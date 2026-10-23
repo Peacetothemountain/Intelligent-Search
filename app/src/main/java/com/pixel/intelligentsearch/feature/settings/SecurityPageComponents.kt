@@ -26,9 +26,6 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextMeasurer
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.dp
 
 /** Test tag on the banner's secure chip. */
@@ -245,45 +242,4 @@ internal fun CertificateChainLinks(
             }
         }
     })
-}
-
-/**
- * Draws the posture chip's "label · NN%" counting up from 0 to [target] as [progress] (0 to 1) runs, over the chip's
- * finished text, which keeps the chip its final size throughout. The prefix, each digit and the percent sign are
- * measured once, so a frame only places a few of them. Draws the finished text itself once the count has landed, or
- * if the finished text wouldn't fit on one line.
- */
-internal fun Modifier.countUpText(
-    prefix: String,
-    target: Int,
-    progress: () -> Float,
-    style: TextStyle,
-    measurer: TextMeasurer
-): Modifier = drawWithCache {
-    val head = measurer.measure(prefix, style, softWrap = false, maxLines = 1, density = this, layoutDirection = layoutDirection)
-    val digits = Array(10) {
-        measurer.measure("$it", style, softWrap = false, maxLines = 1, density = this, layoutDirection = layoutDirection)
-    }
-    val percent = measurer.measure("%", style, softWrap = false, maxLines = 1, density = this, layoutDirection = layoutDirection)
-    val whole = measurer.measure("$prefix$target%", style, softWrap = false, maxLines = 1, density = this, layoutDirection = layoutDirection)
-    val fits = whole.size.width <= size.width + 1f
-    onDrawWithContent {
-        val p = progress()
-        if (p >= 1f || !fits) {
-            drawContent()
-            return@onDrawWithContent
-        }
-        val value = countUpValue(p, target)
-        drawText(head, topLeft = Offset.Zero)
-        var x = head.size.width.toFloat()
-        var divisor = 1
-        while (divisor * 10 <= value) divisor *= 10
-        while (divisor > 0) {
-            val d = digits[(value / divisor) % 10]
-            drawText(d, topLeft = Offset(x, 0f))
-            x += d.size.width
-            divisor /= 10
-        }
-        drawText(percent, topLeft = Offset(x, 0f))
-    }
 }

@@ -169,19 +169,7 @@ fun WebSearchScreen(
             }
 
             SettingsSectionHeader("Instant Answers")
-            InstantAnswersCard()
-            SettingsSectionHeader("AI Answers")
-            SettingsCard {
-                val aiAnswers by rememberSetting(SettingsManager.AI_ANSWERS_ENABLED)
-                SettingsRow(
-                    title = "AI Answers",
-                    subtitle = if (aiAnswers) "On. Ask Claude, ChatGPT or Gemini with Your Own Key When You Tap Ask." else
-                        "Off. Answer Questions with Claude, ChatGPT or Gemini Using Your Own Key.",
-                    icon = Icons.Outlined.AutoAwesome,
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.AiAnswers) },
-                    showDivider = false
-                )
-            }
+            InstantAnswersCard(onOpenAiAnswers = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.AiAnswers) })
 
             SettingsSectionHeader("Quick Web Shortcuts")
             WebQuickShortcutsCard()

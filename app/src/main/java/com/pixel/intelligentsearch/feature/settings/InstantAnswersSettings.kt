@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Translate
 import com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
@@ -61,7 +63,7 @@ internal fun webAnswerSubtitle(what: String, service: String, block: NetworkPoli
  * both off until turned on, with the weather's home location and approximate-location choice.
  */
 @Composable
-fun InstantAnswersCard() {
+fun InstantAnswersCard(onOpenAiAnswers: () -> Unit) {
     val context = LocalContext.current
     val engine = remember { context.appEntryPoint.instantAnswerEngine() }
     val web by rememberSetting(SettingsManager.SEARCH_WEB)
@@ -87,7 +89,7 @@ fun InstantAnswersCard() {
             icon = Icons.Outlined.WbSunny,
             isChecked = weather,
             onCheckedChange = { weather = it },
-            showDivider = weather
+            showDivider = true
         )
         AnimatedVisibility(visible = weather) {
             Column {
@@ -95,6 +97,24 @@ fun InstantAnswersCard() {
                 ApproximateLocationRow()
             }
         }
+        // The answers that need no switch: neither sends anything by itself.
+        SettingsInfoRow(
+            title = "Translations and Screen Time",
+            subtitle = "Translations Open in Google Translate. Screen Time Uses Usage Access.",
+            icon = Icons.Outlined.Translate,
+            showDivider = true
+        )
+        val aiOn by rememberSetting(SettingsManager.AI_ANSWERS_ENABLED)
+        val aiBlock = NetworkPolicy.aiBlock(web, searchEngine)
+        SettingsRow(
+            title = "AI Answers",
+            subtitle = aiBlock?.let(NetworkPolicy::blockSubtitle)
+                ?: if (aiOn) "Ask Claude, ChatGPT or Gemini with Your Own Key When You Tap Ask."
+                else "Answer Questions with Claude, ChatGPT or Gemini Using Your Own Key.",
+            icon = Icons.Outlined.AutoAwesome,
+            onClick = onOpenAiAnswers,
+            showDivider = false
+        )
     }
 }
 

@@ -266,8 +266,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val AI_PROVIDER = StringSetting("ai.answers.provider", "anthropic")
         /** The chosen model of [AI_PROVIDER]; blank (or another provider's) means its default. */
         val AI_MODEL = StringSetting("ai.answers.model", "")
-        /** Saved Links: named web addresses found by name in search, as JSON (SavedLinks); read through SavedLinkStore. */
-        val SAVED_LINKS = StringSetting("saved_links_json", "[]")
 
         // Each search bar widget design's extras, kept per design like the rest of its customization
         // (WidgetSettingsStore reads and writes them). Favourite apps are package names, comma separated, in order.
@@ -334,7 +332,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             WIDGET_SYSTEM_FAVOURITE_APPS, WIDGET_MATERIAL_FAVOURITE_APPS, WIDGET_SYSTEM_SHOW_MEDIA,
             WIDGET_MATERIAL_SHOW_MEDIA, WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_SAVED_THEMES, COUNTDOWN_EVENTS,
-            AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL, SAVED_LINKS,
+            AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL,
             NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION,
             EDGE_SWIPE, EDGE_SWIPE_EDGE, EDGE_SWIPE_POSITION, EDGE_SWIPE_HEIGHT
         ) + FILES_OPEN_WITH.values
@@ -356,12 +354,16 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         private val RETIRED_NAMES = listOf("search_sections_config_json", "datastore_migration_v1_completed")
 
         /**
-         * Switches an older build stored that no longer mean anything: Search from Selected Text (its entry is always
-         * on now), At a Glance's one-time codes (Android 15 hides them from listeners) and On-Device Translation
-         * (translations go to Google Translate). A value an older build stored is dropped at every start, and backups
-         * never restore one.
+         * Settings an older build stored that no longer mean anything: Search from Selected Text (its entry is always
+         * on now), At a Glance's one-time codes (Android 15 hides them from listeners), On-Device Translation
+         * (translations go to Google Translate) and Saved Links (removed; Web Shortcuts open sites). A value an older
+         * build stored is dropped at every start, and backups never restore one.
          */
-        val REMOVED_NAMES: Set<String> = setOf("search_from_selected_text", "glance.codes", "on_device_translation")
+        val REMOVED_NAMES: Set<String> =
+            setOf("search_from_selected_text", "glance.codes", "on_device_translation", "saved_links_json")
+
+        /** The folder in the app's files where an older build kept Saved Links' site icons; deleted at start. */
+        internal const val REMOVED_SAVED_LINK_ICONS_DIR = "saved_link_icons"
 
         /**
          * Set once [PILL_OPACITY] holds the pill's real opacity. Older versions drew their default, 50, fully
@@ -542,7 +544,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
      * DataStore copy still held, folds every legacy spelling into its canonical name, normalizes the theme,
      * drops retired keys, and deletes the DataStore file. Then moves the pill opacity to its linear meaning (see
      * [migratePillOpacity]), fits the quick panel's max to the chosen apps (see [migrateQuickPanelMax]) and drops
-     * removed switches ([REMOVED_NAMES]). Safe to call repeatedly.
+     * removed settings ([REMOVED_NAMES]) and the removed Saved Links' icon files. Safe to call repeatedly.
      */
     suspend fun migrateToSingleStore() = withContext(Dispatchers.IO) {
         val sp = prefs
@@ -550,6 +552,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         migratePillOpacity(sp)
         migrateQuickPanelMax(sp)
         if (REMOVED_NAMES.any(sp::contains)) sp.edit { REMOVED_NAMES.forEach(::remove) }
+        java.io.File(context.filesDir, REMOVED_SAVED_LINK_ICONS_DIR).takeIf { it.exists() }?.let { runCatching { it.deleteRecursively() } }
     }
 
     /** The single-store move itself; false if it couldn't be saved, so it runs again at the next start. */

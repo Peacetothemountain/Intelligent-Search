@@ -51,7 +51,15 @@ class BackupPreferenceSchemaTest {
             for (name in setting.allNames) assertEquals(name, type, BackupPreferenceSchema.expectedType(name))
         }
         assertEquals("INT", BackupPreferenceSchema.expectedType(SettingsManager.EDGE_SWIPE_HEIGHT.name))
-        assertEquals("STRING", BackupPreferenceSchema.expectedType(SettingsManager.SAVED_LINKS.name))
+        assertEquals("STRING", BackupPreferenceSchema.expectedType(SettingsManager.RESULT_SHORTCUTS.name))
+    }
+
+    @Test
+    fun savedLinksAreNoLongerASetting() {
+        // Removed with the feature; an older backup's links are ignored on restore.
+        assertNull(SettingsManager.keyFor("saved_links_json"))
+        assertNull(BackupPreferenceSchema.expectedType("saved_links_json"))
+        assertTrue("saved_links_json" in SettingsManager.REMOVED_NAMES)
     }
 
     @Test

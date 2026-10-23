@@ -24,7 +24,6 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Bolt
-import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.TouchApp
@@ -73,7 +72,6 @@ private fun kindIcon(kind: ResultKind?): ImageVector = when (kind) {
     ResultKind.APP -> Icons.Outlined.Apps
     ResultKind.CONTACT -> Icons.Outlined.Person
     ResultKind.FILE -> Icons.AutoMirrored.Outlined.InsertDriveFile
-    ResultKind.LINK -> Icons.Outlined.Link
     ResultKind.SETTING, null -> Icons.Outlined.Settings
 }
 
@@ -182,8 +180,8 @@ private fun HowToRow() {
 
 /** How nicknames, trigger words and pins are added, matching what each result's long-press menu offers. */
 internal const val NICKNAMES_HOW_TO =
-    "In Search, Long-Press an App, Contact, Saved Link, File or Settings Page to Pin It or Set a Trigger Word. " +
-        "Apps, Contacts and Saved Links Can Also Get a Nickname Such as Dad or Bank."
+    "In Search, Long-Press an App, Contact, File or Settings Page to Pin It or Set a Trigger Word. " +
+        "Apps and Contacts Can Also Get a Nickname Such as Dad or Bank."
 
 /**
  * Edits one result's nicknames and trigger word: remove a nickname with its button, add one with the field, change

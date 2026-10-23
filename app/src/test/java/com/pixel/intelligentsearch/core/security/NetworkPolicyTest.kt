@@ -95,14 +95,6 @@ class NetworkPolicyTest {
     }
 
     @Test
-    fun userFetchesStopOnlyForTor() {
-        prefs.edit().put(SettingsManager.SEARCH_WEB, false).commit()
-        assertTrue(NetworkPolicy.userFetchAllowed(prefs))
-        prefs.edit().put(SettingsManager.SEARCH_ENGINE, "Tor Project").commit()
-        assertFalse(NetworkPolicy.userFetchAllowed(prefs))
-    }
-
-    @Test
     fun everyBlockHasASubtitleSentence() {
         for (block in Block.entries) {
             val subtitle = NetworkPolicy.blockSubtitle(block)

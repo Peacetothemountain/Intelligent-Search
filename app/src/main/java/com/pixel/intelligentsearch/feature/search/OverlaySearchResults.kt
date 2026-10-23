@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
 
-import com.pixel.intelligentsearch.core.ui.rememberSavedLinkIcon
 import com.pixel.intelligentsearch.feature.settings.IconButton
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import com.pixel.intelligentsearch.core.ui.uniqueItems
@@ -350,23 +349,6 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     focusManager.clearFocus(force = true)
                     keyboardController?.hide()
                     viewModel.askAi()
-                }
-            }
-        }
-
-        // Saved Links the query names, each with its long-press menu (pin, nickname, trigger word).
-        if (uiState.savedLinks.isNotEmpty()) {
-            item(key = "saved_links_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-            uniqueItems(uiState.savedLinks, key = ResultListKeys::savedLink, contentType = { "saved_link" }) { link ->
-                ResultMenuBox(s, ResultMenuTarget.Link(link)) { openMenu ->
-                    SavedLinkRow(
-                        link,
-                        rememberSavedLinkIcon(link),
-                        onLongClick = openMenu,
-                        modifier = Modifier.keyboardHighlight(s, ResultListKeys.savedLink(link), ResultHighlightRowShape)
-                    ) {
-                        openResult(context, s, link, LaunchSource.keyboard())
-                    }
                 }
             }
         }

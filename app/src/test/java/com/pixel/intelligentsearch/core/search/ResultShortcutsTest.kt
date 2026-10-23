@@ -36,6 +36,8 @@ class ResultShortcutsTest {
         assertEquals("com.spotify.music", ResultKeys.appPackage(spotify))
         assertEquals("battery", ResultKeys.settingId("setting:battery"))
         assertNull(ResultKeys.kindOf("web:cats"))
+        // Saved Links were removed; their keys name nothing now.
+        assertNull(ResultKeys.kindOf("link:https://bank.example.com/"))
         assertNull(ResultKeys.kindOf("app:"))
     }
 
@@ -92,6 +94,7 @@ class ResultShortcutsTest {
         val crafted = """
             [
               {"key":"web:anything","title":"x","pinned":true},
+              {"key":"link:https://bank.example.com/","title":"Bank","pinned":true,"trigger":"bk"},
               {"key":"$spotify","title":"Spotify","trigger":"!yt"},
               {"key":"$spotify","title":"Again","pinned":true},
               {"key":"$dad","title":"John","trigger":"sp","nicknames":["dad","DAD",""]},
@@ -99,7 +102,7 @@ class ResultShortcutsTest {
             ]
         """.trimIndent()
         val set = ResultShortcuts.fromJson(crafted)
-        // Unknown kinds go, a key appears once, a bang-like trigger is dropped, and a word claimed twice keeps its first.
+        // Unknown kinds (and a removed Saved Link's pin and trigger) go, a key appears once, a bang-like trigger is dropped, and a word claimed twice keeps its first.
         assertEquals(listOf(dad), set.entries.map { it.key })
         assertEquals("sp", set[dad]?.trigger)
         assertEquals(listOf("dad"), set.nicknamesOf(dad))

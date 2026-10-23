@@ -6,6 +6,7 @@ import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -48,5 +49,19 @@ class SettingsStoreCleanupTest {
         settingsManager.migrateToSingleStore()
         assertFalse(settingsManager.prefs.contains("glance.codes"))
         assertFalse(settingsManager.prefs.contains("on_device_translation"))
+    }
+
+    /** Saved Links were removed: an older build's links are dropped at start, and the site icons it fetched deleted. */
+    @Test
+    fun anOlderBuildsSavedLinksAndTheirIconsAreDropped() = kotlinx.coroutines.runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val settingsManager = SettingsManager(context)
+        settingsManager.prefs.edit().putString("saved_links_json", "[{\"name\":\"Bank\",\"url\":\"https://bank.example.com/\"}]").commit()
+        val icons = java.io.File(context.filesDir, "saved_link_icons").apply { mkdirs() }
+        java.io.File(icons, "0123456789abcdef.png").writeBytes(byteArrayOf(1, 2, 3))
+        settingsManager.migrateToSingleStore()
+        assertFalse(settingsManager.prefs.contains("saved_links_json"))
+        assertFalse("the icon folder is gone", icons.exists())
+        assertNull(SettingsManager.keyFor("saved_links_json"))
     }
 }

@@ -5,7 +5,6 @@ import com.pixel.intelligentsearch.core.ai.AiAnswerState
 import com.pixel.intelligentsearch.core.ai.AiProvider
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.FileTypeGroup
-import com.pixel.intelligentsearch.core.data.SavedLink
 import com.pixel.intelligentsearch.core.data.settings.EnterKeyAction
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -15,7 +14,7 @@ import org.robolectric.RobolectricTestRunner
 /**
  * Enter's order once short action phrasing, trigger words, the keyboard highlight and Enter Key Action all apply:
  * the highlight, then a trigger word, then the phrasing's action (with Open Top Result), then Enter Key Action. And
- * the stops the arrow keys reach for the Ask row, an AI answer, Saved Links and the file-type chip.
+ * the stops the arrow keys reach for the Ask row, an AI answer and the file-type chip.
  */
 @RunWith(RobolectricTestRunner::class)
 class OverlayEnterKeyTest {
@@ -85,20 +84,19 @@ class OverlayEnterKeyTest {
     }
 
     @Test
-    fun theAskRowAndSavedLinksFollowTheSuggestedActions() {
-        val link = SavedLink("Timesheet", "https://work.example.com/timesheet")
+    fun theAskRowFollowsTheSuggestedActions() {
+        val sky = FileItem("sky.pdf", "/sdcard/sky.pdf", "application/pdf", "content://files/sky")
         val rows = NavSources(
             directActions = listOf(timer),
             aiAsk = AiProvider.ANTHROPIC to "why is the sky blue",
-            savedLinks = listOf(link),
-            bestMatch = link
+            bestMatch = sky
         ).rows()
         assertEquals(
-            listOf(ResultListKeys.directAction(timer), ResultListKeys.ASK_AI, ResultListKeys.savedLink(link), ResultListKeys.BEST_MATCH),
+            listOf(ResultListKeys.directAction(timer), ResultListKeys.ASK_AI, ResultListKeys.BEST_MATCH),
             rows.map { it.single().key }
         )
         assertEquals(NavTarget.AskAi(AiProvider.ANTHROPIC, "why is the sky blue"), rows[1].single().target)
-        assertEquals(NavTarget.Result(link), rows[2].single().target)
+        assertEquals(NavTarget.Result(sky), rows[2].single().target)
     }
 
     @Test
@@ -121,12 +119,5 @@ class OverlayEnterKeyTest {
         // With no file of that type yet, the chip is still a stop.
         val chipOnly = NavSources(sectionOrder = listOf("files"), fileTypeFilter = FileTypeGroup.PDF).rows()
         assertEquals(listOf(ResultListKeys.FILE_TYPE_FILTER), chipOnly.map { it.single().key })
-    }
-
-    @Test
-    fun aPinnedSavedLinkHasItsOwnStop() {
-        val link = SavedLink("Docs", "https://docs.example.com")
-        val rows = NavSources(pinned = listOf(link)).rows()
-        assertEquals(ResultListKeys.inRow(ResultListKeys.PINNED, "link:https://docs.example.com"), rows.single().single().key)
     }
 }

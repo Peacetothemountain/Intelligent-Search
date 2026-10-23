@@ -35,18 +35,9 @@ object CustomSearchUrl {
     private val IPV4 = Regex("^(25[0-5]|2[0-4]\\d|1?\\d?\\d)(\\.(25[0-5]|2[0-4]\\d|1?\\d?\\d)){3}$")
     private const val FORBIDDEN_CHARS = "<>\"'`\\^{}|"
 
-    fun validate(raw: String): Validation = validate(raw, site = false)
-
-    /**
-     * The same checks for a site rather than a search: a Saved Link's address, which has no %s and may be just the
-     * website ("github.com" is stored as https://github.com/). [Validation.Valid.template] is the address to store.
-     */
-    fun validateSite(raw: String): Validation = validate(raw, site = true)
-
-    private fun validate(raw: String, site: Boolean): Validation {
+    fun validate(raw: String): Validation {
         val input = raw.trim()
-        if (input.isEmpty()) return Validation.Invalid(if (site) "Enter a web address" else "Enter a search address")
-        if (site && QUERY_TOKEN in input) return Validation.Invalid("That isn't a valid web address")
+        if (input.isEmpty()) return Validation.Invalid("Enter a search address")
         if (input.length > MAX_LENGTH) return Validation.Invalid("Address is too long")
         if (input.any { it.isISOControl() || it.isWhitespace() || it in FORBIDDEN_CHARS }) {
             return Validation.Invalid("Address contains characters that aren't allowed")
@@ -105,7 +96,6 @@ object CustomSearchUrl {
         }
         // A bare site has nowhere to put the search words (a %s can't be in the website name, checked above): appended,
         // they would run into the name, so every search through it would quietly go to Google instead.
-        if (site) return Validation.Valid(template = "https://$host$port${rest.ifEmpty { "/" }}", host = host)
         if (rest.isEmpty()) {
             return Validation.Invalid("Add %s where the search words go, for example https://site/?q=%s")
         }

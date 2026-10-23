@@ -21,7 +21,6 @@ sealed class Route {
     @Serializable @SerialName("backup_restore") data object BackupRestore : Route()
     @Serializable @SerialName("setup") data object Setup : Route()
     @Serializable @SerialName("nicknames_triggers") data object NicknamesTriggers : Route()
-    @Serializable @SerialName("saved_links") data object SavedLinks : Route()
     @Serializable @SerialName("ai_answers") data object AiAnswers : Route()
 
     companion object {
@@ -42,7 +41,6 @@ sealed class Route {
             "backup_restore" -> BackupRestore
             "setup" -> Setup
             "nicknames_triggers" -> NicknamesTriggers
-            "saved_links" -> SavedLinks
             "ai_answers" -> AiAnswers
             "debug" -> Debug
             else -> Main

@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
 
-import com.pixel.intelligentsearch.core.ui.rememberSavedLinkIcon
 import com.pixel.intelligentsearch.core.ui.fileTypeIcon
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.runtime.getValue
@@ -65,7 +64,6 @@ import androidx.core.net.toUri
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
-import com.pixel.intelligentsearch.core.data.SavedLink
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.search.AndroidSettingResult
@@ -242,11 +240,6 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
                         launchSafeIntent(context, shareFileIntent(item))
                     }
                 }
-            }
-            is SavedLink -> {
-                SavedLinkIcon(item, rememberSavedLinkIcon(item), DETAIL_PICTURE_SIZE)
-                DetailTitle(item.name, item.host.ifBlank { null })
-                DetailActions { DetailAction("Open", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true, onClick = open) }
             }
             is AndroidSettingResult -> {
                 val app = item.app

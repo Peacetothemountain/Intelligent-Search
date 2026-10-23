@@ -18,7 +18,7 @@ class ParsedSettingTest {
         .getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
     private var decodes = 0
     private val words = ParsedSetting(
-        { prefs }, SettingsManager.SAVED_LINKS,
+        { prefs }, SettingsManager.RESULT_SHORTCUTS,
         decode = { text -> decodes++; text.removeSurrounding("[", "]").split(",").filter { it.isNotBlank() } },
         encode = { it.joinToString(",") }
     )
@@ -29,11 +29,11 @@ class ParsedSettingTest {
 
     @Test
     fun aValueIsDecodedOncePerChange() {
-        prefs.edit().put(SettingsManager.SAVED_LINKS, "a,b").commit()
+        prefs.edit().put(SettingsManager.RESULT_SHORTCUTS, "a,b").commit()
         val first = words.current
         assertSame(first, words.current)
         assertEquals(1, decodes)
-        prefs.edit().put(SettingsManager.SAVED_LINKS, "a,b,c").commit()
+        prefs.edit().put(SettingsManager.RESULT_SHORTCUTS, "a,b,c").commit()
         assertEquals(listOf("a", "b", "c"), words.current)
         assertEquals(2, decodes)
     }
@@ -41,9 +41,9 @@ class ParsedSettingTest {
     @Test
     fun anUpdateIsWrittenOnlyWhenItChangesSomething() {
         assertEquals(listOf("x"), words.update { it + "x" })
-        assertEquals("x", prefs.getString(SettingsManager.SAVED_LINKS.name, null))
-        prefs.edit().putString(SettingsManager.SAVED_LINKS.name, "x").commit()
+        assertEquals("x", prefs.getString(SettingsManager.RESULT_SHORTCUTS.name, null))
+        prefs.edit().putString(SettingsManager.RESULT_SHORTCUTS.name, "x").commit()
         words.update { it }
-        assertEquals("x", prefs.getString(SettingsManager.SAVED_LINKS.name, null))
+        assertEquals("x", prefs.getString(SettingsManager.RESULT_SHORTCUTS.name, null))
     }
 }

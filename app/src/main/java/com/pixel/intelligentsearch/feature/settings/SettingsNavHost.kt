@@ -274,7 +274,6 @@ fun SettingsScreensHub(
                     composable<com.pixel.intelligentsearch.core.navigation.Route.SearchPills> { SearchPillsScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.WebSearch> { WebSearchScreen(prefs, onBack, onNavigate) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.AiAnswers> { AiAnswersScreen(onBack) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.SavedLinks> { SavedLinksScreen(onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.ContactSearch> { ContactSearchScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.FileSearch> { FileSearchScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization> { WidgetSettingsScreen(prefs, onBack) }

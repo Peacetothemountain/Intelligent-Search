@@ -111,8 +111,6 @@ data class SearchUiState(
     val liveAnswer: com.pixel.intelligentsearch.core.answers.LiveAnswer? = null,
     /** The file type the query names ("pdf invoice"), which [files] are limited to; null when there is none. */
     val fileTypeFilter: com.pixel.intelligentsearch.core.data.FileTypeGroup? = null,
-    /** Saved Links whose name (or nickname) the query starts, best first. */
-    val savedLinks: List<SavedLink> = emptyList(),
     /** The provider the "Ask" row offers for a question; null when there is no row (see AiAnswers.offerFor). */
     val aiOffer: com.pixel.intelligentsearch.core.ai.AiProvider? = null,
     /** The answer to the question the user tapped Ask on, for this query only. */
@@ -143,9 +141,6 @@ internal fun SearchUiState.withoutPrivateProfile(): SearchUiState {
         androidSettings = androidSettings.filterNot { it.app?.isPrivate() == true }
     )
 }
-
-/** The most Saved Links one query lists. */
-private const val MAX_SAVED_LINK_RESULTS = 5
 
 /** How long typing must pause before a query is spell checked for "Did you mean". */
 private const val SPELLING_PAUSE_MS = 450L
@@ -184,7 +179,6 @@ class SearchViewModel @Inject constructor(
     private val androidSettingsSearch: com.pixel.intelligentsearch.core.search.AndroidSettingsSearch,
     private val resultShortcutStore: com.pixel.intelligentsearch.core.data.ResultShortcutStore,
     private val instantAnswers: com.pixel.intelligentsearch.core.answers.LiveAnswerEngine,
-    private val savedLinkStore: SavedLinkStore,
     private val aiAnswers: com.pixel.intelligentsearch.core.ai.AiAnswers
 ) : ViewModel() {
     
@@ -298,18 +292,6 @@ class SearchViewModel @Inject constructor(
         // The key vault's small preferences file is read once here, off the main thread, so typing never waits on it.
         viewModelScope.launch(Dispatchers.IO) { aiAnswers.unavailableReason() }
 
-        // Saved Links added, renamed or removed in settings (or restored) show in the results and Pinned row at once.
-        viewModelScope.launch {
-            var first = true
-            savedLinkStore.flow.collect {
-                if (!first) {
-                    refreshPinned()
-                    val query = _uiState.value.query
-                    if (query.isNotBlank()) executeLocalSearch(query)
-                }
-                first = false
-            }
-        }
 
         // Tier 2: remote web suggestions, paced like Chrome's omnibox: a request goes out at once unless the last one
         // left under SUGGEST_REQUEST_SPACING_MS ago, and each keystroke cancels the request still in flight.
@@ -661,7 +643,6 @@ class SearchViewModel @Inject constructor(
                 detectedBangQuery = null,
                 spellingSuggestion = null,
                 liveAnswer = null,
-                savedLinks = emptyList(),
                 aiOffer = null
             ) }
             return
@@ -896,9 +877,6 @@ class SearchViewModel @Inject constructor(
                 }
             } else emptyList()
 
-            // The user's own named addresses, ranked like every result (pins first, nicknames found).
-            val savedLinks = SavedLinks.search(newQuery, savedLinkStore.current, resultShortcutStore.current).take(MAX_SAVED_LINK_RESULTS)
-
             val suggestionsEnabled = com.pixel.intelligentsearch.core.security.NetworkPolicy.webSuggestionsAllowed(customPrefs)
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
@@ -963,7 +941,6 @@ class SearchViewModel @Inject constructor(
                     files = shownFiles,
                     fileTypeFilter = fileTypeQuery?.group,
                     androidSettings = androidSettings,
-                    savedLinks = savedLinks,
                     webSuggestions = resolvedSuggestions,
                     mathResult = mathStr,
                     instantAnswer = localInstantAnswer,
@@ -1228,7 +1205,6 @@ class SearchViewModel @Inject constructor(
                 if (settings.searchFiles) unifiedSearchCoordinator.indexedResult(key) as? FileItem else null
             com.pixel.intelligentsearch.core.search.ResultKind.SETTING -> if (!settings.searchAndroidSettings) null else
                 com.pixel.intelligentsearch.core.search.ResultKeys.settingId(key)?.let(androidSettingsSearch::page)
-            com.pixel.intelligentsearch.core.search.ResultKind.LINK -> savedLinkStore.forKey(key)
             null -> null
         }
     }

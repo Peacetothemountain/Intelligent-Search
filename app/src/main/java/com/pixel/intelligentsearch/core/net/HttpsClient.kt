@@ -106,66 +106,39 @@ class HttpsTimeoutException : IOException("The request took too long")
  * exchange [totalTimeoutMs], so a server sending a byte at a time can't hold it open. The request is the same from
  * every phone: a fixed [USER_AGENT] in place of Android's default (which names the phone model and build), and no
  * cookies, account or identifier. [accept] names the kind of document a GET wants (the rates are XML; instant
- * answers ask for JSON; a Saved Link's icon is an image). [sameHostRedirects] lets a GET follow that many redirects
- * that stay on https and on the same host (a site that moved its icon); any other redirect is a failure.
+ * answers ask for JSON).
  */
 class HttpsClient internal constructor(
     private val timeoutMs: Int,
     private val totalTimeoutMs: Long,
     private val open: (URL) -> HttpURLConnection?,
     private val nanoTime: () -> Long,
-    private val accept: String = ACCEPT_XML,
-    private val sameHostRedirects: Int = 0
+    private val accept: String = ACCEPT_XML
 ) : HttpsGet {
 
-    constructor(timeoutMs: Int = 15_000, totalTimeoutMs: Long = 30_000L, accept: String = ACCEPT_XML, sameHostRedirects: Int = 0) :
-        this(timeoutMs, totalTimeoutMs, { it.openConnection() as? HttpsURLConnection }, System::nanoTime, accept, sameHostRedirects)
+    constructor(timeoutMs: Int = 15_000, totalTimeoutMs: Long = 30_000L, accept: String = ACCEPT_XML) :
+        this(timeoutMs, totalTimeoutMs, { it.openConnection() as? HttpsURLConnection }, System::nanoTime, accept)
 
     override fun get(url: String, maxBytes: Int, call: HttpsCall): ByteArray? {
         val deadline = nanoTime() + TimeUnit.MILLISECONDS.toNanos(totalTimeoutMs)
-        var address = httpsAddress(url) ?: return null
-        var redirectsLeft = sameHostRedirects
-        while (true) {
-            when (val answer = getOnce(address, maxBytes, call, deadline)) {
-                is GetAnswer.Body -> return answer.bytes
-                GetAnswer.Failed -> return null
-                is GetAnswer.Redirect -> {
-                    val next = answer.to?.takeIf { it.protocol.equals("https", ignoreCase = true) && it.host.equals(address.host, ignoreCase = true) }
-                    if (next == null || redirectsLeft-- <= 0) return null
-                    address = next
-                }
-            }
-        }
-    }
-
-    private sealed interface GetAnswer {
-        class Body(val bytes: ByteArray) : GetAnswer
-        class Redirect(val to: URL?) : GetAnswer
-        data object Failed : GetAnswer
-    }
-
-    private fun getOnce(address: URL, maxBytes: Int, call: HttpsCall, deadline: Long): GetAnswer {
-        val connection = runCatching { open(address) }.getOrNull() ?: return GetAnswer.Failed
-        if (!call.attach(connection)) return GetAnswer.Failed
+        val address = httpsAddress(url) ?: return null
+        val connection = runCatching { open(address) }.getOrNull() ?: return null
+        if (!call.attach(connection)) return null
         val remainingMs = TimeUnit.NANOSECONDS.toMillis(deadline - nanoTime())
-        if (remainingMs <= 0) return GetAnswer.Failed.also { connection.disconnect() }
+        if (remainingMs <= 0) return null.also { connection.disconnect() }
         // A read blocked past the deadline ends when the connection is closed under it.
         val watchdog = runCatching { WATCHDOG.schedule(connection::disconnect, remainingMs, TimeUnit.MILLISECONDS) }.getOrNull()
         return try {
             connection.prepare(timeoutMs)
             connection.setRequestProperty("Accept", accept)
-            val code = connection.responseCode
+            // Anything but 200 (a redirect included, never followed) is a failure, its body unread.
             when {
-                code in REDIRECTS -> GetAnswer.Redirect(
-                    connection.getHeaderField("Location")?.let { runCatching { URL(address, it) }.getOrNull() }
-                )
-                code != HttpURLConnection.HTTP_OK -> GetAnswer.Failed
-                connection.contentLengthLong > maxBytes -> GetAnswer.Failed
+                connection.responseCode != HttpURLConnection.HTTP_OK -> null
+                connection.contentLengthLong > maxBytes -> null
                 else -> connection.inputStream.use { readCapped(it, maxBytes) { call.isCancelled || nanoTime() - deadline > 0 } }
-                    ?.let(GetAnswer::Body) ?: GetAnswer.Failed
             }
         } catch (_: Exception) {
-            GetAnswer.Failed
+            null
         } finally {
             watchdog?.cancel(false)
             connection.disconnect()
@@ -242,10 +215,8 @@ class HttpsClient internal constructor(
 
         const val ACCEPT_XML = "application/xml, text/xml"
         const val ACCEPT_JSON = "application/json"
-        const val ACCEPT_IMAGE = "image/*"
 
         private const val MAX_ERROR_BYTES = 8 * 1024
-        private val REDIRECTS = setOf(301, 302, 303, 307, 308)
 
         /** Closes exchanges that outlive their deadline. One daemon thread, ended while idle. */
         private val WATCHDOG = ScheduledThreadPoolExecutor(1) { task -> Thread(task, "HttpsDeadline").apply { isDaemon = true } }.apply {

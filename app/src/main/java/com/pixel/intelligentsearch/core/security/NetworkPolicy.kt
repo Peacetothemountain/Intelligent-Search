@@ -96,10 +96,4 @@ object NetworkPolicy {
      */
     fun liveRatesAllowed(prefs: SharedPreferences): Boolean =
         prefs[SettingsManager.SEARCH_CALCULATOR] && prefs[SettingsManager.LIVE_CURRENCY_RATES] && !torSelected(prefs)
-
-    /**
-     * Whether a download the user asked for by tapping (a Saved Link's Fetch Icon, a home location search) may go
-     * out: anything but Tor, which must not be bypassed by a direct request.
-     */
-    fun userFetchAllowed(prefs: SharedPreferences): Boolean = !torSelected(prefs)
 }

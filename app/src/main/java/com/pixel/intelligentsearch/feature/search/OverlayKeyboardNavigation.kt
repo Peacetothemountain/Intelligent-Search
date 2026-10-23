@@ -35,7 +35,6 @@ import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.FileTypeGroup
-import com.pixel.intelligentsearch.core.data.SavedLink
 import com.pixel.intelligentsearch.core.data.WebSuggestion
 import com.pixel.intelligentsearch.core.search.AndroidSettingResult
 import com.pixel.intelligentsearch.core.search.ResultKeys
@@ -53,8 +52,8 @@ import com.pixel.intelligentsearch.feature.settings.focusRing
 /** What a highlighted result opens. */
 internal sealed interface NavTarget {
     /**
-     * An app, contact, file, Android Settings page or Saved Link ([AppItem], [ContactItem], [FileItem],
-     * [AndroidSettingResult], [SavedLink]), opened as its own row opens it; an app opens out of the icon under [iconKey].
+     * An app, contact, file or Android Settings page ([AppItem], [ContactItem], [FileItem], [AndroidSettingResult]),
+     * opened as its own row opens it; an app opens out of the icon under [iconKey].
      */
     data class Result(val item: Any, val iconKey: String? = null) : NavTarget
 
@@ -235,7 +234,6 @@ internal object ResultListKeys {
     fun suggestion(query: String) = "sugg_$query"
     fun contact(contact: ContactItem) = "contact_${contact.lookupUri.ifBlank { "${contact.name}_${contact.phoneNumber}" }}"
     fun file(file: FileItem) = "file_${file.uri}"
-    fun savedLink(link: SavedLink) = "saved_link_${link.url}"
     fun notification(entry: IndexedNotification) = "notification_${entry.key}"
 
     /** A stop inside a row of several: the row's key and the item's. */
@@ -247,7 +245,6 @@ internal object ResultListKeys {
         is ContactItem -> ResultKeys.contact(result) ?: contact(result)
         is FileItem -> ResultKeys.file(result)
         is AndroidSettingResult -> ResultKeys.setting(result) ?: setting(result)
-        is SavedLink -> ResultKeys.link(result)
         else -> result.hashCode().toString()
     })
 }
@@ -263,7 +260,6 @@ internal data class NavSources(
     val aiAsk: Pair<AiProvider, String>? = null,
     /** The AI answer for this query, whose card's main action is "Continue in". */
     val aiAnswer: AiAnswerState? = null,
-    val savedLinks: List<SavedLink> = emptyList(),
     /** At a Glance's items, in its one card above the empty search. */
     val glance: List<GlanceItem> = emptyList(),
     val bestMatch: Any? = null,
@@ -291,7 +287,6 @@ internal data class NavSources(
         val answer = aiAnswer
         if (answer != null) single(ResultListKeys.AI_ANSWER, NavTarget.Answer(AnswerAction.ContinueInAssistant(answer.provider, answer.question)))
         else aiAsk?.let { (provider, question) -> single(ResultListKeys.ASK_AI, NavTarget.AskAi(provider, question)) }
-        savedLinks.distinctBy(ResultListKeys::savedLink).forEach { single(ResultListKeys.savedLink(it), NavTarget.Result(it)) }
         glance.distinctBy { it.key }.forEach { add(listOf(NavStop(it.key, ResultListKeys.GLANCE, NavTarget.Glance(it)))) }
         bestMatch?.let { single(ResultListKeys.BEST_MATCH, NavTarget.Result(it, (it as? AppItem)?.let { LaunchIconKeys.BEST_MATCH })) }
         if (pinned.isNotEmpty()) {
@@ -372,7 +367,6 @@ internal fun navSources(s: OverlayScope): NavSources {
         directActions = uiState.directActions,
         aiAsk = uiState.askAi?.let { provider -> AiAnswers.questionIn(query)?.let { provider to it } },
         aiAnswer = uiState.aiAnswer,
-        savedLinks = uiState.savedLinks,
         glance = if (query.isEmpty()) s.glanceItems else emptyList(),
         bestMatch = s.bestMatch,
         pinned = if (query.isEmpty()) uiState.pinned else emptyList(),

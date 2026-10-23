@@ -35,7 +35,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -101,18 +100,12 @@ fun SavedLinksScreen(onBack: () -> Unit) {
                     }
                     SettingsSectionHeader("Using Them")
                     SettingsCard(lit = false) {
-                        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.TouchApp, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.size(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Type a Link's Name", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                                Text(
-                                    "It Shows in Search and Opens in Your Browser or the Site's App. Long-Press It There to Pin It, Add a Nickname or Set a Trigger Word.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                        SettingsInfoRow(
+                            title = "Type a Link's Name",
+                            subtitle = "It Shows in Search and Opens in Your Browser or the Site's App. Long-Press It There to Pin It, Add a Nickname or Set a Trigger Word.",
+                            icon = Icons.Outlined.TouchApp,
+                            showDivider = false
+                        )
                     }
                 }
             }

@@ -120,8 +120,9 @@ fun NicknamesTriggersScreen(onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     SettingsSectionHeader("Your Names for Results")
-                    SettingsCard {
-                        val named = shortcuts.named
+                    val named = shortcuts.named
+                    // With nothing named yet the card only tells how, so it isn't lit like a card of settings.
+                    SettingsCard(lit = named.isNotEmpty()) {
                         if (named.isEmpty()) {
                             HowToRow()
                         } else {
@@ -138,7 +139,7 @@ fun NicknamesTriggersScreen(onBack: () -> Unit) {
                     }
                     if (shortcuts.named.isNotEmpty()) {
                         SettingsSectionHeader("Adding More")
-                        SettingsCard { HowToRow() }
+                        SettingsCard(lit = false) { HowToRow() }
                     }
                 }
             }
@@ -171,22 +172,18 @@ fun NicknamesTriggersScreen(onBack: () -> Unit) {
 /** How nicknames and trigger words are added: from a result's long-press menu. */
 @Composable
 private fun HowToRow() {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(Icons.Outlined.TouchApp, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-        Spacer(modifier = Modifier.size(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text("Long-Press a Result", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-            Text(
-                "In Search, Long-Press an App, Contact, File or Settings Page to Pin It, Add a Nickname Such as Dad or Bank, or Set a Trigger Word That Opens It When Typed with a Space.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+    SettingsInfoRow(
+        title = "Long-Press a Result",
+        subtitle = NICKNAMES_HOW_TO,
+        icon = Icons.Outlined.TouchApp,
+        showDivider = false
+    )
 }
+
+/** How nicknames, trigger words and pins are added, matching what each result's long-press menu offers. */
+internal const val NICKNAMES_HOW_TO =
+    "In Search, Long-Press an App, Contact, Saved Link, File or Settings Page to Pin It or Set a Trigger Word. " +
+        "Apps, Contacts and Saved Links Can Also Get a Nickname Such as Dad or Bank."
 
 /**
  * Edits one result's nicknames and trigger word: remove a nickname with its button, add one with the field, change

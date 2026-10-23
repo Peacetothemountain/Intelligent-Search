@@ -9,12 +9,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BubbleChart
 import androidx.compose.material.icons.outlined.Height
@@ -23,10 +17,6 @@ import androidx.compose.material.icons.outlined.Swipe
 import androidx.compose.material.icons.outlined.SwipeLeft
 import androidx.compose.material.icons.outlined.SwipeRight
 import androidx.compose.material.icons.outlined.UnfoldMore
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -35,10 +25,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
@@ -169,7 +157,16 @@ fun AlwaysWithinReachSection() {
         )
         AnimatedVisibility(visible = swipeOn) {
             Column {
-                EdgeChoiceRow(edge) { edgeName = it.stored }
+                SettingsSelectorRow(
+                    title = "Edge",
+                    subtitle = "The Side of the Screen You Swipe In From.",
+                    icon = if (edge == ScreenEdge.LEFT) Icons.Outlined.SwipeRight else Icons.Outlined.SwipeLeft,
+                    options = ScreenEdge.entries,
+                    selected = edge,
+                    onSelect = { edgeName = it.stored },
+                    label = { it.label },
+                    showDivider = true
+                )
                 var position by rememberSetting(SettingsManager.EDGE_SWIPE_POSITION)
                 SettingsSliderRow(
                     title = "Position",
@@ -236,43 +233,3 @@ fun AlwaysWithinReachSection() {
     }
 }
 
-/** Left or Right, on the app's one selector. */
-@Composable
-private fun EdgeChoiceRow(edge: ScreenEdge, onSelect: (ScreenEdge) -> Unit) {
-    Column {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = if (edge == ScreenEdge.LEFT) Icons.Outlined.SwipeRight else Icons.Outlined.SwipeLeft,
-                contentDescription = null, // decorative: the title is right beside it
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(16.dp))
-            Text(
-                text = "Edge",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-        ShellSelector(
-            options = ScreenEdge.entries,
-            selected = edge,
-            onSelect = onSelect,
-            modifier = Modifier.padding(start = 56.dp, end = 16.dp, top = 8.dp, bottom = 12.dp)
-        ) { option, isSelected ->
-            Text(
-                text = option.label,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-            )
-        }
-        HorizontalDivider(
-            modifier = Modifier.padding(start = 56.dp, end = 16.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
-        )
-    }
-}

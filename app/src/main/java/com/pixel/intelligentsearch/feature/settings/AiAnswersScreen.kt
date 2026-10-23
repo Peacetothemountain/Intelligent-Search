@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.material.icons.outlined.Hub
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -94,9 +95,12 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                         )
                     }
 
-                    SettingsSectionHeader("Provider")
-                    SettingsCard(lit = false) {
-                        ShellSelector(
+                    SettingsSectionHeader("Provider and Key")
+                    SettingsCard {
+                        SettingsSelectorRow(
+                            title = "Provider",
+                            subtitle = "Answers Come from ${provider.label}.",
+                            icon = Icons.Outlined.Hub,
                             options = AiProvider.entries.toList(),
                             selected = provider,
                             onSelect = { chosen ->
@@ -105,21 +109,9 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                                     model = ""
                                 }
                             },
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                            itemHeight = 56.dp
-                        ) { option, isSelected ->
-                            Text(
-                                text = option.displayName,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                maxLines = 1,
-                                autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge)
-                            )
-                        }
-                    }
-
-                    SettingsSectionHeader(provider.label)
-                    SettingsCard {
+                            label = { it.displayName },
+                            showDivider = true
+                        )
                         SettingsDropdownRow(
                             title = "Model",
                             subtitle = provider.model(model),
@@ -130,19 +122,13 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                             showDivider = true
                         )
                         ApiKeyRows(vault, provider)
-                        // What is sent, and where: information only, so a plain row without a chevron.
-                        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Outlined.PrivacyTip, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.size(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Privacy", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                                Text(
-                                    "Only When You Tap Ask, Only That Question Goes to ${provider.host} over HTTPS. Nothing Else Is Sent, and Your Key Never Leaves This Phone Except to ${provider.host}.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                        // What is sent, and where: information only, so a row without a chevron.
+                        SettingsInfoRow(
+                            title = "Privacy",
+                            subtitle = "Only When You Tap Ask, Only That Question Goes to ${provider.host} over HTTPS. Nothing Else Is Sent, and Your Key Never Leaves This Phone Except to ${provider.host}.",
+                            icon = Icons.Outlined.PrivacyTip,
+                            showDivider = false
+                        )
                     }
                 }
             }
@@ -166,21 +152,11 @@ private fun ApiKeyRows(vault: AiKeyVault, provider: AiProvider) {
     }
 
     if (hasKey) {
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Key, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.size(16.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("API Key", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                Text(
-                    "${saved ?: "••••••••"}. Encrypted on This Phone and Never Backed Up.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        androidx.compose.material3.HorizontalDivider(
-            modifier = Modifier.padding(start = 56.dp, end = 16.dp),
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)
+        SettingsInfoRow(
+            title = "API Key",
+            subtitle = "${saved ?: "••••••••"}. Encrypted on This Phone and Never Backed Up.",
+            icon = Icons.Outlined.Key,
+            showDivider = true
         )
         SettingsRow(
             title = "Remove Key",

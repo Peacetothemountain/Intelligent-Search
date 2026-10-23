@@ -23,6 +23,7 @@ import com.pixel.intelligentsearch.core.glance.GlanceMedia
 import com.pixel.intelligentsearch.core.glance.GlanceTimer
 import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import com.pixel.intelligentsearch.core.glance.MediaControls
+import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.search.GlanceClock
 import com.pixel.intelligentsearch.feature.search.GlanceCard
@@ -44,8 +45,8 @@ import java.time.LocalDate
 import java.util.TimeZone
 
 /**
- * Golden images of the At a Glance card with one of every item (a running timer, the next alarm, what is playing
- * with a stand-in cover, a birthday and the battery), and of the Notifications results section, in both
+ * Golden images of the At a Glance card with its clock and one of every item (a running timer, the next alarm, what
+ * is playing with a stand-in cover, its seek bar and transport pill, a birthday and the battery), and of the Notifications results section, in both
  * themes. The data, the clock and the time zone are fixed, so nothing depends on the machine. See
  * [SettingsGoldenTest] for recording.
  */
@@ -75,6 +76,8 @@ class AtAGlanceGoldenTest(private val state: String, private val dark: Boolean) 
         override fun play() {}
         override fun pause() {}
         override fun next() {}
+        override fun previous() {}
+        override fun seekTo(positionMs: Long) {}
         override fun open() {}
     }
 
@@ -90,7 +93,9 @@ class AtAGlanceGoldenTest(private val state: String, private val dark: Boolean) 
         GlanceItem.Timer(GlanceTimer("t", GlanceTimer.Kind.Timer, "Pasta", NOW + 272_000L, "Clock", "com.google.android.deskclock", null)),
         // 07:00 UTC, five hours away.
         GlanceItem.Alarm(GlanceAlarm(NOW + 5 * 60 * 60 * 1000L)),
-        GlanceItem.Media(GlanceMedia("Midnight City", "M83", "YouTube Music", "com.example.music", isPlaying = true, artwork = cover(), controls = StillControls)),
+        GlanceItem.Media(GlanceMedia("Midnight City", "M83", "YouTube Music", "com.example.music", isPlaying = true, artwork = cover(), controls = StillControls,
+            // 1:38 into 4:03, a player that takes a seek, read at the fixed elapsed clock below.
+            progress = MediaSessionAccess.Progress(durationMs = 243_000L, positionMs = 98_000L, updatedAtElapsed = 0L, speed = 1f, canSeek = true))),
         GlanceItem.Birthday(GlanceBirthday(7, "lk", "Ana Lima", 0, LocalDate.of(2027, 1, 15), turning = 30)),
         GlanceItem.Battery(GlanceBattery(64, pluggedIn = true, statusLabel = "Charging"))
     )
@@ -105,7 +110,7 @@ class AtAGlanceGoldenTest(private val state: String, private val dark: Boolean) 
         compose.mainClock.autoAdvance = false
         compose.setContent {
             IntelligentSearchTheme(darkTheme = dark) {
-                CompositionLocalProvider(LocalGlanceClock provides GlanceClock({ NOW }, ticks = false)) {
+                CompositionLocalProvider(LocalGlanceClock provides GlanceClock({ NOW }, ticks = false, elapsed = { 0L })) {
                     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(vertical = 8.dp)) {
                         when (state) {
                             "glance" -> GlanceCard(items, onOpened = {})

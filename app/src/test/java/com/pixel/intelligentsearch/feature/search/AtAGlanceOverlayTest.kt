@@ -129,13 +129,16 @@ class AtAGlanceOverlayTest {
         val heading = compose.onNodeWithTag(GLANCE_HEADER_TAG).getUnclippedBoundsInRoot()
         val birthday = compose.onNodeWithText("Ana Lima's Birthday").getUnclippedBoundsInRoot()
         val alarm = alarmRow.getUnclippedBoundsInRoot()
-        assertTrue("the card starts at the list's start margin", heading.left < 40.dp)
-        assertTrue("the card is about 62% of the 412 dp width, not all of it", heading.right < 300.dp)
-        // The clock sits at the card's end beside the heading, so the card's content ends where the clock does.
         val clock = compose.onNodeWithTag(GLANCE_CLOCK_TAG).getUnclippedBoundsInRoot()
-        assertTrue("the items sit inside the card, under its heading", birthday.right <= clock.right + 8.dp && alarm.right <= clock.right + 8.dp)
-        assertTrue("the clock is at the card's top end, beside the heading", clock.left >= heading.right && clock.top < alarm.top)
+        assertTrue("the card starts at the list's start margin", clock.left < 40.dp)
+        assertTrue("the card is about 62% of the 412 dp width, not all of it", heading.right < 300.dp)
+        assertTrue("the clock is in the card's top start corner", clock.right <= heading.left && clock.top < alarm.top)
         assertEquals("the clock is 64 dp", 64f, (clock.right - clock.left).value, 0.5f)
+        // The heading is in the top end corner: as high as the clock, and 8 dp short of the rows' own end, which
+        // keeps it 14 dp in from the card's side (the rows sit 6 dp in), clear of the rounded corner.
+        assertTrue("the heading sits at the top, level with the clock", kotlin.math.abs((heading.top - clock.top).value) < 2f)
+        assertEquals("the heading ends 8 dp short of the rows", (alarm.right - GLANCE_HEADER_END_INSET).value, heading.right.value, 0.6f)
+        assertTrue("the items sit inside the card, under its heading", birthday.right <= alarm.right + 0.5.dp && birthday.top > heading.bottom)
     }
 
     @Test
@@ -145,6 +148,37 @@ class AtAGlanceOverlayTest {
         compose.onNodeWithTag(GLANCE_HEADER_TAG).assertExists()
         compose.onNodeWithTag(GLANCE_CLOCK_TAG).assertDoesNotExist()
         alarmRow.assertExists()
+        // Still in the top end corner without the clock beside it.
+        val heading = compose.onNodeWithTag(GLANCE_HEADER_TAG).getUnclippedBoundsInRoot()
+        val alarm = alarmRow.getUnclippedBoundsInRoot()
+        assertEquals((alarm.right - GLANCE_HEADER_END_INSET).value, heading.right.value, 0.6f)
+    }
+
+    @Test
+    fun eachItemsOwnSwitchHidesIt() {
+        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).put(SettingsManager.GLANCE_ALARM, false).commit()
+        showOverlay()
+        alarmRow.assertDoesNotExist()
+        compose.onNodeWithText("Ana Lima's Birthday").assertExists()
+    }
+
+    @Test
+    fun theBirthdaysSwitchHidesThemEvenWithContactSearchOn() {
+        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).put(SettingsManager.GLANCE_BIRTHDAYS, false).commit()
+        showOverlay()
+        compose.onNodeWithText("Ana Lima's Birthday").assertDoesNotExist()
+        alarmRow.assertExists()
+    }
+
+    @Test
+    fun withEveryItemSwitchedOffNothingIsRead() {
+        prefs.edit()
+            .put(SettingsManager.GLANCE_ALARM, false).put(SettingsManager.GLANCE_TIMERS, false)
+            .put(SettingsManager.GLANCE_MEDIA, false).put(SettingsManager.GLANCE_BIRTHDAYS, false)
+            .commit()
+        showOverlay()
+        compose.onNodeWithTag(GLANCE_HEADER_TAG).assertDoesNotExist()
+        assertEquals(0, collecting.get())
     }
 
     /** The card is about 62% of the list, 232 to 340 dp, wider with larger text, and the whole width where that won't fit. */
@@ -187,7 +221,6 @@ class AtAGlanceOverlayTest {
     }
 
     private fun grantNotificationSearch() {
-        prefs.edit().put(SettingsManager.SEARCH_NOTIFICATIONS, true).commit()
         shadowOf(context.getSystemService(NotificationManager::class.java))
             .setNotificationListenerAccessGranted(NotificationAccessListener.component(context), true)
     }
@@ -217,7 +250,7 @@ class AtAGlanceOverlayTest {
     }
 
     @Test
-    fun withoutTheOptInNoNotificationIsSearched() {
+    fun withoutNotificationAccessNoNotificationIsSearched() {
         indexDinner()
         showOverlay(query = "dinner")
         compose.onNodeWithText("Dinner at the café at 8?", substring = true).assertDoesNotExist()
@@ -225,7 +258,6 @@ class AtAGlanceOverlayTest {
 
     @Test
     fun revokedAccessForgetsTheIndexAsSearchOpens() {
-        prefs.edit().put(SettingsManager.SEARCH_NOTIFICATIONS, true).commit()
         indexDinner()
         showOverlay(query = "dinner")
         compose.onNodeWithText("Dinner at the café at 8?", substring = true).assertDoesNotExist()

@@ -69,11 +69,9 @@ internal class OverlayScope(
     val openWebAddress: (String) -> Unit,
     /**
      * "Go" for a query once its results are in: Enter (after [onEnter]'s highlight) and the voice
-     * check button, both following [enterKeyAction]. The flag says it was spoken rather than typed.
+     * check button, both following [OverlayEnterKey]. The flag says it was spoken rather than typed.
      */
     val submitQuery: (query: String, fromVoice: Boolean) -> Unit,
-    /** What Enter does when no result is highlighted (Settings, Enter Key Action). */
-    val enterKeyAction: com.pixel.intelligentsearch.core.data.settings.EnterKeyAction,
     val visibleApps: List<AppItem>,
     val bestMatch: Any?,
     val bestMatchText: String?,

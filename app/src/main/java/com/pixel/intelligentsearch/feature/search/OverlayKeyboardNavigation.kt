@@ -137,7 +137,7 @@ internal object OverlayKeyboardNav {
      * Down from the field highlights the first result and stops at the last; Up from the first goes back to the field.
      * Left and Right move along a row of several (the app row). Tab and Shift+Tab step through every stop in order,
      * Shift+Tab from the first back to the field and Tab past the last on out of the results. Enter opens the
-     * highlighted result, and without one is the field's (Enter Key Action). Escape clears what was typed, then closes.
+     * highlighted result, and without one is the field's (OverlayEnterKey). Escape clears what was typed, then closes.
      */
     fun reduce(at: NavPosition?, key: NavKey, rowSizes: List<Int>, queryEmpty: Boolean): NavOutcome {
         val rows = rowSizes
@@ -374,7 +374,7 @@ internal fun navSources(s: OverlayScope): NavSources {
         answers = answers,
         sectionOrder = resultSectionOrder(s.appWeight, s.webWeight, s.contactWeight, s.fileWeight, uiState.androidSettings.any { it.isStrongMatch }),
         apps = if (settings.searchApps) s.filteredApps.ifEmpty { s.visibleApps } else emptyList(),
-        androidSettings = if (settings.searchAndroidSettings && query.isNotEmpty()) uiState.androidSettings else emptyList(),
+        androidSettings = if (query.isNotEmpty()) uiState.androidSettings else emptyList(),
         suggestions = if ((settings.searchWeb || s.suggestionsEnabled) && query.isNotEmpty()) {
             displayedSuggestions(query, uiState.recentSearches, settings.searchPreviousSearches, uiState.webSuggestions, settings.webResultsCount)
         } else emptyList(),

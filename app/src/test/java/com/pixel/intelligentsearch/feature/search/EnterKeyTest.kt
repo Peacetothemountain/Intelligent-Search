@@ -14,7 +14,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.HiltTestActivity
 import com.pixel.intelligentsearch.core.data.DeviceSearchSources
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.data.settings.EnterKeyAction
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.core.data.DeviceSearchSourcesModule
@@ -31,7 +30,6 @@ import dagger.hilt.android.testing.HiltTestApplication
 import dagger.hilt.android.testing.UninstallModules
 import dagger.hilt.components.SingletonComponent
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -42,15 +40,16 @@ import org.robolectric.annotation.Config
 import javax.inject.Singleton
 
 /**
- * Enter Key Action against a device with apps: Open Top Result (the default) opens the Best Match, Search the Web
- * searches whatever matched; a result highlighted with the arrow keys opens either way.
+ * Enter against a device with apps: it opens the Best Match, or runs the short phrasing's action; a result
+ * highlighted with the arrow keys opens instead. The removed Enter Key Action's Search the Web, left stored by an
+ * older build, changes nothing.
  */
 @OptIn(ExperimentalTestApi::class)
 @HiltAndroidTest
 @UninstallModules(DeviceSearchSourcesModule::class)
 @RunWith(RobolectricTestRunner::class)
 @Config(application = HiltTestApplication::class, qualifiers = "w412dp-h915dp-xhdpi")
-class EnterKeyActionTest {
+class EnterKeyTest {
 
     @Module
     @InstallIn(SingletonComponent::class)
@@ -104,26 +103,22 @@ class EnterKeyActionTest {
         ?: shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity
 
     @Test
-    fun byDefaultEnterOpensTheBestMatch() {
-        assertEquals(EnterKeyAction.OPEN_TOP_RESULT, EnterKeyAction.from(prefs.getString(SettingsManager.ENTER_KEY_ACTION.name, null)))
+    fun enterOpensTheBestMatch() {
         showOverlay("camera")
         press(listOf(Key.Enter))
         assertEquals(listOf("com.example.camera"), launchedApps)
     }
 
     @Test
-    fun searchTheWebSearchesInsteadOfOpeningTheBestMatch() {
-        prefs.edit().put(SettingsManager.ENTER_KEY_ACTION, EnterKeyAction.SEARCH_WEB.storedValue).commit()
+    fun anOlderBuildsSearchTheWebNoLongerSkipsTheBestMatch() {
+        prefs.edit().putString("enter_key_action", "search_web").commit()
         showOverlay("camera")
         press(listOf(Key.Enter))
-        assertEquals(emptyList<String>(), launchedApps)
-        val search = startedActivity()
-        assertTrue("expected a web search, got $search", search?.action == Intent.ACTION_WEB_SEARCH || search?.action == Intent.ACTION_VIEW)
+        assertEquals(listOf("com.example.camera"), launchedApps)
     }
 
     @Test
-    fun aHighlightedResultOpensWhateverEnterKeyActionSays() {
-        prefs.edit().put(SettingsManager.ENTER_KEY_ACTION, EnterKeyAction.SEARCH_WEB.storedValue).commit()
+    fun aHighlightedResultOpens() {
         showOverlay("camera")
         // Down onto the Best Match card, the first result, and Enter opens it.
         press(listOf(Key.DirectionDown, Key.Enter))
@@ -131,25 +126,10 @@ class EnterKeyActionTest {
     }
 
     @Test
-    fun byDefaultEnterRunsTheShortPhrasingsAction() {
+    fun enterRunsTheShortPhrasingsAction() {
         showOverlay("15 min")
         press(listOf(Key.Enter))
         assertEquals(android.provider.AlarmClock.ACTION_SET_TIMER, startedActivity()?.action)
     }
 
-    @Test
-    fun searchTheWebSearchesTheShortPhrasingInsteadOfRunningItsAction() {
-        prefs.edit().put(SettingsManager.ENTER_KEY_ACTION, EnterKeyAction.SEARCH_WEB.storedValue).commit()
-        showOverlay("15 min")
-        press(listOf(Key.Enter))
-        val search = startedActivity()
-        assertTrue("expected a web search, got $search", search?.action == Intent.ACTION_WEB_SEARCH || search?.action == Intent.ACTION_VIEW)
-    }
-
-    @Test
-    fun unknownStoredValuesReadAsTheDefault() {
-        assertEquals(EnterKeyAction.OPEN_TOP_RESULT, EnterKeyAction.from("something else"))
-        assertEquals(EnterKeyAction.OPEN_TOP_RESULT, EnterKeyAction.from(null))
-        assertEquals(EnterKeyAction.SEARCH_WEB, EnterKeyAction.from("search_web"))
-    }
 }

@@ -147,6 +147,13 @@ fun MainSettingsScreen(
 
             SettingsCard {
                 SettingsRow(
+                    title = "Encrypted Backup",
+                    subtitle = "Import, Export, and Restore Backup App Data.",
+                    icon = Icons.Outlined.Security,
+                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
+                    showDivider = true
+                )
+                SettingsRow(
                     title = "Google Activity",
                     subtitle = "View and Manage Your Google Activity.",
                     icon = Icons.Outlined.History,
@@ -195,7 +202,7 @@ fun MainSettingsScreen(
                             }
                         }
                     },
-                    showDivider = true,
+                    showDivider = isDebugUnlocked,
                 )
 
                 if (showTorBrowserSettingsDialog) {
@@ -203,13 +210,6 @@ fun MainSettingsScreen(
                         onDismiss = { showTorBrowserSettingsDialog = false }
                     )
                 }
-                SettingsRow(
-                    title = "Encrypted Backup",
-                    subtitle = "Import, Export, and Restore Backup App Data.",
-                    icon = Icons.Outlined.Security,
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
-                    showDivider = isDebugUnlocked
-                )
                 
                 if (isDebugUnlocked) {
                     SettingsRow(

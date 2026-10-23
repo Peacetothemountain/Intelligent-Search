@@ -18,6 +18,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -41,10 +44,40 @@ private fun seedTrack(hue: Float, saturation: Float, lightnesses: List<Float>): 
 internal val SLIDER_ROW_GAP = 4.dp
 
 /**
+ * The Transparency slider's track, left to right as the slider runs from 0 to 100: the bar's background as it is
+ * drawn at Transparency 0 ([color], at the custom colour's opacity for the Custom subtheme), fading to nothing. The
+ * colour keeps its hue all the way, rather than darkening towards black.
+ */
+internal fun transparencyTrack(color: Color): List<Color> = listOf(color, color.copy(alpha = 0f))
+
+/**
+ * The Color Opacity slider's track: the custom colour from fully see-through to fully opaque. It fades from the colour
+ * itself at no opacity; fading from transparent black darkened the left half of the track.
+ */
+internal fun colorOpacityTrack(color: Color): List<Color> = listOf(color.copy(alpha = 0f), color.copy(alpha = 1f))
+
+/**
+ * A small grey and white checkerboard behind a track that fades out, so how see-through each point is shows on its own.
+ * [cell] is the size of each square.
+ */
+private fun Modifier.checkerboard(light: Color, dark: Color, cell: androidx.compose.ui.unit.Dp = 4.dp): Modifier =
+    drawBehind {
+        val side = cell.toPx()
+        drawRect(light)
+        val columns = kotlin.math.ceil(size.width / side).toInt()
+        val rows = kotlin.math.ceil(size.height / side).toInt()
+        for (column in 0 until columns) for (row in 0 until rows) {
+            if ((column + row) % 2 == 0) {
+                drawRect(dark, topLeft = Offset(column * side, row * side), size = Size(side, side))
+            }
+        }
+    }
+
+/**
  * One of the widget editor's colour sliders: an icon, the [label] and [valueText] above, and the slider over an 8dp
- * [gradient] track. The slider keeps its full 48dp height, with the track centred in it, so its 36dp thumb stays
- * clear of the text above; it is named [label] for TalkBack, so the icon beside it isn't announced, and reads
- * [valueText] as its value ("180°" rather than a share of the range).
+ * [gradient] track, drawn over a [checkerboard] when the track fades out. The slider keeps its full 48dp height, with
+ * the track centred in it, so its 36dp thumb stays clear of the text above; it is named [label] for TalkBack, so the
+ * icon beside it isn't announced, and reads [valueText] as its value ("180°" rather than a share of the range).
  */
 @Composable
 internal fun GradientSliderRow(
@@ -54,8 +87,14 @@ internal fun GradientSliderRow(
     gradient: List<Color>,
     value: Float,
     onValueChange: (Float) -> Unit,
-    valueRange: ClosedFloatingPointRange<Float>
+    valueRange: ClosedFloatingPointRange<Float>,
+    checkerboard: Boolean = false
 ) {
+    val trackShape = RoundedCornerShape(8.dp)
+    val trackBrush = androidx.compose.ui.graphics.Brush.horizontalGradient(colors = gradient)
+    val track = Modifier.fillMaxWidth().height(8.dp)
+    val checkerLight = MaterialTheme.colorScheme.surfaceContainerHighest
+    val checkerDark = MaterialTheme.colorScheme.outlineVariant
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(16.dp))
@@ -67,10 +106,11 @@ internal fun GradientSliderRow(
             }
             Box(modifier = Modifier.fillMaxWidth().height(48.dp), contentAlignment = Alignment.Center) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .background(brush = androidx.compose.ui.graphics.Brush.horizontalGradient(colors = gradient), shape = RoundedCornerShape(8.dp))
+                    modifier = if (checkerboard) {
+                        track.clip(trackShape).checkerboard(checkerLight, checkerDark).background(trackBrush)
+                    } else {
+                        track.background(brush = trackBrush, shape = trackShape)
+                    }
                 )
                 Android17Slider(
                     showTrack = false,
@@ -87,7 +127,10 @@ internal fun GradientSliderRow(
     }
 }
 
-/** The Color Studio tab of the widget editor: custom colour sliders and hex entry. */
+/**
+ * The Color Studio tab of the widget editor: custom colour sliders and hex entry. Transparency, which every subtheme
+ * has, is on the Appearance tab ([TransparencySliderCard]).
+ */
 @Composable
 internal fun WidgetColorStudioTab(
     fields: WidgetDraftFields,
@@ -99,22 +142,11 @@ internal fun WidgetColorStudioTab(
     var localSaturation by fields::saturation
     var localLightness by fields::lightness
     var localColorOpacity by fields::colorOpacity
-    var localTransparency by fields::transparency
     var showHexInput by ui::showHexInput
     var tempHexInput by ui::tempHexInput
 
     // TAB 1: COLOR STUDIO
     val dynamicCustomColor = androidx.compose.ui.graphics.Color(computedCustomColorInt)
-    val transparencyTrackGradient = remember(computedCustomColorInt) {
-        listOf(
-            dynamicCustomColor,
-            dynamicCustomColor.copy(alpha = 0.7f),
-            dynamicCustomColor.copy(alpha = 0.35f),
-            androidx.compose.ui.graphics.Color.White.copy(alpha = 0.25f),
-            androidx.compose.ui.graphics.Color(0xFF3C4043).copy(alpha = 0.6f),
-            androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.85f)
-        )
-    }
 
     // Custom Color Palette Container on Top
     SettingsSectionHeader("Custom Color Palette")
@@ -177,34 +209,19 @@ internal fun WidgetColorStudioTab(
                 icon = Icons.Default.Contrast,
                 label = "Color Opacity",
                 valueText = "${localColorOpacity.toInt()}%",
-                gradient = listOf(
-                    androidx.compose.ui.graphics.Color.Transparent,
-                    dynamicCustomColor.copy(alpha = 1f)
-                ),
+                gradient = colorOpacityTrack(dynamicCustomColor),
                 value = localColorOpacity,
                 onValueChange = {
                     localSubtheme = "Custom"
                     localColorOpacity = it
                 },
-                valueRange = 0f..100f
+                valueRange = 0f..100f,
+                checkerboard = true
             )
 
             Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
 
-            // 5. Transparency Slider (under color opacity in the same container)
-            GradientSliderRow(
-                icon = Icons.Default.Opacity,
-                label = "Transparency",
-                valueText = "${localTransparency.toInt()}%",
-                gradient = transparencyTrackGradient,
-                value = localTransparency,
-                onValueChange = { localTransparency = it },
-                valueRange = 0f..100f
-            )
-
-            Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
-
-            // 6. Hex Color Pill Bar (pill bar under custom color pallet sliders in the same container)
+            // 5. Hex Color Pill Bar (pill bar under custom color pallet sliders in the same container)
             val customColorHex = String.format("#%06X", (0xFFFFFF and computedCustomColorInt))
             Row(
                 modifier = Modifier

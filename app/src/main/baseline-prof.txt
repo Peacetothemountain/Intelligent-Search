@@ -53,7 +53,7 @@ Lcom/pixel/intelligentsearch/core/performance/FrameMetricsMonitor;
 Lcom/pixel/intelligentsearch/core/performance/FrameMetricsMonitor$FrameJankStats;
 
 HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setHighRefreshRateCategory(Landroid/app/Activity;)V
-HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setNormalRefreshRateCategory(Landroid/app/Activity;)V
+HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->restoreDefaultRefreshRate(Landroid/app/Activity;)V
 HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setLowRefreshRateCategory(Landroid/app/Activity;)V
 HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setFrameRateCategory(Landroid/app/Activity;I)V
 HSPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setContentVelocity(Landroid/view/View;F)V

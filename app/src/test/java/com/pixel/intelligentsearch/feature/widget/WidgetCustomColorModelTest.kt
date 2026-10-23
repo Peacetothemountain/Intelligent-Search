@@ -85,9 +85,11 @@ class WidgetCustomColorModelTest(private val bar: Bar, private val slider: Slide
         val backgroundId = if (locked) R.id.widget_outer_background else R.id.widget_pill_background
         val background = accented.image(backgroundId)
         assertEquals("$label background is the seed", seed(s), background.imageTintList!!.defaultColor or OPAQUE)
+        // As it shows: its own alpha within the backdrop, times the backdrop's, which the widget fades at once.
+        val shownAlpha = Math.round(background.imageAlpha * accented.findViewById<View>(R.id.widget_backdrop).alpha)
         assertTrue(
-            "$label background alpha ${background.imageAlpha}, expected ${(s.customAlpha * 255).toInt()}",
-            abs(background.imageAlpha - (s.customAlpha * 255).toInt()) <= 1
+            "$label background alpha $shownAlpha, expected ${(s.customAlpha * 255).toInt()}",
+            abs(shownAlpha - (s.customAlpha * 255).toInt()) <= 1
         )
         if (bar.material) {
             assertEquals("$label circle shares the pill", pill, accented.tint(R.id.widget_sound_background))
@@ -105,7 +107,7 @@ class WidgetCustomColorModelTest(private val bar: Bar, private val slider: Slide
             val ratio = MaterialYouPaletteHelper.calculateContrastRatio(icon, pill)
             assertTrue("$label $what ${hex(icon)} on ${hex(pill)} has contrast $ratio", ratio >= 3.0)
         }
-        return Painted(background.imageTintList!!.defaultColor or OPAQUE, background.imageAlpha, pill, accent, plainIcon)
+        return Painted(background.imageTintList!!.defaultColor or OPAQUE, shownAlpha, pill, accent, plainIcon)
     }
 
     @Test

@@ -9,38 +9,34 @@ import android.os.Bundle
 import android.provider.AlarmClock
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
-import com.pixel.intelligentsearch.core.data.SettingsManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
-import java.lang.ref.WeakReference
 import javax.inject.Inject
 
 /**
  * The app's one notification listener, so it appears once in Android's Notification Access list and one grant covers
  * everything that needs it ([NotificationAccess]):
- * - Search Your Notifications and At a Glance's timers: reads the phone's notifications into the in-memory
- *   [NotificationIndex], only while that switch is on.
+ * - Notification search and At a Glance's timers: reads the phone's notifications into the in-memory
+ *   [NotificationIndex] while the user grants notification access.
  * - At a Glance's Media Controls: Android shares media sessions only with a granted listener. At a Glance asks for
  *   them itself while the search is open, which needs only the grant; it reads no notifications.
  *
  * Google Play policy: notification listener access is allowed for an app's core feature with a prominent
  * disclosure. Here each use is the user's own opt-in, granted by the user on Android's Notification Access screen
  * after the app explains it (the shared rationale dialog), and used only for those features. Nothing read is stored
- * (memory only, cleared when access or the switch goes), backed up or sent anywhere, and the app sees only what each
- * notification itself shows, never the messages or emails behind it. While Search Your Notifications is off the
- * listener unbinds itself at once, so it never reads anything the user hasn't asked it to.
+ * (memory only, cleared when access goes), backed up or sent anywhere, and the app sees only what each notification
+ * itself shows, never the messages or emails behind it. The user turns it off where they turned it on, on Android's
+ * Notification Access screen; Android then disconnects the listener and everything read is forgotten.
  */
 @AndroidEntryPoint
 class NotificationAccessListener : NotificationListenerService() {
 
     @Inject lateinit var index: NotificationIndex
-    @Inject lateinit var settingsManager: SettingsManager
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default.limitedParallelism(1))
@@ -50,34 +46,21 @@ class NotificationAccessListener : NotificationListenerService() {
         super.onCreate()
         indexer = NotificationIndexer(
             index = index,
-            isOptedIn = { settingsManager[SettingsManager.SEARCH_NOTIFICATIONS] },
+            // The grant is the opt-in: connected but no longer granted (revoked mid-connect), read nothing.
+            isOptedIn = { NotificationAccess.isGranted(applicationContext) },
             extract = NotificationExtractor(applicationContext)::extract,
-            // Search is off: nothing else needs the listener connected.
-            unbind = { unbindUnlessNeeded() }
+            unbind = { runCatching { requestUnbind() } }
         )
-        // The switch turned off while connected: forget everything and stop listening straight away.
-        scope.launch {
-            settingsManager.observe(SettingsManager.SEARCH_NOTIFICATIONS).drop(1).collect { on ->
-                if (!on) indexer.onOptInChanged(false)
-            }
-        }
     }
 
     override fun onListenerConnected() {
-        current = WeakReference(this)
         scope.launch {
             indexer.onConnected(runCatching { activeNotifications?.toList() }.getOrNull().orEmpty())
         }
     }
 
     override fun onListenerDisconnected() {
-        if (current?.get() === this) current = null
         indexer.onDisconnected()
-    }
-
-    /** Unbinds unless Search Your Notifications still needs the listener (At a Glance's media needs only the grant). */
-    internal fun unbindUnlessNeeded() {
-        if (!settingsManager[SettingsManager.SEARCH_NOTIFICATIONS]) runCatching { requestUnbind() }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
@@ -93,14 +76,10 @@ class NotificationAccessListener : NotificationListenerService() {
     override fun onDestroy() {
         indexer.onDisconnected()
         scope.cancel()
-        if (current?.get() === this) current = null
         super.onDestroy()
     }
 
     companion object {
-        /** The connected listener, so turning a switch off can unbind it at once. */
-        @Volatile internal var current: WeakReference<NotificationAccessListener>? = null
-
         fun component(context: Context) = ComponentName(context, NotificationAccessListener::class.java)
     }
 }

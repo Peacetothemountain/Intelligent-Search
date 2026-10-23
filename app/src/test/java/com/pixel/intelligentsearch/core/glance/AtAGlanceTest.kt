@@ -56,7 +56,7 @@ class AtAGlanceTest {
         assertFalse(allOn.copy(enabled = false).anyOn)
     }
 
-    /** The items have no switches of their own: with At a Glance on, the alarm and media need nothing else. */
+    /** With At a Glance and their own switches on, the alarm and media need nothing else. */
     @Test
     fun theAlarmAndMediaShowWithOnlyAtAGlanceOn() {
         val onlyGlance = GlanceToggles(enabled = true, notifications = false, contacts = false)
@@ -65,7 +65,7 @@ class AtAGlanceTest {
     }
 
     @Test
-    fun timersNeedSearchYourNotifications() {
+    fun timersNeedNotificationAccess() {
         val withoutOptIn = GlanceToggles(notifications = false, contacts = true)
         assertEquals(listOf("Alarm", "Media", "Birthday"), kinds(glanceItems(everything, withoutOptIn, now)))
         assertFalse(withoutOptIn.timersOn)
@@ -79,6 +79,27 @@ class AtAGlanceTest {
         assertFalse(allOn.copy(contacts = false).birthdaysOn)
         assertTrue(allOn.birthdaysOn)
         assertFalse("nothing is read with At a Glance off", allOn.copy(enabled = false).birthdaysOn)
+    }
+
+    @Test
+    fun eachItemHasItsOwnSwitch() {
+        assertEquals(listOf("Alarm", "Media", "Birthday"), kinds(glanceItems(everything, allOn.copy(timers = false), now)))
+        assertEquals(listOf("Timer", "Media", "Birthday"), kinds(glanceItems(everything, allOn.copy(alarm = false), now)))
+        assertEquals(listOf("Timer", "Alarm", "Birthday"), kinds(glanceItems(everything, allOn.copy(media = false), now)))
+        assertEquals(listOf("Timer", "Alarm", "Media"), kinds(glanceItems(everything, allOn.copy(birthdays = false), now)))
+        assertFalse(allOn.copy(timers = false).timersOn)
+        assertFalse(allOn.copy(media = false).mediaOn)
+        assertFalse(allOn.copy(alarm = false).alarmOn)
+        assertFalse(allOn.copy(birthdays = false).birthdaysOn)
+    }
+
+    @Test
+    fun withEveryItemOffNothingIsRead() {
+        val none = allOn.copy(alarm = false, timers = false, media = false, birthdays = false)
+        assertFalse(none.anyOn)
+        assertTrue(glanceItems(everything, none, now).isEmpty())
+        // One item on is enough to read.
+        assertTrue(none.copy(media = true).anyOn)
     }
 
     @Test

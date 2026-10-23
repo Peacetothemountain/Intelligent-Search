@@ -46,13 +46,15 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
             flow { emit(Birthdays.inWindow(Birthdays.load(context), LocalDate.now())) }.flowOn(Dispatchers.IO)
         } else flowOf(emptyList())
         val timers = if (toggles.timersOn) timerFlow(hiddenApps) else flowOf(emptyList())
-        return combine(alarmFlow(), mediaFlow(hiddenApps), birthdays, timers) { a, m, days, t ->
+        val alarm = if (toggles.alarmOn) alarmFlow() else flowOf(null)
+        val media = if (toggles.mediaOn) mediaFlow(hiddenApps) else flowOf(null)
+        return combine(alarm, media, birthdays, timers) { a, m, days, t ->
             GlanceSnapshot(alarm = a, timers = t, media = m, birthdays = days)
         }
     }
 
     private fun timerFlow(hiddenApps: Set<String>): Flow<List<GlanceTimer>> = index.entries
-        // Access revoked or the switch off since the last look: forget what was read before showing anything.
+        // Access revoked since the last look: forget what was read before showing anything.
         .onStart { NotificationAccess.syncIndex(context, index) }
         .map { all -> timersFrom(all.filterNot { it.packageName in hiddenApps }) }
         .distinctUntilChanged()

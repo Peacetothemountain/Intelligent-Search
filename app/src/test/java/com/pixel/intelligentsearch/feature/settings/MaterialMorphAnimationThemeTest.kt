@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
@@ -99,5 +101,41 @@ class MaterialMorphAnimationThemeTest {
         assertEquals(MaterialMorphShapes.sequence(9), names[0])
         assertEquals(names[0], names[1])
         assertEquals(MaterialMorphShapes.byName.keys, names[0].toSet())
+    }
+
+    /**
+     * A card opening or closing above the area (a switch's rows dropping down or rising away) changes its height on
+     * every frame; the scene waits for the height to settle before taking it, instead of re-sizing the physics, and
+     * throwing its shapes back up, frame after frame.
+     */
+    @Test
+    fun theSceneTakesANewHeightOnlyOnceTheAreaStopsResizing() {
+        var height by androidx.compose.runtime.mutableStateOf(300.dp)
+        val scenario = ActivityScenario.launch(HiltTestActivity::class.java)
+        try {
+            compose.mainClock.autoAdvance = false
+            scenario.onActivity {
+                it.setContent {
+                    CompositionLocalProvider(LocalMorphRandomSeed provides 2) {
+                        IntelligentSearchTheme(darkTheme = false) {
+                            Box(Modifier.size(411.dp, height)) { MaterialMorphAnimation(Modifier.fillMaxSize()) }
+                        }
+                    }
+                }
+            }
+            compose.mainClock.advanceTimeBy(100)
+            val first = info().sceneHeightPx
+            assertTrue("sized at first sight", first > 0f)
+            // Growing by a few dp every frame, as it does under a collapsing card.
+            repeat(12) {
+                height += 6.dp
+                compose.mainClock.advanceTimeByFrame()
+                assertEquals("still resizing: the scene waits", first, info().sceneHeightPx, 0.5f)
+            }
+            compose.mainClock.advanceTimeBy(MORPH_RESIZE_SETTLE_MILLIS + 50)
+            assertTrue("settled: the scene takes the new height", info().sceneHeightPx > first + 100f)
+        } finally {
+            scenario.close()
+        }
     }
 }

@@ -32,8 +32,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import com.pixel.intelligentsearch.core.glance.NotificationIndex
@@ -46,13 +50,32 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
- * The notifications matching [query] while Search Your Notifications is on, searched off the main thread; each
+ * Whether Android grants this app notification access, read again each time the screen resumes (the user grants and
+ * takes it back on Android's own Notification Access screen).
+ */
+@Composable
+internal fun rememberNotificationAccessGranted(): Boolean {
+    val context = LocalContext.current
+    var granted by remember(context) { mutableStateOf(NotificationAccess.isGranted(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) granted = NotificationAccess.isGranted(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return granted
+}
+
+/**
+ * The notifications matching [query] while notification access is granted, searched off the main thread; each
  * keystroke cancels the search for the one before. Opening the search first forgets everything read if notification
  * access has been revoked since.
  */
 @Composable
 internal fun rememberNotificationHits(query: String, hiddenApps: Set<String>): List<IndexedNotification> {
-    val enabled by rememberSetting(SettingsManager.SEARCH_NOTIFICATIONS)
+    val enabled = rememberNotificationAccessGranted()
     val context = LocalContext.current
     val index = remember(context) { context.appEntryPoint.notificationIndex() }
     LaunchedEffect(index, enabled) {

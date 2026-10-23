@@ -278,7 +278,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
                         hasStartedTyping = false
                         keyboardController?.hide()
-                        // The highlight, then the phrasing's action or Enter Key Action (OverlayEnterKey).
+                        // The highlight, then the phrasing's action or the top result (OverlayEnterKey).
                         s.onEnter(context, highlighted = null)
                     }),
                     decorationBox = { innerTextField ->

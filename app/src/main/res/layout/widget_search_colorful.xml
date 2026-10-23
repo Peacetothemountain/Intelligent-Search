@@ -16,23 +16,24 @@
         android:layout_gravity="center"
         android:clipToOutline="true">
 
-        <!-- The optional outline around the pill, in the theme's accent; hidden while the outline is 0. -->
-        <ImageView
-            android:id="@+id/widget_outer_background"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:src="@drawable/bg_widget_r28"
-            android:scaleType="fitXY"
-            android:visibility="gone"
-            android:importantForAccessibility="no" />
-
+        <!-- The backdrop: the bar's backgrounds as one group, which the provider fades at once by the bar's
+             Transparency, so the pill isn't painted twice where it sits over the outline. The provider insets its
+             pill exactly as the search pill above it. -->
         <FrameLayout
-            android:id="@+id/widget_pill_container"
+            android:id="@+id/widget_backdrop"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:clickable="true"
-            android:focusable="true"
-            android:contentDescription="@string/widget_search_description">
+            android:importantForAccessibility="noHideDescendants">
+
+            <!-- The optional outline around the pill, in the theme's accent; hidden while the outline is 0. -->
+            <ImageView
+                android:id="@+id/widget_outer_background"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/bg_widget_r28"
+                android:scaleType="fitXY"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
 
             <ImageView
                 android:id="@+id/widget_pill_background"
@@ -41,114 +42,119 @@
                 android:src="@drawable/bg_search_pill"
                 android:scaleType="fitXY"
                 android:importantForAccessibility="no" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:baselineAligned="false"
-                android:clipToPadding="false"
-                android:paddingStart="16dp"
-                android:paddingEnd="4dp">
-
-                <!-- Google G logo (4-color official Google G): a 24dp G inside a 48dp slot that reaches into the
-                     padding around it, so the G sits where it always has and a doodle (see Occasion) has room to
-                     play around it. -->
-                <FrameLayout
-                    android:id="@+id/widget_g_slot"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="-12dp"
-                    android:layout_marginEnd="-12dp">
-
-                    <ImageView
-                        android:id="@+id/widget_g_logo"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:padding="12dp"
-                        android:src="@drawable/ic_g_logo_colored"
-                        android:scaleType="fitCenter"
-                        android:clickable="true"
-                        android:focusable="true"
-                        android:contentDescription="@string/widget_talkback_google_logo" />
-
-                    <FrameLayout
-                        android:id="@+id/widget_doodle"
-                        android:layout_width="match_parent"
-                        android:layout_height="match_parent"
-                        android:visibility="gone"
-                        android:importantForAccessibility="no" />
-                </FrameLayout>
-
-                <!-- Spacer -->
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="match_parent"
-                    android:layout_weight="1"
-                    android:importantForAccessibility="no"
-                    android:text="" />
-
-                <!-- The mic and shortcuts: 24dp icons 40dp apart, each in a 48dp touch target. The targets overlap
-                     their neighbours by 8dp, and the row's end padding is 4dp (it was 16dp) to make room for the
-                     last target's 12dp padding, so every icon sits where it did when the targets were the icons
-                     alone. -->
-
-                <!-- Colored Microphone -->
-                <ImageView
-                    android:id="@+id/widget_voice_search"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:padding="12dp"
-                    android:src="@drawable/ic_mic"
-                    android:scaleType="fitCenter"
-                    android:contentDescription="@string/widget_talkback_voice_search"
-                    android:clickable="true"
-                    android:focusable="true" />
-
-                <!-- Shortcut 1 (Lens Search) -->
-                <ImageView
-                    android:id="@+id/widget_lens_search"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="-8dp"
-                    android:padding="12dp"
-                    android:src="@drawable/ic_camera"
-                    android:scaleType="fitCenter"
-                    android:contentDescription="@string/widget_talkback_lens"
-                    android:clickable="true"
-                    android:focusable="true" />
-
-                <!-- Shortcut 2 -->
-                <ImageView
-                    android:id="@+id/widget_shortcut_2"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="-8dp"
-                    android:padding="12dp"
-                    android:src="@drawable/ic_camera"
-                    android:scaleType="fitCenter"
-                    android:visibility="gone"
-                    android:contentDescription="@string/widget_talkback_lens"
-                    android:clickable="true"
-                    android:focusable="true" />
-
-                <!-- Shortcut 3 -->
-                <ImageView
-                    android:id="@+id/widget_shortcut_3"
-                    android:layout_width="48dp"
-                    android:layout_height="48dp"
-                    android:layout_marginStart="-8dp"
-                    android:padding="12dp"
-                    android:src="@drawable/ic_camera"
-                    android:scaleType="fitCenter"
-                    android:visibility="gone"
-                    android:contentDescription="@string/widget_talkback_lens"
-                    android:clickable="true"
-                    android:focusable="true" />
-
-            </LinearLayout>
         </FrameLayout>
+
+        <!-- The search pill; its background is the backdrop's pill. -->
+        <LinearLayout
+            android:id="@+id/widget_pill_container"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:baselineAligned="false"
+            android:clipToPadding="false"
+            android:paddingStart="16dp"
+            android:paddingEnd="4dp"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/widget_search_description">
+
+            <!-- Google G logo (4-color official Google G): a 24dp G inside a 48dp slot that reaches into the
+                 padding around it, so the G sits where it always has and a doodle (see Occasion) has room to
+                 play around it. -->
+            <FrameLayout
+                android:id="@+id/widget_g_slot"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="-12dp"
+                android:layout_marginEnd="-12dp">
+
+                <ImageView
+                    android:id="@+id/widget_g_logo"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:padding="12dp"
+                    android:src="@drawable/ic_g_logo_colored"
+                    android:scaleType="fitCenter"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:contentDescription="@string/widget_talkback_google_logo" />
+
+                <FrameLayout
+                    android:id="@+id/widget_doodle"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:visibility="gone"
+                    android:importantForAccessibility="no" />
+            </FrameLayout>
+
+            <!-- Spacer -->
+            <TextView
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:importantForAccessibility="no"
+                android:text="" />
+
+            <!-- The mic and shortcuts: 24dp icons 40dp apart, each in a 48dp touch target. The targets overlap
+                 their neighbours by 8dp, and the row's end padding is 4dp (it was 16dp) to make room for the
+                 last target's 12dp padding, so every icon sits where it did when the targets were the icons
+                 alone. -->
+
+            <!-- Colored Microphone -->
+            <ImageView
+                android:id="@+id/widget_voice_search"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:padding="12dp"
+                android:src="@drawable/ic_mic"
+                android:scaleType="fitCenter"
+                android:contentDescription="@string/widget_talkback_voice_search"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <!-- Shortcut 1 (Lens Search) -->
+            <ImageView
+                android:id="@+id/widget_lens_search"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="-8dp"
+                android:padding="12dp"
+                android:src="@drawable/ic_camera"
+                android:scaleType="fitCenter"
+                android:contentDescription="@string/widget_talkback_lens"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <!-- Shortcut 2 -->
+            <ImageView
+                android:id="@+id/widget_shortcut_2"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="-8dp"
+                android:padding="12dp"
+                android:src="@drawable/ic_camera"
+                android:scaleType="fitCenter"
+                android:visibility="gone"
+                android:contentDescription="@string/widget_talkback_lens"
+                android:clickable="true"
+                android:focusable="true" />
+
+            <!-- Shortcut 3 -->
+            <ImageView
+                android:id="@+id/widget_shortcut_3"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginStart="-8dp"
+                android:padding="12dp"
+                android:src="@drawable/ic_camera"
+                android:scaleType="fitCenter"
+                android:visibility="gone"
+                android:contentDescription="@string/widget_talkback_lens"
+                android:clickable="true"
+                android:focusable="true" />
+
+        </LinearLayout>
     </FrameLayout>
 
     <!-- Invisible stub IDs to satisfy SearchWidgetProvider references safely without impacting UI -->

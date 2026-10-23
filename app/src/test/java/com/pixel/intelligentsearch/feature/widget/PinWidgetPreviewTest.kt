@@ -246,8 +246,7 @@ class PinWidgetPreviewTest {
                     primary = Color(theme.primary),
                     primaryContainer = Color(theme.primaryContainer),
                     surfaceContainer = Color(theme.surfaceContainer),
-                    appDark = false,
-                    systemDark = false
+                    appDark = false
                 ),
                 isDynamicColorActive = dynamic,
                 iconAccents = { SearchIconColors.themeAccents(context, it) }
@@ -261,6 +260,7 @@ class PinWidgetPreviewTest {
 
             assertEquals("$label pill colour", editor.pill.fill.toArgb() and 0xFFFFFF, tint(R.id.widget_pill_background) and 0xFFFFFF)
             assertTrue("$label pill alpha", abs((editor.pill.fill.toArgb() ushr 24) - shown.findViewById<ImageView>(R.id.widget_pill_background).imageAlpha) <= 1)
+            assertEquals("$label backdrop alpha", editor.backdropAlpha, shown.findViewById<View>(R.id.widget_backdrop).alpha, 0f)
             assertEquals("$label outline colour", editor.rim.toArgb() and 0xFFFFFF, tint(R.id.widget_outer_background) and 0xFFFFFF)
             assertEquals("$label G", editor.accentPrimary.toArgb(), tint(R.id.widget_g_logo))
             assertEquals("$label pill corners", WidgetBarShape.background(editorShape.pillRadius), drawn(R.id.widget_pill_background))

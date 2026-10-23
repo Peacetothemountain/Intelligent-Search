@@ -5,15 +5,14 @@ import com.pixel.intelligentsearch.core.ai.AiAnswerState
 import com.pixel.intelligentsearch.core.ai.AiProvider
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.FileTypeGroup
-import com.pixel.intelligentsearch.core.data.settings.EnterKeyAction
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Enter's order once short action phrasing, the keyboard highlight and Enter Key Action all apply: the highlight,
- * then the phrasing's action (with Open Top Result), then Enter Key Action. And
+ * Enter's order once short action phrasing and the keyboard highlight both apply: the highlight, then a bang's site,
+ * then the phrasing's action, then the top result. And
  * the stops the arrow keys reach for the Ask row, an AI answer and the file-type chip.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -26,38 +25,20 @@ class OverlayEnterKeyTest {
         query: String = "15 min",
         highlighted: NavTarget? = null,
         phrasing: DirectAction? = null,
-        isBang: Boolean = false,
-        setting: EnterKeyAction = EnterKeyAction.OPEN_TOP_RESULT
-    ) = OverlayEnterKey.decide(query, highlighted, phrasing, isBang, setting)
+        isBang: Boolean = false
+    ) = OverlayEnterKey.decide(query, highlighted, phrasing, isBang)
 
     @Test
     fun theHighlightComesBeforeEverythingElse() {
-        // A result the user moved to with the arrow keys opens, as Enter Key Action says, even on a bang.
-        for (setting in EnterKeyAction.entries) {
-            assertEquals(
-                EnterOutcome.OpenHighlighted(highlighted),
-                decide(highlighted = highlighted, phrasing = timer, isBang = true, setting = setting)
-            )
-        }
+        // A result the user moved to with the arrow keys opens, even on a bang.
+        assertEquals(EnterOutcome.OpenHighlighted(highlighted), decide(highlighted = highlighted, phrasing = timer, isBang = true))
+        assertEquals(EnterOutcome.OpenHighlighted(highlighted), decide(highlighted = highlighted, phrasing = timer))
     }
 
     @Test
-    fun theHighlightComesBeforeThePhrasingAndTheSetting() {
-        for (setting in EnterKeyAction.entries) {
-            assertEquals(EnterOutcome.OpenHighlighted(highlighted), decide(highlighted = highlighted, phrasing = timer, setting = setting))
-        }
-    }
-
-    @Test
-    fun withOpenTopResultThePhrasingsActionRuns() {
+    fun thePhrasingsActionRunsElseTheTopResultOpens() {
         assertEquals(EnterOutcome.RunAction(timer), decide(phrasing = timer))
         assertEquals(EnterOutcome.OpenTopResult, decide(query = "camera"))
-    }
-
-    @Test
-    fun searchTheWebSkipsThePhrasingsAction() {
-        assertEquals(EnterOutcome.SearchWeb, decide(phrasing = timer, setting = EnterKeyAction.SEARCH_WEB))
-        assertEquals(EnterOutcome.SearchWeb, decide(query = "camera", setting = EnterKeyAction.SEARCH_WEB))
     }
 
     @Test

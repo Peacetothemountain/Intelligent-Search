@@ -123,7 +123,8 @@ class WidgetEditorAccessibilityTest {
         tap("Custom")
         tap("Color Studio")
 
-        for (name in listOf("Hue", "Saturation", "Lightness", "Color Opacity", "Transparency")) {
+        // Transparency, which every subtheme has, is on the Appearance tab (WidgetEditorSlidersTest).
+        for (name in listOf("Hue", "Saturation", "Lightness", "Color Opacity")) {
             compose.onNode(hasContentDescription(name) and isAdjustable).assertExists()
         }
         // The 36dp thumb was drawn inside an 8dp box, over the value text above it.

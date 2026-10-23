@@ -35,7 +35,7 @@ class RestorePrivacyGuardsTest {
     private val file get() = File(context.cacheDir, "restore_privacy.json")
     private val uri get() = Uri.fromFile(file)
 
-    private val optIns = listOf(SettingsManager.SEARCH_WEB, SettingsManager.SEARCH_NOTIFICATIONS)
+    private val optIns = listOf(SettingsManager.SEARCH_WEB, SettingsManager.SMART_CLIPBOARD_SUGGESTIONS)
 
     @Before fun setUp() {
         prefs.edit().clear().commit()

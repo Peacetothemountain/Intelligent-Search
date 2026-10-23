@@ -197,12 +197,16 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
         is NavTarget.Result -> when (val item = target.item) {
             is AppItem -> {
                 val otherProfile = item.userHandle != null && item.userHandle != android.os.Process.myUserHandle()
-                DetailAppIcon(item, s.settingsState.activeIconPack, otherProfile)
+                DetailAppIcon(item, s.settingsState.activeIconPack, otherProfile, Modifier.launchIcon(s.launchIcons, LaunchIconKeys.DETAIL))
                 DetailTitle(item.name, if (otherProfile) "Work App" else "Application")
                 val configuration = LocalConfiguration.current
                 val splitScreen = splitScreenOffered(isInMultiWindow(context), configuration.smallestScreenWidthDp, otherProfile)
                 DetailActions {
-                    DetailAction("Open", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true, onClick = open)
+                    // A tap, so the app opens out of the big icon above it (App Animations).
+                    DetailAction("Open", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true) {
+                        s.ui.highlightedKey = null
+                        openResult(context, s, item, LaunchSource.tap(LaunchIconKeys.DETAIL))
+                    }
                     DetailAction("App Info", Icons.Outlined.Info) {
                         s.ui.hasStartedTyping = false
                         openAppInfo(context, item)
@@ -335,10 +339,10 @@ private fun DetailSymbol(icon: ImageVector) {
 
 /** An app's icon at the pane's size, themed as the results draw it; another profile's copy keeps its badged icon. */
 @Composable
-private fun DetailAppIcon(app: AppItem, iconPack: String, otherProfile: Boolean) {
+private fun DetailAppIcon(app: AppItem, iconPack: String, otherProfile: Boolean, modifier: Modifier = Modifier) {
     val px = with(LocalDensity.current) { DETAIL_PICTURE_SIZE.roundToPx() }
     val icon = rememberAppIcon(app.packageName, iconPack, otherProfile, fallback = app.icon, sizePx = px)
-    AppIconImage(icon, Modifier.size(DETAIL_PICTURE_SIZE)) { DetailSymbol(Icons.AutoMirrored.Outlined.ArrowForward) }
+    AppIconImage(icon, modifier.size(DETAIL_PICTURE_SIZE)) { DetailSymbol(Icons.AutoMirrored.Outlined.ArrowForward) }
 }
 
 /** The pane's actions, flowing onto more lines at large text sizes. */

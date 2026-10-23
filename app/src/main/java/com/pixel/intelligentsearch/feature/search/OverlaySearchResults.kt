@@ -465,7 +465,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             }
         }
 
-        if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
+        if (uiState.calendarEvents.isNotEmpty()) {
             // Title + time can repeat (same meeting on two calendars); the instance id and begin time cannot.
             uniqueItems(uiState.calendarEvents, key = { event -> "event_${event.eventId}_${event.beginMillis}_${event.title}" }, contentType = { "calendar_event" }) { event ->
                 val swipe = rememberSwipeToDismiss(sensoryEngine, view) { viewModel.dismissCalendarEvent(event) }
@@ -588,7 +588,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     }
                 }
                 "android_settings" -> {
-                    if (settingsState.searchAndroidSettings && uiState.query.isNotEmpty() && uiState.androidSettings.isNotEmpty()) {
+                    if (uiState.query.isNotEmpty() && uiState.androidSettings.isNotEmpty()) {
                         item(key = "android_settings_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                         uniqueItems(uiState.androidSettings, key = ResultListKeys::setting, contentType = { "android_setting" }) { setting ->
                             // App Info rows stand for an app, so they have no menu of their own.

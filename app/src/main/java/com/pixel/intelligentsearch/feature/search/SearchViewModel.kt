@@ -509,13 +509,8 @@ class SearchViewModel @Inject constructor(
                 // The provider already tries Pixel Launcher predictions first, then usage stats. (Re-querying the
                 // launcher here returned apps outside the indexed list, which skipped the hidden-app filtering.)
                 val launcherPredictedDeferred = async { nativeAppPredictionProvider.getPredictedApps() }
-                val eventsDeferred = async {
-                    if (settingsState.value.searchCalendar) {
-                        sources.upcomingEvents()
-                    } else {
-                        emptyList()
-                    }
-                }
+                // Read whenever Android allows the calendar; without the permission the source returns nothing.
+                val eventsDeferred = async { sources.upcomingEvents() }
 
                 // Indexing belongs to CorpusIndexManager (serialized there); indexing this list here too raced it
                 // and could re-add an app uninstalled in between.
@@ -861,7 +856,7 @@ class SearchViewModel @Inject constructor(
             // Settings pages complement the quick toggles above ("wifi" offers both). App Info looks apps up
             // through the same app index, leaving out hidden apps; it is an app result too, so it also needs the
             // Apps source. The contacts shown keep a name ("carrie") from turning into a setting ("carrier").
-            val androidSettings = if (settings.searchAndroidSettings) {
+            val androidSettings = run {
                 androidSettingsSearch.search(
                     newQuery,
                     findApps = { name ->
@@ -875,7 +870,7 @@ class SearchViewModel @Inject constructor(
                     val shortcuts = resultShortcutStore.current
                     pages.sortedByDescending { shortcuts.isPinned(com.pixel.intelligentsearch.core.search.ResultKeys.setting(it)) }
                 }
-            } else emptyList()
+            }
 
             val suggestionsEnabled = com.pixel.intelligentsearch.core.security.NetworkPolicy.webSuggestionsAllowed(customPrefs)
             val engine = settings.searchEngine
@@ -1203,7 +1198,7 @@ class SearchViewModel @Inject constructor(
                 if (settings.searchContacts) unifiedSearchCoordinator.indexedResult(key) as? ContactItem else null
             com.pixel.intelligentsearch.core.search.ResultKind.FILE ->
                 if (settings.searchFiles) unifiedSearchCoordinator.indexedResult(key) as? FileItem else null
-            com.pixel.intelligentsearch.core.search.ResultKind.SETTING -> if (!settings.searchAndroidSettings) null else
+            com.pixel.intelligentsearch.core.search.ResultKind.SETTING ->
                 com.pixel.intelligentsearch.core.search.ResultKeys.settingId(key)?.let(androidSettingsSearch::page)
             null -> null
         }

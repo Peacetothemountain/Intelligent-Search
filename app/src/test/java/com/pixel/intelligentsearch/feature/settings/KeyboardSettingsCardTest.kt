@@ -54,7 +54,6 @@ class KeyboardSettingsCardTest {
 
         val voice = top("Start Assistant with Voice")
         assertTrue("voice at $voice", voice < top("Show Keyboard When Search Opens"))
-        assertTrue("voice at $voice", voice < top("Enter Key Action"))
 
         compose.onNode(isToggleable() and hasText("Start Assistant with Voice")).performClick()
         compose.waitForIdle()

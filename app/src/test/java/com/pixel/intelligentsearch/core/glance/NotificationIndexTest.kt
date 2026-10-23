@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.service.notification.StatusBarNotification
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.data.settings.put
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -168,8 +167,6 @@ class NotificationIndexTest {
 
     @Test
     fun openingSearchAfterAccessIsRevokedForgetsWhatWasRead() {
-        val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().put(SettingsManager.SEARCH_NOTIFICATIONS, true).commit()
         val notifications = shadowOf(context.getSystemService(NotificationManager::class.java))
         val component = NotificationAccessListener.component(context)
         val index = NotificationIndex()
@@ -183,12 +180,11 @@ class NotificationIndexTest {
         NotificationAccess.syncIndex(context, index)
         assertTrue(index.entries.value.isEmpty())
 
-        // The switch off, with access still granted, forgets them too.
+        // Granted again, with no switch of the app's own in the way, what is read stays.
         notifications.setNotificationListenerAccessGranted(component, true)
         index.post(entry("a", "Ana"))
-        prefs.edit().put(SettingsManager.SEARCH_NOTIFICATIONS, false).commit()
         NotificationAccess.syncIndex(context, index)
-        assertTrue(index.entries.value.isEmpty())
+        assertEquals(1, index.entries.value.size)
     }
 
     @Test

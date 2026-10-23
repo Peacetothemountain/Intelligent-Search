@@ -12,10 +12,6 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.data.settings.put
-import com.pixel.intelligentsearch.core.glance.IndexedNotification
-import com.pixel.intelligentsearch.core.glance.NotificationIndex
 import com.pixel.intelligentsearch.core.glance.NotificationAccessListener
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.screenshots.confinedEffects
@@ -32,21 +28,19 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import javax.inject.Inject
 
 /**
- * Search Sources' Notifications switch: without access it explains first and sends the user to Android's
- * Notification Access page; with access it switches straight on; off forgets every notification read.
+ * Notification access has no switch of the app's own: Search Sources has no Notifications, Calendar or Android
+ * Settings row, and Finish Setting Up asks for the access (rationale first, then Android's Notification Access page)
+ * and shows it done once Android has granted it.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
 @Config(application = HiltTestApplication::class, qualifiers = "w412dp-h2600dp-xhdpi")
-class NotificationSearchSettingTest {
+class NotificationAccessSetupTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
     @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
-
-    @Inject lateinit var index: NotificationIndex
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
@@ -61,25 +55,44 @@ class NotificationSearchSettingTest {
             .setNotificationListenerAccessGranted(NotificationAccessListener.component(context), granted)
     }
 
-    private fun showSources() {
-        compose.setContent { IntelligentSearchTheme(darkTheme = false) { SearchSourcesScreen(prefs, {}, {}) } }
+    private fun showSetup() {
+        compose.setContent { IntelligentSearchTheme(darkTheme = false) { SetupChecklistScreen(prefs, {}, {}) } }
         compose.waitForIdle()
     }
 
-    private val notificationsSwitch = isToggleable() and hasText("Notifications")
-
     @Test
-    fun theSubtitleSaysNothingLeavesThePhoneAndNothingIsStored() {
-        showSources()
-        compose.onNodeWithText("Nothing Leaves the Phone and Nothing Is Stored", substring = true).assertExists()
-        compose.onNodeWithText("Messages and Gmail Show Only What Their Notifications Show", substring = true).assertExists()
+    fun searchSourcesHasNoSwitchForWhatAndroidAlreadyAsksAbout() {
+        compose.setContent { IntelligentSearchTheme(darkTheme = false) { SearchSourcesScreen({}, {}) } }
+        compose.waitForIdle()
+        for (title in listOf("Notifications", "Calendar", "Android Settings")) {
+            compose.onNode(isToggleable() and hasText(title)).assertDoesNotExist()
+        }
+        compose.onNode(isToggleable() and hasText("Calculator")).assertExists()
     }
 
     @Test
-    fun withoutAccessItExplainsThenOpensNotificationAccess() {
+    fun notificationsIsASetupStepDoneOnlyWithAccess() {
         grant(false)
-        showSources()
-        compose.onNode(notificationsSwitch).performScrollTo().performClick()
+        assertTrue(SetupStep.NOTIFICATIONS in SetupChecklist.steps(context))
+        assertFalse(SetupChecklist.isDone(context, prefs, SetupStep.NOTIFICATIONS))
+        grant(true)
+        assertTrue(SetupChecklist.isDone(context, prefs, SetupStep.NOTIFICATIONS))
+    }
+
+    @Test
+    fun theCalendarStepIsDoneWithThePermissionAlone() {
+        val app = shadowOf(ApplicationProvider.getApplicationContext<Application>())
+        app.denyPermissions(android.Manifest.permission.READ_CALENDAR)
+        assertFalse(SetupChecklist.isDone(context, prefs, SetupStep.CALENDAR))
+        app.grantPermissions(android.Manifest.permission.READ_CALENDAR)
+        assertTrue(SetupChecklist.isDone(context, prefs, SetupStep.CALENDAR))
+    }
+
+    @Test
+    fun withoutAccessTheStepExplainsThenOpensNotificationAccess() {
+        grant(false)
+        showSetup()
+        compose.onNodeWithText("Search your notifications", substring = true).performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Allow Notification Access?").assertExists()
         compose.onNodeWithText("not the messages or emails behind it", substring = true).assertExists()
@@ -87,41 +100,16 @@ class NotificationSearchSettingTest {
         compose.waitForIdle()
         val opened = shadowOf(ApplicationProvider.getApplicationContext<Application>()).nextStartedActivity
         assertEquals(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS, opened?.action)
-        // Not on until Android has granted access.
-        assertFalse(prefs[SettingsManager.SEARCH_NOTIFICATIONS])
     }
 
     @Test
-    fun notNowLeavesItOff() {
+    fun notNowClosesTheExplanation() {
         grant(false)
-        showSources()
-        compose.onNode(notificationsSwitch).performScrollTo().performClick()
+        showSetup()
+        compose.onNodeWithText("Search your notifications", substring = true).performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Not Now").performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Allow Notification Access?").assertDoesNotExist()
-        assertFalse(prefs[SettingsManager.SEARCH_NOTIFICATIONS])
-    }
-
-    @Test
-    fun withAccessItSwitchesStraightOn() {
-        grant(true)
-        showSources()
-        compose.onNode(notificationsSwitch).performScrollTo().performClick()
-        compose.waitForIdle()
-        compose.onNodeWithText("Allow Notification Access?").assertDoesNotExist()
-        assertTrue(prefs[SettingsManager.SEARCH_NOTIFICATIONS])
-    }
-
-    @Test
-    fun switchingOffForgetsEveryNotification() {
-        grant(true)
-        prefs.edit().put(SettingsManager.SEARCH_NOTIFICATIONS, true).commit()
-        index.post(IndexedNotification("k", "com.example.chat", "Chat", "Ana", "Dinner?", 1L))
-        showSources()
-        compose.onNode(notificationsSwitch).performScrollTo().performClick()
-        compose.waitForIdle()
-        assertFalse(prefs[SettingsManager.SEARCH_NOTIFICATIONS])
-        assertTrue(index.entries.value.isEmpty())
     }
 }

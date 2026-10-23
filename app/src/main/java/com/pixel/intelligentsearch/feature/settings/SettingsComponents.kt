@@ -94,6 +94,26 @@ fun SettingsCard(
  * titleMedium text in Title Case, inset to line up with the rows in the [SettingsCard] below it. It is a heading, so
  * TalkBack can jump from section to section. Titles inside a card are the card's own and don't use this.
  */
+/**
+ * Rows attached under a switch in the same card ([visible] while it is on): they drop down out of it as it turns on
+ * and rise back up into it as it turns off, on [ExpressiveMotionTokens.Reveal]'s quick, settled motion. Every switch
+ * with rows of its own uses this, so they all move alike.
+ */
+@Composable
+fun androidx.compose.foundation.layout.ColumnScope.AttachedRows(
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable androidx.compose.animation.AnimatedVisibilityScope.() -> Unit
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = ExpressiveMotionTokens.Reveal.enter,
+        exit = ExpressiveMotionTokens.Reveal.exit,
+        content = content
+    )
+}
+
 @Composable
 fun SettingsSectionHeader(text: String, modifier: Modifier = Modifier) {
     Text(

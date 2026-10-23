@@ -1,20 +1,9 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.system.openSettingsPage
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import androidx.core.content.edit
-import com.pixel.intelligentsearch.core.data.settings.put
-import com.pixel.intelligentsearch.core.util.findActivity
 import android.Manifest
-import android.content.Intent
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.provider.Settings
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,10 +16,8 @@ import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Calculate
 import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.CurrencyExchange
-import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -54,10 +41,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.di.appEntryPoint
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBack: () -> Unit) {
+fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     val viewModel = LocalSettingsViewModel.current
     Box(modifier = Modifier.fillMaxSize()) {
@@ -131,11 +119,6 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                                 ) {
                                     searchContacts = false
                                 }
-                                if (event == Lifecycle.Event.ON_RESUME &&
-                                    context.checkSelfPermission(Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED
-                                ) {
-                                    prefs.edit { put(SettingsManager.SEARCH_CALENDAR, false) }
-                                }
                             }
                             lifecycleOwner.lifecycle.addObserver(observer)
                             onDispose {
@@ -143,8 +126,8 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             }
                         }
 
-                        // As with Calendar: declining once just leaves Contacts off; declined for good, the
-                        // request offers Android's settings.
+                        // Declining once just leaves Contacts off; declined for good, the request offers Android's
+                        // settings.
                         val contactsRequest = rememberContactsRequest { granted ->
                             searchContacts = granted
                             if (granted) viewModel?.reindexContacts()
@@ -185,8 +168,13 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             },
                             showDivider = true
                         )
-                        // Either switch can stop or allow the daily rates download; bring it in line at once.
-                        val syncCurrencyRates = { context.appEntryPoint.currencyRateRepository().syncSchedule() }
+                        // Either switch can stop or allow the daily rates download; bring it in line at once, off the
+                        // main thread (it checks the saved rates and talks to WorkManager) so the switch never waits.
+                        val scope = androidx.compose.runtime.rememberCoroutineScope()
+                        val syncCurrencyRates: () -> Unit = {
+                            val rates = context.appEntryPoint.currencyRateRepository()
+                            scope.launch(kotlinx.coroutines.Dispatchers.IO) { rates.syncSchedule() }
+                        }
                         var searchCalc by rememberSetting(SettingsManager.SEARCH_CALCULATOR, onChanged = syncCurrencyRates)
                         SettingsRowToggle(
                             title = "Calculator",
@@ -194,10 +182,10 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                             icon = Icons.Outlined.Calculate,
                             isChecked = searchCalc,
                             onCheckedChange = { searchCalc = it },
-                            showDivider = true
+                            showDivider = searchCalc
                         )
                         // Currency answers come from the Calculator, so their rates only matter while it is on.
-                        AnimatedVisibility(visible = searchCalc) {
+                        AttachedRows(visible = searchCalc) {
                             var liveCurrencyRates by rememberSetting(SettingsManager.LIVE_CURRENCY_RATES, onChanged = syncCurrencyRates)
                             SettingsRowToggle(
                                 title = "Live Currency Rates",
@@ -205,53 +193,9 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                                 icon = Icons.Outlined.CurrencyExchange,
                                 isChecked = liveCurrencyRates,
                                 onCheckedChange = { liveCurrencyRates = it },
-                                showDivider = true
+                                showDivider = false
                             )
                         }
-                        var searchCalendar by rememberSetting(SettingsManager.SEARCH_CALENDAR)
-                        val calendarPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-                            // An empty result (a request already in flight) is not a grant.
-                            if (results.values.isNotEmpty() && results.values.all { it }) {
-                                searchCalendar = true
-                            } else if (context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CALENDAR) == false) {
-                                Toast.makeText(context, "Permission denied. Please enable in Settings.", Toast.LENGTH_LONG).show()
-                                try {
-                                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                        data = Uri.fromParts("package", context.packageName, null)
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(intent)
-                                } catch (_: Throwable) {}
-                            }
-                        }
-                        SettingsRowToggle(
-                            title = "Calendar",
-                            subtitle = "Show Calendar Events.",
-                            icon = Icons.Outlined.Event,
-                            isChecked = searchCalendar,
-                            onCheckedChange = { isChecked -> 
-                                if (isChecked) {
-                                    if (context.checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED) {
-                                        searchCalendar = true
-                                    } else {
-                                        calendarPermissionLauncher.launch(arrayOf(Manifest.permission.READ_CALENDAR))
-                                    }
-                                } else {
-                                    searchCalendar = false
-                                }
-                            },
-                            showDivider = true
-                        )
-                        NotificationSearchRow(showDivider = true)
-                        var searchAndroidSettings by rememberSetting(SettingsManager.SEARCH_ANDROID_SETTINGS)
-                        SettingsRowToggle(
-                            title = "Android Settings",
-                            subtitle = "Open Settings Pages Such as Battery & Wi-Fi Directly.",
-                            icon = Icons.Outlined.Settings,
-                            isChecked = searchAndroidSettings,
-                            onCheckedChange = { searchAndroidSettings = it },
-                            showDivider = false
-                        )
                     }
                 }
             }

@@ -49,7 +49,49 @@ internal fun subthemePillLabelColor(fill: Color, surface: Color): Color {
     return if (onBlack >= onWhite) Color.Black else Color.White
 }
 
-/** The Appearance tab of the widget editor: G icon, subtheme, Material options and element colours. */
+/**
+ * The Custom G style's Saturation track: from grey to the most colourful at the [hue] and [brightness] (0..360 and
+ * 0..100) the other two sliders have set, so every point on it is the colour the slider picks there.
+ */
+internal fun elementSaturationTrack(hue: Float, brightness: Float): List<Color> {
+    val value = (brightness / 100f).coerceIn(0f, 1f)
+    return listOf(0f, 1f).map { Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, it, value))) }
+}
+
+/** The Custom G style's Brightness track: from black to the brightest at the [hue] and [saturation] set. */
+internal fun elementBrightnessTrack(hue: Float, saturation: Float): List<Color> {
+    val share = (saturation / 100f).coerceIn(0f, 1f)
+    return listOf(0f, 1f).map { Color(android.graphics.Color.HSVToColor(floatArrayOf(hue, share, it))) }
+}
+
+/**
+ * The bar's Transparency, which every subtheme has (the widget fades the whole background by it), so it sits on the
+ * Appearance tab whatever the subtheme. Its track runs from [background], the bar's background as it is drawn at
+ * Transparency 0, to nothing, over a checkerboard.
+ */
+@Composable
+internal fun TransparencySliderCard(fields: WidgetDraftFields, background: Color) {
+    var localTransparency by fields::transparency
+    SettingsCard(lit = false) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            GradientSliderRow(
+                icon = Icons.Default.Opacity,
+                label = "Transparency",
+                valueText = "${localTransparency.toInt()}%",
+                gradient = transparencyTrack(background),
+                value = localTransparency,
+                onValueChange = { localTransparency = it },
+                valueRange = 0f..100f,
+                checkerboard = true
+            )
+        }
+    }
+}
+
+/**
+ * The Appearance tab of the widget editor: G icon, subtheme, Transparency, Material options and element colours.
+ * [barBackground] is the bar's background as the preview draws it at Transparency 0, for the Transparency track.
+ */
 @Composable
 internal fun WidgetAppearanceTab(
     fields: WidgetDraftFields,
@@ -57,6 +99,7 @@ internal fun WidgetAppearanceTab(
     colors: WidgetColorSelection,
     themeStyle: MutableState<String>,
     computedCustomColorInt: Int,
+    barBackground: Color,
     view: android.view.View,
     hapticEngine: PixelHapticEngine
 ) {
@@ -82,11 +125,10 @@ internal fun WidgetAppearanceTab(
     var showCustomHexDialog by ui::showCustomHexDialog
     var tempCustomHexInput by ui::tempCustomHexInput
     var activeCustomColorTarget by colors::activeCustomColorTarget
-    var customIconHue by colors::customIconHue
-    var customIconSat by colors::customIconSat
-    var customIconVal by colors::customIconVal
-    var localThemeStyle by themeStyle
-    val isSystem = localThemeStyle == "System Default"
+    val customIconHue by colors::customIconHue
+    val customIconSat by colors::customIconSat
+    val customIconVal by colors::customIconVal
+    val localThemeStyle by themeStyle
 
     // TAB 0: APPEARANCE
     val isMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
@@ -108,7 +150,7 @@ internal fun WidgetAppearanceTab(
             onCheckedChange = { localShowGIcon = it },
             showDivider = true
         )
-        AnimatedVisibility(visible = localShowGIcon) {
+        AttachedRows(visible = localShowGIcon) {
             SettingsRowToggle(
                 title = "Doodles",
                 subtitle = "Show Mini Doodles Around the G Icon for Holidays and Special Events.",
@@ -245,6 +287,9 @@ internal fun WidgetAppearanceTab(
             autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium)
         )
     }
+
+    // Under the subtheme it fades, whichever subtheme that is.
+    TransparencySliderCard(fields = fields, background = barBackground)
 
     SettingsSectionHeader("G Icon Style")
     // G Icon Row with Custom G Icon button right beside Accented G Icon
@@ -522,15 +567,10 @@ internal fun WidgetAppearanceTab(
                     }
                 }
 
-                LaunchedEffect(activeCustomColorTarget, localCustomSyncColors, isSystem, localMaterialGIconTheme) {
-                    val h = FloatArray(3)
-                    android.graphics.Color.colorToHSV(activeColor, h)
-                    if (h[1] > 0.01f || h[2] > 0.01f) {
-                        customIconHue = h[0]
-                    }
-                    customIconSat = h[1] * 100f
-                    customIconVal = h[2] * 100f
-                }
+                // The sliders follow the colour being edited wherever it was set: picking another element, Sync All
+                // Colors, the hex field, another profile or Reset all put a different colour here. A colour the
+                // sliders picked themselves leaves them where they are.
+                LaunchedEffect(colors, activeColor) { colors.show(activeColor) }
 
                 // 3. Hue Slider (matching Color Studio)
                 GradientSliderRow(
@@ -539,13 +579,7 @@ internal fun WidgetAppearanceTab(
                     valueText = "${customIconHue.toInt()}°",
                     gradient = HUE_GRADIENT,
                     value = customIconHue,
-                    onValueChange = {
-                        customIconHue = it
-                        val newCol = android.graphics.Color.HSVToColor(
-                            floatArrayOf(it, (customIconSat / 100f).coerceIn(0f, 1f), (customIconVal / 100f).coerceIn(0f, 1f))
-                        )
-                        updateTargetColor(newCol)
-                    },
+                    onValueChange = { updateTargetColor(colors.pick(hue = it)) },
                     valueRange = 0f..360f
                 )
 
@@ -556,18 +590,9 @@ internal fun WidgetAppearanceTab(
                     icon = Icons.Default.WaterDrop,
                     label = "Saturation",
                     valueText = "${customIconSat.toInt()}%",
-                    gradient = listOf(
-                        androidx.compose.ui.graphics.Color.White,
-                        androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customIconHue, 1f, 1f)))
-                    ),
+                    gradient = elementSaturationTrack(customIconHue, customIconVal),
                     value = customIconSat,
-                    onValueChange = {
-                        customIconSat = it
-                        val newCol = android.graphics.Color.HSVToColor(
-                            floatArrayOf(customIconHue, (it / 100f).coerceIn(0f, 1f), (customIconVal / 100f).coerceIn(0f, 1f))
-                        )
-                        updateTargetColor(newCol)
-                    },
+                    onValueChange = { updateTargetColor(colors.pick(saturation = it)) },
                     valueRange = 0f..100f
                 )
 
@@ -578,18 +603,9 @@ internal fun WidgetAppearanceTab(
                     icon = Icons.Outlined.BrightnessMedium,
                     label = "Brightness",
                     valueText = "${customIconVal.toInt()}%",
-                    gradient = listOf(
-                        androidx.compose.ui.graphics.Color.Black,
-                        androidx.compose.ui.graphics.Color(android.graphics.Color.HSVToColor(floatArrayOf(customIconHue, (customIconSat / 100f).coerceIn(0f, 1f), 1f)))
-                    ),
+                    gradient = elementBrightnessTrack(customIconHue, customIconSat),
                     value = customIconVal,
-                    onValueChange = {
-                        customIconVal = it
-                        val newCol = android.graphics.Color.HSVToColor(
-                            floatArrayOf(customIconHue, (customIconSat / 100f).coerceIn(0f, 1f), (it / 100f).coerceIn(0f, 1f))
-                        )
-                        updateTargetColor(newCol)
-                    },
+                    onValueChange = { updateTargetColor(colors.pick(brightness = it)) },
                     valueRange = 0f..100f
                 )
 

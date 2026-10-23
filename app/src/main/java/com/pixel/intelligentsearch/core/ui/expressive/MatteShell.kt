@@ -16,7 +16,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageShader
@@ -25,7 +24,13 @@ import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.shadow.Shadow
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.core.graphics.withTranslation
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.DpOffset
@@ -103,12 +108,12 @@ fun Modifier.matteShell(look: MatteShellLook, shape: Shape): Modifier =
         // higher than the container so the top edge is the brightest, as on Google's floating bar.
         .then(
             if (look.underShadow.alpha > 0f) {
-                Modifier.dropShadow(shape, Shadow(radius = 10.dp, color = look.underShadow, offset = DpOffset(0.dp, 4.dp)))
+                Modifier.shellShadow(shape, radius = 10.dp, color = look.underShadow, offset = DpOffset(0.dp, 4.dp))
             } else Modifier
         )
         .then(
             if (look.edgeLight.alpha > 0f) {
-                Modifier.dropShadow(shape, Shadow(radius = 6.dp, color = look.edgeLight, offset = DpOffset(0.dp, (-1.5).dp)))
+                Modifier.shellShadow(shape, radius = 6.dp, color = look.edgeLight, offset = DpOffset(0.dp, (-1.5).dp))
             } else Modifier
         )
         .then(if (look.border != null) Modifier.border(look.border, shape) else Modifier)
@@ -124,6 +129,48 @@ fun Modifier.matteShell(look: MatteShellLook, shape: Shape): Modifier =
                 }
             } else Modifier
         )
+
+/**
+ * A soft shadow (or light) of [color] behind the element in [shape], blurred by [radius] and moved by [offset]: the
+ * same blurred shape Compose's dropShadow draws (a [android.graphics.BlurMaskFilter] of that radius), drawn straight
+ * onto the canvas instead of into a bitmap. Compose's dropShadow renders and blurs a new bitmap on the main thread
+ * for every size the element takes, so a card growing or shrinking (rows rising away under a switch) re-blurred its
+ * whole area every frame; drawn directly, a rounded rectangle's blur is Android's own fast path on the render thread
+ * and a new height costs nothing.
+ */
+fun Modifier.shellShadow(shape: Shape, radius: Dp, color: Color, offset: DpOffset = DpOffset.Zero): Modifier = drawWithCache {
+    val blur = radius.toPx()
+    val dx = offset.x.toPx()
+    val dy = offset.y.toPx()
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = color.toArgb()
+        if (blur > 0f) maskFilter = android.graphics.BlurMaskFilter(blur, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+    val outline = shape.createOutline(size, layoutDirection, this)
+    val rounded = (outline as? Outline.Rounded)?.roundRect
+    // A rounded rectangle with one radius all round draws as one; anything else as its path.
+    val uniform = rounded != null && rounded.topLeftCornerRadius == rounded.topRightCornerRadius &&
+        rounded.topLeftCornerRadius == rounded.bottomRightCornerRadius && rounded.topLeftCornerRadius == rounded.bottomLeftCornerRadius
+    val path = if (uniform || outline is Outline.Rectangle) null else when (outline) {
+        is Outline.Rounded -> androidx.compose.ui.graphics.Path().apply { addRoundRect(outline.roundRect) }
+        is Outline.Generic -> outline.path
+        else -> null
+    }?.asAndroidPath()
+    onDrawBehind {
+        drawIntoCanvas { canvas ->
+            canvas.nativeCanvas.withTranslation(dx, dy) {
+                when {
+                    uniform && rounded != null -> drawRoundRect(
+                        rounded.left, rounded.top, rounded.right, rounded.bottom,
+                        rounded.topLeftCornerRadius.x, rounded.topLeftCornerRadius.y, paint
+                    )
+                    path != null -> drawPath(path, paint)
+                    else -> drawRect(0f, 0f, size.width, size.height, paint)
+                }
+            }
+        }
+    }
+}
 
 /**
  * A container in the matte shell ([matteShell]) holding a column, with the content colour that goes with

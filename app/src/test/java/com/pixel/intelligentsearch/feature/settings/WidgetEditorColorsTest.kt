@@ -97,6 +97,30 @@ class WidgetEditorColorsTest {
         assertTrue("Custom pill label has contrast $ratio", ratio >= 4.5)
     }
 
+    /**
+     * Without dynamic colour the System subtheme's fixed light and dark pills follow the app's theme, as the widget's
+     * do (it draws in the app's theme); the preview followed the system's, so with the app's theme set against the
+     * system's it showed the other pill.
+     */
+    @Test
+    fun fixedSystemPillFollowsTheAppThemeAsTheWidgetDoes() {
+        for (appDark in listOf(false, true)) {
+            val pill = previewPill(
+                isMaterialDesign = false,
+                subtheme = "System",
+                lockBlack = false,
+                accentColor = Color.Blue,
+                isDynamicColorActive = false,
+                themedSurface = Color.Magenta,
+                appDark = appDark
+            )
+            // The widget's pill without dynamic colour (DynamicThemeDetector's surface container in the app's theme).
+            val widgetPill = if (appDark) 0xFF303134.toInt() else 0xFFF1F3F4.toInt()
+            assertEquals("appDark=$appDark", widgetPill, pill.fill.toArgb())
+            assertEquals("appDark=$appDark", !appDark, pill.isLight)
+        }
+    }
+
     @Test
     fun previewPillShadeFollowsTheAppTheme() {
         data class Case(val material: Boolean, val subtheme: String, val lockBlack: Boolean, val dynamic: Boolean)
@@ -125,8 +149,6 @@ class WidgetEditorColorsTest {
                                     subtheme = case.subtheme,
                                     lockBlack = case.lockBlack,
                                     accentColor = MaterialTheme.colorScheme.primary,
-                                    containerAlpha = 1f,
-                                    effectiveColorAlpha = 1f,
                                     isDynamicColorActive = case.dynamic
                                 )
                                 if ((pill.fill.luminance() > 0.5f) != pill.isLight) {

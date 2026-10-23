@@ -65,7 +65,7 @@ class SearchSourcesPermissionTest {
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) {
                 CompositionLocalProvider(LocalActivityResultRegistryOwner provides denyingOwner) {
-                    SearchSourcesScreen(prefs, {}, {})
+                    SearchSourcesScreen({}, {})
                 }
             }
         }

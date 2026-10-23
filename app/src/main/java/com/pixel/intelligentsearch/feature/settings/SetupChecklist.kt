@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,11 +54,13 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.UserGrantedFiles
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.glance.NotificationAccess
+import com.pixel.intelligentsearch.core.system.openSettingsPage
 import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.core.system.SearchRoleManager
 
 /** One thing a new user sets up: what it gives them, and whether it is done. */
-enum class SetupStep { CONTACTS, CALENDAR, FILES, SEARCH_BAR }
+enum class SetupStep { CONTACTS, CALENDAR, NOTIFICATIONS, FILES, SEARCH_BAR }
 
 /** Which setup steps apply on this phone and which are done; read fresh every time the page is shown. */
 object SetupChecklist {
@@ -70,7 +73,8 @@ object SetupChecklist {
 
     fun isDone(context: Context, prefs: SharedPreferences, step: SetupStep): Boolean = when (step) {
         SetupStep.CONTACTS -> granted(context, Manifest.permission.READ_CONTACTS) && prefs[SettingsManager.SEARCH_CONTACTS]
-        SetupStep.CALENDAR -> granted(context, Manifest.permission.READ_CALENDAR) && prefs[SettingsManager.SEARCH_CALENDAR]
+        SetupStep.CALENDAR -> granted(context, Manifest.permission.READ_CALENDAR)
+        SetupStep.NOTIFICATIONS -> NotificationAccess.isGranted(context)
         SetupStep.FILES -> prefs[SettingsManager.SEARCH_FILES] &&
             (UserGrantedFiles.folderUris(prefs).isNotEmpty() || UserGrantedFiles.mediaUris(prefs).isNotEmpty())
         SetupStep.SEARCH_BAR -> SearchRoleManager.isSearchRoleHeld(context)
@@ -123,14 +127,18 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
         revision++
     }
     val calendarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
-            prefs.edit { put(SettingsManager.SEARCH_CALENDAR, true) }
-        } else if (context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CALENDAR) == false) {
+        if (!granted && context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CALENDAR) == false) {
             Toast.makeText(context, "Calendar access was declined. You can allow it in Android settings.", Toast.LENGTH_LONG).show()
             openAppSettings()
         }
         revision++
     }
+    // Notification access is granted on Android's own screen, after the app's shared rationale.
+    val notificationAccess = rememberNotificationAccessRequest { granted ->
+        if (granted) NotificationAccess.start(context)
+        revision++
+    }
+    NotificationAccessDialog(notificationAccess)
 
     val steps = remember(revision) { SetupChecklist.steps(context) }
     val done = remember(revision) { steps.associateWith { SetupChecklist.isDone(context, prefs, it) } }
@@ -194,6 +202,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                     val (title, why, icon) = when (step) {
                         SetupStep.CONTACTS -> Triple("Contacts", "Find people as you type, then call or message them.", Icons.Outlined.Contacts)
                         SetupStep.CALENDAR -> Triple("Calendar", "See upcoming events and search them.", Icons.Outlined.Event)
+                        SetupStep.NOTIFICATIONS -> Triple("Notifications", "Search your notifications and see timers and what's playing.", Icons.Outlined.Notifications)
                         SetupStep.FILES -> Triple("Files", "Choose the folders to search. Nothing else is read.", Icons.Outlined.Folder)
                         SetupStep.SEARCH_BAR -> Triple("Home Screen Search Bar", "Power the Pixel search bar on your home screen.", Icons.Outlined.Search)
                     }
@@ -206,7 +215,9 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                                 SetupStep.CONTACTS ->
                                     if (isDone) onNavigate(Route.ContactSearch) else contactsLauncher.launch(Manifest.permission.READ_CONTACTS)
                                 SetupStep.CALENDAR ->
-                                    if (isDone) onNavigate(Route.SearchSources) else calendarLauncher.launch(Manifest.permission.READ_CALENDAR)
+                                    if (isDone) openAppSettings() else calendarLauncher.launch(Manifest.permission.READ_CALENDAR)
+                                SetupStep.NOTIFICATIONS ->
+                                    if (isDone) openSettingsPage(context, *NotificationAccess.settingsIntents(context).toTypedArray()) else notificationAccess.request()
                                 SetupStep.FILES -> onNavigate(Route.FileSearch)
                                 SetupStep.SEARCH_BAR ->
                                     if (isDone || SearchRoleManager.isListedAsSearchEngine(context)) {

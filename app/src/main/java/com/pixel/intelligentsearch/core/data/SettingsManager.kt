@@ -13,7 +13,6 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.datastore.preferences.preferencesDataStoreFile
 import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
-import com.pixel.intelligentsearch.core.data.settings.EnterKeyAction
 import com.pixel.intelligentsearch.core.data.settings.IntSetting
 import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import com.pixel.intelligentsearch.core.data.settings.StringSetSetting
@@ -45,8 +44,6 @@ data class IntelligentSearchSettings(
     val searchFiles: Boolean = SettingsManager.SEARCH_FILES.default,
     val searchWeb: Boolean = SettingsManager.SEARCH_WEB.default,
     val searchCalculator: Boolean = SettingsManager.SEARCH_CALCULATOR.default,
-    val searchCalendar: Boolean = SettingsManager.SEARCH_CALENDAR.default,
-    val searchAndroidSettings: Boolean = SettingsManager.SEARCH_ANDROID_SETTINGS.default,
     val backgroundBlur: Int = SettingsManager.BACKGROUND_BLUR.default,
     val showWallpaper: Boolean = SettingsManager.SHOW_WALLPAPER.default,
     val backgroundTransparency: Int = SettingsManager.BACKGROUND_TRANSPARENCY.default,
@@ -121,7 +118,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val SEARCH_CALCULATOR = BooleanSetting("search.calculator", true, "search_calculator")
         /** Fetches the European Central Bank's rates for currency answers once a day while the Calculator is on; off, nothing is fetched. */
         val LIVE_CURRENCY_RATES = BooleanSetting("live_currency_rates", true)
-        val SEARCH_CALENDAR = BooleanSetting("search.calendar", true, "search_calendar")
         /**
          * Where weather answers are for when the query names no place: "latitude,longitude;name", empty for none. Set
          * from the weather card (Set Location); while it is empty the phone's approximate location is used, if allowed.
@@ -133,8 +129,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * ([QUICK_SEARCH_HORIZONTAL]). Stays declared so the migration and older backups recognise it.
          */
         val SEARCH_SHORTCUTS = BooleanSetting("search.shortcuts", true, "search_shortcuts")
-        /** Offers Android Settings pages ("battery", "app info chrome") among the results. */
-        val SEARCH_ANDROID_SETTINGS = BooleanSetting("search.android.settings", true)
         val BACKGROUND_BLUR = IntSetting("search.background.blur", 50, 0..100, "background.blur")
         val SHOW_WALLPAPER = BooleanSetting("search.background.show.wall", true, "show_wallpaper", "show.wallpaper")
         val BACKGROUND_TRANSPARENCY = IntSetting("search.background.transparency", 50, 0..100, "background.transparency")
@@ -218,8 +212,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * the assistant gesture, a launcher shortcut) follows it.
          */
         val SHOW_KEYBOARD_ON_OPEN = BooleanSetting("show_keyboard_on_open", true)
-        /** What Enter does when no result is highlighted, as an [EnterKeyAction]'s stored value. */
-        val ENTER_KEY_ACTION = StringSetting("enter_key_action", EnterKeyAction.OPEN_TOP_RESULT.storedValue)
         val DEBUG_UNLOCKED = BooleanSetting("debug_unlocked", false)
         val DEBUG_VERBOSE_LOGGING = BooleanSetting("debug.verbose_logging", false)
         val DEBUG_SHOW_PERF_STATS = BooleanSetting("debug.show_perf_stats", false)
@@ -231,19 +223,19 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val APP_FUNCTIONS_SHARE_CONTACTS = BooleanSetting("appfunctions_share_contacts", false)
         /** Pinned results, as JSON (ResultShortcuts); read through ResultShortcutStore. Older nickname and trigger word fields are ignored. */
         val RESULT_SHORTCUTS = StringSetting("result_shortcuts_json", "[]")
-        /**
-         * Search Your Notifications: the user's opt-in to let the notification listener read active notifications into
-         * memory for search and At a Glance's timers. Off by default; it works only with notification access.
-         */
-        val SEARCH_NOTIFICATIONS = BooleanSetting("search.notifications", false)
-        /**
-         * At a Glance: timely cards above the empty search. Each item shows by itself when it has something to show
-         * and what it reads from is on: timers need [SEARCH_NOTIFICATIONS], media notification access, birthdays
-         * contact search; the next alarm always shows.
-         */
+        /** At a Glance: timely cards above the empty search. Each item has its own switch below. */
         val GLANCE_ENABLED = BooleanSetting("glance.enabled", true)
+        val GLANCE_ALARM = BooleanSetting("glance.alarm", true)
+        /** Timers and stopwatches, read from the clock's notifications (needs notification access). */
+        val GLANCE_TIMERS = BooleanSetting("glance.timers", true)
+        /** At a Glance's Media Controls, read from media sessions (needs notification access). */
+        val GLANCE_MEDIA = BooleanSetting("glance.media", true)
+        /** Contacts' birthdays this week (needs contact search and the contacts permission). */
+        val GLANCE_BIRTHDAYS = BooleanSetting("glance.birthdays", true)
         /** The clock in the At a Glance card's corner. */
         val GLANCE_CLOCK = BooleanSetting("glance.clock", true)
+        /** The clock's face, as a GlanceClockStyle's stored value. */
+        val GLANCE_CLOCK_STYLE = StringSetting("glance.clock_style", "cookie")
         /**
          * AI Answers: questions ("…?", "ask …") offer an Ask row that, only when tapped, sends that one question to
          * [AI_PROVIDER] with the user's own key (kept in AiKeyVault, never here). Off by default; a backup can't
@@ -290,7 +282,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** Every declared setting, for migration, backup validation and change filtering. */
         val ALL: List<SettingKey<*>> = listOf(
             THEME, SEARCH_APPS, SEARCH_CONTACTS, SEARCH_FILES, SEARCH_WEB, SEARCH_WEB_SUGGESTIONS,
-            SEARCH_PREVIOUS_SEARCHES, SEARCH_CALCULATOR, LIVE_CURRENCY_RATES, SEARCH_CALENDAR, SEARCH_SHORTCUTS, SEARCH_ANDROID_SETTINGS, BACKGROUND_BLUR,
+            SEARCH_PREVIOUS_SEARCHES, SEARCH_CALCULATOR, LIVE_CURRENCY_RATES, SEARCH_SHORTCUTS, BACKGROUND_BLUR,
             SHOW_WALLPAPER, BACKGROUND_TRANSPARENCY, PILL_OPACITY, SEARCH_ENGINE, CUSTOM_SEARCH_ENGINE_URL,
             CUSTOM_SEARCH_ENGINE_NAME, FILES_HIDDEN_FILES, FILES_THUMBNAILS, APP_ANIMATIONS, MORPH_ANIMATION_ENABLED,
             BOTTOM_SEARCH, BOTTOM_SEARCH_RESULT, TUTORIAL_COMPLETED, FORCE_TUTORIAL, TUTORIAL_STEP, G_ICON_ENABLED,
@@ -305,9 +297,10 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             WEB_SHORTCUT_TRIGGER_SYMBOL, SEARCH_QUICK_SHORTCUTS, SHOW_AVAILABLE_DIRECT_SHORTCUTS,
             ADAPTIVE_ICON_SHAPE, DYNAMIC_ICON_MASKING, DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, OVERLAY_SHOW_MIC, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
-            SHOW_KEYBOARD_ON_OPEN, ENTER_KEY_ACTION,
+            SHOW_KEYBOARD_ON_OPEN,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
-            DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_CLOCK,
+            DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, GLANCE_ENABLED, GLANCE_ALARM,
+            GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_BIRTHDAYS, GLANCE_CLOCK, GLANCE_CLOCK_STYLE,
             RESULT_SHORTCUTS, WEATHER_HOME_LOCATION, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,
@@ -336,9 +329,10 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * on now), At a Glance's one-time codes (Android 15 hides them from listeners), On-Device Translation
          * (translations go to Google Translate), Saved Links (removed; Web Shortcuts open sites), the widget's
          * Saved Themes (moved into the widget profiles first, WidgetProfiles.migrateSavedThemes), the widgets'
-         * favourite apps and media rows (removed; the Quick App Panel opens favourite apps), and the switches folded
-         * into others: At a Glance's battery and per-item switches, Dictionary and Weather Answers and Use Approximate
-         * Location (Web Suggestions and the weather card decide now), Contact Actions and File Types. A value an older
+         * favourite apps and media rows (removed; the Quick App Panel opens favourite apps), At a Glance's battery and
+         * Enter Key Action (removed), and the switches folded into others: Dictionary and Weather Answers and Use
+         * Approximate Location (Web Suggestions and the weather card decide now), Contact Actions and File Types, and
+         * the Calendar, Notifications and Android Settings sources (Android's permissions decide). A value an older
          * build stored is dropped at every start, and backups never restore one.
          */
         val REMOVED_NAMES: Set<String> = setOf(
@@ -349,12 +343,17 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             // The widgets' favourite apps and media rows, removed.
             "widget_system_favourite_apps", "widget_material_favourite_apps",
             "widget_system_show_media", "widget_material_show_media",
-            // At a Glance's battery (removed) and its per-item switches (each item now shows when it can).
-            "glance.battery", "glance.timers", "glance.alarm", "glance.media", "glance.birthdays",
+            // At a Glance's battery, removed.
+            "glance.battery",
             // Dictionary and weather answers follow Web Suggestions now; the weather card sets the location.
             "dictionary_answers", "weather_answers", REMOVED_WEATHER_USE_DEVICE_LOCATION,
             // Contact actions always show with contact search; file search covers every file type.
-            "contact_actions", "search.files.excluded_types"
+            "contact_actions", "search.files.excluded_types",
+            // Enter Key Action, removed: Enter opens the top result.
+            "enter_key_action",
+            // The Calendar, Notifications and Android Settings switches: each source follows Android's own permission
+            // now (the calendar, notification access) or is always on (Android Settings pages).
+            "search.calendar", "search_calendar", "search.notifications", "search.android.settings"
         )
 
         /**
@@ -444,8 +443,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         searchFiles = sp[SEARCH_FILES],
         searchWeb = sp[SEARCH_WEB],
         searchCalculator = sp[SEARCH_CALCULATOR],
-        searchCalendar = sp[SEARCH_CALENDAR],
-        searchAndroidSettings = sp[SEARCH_ANDROID_SETTINGS],
         backgroundBlur = sp[BACKGROUND_BLUR],
         showWallpaper = sp[SHOW_WALLPAPER],
         backgroundTransparency = sp[BACKGROUND_TRANSPARENCY],

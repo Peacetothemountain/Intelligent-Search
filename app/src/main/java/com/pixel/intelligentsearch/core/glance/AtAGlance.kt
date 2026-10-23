@@ -66,26 +66,34 @@ data class GlanceSnapshot(
 }
 
 /**
- * What decides which At a Glance items can show: its own switch in Search Behavior, and the sources the items read
- * from. Items have no switches of their own: the next alarm always shows, timers need Search Your Notifications,
- * birthdays contact search, and media notification access (checked where the sessions are read).
+ * What decides which At a Glance items can show: the section's switch and each item's own in Search Behavior, and
+ * the sources the items read from: timers need notification access, birthdays contact search, and media notification
+ * access too (checked where the sessions are read).
  */
 @Immutable
 data class GlanceToggles(
     val enabled: Boolean = true,
-    /** Search Sources -> Notifications (Search Your Notifications): timers are read from the clock's notifications. */
+    val alarm: Boolean = true,
+    val timers: Boolean = true,
+    val media: Boolean = true,
+    val birthdays: Boolean = true,
+    /** Android's notification access: timers are read from the clock's notifications. */
     val notifications: Boolean = false,
     /** Search Sources -> Contacts: birthdays come from the contacts, so they show only while contact search is on. */
     val contacts: Boolean = false
 ) {
-    /** Whether timers are read: Search Your Notifications on. */
-    val timersOn: Boolean get() = enabled && notifications
+    val alarmOn: Boolean get() = enabled && alarm
 
-    /** Whether birthdays are read: contact search on. */
-    val birthdaysOn: Boolean get() = enabled && contacts
+    /** Whether timers are read: their switch on and notification access granted. */
+    val timersOn: Boolean get() = enabled && timers && notifications
 
-    /** Whether anything at all can show (the alarm always can), so nothing is read while the section is off. */
-    val anyOn: Boolean get() = enabled
+    val mediaOn: Boolean get() = enabled && media
+
+    /** Whether birthdays are read: their switch and contact search on. */
+    val birthdaysOn: Boolean get() = enabled && birthdays && contacts
+
+    /** Whether anything at all can show, so nothing is read for an empty section. */
+    val anyOn: Boolean get() = alarmOn || timersOn || mediaOn || birthdaysOn
 }
 
 /** One card in At a Glance; [key] keeps each in place in the list. */
@@ -112,15 +120,15 @@ const val GLANCE_MAX_TIMERS = 3
 
 /**
  * What At a Glance shows at [now], in order: running timers and stopwatches, the next alarm within
- * [GLANCE_ALARM_WINDOW_MS], what is playing and birthdays this week. Timers need Search Your Notifications and
- * birthdays contact search ([GlanceToggles]).
+ * [GLANCE_ALARM_WINDOW_MS], what is playing and birthdays this week. Each only with its switch on; timers also need
+ * notification access and birthdays contact search ([GlanceToggles]).
  */
 fun glanceItems(snapshot: GlanceSnapshot, toggles: GlanceToggles, now: Long): List<GlanceItem> {
     if (!toggles.enabled) return emptyList()
     return buildList {
         if (toggles.timersOn) snapshot.timers.take(GLANCE_MAX_TIMERS).forEach { add(GlanceItem.Timer(it)) }
-        snapshot.alarm?.takeIf { it.triggerAt - now in 0..GLANCE_ALARM_WINDOW_MS }?.let { add(GlanceItem.Alarm(it)) }
-        snapshot.media?.let { add(GlanceItem.Media(it)) }
+        snapshot.alarm?.takeIf { toggles.alarmOn && it.triggerAt - now in 0..GLANCE_ALARM_WINDOW_MS }?.let { add(GlanceItem.Alarm(it)) }
+        snapshot.media?.takeIf { toggles.mediaOn }?.let { add(GlanceItem.Media(it)) }
         if (toggles.birthdaysOn) snapshot.birthdays.forEach { add(GlanceItem.Birthday(it)) }
     }
 }

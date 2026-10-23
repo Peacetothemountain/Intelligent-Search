@@ -36,10 +36,10 @@ import org.robolectric.annotation.GraphicsMode
 import kotlin.math.abs
 
 /**
- * The editor's live preview paints what the widget draws for the same settings: the rim, the pill, the circle, the G
- * and every icon, for each design, subtheme, inner pill state and G style (the Material G style's drawings compared
- * pixel for pixel), with the Color Studio sliders at several values. The preview is drawn with the colour scheme of
- * the theme the widget follows.
+ * The editor's live preview paints what the widget draws for the same settings: the backdrop's opacity, the rim, the
+ * pill, the circle, the G and every icon, for each design, subtheme, inner pill state and G style (the Material G
+ * style's drawings compared pixel for pixel), with the Color Studio sliders at several values. The preview is drawn
+ * with the colour scheme of the theme the widget follows.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -95,8 +95,7 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
                 primary = Color(theme.primary),
                 primaryContainer = Color(theme.primaryContainer),
                 surfaceContainer = Color(theme.surfaceContainer),
-                appDark = dark,
-                systemDark = dark
+                appDark = dark
             ),
             isDynamicColorActive = dynamic,
             iconAccents = { SearchIconColors.themeAccents(context, it) }
@@ -141,6 +140,8 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
             val preview = preview()
             val label = "$bar $gStyle ${if (dark) "dark" else "light"} $s"
 
+            // The rim, pill and circle below are each at their opacity within the backdrop, which both fade at once.
+            assertEquals("$label backdrop alpha", preview.backdropAlpha, widget.findViewById<View>(R.id.widget_backdrop).alpha, 0f)
             assertLayer("$label pill", preview.pill.fill, widget, R.id.widget_pill_background)
             // The Material G style draws its mic as a bitmap, compared below.
             if (gStyle != "Material G Icon") {

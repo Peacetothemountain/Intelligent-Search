@@ -83,10 +83,45 @@ internal class WidgetEditorState(initialSlotItemHeightPx: Float) {
     var selectedTabName by mutableStateOf("Appearance")
 }
 
-/** The element being coloured in the Color Studio and its HSV sliders; starts over when the user switches design. */
+/**
+ * The element being coloured by the Custom G style's sliders, and their Hue, Saturation and Brightness (HSV, 0..360 and
+ * 0..100); starts over when the user switches design.
+ */
 internal class WidgetColorSelection {
     var activeCustomColorTarget by mutableStateOf("g_icon")
     var customIconHue by mutableFloatStateOf(0f)
     var customIconSat by mutableFloatStateOf(100f)
     var customIconVal by mutableFloatStateOf(100f)
+
+    /** The colour the sliders are on: the one they last picked or were put on, null before either. */
+    private var shown: Int? = null
+
+    /**
+     * Puts the sliders on [color], the colour of the element being edited, unless they are already on it. A colour set
+     * anywhere but the sliders (another element, another profile, Reset, the hex field) moves them, so they never show
+     * one colour while the next touch picks from another. A colour they picked themselves leaves them exactly where
+     * they are: it holds only whole steps of 1/255, and a grey or black has no hue (or black no saturation) to give
+     * back. A grey keeps the hue the sliders had.
+     */
+    fun show(color: Int) {
+        if (color == shown) return
+        val hsv = FloatArray(3)
+        android.graphics.Color.colorToHSV(color, hsv)
+        if (hsv[1] > 0f && hsv[2] > 0f) customIconHue = hsv[0]
+        customIconSat = hsv[1] * 100f
+        customIconVal = hsv[2] * 100f
+        shown = color
+    }
+
+    /** Moves the sliders to [hue], [saturation] and [brightness] and gives the opaque colour they pick there. */
+    fun pick(hue: Float = customIconHue, saturation: Float = customIconSat, brightness: Float = customIconVal): Int {
+        customIconHue = hue
+        customIconSat = saturation
+        customIconVal = brightness
+        val color = android.graphics.Color.HSVToColor(
+            floatArrayOf(hue, (saturation / 100f).coerceIn(0f, 1f), (brightness / 100f).coerceIn(0f, 1f))
+        )
+        shown = color
+        return color
+    }
 }

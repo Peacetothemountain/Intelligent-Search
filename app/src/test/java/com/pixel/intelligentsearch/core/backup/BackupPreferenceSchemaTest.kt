@@ -63,14 +63,6 @@ class BackupPreferenceSchemaTest {
     }
 
     @Test
-    fun androidSettingsSourceIsRegisteredAsABoolean() {
-        assertEquals("BOOLEAN", BackupPreferenceSchema.expectedType(SettingsManager.SEARCH_ANDROID_SETTINGS.name))
-        assertEquals("search.android.settings", SettingsManager.SEARCH_ANDROID_SETTINGS.name)
-        assertTrue(SettingsManager.SEARCH_ANDROID_SETTINGS.default)
-        assertTrue(SettingsManager.SEARCH_ANDROID_SETTINGS in SettingsManager.ALL)
-    }
-
-    @Test
     fun searchFromSelectedTextIsNoLongerASetting() {
         // The entry is always on now; older backups still carry the switch, which restores ignore.
         assertNull(SettingsManager.keyFor("search_from_selected_text"))

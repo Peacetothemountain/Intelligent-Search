@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
 import android.content.Context
-import com.pixel.intelligentsearch.core.data.settings.EnterKeyAction
 
 /*
  * What Enter does in the search overlay: the keyboard's search key, a physical keyboard's Enter, and (from the
@@ -30,40 +29,37 @@ internal sealed interface EnterOutcome {
 internal object OverlayEnterKey {
 
     /**
-     * What Enter does, in order: the result the arrow keys [highlighted] opens, as Enter Key Action promises (a
-     * highlighted result always opens on Enter); then, with nothing typed, nothing. A bang is an explicit request for its site, so it is searched.
-     * With [setting] Open Top Result the short phrasing's [phrasingAction] runs, else the top result opens; with
-     * Search the Web, the query is searched.
+     * What Enter does, in order: the result the arrow keys [highlighted] opens; with nothing typed, nothing. A bang
+     * is an explicit request for its site, so it is searched. Otherwise the short phrasing's [phrasingAction] runs,
+     * else the top result opens.
      */
     fun decide(
         query: String,
         highlighted: NavTarget?,
         phrasingAction: DirectAction?,
-        isBang: Boolean,
-        setting: EnterKeyAction
+        isBang: Boolean
     ): EnterOutcome = when {
         highlighted != null -> EnterOutcome.OpenHighlighted(highlighted)
         query.isEmpty() -> EnterOutcome.NothingTyped
-        isBang || setting == EnterKeyAction.SEARCH_WEB -> EnterOutcome.SearchWeb
+        isBang -> EnterOutcome.SearchWeb
         phrasingAction != null -> EnterOutcome.RunAction(phrasingAction)
         else -> EnterOutcome.OpenTopResult
     }
 }
 
 /**
- * Enter in the search field, with [highlighted] the result the arrow keys are on (null for none). The highlight and
- * Search the Web act at once; the rest waits for this query's results ([OverlayScope.submitQuery]),
- * so the phrasing's action and the top result are the ones for what was typed.
+ * Enter in the search field, with [highlighted] the result the arrow keys are on (null for none). The highlight acts
+ * at once; the rest waits for this query's results ([OverlayScope.submitQuery]), so the phrasing's action and the top
+ * result are the ones for what was typed.
  */
 internal fun OverlayScope.onEnter(context: Context, highlighted: NavTarget?) {
     // The collected uiState can lag a keystroke behind; read the live value so Enter never acts on a query missing
     // its last character.
     val query = viewModel.uiState.value.query
-    when (val outcome = OverlayEnterKey.decide(query, highlighted, phrasingAction = null, isBang = false, setting = enterKeyAction)) {
+    when (val outcome = OverlayEnterKey.decide(query, highlighted, phrasingAction = null, isBang = false)) {
         is EnterOutcome.OpenHighlighted -> openNavTarget(context, this, outcome.target)
-        EnterOutcome.SearchWeb -> launchWebSearch(query)
         EnterOutcome.NothingTyped -> Unit
         // Decided again once the results are in, with the phrasing's action and whether the query is a bang.
-        is EnterOutcome.RunAction, EnterOutcome.OpenTopResult -> submitQuery(query, false)
+        is EnterOutcome.RunAction, EnterOutcome.OpenTopResult, EnterOutcome.SearchWeb -> submitQuery(query, false)
     }
 }

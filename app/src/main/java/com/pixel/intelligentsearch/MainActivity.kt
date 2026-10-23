@@ -65,6 +65,10 @@ open class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        // Cleared only once the overlay is out of sight, not as it starts to leave: an app opening from a result
+        // grows out of the icon that was tapped, which must still be there, and a dialog over the overlay (a
+        // permission) must not wipe what was typed.
+        searchViewModel.onQueryChanged("")
         try {
             unregisterReceiver(dismissOverlayReceiver)
         } catch (_: Exception) {}
@@ -199,6 +203,8 @@ open class MainActivity : AppCompatActivity() {
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         applySoftInputMode(keyboardVisible = keyboardVisibleOnOpen(prefs))
         super.onCreate(savedInstanceState)
+        // What was typed stays on screen until the overlay stops, so Recents must not keep a picture of it.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) setRecentsScreenshotEnabled(false)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
@@ -292,7 +298,8 @@ open class MainActivity : AppCompatActivity() {
                                 },
                                 onLaunchApp = { packageName, user, activityName, launch ->
                                     searchViewModel.notifyAppLaunch(packageName)
-                                    searchViewModel.onQueryChanged("")
+                                    // The results stay as they are while the app opens out of the tapped icon (App
+                                    // Animations); the query is cleared once the overlay is out of sight (onStop).
                                     try {
                                         multiProfileManager.launchApp(
                                             packageName = packageName,
@@ -391,8 +398,7 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onPause() {
         super.onPause()
-        searchViewModel.onQueryChanged("")
-        
+
         // Re-render widgets only if a setting changed while the overlay was open. Doing it on every dismissal
         // rebuilt every widget and spent the rate-limited widget-preview quota for nothing.
         try {

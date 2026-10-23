@@ -1,9 +1,10 @@
 package com.pixel.intelligentsearch.core.ui.expressive
 
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.geometry.toRect
 import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
@@ -14,9 +15,10 @@ import kotlin.math.min
 /**
  * Rounded rectangle with its own radius per corner, behind the app's corner tokens.
  *
- * Despite the name, the corners are not continuous-curvature squircles: each is a circular arc, drawn as the usual
- * cubic Bézier approximation, with an effective radius of r × (1 + [smoothing] / 2), capped at half the shorter
- * side. Smoothing only makes the corner larger.
+ * Despite the name, the corners are not continuous-curvature squircles: each is a circular arc with an effective
+ * radius of r × (1 + [smoothing] / 2), capped at half the shorter side, and the outline is a plain rounded rectangle
+ * ([Outline.Rounded]) so everything drawn in it takes the fast rounded-rectangle paths. Smoothing only makes the
+ * corner larger.
  */
 class SquircleShape(
     val topStart: Dp,
@@ -63,77 +65,22 @@ class SquircleShape(
             return Outline.Rectangle(size.toRect())
         }
 
-        val path = Path()
-        val s = smoothing.coerceIn(0f, 1f)
-        val halfW = w / 2f
-        val halfH = h / 2f
-        val minHalfDim = min(halfW, halfH)
-
-        // Zero-allocation inline onset & handle calculations
-        val lTL = if (tlPx > 0f) min(tlPx * (1f + s * 0.5f), minHalfDim) else 0f
-        val cTL = if (tlPx > 0f) tlPx * 0.55228475f * (lTL / tlPx) else 0f
-
-        val lTR = if (trPx > 0f) min(trPx * (1f + s * 0.5f), minHalfDim) else 0f
-        val cTR = if (trPx > 0f) trPx * 0.55228475f * (lTR / trPx) else 0f
-
-        val lBR = if (brPx > 0f) min(brPx * (1f + s * 0.5f), minHalfDim) else 0f
-        val cBR = if (brPx > 0f) brPx * 0.55228475f * (lBR / brPx) else 0f
-
-        val lBL = if (blPx > 0f) min(blPx * (1f + s * 0.5f), minHalfDim) else 0f
-        val cBL = if (blPx > 0f) blPx * 0.55228475f * (lBL / blPx) else 0f
-
-        path.moveTo(lTL, 0f)
-
-        // Top edge to top-right
-        path.lineTo(w - lTR, 0f)
-        if (lTR > 0f) {
-            path.cubicTo(
-                w - lTR + cTR, 0f,
-                w, lTR - cTR,
-                w, lTR
+        // Each corner is a circular arc of radius r × (1 + smoothing / 2), capped at half the shorter side. Handing
+        // that over as a rounded rectangle, not a path, lets the card's background, border, clip and shadow all take
+        // Android's rounded-rectangle fast paths, which a resizing card (a switch's rows rising away) depends on:
+        // a generic path makes each of them rasterise the card again at every new height.
+        val grow = 1f + smoothing.coerceIn(0f, 1f) * 0.5f
+        val cap = min(w, h) / 2f
+        fun corner(px: Float) = if (px > 0f) CornerRadius(min(px * grow, cap)) else CornerRadius.Zero
+        return Outline.Rounded(
+            RoundRect(
+                rect = size.toRect(),
+                topLeft = corner(tlPx),
+                topRight = corner(trPx),
+                bottomRight = corner(brPx),
+                bottomLeft = corner(blPx)
             )
-        } else {
-            path.lineTo(w, 0f)
-        }
-
-        // Right edge to bottom-right
-        path.lineTo(w, h - lBR)
-        if (lBR > 0f) {
-            path.cubicTo(
-                w, h - lBR + cBR,
-                w - lBR + cBR, h,
-                w - lBR, h
-            )
-        } else {
-            path.lineTo(w, h)
-        }
-
-        // Bottom edge to bottom-left
-        path.lineTo(lBL, h)
-        if (lBL > 0f) {
-            path.cubicTo(
-                lBL - cBL, h,
-                0f, h - lBL + cBL,
-                0f, h - lBL
-            )
-        } else {
-            path.lineTo(0f, h)
-        }
-
-        // Left edge to top-left
-        path.lineTo(0f, lTL)
-        if (lTL > 0f) {
-            path.cubicTo(
-                0f, lTL - cTL,
-                lTL - cTL, 0f,
-                lTL, 0f
-            )
-        } else {
-            path.lineTo(0f, 0f)
-        }
-
-        path.close()
-        return Outline.Generic(path)
+        )
     }
 
     override fun equals(other: Any?): Boolean {

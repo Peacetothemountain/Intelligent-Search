@@ -56,7 +56,6 @@ class BackupManager @Inject constructor(
             "searchFiles" to SettingsManager.SEARCH_FILES,
             "searchWeb" to SettingsManager.SEARCH_WEB,
             "searchCalculator" to SettingsManager.SEARCH_CALCULATOR,
-            "searchCalendar" to SettingsManager.SEARCH_CALENDAR,
             "showWallpaper" to SettingsManager.SHOW_WALLPAPER,
             "filesHiddenFiles" to SettingsManager.FILES_HIDDEN_FILES,
             "filesThumbnails" to SettingsManager.FILES_THUMBNAILS,
@@ -121,8 +120,9 @@ class BackupManager @Inject constructor(
         /**
          * Opt-ins that share data or reach the network. A backup may switch them off but never on: a file someone
          * else made must not be able to start sharing contacts with assistants, sending clipboard text and keystrokes
-         * out, reading notifications or media sessions, or making requests the user turned off (web searches, and
-         * the suggestions, definitions and forecasts that Web Suggestions sends for).
+         * out, or making requests the user turned off (web searches, and the suggestions, definitions and forecasts
+         * that Web Suggestions sends for). Notifications are read only with Android's notification access, which no
+         * backup carries.
          */
         private val PRIVACY_OPT_IN_KEYS = setOf(
             SettingsManager.APP_FUNCTIONS_SHARE_CONTACTS.name,
@@ -130,7 +130,6 @@ class BackupManager @Inject constructor(
             SettingsManager.SMART_CLIPBOARD_SUGGESTIONS.name,
             SettingsManager.SEARCH_WEB_SUGGESTIONS.name,
             SettingsManager.LIVE_CURRENCY_RATES.name,
-            SettingsManager.SEARCH_NOTIFICATIONS.name,
             SettingsManager.AI_ANSWERS_ENABLED.name,
             // Launch Portal's notification and floating button need permissions this phone may not have granted, and
             // the button draws over other apps; like the opt-ins above, only the user switches them on.
@@ -169,7 +168,6 @@ class BackupManager @Inject constructor(
         prefsMap["searchFiles"] = currentSettings.searchFiles.toString()
         prefsMap["searchWeb"] = currentSettings.searchWeb.toString()
         prefsMap["searchCalculator"] = currentSettings.searchCalculator.toString()
-        prefsMap["searchCalendar"] = currentSettings.searchCalendar.toString()
         prefsMap["backgroundBlur"] = currentSettings.backgroundBlur.toString()
         prefsMap["showWallpaper"] = currentSettings.showWallpaper.toString()
         prefsMap["backgroundTransparency"] = currentSettings.backgroundTransparency.toString()

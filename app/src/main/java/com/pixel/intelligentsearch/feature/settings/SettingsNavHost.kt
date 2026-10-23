@@ -168,7 +168,7 @@ fun SettingsScreensHub(
                 // A swipe started while this one sprang back is already running at the high rate; resetting here
                 // would drop it to the normal rate (and switch touch boost off) for the rest of that swipe.
                 if (exitSwipes.get() == swipe) {
-                    com.pixel.intelligentsearch.core.ui.WindowFramePacing.setNormalRefreshRateCategory(act)
+                    com.pixel.intelligentsearch.core.ui.WindowFramePacing.restoreDefaultRefreshRate(act)
                 }
             }
         }
@@ -266,7 +266,7 @@ fun SettingsScreensHub(
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Main> { MainSettingsScreen(prefs, onNavigate, onBack, context, exoPlayer, showTutorial) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Appearance> { AppearanceScreen(prefs, onNavigate, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.CustomIcons> { CustomIconsScreen(prefs, onBack) }
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchSources> { SearchSourcesScreen(prefs, onNavigate, onBack) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.SearchSources> { SearchSourcesScreen(onNavigate, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior> { SearchBehaviorScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal> { LaunchPortalScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.AppSearch> { AppSearchScreen(prefs, onNavigate, onBack) }

@@ -28,7 +28,9 @@ import kotlin.math.abs
  * worked out here from what the sliders mean (the custom colour is an HCT seed: hue, saturation as the share of the
  * chroma that hue reaches at the tone, and lightness as tone; the Custom subtheme's accent is the seed's hue and
  * saturation at the tone keeping 7:1 with the pill, on the side Material's foreground rule picks; Color Opacity is the
- * custom colour's opacity; Transparency the whole bar's background), not from the widget's code.
+ * custom colour's opacity; Transparency the whole bar's background, except a pill locked black, which stays solid), not from the widget's code. Each part of the
+ * background is checked as it shows: the pill and circle are opaque within the backdrop (the group the widget fades at
+ * once), so the rim under them never shows through and nothing is painted twice.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @Config(qualifiers = "w412dp-h915dp-xhdpi")
@@ -72,7 +74,7 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
         val customAlpha: Double get() = opacity / 100.0 * backgroundAlpha
     }
 
-    /** One painted layer of the widget: its colour without alpha, and its alpha. */
+    /** One painted layer of the widget: its colour without alpha, and its alpha as it shows (with the backdrop's). */
     data class Layer(val rgb: Int, val alpha: Int) {
         override fun toString() = "#%06X@%d".format(rgb and 0xFFFFFF, alpha)
     }
@@ -108,10 +110,14 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
             .apply(activity, FrameLayout(activity))
     }
 
+    /** The layer [id] as it shows: its own alpha within the backdrop, times the backdrop's. */
     private fun View.layer(id: Int): Layer {
         val view = findViewById<ImageView>(id)
-        return Layer(view.imageTintList!!.defaultColor and 0xFFFFFF, view.imageAlpha)
+        val backdrop = findViewById<View>(R.id.widget_backdrop).alpha
+        return Layer(view.imageTintList!!.defaultColor and 0xFFFFFF, Math.round(view.imageAlpha * backdrop))
     }
+
+    private fun View.ownAlpha(id: Int): Int = findViewById<ImageView>(id).imageAlpha
 
     private fun View.tint(id: Int): Int = findViewById<ImageView>(id).imageTintList!!.defaultColor
 
@@ -138,6 +144,7 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
             bar.subtheme == "Dark" -> 0x303134
             else -> widgetColors(dark).surfaceContainer
         } and 0xFFFFFF
+        // The pill locked black stays solid whatever the Transparency; the rim around it fades.
         val a = when {
             bar.material && bar.lockBlack -> 255
             bar.isCustom -> alpha(s.customAlpha)
@@ -180,10 +187,13 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
 
             val pill = view.layer(R.id.widget_pill_background)
             assertClose("$label pill", expectedPill(s), pill)
+            // Painted once: the pill and circle hide the rim under them, so it never shows through or tints them.
+            assertEquals("$label pill is opaque in the backdrop", 255, view.ownAlpha(R.id.widget_pill_background))
             val rim = view.findViewById<ImageView>(R.id.widget_outer_background)
             if (bar.material) {
                 assertClose("$label rim", expectedRim(s), view.layer(R.id.widget_outer_background))
                 assertClose("$label circle", expectedPill(s), view.layer(R.id.widget_sound_background))
+                assertEquals("$label circle is opaque in the backdrop", 255, view.ownAlpha(R.id.widget_sound_background))
                 assertEquals("$label action icon", expectedAccent(s), view.tint(R.id.widget_sound_icon))
             } else {
                 assertEquals("$label has no rim", View.GONE, rim.visibility)
@@ -206,8 +216,13 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
             Slider.LIGHTNESS -> if (bar.isCustom) assertIncreasing("lightness", customLayers.map { luminance(it!!) })
             Slider.COLOR_OPACITY -> if (bar.isCustom) assertIncreasing("opacity", customLayers.map { it!!.alpha.toFloat() })
             Slider.TRANSPARENCY -> {
-                val background = rendered.map { (_, pill, rim) -> if (bar.material && bar.lockBlack) rim!! else pill }
-                assertIncreasing("transparency", background.map { -it.alpha.toFloat() })
+                // The whole background fades, except a pill locked black, which stays solid.
+                if (bar.material && bar.lockBlack) {
+                    assertEquals("$bar locked pill stays solid", listOf(255), rendered.map { (_, pill, _) -> pill.alpha }.distinct())
+                } else {
+                    assertIncreasing("pill transparency", rendered.map { (_, pill, _) -> -pill.alpha.toFloat() })
+                }
+                if (bar.material) assertIncreasing("rim transparency", rendered.map { (_, _, rim) -> -rim!!.alpha.toFloat() })
             }
         }
     }

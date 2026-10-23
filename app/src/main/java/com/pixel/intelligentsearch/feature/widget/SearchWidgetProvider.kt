@@ -327,11 +327,10 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         internal data class WidgetDesignConfig(
             val isMaterialYou: Boolean,
             val rimColorOpaque: Int,
-            val rimAlphaInt: Int,
             val pillColorOpaque: Int,
-            val pillAlphaInt: Int,
             val circleColorOpaque: Int,
-            val circleAlphaInt: Int,
+            /** How see-through the outline, pill and circle are drawn, as one group ([WidgetColorRules.backdropAlphas]). */
+            val backdrop: WidgetColorRules.BackdropAlphas,
             val showGIcon: Boolean,
             /** Whether the G is Google's four-colour one: the System G style, or the Custom style with Keep System G. */
             val useOriginalG: Boolean,
@@ -521,8 +520,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val design = if (isMaterialYou) WidgetDesign.MATERIAL else WidgetDesign.SYSTEM
             val settings = WidgetSettingsStore(prefs).load(design, WidgetDefaults(widgetColors.primary, widgetColors.isDynamicActive))
             val isCustom = settings.subtheme == "Custom"
-            val containerAlphaInt = WidgetColorRules.alphaInt(WidgetColorRules.backgroundAlpha(settings))
-            val effectiveColorAlphaInt = WidgetColorRules.alphaInt(WidgetColorRules.customColorAlpha(settings))
+            val backdrop = WidgetColorRules.backdropAlphas(settings, isMaterialYou)
             val customBar = if (isCustom) WidgetColorRules.customBarColors(settings, isMaterialYou) else null
             val actualCustomColor = settings.customColorInt
             val effectiveIconTheme = settings.gIconTheme
@@ -537,7 +535,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     "Custom" -> actualCustomColor
                     else -> widgetColors.surfaceContainer
                 }
-                val pillAlphaInt = if (isCustom) effectiveColorAlphaInt else containerAlphaInt
                 val isPillLight = when (settings.subtheme) {
                     "Light" -> true
                     "Dark" -> false
@@ -556,13 +553,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
                 WidgetDesignConfig(
                     isMaterialYou = false,
-                    // The optional outline is the accent, as see-through as the pill.
+                    // The optional outline is the accent, as see-through as the pill: the backdrop fades both.
                     rimColorOpaque = themePColor or Color.BLACK,
-                    rimAlphaInt = pillAlphaInt,
                     pillColorOpaque = pillColorOpaque,
-                    pillAlphaInt = pillAlphaInt,
                     circleColorOpaque = pillColorOpaque,
-                    circleAlphaInt = pillAlphaInt,
+                    backdrop = backdrop,
                     showGIcon = settings.showGIcon,
                     useOriginalG = useOriginalG,
                     themePColor = themePColor,
@@ -599,9 +594,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 }
 
                 val circleColor = pillColor
-                val rimAlphaInt = WidgetColorRules.alphaInt(WidgetColorRules.rimAlpha(settings))
-                val pillAlphaInt = if (lockBlack) 255 else (if (isCustom) effectiveColorAlphaInt else containerAlphaInt)
-                val circleAlphaInt = pillAlphaInt
 
                 val rimColorOpaque = Color.rgb(Color.red(rimColor), Color.green(rimColor), Color.blue(rimColor))
                 val pillColorOpaque = Color.rgb(Color.red(pillColor), Color.green(pillColor), Color.blue(pillColor))
@@ -618,11 +610,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 WidgetDesignConfig(
                     isMaterialYou = true,
                     rimColorOpaque = rimColorOpaque,
-                    rimAlphaInt = rimAlphaInt,
                     pillColorOpaque = pillColorOpaque,
-                    pillAlphaInt = pillAlphaInt,
                     circleColorOpaque = circleColorOpaque,
-                    circleAlphaInt = circleAlphaInt,
+                    backdrop = backdrop,
                     showGIcon = settings.showGIcon,
                     useOriginalG = useOriginalG,
                     themePColor = themePColor,
@@ -680,18 +670,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, layoutId)
 
             bindShape(views, context, config)
-            views.setColorStateList(R.id.widget_outer_background, "setImageTintList", ColorStateList.valueOf(config.rimColorOpaque))
-            views.setInt(R.id.widget_outer_background, "setImageAlpha", config.rimAlphaInt)
-
-            views.setContentDescription(R.id.widget_outer_background, null)
-            views.setContentDescription(R.id.widget_pill_background, null)
-            views.setContentDescription(R.id.widget_sound_background, null)
-
-            views.setColorStateList(R.id.widget_pill_background, "setImageTintList", ColorStateList.valueOf(config.pillColorOpaque))
-            views.setInt(R.id.widget_pill_background, "setImageAlpha", config.pillAlphaInt)
-
-            views.setColorStateList(R.id.widget_sound_background, "setImageTintList", ColorStateList.valueOf(config.circleColorOpaque))
-            views.setInt(R.id.widget_sound_background, "setImageAlpha", config.circleAlphaInt)
+            bindBackdrop(views, config)
 
             bindGIcon(views, config, context, doodle)
 
@@ -794,11 +773,13 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             )
             views.setContentDescription(R.id.widget_pill_container, context.getString(R.string.widget_search_description))
 
-            // Circle button handling (Material Design bar)
+            // Circle button handling (Material Design bar). Its background, in the backdrop, shows with it.
             if (!config.isMaterialYou || config.actionIconStr == "None") {
                 views.setViewVisibility(R.id.widget_sound_search, View.GONE)
+                views.setViewVisibility(R.id.widget_sound_background, View.GONE)
             } else {
                 views.setViewVisibility(R.id.widget_sound_search, View.VISIBLE)
+                views.setViewVisibility(R.id.widget_sound_background, View.VISIBLE)
                 val circleActionIntent = Intent(when (config.actionIconStr) {
                     "Search" -> getGeminiSearchIntent(context)
                     "Assistant", "Voice", "Gemini" -> getGeminiSearchIntent(context)
@@ -961,19 +942,43 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             views.setViewLayoutHeight(android.R.id.background, shape.height.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
             views.setViewVisibility(R.id.widget_outer_background, if (shape.outline > 0) View.VISIBLE else View.GONE)
             views.setImageViewResource(R.id.widget_outer_background, WidgetBarShape.background(shape.outerRadius))
+            // The backdrop's pill and circle lie exactly under the buttons they back, so both get the same insets.
             if (config.isMaterialYou) {
                 // As the layout's padding is read: rounded to whole pixels.
                 val inset = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, shape.outline.toFloat(), context.resources.displayMetrics).roundToInt()
-                views.setViewPadding(R.id.widget_bar_row, inset, inset, inset, inset)
+                for (row in listOf(R.id.widget_bar_row, R.id.widget_backdrop_row)) views.setViewPadding(row, inset, inset, inset, inset)
                 // A 48dp square with 24dp corners is the round circle.
                 views.setImageViewResource(R.id.widget_sound_background, WidgetBarShape.background(shape.circleRadius))
             } else {
                 val inset = shape.outline.toFloat()
-                for (side in listOf(RemoteViews.MARGIN_LEFT, RemoteViews.MARGIN_TOP, RemoteViews.MARGIN_RIGHT, RemoteViews.MARGIN_BOTTOM)) {
-                    views.setViewLayoutMargin(R.id.widget_pill_container, side, inset, TypedValue.COMPLEX_UNIT_DIP)
+                for (id in listOf(R.id.widget_pill_container, R.id.widget_pill_background)) {
+                    for (side in listOf(RemoteViews.MARGIN_LEFT, RemoteViews.MARGIN_TOP, RemoteViews.MARGIN_RIGHT, RemoteViews.MARGIN_BOTTOM)) {
+                        views.setViewLayoutMargin(id, side, inset, TypedValue.COMPLEX_UNIT_DIP)
+                    }
                 }
             }
             views.setImageViewResource(R.id.widget_pill_background, WidgetBarShape.background(shape.pillRadius))
+        }
+
+        /**
+         * Paints the bar's backdrop: the outline, the pill and the circle in their colours, each at its opacity within
+         * the backdrop, and the whole backdrop faded once by Transparency ([WidgetColorRules.backdropAlphas]; a pill
+         * locked black stays solid and only the rim fades), so where the pill and circle sit over the outline they are
+         * neither painted twice nor tinted by it. The icons are
+         * outside the backdrop and stay fully opaque. Everything is set on every redraw, as in [bindShape].
+         */
+        private fun bindBackdrop(views: RemoteViews, config: WidgetDesignConfig) {
+            val alphas = config.backdrop
+            views.setFloat(R.id.widget_backdrop, "setAlpha", alphas.backdrop)
+            views.setColorStateList(R.id.widget_outer_background, "setImageTintList", ColorStateList.valueOf(config.rimColorOpaque))
+            views.setInt(R.id.widget_outer_background, "setImageAlpha", WidgetColorRules.alphaInt(alphas.rim))
+            views.setColorStateList(R.id.widget_pill_background, "setImageTintList", ColorStateList.valueOf(config.pillColorOpaque))
+            views.setInt(R.id.widget_pill_background, "setImageAlpha", 255)
+            views.setColorStateList(R.id.widget_sound_background, "setImageTintList", ColorStateList.valueOf(config.circleColorOpaque))
+            views.setInt(R.id.widget_sound_background, "setImageAlpha", 255)
+            views.setContentDescription(R.id.widget_outer_background, null)
+            views.setContentDescription(R.id.widget_pill_background, null)
+            views.setContentDescription(R.id.widget_sound_background, null)
         }
 
         /**

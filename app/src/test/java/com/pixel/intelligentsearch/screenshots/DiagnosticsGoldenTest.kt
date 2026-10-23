@@ -93,7 +93,7 @@ class DiagnosticsGoldenTest(
                                 newSampler = { DiagnosticsSampler { BATTERY_SAMPLE } },
                                 powerEvents = { emptyFlow() }
                             )
-                            "security" -> HardwareSecurityPage(HARDWARE, ATTESTATION, POSTURE)
+                            "security" -> HardwareSecurityPage(HARDWARE, ATTESTATION, POSTURE, onVerifyAgain = {})
                             else -> error("unknown page $page")
                         }
                     }

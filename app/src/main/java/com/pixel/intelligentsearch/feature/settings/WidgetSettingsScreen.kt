@@ -34,6 +34,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -58,14 +60,16 @@ import kotlinx.coroutines.launch
 
 private data class SlotPreviewItem(val slotKey: String, val label: String, val resId: Int)
 
-/** The live preview's pill: its fill, and whether that fill is light, which picks the colours of the icons on it. */
+/**
+ * The live preview's pill: its fill, and whether that fill is light, which picks the colours of the icons on it. The
+ * fill is opaque, as the widget's is within its backdrop; the backdrop's own opacity is [WidgetPreviewColors.backdropAlpha].
+ */
 internal data class PreviewPill(val fill: Color, val isLight: Boolean)
 
 /**
  * The preview pill of the design being edited. Whether a theme-coloured pill is light or dark comes from
  * the colour scheme this screen is drawn with, the same source as its fill, so the icons drawn on it keep their
- * contrast when the app's theme differs from the system's. The fixed light and dark pills of the System
- * subtheme without dynamic colour still follow the system, as the widget does.
+ * contrast when the app's theme differs from the system's.
  */
 @Composable
 internal fun previewPill(
@@ -73,37 +77,35 @@ internal fun previewPill(
     subtheme: String,
     lockBlack: Boolean,
     accentColor: Color,
-    containerAlpha: Float,
-    effectiveColorAlpha: Float,
     isDynamicColorActive: Boolean
 ): PreviewPill = previewPill(
-    isMaterialDesign, subtheme, lockBlack, accentColor, containerAlpha, effectiveColorAlpha, isDynamicColorActive,
+    isMaterialDesign, subtheme, lockBlack, accentColor, isDynamicColorActive,
     themedSurface = MaterialTheme.colorScheme.surfaceContainer,
-    appDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f,
-    systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    appDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
 )
 
-/** [previewPill] with the screen's theme passed in: [themedSurface] fills a theme-coloured pill. */
+/**
+ * [previewPill] with the screen's theme passed in: [themedSurface] fills a theme-coloured pill. The fixed light and
+ * dark pills of the System subtheme without dynamic colour follow the app's theme ([appDark]), as the widget does: it
+ * draws in the app's theme, which the system's dark theme only decides while the app follows the system.
+ */
 internal fun previewPill(
     isMaterialDesign: Boolean,
     subtheme: String,
     lockBlack: Boolean,
     accentColor: Color,
-    containerAlpha: Float,
-    effectiveColorAlpha: Float,
     isDynamicColorActive: Boolean,
     themedSurface: Color,
-    appDark: Boolean,
-    systemDark: Boolean
+    appDark: Boolean
 ): PreviewPill {
-    val themed = themedSurface.copy(alpha = containerAlpha)
-    val custom = accentColor.copy(alpha = effectiveColorAlpha)
+    val themed = themedSurface.copy(alpha = 1f)
+    val custom = accentColor.copy(alpha = 1f)
     val customIsLight = WidgetColorRules.iconsGoDark(accentColor.toArgb())
-    val light = Color(0xFFF1F3F4).copy(alpha = containerAlpha)
-    val dark = Color(0xFF303134).copy(alpha = containerAlpha)
+    val light = Color(0xFFF1F3F4)
+    val dark = Color(0xFF303134)
     return if (isMaterialDesign) {
         when {
-            lockBlack -> PreviewPill(Color(0xFF121212), isLight = false)
+            lockBlack -> PreviewPill(Color(WidgetColorRules.LOCKED_PILL), isLight = false)
             subtheme == "Custom" -> PreviewPill(custom, customIsLight)
             else -> PreviewPill(themed, !appDark)
         }
@@ -114,27 +116,34 @@ internal fun previewPill(
             "Custom" -> PreviewPill(custom, customIsLight)
             else -> when {
                 isDynamicColorActive -> PreviewPill(themed, !appDark)
-                systemDark -> PreviewPill(dark, isLight = false)
+                appDark -> PreviewPill(dark, isLight = false)
                 else -> PreviewPill(light, isLight = true)
             }
         }
     }
 }
 
-/** The colours the preview is drawn with: this screen's scheme, and whether the app and the system are dark. */
+/** The colours the preview is drawn with: this screen's scheme, and whether the app is dark. */
 internal data class PreviewTheme(
     val primary: Color,
     val primaryContainer: Color,
     val surfaceContainer: Color,
-    val appDark: Boolean,
-    val systemDark: Boolean
+    val appDark: Boolean
 )
 
 /** Everything the live preview paints for one design, worked out from its draft. */
 internal data class WidgetPreviewColors(
-    /** The outline around the pill: the Material design's rim, or the System design's accent outline. */
+    /**
+     * How opaque the backdrop (the outline, the pill and the circle, drawn as one group under the icons) is, as the
+     * widget fades its backdrop ([WidgetColorRules.backdropAlphas]).
+     */
+    val backdropAlpha: Float,
+    /**
+     * The outline around the pill, at its opacity within the backdrop: the Material design's rim, or the System
+     * design's accent outline.
+     */
     val rim: Color,
-    /** The pill, whose fill the Material design's circle shares. */
+    /** The pill, whose fill the Material design's circle shares; opaque within the backdrop. */
     val pill: PreviewPill,
     /** The Accented G style's G, mic, shortcuts and circle icon. */
     val accentPrimary: Color,
@@ -163,10 +172,9 @@ internal fun widgetPreviewColors(
 ): WidgetPreviewColors {
     val isCustomTheme = draft.subtheme == "Custom"
     val lockBlack = draft.lockBlack
-    // Alphas as the widget's views take them (whole steps of 1/255), so the preview is exactly as see-through.
-    fun alpha(value: Float) = WidgetColorRules.alphaInt(value) / 255f
-    val containerAlpha = alpha(WidgetColorRules.backgroundAlpha(draft))
-    val effectiveColorAlpha = alpha(WidgetColorRules.customColorAlpha(draft))
+    val alphas = WidgetColorRules.backdropAlphas(draft, isMaterialDesign)
+    // The outline's alpha as the widget's view takes it (whole steps of 1/255), so the preview is exactly as see-through.
+    val rimAlpha = WidgetColorRules.alphaInt(alphas.rim) / 255f
     val accentColor = if (isCustomTheme) Color(draft.customColorInt) else theme.primary
 
     val materialRim = if (isMaterialDesign) {
@@ -176,7 +184,6 @@ internal fun widgetPreviewColors(
         } else {
             theme.primary to theme.primaryContainer
         }
-        val rimAlpha = alpha(WidgetColorRules.rimAlpha(draft))
         when (draft.subtheme) {
             "Custom" -> accentColor.copy(alpha = rimAlpha)
             "Material" -> rimContainer.copy(alpha = rimAlpha)
@@ -189,12 +196,9 @@ internal fun widgetPreviewColors(
         subtheme = draft.subtheme,
         lockBlack = lockBlack,
         accentColor = accentColor,
-        containerAlpha = containerAlpha,
-        effectiveColorAlpha = effectiveColorAlpha,
         isDynamicColorActive = isDynamicColorActive,
         themedSurface = theme.surfaceContainer,
-        appDark = theme.appDark,
-        systemDark = theme.systemDark
+        appDark = theme.appDark
     )
     val isPillLight = pill.isLight
 
@@ -205,8 +209,8 @@ internal fun widgetPreviewColors(
 
     val accentPrimary = customBar?.let { Color(it.accent) }
         ?: Color(WidgetColorRules.iconColor(surfaceColors.primary, isMaterialDesign, lockBlack, isPillLight, 32.0))
-    // The System design's optional outline is its accent, as see-through as its pill.
-    val rim = materialRim ?: accentPrimary.copy(alpha = pill.fill.alpha)
+    // The System design's optional outline is its accent, as see-through as its pill: the backdrop fades both.
+    val rim = materialRim ?: accentPrimary.copy(alpha = rimAlpha)
 
     val systemIconTint = when {
         customBar != null -> Color(customBar.plainIcon)
@@ -214,6 +218,7 @@ internal fun widgetPreviewColors(
         else -> Color.White
     }
     return WidgetPreviewColors(
+        backdropAlpha = alphas.backdrop,
         rim = rim,
         pill = pill,
         accentPrimary = accentPrimary,
@@ -563,6 +568,20 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 containerColor = MaterialTheme.colorScheme.background,
                 border = null
             )
+            val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
+            // Worked out by the widget's own rules, so the preview shows what the widget will draw.
+            val previewColors = widgetPreviewColors(
+                draft = activeDraft.value,
+                isMaterialDesign = previewIsMaterialYou,
+                theme = PreviewTheme(
+                    primary = MaterialTheme.colorScheme.primary,
+                    primaryContainer = MaterialTheme.colorScheme.primaryContainer,
+                    surfaceContainer = MaterialTheme.colorScheme.surfaceContainer,
+                    appDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+                ),
+                isDynamicColorActive = isDynamicActive,
+                iconAccents = { isLight -> SearchIconColors.themeAccents(context, isLight) }
+            ) { isDark -> DynamicThemeDetector.resolveWidgetColors(context, isDark) }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -571,7 +590,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     .matteShell(previewShellLook, RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                    val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
                     val isCustomTheme = localSubtheme == "Custom"
                     // The wave behind the preview takes the custom colour as picked, opacity and all.
                     val waveColor = if (isCustomTheme) {
@@ -593,30 +611,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     )
 
                     val effectiveGIconTheme = localMaterialGIconTheme
-                    // Worked out by the widget's own rules, so the preview shows what the widget will draw.
-                    val previewColors = widgetPreviewColors(
-                        draft = activeDraft.value,
-                        isMaterialDesign = previewIsMaterialYou,
-                        theme = PreviewTheme(
-                            primary = MaterialTheme.colorScheme.primary,
-                            primaryContainer = MaterialTheme.colorScheme.primaryContainer,
-                            surfaceContainer = MaterialTheme.colorScheme.surfaceContainer,
-                            appDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f,
-                            systemDark = androidx.compose.foundation.isSystemInDarkTheme()
-                        ),
-                        isDynamicColorActive = isDynamicActive,
-                        iconAccents = { isLight -> SearchIconColors.themeAccents(context, isLight) }
-                    ) { isDark -> DynamicThemeDetector.resolveWidgetColors(context, isDark) }
-                    val pill = previewColors.pill
-                    val isPreviewPillLight = pill.isLight
-
-                    val rimBrush = if (previewIsMaterialYou && isCustomTheme) {
-                        androidx.compose.ui.graphics.SolidColor(previewColors.rim)
-                    } else {
-                        androidx.compose.ui.graphics.Brush.linearGradient(listOf(previewColors.rim, previewColors.rim))
-                    }
-
-                    val previewPillColorAlpha = pill.fill
+                    val isPreviewPillLight = previewColors.pill.isLight
 
                     val gPrimary = previewColors.accentPrimary
                     // The Material G style's icons are the search overlay's, worked out from these.
@@ -626,13 +621,19 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                     // The bar's outline and corners, as the widget draws them.
                     val barShape = com.pixel.intelligentsearch.feature.widget.WidgetBarShape.of(activeDraft.value, previewIsMaterialYou)
+                    val showsCircle = localActionIcon != "None" && previewIsMaterialYou
+                    // As the widget: the backgrounds are one backdrop behind the icons, faded at once, and the icons
+                    // over it are laid out on the same lines without backgrounds of their own.
+                    Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    WidgetPreviewBackdrop(
+                        colors = previewColors,
+                        shape = barShape,
+                        showsCircle = showsCircle,
+                        modifier = Modifier.matchParentSize()
+                    )
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
-                            .then(
-                                if (barShape.outline > 0) Modifier.background(rimBrush, RoundedCornerShape(barShape.outerRadius.dp)) else Modifier
-                            )
                             .padding(barShape.outline.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -640,9 +641,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             modifier = Modifier
                                 .weight(1f)
                                 .height(barShape.pillHeight.dp)
-                                .then(
-                                    Modifier.background(previewPillColorAlpha, RoundedCornerShape(barShape.pillRadius.dp))
-                                )
                                 .padding(horizontal = 16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -737,15 +735,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             }
                         }
                         
-                        if (localActionIcon != "None" && previewIsMaterialYou) {
+                        if (showsCircle) {
                             Spacer(Modifier.width(8.dp))
                             Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .background(
-                                        previewPillColorAlpha,
-                                        if (barShape.circleIsRound) androidx.compose.foundation.shape.CircleShape else RoundedCornerShape(barShape.circleRadius.dp)
-                                    ),
+                                modifier = Modifier.size(48.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 val hasCustomAction = effectiveGIconTheme == "Custom G Icon"
@@ -773,6 +766,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 )
                             }
                         }
+                    }
                     }
             }
 
@@ -877,7 +871,15 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                 when (activeTabName) {
-                    "Appearance" -> WidgetAppearanceTab(fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState, computedCustomColorInt = computedCustomColorInt, view = view, hapticEngine = hapticEngine)
+                    "Appearance" -> {
+                        // The pill as the bar draws it at Transparency 0, for the Transparency track.
+                        val opaqueBackdrop = WidgetColorRules.backdropAlphas(activeDraft.value.copy(transparency = 0f), previewIsMaterialYou).backdrop
+                        WidgetAppearanceTab(
+                            fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState, computedCustomColorInt = computedCustomColorInt,
+                            barBackground = previewColors.pill.fill.copy(alpha = previewColors.pill.fill.alpha * opaqueBackdrop),
+                            view = view, hapticEngine = hapticEngine
+                        )
+                    }
 
                     "Color Studio" -> WidgetColorStudioTab(fields = fields, ui = ui, computedCustomColorInt = computedCustomColorInt)
 
@@ -887,6 +889,46 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
 
             WidgetEditorDialogs(fields = fields, ui = ui, colors = colors, shortcutOptions = shortcutOptions, prefs = prefs)
+        }
+    }
+}
+
+/**
+ * The live preview's backdrop, drawn as the widget draws its own: the outline (the Material design's rim) filling the
+ * whole bar, and the pill and, when [showsCircle], the circle over it, laid out on the same lines as the icons drawn
+ * over them. They are drawn as one group faded once by [WidgetPreviewColors.backdropAlpha], so where the pill and
+ * circle sit over the outline they are neither painted twice nor tinted by it.
+ */
+@Composable
+internal fun WidgetPreviewBackdrop(
+    colors: WidgetPreviewColors,
+    shape: com.pixel.intelligentsearch.feature.widget.WidgetBarShape,
+    showsCircle: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .graphicsLayer {
+                alpha = colors.backdropAlpha
+                compositingStrategy = CompositingStrategy.Offscreen
+            }
+            .then(if (shape.outline > 0) Modifier.background(colors.rim, RoundedCornerShape(shape.outerRadius.dp)) else Modifier)
+            .padding(shape.outline.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .background(colors.pill.fill, RoundedCornerShape(shape.pillRadius.dp))
+        )
+        if (showsCircle) {
+            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(com.pixel.intelligentsearch.feature.widget.WidgetBarShape.CIRCLE_SIZE.dp)
+                    .background(colors.pill.fill, if (shape.circleIsRound) CircleShape else RoundedCornerShape(shape.circleRadius.dp))
+            )
         }
     }
 }

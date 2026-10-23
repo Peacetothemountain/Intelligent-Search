@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     Material Design Widget layout with dual-layer accent rim effect.
-    Outer ImageView provides the accent-tinted border rim.
-    Inner ImageViews provide the dark pill and circle backgrounds.
+    The backdrop holds the bar's backgrounds: the accent-tinted rim, and the pill and circle over it.
+    The bar row above it holds the G, the mic, the shortcuts and the circle's icon, with no backgrounds of its own.
     Matches 1:1 with Widget Customization preview in WidgetSettingsScreen.kt.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
@@ -26,14 +26,60 @@
         android:clipToOutline="true"
         tools:ignore="UselessParent">
 
-        <!-- Outer rim capsule (accent-tinted border, 32dp corner radius) -->
-        <ImageView
-            android:id="@+id/widget_outer_background"
+        <!-- The backdrop: the bar's backgrounds as one group, which the provider fades at once by the bar's
+             Transparency, so the pill and circle aren't painted twice where they sit over the rim. Its row is laid
+             out exactly as the bar row below (the provider gives both the same padding, and shows the circle with the
+             circle button), so each background lies under the button it backs. -->
+        <FrameLayout
+            android:id="@+id/widget_backdrop"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:src="@drawable/bg_outer_capsule"
-            android:scaleType="fitXY"
-            android:importantForAccessibility="no" />
+            android:importantForAccessibility="noHideDescendants">
+
+            <!-- Outer rim capsule (accent-tinted border, 32dp corner radius) -->
+            <ImageView
+                android:id="@+id/widget_outer_background"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/bg_outer_capsule"
+                android:scaleType="fitXY"
+                android:importantForAccessibility="no" />
+
+            <LinearLayout
+                android:id="@+id/widget_backdrop_row"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:baselineAligned="false"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp">
+
+                <!-- Pill dark background, under the search pill -->
+                <ImageView
+                    android:id="@+id/widget_pill_background"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:layout_gravity="center_vertical"
+                    android:src="@drawable/bg_search_pill_material"
+                    android:scaleType="fitXY"
+                    android:importantForAccessibility="no" />
+
+                <!-- Circle background, under the circle action button -->
+                <ImageView
+                    android:id="@+id/widget_sound_background"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginStart="8dp"
+                    android:src="@drawable/bg_circle_button"
+                    android:scaleType="fitXY"
+                    android:importantForAccessibility="no" />
+            </LinearLayout>
+        </FrameLayout>
 
         <!-- Inner content row (insets 8dp to expose accent rim all around matching preview) -->
         <LinearLayout
@@ -48,7 +94,9 @@
             android:paddingTop="8dp"
             android:paddingBottom="8dp">
 
-            <!-- Search pill (48dp height matching preview) -->
+            <!-- Search pill (48dp height matching preview); its background is the backdrop's pill. The tap target
+                 holds the content row rather than being it: the row's spacer is weighted, and a weighted row
+                 directly inside this weighted pill would be measured twice over (NestedWeights). -->
             <FrameLayout
                 android:id="@+id/widget_pill_container"
                 android:layout_width="0dp"
@@ -57,18 +105,9 @@
                 android:layout_gravity="center_vertical"
                 android:clickable="true"
                 android:focusable="true"
-                android:contentDescription="@string/widget_search_description">
+                android:contentDescription="@string/widget_search_description"
+                tools:ignore="UselessParent">
 
-                <!-- Pill dark background -->
-                <ImageView
-                    android:id="@+id/widget_pill_background"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:src="@drawable/bg_search_pill_material"
-                    android:scaleType="fitXY"
-                    android:importantForAccessibility="no" />
-
-                <!-- Pill content -->
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
@@ -176,7 +215,8 @@
                 </LinearLayout>
             </FrameLayout>
 
-            <!-- Circle action button (48dp x 48dp matching 48dp pill height and 8dp gap in preview) -->
+            <!-- Circle action button (48dp x 48dp matching 48dp pill height and 8dp gap in preview); its background
+                 is the backdrop's circle -->
             <FrameLayout
                 android:id="@+id/widget_sound_search"
                 android:layout_width="48dp"
@@ -186,14 +226,6 @@
                 android:clickable="true"
                 android:focusable="true"
                 android:contentDescription="@string/widget_talkback_search_action">
-
-                <ImageView
-                    android:id="@+id/widget_sound_background"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:src="@drawable/bg_circle_button"
-                    android:scaleType="fitXY"
-                    android:importantForAccessibility="no" />
 
                 <ImageView
                     android:id="@+id/widget_sound_icon"

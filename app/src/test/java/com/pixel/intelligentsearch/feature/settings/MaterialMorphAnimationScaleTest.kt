@@ -75,7 +75,7 @@ class MaterialMorphAnimationScaleTest {
     /** The last row on each page: the bottom card ends just under it. */
     private val pages = mapOf(
         "Launch Portal" to "Home Screen Shortcut",
-        "Search Sources" to "Android Settings"
+        "Search Sources" to "Live Currency Rates"
     )
 
     @Before
@@ -107,7 +107,7 @@ class MaterialMorphAnimationScaleTest {
     private fun Page(name: String) {
         when (name) {
             "Launch Portal" -> LaunchPortalScreen(prefs) {}
-            else -> SearchSourcesScreen(prefs, {}) {}
+            else -> SearchSourcesScreen({}) {}
         }
     }
 

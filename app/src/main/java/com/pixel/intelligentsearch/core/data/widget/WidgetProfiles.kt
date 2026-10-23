@@ -146,11 +146,6 @@ class WidgetProfiles(private val prefs: SharedPreferences, private val defaults:
             }
         }
 
-        /** The profile settings (each profile's working design and its saved state) a backup can carry. */
-        fun isProfileKey(key: String): Boolean =
-            SettingsManager.WIDGET_PROFILE_DESIGNS.any { it.name == key } ||
-                SettingsManager.WIDGET_PROFILE_SAVED_DESIGNS.any { it.name == key }
-
         /** What [WidgetSettingsStore.save] writes for [settings], by key without the design's prefix. */
         internal fun valuesOf(design: WidgetDesign, settings: WidgetDesignSettings): JsonObject {
             val recorded = RecordingEditor()

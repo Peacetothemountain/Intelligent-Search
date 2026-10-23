@@ -217,13 +217,6 @@ class WidgetProfilesTest {
         assertTrue(WidgetProfiles.SAVED_THEMES_KEY in SettingsManager.REMOVED_NAMES)
     }
 
-    @Test
-    fun theProfileKeysAreKnown() {
-        assertTrue(WidgetProfiles.isProfileKey(SettingsManager.WIDGET_PROFILE_DESIGNS.first().name))
-        assertTrue(WidgetProfiles.isProfileKey(SettingsManager.WIDGET_PROFILE_SAVED_DESIGNS.last().name))
-        assertFalse(WidgetProfiles.isProfileKey(SettingsManager.WIDGET_ACTIVE_PROFILE.name))
-    }
-
     /** A profile an older build stored with the removed favourite apps and media rows still reads, without them. */
     @Test
     fun aProfileWithTheRemovedRowsStillReads() {

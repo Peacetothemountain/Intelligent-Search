@@ -145,11 +145,6 @@ class ResultShortcuts(val entries: List<ResultShortcut>) {
         }
     }
 
-    fun withoutNickname(key: String, nickname: String): ResultShortcuts {
-        val entry = byKey[key] ?: return this
-        return update(key, entry.title) { it.copy(nicknames = it.nicknames.filterNot { n -> n.equals(nickname, ignoreCase = true) }) }
-    }
-
     /** Sets [key]'s trigger word; blank removes it. A word [QuickKeys.check] rejects leaves the set unchanged. */
     fun withTrigger(key: String, title: String, trigger: String, bangSymbol: String = "!"): ResultShortcuts {
         val word = QuickKeys.normalize(trigger)

@@ -397,12 +397,4 @@ private fun BatteryCard(battery: GlanceBattery, onOpened: () -> Unit, modifier: 
     )
 }
 
-/** The At a Glance section on its own, as the empty search shows it; for screenshots and previews. */
-@Composable
-internal fun GlanceSection(items: List<GlanceItem>, modifier: Modifier = Modifier) {
-    Column(modifier, verticalArrangement = Arrangement.Top) {
-        if (items.isEmpty()) return@Column
-        GlanceHeader()
-        items.forEach { GlanceCard(it, onOpened = {}) }
-    }
-}
+

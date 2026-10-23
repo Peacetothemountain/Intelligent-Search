@@ -62,7 +62,8 @@ class ResultShortcutsTest {
     fun anEntryWithNothingLeftIsDropped() {
         val set = ResultShortcuts.EMPTY.withPinned(spotify, "Spotify", true).withPinned(spotify, "Spotify", false)
         assertTrue(set.entries.isEmpty())
-        val named = ResultShortcuts.EMPTY.withNickname(dad, "John", "dad").withoutNickname(dad, "DAD")
+        // As the settings page removes a result's last nickname.
+        val named = ResultShortcuts.EMPTY.withNickname(dad, "John", "dad").update(dad, "John") { it.copy(nicknames = emptyList()) }
         assertTrue(named.entries.isEmpty())
     }
 

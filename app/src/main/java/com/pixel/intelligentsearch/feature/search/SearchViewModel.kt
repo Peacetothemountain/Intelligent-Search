@@ -588,8 +588,7 @@ class SearchViewModel @Inject constructor(
         try {
             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
             // Password managers mark copied secrets sensitive; never show or search those.
-            val isSensitive = clipboard?.primaryClipDescription?.extras
-                ?.getBoolean("android.content.extra.IS_SENSITIVE", false) == true
+            val isSensitive = ClipboardLens.isSensitive(clipboard?.primaryClipDescription)
             val engine = settings.searchEngine
             if (ClipboardLens.isImage(clipboard?.primaryClipDescription)) {
                 // An image is offered to Lens from its description alone; the clip itself is read only when the

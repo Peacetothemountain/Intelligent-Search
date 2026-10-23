@@ -25,7 +25,8 @@ import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import com.pixel.intelligentsearch.core.glance.MediaControls
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.search.GlanceClock
-import com.pixel.intelligentsearch.feature.search.GlanceSection
+import com.pixel.intelligentsearch.feature.search.GlanceCard
+import com.pixel.intelligentsearch.feature.search.GlanceHeader
 import com.pixel.intelligentsearch.feature.search.LocalGlanceClock
 import com.pixel.intelligentsearch.feature.search.NotificationResultRow
 import com.pixel.intelligentsearch.feature.search.NotificationsHeader
@@ -133,5 +134,15 @@ class AtAGlanceGoldenTest(private val state: String, private val dark: Boolean) 
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0} dark={1}")
         fun parameters(): List<Array<Any>> = listOf("glance", "notifications")
             .flatMap { state -> listOf(arrayOf<Any>(state, false), arrayOf<Any>(state, true)) }
+    }
+}
+
+/** The At a Glance section on its own, as the empty search shows it: its heading, then one card per item. */
+@androidx.compose.runtime.Composable
+private fun GlanceSection(items: List<com.pixel.intelligentsearch.core.glance.GlanceItem>) {
+    androidx.compose.foundation.layout.Column {
+        if (items.isEmpty()) return@Column
+        GlanceHeader()
+        items.forEach { GlanceCard(it, onOpened = {}) }
     }
 }

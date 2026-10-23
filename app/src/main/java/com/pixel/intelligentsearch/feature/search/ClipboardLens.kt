@@ -31,10 +31,12 @@ internal object ClipboardLens {
     private const val ANY_IMAGE = "image/*"
     private const val IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
 
+    /** Whether the clip [description] describes was marked sensitive (password managers do): never shown or searched. */
+    fun isSensitive(description: ClipDescription?): Boolean = description?.extras?.getBoolean(IS_SENSITIVE, false) == true
+
     /** Whether the clip [description] describes is an image that may be offered (not marked sensitive). */
     fun isImage(description: ClipDescription?): Boolean =
-        description != null && description.hasMimeType(ANY_IMAGE) &&
-            description.extras?.getBoolean(IS_SENSITIVE, false) != true
+        description != null && description.hasMimeType(ANY_IMAGE) && !isSensitive(description)
 
     /** The clip's first exact image type, e.g. "image/png", or [ANY_IMAGE] when it names none. */
     fun imageType(description: ClipDescription): String =

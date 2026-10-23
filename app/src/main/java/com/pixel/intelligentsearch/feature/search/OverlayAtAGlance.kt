@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import android.content.Context
 import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Intent
@@ -151,11 +152,14 @@ internal fun rememberGlanceItems(hiddenApps: Set<String>, active: Boolean): List
     return remember(snapshot, toggles, now) { glanceItems(snapshot, toggles, now) }
 }
 
+/** The shape of an At a Glance card, which the keyboard's ring follows. */
+internal val GlanceCardShape = RoundedCornerShape(28.dp)
+
 /** How often the alarm's "in" time moves on. */
 private const val GLANCE_COARSE_TICK_MS = 30_000L
 
 /** The At a Glance section of the empty search: its heading, then one card per item. [onOpened] runs as a card opens something. */
-internal fun LazyListScope.atAGlanceItems(items: List<GlanceItem>, onOpened: () -> Unit) {
+internal fun LazyListScope.atAGlanceItems(items: List<GlanceItem>, highlight: @Composable (key: String) -> Modifier, onOpened: () -> Unit) {
     if (items.isEmpty()) return
     item(key = "glance_header", contentType = "recent_label") {
         GlanceHeader(Modifier.animateItem(
@@ -173,7 +177,8 @@ internal fun LazyListScope.atAGlanceItems(items: List<GlanceItem>, onOpened: () 
                     placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
                     fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
                     fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-                )
+                ),
+                highlight = highlight(glance.key)
             )
         }
     }
@@ -185,15 +190,38 @@ internal fun GlanceHeader(modifier: Modifier = Modifier) {
     OverlaySectionLabel("At a Glance", modifier.testTag(GLANCE_HEADER_TAG).then(SectionLabelPadding))
 }
 
-/** One At a Glance card. */
+/**
+ * One At a Glance card. A tap (or Enter on it, [highlight] being the keyboard's ring) runs [onOpened], then opens what
+ * the card is about ([openGlanceItem]).
+ */
 @Composable
-internal fun GlanceCard(item: GlanceItem, onOpened: () -> Unit, modifier: Modifier = Modifier) {
+internal fun GlanceCard(item: GlanceItem, onOpened: () -> Unit, modifier: Modifier = Modifier, highlight: Modifier = Modifier) {
+    val context = LocalContext.current
+    val open = {
+        onOpened()
+        openGlanceItem(context, item)
+    }
     when (item) {
-        is GlanceItem.Timer -> TimerCard(item.timer, onOpened, modifier)
-        is GlanceItem.Alarm -> AlarmCard(item.alarm.triggerAt, onOpened, modifier)
-        is GlanceItem.Media -> MediaCard(item.media, onOpened, modifier)
-        is GlanceItem.Birthday -> BirthdayCard(item.birthday, onOpened, modifier)
-        is GlanceItem.Battery -> BatteryCard(item.battery, onOpened, modifier)
+        is GlanceItem.Timer -> TimerCard(item.timer, open, modifier, highlight)
+        is GlanceItem.Alarm -> AlarmCard(item.alarm.triggerAt, open, modifier, highlight)
+        is GlanceItem.Media -> MediaCard(item.media, open, modifier, highlight)
+        is GlanceItem.Birthday -> BirthdayCard(item.birthday, open, modifier, highlight)
+        is GlanceItem.Battery -> BatteryCard(item.battery, open, modifier, highlight)
+    }
+}
+
+/**
+ * What an At a Glance card opens, by tap or by Enter: a timer's own page (else the clock's timers, else its app),
+ * the clock's alarms, the player's page, the contact, or Android's battery page.
+ */
+internal fun openGlanceItem(context: Context, item: GlanceItem) {
+    when (item) {
+        is GlanceItem.Timer -> openPendingOrApp(context, item.timer.contentIntent, item.timer.packageName, fallback = Intent(AlarmClock.ACTION_SHOW_TIMERS))
+        is GlanceItem.Alarm -> launchSafeIntent(context, Intent(AlarmClock.ACTION_SHOW_ALARMS))
+        is GlanceItem.Media -> item.media.controls.open()
+        is GlanceItem.Birthday -> item.birthday.lookupUri.takeIf { it.isNotEmpty() }
+            ?.let { launchSafeIntent(context, Intent(Intent.ACTION_VIEW, it.toUri())) }
+        is GlanceItem.Battery -> launchSafeIntent(context, Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
     }
 }
 
@@ -208,14 +236,16 @@ private fun GlanceRow(
     subtitle: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    highlight: Modifier = Modifier,
     description: String? = null,
     trailing: @Composable RowScope.() -> Unit = {}
 ) {
-    val shape = RoundedCornerShape(28.dp)
+    val shape = GlanceCardShape
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
+            .then(highlight)
             .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f), shape)
             .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f), shape)
             .clip(shape)
@@ -263,8 +293,7 @@ private fun GlanceBadge(icon: ImageVector, size: Dp = 40.dp) {
 
 /** A running timer counting down each second, a timer that has run out, or a stopwatch counting up. */
 @Composable
-private fun TimerCard(timer: GlanceTimer, onOpened: () -> Unit, modifier: Modifier) {
-    val context = LocalContext.current
+private fun TimerCard(timer: GlanceTimer, open: () -> Unit, modifier: Modifier, highlight: Modifier) {
     val now = rememberGlanceNow(1_000L, enabled = timer.kind != GlanceTimer.Kind.TimesUp)
     val kindLabel = if (timer.kind == GlanceTimer.Kind.Stopwatch) "Stopwatch" else "Timer"
     val label = timer.label.takeIf { it.isNotBlank() && !it.equals(kindLabel, ignoreCase = true) }
@@ -272,17 +301,15 @@ private fun TimerCard(timer: GlanceTimer, onOpened: () -> Unit, modifier: Modifi
         leading = { GlanceBadge(Icons.Outlined.Timer) },
         title = "$kindLabel · ${timerReading(timer, now)}",
         subtitle = listOfNotNull(label, timer.appLabel.takeIf { it.isNotBlank() }).joinToString(" · "),
-        onClick = {
-            onOpened()
-            openPendingOrApp(context, timer.contentIntent, timer.packageName, fallback = Intent(AlarmClock.ACTION_SHOW_TIMERS))
-        },
-        modifier = modifier
+        onClick = open,
+        modifier = modifier,
+        highlight = highlight
     )
 }
 
 /** The next alarm, its time in the phone's 12 or 24 hour style; opens the clock's alarms. */
 @Composable
-private fun AlarmCard(triggerAt: Long, onOpened: () -> Unit, modifier: Modifier) {
+private fun AlarmCard(triggerAt: Long, open: () -> Unit, modifier: Modifier, highlight: Modifier) {
     val context = LocalContext.current
     val now = rememberGlanceNow(GLANCE_COARSE_TICK_MS)
     val time = remember(triggerAt) {
@@ -292,17 +319,15 @@ private fun AlarmCard(triggerAt: Long, onOpened: () -> Unit, modifier: Modifier)
         leading = { GlanceBadge(Icons.Outlined.Alarm) },
         title = "Alarm · $time",
         subtitle = Durations.until(triggerAt - now),
-        onClick = {
-            onOpened()
-            launchSafeIntent(context, Intent(AlarmClock.ACTION_SHOW_ALARMS))
-        },
-        modifier = modifier
+        onClick = open,
+        modifier = modifier,
+        highlight = highlight
     )
 }
 
 /** What is playing: the cover in the matte circle, title and artist, and play or pause and next. */
 @Composable
-private fun MediaCard(media: GlanceMedia, onOpened: () -> Unit, modifier: Modifier) {
+private fun MediaCard(media: GlanceMedia, open: () -> Unit, modifier: Modifier, highlight: Modifier) {
     GlanceRow(
         leading = {
             val artwork = media.artwork
@@ -323,11 +348,9 @@ private fun MediaCard(media: GlanceMedia, onOpened: () -> Unit, modifier: Modifi
         },
         title = media.title,
         subtitle = listOf(media.artist, media.appLabel).filter { it.isNotBlank() }.joinToString(" · "),
-        onClick = {
-            onOpened()
-            media.controls.open()
-        },
+        onClick = open,
         modifier = modifier,
+        highlight = highlight,
         trailing = {
             IconButton(onClick = { if (media.isPlaying) media.controls.pause() else media.controls.play() }) {
                 Icon(
@@ -345,8 +368,7 @@ private fun MediaCard(media: GlanceMedia, onOpened: () -> Unit, modifier: Modifi
 
 /** A contact's birthday this week, with their photo when they have one; opens the contact. */
 @Composable
-private fun BirthdayCard(birthday: GlanceBirthday, onOpened: () -> Unit, modifier: Modifier) {
-    val context = LocalContext.current
+private fun BirthdayCard(birthday: GlanceBirthday, open: () -> Unit, modifier: Modifier, highlight: Modifier) {
     val lookupUri = birthday.lookupUri
     val day = birthdayDayLabel(birthday)
     GlanceRow(
@@ -356,11 +378,9 @@ private fun BirthdayCard(birthday: GlanceBirthday, onOpened: () -> Unit, modifie
         },
         title = "${birthday.name}'s Birthday",
         subtitle = listOfNotNull(day, birthday.turning?.let { "Turns $it" }).joinToString(" · "),
-        onClick = {
-            onOpened()
-            if (lookupUri.isNotEmpty()) launchSafeIntent(context, Intent(Intent.ACTION_VIEW, lookupUri.toUri()))
-        },
-        modifier = modifier
+        onClick = open,
+        modifier = modifier,
+        highlight = highlight
     )
 }
 
@@ -373,17 +393,14 @@ internal fun birthdayDayLabel(birthday: GlanceBirthday): String = when (birthday
 
 /** The battery when it is low or plugged in, with what the charger is doing; opens Android's battery page. */
 @Composable
-private fun BatteryCard(battery: GlanceBattery, onOpened: () -> Unit, modifier: Modifier) {
-    val context = LocalContext.current
+private fun BatteryCard(battery: GlanceBattery, open: () -> Unit, modifier: Modifier, highlight: Modifier) {
     GlanceRow(
         leading = { GlanceBadge(if (battery.pluggedIn) Icons.Outlined.BatteryChargingFull else Icons.Outlined.BatteryAlert) },
         title = "Battery · ${battery.level}%",
         subtitle = if (battery.pluggedIn) battery.statusLabel ?: "Plugged In" else "Battery Low",
-        onClick = {
-            onOpened()
-            launchSafeIntent(context, Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
-        },
-        modifier = modifier
+        onClick = open,
+        modifier = modifier,
+        highlight = highlight
     )
 }
 

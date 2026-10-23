@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.runtime.getValue
 import com.pixel.intelligentsearch.core.ui.rememberAppIcon
 import com.pixel.intelligentsearch.core.ui.AppIconImage
@@ -136,6 +137,8 @@ internal fun OverlayDetailPane(s: OverlayScope, modifier: Modifier = Modifier) {
                         AiAnswerCard(answer, model = answer.provider.model(aiModel)) { openNavTarget(context, s, stop.target) }
                     }
                 }
+                // A glance card at full size, as the answers are.
+                stop.target is NavTarget.Glance -> GlanceCard(stop.target.item, onOpened = { s.ui.hasStartedTyping = false })
                 else -> DetailCard(s, stop.target)
             }
         }
@@ -284,7 +287,15 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
             DetailTitle("${target.group.label} Only", "Files Are Limited to This Type.")
             DetailActions { DetailAction("Show All Files", Icons.Outlined.FilterListOff, emphasized = true, onClick = open) }
         }
-        is NavTarget.Answer -> Unit // drawn as the answer's own card by OverlayDetailPane
+        is NavTarget.Notification -> {
+            val entry = target.entry
+            AppIconImage(rememberAppIcon(entry.packageName, s.settingsState.activeIconPack), Modifier.size(DETAIL_PICTURE_SIZE)) {
+                DetailSymbol(Icons.Outlined.Notifications)
+            }
+            DetailTitle(entry.title.ifBlank { entry.appLabel }, notificationDetail(entry, System.currentTimeMillis()))
+            DetailActions { DetailAction("Open", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true, onClick = open) }
+        }
+        is NavTarget.Answer, is NavTarget.Glance -> Unit // drawn as their own cards by OverlayDetailPane
     }
 }
 

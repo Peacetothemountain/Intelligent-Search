@@ -167,9 +167,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         val order = rows.map { it.first().listKey }
         searchResultsListState.scrollIntoView(stop.listKey, isTowardEnd(searchResultsListState, order, stop.listKey), animationsOn)
     }
-    // Read only while the section can show: typing stops every At a Glance receiver and listener.
-    val glanceItems = rememberGlanceItems(settingsState.hiddenApps, active = uiState.query.isEmpty())
-    val notificationHits = rememberNotificationHits(uiState.query, settingsState.hiddenApps)
+    val glanceItems = s.glanceItems
+    val notificationHits = s.notificationHits
 
     LazyColumn(
         state = searchResultsListState,
@@ -372,7 +371,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         }
 
         // At a Glance: codes, timers, the next alarm, what's playing, birthdays and the battery, above the empty search.
-        if (uiState.query.isEmpty()) atAGlanceItems(glanceItems) { hasStartedTyping = false }
+        if (uiState.query.isEmpty()) {
+            atAGlanceItems(glanceItems, highlight = { key -> Modifier.keyboardHighlight(s, key, GlanceCardShape) }) { hasStartedTyping = false }
+        }
 
         if (bestMatch != null) {
             item(key = ResultListKeys.BEST_MATCH, contentType = "best_match") {
@@ -772,7 +773,11 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         }
 
         // Search Your Notifications: matching notifications after the phone's other results.
-        if (uiState.query.isNotEmpty()) notificationResultItems(notificationHits, settingsState.activeIconPack) { hasStartedTyping = false }
+        if (uiState.query.isNotEmpty()) notificationResultItems(
+            notificationHits,
+            settingsState.activeIconPack,
+            highlight = { entry -> Modifier.keyboardHighlight(s, ResultListKeys.notification(entry), ResultHighlightRowShape) }
+        ) { hasStartedTyping = false }
 
         if (!isBottomResults) {
             renderInlineShortcuts()

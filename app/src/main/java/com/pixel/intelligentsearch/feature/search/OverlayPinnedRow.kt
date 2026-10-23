@@ -115,7 +115,7 @@ internal fun OverlayPinnedRow(s: OverlayScope) {
                         is AndroidSettingResult -> PinnedTile(result.title, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }, spokenLabel = result.spokenLabel, modifier = highlight) {
                             TileSymbol(androidSettingIcon(result.iconType))
                         }
-                        is SavedLink -> PinnedTile(result.name, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }) {
+                        is SavedLink -> PinnedTile(result.name, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }, modifier = highlight) {
                             SavedLinkIcon(result, rememberSavedLinkIcon(result), 48.dp)
                         }
                     }

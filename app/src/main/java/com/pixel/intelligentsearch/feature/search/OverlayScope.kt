@@ -82,7 +82,11 @@ internal class OverlayScope(
     val contactActionTargets: ContactActionTargets,
     val filteredApps: List<AppItem>,
     val filteredFiles: List<FileItem>,
-    val distinctRecents: List<String>
+    val distinctRecents: List<String>,
+    /** At a Glance's cards for the empty search. */
+    val glanceItems: List<com.pixel.intelligentsearch.core.glance.GlanceItem> = emptyList(),
+    /** The notifications matching the query (Search Your Notifications). */
+    val notificationHits: List<com.pixel.intelligentsearch.core.glance.IndexedNotification> = emptyList()
 ) {
     /** What the arrow keys can reach in the results now, a row per result ([OverlayKeyboardNav]). */
     val navRows: List<List<NavStop>> by lazy { navSources(this).rows() }

@@ -67,7 +67,12 @@ internal fun rememberNotificationHits(query: String, hiddenApps: Set<String>): L
 }
 
 /** The Notifications section of a search's results. [onOpened] runs as a result opens. */
-internal fun LazyListScope.notificationResultItems(hits: List<IndexedNotification>, iconPack: String?, onOpened: () -> Unit) {
+internal fun LazyListScope.notificationResultItems(
+    hits: List<IndexedNotification>,
+    iconPack: String?,
+    highlight: @Composable (IndexedNotification) -> Modifier,
+    onOpened: () -> Unit
+) {
     if (hits.isEmpty()) return
     item(key = "notifications_divider", contentType = "divider") {
         HorizontalDivider(
@@ -87,7 +92,7 @@ internal fun LazyListScope.notificationResultItems(hits: List<IndexedNotificatio
                 placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
                 fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
                 fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-            )
+            ).then(highlight(entry))
         )
     }
 }

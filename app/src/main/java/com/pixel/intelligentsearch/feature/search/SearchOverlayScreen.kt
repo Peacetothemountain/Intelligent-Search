@@ -672,6 +672,9 @@ fun SearchOverlayScreen(
         spokenQuery = null
     }
 
+    // Read here so the keyboard's stops and the results list see the same cards and notifications.
+    val glanceItems = rememberGlanceItems(settingsState.hiddenApps, active = uiState.query.isEmpty())
+    val notificationHits = rememberNotificationHits(uiState.query, settingsState.hiddenApps)
     val sections = OverlayScope(
         onOpenSettings = onOpenSettings,
         viewModel = viewModel,
@@ -705,7 +708,9 @@ fun SearchOverlayScreen(
         contactActionTargets = contactActionTargets,
         filteredApps = filteredApps,
         filteredFiles = filteredFiles,
-        distinctRecents = distinctRecents
+        distinctRecents = distinctRecents,
+        glanceItems = glanceItems,
+        notificationHits = notificationHits
     )
     val searchBarContent = @Composable { OverlaySearchBar(sections) }
 

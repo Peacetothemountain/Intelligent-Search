@@ -1,5 +1,8 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.openPendingOrApp
+import com.pixel.intelligentsearch.core.glance.IndexedNotification
+import com.pixel.intelligentsearch.core.glance.GlanceItem
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Context
 import android.content.Intent
@@ -72,6 +75,12 @@ internal sealed interface NavTarget {
 
     /** The file-type chip above the files ("PDFs Only"): removes the limit to [group] for this query. */
     data class RemoveFileTypeFilter(val group: FileTypeGroup) : NavTarget
+
+    /** A matching notification: does what tapping it does, or opens its app. */
+    data class Notification(val entry: IndexedNotification) : NavTarget
+
+    /** An At a Glance card: opens what it is about ([openGlanceItem]). */
+    data class Glance(val item: GlanceItem) : NavTarget
 }
 
 /** The main action of an instant answer's card. */
@@ -225,6 +234,7 @@ internal object ResultListKeys {
     fun contact(contact: ContactItem) = "contact_${contact.lookupUri.ifBlank { "${contact.name}_${contact.phoneNumber}" }}"
     fun file(file: FileItem) = "file_${file.uri}"
     fun savedLink(link: SavedLink) = "saved_link_${link.url}"
+    fun notification(entry: IndexedNotification) = "notification_${entry.key}"
 
     /** A stop inside a row of several: the row's key and the item's. */
     fun inRow(rowKey: String, itemKey: String) = "$rowKey/$itemKey"
@@ -252,6 +262,8 @@ internal data class NavSources(
     /** The AI answer for this query, whose card's main action is "Continue in". */
     val aiAnswer: AiAnswerState? = null,
     val savedLinks: List<SavedLink> = emptyList(),
+    /** At a Glance's cards, above the empty search. */
+    val glance: List<GlanceItem> = emptyList(),
     val bestMatch: Any? = null,
     val pinned: List<Any> = emptyList(),
     val recents: List<String> = emptyList(),
@@ -265,7 +277,9 @@ internal data class NavSources(
     val contacts: List<ContactItem> = emptyList(),
     /** The file type the query limits [files] to; its chip leads the files. */
     val fileTypeFilter: FileTypeGroup? = null,
-    val files: List<FileItem> = emptyList()
+    val files: List<FileItem> = emptyList(),
+    /** Matching notifications, after the phone's other results. */
+    val notifications: List<IndexedNotification> = emptyList()
 ) {
     /** The stops, a row per result (the app and Pinned rows are one row of several). */
     fun rows(): List<List<NavStop>> = buildList {
@@ -276,6 +290,7 @@ internal data class NavSources(
         if (answer != null) single(ResultListKeys.AI_ANSWER, NavTarget.Answer(AnswerAction.ContinueInAssistant(answer.provider, answer.question)))
         else aiAsk?.let { (provider, question) -> single(ResultListKeys.ASK_AI, NavTarget.AskAi(provider, question)) }
         savedLinks.distinctBy(ResultListKeys::savedLink).forEach { single(ResultListKeys.savedLink(it), NavTarget.Result(it)) }
+        glance.distinctBy { it.key }.forEach { single(it.key, NavTarget.Glance(it)) }
         bestMatch?.let { single(ResultListKeys.BEST_MATCH, NavTarget.Result(it, (it as? AppItem)?.let { LaunchIconKeys.BEST_MATCH })) }
         if (pinned.isNotEmpty()) {
             add(pinned.distinctBy(ResultListKeys::pinned).map { item ->
@@ -299,6 +314,7 @@ internal data class NavSources(
                 files.distinctBy(ResultListKeys::file).forEach { single(ResultListKeys.file(it), NavTarget.Result(it)) }
             }
         }
+        notifications.distinctBy { it.key }.forEach { single(ResultListKeys.notification(it), NavTarget.Notification(it)) }
     }
 }
 
@@ -355,6 +371,7 @@ internal fun navSources(s: OverlayScope): NavSources {
         aiAsk = uiState.askAi?.let { provider -> AiAnswers.questionIn(query)?.let { provider to it } },
         aiAnswer = uiState.aiAnswer,
         savedLinks = uiState.savedLinks,
+        glance = if (query.isEmpty()) s.glanceItems else emptyList(),
         bestMatch = s.bestMatch,
         pinned = if (query.isEmpty()) uiState.pinned else emptyList(),
         recents = if (settings.searchPreviousSearches && query.isEmpty()) s.distinctRecents else emptyList(),
@@ -368,7 +385,8 @@ internal fun navSources(s: OverlayScope): NavSources {
         history = uiState.recentSearches,
         contacts = if (settings.searchContacts) s.filteredContacts.ifEmpty { uiState.contacts } else emptyList(),
         fileTypeFilter = uiState.fileTypeFilter.takeIf { settings.searchFiles },
-        files = if (settings.searchFiles) s.filteredFiles.ifEmpty { uiState.files } else emptyList()
+        files = if (settings.searchFiles) s.filteredFiles.ifEmpty { uiState.files } else emptyList(),
+        notifications = if (query.isNotEmpty()) s.notificationHits else emptyList()
     )
 }
 
@@ -414,6 +432,14 @@ internal fun openNavTarget(context: Context, s: OverlayScope, target: NavTarget)
         // Nothing is sent until the row is chosen; then its answer card takes the row's place.
         is NavTarget.AskAi -> s.viewModel.askAi()
         is NavTarget.RemoveFileTypeFilter -> s.viewModel.clearFileTypeFilter()
+        is NavTarget.Notification -> {
+            s.ui.hasStartedTyping = false
+            openPendingOrApp(context, target.entry.contentIntent, target.entry.packageName)
+        }
+        is NavTarget.Glance -> {
+            s.ui.hasStartedTyping = false
+            openGlanceItem(context, target.item)
+        }
     }
 }
 

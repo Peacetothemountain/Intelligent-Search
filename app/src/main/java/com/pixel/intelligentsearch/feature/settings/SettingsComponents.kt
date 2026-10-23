@@ -530,12 +530,8 @@ fun SettingsSliderRow(
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 // The value (and reset) sit beside the title when they fit, and move under it when large text or a
-                // narrow window leaves no room, so neither is ever clipped.
-                androidx.compose.foundation.layout.FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    itemVerticalAlignment = Alignment.CenterVertically
-                ) {
+                // narrow window leaves no room, so neither is ever clipped (see TitleWithTrailing).
+                TitleWithTrailing {
                     Text(
                         text = title,
                         style = MaterialTheme.typography.titleMedium,
@@ -886,4 +882,38 @@ fun oneLineAutoSize(style: androidx.compose.ui.text.TextStyle): androidx.compose
     val max = style.fontSize.value
     val min = max - kotlin.math.floor(max * 0.4f / step) * step
     return androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = min.sp, maxFontSize = max.sp, stepSize = step.sp)
+}
+
+/**
+ * A title and what trails it (a value, a reset button): side by side, the trailing part at the end, when both fit
+ * at their full size; otherwise the trailing part on its own line under the title. Unlike a flow row, the trailing
+ * part is always measured against the whole row, never squeezed into what's left beside the title.
+ */
+@Composable
+private fun TitleWithTrailing(content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content = content, modifier = Modifier.fillMaxWidth()) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        // Measured once, at the row's full width: never squeezed into the space beside the title.
+        val trailing = measurables.getOrNull(1)?.measure(loose)
+        val trailingWidth = trailing?.width ?: 0
+        val gap = 8.dp.roundToPx()
+        val sideBySide = trailing == null || measurables[0].maxIntrinsicWidth(loose.maxHeight) + gap + trailingWidth <= constraints.maxWidth
+        val title = measurables[0].measure(
+            if (sideBySide && trailing != null) loose.copy(maxWidth = (constraints.maxWidth - gap - trailingWidth).coerceAtLeast(0)) else loose
+        )
+        val width = constraints.maxWidth
+        if (sideBySide) {
+            val height = maxOf(title.height, trailing?.height ?: 0)
+            layout(width, height) {
+                title.placeRelative(0, (height - title.height) / 2)
+                trailing?.placeRelative(width - trailingWidth, (height - trailing.height) / 2)
+            }
+        } else {
+            // The trailing part on its own line.
+            layout(width, title.height + trailing.height) {
+                title.placeRelative(0, 0)
+                trailing.placeRelative(0, title.height)
+            }
+        }
+    }
 }

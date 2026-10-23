@@ -48,7 +48,7 @@ private fun SettingsRowDivider() {
 /**
  * A setting chosen from a few [options] on the app's one selector ([ShellSelector]): the row's icon, [title] and
  * [subtitle], then the choices under it, each named by [label] on one line that shrinks to fit at large text sizes,
- * after its [leading] mark when there is one (a provider's logo).
+ * after its [leading] mark when there is one (a provider's logo, told whether its option is selected).
  */
 @Composable
 internal fun <T> SettingsSelectorRow(
@@ -62,7 +62,7 @@ internal fun <T> SettingsSelectorRow(
     showDivider: Boolean,
     modifier: Modifier = Modifier,
     selectorModifier: Modifier = Modifier,
-    leading: (@Composable (T) -> Unit)? = null
+    leading: (@Composable (option: T, isSelected: Boolean) -> Unit)? = null
 ) {
     Column(modifier = modifier) {
         SettingsRowLabel(
@@ -83,7 +83,7 @@ internal fun <T> SettingsSelectorRow(
                 horizontalArrangement = Arrangement.Center
             ) {
                 if (leading != null) {
-                    leading(option)
+                    leading(option, isSelected)
                     Spacer(modifier = Modifier.width(8.dp))
                 }
                 Text(

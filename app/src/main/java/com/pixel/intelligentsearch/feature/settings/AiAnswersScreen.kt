@@ -112,7 +112,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                             },
                             label = { it.displayName },
                             showDivider = true,
-                            leading = { AiProviderLogo(it, size = 18.dp) }
+                            leading = { option, isSelected -> AiProviderLogo(option, size = 18.dp, selected = isSelected) }
                         )
                         SettingsDropdownRow(
                             title = "Model",

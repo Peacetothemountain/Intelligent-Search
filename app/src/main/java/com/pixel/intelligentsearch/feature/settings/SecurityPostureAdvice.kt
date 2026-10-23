@@ -25,16 +25,6 @@ internal enum class PostureFix(val label: String) {
 /** What a posture check means for this phone, in a sentence or two, and the [fix] for it when there is one. */
 internal data class PostureAdvice(val text: String, val fix: PostureFix?)
 
-/**
- * The check the posture card explains first: the lowest-scoring check that has been checked and is short of full
- * marks (a Weak one before a Fair one at the same score), so the card opens on what most needs attention. Null when
- * every checked check is at full marks.
- */
-internal fun weakestAxis(axes: List<SecurityPosture.AxisScore>): Axis? =
-    axes.filter { it.rating != Rating.Pending && it.score < FULL_MARKS }
-        .minWithOrNull(compareBy<SecurityPosture.AxisScore> { it.score }.thenBy { if (it.rating == Rating.Weak) 0 else 1 })
-        ?.axis
-
 /** A score at or above this is full marks: nothing is missing, so there is no gap to show. */
 internal const val FULL_MARKS = 0.999f
 

@@ -3,8 +3,7 @@ package com.pixel.intelligentsearch.feature.settings
 import android.app.Application
 import android.provider.Settings
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -15,10 +14,14 @@ import com.pixel.intelligentsearch.core.security.HardwareSecurityLevel
 import com.pixel.intelligentsearch.core.security.SecurityPosture
 import com.pixel.intelligentsearch.core.security.SecurityPosture.Axis
 import com.pixel.intelligentsearch.core.security.SecurityPosture.Rating
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
+import dagger.hilt.android.testing.HiltTestApplication
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,18 +29,21 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.LocalDate
-import kotlin.math.PI
 
 /**
- * The posture card's motion and what it is for: it opens on the check that most needs attention, says what it means
- * and offers Android's page to fix it where the phone can; a tap on the chart explains another check; and the radar's
- * lights (the gap runs, the edge light and its pings) follow pure rules.
+ * The posture card shows the checks as the layers of the phone's defences, hardware at the bottom, and is for
+ * improving them: what to improve comes ranked by what it wins back, the top one explained with Android's page to fix
+ * it where the phone can, and a tap on any layer explains that one. The scan's light follows pure rules.
  */
+@HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
-@Config(qualifiers = "w412dp-h1600dp-xhdpi")
+@Config(application = HiltTestApplication::class, qualifiers = "w412dp-h1600dp-xhdpi")
 class SecurityPostureCardTest {
 
-    @get:Rule val compose = createComposeRule()
+    @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
+    @get:Rule(order = 1) val compose = createComposeRule()
+
+    @Before fun setUp() = hilt.inject()
 
     private val verified = AttestationResult(
         isHardwareAttested = true, securityLevel = HardwareSecurityLevel.STRONGBOX, attestationChallenge = "",
@@ -45,8 +51,8 @@ class SecurityPostureCardTest {
         osPatchLevel = 202608, isRootVerified = true
     )
 
-    private fun posture(deviceSecure: Boolean, patch: String = "2026-08-05") =
-        SecurityPosture.score(HardwareSecurityLevel.STRONGBOX, verified, patch, LocalDate.of(2026, 10, 22), deviceSecure)
+    private fun posture(deviceSecure: Boolean, keys: HardwareSecurityLevel = HardwareSecurityLevel.STRONGBOX) =
+        SecurityPosture.score(keys, verified, "2026-08-05", LocalDate.of(2026, 10, 22), deviceSecure)
 
     private fun show(axes: List<SecurityPosture.AxisScore>) {
         compose.mainClock.autoAdvance = false
@@ -55,29 +61,49 @@ class SecurityPostureCardTest {
     }
 
     @Test
-    fun itOpensOnTheCheckThatMostNeedsAttention() {
-        // No screen lock (0.15) is weaker than a two-month-old patch (0.9).
-        assertEquals(Axis.ScreenLock, weakestAxis(posture(deviceSecure = false)))
-        assertEquals(Axis.PatchLevel, weakestAxis(posture(deviceSecure = true)))
-        // Every check at full marks (this month's patch, as the hardware attests it): nothing to point at.
-        val perfect = SecurityPosture.score(
-            HardwareSecurityLevel.STRONGBOX, verified.copy(osPatchLevel = 202610), null, LocalDate.of(2026, 10, 22), deviceSecure = true
-        )
-        assertNull(weakestAxis(perfect))
-        // Pending checks aren't "weak", they just haven't answered.
-        val pending = SecurityPosture.score(HardwareSecurityLevel.STRONGBOX, null, "2026-10-05", LocalDate.of(2026, 10, 22), true)
-        assertNull(weakestAxis(pending))
+    fun theLayersStackFromTheHardwareUpToTheScreenLock() {
+        show(posture(deviceSecure = true))
+        val tops = DEFENSE_ORDER.map { compose.onNodeWithTag(POSTURE_LAYER_TAG_PREFIX + it.name).getUnclippedBoundsInRoot().top }
+        assertEquals("top to bottom: screen lock first, key storage last", tops.sorted(), tops)
+        assertEquals(Axis.ScreenLock, DEFENSE_ORDER.first())
+        assertEquals(Axis.KeyStorage, DEFENSE_ORDER.last())
+        assertEquals(Axis.entries.toSet(), DEFENSE_ORDER.toSet())
     }
 
     @Test
-    fun noScreenLockSaysWhyAndOpensAndroidsSecuritySettings() {
+    fun whatToImproveIsRankedByWhatItWinsBack() {
+        // No screen lock (0.15) and TEE keys (0.75) and a two-month-old patch (0.9).
+        val plan = improvementPlan(posture(deviceSecure = false, keys = HardwareSecurityLevel.TEE))
+        assertEquals(listOf(Axis.ScreenLock, Axis.KeyStorage, Axis.PatchLevel), plan.map { it.first.axis })
+        // Six checks: the screen lock's missing 0.85 is 14% of the average, the keys' 0.25 is 4%, the patch's 2%.
+        assertEquals(listOf(14, 4, 2), plan.map { it.second })
+        // Everything at full marks, or not yet checked: nothing to improve.
+        val perfect = SecurityPosture.score(
+            HardwareSecurityLevel.STRONGBOX, verified.copy(osPatchLevel = 202610), null, LocalDate.of(2026, 10, 22), deviceSecure = true
+        )
+        assertTrue(improvementPlan(perfect).isEmpty())
+        val pending = SecurityPosture.score(HardwareSecurityLevel.STRONGBOX, null, "2026-10-05", LocalDate.of(2026, 10, 22), true)
+        assertTrue(improvementPlan(pending).isEmpty())
+    }
+
+    @Test
+    fun itOpensOnTheTopFixWithAndroidsPageForIt() {
         show(posture(deviceSecure = false))
-        compose.onNodeWithText("Screen Lock · None").assertExists()
+        compose.onNodeWithText("To Improve").assertExists()
+        compose.onNodeWithText("+14%").assertExists()
         compose.onNodeWithText("There's no screen lock", substring = true).assertExists()
         compose.onNodeWithText("Set Screen Lock").performClick()
         compose.mainClock.advanceTimeByFrame()
         val opened = shadowOf(ApplicationProvider.getApplicationContext<Application>()).nextStartedActivity
         assertEquals(Settings.ACTION_SECURITY_SETTINGS, opened?.action)
+    }
+
+    @Test
+    fun aTapOnALayerExplainsIt() {
+        show(posture(deviceSecure = true))
+        compose.onNodeWithTag(POSTURE_LAYER_TAG_PREFIX + Axis.Bootloader.name).performClick()
+        compose.mainClock.advanceTimeBy(600)
+        compose.onNodeWithText("The bootloader is locked", substring = true).assertExists()
     }
 
     @Test
@@ -100,49 +126,29 @@ class SecurityPostureCardTest {
     }
 
     @Test
-    fun everyCheckCanBeExplainedFromTalkBack() {
-        show(posture(deviceSecure = true))
-        val actions = compose.onNodeWithTag(POSTURE_RADAR_TAG).fetchSemanticsNode().config
-            .getOrNull(androidx.compose.ui.semantics.SemanticsProperties.ContentDescription)
-        assertNotNull(actions)
-        val custom = compose.onNodeWithTag(POSTURE_RADAR_TAG).fetchSemanticsNode().config.getOrNull(SemanticsActions.CustomActions)!!
-        assertEquals(Axis.entries.map { "Explain ${it.label}" }, custom.map { it.label })
-        // Explaining Bootloader swaps the advice under the chart.
-        compose.runOnIdle { custom.first { it.label == "Explain Bootloader" }.action() }
-        compose.mainClock.advanceTimeByFrame()
-        compose.onNodeWithText("Bootloader · Locked").assertExists()
+    fun theScanRisesFromTheHardwareToTheTopThenRests() {
+        assertEquals(0f, scanHeight(0f)!!, 0f)
+        assertEquals(1f, scanHeight(SCAN_CLIMB)!!, 1e-5f)
+        assertNull("resting", scanHeight(SCAN_CLIMB + 0.05f))
+        val layers = DEFENSE_ORDER.size
+        // Lit in turn from the bottom layer (the last) to the top one (the first).
+        fun brightestAt(height: Float) = (0 until layers).maxByOrNull { layerLight(height, it, layers) }!!
+        assertEquals(layers - 1, brightestAt(0.05f))
+        assertEquals(0, brightestAt(0.95f))
+        for (i in 0..100) for (k in 0 until layers) assertTrue(layerLight(i / 100f, k, layers) in 0f..1f)
+        assertEquals(0f, layerLight(null, 0, layers), 0f)
     }
 
     @Test
-    fun aTapPicksTheCheckWhoseSpokeIsNearest() {
-        val angles = List(6) { i -> (-PI / 2 + i * 2 * PI / 6).toFloat() }
-        assertEquals(0, axisAtAngle((-PI / 2).toFloat(), angles))
-        assertEquals(1, axisAtAngle((-PI / 2 + PI / 3 - 0.2).toFloat(), angles))
-        // Just left of 12 o'clock is still the top check, across the seam.
-        assertEquals(0, axisAtAngle((-PI / 2 - 0.3).toFloat(), angles))
-        assertEquals(3, axisAtAngle((PI / 2).toFloat(), angles))
-    }
-
-    @Test
-    fun aCheckPingsJustAfterTheLightPassesItThenRests() {
-        assertNull("not reached yet", vertexPing(trace = 0.30f, vertex = 0.31f))
-        assertEquals(0f, vertexPing(0.31f, 0.31f)!!, 1e-5f)
-        assertEquals(0.5f, vertexPing(0.31f + PING_SPAN / 2, 0.31f)!!, 1e-4f)
-        assertNull("faded", vertexPing(0.31f + PING_SPAN + 0.01f, 0.31f))
-        // Across the lap's seam.
-        assertNotNull(vertexPing(0.02f, 0.95f))
-    }
-
-    @Test
-    fun theTrailIsBrightestAtTheLightAndGoneAtItsTail() {
-        assertEquals(1f, traceTrail(0f), 0f)
-        assertEquals(0f, traceTrail(TRACE_TAIL), 1e-5f)
-        assertEquals(0f, traceTrail(TRACE_TAIL + 0.1f), 0f)
-        var last = 1f
-        for (i in 0..20) {
-            val v = traceTrail(TRACE_TAIL * i / 20f)
-            assertTrue(v <= last)
-            last = v
+    fun aLayersShineAndSparksMoveOneWayWithTheScan() {
+        val layers = DEFENSE_ORDER.size
+        var last = -1f
+        for (i in 0..200) {
+            val pass = layerPass(i / 200f, 2, layers) ?: continue
+            assertTrue("never goes back", pass >= last)
+            last = pass
         }
+        assertNotNull(layerPass(1f - 2.5f / layers, 2, layers))
+        assertNull("far below", layerPass(0f, 0, layers))
     }
 }

@@ -12,6 +12,10 @@ import com.pixel.intelligentsearch.core.security.AttestationResult
 import com.pixel.intelligentsearch.core.security.HardwareSecurityDetector
 import com.pixel.intelligentsearch.core.security.HardwareSecurityLevel
 import com.pixel.intelligentsearch.core.security.SecurityPosture
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
+import dagger.hilt.android.testing.HiltTestApplication
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -23,11 +27,15 @@ import java.time.LocalDate
  * The Hardware & Security page is there at once and its text never moves: no entrance, no button to run the check
  * again, and the attestation line reads its answer as soon as there is one. The banner's secure chip is what moves.
  */
+@HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
-@Config(qualifiers = "w412dp-h1600dp-xhdpi")
+@Config(application = HiltTestApplication::class, qualifiers = "w412dp-h1600dp-xhdpi")
 class HardwareSecurityPageTest {
 
-    @get:Rule val compose = createComposeRule()
+    @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
+    @get:Rule(order = 1) val compose = createComposeRule()
+
+    @Before fun setUp() = hilt.inject()
 
     private val hardware = HardwareSecurityDetector.resolveHardwareInfo(
         manufacturer = "Google", brand = "google", model = "Pixel 11 Pro XL", device = "kodiak", hardware = "malibu",

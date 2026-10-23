@@ -30,4 +30,16 @@ class AiProviderLogoTest {
     fun onlyOpenAisMarkIsTintedToTheText() {
         assertEquals(listOf(AiProvider.OPENAI), AiProvider.entries.filter(::aiProviderLogoIsMonochrome))
     }
+
+    @Test
+    fun eachLogoHasItsOwnFlourishWhenPicked() {
+        val flourishes = AiProvider.entries.map(::logoFlourish)
+        assertEquals("each provider moves in its own way", flourishes.size, flourishes.toSet().size)
+        assertEquals(LogoFlourish.Spin, logoFlourish(AiProvider.ANTHROPIC))
+        assertEquals(LogoFlourish.Turn, logoFlourish(AiProvider.OPENAI))
+        assertEquals(LogoFlourish.Twinkle, logoFlourish(AiProvider.GEMINI))
+        // Short enough to finish before the next tap, and every one ends upright at its own size.
+        assertTrue(LOGO_FLOURISH_MILLIS in 300..800)
+        for (f in LogoFlourish.entries) assertTrue(f.turnDegrees > 0f && f.fromScale in 0.1f..1f)
+    }
 }

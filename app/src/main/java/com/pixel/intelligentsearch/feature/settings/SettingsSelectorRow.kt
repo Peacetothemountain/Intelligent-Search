@@ -47,7 +47,8 @@ private fun SettingsRowDivider() {
 
 /**
  * A setting chosen from a few [options] on the app's one selector ([ShellSelector]): the row's icon, [title] and
- * [subtitle], then the choices under it, each named by [label] on one line that shrinks to fit at large text sizes.
+ * [subtitle], then the choices under it, each named by [label] on one line that shrinks to fit at large text sizes,
+ * after its [leading] mark when there is one (a provider's logo, told whether its option is selected).
  */
 @Composable
 internal fun <T> SettingsSelectorRow(
@@ -60,7 +61,9 @@ internal fun <T> SettingsSelectorRow(
     label: (T) -> String,
     showDivider: Boolean,
     modifier: Modifier = Modifier,
-    selectorModifier: Modifier = Modifier
+    selectorModifier: Modifier = Modifier,
+    leading: (@Composable (option: T, isSelected: Boolean) -> Unit)? = null,
+    indicatorColor: (T) -> androidx.compose.ui.graphics.Color = ShellSelectorDefaults.NoOverride
 ) {
     Column(modifier = modifier) {
         SettingsRowLabel(
@@ -73,16 +76,26 @@ internal fun <T> SettingsSelectorRow(
             onSelect = onSelect,
             modifier = selectorModifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             itemHeight = 48.dp,
-            indicatorShape = RoundedCornerShape(24.dp)
+            indicatorShape = RoundedCornerShape(24.dp),
+            indicatorColor = indicatorColor
         ) { option, isSelected ->
-            Text(
-                text = label(option),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                maxLines = 1,
-                autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge),
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (leading != null) {
+                    leading(option, isSelected)
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text(
+                    text = label(option),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge)
+                )
+            }
         }
         if (showDivider) SettingsRowDivider()
     }

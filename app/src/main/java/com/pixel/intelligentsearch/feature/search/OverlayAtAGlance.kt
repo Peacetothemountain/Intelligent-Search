@@ -9,7 +9,6 @@ import android.provider.AlarmClock
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,7 +50,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -73,6 +71,8 @@ import com.pixel.intelligentsearch.core.glance.glanceItems
 import com.pixel.intelligentsearch.core.system.openPendingOrApp
 import com.pixel.intelligentsearch.core.glance.timerReading
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
+import com.pixel.intelligentsearch.core.ui.geminiPlateIdleFlow
+import com.pixel.intelligentsearch.core.ui.materialYouGeminiPlate
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
@@ -153,8 +153,11 @@ internal fun rememberGlanceItems(hiddenApps: Set<String>, active: Boolean): List
     return remember(snapshot, toggles, now) { glanceItems(snapshot, toggles, now) }
 }
 
-/** The At a Glance card's shape: the recent-search pill's 28 dp corners, on a squarer card. */
-internal val GlanceCardShape = RoundedCornerShape(28.dp)
+/** The At a Glance card's corner radius: the recent-search pill's 28 dp, on a squarer card. */
+private val GLANCE_CARD_RADIUS = 28.dp
+
+/** The At a Glance card's shape. */
+internal val GlanceCardShape = RoundedCornerShape(GLANCE_CARD_RADIUS)
 
 /** The shape of one item's row inside the card, which its press and the keyboard's ring follow. */
 internal val GlanceRowShape = RoundedCornerShape(20.dp)
@@ -212,10 +215,10 @@ internal fun LazyListScope.atAGlanceItems(items: List<GlanceItem>, highlight: @C
 }
 
 /**
- * The At a Glance card: the recent-search pill's container (its surface at 70%, its hairline and 28 dp corners) as
- * one squarish card, a small clock in its top start corner and "At a Glance" in the top end corner in the theme's
- * accent, then a row per item. Items coming and going
- * resize the card with the spatial spring (at once with animations off). [fullWidth] draws it across its space (the
+ * The At a Glance card, in the search bar's own design: the same Gemini plate (deep Material You interior, light
+ * pooling and gently flowing along the bottom edge, rim glow) at the bar's opacity (Search Pill Opacity), with
+ * 28 dp corners on a squarish card. "At a Glance" sits in its top start corner in the theme's accent and a small
+ * clock in the top end corner, then a row per item. Items coming and going resize the card with the spatial spring (at once with animations off). [fullWidth] draws it across its space (the
  * detail pane's) rather than at [glanceCardWidth]. A tap on a row (or Enter on it, [highlight] being the keyboard's
  * ring) runs [onOpened], then opens what the row is about ([openGlanceItem]).
  */
@@ -227,15 +230,17 @@ internal fun GlanceCard(
     fullWidth: Boolean = false,
     highlight: @Composable (key: String) -> Modifier = { Modifier }
 ) {
-    val scheme = MaterialTheme.colorScheme
     val animate by rememberAnimationsEnabled()
+    // The search bar's own design and opacity, so the two read as one family.
+    val pillOpacity by rememberSetting(SettingsManager.PILL_OPACITY)
+    val plateAlpha = pillAlpha(pillOpacity)
     Box(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
         Column(
             modifier = Modifier
                 .then(if (fullWidth) Modifier.fillMaxWidth() else Modifier.glanceCardWidth())
-                .background(scheme.surfaceContainerHigh.copy(alpha = 0.70f), GlanceCardShape)
-                .border(1.dp, scheme.outlineVariant.copy(alpha = 0.20f), GlanceCardShape)
                 .clip(GlanceCardShape)
+                .materialYouGeminiPlate(cornerRadius = GLANCE_CARD_RADIUS, alpha = plateAlpha)
+                .geminiPlateIdleFlow(idle = true, alpha = plateAlpha)
                 .then(if (animate) Modifier.animateContentSize(ExpressiveMotionTokens.Spatial.ExpressiveDefault()) else Modifier)
                 .padding(6.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
@@ -249,10 +254,10 @@ internal fun GlanceCard(
 }
 
 /**
- * The top of the card: the clock in the top start corner (unless Show Clock is off, in the face Clock Style picks)
- * and "At a Glance" in the top end corner, in the theme's accent colour (a heading for TalkBack), as close to the
- * card's edge as its rounded corner leaves room for. The heading takes the room the clock leaves and wraps there at
- * large text, still against the end, so the two never overlap.
+ * The top of the card: "At a Glance" in the top start corner, in the theme's accent colour (a heading for TalkBack),
+ * as close to the card's edge as its rounded corner leaves room for, and the clock in the top end corner (unless
+ * Show Clock is off, in the face Clock Style picks). The heading takes the room the clock leaves and wraps there at
+ * large text, so the two never overlap.
  */
 @Composable
 private fun GlanceHeader() {
@@ -261,30 +266,29 @@ private fun GlanceHeader() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 4.dp, end = GLANCE_HEADER_END_INSET, top = GLANCE_HEADER_TOP_INSET, bottom = 2.dp),
+            .padding(start = GLANCE_HEADER_START_INSET, end = 4.dp, top = GLANCE_HEADER_TOP_INSET, bottom = 2.dp),
         verticalAlignment = Alignment.Top
     ) {
-        if (showClock) GlanceClockFace(style = GlanceClockStyle.from(clockStyle))
         Text(
             text = "At a Glance",
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.End,
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 8.dp)
+                .padding(end = 8.dp)
                 .semantics { heading() }
                 .testTag(GLANCE_HEADER_TAG)
         )
+        if (showClock) GlanceClockFace(style = GlanceClockStyle.from(clockStyle))
     }
 }
 
 /**
- * How far the heading sits in from the card's top end corner, inside the card's own 6 dp padding: 14 dp from the side
- * and 10 dp from the top in all, which keeps its first line clear of the 28 dp corner's curve.
+ * How far the heading sits in from the card's top start corner, inside the card's own 6 dp padding: 14 dp from the
+ * side and 10 dp from the top in all, which keeps its first line clear of the 28 dp corner's curve.
  */
-internal val GLANCE_HEADER_END_INSET = 8.dp
+internal val GLANCE_HEADER_START_INSET = 8.dp
 internal val GLANCE_HEADER_TOP_INSET = 4.dp
 
 /** One item's row in the card; [modifier] carries the keyboard's ring on it. */

@@ -65,32 +65,7 @@ internal fun elementBrightnessTrack(hue: Float, saturation: Float): List<Color> 
 }
 
 /**
- * The bar's Transparency, which every subtheme has (the widget fades the whole background by it), so it sits on the
- * Appearance tab whatever the subtheme. Its track runs from [background], the bar's background as it is drawn at
- * Transparency 0, to nothing, over a checkerboard.
- */
-@Composable
-internal fun TransparencySliderCard(fields: WidgetDraftFields, background: Color) {
-    var localTransparency by fields::transparency
-    SettingsCard(lit = false) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            GradientSliderRow(
-                icon = Icons.Default.Opacity,
-                label = "Transparency",
-                valueText = "${localTransparency.toInt()}%",
-                gradient = transparencyTrack(background),
-                value = localTransparency,
-                onValueChange = { localTransparency = it },
-                valueRange = 0f..100f,
-                checkerboard = true
-            )
-        }
-    }
-}
-
-/**
- * The Appearance tab of the widget editor: G icon, subtheme, Transparency, Material options and element colours.
- * [barBackground] is the bar's background as the preview draws it at Transparency 0, for the Transparency track.
+ * The Appearance tab of the widget editor: G icon, subtheme, Material options and element colours.
  */
 @Composable
 internal fun WidgetAppearanceTab(
@@ -99,7 +74,6 @@ internal fun WidgetAppearanceTab(
     colors: WidgetColorSelection,
     themeStyle: MutableState<String>,
     computedCustomColorInt: Int,
-    barBackground: Color,
     view: android.view.View,
     hapticEngine: PixelHapticEngine
 ) {
@@ -287,9 +261,6 @@ internal fun WidgetAppearanceTab(
             autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium)
         )
     }
-
-    // Under the subtheme it fades, whichever subtheme that is.
-    TransparencySliderCard(fields = fields, background = barBackground)
 
     SettingsSectionHeader("G Icon Style")
     // G Icon Row with Custom G Icon button right beside Accented G Icon

@@ -4,8 +4,43 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** The Hardware & Security page's motion: the chain's pulse and sway, and the posture chip's count-up. */
+/** The Hardware & Security page's motion: the secure chip's lights, and the chain's pulse and sway. */
 class SecurityPageMotionTest {
+
+    @Test
+    fun theChipsLightsComeInPinByPinRoundTheChip() {
+        val pins = 12
+        // Each pin's light starts after the one before it, and every one reaches the chip within the round.
+        fun firstLit(pin: Int) = (0..2000).map { it / 2000f }.first { chipLightPosition(it, pin, pins) != null }
+        for (pin in 1 until pins) assertTrue("pin $pin goes after pin ${pin - 1}", firstLit(pin) > firstLit(pin - 1))
+        for (pin in 0 until pins) {
+            val reaches = (0..2000).map { it / 2000f }.mapNotNull { chipLightPosition(it, pin, pins) }
+            assertTrue("pin $pin's light reaches the chip", reaches.max() > 0.98f && reaches.min() < 0.02f)
+        }
+    }
+
+    @Test
+    fun theRestingChipIsStillBetweenRounds() {
+        for (pin in 0 until 12) {
+            assertEquals(null, chipLightPosition(CHIP_LIGHT_TRAVEL + 0.2f, pin, 12))
+            assertEquals(0f, chipArrival(0.97f, pin, 12), 0f)
+        }
+        // While verifying it never rests: some pin is always lit.
+        for (i in 0 until 100) {
+            val p = i / 100f
+            assertTrue("at $p", (0 until 12).any { chipLightPosition(p, it, 12, travel = 1f) != null })
+        }
+    }
+
+    @Test
+    fun theChipGlowsAsEachLightArrivesThenFades() {
+        val pins = 12
+        val arrival = (0..4000).map { it / 4000f }.first { chipArrival(it, 0, pins) > 0f }
+        assertEquals("brightest as it arrives", 1f, chipArrival(arrival, 0, pins), 0.02f)
+        assertTrue("then fading", chipArrival(arrival + 0.02f, 0, pins) < chipArrival(arrival, 0, pins))
+        for (i in 0..400) for (pin in 0 until pins) assertTrue(chipArrival(i / 400f, pin, pins) in 0f..1f)
+        assertTrue(CHIP_ROUND_VERIFYING_MILLIS * 2 < CHIP_ROUND_RESTING_MILLIS)
+    }
 
     @Test
     fun thePulseTravelsDownTheChainFromTheLeafToTheRoot() {
@@ -60,28 +95,5 @@ class SecurityPageMotionTest {
         // Neighbouring links are out of step, and the sway repeats each cycle.
         assertTrue(kotlin.math.abs(chainSway(0.2f, 0) - chainSway(0.2f, 1)) > 0.05f)
         assertEquals(chainSway(0.3f, 2), chainSway(1.3f, 2), 1e-4f)
-    }
-
-    @Test
-    fun theCountUpRunsFromZeroToExactlyTheValue() {
-        for (target in listOf(0, 1, 7, 42, 98, 100)) {
-            assertEquals(0, countUpValue(0f, target))
-            assertEquals(0, countUpValue(-1f, target))
-            assertEquals(target, countUpValue(1f, target))
-            assertEquals(target, countUpValue(2f, target))
-            var last = 0
-            for (step in 0..200) {
-                val v = countUpValue(step / 200f, target)
-                assertTrue("$target at $step: $v", v in last..target)
-                last = v
-            }
-            assertEquals(target, last)
-        }
-    }
-
-    @Test
-    fun theCountUpLastsAsLongAsTheRadarTakesToDrawOut() {
-        assertTrue(countUpMillis(5) > countUpMillis(3))
-        assertEquals(countUpMillis(1) + 4 * RADAR_ENTRY_STAGGER_MILLIS.toInt(), countUpMillis(5))
     }
 }

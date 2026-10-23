@@ -128,20 +128,22 @@ internal fun GradientSliderRow(
 }
 
 /**
- * The Color Studio tab of the widget editor: custom colour sliders and hex entry. Transparency, which every subtheme
- * has, is on the Appearance tab ([TransparencySliderCard]).
+ * The Color Studio tab of the widget editor: the custom colour sliders, Transparency with them, and hex entry.
+ * [barBackground] is the bar's background as the preview draws it at Transparency 0, for the Transparency track.
  */
 @Composable
 internal fun WidgetColorStudioTab(
     fields: WidgetDraftFields,
     ui: WidgetEditorState,
-    computedCustomColorInt: Int
+    computedCustomColorInt: Int,
+    barBackground: Color
 ) {
     var localSubtheme by fields::subtheme
     var localHue by fields::hue
     var localSaturation by fields::saturation
     var localLightness by fields::lightness
     var localColorOpacity by fields::colorOpacity
+    var localTransparency by fields::transparency
     var showHexInput by ui::showHexInput
     var tempHexInput by ui::tempHexInput
 
@@ -221,7 +223,21 @@ internal fun WidgetColorStudioTab(
 
             Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
 
-            // 5. Hex Color Pill Bar (pill bar under custom color pallet sliders in the same container)
+            // 5. Transparency, under Color Opacity: the bar's background fading to nothing, over a checkerboard.
+            GradientSliderRow(
+                icon = Icons.Default.Opacity,
+                label = "Transparency",
+                valueText = "${localTransparency.toInt()}%",
+                gradient = transparencyTrack(barBackground),
+                value = localTransparency,
+                onValueChange = { localTransparency = it },
+                valueRange = 0f..100f,
+                checkerboard = true
+            )
+
+            Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
+
+            // 6. Hex Color Pill Bar (pill bar under custom color pallet sliders in the same container)
             val customColorHex = String.format("#%06X", (0xFFFFFF and computedCustomColorInt))
             Row(
                 modifier = Modifier

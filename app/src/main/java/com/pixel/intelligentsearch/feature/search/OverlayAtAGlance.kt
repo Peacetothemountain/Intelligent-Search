@@ -51,7 +51,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -213,8 +212,8 @@ internal fun LazyListScope.atAGlanceItems(items: List<GlanceItem>, highlight: @C
 
 /**
  * The At a Glance card: the recent-search pill's container (its surface at 70%, its hairline and 28 dp corners) as
- * one squarish card, a small clock in its top start corner and "At a Glance" in the top end corner in the theme's
- * accent, then a row per item. Items coming and going
+ * one squarish card, "At a Glance" in its top start corner in the theme's accent and a small clock in the top end
+ * corner, then a row per item. Items coming and going
  * resize the card with the spatial spring (at once with animations off). [fullWidth] draws it across its space (the
  * detail pane's) rather than at [glanceCardWidth]. A tap on a row (or Enter on it, [highlight] being the keyboard's
  * ring) runs [onOpened], then opens what the row is about ([openGlanceItem]).
@@ -249,10 +248,10 @@ internal fun GlanceCard(
 }
 
 /**
- * The top of the card: the clock in the top start corner (unless Show Clock is off, in the face Clock Style picks)
- * and "At a Glance" in the top end corner, in the theme's accent colour (a heading for TalkBack), as close to the
- * card's edge as its rounded corner leaves room for. The heading takes the room the clock leaves and wraps there at
- * large text, still against the end, so the two never overlap.
+ * The top of the card: "At a Glance" in the top start corner, in the theme's accent colour (a heading for TalkBack),
+ * as close to the card's edge as its rounded corner leaves room for, and the clock in the top end corner (unless
+ * Show Clock is off, in the face Clock Style picks). The heading takes the room the clock leaves and wraps there at
+ * large text, so the two never overlap.
  */
 @Composable
 private fun GlanceHeader() {
@@ -261,30 +260,29 @@ private fun GlanceHeader() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 4.dp, end = GLANCE_HEADER_END_INSET, top = GLANCE_HEADER_TOP_INSET, bottom = 2.dp),
+            .padding(start = GLANCE_HEADER_START_INSET, end = 4.dp, top = GLANCE_HEADER_TOP_INSET, bottom = 2.dp),
         verticalAlignment = Alignment.Top
     ) {
-        if (showClock) GlanceClockFace(style = GlanceClockStyle.from(clockStyle))
         Text(
             text = "At a Glance",
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.End,
             modifier = Modifier
                 .weight(1f)
-                .padding(start = 8.dp)
+                .padding(end = 8.dp)
                 .semantics { heading() }
                 .testTag(GLANCE_HEADER_TAG)
         )
+        if (showClock) GlanceClockFace(style = GlanceClockStyle.from(clockStyle))
     }
 }
 
 /**
- * How far the heading sits in from the card's top end corner, inside the card's own 6 dp padding: 14 dp from the side
- * and 10 dp from the top in all, which keeps its first line clear of the 28 dp corner's curve.
+ * How far the heading sits in from the card's top start corner, inside the card's own 6 dp padding: 14 dp from the
+ * side and 10 dp from the top in all, which keeps its first line clear of the 28 dp corner's curve.
  */
-internal val GLANCE_HEADER_END_INSET = 8.dp
+internal val GLANCE_HEADER_START_INSET = 8.dp
 internal val GLANCE_HEADER_TOP_INSET = 4.dp
 
 /** One item's row in the card; [modifier] carries the keyboard's ring on it. */

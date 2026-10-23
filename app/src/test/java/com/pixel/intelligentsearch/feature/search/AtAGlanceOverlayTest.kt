@@ -130,15 +130,15 @@ class AtAGlanceOverlayTest {
         val birthday = compose.onNodeWithText("Ana Lima's Birthday").getUnclippedBoundsInRoot()
         val alarm = alarmRow.getUnclippedBoundsInRoot()
         val clock = compose.onNodeWithTag(GLANCE_CLOCK_TAG).getUnclippedBoundsInRoot()
-        assertTrue("the card starts at the list's start margin", clock.left < 40.dp)
-        assertTrue("the card is about 62% of the 412 dp width, not all of it", heading.right < 300.dp)
-        assertTrue("the clock is in the card's top start corner", clock.right <= heading.left && clock.top < alarm.top)
+        assertTrue("the card starts at the list's start margin", heading.left < 40.dp)
+        assertTrue("the card is about 62% of the 412 dp width, not all of it", clock.right < 300.dp)
+        assertTrue("the clock is in the card's top end corner", clock.left >= heading.right && clock.top < alarm.top)
         assertEquals("the clock is 64 dp", 64f, (clock.right - clock.left).value, 0.5f)
-        // The heading is in the top end corner: as high as the clock, and 8 dp short of the rows' own end, which
+        // The heading is in the top start corner: as high as the clock, and 8 dp in from the rows' own start, which
         // keeps it 14 dp in from the card's side (the rows sit 6 dp in), clear of the rounded corner.
         assertTrue("the heading sits at the top, level with the clock", kotlin.math.abs((heading.top - clock.top).value) < 2f)
-        assertEquals("the heading ends 8 dp short of the rows", (alarm.right - GLANCE_HEADER_END_INSET).value, heading.right.value, 0.6f)
-        assertTrue("the items sit inside the card, under its heading", birthday.right <= alarm.right + 0.5.dp && birthday.top > heading.bottom)
+        assertEquals("the heading starts 8 dp in from the rows", (alarm.left + GLANCE_HEADER_START_INSET).value, heading.left.value, 0.6f)
+        assertTrue("the items sit inside the card, under its heading", birthday.right <= clock.right + 8.dp && birthday.top > heading.bottom)
     }
 
     @Test
@@ -148,10 +148,10 @@ class AtAGlanceOverlayTest {
         compose.onNodeWithTag(GLANCE_HEADER_TAG).assertExists()
         compose.onNodeWithTag(GLANCE_CLOCK_TAG).assertDoesNotExist()
         alarmRow.assertExists()
-        // Still in the top end corner without the clock beside it.
+        // Still in the top start corner without the clock beside it.
         val heading = compose.onNodeWithTag(GLANCE_HEADER_TAG).getUnclippedBoundsInRoot()
         val alarm = alarmRow.getUnclippedBoundsInRoot()
-        assertEquals((alarm.right - GLANCE_HEADER_END_INSET).value, heading.right.value, 0.6f)
+        assertEquals((alarm.left + GLANCE_HEADER_START_INSET).value, heading.left.value, 0.6f)
     }
 
     @Test

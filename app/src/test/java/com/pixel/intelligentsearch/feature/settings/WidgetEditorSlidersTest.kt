@@ -23,6 +23,7 @@ import com.pixel.intelligentsearch.screenshots.settle
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -66,28 +67,22 @@ class WidgetEditorSlidersTest {
     private fun assertReads(name: String, value: String) =
         slider(name).assert(SemanticsMatcher.expectValue(SemanticsProperties.StateDescription, value))
 
-    /**
-     * Transparency fades every subtheme's bar, so it is on the Appearance tab for every subtheme; it was only in Color
-     * Studio, which only the Custom subtheme has, so a bar made see-through there stayed see-through with no control.
-     */
+    /** Transparency sits with the other colour sliders in Color Studio, under Color Opacity. */
     @Test
-    fun transparencyIsOnTheAppearanceTabForEverySubtheme() {
+    fun transparencyIsWithTheColorSlidersInColorStudio() {
         prefs.edit()
             .putBoolean("widget_system_design_saved", true)
             .putInt("widget_system_background_transparency", 40)
             .commit()
         openEditor()
-
-        for (subtheme in listOf("System", "Light", "Dark", "Custom")) {
-            tap(subtheme)
-            slider("Transparency").assertExists()
-            assertReads("Transparency", "40%")
-        }
-        tap("Material Design")
-        for (subtheme in listOf("Material", "Custom")) {
-            tap(subtheme)
-            slider("Transparency").assertExists()
-        }
+        tap("Custom")
+        slider("Transparency").assertDoesNotExist()
+        tap("Color Studio")
+        slider("Transparency").assertExists()
+        assertReads("Transparency", "40%")
+        val opacity = slider("Color Opacity").fetchSemanticsNode().boundsInRoot
+        val transparency = slider("Transparency").fetchSemanticsNode().boundsInRoot
+        assertTrue("Transparency is under Color Opacity", transparency.top > opacity.bottom)
     }
 
     /**

@@ -871,17 +871,19 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                 when (activeTabName) {
-                    "Appearance" -> {
+                    "Appearance" -> WidgetAppearanceTab(
+                        fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState, computedCustomColorInt = computedCustomColorInt,
+                        view = view, hapticEngine = hapticEngine
+                    )
+
+                    "Color Studio" -> {
                         // The pill as the bar draws it at Transparency 0, for the Transparency track.
                         val opaqueBackdrop = WidgetColorRules.backdropAlphas(activeDraft.value.copy(transparency = 0f), previewIsMaterialYou).backdrop
-                        WidgetAppearanceTab(
-                            fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState, computedCustomColorInt = computedCustomColorInt,
-                            barBackground = previewColors.pill.fill.copy(alpha = previewColors.pill.fill.alpha * opaqueBackdrop),
-                            view = view, hapticEngine = hapticEngine
+                        WidgetColorStudioTab(
+                            fields = fields, ui = ui, computedCustomColorInt = computedCustomColorInt,
+                            barBackground = previewColors.pill.fill.copy(alpha = previewColors.pill.fill.alpha * opaqueBackdrop)
                         )
                     }
-
-                    "Color Studio" -> WidgetColorStudioTab(fields = fields, ui = ui, computedCustomColorInt = computedCustomColorInt)
 
                     "Widget Shortcuts" -> WidgetShortcutsTab(fields = fields, ui = ui, view = view, hapticEngine = hapticEngine, coroutineScope = coroutineScope, density = density, shortcutOptions = shortcutOptions, themeStyle = themeStyleState)
                 }

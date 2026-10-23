@@ -14,8 +14,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,8 +44,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -56,16 +56,23 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -74,6 +81,7 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.graphics.shapes.Morph
 import androidx.graphics.shapes.toPath
@@ -87,18 +95,20 @@ import kotlin.math.cos
 import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Test tag on the posture card's advice for the chosen check. */
 internal const val POSTURE_ADVICE_TAG = "posture_advice"
 
-/** Test tag on the posture ring. */
-internal const val POSTURE_RING_TAG = "posture_ring"
+/** Test tag on the posture radar. */
+internal const val POSTURE_RADAR_TAG = "posture_radar"
 
 /** Test tag prefix on each check's tile: the prefix and the check's name. */
 internal const val POSTURE_TILE_TAG_PREFIX = "posture_tile_"
 
 /**
- * The checks in the order the card shows them, round the ring clockwise from the top and across the tiles: the
+ * The checks in the order the card shows them, round the radar clockwise from the top and across the tiles: the
  * phone's defences from the hardware up (the Android platform security model's defence in depth), keys kept in
  * hardware first and the user's own screen lock last.
  */
@@ -123,38 +133,71 @@ internal fun improvementPlan(axes: List<SecurityPosture.AxisScore>): List<Pair<S
             .thenBy { if (it.first.rating == SecurityPosture.Rating.Weak) 0 else 1 })
 }
 
-/** The space between the ring's arcs, in degrees. */
-internal const val RING_GAP_DEGREES = 9f
+/** One turn of the radar's beam. */
+internal const val RADAR_SWEEP_MILLIS = 4200
 
-/** One flow of the ring's wave along its arcs. */
-internal const val RING_FLOW_MILLIS = 2600
+/** How long after the previous check each check springs out, on entry and on a re-scan. */
+internal const val RADAR_ENTRY_STAGGER_MILLIS = 70L
 
-/** The degrees each of [count] arcs spans, leaving [RING_GAP_DEGREES] between them. */
-internal fun ringSweep(count: Int): Float = 360f / count.coerceAtLeast(1) - RING_GAP_DEGREES
+/** How far a check still being checked reaches out, so the shape stays whole while it waits. */
+internal const val RADAR_PENDING_REACH = 0.18f
 
-/** Where arc [index] of [count] starts, in degrees clockwise from 12 o'clock (half a gap in, so the gaps are even). */
-internal fun ringStart(index: Int, count: Int): Float = index * 360f / count.coerceAtLeast(1) + RING_GAP_DEGREES / 2f
+/** How far behind the beam (radians) a check it has passed settles back; also the beam's visible tail. */
+internal const val BEAM_TRAIL = 1.6f
 
-/**
- * The arc under a tap at [degrees] clockwise from 12 o'clock on a ring of [count] arcs: the arc whose span (or the
- * half-gaps either side of it) the tap falls in.
- */
-internal fun ringArcAt(degrees: Float, count: Int): Int {
+/** How far ahead of the beam (radians) a check starts to light, so it brightens as the beam reaches it. */
+private const val BEAM_LEAD = 0.12f
+
+/** Where check [index] of [count] sits, in radians clockwise from 3 o'clock: the first at 12, the rest clockwise. */
+internal fun radarAngle(index: Int, count: Int): Float = (-PI / 2 + index * 2 * PI / count.coerceAtLeast(1)).toFloat()
+
+/** The check nearest a tap at [degrees] clockwise from 12 o'clock, on a radar of [count] checks. */
+internal fun radarAxisAt(degrees: Float, count: Int): Int {
     if (count <= 0) return 0
     val d = ((degrees % 360f) + 360f) % 360f
-    return (d / (360f / count)).toInt().coerceIn(0, count - 1)
+    return (d / (360f / count)).roundToInt() % count
 }
 
 /**
- * How far the wave lifts the ring's line at [along] degrees into an arc, at [phase] (0 to 1) of its flow: a gentle
- * sine that travels round the ring as the phase runs, eased to nothing at both ends of the arc so each arc starts and
- * ends cleanly, as Material's wavy progress indicator does.
+ * How lit a check at [axisAngle] is by the beam at [beamAngle] (both radians, any number of turns): 1 with the beam
+ * on it, easing back to 0 over [BEAM_TRAIL] as it moves on, rising over a short [BEAM_LEAD] just before it arrives.
  */
-internal fun ringWave(along: Float, sweep: Float, phase: Float, wavelengthDegrees: Float = 14f): Float {
-    if (sweep <= 0f) return 0f
-    val edge = minOf(along, sweep - along).coerceAtLeast(0f)
-    val taper = (edge / 6f).coerceAtMost(1f)
-    return sin(2f * PI.toFloat() * (along / wavelengthDegrees - phase)) * taper
+internal fun sweepHighlight(beamAngle: Float, axisAngle: Float): Float {
+    val turn = (2 * PI).toFloat()
+    val behind = ((beamAngle - axisAngle) % turn + turn) % turn
+    if (behind <= BEAM_TRAIL) {
+        val f = 1f - behind / BEAM_TRAIL
+        return f * f
+    }
+    val ahead = turn - behind
+    if (ahead < BEAM_LEAD) {
+        val f = 1f - ahead / BEAM_LEAD
+        return f * f
+    }
+    return 0f
+}
+
+/**
+ * The radar's shape into [path]: a closed curve through every one of [points], rounded through each (a Catmull-Rom
+ * spline drawn as cubic Beziers), so it reads as one soft Material shape rather than a hard polygon.
+ */
+internal fun radarBlob(points: List<Offset>, path: Path) {
+    path.reset()
+    val n = points.size
+    if (n < 3) return
+    path.moveTo(points[0].x, points[0].y)
+    for (i in 0 until n) {
+        val p0 = points[(i - 1 + n) % n]
+        val p1 = points[i]
+        val p2 = points[(i + 1) % n]
+        val p3 = points[(i + 2) % n]
+        path.cubicTo(
+            p1.x + (p2.x - p0.x) / 6f, p1.y + (p2.y - p0.y) / 6f,
+            p2.x - (p3.x - p1.x) / 6f, p2.y - (p3.y - p1.y) / 6f,
+            p2.x, p2.y
+        )
+    }
+    path.close()
 }
 
 /** The Material shape each check's badge becomes when it is chosen, so each check has its own. */
@@ -178,14 +221,13 @@ private fun postureIcon(score: SecurityPosture.AxisScore): ImageVector = when (s
 
 /**
  * The Hardware & Security page's posture card, in Material 3 Expressive's language:
- * - a ring of six arcs, one per check in [POSTURE_ORDER], each filled to its score in its rating's colour along a
- *   gently flowing wave (Material's wavy progress), the rest of the arc left as track, with the overall percentage
- *   and rating at its heart;
+ * - a live radar of the six checks in [POSTURE_ORDER]: tonal rings, a soft rounded shape reaching out to each check's
+ *   score, and at each point the check's own badge, which a turning beam lights as it passes ([PostureRadar]);
  * - a tile per check, its icon in a badge that morphs into that check's own Material shape when chosen;
  * - what to improve, ranked by what it wins back ([improvementPlan]), the chosen check explained with Android's page
  *   to fix it where the phone can.
- * Tapping an arc or a tile chooses that check: its arc thickens and the others step back, its tile lifts. It opens on
- * the check most worth improving. Text is shown as it is, never animated.
+ * The overall rating and percentage sit still in the header's chip. Tapping a point on the radar or a tile chooses
+ * that check; it opens on the check most worth improving. Text is shown as it is, never animated.
  */
 @Composable
 internal fun SecurityPostureCard(axes: List<SecurityPosture.AxisScore>, modifier: Modifier = Modifier) {
@@ -200,16 +242,19 @@ internal fun SecurityPostureCard(axes: List<SecurityPosture.AxisScore>, modifier
         icon = Icons.Outlined.Shield,
         title = "Security Posture",
         accent = scheme.primary,
-        modifier = modifier
+        modifier = modifier,
+        trailing = {
+            val (container, content) = when {
+                overall == null -> scheme.surfaceVariant to scheme.onSurfaceVariant
+                overall >= 0.65f -> scheme.primaryContainer to scheme.onPrimaryContainer
+                overall >= 0.4f -> scheme.tertiaryContainer to scheme.onTertiaryContainer
+                else -> scheme.errorContainer to scheme.onErrorContainer
+            }
+            val label = SecurityPosture.overallLabel(overall)
+            DiagnosticsStatusChip(text = if (percent == null) label else "$label · $percent%", container = container, content = content)
+        }
     ) {
-        PostureRing(
-            checks = ordered,
-            percent = percent,
-            label = SecurityPosture.overallLabel(overall),
-            selected = selected,
-            onSelect = { chosen = it },
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
+        PostureRadar(checks = ordered, selected = selected, onSelect = { chosen = it })
         Spacer(Modifier.size(12.dp))
         PostureTiles(ordered, selected, onSelect = { chosen = it })
         ImprovementList(axes, plan, selected, onSelect = { chosen = it })
@@ -217,126 +262,234 @@ internal fun SecurityPostureCard(axes: List<SecurityPosture.AxisScore>, modifier
 }
 
 /**
- * The ring: six arcs round a still centre that reads the overall percentage and rating. Each arc fills to its check's
- * score along a wave that keeps flowing round (still with animations off); a check still being checked shows a short
- * wave chasing along its empty arc. The [selected] check's arc thickens and glows on a spring and the others step
- * back. A tap on an arc chooses its check ([onSelect]).
+ * The radar. Behind it, tonal rings and a spoke per check. Its shape reaches out along each spoke to that check's
+ * score, rounded through every point and breathing a little, and at each point sits the check's badge: its icon in
+ * a circle that morphs towards the check's own Material shape ([postureShape]). On entry, and on a tap on the centre
+ * to re-scan, the checks spring out one after another. A beam turns round it, and each badge it passes pops and
+ * briefly takes its shape. The [selected] check's badge grows into its shape in solid colour, turning slowly with a
+ * soft halo, and its spoke is drawn in its colour; a tap near a check chooses it ([onSelect]). With animations off it
+ * is drawn finished and still, with no beam.
  */
 @Composable
-private fun PostureRing(
+private fun PostureRadar(
     checks: List<SecurityPosture.AxisScore>,
-    percent: Int?,
-    label: String,
     selected: Axis?,
     onSelect: (Axis) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scheme = MaterialTheme.colorScheme
     val animationsEnabled by rememberAnimationsEnabled()
-    val flow: State<Float>? = if (animationsEnabled) {
-        rememberInfiniteTransition(label = "postureRing").animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(RING_FLOW_MILLIS, easing = LinearEasing), RepeatMode.Restart),
-            label = "postureRingFlow"
-        )
-    } else null
     val count = checks.size
-    // Each arc's emphasis springs between chosen (1), stepped back (0) and evenly shown (0.5, nothing chosen).
-    val emphasis = checks.map { check ->
-        animateFloatAsState(
-            targetValue = when (selected) {
-                null -> 0.5f
-                check.axis -> 1f
-                else -> 0f
-            },
-            animationSpec = spring(dampingRatio = 0.6f, stiffness = 380f),
-            label = "postureArc"
-        )
-    }
-    val currentChecks by rememberUpdatedState(checks)
-    val currentOnSelect by rememberUpdatedState(onSelect)
-    val track = scheme.surfaceContainerHighest
-    val colors = checks.map { ratingColor(it.rating, scheme) }
-    val description = remember(checks, percent, label) { SecurityPosture.describe(checks) }
-    Box(
-        modifier = modifier
-            .widthIn(max = 260.dp)
-            .fillMaxWidth(0.78f)
-            .aspectRatio(1f)
-            .testTag(POSTURE_RING_TAG)
-            .clearAndSetSemantics { contentDescription = description }
-            .pointerInput(count) {
-                detectTapGestures { at ->
-                    val cx = size.width / 2f
-                    val cy = size.height / 2f
-                    val dx = at.x - cx
-                    val dy = at.y - cy
-                    // Only on the ring itself, not its centre.
-                    if (hypot(dx, dy) < size.width * 0.3f) return@detectTapGestures
-                    val degrees = (atan2(dx, -dy) * 180f / PI.toFloat() + 360f) % 360f
-                    currentChecks.getOrNull(ringArcAt(degrees, count))?.let { currentOnSelect(it.axis) }
+    val reach = remember(count) { List(count) { Animatable(0f) } }
+    checks.forEachIndexed { i, check ->
+        key(i) {
+            LaunchedEffect(radarReach(check), animationsEnabled) {
+                if (!animationsEnabled) {
+                    reach[i].snapTo(radarReach(check))
+                } else {
+                    // On entry the checks spring out one after another.
+                    if (reach[i].value == 0f) delay(i * RADAR_ENTRY_STAGGER_MILLIS)
+                    reach[i].animateTo(radarReach(check), RadarSpring)
                 }
             }
-            .drawWithCache {
-                val stroke = 7.dp.toPx()
-                val trackStroke = Stroke(width = stroke * 1.55f, cap = StrokeCap.Round)
-                val radius = size.minDimension / 2f - stroke * 2f
-                val centre = Offset(size.width / 2f, size.height / 2f)
-                val amplitude = 2.6.dp.toPx()
-                val sweep = ringSweep(count)
-                val wave = Path()
-                fun point(degrees: Float, lift: Float): Offset {
-                    val a = (degrees - 90f) * PI.toFloat() / 180f
-                    val r = radius + lift
-                    return Offset(centre.x + cos(a) * r, centre.y + sin(a) * r)
-                }
-                onDrawBehind {
-                    val phase = flow?.value ?: 0f
-                    for (i in 0 until count) {
-                        val start = ringStart(i, count)
-                        val e = emphasis[i].value
-                        // The track: the whole arc, a little deeper for the chosen check.
-                        drawArc(
-                            track, startAngle = start - 90f, sweepAngle = sweep, useCenter = false,
-                            topLeft = Offset(centre.x - radius, centre.y - radius),
-                            size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
-                            style = trackStroke, alpha = 0.7f + 0.3f * e
-                        )
-                        val check = checks[i]
-                        val pending = check.rating == SecurityPosture.Rating.Pending
-                        val filled = if (pending) sweep * 0.22f else sweep * check.score.coerceIn(0f, 1f)
-                        if (filled <= 0.5f) continue
-                        // A pending check's short wave chases along its arc; a checked one fills from the arc's start.
-                        val from = if (pending) (sweep - filled) * ((phase * 1.3f) % 1f) else 0f
-                        wave.rewind()
-                        val steps = (filled * 1.6f).toInt().coerceAtLeast(8)
-                        for (s in 0..steps) {
-                            val along = from + filled * s / steps
-                            val p = point(start + along, amplitude * (0.55f + 0.45f * e) * ringWave(along, sweep, phase))
-                            if (s == 0) wave.moveTo(p.x, p.y) else wave.lineTo(p.x, p.y)
-                        }
-                        val width = stroke * (0.75f + 0.55f * e)
-                        val alpha = 0.55f + 0.45f * e
-                        // The chosen check's arc glows under its line.
-                        if (e > 0.6f) drawPath(wave, colors[i], alpha = 0.22f * (e - 0.6f) / 0.4f, style = Stroke(width = width * 2.4f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                        drawPath(wave, colors[i], alpha = alpha, style = Stroke(width = width, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                    }
-                }
-            },
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = percent?.let { "$it%" } ?: "...",
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.Bold,
-                color = scheme.onSurface
-            )
-            Text(text = label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = scheme.primary)
         }
     }
+    val emphasis = checks.map { check ->
+        animateFloatAsState(
+            targetValue = if (check.axis == selected) 1f else 0f,
+            animationSpec = spring(dampingRatio = 0.5f, stiffness = 380f),
+            label = "radarEmphasis"
+        )
+    }
+
+    // A tap on the centre re-scans: every check falls back in and springs out again, one after another.
+    val scope = rememberCoroutineScope()
+    val currentChecks by rememberUpdatedState(checks)
+    val currentOnSelect by rememberUpdatedState(onSelect)
+    val rescan: () -> Unit = remember(reach) {
+        {
+            currentChecks.forEachIndexed { i, check ->
+                scope.launch {
+                    reach.getOrNull(i)?.let { anim ->
+                        anim.snapTo(0f)
+                        delay(i * RADAR_ENTRY_STAGGER_MILLIS)
+                        anim.animateTo(radarReach(check), RadarSpring)
+                    }
+                }
+            }
+        }
+    }
+
+    val beam: State<Float>?
+    val breath: State<Float>?
+    val spin: State<Float>?
+    if (animationsEnabled) {
+        val transition = rememberInfiniteTransition(label = "postureRadar")
+        val turn = (2 * PI).toFloat()
+        beam = transition.animateFloat(0f, turn, infiniteRepeatable(tween(RADAR_SWEEP_MILLIS, easing = LinearEasing)), label = "radarBeam")
+        breath = transition.animateFloat(0f, turn, infiniteRepeatable(tween(3000, easing = LinearEasing)), label = "radarBreath")
+        spin = transition.animateFloat(0f, 360f, infiniteRepeatable(tween(12000, easing = LinearEasing)), label = "radarSpin")
+    } else {
+        beam = null
+        breath = null
+        spin = null
+    }
+
+    val icons = checks.map { rememberVectorPainter(postureIcon(it)) }
+    val axesShown = checks.map { it.axis }
+    val shapes = remember(axesShown) {
+        axesShown.map { Morph(MaterialMorphShapes.byName.getValue("Circle"), MaterialMorphShapes.byName.getValue(postureShape(it))) }
+    }
+    val colors = checks.map { ratingColor(it.rating, scheme) }
+    val description = remember(checks) { SecurityPosture.describe(checks) }
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(scheme.surfaceContainerLow)
+            .testTag(POSTURE_RADAR_TAG)
+            .clearAndSetSemantics { contentDescription = description }
+            .pointerInput(count, animationsEnabled) {
+                detectTapGestures { at ->
+                    val dx = at.x - size.width / 2f
+                    val dy = at.y - size.height / 2f
+                    if (hypot(dx, dy) < size.height * 0.12f) {
+                        if (animationsEnabled) rescan()
+                        return@detectTapGestures
+                    }
+                    val degrees = (atan2(dx, -dy) * 180f / PI.toFloat() + 360f) % 360f
+                    currentChecks.getOrNull(radarAxisAt(degrees, count))?.let { currentOnSelect(it.axis) }
+                }
+            }
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Spacer(
+            modifier = Modifier
+                .widthIn(max = 320.dp)
+                .fillMaxWidth()
+                .aspectRatio(1f)
+                .drawWithCache {
+                    val badge = 30.dp.toPx()
+                    val radius = size.minDimension / 2f - badge * 0.75f
+                    val centre = Offset(size.width / 2f, size.height / 2f)
+                    val angles = FloatArray(count) { radarAngle(it, count) }
+                    val cosA = FloatArray(count) { cos(angles[it]) }
+                    val sinA = FloatArray(count) { sin(angles[it]) }
+                    val bandOuter = scheme.surfaceContainerHighest
+                    val bandInner = scheme.surfaceContainerHigh
+                    val spokeColor = scheme.outlineVariant.copy(alpha = 0.6f)
+                    val spokeWidth = 1.dp.toPx()
+                    val chosenSpoke = 4.dp.toPx()
+                    val edgeWidth = 2.dp.toPx()
+                    val hub = 4.dp.toPx()
+                    val primary = scheme.primary
+                    val fill = Brush.radialGradient(
+                        listOf(primary.copy(alpha = 0.06f), primary.copy(alpha = 0.22f)),
+                        center = centre,
+                        radius = radius.coerceAtLeast(1f)
+                    )
+                    // Clear up to the tail, then rising to the leading edge at 0 degrees; turned to the beam each frame.
+                    val tail = (BEAM_TRAIL / (2 * PI)).toFloat()
+                    val beamBrush = Brush.sweepGradient(
+                        0f to primary.copy(alpha = 0f),
+                        (1f - tail) to primary.copy(alpha = 0f),
+                        1f to primary.copy(alpha = 0.26f),
+                        center = centre
+                    )
+                    val outline = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    val ripple = Stroke(width = 2.dp.toPx())
+                    val clip = Path().apply { addOval(androidx.compose.ui.geometry.Rect(centre, radius)) }
+                    val blob = Path()
+                    val points = MutableList(count) { centre }
+                    val badgePath = android.graphics.Path()
+                    val matrix = android.graphics.Matrix()
+                    val breathePx = 2.5.dp.toPx()
+                    val iconSize = 16.dp.toPx()
+                    val tints = colors.map { ColorFilter.tint(it) }
+                    val onTint = ColorFilter.tint(scheme.surface)
+                    val badgeBase = scheme.surfaceContainerLow
+                    onDrawBehind {
+                        // Tonal rings, the outer deepest, and a spoke per check.
+                        for (k in 4 downTo 1) drawCircle(if (k % 2 == 0) bandOuter else bandInner, radius * k / 4f, centre)
+                        for (i in 0 until count) {
+                            drawLine(spokeColor, centre, Offset(centre.x + cosA[i] * radius, centre.y + sinA[i] * radius), spokeWidth, StrokeCap.Round)
+                        }
+
+                        // The beam and, once a turn, a ripple from the centre, inside the outer ring.
+                        val turned = beam?.value
+                        val beamAngle = if (turned == null) 0f else turned - (PI / 2).toFloat()
+                        if (turned != null) {
+                            clipPath(clip) {
+                                rotate(degrees = beamAngle * 180f / PI.toFloat(), pivot = centre) {
+                                    drawCircle(beamBrush, radius, centre)
+                                    drawLine(primary.copy(alpha = 0.5f), centre, Offset(centre.x + radius, centre.y), edgeWidth, StrokeCap.Round)
+                                }
+                                val spread = turned / (2f * PI.toFloat()) / 0.6f
+                                if (spread < 1f) {
+                                    val fade = 1f - spread
+                                    drawCircle(primary, radius * spread, centre, alpha = 0.3f * fade * fade, style = ripple)
+                                }
+                            }
+                        }
+
+                        // Where each check reaches this frame, breathing a little.
+                        val t = breath?.value ?: 0f
+                        for (i in 0 until count) {
+                            val r = reach[i].value * radius + if (breath != null && reach[i].value > 0f) sin(t + i * 1.3f) * breathePx else 0f
+                            points[i] = Offset(centre.x + cosA[i] * r, centre.y + sinA[i] * r)
+                        }
+                        // The chosen check's spoke in its colour.
+                        for (i in 0 until count) {
+                            val e = emphasis[i].value
+                            if (e > 0.01f) drawLine(colors[i].copy(alpha = 0.8f * e.coerceAtMost(1f)), centre, points[i], chosenSpoke * e, StrokeCap.Round)
+                        }
+
+                        // The posture shape, rounded through every check.
+                        radarBlob(points, blob)
+                        drawPath(blob, fill)
+                        drawPath(blob, primary.copy(alpha = 0.9f), style = outline)
+                        drawCircle(primary, hub, centre)
+
+                        // Each check's badge at its point.
+                        for (i in 0 until count) {
+                            val e = emphasis[i].value
+                            val lit = if (turned == null) 0f else sweepHighlight(beamAngle, angles[i])
+                            val pending = checks[i].rating == SecurityPosture.Rating.Pending
+                            val s = badge * (0.82f + 0.3f * e + 0.16f * lit)
+                            val p = points[i]
+                            if (e > 0.01f) {
+                                val pulse = if (breath == null) 0f else (sin(t * 2f) + 1f) / 2f
+                                drawCircle(colors[i], s * (0.68f + 0.1f * pulse), p, alpha = (0.18f * e).coerceIn(0f, 1f))
+                            }
+                            val morph = (e + 0.6f * lit).coerceIn(0f, 1f)
+                            shapes[i].toPath(morph, badgePath)
+                            matrix.reset()
+                            matrix.setScale(s, s)
+                            matrix.postTranslate(p.x - s / 2f, p.y - s / 2f)
+                            badgePath.transform(matrix)
+                            val shape = badgePath.asComposePath()
+                            rotate(degrees = 45f * morph + (spin?.value ?: 0f) * e.coerceIn(0f, 1f), pivot = p) {
+                                drawPath(shape, badgeBase)
+                                drawPath(shape, colors[i], alpha = if (pending) 0.12f else (0.22f + 0.78f * maxOf(e, 0.5f * lit)).coerceIn(0f, 1f))
+                            }
+                            val icon = iconSize * (0.9f + 0.2f * e)
+                            translate(p.x - icon / 2f, p.y - icon / 2f) {
+                                with(icons[i]) { draw(Size(icon, icon), colorFilter = if (e > 0.5f) onTint else tints[i]) }
+                            }
+                        }
+                    }
+                }
+        )
+    }
 }
+
+/** How far out [check] reaches on the radar: its score, or a short stub while it is still being checked. */
+private fun radarReach(check: SecurityPosture.AxisScore): Float =
+    if (check.rating == SecurityPosture.Rating.Pending) RADAR_PENDING_REACH else check.score.coerceIn(0f, 1f)
+
+/** The spring each check reaches out on: a little bounce, as Material 3 Expressive's spatial springs have. */
+private val RadarSpring = spring<Float>(dampingRatio = 0.55f, stiffness = 200f)
 
 /**
  * A tile per check, two to a row: its icon in a badge, its name and its value. The [selected] check's tile lifts onto
@@ -507,7 +660,7 @@ private fun ImprovementList(
     }
 }
 
-/** The colour that marks a check's rating, on its arc, its tile and its value. */
+/** The colour that marks a check's rating, on the radar, its tile and its value. */
 internal fun ratingColor(rating: SecurityPosture.Rating, scheme: ColorScheme): Color = when (rating) {
     SecurityPosture.Rating.Good -> scheme.primary
     SecurityPosture.Rating.Fair -> scheme.tertiary

@@ -4,6 +4,8 @@ import android.app.Application
 import android.provider.Settings
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertContentDescriptionContains
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -30,11 +32,14 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.LocalDate
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
- * The posture card: a ring of an arc per check and a tile per check, from the hardware up, for improving them: what
+ * The posture card: a radar of the checks and a tile per check, from the hardware up, for improving them: what
  * to improve comes ranked by what it wins back, the top one explained with Android's page to fix it where the phone
- * can, and a tap on any tile or arc explains that one. The ring's wave follows pure rules.
+ * can, and a tap on any tile or radar point explains that one. The radar's beam and shape follow pure rules.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -62,37 +67,50 @@ class SecurityPostureCardTest {
     }
 
     @Test
-    fun theRingAndTilesRunFromTheHardwareUpToTheScreenLock() {
+    fun theRadarAndTilesRunFromTheHardwareUpToTheScreenLock() {
         show(posture(deviceSecure = true))
         assertEquals(Axis.KeyStorage, POSTURE_ORDER.first())
         assertEquals(Axis.ScreenLock, POSTURE_ORDER.last())
         assertEquals(Axis.entries.toSet(), POSTURE_ORDER.toSet())
         for (axis in POSTURE_ORDER) compose.onNodeWithTag(POSTURE_TILE_TAG_PREFIX + axis.name).assertExists()
-        compose.onNodeWithTag(POSTURE_RING_TAG).assertExists()
-        // The overall score sits still in the ring's centre.
-        compose.onNodeWithTag(POSTURE_RING_TAG).assertContentDescriptionContains("98 percent", substring = true)
+        compose.onNodeWithTag(POSTURE_RADAR_TAG).assertContentDescriptionContains("98 percent", substring = true)
+        // The overall score sits still in the header's chip.
+        compose.onNodeWithText("Strong · 98%").assertExists()
     }
 
     @Test
-    fun aTapOnTheRingChoosesTheArcsCheck() {
-        // Six arcs clockwise from 12: just right of 12 is the first, just left of it the last, 6 o'clock the fourth.
-        assertEquals(0, ringArcAt(5f, 6))
-        assertEquals(5, ringArcAt(355f, 6))
-        assertEquals(3, ringArcAt(185f, 6))
-        assertEquals("a full turn on is the first again", 0, ringArcAt(361f, 6))
-        // The arcs leave even gaps between them and fill the circle with them.
-        assertEquals(360f, (ringSweep(6) + RING_GAP_DEGREES) * 6, 1e-3f)
-        assertEquals(RING_GAP_DEGREES / 2f, ringStart(0, 6), 0f)
+    fun aTapOnTheRadarChoosesTheNearestCheck() {
+        // Six checks clockwise from 12: the first at 12, the fourth at 6 o'clock.
+        assertEquals(-PI.toFloat() / 2, radarAngle(0, 6), 1e-5f)
+        assertEquals(PI.toFloat() / 2, radarAngle(3, 6), 1e-5f)
+        assertEquals(0, radarAxisAt(10f, 6))
+        assertEquals("just left of 12 is still the first", 0, radarAxisAt(350f, 6))
+        assertEquals(1, radarAxisAt(70f, 6))
+        assertEquals(3, radarAxisAt(185f, 6))
+        assertEquals(5, radarAxisAt(290f, 6))
+        assertEquals("a full turn on is the first again", 0, radarAxisAt(361f, 6))
     }
 
     @Test
-    fun theWaveFlowsButEachArcStartsAndEndsClean() {
-        val sweep = ringSweep(6)
-        assertEquals(0f, ringWave(0f, sweep, 0.3f), 1e-5f)
-        assertEquals(0f, ringWave(sweep, sweep, 0.3f), 1e-5f)
-        // Mid-arc it moves as the flow runs.
-        assertTrue(kotlin.math.abs(ringWave(sweep / 2, sweep, 0f) - ringWave(sweep / 2, sweep, 0.25f)) > 0.3f)
-        for (i in 0..100) assertTrue(ringWave(sweep * i / 100f, sweep, i / 37f) in -1f..1f)
+    fun theBeamLightsEachCheckAsItPassesThenLetsItSettle() {
+        val at = radarAngle(2, 6)
+        assertEquals(1f, sweepHighlight(at, at), 1e-5f)
+        // Brightening just before the beam arrives, fading behind it, and dark across the rest of the turn.
+        assertTrue(sweepHighlight(at - 0.06f, at) in 0.01f..0.99f)
+        assertTrue(sweepHighlight(at + 0.8f, at) < sweepHighlight(at + 0.2f, at))
+        assertEquals(0f, sweepHighlight(at + BEAM_TRAIL + 0.1f, at), 0f)
+        assertEquals("a turn later it lights the same", sweepHighlight(at + 0.3f, at), sweepHighlight(at + 0.3f + 2 * PI.toFloat(), at), 1e-4f)
+    }
+
+    @Test
+    fun theShapeIsRoundedThroughEveryCheck() {
+        val points = List(6) { i -> Offset(100f + 60f * cos(radarAngle(i, 6)), 100f + 60f * sin(radarAngle(i, 6))) }
+        val path = Path()
+        radarBlob(points, path)
+        val bounds = path.getBounds()
+        // It reaches every check and stays close round them: a soft shape, not a burst past them.
+        for (p in points) assertTrue("$p in $bounds", bounds.inflate(0.5f).contains(p))
+        assertTrue(bounds.width < 2 * 60f * 1.1f && bounds.height < 2 * 60f * 1.1f)
     }
 
     @Test

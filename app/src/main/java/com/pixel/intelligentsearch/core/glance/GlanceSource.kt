@@ -8,15 +8,12 @@ import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
-import android.os.BatteryManager
 import android.os.SystemClock
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.scale
 import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 import com.pixel.intelligentsearch.core.system.openPendingOrApp
-import com.pixel.intelligentsearch.core.system.battery.BatteryReadings
-import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.channels.awaitClose
@@ -36,24 +33,21 @@ fun interface GlanceSource {
 }
 
 /**
- * At a Glance from the phone: the next alarm (AlarmManager), the battery (its sticky broadcast), media sessions
- * (MediaSessionManager, which Android opens only to an app with notification access), contacts' birthdays, and the
- * timers in the [index]. Only what [GlanceToggles] switches on is read, every receiver and listener is
- * removed when collection stops, and nothing touches the network or the disk beyond the contacts provider.
+ * At a Glance from the phone: the next alarm (AlarmManager), media sessions (MediaSessionManager, which Android opens
+ * only to an app with notification access), contacts' birthdays (with the contacts permission), and the timers in
+ * the [index]. Only what [GlanceToggles] allows is read, every receiver and listener is removed when collection
+ * stops, and nothing touches the network or the disk beyond the contacts provider.
  */
 class AndroidGlanceSource(private val context: Context, private val index: NotificationIndex) : GlanceSource {
 
     override fun snapshots(toggles: GlanceToggles, hiddenApps: Set<String>): Flow<GlanceSnapshot> {
         if (!toggles.anyOn) return flowOf(GlanceSnapshot.EMPTY)
-        val alarm = if (toggles.alarm) alarmFlow() else flowOf(null)
-        val battery = if (toggles.battery) batteryFlow() else flowOf(null)
-        val media = if (toggles.media) mediaFlow(hiddenApps) else flowOf(null)
         val birthdays = if (toggles.birthdaysOn) {
             flow { emit(Birthdays.inWindow(Birthdays.load(context), LocalDate.now())) }.flowOn(Dispatchers.IO)
         } else flowOf(emptyList())
-        val timers = if (toggles.notifications && toggles.timers) timerFlow(hiddenApps) else flowOf(emptyList())
-        return combine(alarm, battery, media, birthdays, timers) { a, b, m, days, t ->
-            GlanceSnapshot(alarm = a, timers = t, media = m, birthdays = days, battery = b)
+        val timers = if (toggles.timersOn) timerFlow(hiddenApps) else flowOf(emptyList())
+        return combine(alarmFlow(), mediaFlow(hiddenApps), birthdays, timers) { a, m, days, t ->
+            GlanceSnapshot(alarm = a, timers = t, media = m, birthdays = days)
         }
     }
 
@@ -76,20 +70,6 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
             context, receiver, IntentFilter(AlarmManager.ACTION_NEXT_ALARM_CLOCK_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED
         )
         trySend(read())
-        awaitClose { runCatching { context.unregisterReceiver(receiver) } }
-    }.distinctUntilChanged().flowOn(Dispatchers.Default)
-
-    private fun batteryFlow(): Flow<GlanceBattery?> = callbackFlow {
-        val receiver = object : BroadcastReceiver() {
-            override fun onReceive(c: Context?, intent: Intent?) {
-                intent?.let { trySend(batteryFrom(it)) }
-            }
-        }
-        // The battery broadcast is sticky: registering hands back the current reading at once.
-        val current = ContextCompat.registerReceiver(
-            context, receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED), ContextCompat.RECEIVER_NOT_EXPORTED
-        )
-        trySend(current?.let(::batteryFrom))
         awaitClose { runCatching { context.unregisterReceiver(receiver) } }
     }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
@@ -173,23 +153,4 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
         /** Artwork is shown at 40 dp; this covers the densest screens without holding a full-size cover. */
         private const val ARTWORK_PX = 160
     }
-}
-
-/** The battery from its broadcast: level, whether plugged in, and the charging status the diagnostics page shows. */
-fun batteryFrom(intent: Intent): GlanceBattery? = batteryFrom(
-    level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
-    scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100),
-    plugged = intent.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0),
-    status = intent.getIntExtra(BatteryManager.EXTRA_STATUS, -1),
-    chargingStatus = intent.getIntExtra(ChargingStatus.EXTRA_CHARGING_STATUS, 0)
-)
-
-fun batteryFrom(level: Int, scale: Int, plugged: Int, status: Int, chargingStatus: Int = 0): GlanceBattery? {
-    if (level < 0 || scale <= 0) return null
-    val percent = (level * 100 / scale).coerceIn(0, 100)
-    val chargeState = BatteryReadings.chargeState(status, plugged)
-    // What the charger is doing ("Charging", "Fully Charged", "Paused to Protect Battery"); the cable's USB modes,
-    // which the diagnostics page adds, don't belong here.
-    val label = ChargingStatus.status(plugged, chargeState, usb = null, adbEnabled = false, chargingState = chargingStatus)?.shortLabel
-    return GlanceBattery(percent, pluggedIn = chargeState != BatteryReadings.ChargeState.Discharging, statusLabel = label)
 }

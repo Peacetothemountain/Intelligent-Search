@@ -247,16 +247,14 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * memory for search and At a Glance's timers. Off by default; it works only with notification access.
          */
         val SEARCH_NOTIFICATIONS = BooleanSetting("search.notifications", false)
-        /** At a Glance: timely cards above the empty search. Each item has its own switch below. */
+        /**
+         * At a Glance: timely cards above the empty search. Each item shows by itself when it has something to show
+         * and what it reads from is on: timers need [SEARCH_NOTIFICATIONS], media notification access, birthdays
+         * contact search; the next alarm always shows.
+         */
         val GLANCE_ENABLED = BooleanSetting("glance.enabled", true)
-        val GLANCE_ALARM = BooleanSetting("glance.alarm", true)
-        /** Timers and stopwatches, read from the clock's notifications (needs [SEARCH_NOTIFICATIONS]). */
-        val GLANCE_TIMERS = BooleanSetting("glance.timers", true)
-        /** At a Glance's Media Controls, read from media sessions (needs notification access). */
-        val GLANCE_MEDIA = BooleanSetting("glance.media", true)
-        /** Contacts' birthdays this week (needs contacts access). */
-        val GLANCE_BIRTHDAYS = BooleanSetting("glance.birthdays", true)
-        val GLANCE_BATTERY = BooleanSetting("glance.battery", true)
+        /** The clock in the At a Glance card's corner. */
+        val GLANCE_CLOCK = BooleanSetting("glance.clock", true)
         /**
          * AI Answers: questions ("…?", "ask …") offer an Ask row that, only when tapped, sends that one question to
          * [AI_PROVIDER] with the user's own key (kept in AiKeyVault, never here). Off by default; a backup can't
@@ -320,8 +318,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, OVERLAY_SHOW_MIC, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
             SHOW_KEYBOARD_ON_OPEN, ENTER_KEY_ACTION,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
-            DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_ALARM,
-            GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_BIRTHDAYS, GLANCE_BATTERY, RESULT_SHORTCUTS,
+            DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_CLOCK,
+            RESULT_SHORTCUTS,
             DICTIONARY_ANSWERS, WEATHER_ANSWERS,
             WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION, FILES_EXCLUDED_TYPES, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
@@ -350,9 +348,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * Settings an older build stored that no longer mean anything: Search from Selected Text (its entry is always
          * on now), At a Glance's one-time codes (Android 15 hides them from listeners), On-Device Translation
          * (translations go to Google Translate), Saved Links (removed; Web Shortcuts open sites), the widget's
-         * Saved Themes (moved into the widget profiles first, WidgetProfiles.migrateSavedThemes) and the widgets'
-         * favourite apps and media rows (removed; the Quick App Panel opens favourite apps). A value an older build
-         * stored is dropped at every start, and backups never restore one.
+         * Saved Themes (moved into the widget profiles first, WidgetProfiles.migrateSavedThemes), the widgets'
+         * favourite apps and media rows (removed; the Quick App Panel opens favourite apps), and At a Glance's battery
+         * and per-item switches. A value an older build stored is dropped at every start, and backups never restore one.
          */
         val REMOVED_NAMES: Set<String> = setOf(
             "search_from_selected_text", "glance.codes", "on_device_translation", "saved_links_json",
@@ -361,7 +359,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             "launch.edge_swipe", "launch.edge_swipe_edge", "launch.edge_swipe_position", "launch.edge_swipe_height",
             // The widgets' favourite apps and media rows, removed.
             "widget_system_favourite_apps", "widget_material_favourite_apps",
-            "widget_system_show_media", "widget_material_show_media"
+            "widget_system_show_media", "widget_material_show_media",
+            // At a Glance's battery (removed) and its per-item switches (each item now shows when it can).
+            "glance.battery", "glance.timers", "glance.alarm", "glance.media", "glance.birthdays"
         )
 
         /** The folder in the app's files where an older build kept Saved Links' site icons; deleted at start. */

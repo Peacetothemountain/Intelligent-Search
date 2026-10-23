@@ -1,7 +1,7 @@
 # Privacy Policy & Privacy Governance
 
 **Effective Date:** October 4, 2026  
-**Last Updated:** October 22, 2026  
+**Last Updated:** October 23, 2026  
 **Application:** Intelligent Search (`com.pixel.intelligentsearch`)  
 **Developer / Publisher:** NG Designs  
 **Contact:** [support.ngdesigns@gmail.com](mailto:support.ngdesigns@gmail.com)  
@@ -26,7 +26,7 @@ We believe that your personal device search queries, contacts, schedule, files, 
 Intelligent Search requires certain Android platform permissions solely to enable search and device-management functionality on your local device. Every permission is handled with minimal privilege and strict user transparency, and what each one reads stays on your device, with one exception you choose: if you let Weather Answers use your approximate location, the rounded coordinates go to Open-Meteo for the forecast (Section 2.J):
 
 ### A. Contacts (`android.permission.READ_CONTACTS`)
-* **Purpose**: Allows you to search your contacts by name, display phone numbers, and trigger one-tap calls or SMS messages directly from the search bar. With the same permission, **At a Glance** shows contacts' birthdays in the coming week above the empty search (switch it off in **Settings -> Search Behavior -> At a Glance -> Birthdays**).
+* **Purpose**: Allows you to search your contacts by name, display phone numbers, and trigger one-tap calls or SMS messages directly from the search bar. With the same permission, **At a Glance** shows contacts' birthdays in the coming week above the empty search while contact search is on (turn At a Glance off in **Settings -> Search Behavior -> At a Glance**).
 * **Processing & Security**: Contact indexing is executed entirely within your device's local memory. Contact data is **never** transmitted over the internet, never backed up to remote servers, and never shared with third parties.
 * **User Control**: Contacts search is disabled by default. Enabling it requires your explicit runtime consent, preceded by an in-app prominent disclosure dialog explaining local-only usage. You can disable Contacts search at any time in **Settings -> Search Sources -> Contacts**, or revoke the permission via Android System Settings.
 
@@ -77,15 +77,15 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Processing & Security**: Requests are answered on the device. Hidden apps are never returned, and contacts are never shared while contact search or sharing is off, or contacts access is not granted.
 
 ### L. Notifications (Notification Access, `BIND_NOTIFICATION_LISTENER_SERVICE`)
-* **One grant for two features**: Intelligent Search has a single notification listener, so it appears once in Android's Notification Access list, and that one grant covers **Search Your Notifications** and the **Media Controls** in At a Glance. Google Play allows notification access for an app's core feature; here it is used for these two and nothing else. Revoke it any time in Android Settings -> Notifications -> Device & app notifications (Notification Access).
+* **One grant for two features**: Intelligent Search has a single notification listener, so it appears once in Android's Notification Access list, and that one grant covers **Search Your Notifications** and the media controls in At a Glance. Google Play allows notification access for an app's core feature; here it is used for these two and nothing else. Revoke it any time in Android Settings -> Notifications -> Device & app notifications (Notification Access).
 * **Consent**: Switching on either of the two without access first shows the same explanation of what each one reads, then opens Android's own Notification Access screen, where you grant access yourself. The feature stays off unless you do. Revoking access stops both at once.
 * **Search Your Notifications** (**Settings -> Search Sources -> Notifications**, off by default): only while this switch is on does Intelligent Search read the notifications showing on your phone, so that typed searches can find them and **At a Glance** can show running timers and stopwatches. Notifications are held in the app's memory only, while they are showing: their title, text, app and time. Nothing read is ever written to storage, the database, preferences or backups, and nothing is sent anywhere. Turning the switch off or revoking access forgets everything at once, and no notification is read again until you turn it back on. Intelligent Search sees only what each notification itself shows; it cannot open your messages, Gmail or other emails behind them.
-* **At a Glance Media Controls** (**Settings -> Search Behavior -> At a Glance -> Media Controls**): Android lets an app with notification access see which media apps are playing. At a Glance uses this to show what is playing with play, pause and skip, on the device only, while the search is on screen. It reads no notifications.
+* **At a Glance media controls** (shown while **Settings -> Search Behavior -> At a Glance** is on and notification access is granted): Android lets an app with notification access see which media apps are playing. At a Glance uses this to show what is playing with play, pause and skip, on the device only, while the search is on screen. It reads no notifications.
 * **When nothing needs it**: with Search Your Notifications off, the listener disconnects itself, so nothing is read even while access stays granted.
 
-### M. At a Glance (Alarms, Battery, Media, Birthdays & Timers)
-* **Purpose**: Above the empty search, At a Glance can show your next alarm, the battery when it is low or charging, what is playing, birthdays this week and running timers. Each has its own switch in **Settings -> Search Behavior -> At a Glance**.
-* **Processing & Security**: These are read from Android on the device, only while the search is empty and on screen, and are never stored or transmitted. No new permission is needed for the alarm and battery. Birthdays come from your contacts and show only while contact search (**Settings -> Search Sources -> Contacts**) is on and contacts access is allowed; timers come from notifications and need **Search Your Notifications** (Section 2.L); what is playing needs Notification Access. Media from apps you hid is never shown. Switching an item on without what it needs asks for it first.
+### M. At a Glance (Alarms, Media, Birthdays & Timers)
+* **Purpose**: Above the empty search, At a Glance can show your next alarm, what is playing, birthdays this week and running timers, with a clock you can hide. Turn it on or off in **Settings -> Search Behavior -> At a Glance**; each item shows only when it has something to show and what it reads from is already on.
+* **Processing & Security**: These are read from Android on the device, only while the search is empty and on screen, and are never stored or transmitted. No permission is needed for the alarm. Birthdays come from your contacts and show only while contact search (**Settings -> Search Sources -> Contacts**) is on and contacts access is allowed; timers come from notifications and need **Search Your Notifications** (Section 2.L); what is playing needs Notification Access. Media from apps you hid is never shown. At a Glance never asks for a permission itself.
 
 ### N. Clipboard (Smart Clipboard Suggestions)
 * **Purpose**: Only if you turn on **Settings -> Search Behavior -> Smart Clipboard Suggestions** (off by default), the empty search offers an action for what you copied: open a link, call a number, search the text, or **Search with Lens** for a copied image.

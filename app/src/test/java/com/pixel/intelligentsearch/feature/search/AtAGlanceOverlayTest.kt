@@ -17,7 +17,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.HiltTestActivity
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
-import com.pixel.intelligentsearch.core.glance.GlanceBattery
+import com.pixel.intelligentsearch.core.glance.GlanceAlarm
 import com.pixel.intelligentsearch.core.glance.GlanceBirthday
 import com.pixel.intelligentsearch.core.glance.GlanceSnapshot
 import com.pixel.intelligentsearch.core.glance.GlanceSource
@@ -64,9 +64,11 @@ class AtAGlanceOverlayTest {
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
 
     private val snapshot = GlanceSnapshot(
-        birthdays = listOf(GlanceBirthday(7, "lk", "Ana Lima", 0, LocalDate.now(), turning = null)),
-        battery = GlanceBattery(15, pluggedIn = false, statusLabel = null)
+        alarm = GlanceAlarm(System.currentTimeMillis() + 2 * 60 * 60 * 1000L),
+        birthdays = listOf(GlanceBirthday(7, "lk", "Ana Lima", 0, LocalDate.now(), turning = null))
     )
+
+    private val alarmRow get() = compose.onNodeWithText("Alarm · ", substring = true)
 
     @Before fun setUp() {
         hilt.inject()
@@ -112,10 +114,10 @@ class AtAGlanceOverlayTest {
         prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).commit()
         showOverlay(history = listOf("weather tomorrow"))
         val glance = compose.onNodeWithTag(GLANCE_HEADER_TAG).getUnclippedBoundsInRoot()
+        val alarm = alarmRow.getUnclippedBoundsInRoot()
         val birthday = compose.onNodeWithText("Ana Lima's Birthday").getUnclippedBoundsInRoot()
-        val battery = compose.onNodeWithText("Battery · 15%").getUnclippedBoundsInRoot()
         val recent = compose.onNodeWithText("Recent").getUnclippedBoundsInRoot()
-        assertTrue("heading, birthday, battery, then Recent", glance.top < birthday.top && birthday.top < battery.top && battery.top < recent.top)
+        assertTrue("heading, alarm, birthday, then Recent", glance.top < alarm.top && alarm.top < birthday.top && birthday.top < recent.top)
         assertEquals("the empty search reads At a Glance", 1, collecting.get())
     }
 
@@ -126,13 +128,23 @@ class AtAGlanceOverlayTest {
         showOverlay()
         val heading = compose.onNodeWithTag(GLANCE_HEADER_TAG).getUnclippedBoundsInRoot()
         val birthday = compose.onNodeWithText("Ana Lima's Birthday").getUnclippedBoundsInRoot()
-        val battery = compose.onNodeWithText("Battery · 15%").getUnclippedBoundsInRoot()
+        val alarm = alarmRow.getUnclippedBoundsInRoot()
         assertTrue("the card starts at the list's start margin", heading.left < 40.dp)
         assertTrue("the card is about 62% of the 412 dp width, not all of it", heading.right < 300.dp)
         // The clock sits at the card's end beside the heading, so the card's content ends where the clock does.
         val clock = compose.onNodeWithTag(GLANCE_CLOCK_TAG).getUnclippedBoundsInRoot()
-        assertTrue("the items sit inside the card, under its heading", birthday.right <= clock.right + 8.dp && battery.right <= clock.right + 8.dp)
-        assertTrue("the clock is at the card's top end, beside the heading", clock.left >= heading.right && clock.top < birthday.top)
+        assertTrue("the items sit inside the card, under its heading", birthday.right <= clock.right + 8.dp && alarm.right <= clock.right + 8.dp)
+        assertTrue("the clock is at the card's top end, beside the heading", clock.left >= heading.right && clock.top < alarm.top)
+        assertEquals("the clock is 64 dp", 64f, (clock.right - clock.left).value, 0.5f)
+    }
+
+    @Test
+    fun showClockOffLeavesTheHeadingWithoutTheClock() {
+        prefs.edit().put(SettingsManager.GLANCE_CLOCK, false).commit()
+        showOverlay()
+        compose.onNodeWithTag(GLANCE_HEADER_TAG).assertExists()
+        compose.onNodeWithTag(GLANCE_CLOCK_TAG).assertDoesNotExist()
+        alarmRow.assertExists()
     }
 
     /** The card is about 62% of the list, 232 to 340 dp, wider with larger text, and the whole width where that won't fit. */
@@ -164,7 +176,7 @@ class AtAGlanceOverlayTest {
         prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).commit()
         showOverlay()
         compose.onNodeWithText("Ana Lima's Birthday").assertDoesNotExist()
-        compose.onNodeWithText("Battery · 15%").assertExists()
+        alarmRow.assertExists()
     }
 
     @Test

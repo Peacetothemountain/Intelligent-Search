@@ -39,7 +39,7 @@ import kotlin.math.sin
 internal const val GLANCE_CLOCK_TAG = "glance_clock"
 
 /** The clock face's size beside the heading. */
-internal val GLANCE_CLOCK_SIZE: Dp = 54.dp
+internal val GLANCE_CLOCK_SIZE: Dp = 64.dp
 
 /** Where a clock's hands and seconds marker point, in degrees clockwise from 12. */
 internal data class ClockAngles(val hour: Float, val minute: Float, val second: Float)

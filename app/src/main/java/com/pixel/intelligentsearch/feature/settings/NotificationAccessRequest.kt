@@ -19,20 +19,18 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pixel.intelligentsearch.core.glance.NotificationAccess
 
 /**
- * What the notification access dialog says before Android's own Notification Access screen opens. One grant covers
- * both features, so each of them explains both the same way.
+ * What the notification access dialog says before Android's own Notification Access screen opens. The one grant also
+ * lets At a Glance show running timers and what's playing, so the dialog says so.
  */
 internal const val NOTIFICATION_ACCESS_RATIONALE =
-    "One Notification Access grant covers Search Your Notifications and the Media Controls in At a Glance. " +
-        "Notifications are read only while Search Your Notifications is on, so you can search them " +
-        "and see running timers above the search. It sees only what each notification shows, never your messages " +
-        "or emails themselves, and holds them in memory only while they are showing. Media Controls " +
-        "see only what is playing. Nothing is stored and nothing leaves your phone. On the next screen, allow " +
-        "notification access for Intelligent Search."
+    "Notification access lets you search your notifications and see running timers and what's playing in At a " +
+        "Glance. Intelligent Search sees only what each notification shows, not the messages or emails behind it, " +
+        "and keeps it in memory only while the notification is showing. Nothing is stored and nothing leaves your " +
+        "phone. On the next screen, allow notification access for Intelligent Search."
 
 /**
- * The app's one way to ask for Notification Access ([NotificationAccess]), shared by Search Your Notifications and At
- * a Glance's Media Controls: with access already granted it answers at once; otherwise
+ * The app's one way to ask for Notification Access ([NotificationAccess]), from Search Your Notifications (the same
+ * grant lets At a Glance show timers and media): with access already granted it answers at once; otherwise
  * [request] shows the rationale ([NotificationAccessDialog]), "Open Settings" goes to Android's Notification Access
  * screen, and coming back says whether the user granted it. "Not Now" answers no.
  */

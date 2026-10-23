@@ -19,16 +19,14 @@ import org.robolectric.RobolectricTestRunner
 import java.io.File
 
 /**
- * The At a Glance switches and Search Your Notifications are typed settings that backups carry; a backup may switch
- * notification search off but never on, as with the other privacy opt-ins.
+ * At a Glance's switch, its Show Clock switch and Search Your Notifications are typed settings that backups carry; a
+ * backup may switch notification search off but never on, as with the other privacy opt-ins.
  */
 @RunWith(RobolectricTestRunner::class)
 class AtAGlanceSettingsBackupTest {
 
     private val keys = listOf(
-        SettingsManager.SEARCH_NOTIFICATIONS, SettingsManager.GLANCE_ENABLED, SettingsManager.GLANCE_ALARM,
-        SettingsManager.GLANCE_TIMERS, SettingsManager.GLANCE_MEDIA,
-        SettingsManager.GLANCE_BIRTHDAYS, SettingsManager.GLANCE_BATTERY
+        SettingsManager.SEARCH_NOTIFICATIONS, SettingsManager.GLANCE_ENABLED, SettingsManager.GLANCE_CLOCK
     )
 
     @Test
@@ -37,7 +35,7 @@ class AtAGlanceSettingsBackupTest {
             assertTrue("$key is declared", key in SettingsManager.ALL)
             assertEquals("BOOLEAN", BackupPreferenceSchema.expectedType(key.name))
         }
-        // Notification search is an opt-in, off until the user turns it on; every At a Glance item starts on.
+        // Notification search is an opt-in, off until the user turns it on; At a Glance and its clock start on.
         assertFalse(SettingsManager.SEARCH_NOTIFICATIONS.default)
         assertTrue(keys.drop(1).all { it.default })
     }
@@ -50,6 +48,15 @@ class AtAGlanceSettingsBackupTest {
     }
 
     @Test
+    fun theBatteryAndThePerItemSwitchesAreGone() {
+        // Each item shows when it can, so only At a Glance's own switch and Show Clock are left; the battery is gone.
+        for (name in listOf("glance.battery", "glance.timers", "glance.alarm", "glance.media", "glance.birthdays")) {
+            assertNull(" is not declared", SettingsManager.keyFor(name))
+            assertTrue(" is dropped and never restored", name in SettingsManager.REMOVED_NAMES)
+        }
+    }
+
+    @Test
     fun aBackupCanSwitchNotificationSearchOffButNeverOn() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, IntelligentSearchDatabase::class.java).allowMainThreadQueries().build()
@@ -58,14 +65,14 @@ class AtAGlanceSettingsBackupTest {
         val uri = Uri.fromFile(File(context.cacheDir, "notifications.json"))
 
         settingsManager.updateSetting(SettingsManager.SEARCH_NOTIFICATIONS, true)
-        settingsManager.updateSetting(SettingsManager.GLANCE_BATTERY, false)
+        settingsManager.updateSetting(SettingsManager.GLANCE_CLOCK, false)
         backupManager.exportToFile(uri, "correct horse battery").getOrThrow()
         settingsManager.updateSetting(SettingsManager.SEARCH_NOTIFICATIONS, false)
-        settingsManager.updateSetting(SettingsManager.GLANCE_BATTERY, true)
+        settingsManager.updateSetting(SettingsManager.GLANCE_CLOCK, true)
         backupManager.importFromFile(uri, "correct horse battery").getOrThrow()
         assertEquals(false, settingsManager[SettingsManager.SEARCH_NOTIFICATIONS])
         // Ordinary switches come back as they were.
-        assertEquals(false, settingsManager[SettingsManager.GLANCE_BATTERY])
+        assertEquals(false, settingsManager[SettingsManager.GLANCE_CLOCK])
 
         settingsManager.updateSetting(SettingsManager.SEARCH_NOTIFICATIONS, false)
         backupManager.exportToFile(uri, "correct horse battery").getOrThrow()

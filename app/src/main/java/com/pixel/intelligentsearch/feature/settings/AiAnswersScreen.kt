@@ -44,6 +44,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.ai.AiProvider
+import com.pixel.intelligentsearch.core.ui.AiProviderLogo
+import com.pixel.intelligentsearch.core.ui.aiProviderPillColor
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.security.AiKeyVault
@@ -96,6 +98,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                     }
 
                     SettingsSectionHeader("Provider and Key")
+                    val providerPillBase = MaterialTheme.colorScheme.primaryContainer
                     SettingsCard {
                         SettingsSelectorRow(
                             title = "Provider",
@@ -110,7 +113,10 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                                 }
                             },
                             label = { it.displayName },
-                            showDivider = true
+                            showDivider = true,
+                            leading = { option, isSelected -> AiProviderLogo(option, size = 20.dp, selected = isSelected) },
+                            // The chosen provider's pill takes a wash of its brand colour.
+                            indicatorColor = { option -> aiProviderPillColor(option, providerPillBase) }
                         )
                         SettingsDropdownRow(
                             title = "Model",

@@ -29,7 +29,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -84,16 +83,7 @@ internal fun OverlayPinnedRow(s: OverlayScope) {
     val context = LocalContext.current
     val pinned = s.uiState.pinned
     Column(modifier = Modifier.fillMaxWidth().testTag(PINNED_ROW_TAG)) {
-        Text(
-            text = "Pinned",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 6.dp)
-                .semantics { heading() }
-        )
+        OverlaySectionLabel("Pinned")
         val rowState = androidx.compose.foundation.lazy.rememberLazyListState()
         val rowKey: (Any) -> String = { menuTargetFor(it)?.key ?: it.hashCode().toString() }
         // A pin the arrow keys highlight is scrolled into view along the row.

@@ -388,14 +388,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         // Debug menu: Mock Trending Queries fills the empty search state with stand-in topics.
         if (mockTrendingOn && uiState.query.isEmpty()) {
             item(key = "header_trending", contentType = "recent_label") {
-                Text(
-                    text = "Trending",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp,
-                    fontFamily = GoogleSansFlex,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp)
-                )
+                OverlaySectionLabel("Trending")
             }
             uniqueItems(DebugMocks.trendingQueries, key = { topic -> "trending_$topic" }, contentType = { "recent_query" }) { topic ->
                 val pillShape = RoundedCornerShape(28.dp)
@@ -444,13 +437,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Recent",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        fontFamily = GoogleSansFlex,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    OverlaySectionLabel("Recent", Modifier)
                     if (distinctRecents.size > 7) {
                         Surface(
                             onClick = {

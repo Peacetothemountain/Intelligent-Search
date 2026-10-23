@@ -182,17 +182,7 @@ internal fun LazyListScope.atAGlanceItems(items: List<GlanceItem>, onOpened: () 
 /** "At a Glance", in the same small heading as "Recent". */
 @Composable
 internal fun GlanceHeader(modifier: Modifier = Modifier) {
-    Text(
-        text = "At a Glance",
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        modifier = modifier
-            .fillMaxWidth()
-            .testTag(GLANCE_HEADER_TAG)
-            .padding(horizontal = 24.dp, vertical = 6.dp)
-            .semantics { heading() }
-    )
+    OverlaySectionLabel("At a Glance", modifier.testTag(GLANCE_HEADER_TAG).then(SectionLabelPadding))
 }
 
 /** One At a Glance card. */

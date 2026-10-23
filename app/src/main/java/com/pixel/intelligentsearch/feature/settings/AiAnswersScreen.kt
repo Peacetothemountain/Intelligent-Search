@@ -87,7 +87,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                         SettingsRowToggle(
                             title = "AI Answers",
                             subtitle = block?.let(NetworkPolicy::blockSubtitle)
-                                ?: "Questions Ending with ? or Starting with Ask Offer an Ask Row. Only the Question You Tap Ask On Is Sent, with Your Own Key.",
+                                ?: "Questions Ending in ? or Starting with Ask Show an Ask Row. Only the Question You Tap Ask On Is Sent.",
                             icon = Icons.Outlined.AutoAwesome,
                             isChecked = enabled && block == null,
                             onCheckedChange = { if (block == null) enabled = it },
@@ -125,7 +125,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                         // What is sent, and where: information only, so a row without a chevron.
                         SettingsInfoRow(
                             title = "Privacy",
-                            subtitle = "Only When You Tap Ask, Only That Question Goes to ${provider.host} over HTTPS. Nothing Else Is Sent, and Your Key Never Leaves This Phone Except to ${provider.host}.",
+                            subtitle = "Only the Question You Tap Ask On Is Sent, to ${provider.host} over HTTPS. Your Key Goes Only to ${provider.host}.",
                             icon = Icons.Outlined.PrivacyTip,
                             showDivider = false
                         )
@@ -182,7 +182,7 @@ private fun ApiKeyRows(vault: AiKeyVault, provider: AiProvider) {
                 value = typed,
                 onValueChange = { typed = it.trim().take(MAX_KEY_LENGTH) },
                 label = { Text("${provider.displayName} API Key") },
-                supportingText = { Text("Make One at ${provider.keyPage}.") },
+                supportingText = { Text("Create One at ${provider.keyPage}.") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),

@@ -898,7 +898,7 @@ class SearchViewModel @Inject constructor(
             } else if (q == "time" || q.startsWith("time in ")) {
                 buildTimeAnswer(q.removePrefix("time").removePrefix(" in ").trim())
             } else if (question is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Weather) {
-                // The tap-through stands until (or unless) a live forecast replaces it: Weather Answers off, offline.
+                // The tap-through stands until (or unless) a live forecast replaces it: Web Suggestions off, Tor, offline.
                 val title = question.place?.let { "Weather in ${it.toDisplayPlaceName()}" } ?: "Weather"
                 val subtitle = if (question.day == com.pixel.intelligentsearch.core.answers.ForecastDay.TOMORROW) {
                     "Tap for tomorrow's forecast"

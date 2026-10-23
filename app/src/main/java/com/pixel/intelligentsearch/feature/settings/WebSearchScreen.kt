@@ -144,7 +144,7 @@ fun WebSearchScreen(
                 var webSuggestions by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
                 SettingsRowToggle(
                     title = "Web Suggestions",
-                    subtitle = "Sends What You Type to Your Search Engine for Live Suggestions.",
+                    subtitle = WEB_SUGGESTIONS_SUBTITLE,
                     icon = Icons.Outlined.ChatBubbleOutline,
                     isChecked = webSuggestions,
                     onCheckedChange = { webSuggestions = it },
@@ -161,6 +161,8 @@ fun WebSearchScreen(
                     showDivider = true
                 )
 
+                AiAnswersRow(onOpen = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.AiAnswers) })
+
                 ResultsCountSetting(SettingsManager.WEB_RESULTS_COUNT, "Web", defaultCount = 5)
 
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -168,13 +170,35 @@ fun WebSearchScreen(
                 PrioritySetting(SettingsManager.SEARCH_WEIGHT_WEB, "Web")
             }
 
-            SettingsSectionHeader("Instant Answers")
-            InstantAnswersCard(onOpenAiAnswers = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.AiAnswers) })
-
             SettingsSectionHeader("Quick Web Shortcuts")
             WebQuickShortcutsCard()
         }
     }
+}
+
+/**
+ * Web Suggestions' subtitle. Definitions and forecasts have no switch of their own: they are sent only while Web
+ * Suggestions is on (and never under Tor), so the services they use are named here.
+ */
+internal const val WEB_SUGGESTIONS_SUBTITLE =
+    "Sends What You Type to Your Search Engine for Suggestions, and to dictionaryapi.dev and Open-Meteo for Definitions and Weather."
+
+/** AI Answers' row: what it does, or why it can't ask right now; it opens the page where it is set up. */
+@Composable
+private fun AiAnswersRow(onOpen: () -> Unit) {
+    val web by rememberSetting(SettingsManager.SEARCH_WEB)
+    val searchEngine by rememberSetting(SettingsManager.SEARCH_ENGINE)
+    val aiOn by rememberSetting(SettingsManager.AI_ANSWERS_ENABLED)
+    SettingsRow(
+        title = "AI Answers",
+        subtitle = com.pixel.intelligentsearch.core.security.NetworkPolicy.aiBlock(web, searchEngine)
+            ?.let(com.pixel.intelligentsearch.core.security.NetworkPolicy::blockSubtitle)
+            ?: if (aiOn) "On. A Question Is Sent Only When You Tap Ask."
+            else "Answer Questions with Claude, ChatGPT or Gemini Using Your Own Key.",
+        icon = Icons.Outlined.AutoAwesome,
+        onClick = onOpen,
+        showDivider = true
+    )
 }
 
 // -----------------------------------------------------------------------------------------

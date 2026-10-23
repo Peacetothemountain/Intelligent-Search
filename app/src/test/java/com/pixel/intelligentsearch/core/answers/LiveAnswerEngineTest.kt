@@ -82,22 +82,28 @@ class LiveAnswerEngineTest {
         engine.answer(requireNotNull(LiveAnswerParser.parse(query)), query).toList()
     }
 
+    /** Web and Web Suggestions on, the only switches definitions and forecasts follow. */
     private fun allowWebAnswers() {
-        prefs.edit().put(SettingsManager.DICTIONARY_ANSWERS, true).put(SettingsManager.WEATHER_ANSWERS, true).commit()
+        prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Privacy: nothing is sent unless every switch allows it
+    // Privacy: nothing is sent unless Web and Web Suggestions allow it, and never under Tor
     // ---------------------------------------------------------------------------------------------
 
     @Test
-    fun theAnswersAreOffUntilTurnedOnAndSendNothing() {
-        assertFalse(SettingsManager.DICTIONARY_ANSWERS.default)
-        assertFalse(SettingsManager.WEATHER_ANSWERS.default)
+    fun withWebSuggestionsOnTheAnswersNeedNoSwitchOfTheirOwn() {
+        allowWebAnswers()
         val engine = engine()
-        assertEquals(emptyList<LiveAnswer>(), answers(engine, "define serendipity"))
-        assertEquals(emptyList<LiveAnswer>(), answers(engine, "weather in johnson city"))
-        assertEquals(emptyList<String>(), http.requests)
+        assertTrue(answers(engine, "define serendipity").single() is LiveAnswer.Definition)
+        assertTrue(answers(engine, "weather in johnson city").single() is LiveAnswer.Weather)
+    }
+
+    @Test
+    fun theOldSwitchesLeftOffNoLongerStopThem() {
+        allowWebAnswers()
+        prefs.edit().putBoolean("dictionary_answers", false).putBoolean("weather_answers", false).commit()
+        assertTrue(answers(engine(), "define serendipity").single() is LiveAnswer.Definition)
     }
 
     @Test
@@ -141,7 +147,7 @@ class LiveAnswerEngineTest {
     }
 
     @Test
-    fun turningAnAnswerOffForgetsWhatWasKept() = runBlocking {
+    fun clearingTheCachesForgetsWhatWasKept() = runBlocking {
         allowWebAnswers()
         prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "36.31,-82.35;Johnson City, Tennessee").commit()
         val engine = engine()
@@ -193,6 +199,7 @@ class LiveAnswerEngineTest {
         val engine = engine()
         val answer = answers(engine, "weather").single() as LiveAnswer.Weather
         assertEquals("Johnson City, Tennessee", answer.report.placeName)
+        assertTrue("a forecast for here, whose location the card can change", answer.here)
         assertEquals(TemperatureUnit.FAHRENHEIT, answer.report.unit)
         assertEquals(ForecastDay.TODAY, answer.report.day)
         assertEquals(1, http.requests.size)
@@ -210,6 +217,7 @@ class LiveAnswerEngineTest {
         val answer = answers(engine, "weather in Johnson City").single() as LiveAnswer.Weather
         // The most populous Johnson City, not the first listed.
         assertEquals("Johnson City, Tennessee", answer.report.placeName)
+        assertFalse("a place the query named", answer.here)
         assertEquals(2, http.requests.size)
         assertTrue(http.requests[0].startsWith("https://geocoding-api.open-meteo.com/v1/search?name=johnson%20city"))
 
@@ -228,16 +236,21 @@ class LiveAnswerEngineTest {
     }
 
     @Test
-    fun approximateLocationIsUsedOnlyWhenChosenAndAllowed() {
+    fun theSetLocationWinsAndTheApproximateOneIsUsedWithoutIt() {
         allowWebAnswers()
-        prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "36.31,-82.35;Johnson City, Tennessee").commit()
-        prefs.edit().put(SettingsManager.WEATHER_USE_DEVICE_LOCATION, true).commit()
-        // Chosen but not allowed: home.
-        assertEquals("Johnson City, Tennessee", (answers(engine(), "weather").single() as LiveAnswer.Weather).report.placeName)
         location.allowed = true
+        prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "36.31,-82.35;Johnson City, Tennessee").commit()
+        // Set from the weather card: it wins, even with location allowed.
+        assertEquals("Johnson City, Tennessee", (answers(engine(), "weather").single() as LiveAnswer.Weather).report.placeName)
+        // Cleared (or Use Approximate Location chosen): the phone's approximate location.
+        prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "").commit()
         val here = answers(engine(), "weather").single() as LiveAnswer.Weather
         assertEquals(LiveAnswerEngine.YOUR_LOCATION, here.report.placeName)
+        assertTrue(here.here)
         assertTrue(http.requests.last(), http.requests.last().contains("latitude=48.86&longitude=2.35"))
+        // Neither: the card asks where.
+        location.allowed = false
+        assertEquals(listOf(LiveAnswer.WeatherNeedsLocation("weather")), answers(engine(), "weather"))
     }
 
     /** An engine whose definitions and forecasts are also kept on disk, in [dir]. */
@@ -262,21 +275,19 @@ class LiveAnswerEngineTest {
     fun theForecastForThePhonesOwnLocationIsNeverWrittenToDisk() {
         val dir = folder.newFolder("answers")
         allowWebAnswers()
-        prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "36.31,-82.35;Johnson City, Tennessee")
-            .put(SettingsManager.WEATHER_USE_DEVICE_LOCATION, true).commit()
         location.allowed = true
         val here = answers(diskEngine(dir), "weather").single() as LiveAnswer.Weather
         assertEquals(LiveAnswerEngine.YOUR_LOCATION, here.report.placeName)
         assertEquals("nothing about where the phone is was saved", 0, filesIn(dir, "forecast"))
 
-        // The home location's forecast is the user's own choice of place, and is kept.
-        location.allowed = false
+        // The set location's forecast is the user's own choice of place, and is kept.
+        prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "36.31,-82.35;Johnson City, Tennessee").commit()
         answers(diskEngine(dir), "weather")
         assertEquals(1, filesIn(dir, "forecast"))
     }
 
     @Test
-    fun switchingAnAnswerOffFromAnywhereForgetsWhatWasKept() {
+    fun switchingWebSuggestionsOrWebOffFromAnywhereForgetsWhatWasKept() {
         val dir = folder.newFolder("answers")
         allowWebAnswers()
         prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "36.31,-82.35;Johnson City, Tennessee").commit()
@@ -287,25 +298,27 @@ class LiveAnswerEngineTest {
         assertEquals(1, filesIn(dir, "forecast"))
 
         // Not the settings page: a restore or the debug menu writes the setting directly.
-        prefs.edit().put(SettingsManager.DICTIONARY_ANSWERS, false).commit()
+        prefs.edit().put(SettingsManager.SEARCH_WEB_SUGGESTIONS, false).commit()
         assertEquals(0, filesIn(dir, "dictionary"))
-        assertEquals(1, filesIn(dir, "forecast"))
-        prefs.edit().put(SettingsManager.WEATHER_ANSWERS, false).commit()
         assertEquals(0, filesIn(dir, "forecast"))
 
         allowWebAnswers()
         answers(engine, "define serendipity")
         assertEquals("asked again, nothing was kept", 3, http.requests.size)
+        assertEquals(1, filesIn(dir, "dictionary"))
+
+        prefs.edit().put(SettingsManager.SEARCH_WEB, false).commit()
+        assertEquals(0, filesIn(dir, "dictionary"))
     }
 
     @Test
-    fun eachStartDropsWhatAFeatureThatIsOffKept() = runBlocking {
+    fun eachStartDropsWhatWasKeptWhileWebSuggestionsIsOff() = runBlocking {
         val dir = folder.newFolder("answers")
         allowWebAnswers()
         answers(diskEngine(dir), "define serendipity")
         assertEquals(1, filesIn(dir, "dictionary"))
         // Turned off while this engine wasn't listening (an older version, a cleared process).
-        prefs.edit().putBoolean(SettingsManager.DICTIONARY_ANSWERS.name, false).commit()
+        prefs.edit().putBoolean(SettingsManager.SEARCH_WEB_SUGGESTIONS.name, false).commit()
         java.io.File(dir, "dictionary").mkdirs()
         DiskAnswerCache(java.io.File(dir, "dictionary"), 10).write("en:serendipity", "{}", System.currentTimeMillis())
         diskEngine(dir).syncCaches()

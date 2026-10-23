@@ -116,7 +116,7 @@ internal fun contactsAllowed(context: android.content.Context): Boolean =
 
 /** What weather answers say before Android asks for approximate location. */
 internal const val LOCATION_RATIONALE =
-    "Weather answers can use your phone's approximate location, never its precise one. Only rounded coordinates " +
+    "The weather can use your phone's approximate location, never its precise one. Only rounded coordinates " +
         "are sent to Open-Meteo for the forecast, and only when you ask for the weather."
 
 /** A way to ask for approximate location: [request] answers at once when allowed, else explains first. */

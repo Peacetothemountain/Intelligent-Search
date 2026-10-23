@@ -319,7 +319,7 @@ class WeatherRepository(
         places.pruneExpired()
     }
 
-    /** Forgets every forecast and place kept, for when the user turns Weather Answers off. */
+    /** Forgets every forecast and place kept, for when the user turns Web Suggestions or Web off. */
     fun clear() {
         forecasts.clear()
         places.clear()

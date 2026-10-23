@@ -124,16 +124,10 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val LIVE_CURRENCY_RATES = BooleanSetting("live_currency_rates", true)
         val SEARCH_CALENDAR = BooleanSetting("search.calendar", true, "search_calendar")
         /**
-         * Definitions shown in the overlay ("define serendipity"), fetched from the Free Dictionary API
-         * (dictionaryapi.dev). Off by default; also needs Web and Web Suggestions on and Tor not the engine.
+         * Where weather answers are for when the query names no place: "latitude,longitude;name", empty for none. Set
+         * from the weather card (Set Location); while it is empty the phone's approximate location is used, if allowed.
          */
-        val DICTIONARY_ANSWERS = BooleanSetting("dictionary_answers", false)
-        /** Forecasts shown in the overlay ("weather tomorrow"), fetched from Open-Meteo; the same conditions apply. */
-        val WEATHER_ANSWERS = BooleanSetting("weather_answers", false)
-        /** Where weather answers are for when the query names no place: "latitude,longitude;name", empty for none. */
         val WEATHER_HOME_LOCATION = StringSetting("weather_home_location", "")
-        /** Weather answers use the phone's approximate location (when allowed) instead of the home location. */
-        val WEATHER_USE_DEVICE_LOCATION = BooleanSetting("weather_use_device_location", false)
         /**
          * Switched app shortcut results on; nothing reads it any more. Android lets only the home screen app read
          * other apps' shortcuts, so they never showed, and the row became the Quick App Panel switch
@@ -319,9 +313,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             SHOW_KEYBOARD_ON_OPEN, ENTER_KEY_ACTION,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
             DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_CLOCK,
-            RESULT_SHORTCUTS,
-            DICTIONARY_ANSWERS, WEATHER_ANSWERS,
-            WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION, FILES_EXCLUDED_TYPES, FILES_EXCLUDED_FOLDERS,
+            RESULT_SHORTCUTS, WEATHER_HOME_LOCATION, FILES_EXCLUDED_TYPES, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,
             AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL,
@@ -349,8 +341,10 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * on now), At a Glance's one-time codes (Android 15 hides them from listeners), On-Device Translation
          * (translations go to Google Translate), Saved Links (removed; Web Shortcuts open sites), the widget's
          * Saved Themes (moved into the widget profiles first, WidgetProfiles.migrateSavedThemes), the widgets'
-         * favourite apps and media rows (removed; the Quick App Panel opens favourite apps), and At a Glance's battery
-         * and per-item switches. A value an older build stored is dropped at every start, and backups never restore one.
+         * favourite apps and media rows (removed; the Quick App Panel opens favourite apps), and the switches folded
+         * into others: At a Glance's battery and per-item switches, Dictionary and Weather Answers and Use Approximate
+         * Location (Web Suggestions and the weather card decide now). A value an older build stored is dropped at every
+         * start, and backups never restore one.
          */
         val REMOVED_NAMES: Set<String> = setOf(
             "search_from_selected_text", "glance.codes", "on_device_translation", "saved_links_json",
@@ -361,8 +355,16 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             "widget_system_favourite_apps", "widget_material_favourite_apps",
             "widget_system_show_media", "widget_material_show_media",
             // At a Glance's battery (removed) and its per-item switches (each item now shows when it can).
-            "glance.battery", "glance.timers", "glance.alarm", "glance.media", "glance.birthdays"
+            "glance.battery", "glance.timers", "glance.alarm", "glance.media", "glance.birthdays",
+            // Dictionary and weather answers follow Web Suggestions now; the weather card sets the location.
+            "dictionary_answers", "weather_answers", REMOVED_WEATHER_USE_DEVICE_LOCATION
         )
+
+        /**
+         * The removed Use Approximate Location switch. Someone who had it on keeps getting the forecast for where
+         * the phone is: the migration clears the home location, which would now win, before dropping the switch.
+         */
+        internal const val REMOVED_WEATHER_USE_DEVICE_LOCATION = "weather_use_device_location"
 
         /** The folder in the app's files where an older build kept Saved Links' site icons; deleted at start. */
         internal const val REMOVED_SAVED_LINK_ICONS_DIR = "saved_link_icons"
@@ -547,7 +549,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
      * drops retired keys, and deletes the DataStore file. Then moves the pill opacity to its linear meaning (see
      * [migratePillOpacity]), fits the quick panel's max to the chosen apps (see [migrateQuickPanelMax]), moves the
      * widget's Saved Themes into its profiles ([WidgetProfiles.migrateSavedThemes]) and drops removed settings
-     * ([REMOVED_NAMES]) and the removed Saved Links' icon files. Safe to call repeatedly.
+     * ([REMOVED_NAMES], after [REMOVED_WEATHER_USE_DEVICE_LOCATION] is honoured) and the removed Saved Links' icon
+     * files. Safe to call repeatedly.
      */
     suspend fun migrateToSingleStore() = withContext(Dispatchers.IO) {
         val sp = prefs
@@ -555,6 +558,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         migratePillOpacity(sp)
         migrateQuickPanelMax(sp)
         WidgetProfiles.migrateSavedThemes(sp)
+        if (sp.getBoolean(REMOVED_WEATHER_USE_DEVICE_LOCATION, false)) sp.edit { remove(WEATHER_HOME_LOCATION.name) }
         if (REMOVED_NAMES.any(sp::contains)) sp.edit { REMOVED_NAMES.forEach(::remove) }
         java.io.File(context.filesDir, REMOVED_SAVED_LINK_ICONS_DIR).takeIf { it.exists() }?.let { runCatching { it.deleteRecursively() } }
     }

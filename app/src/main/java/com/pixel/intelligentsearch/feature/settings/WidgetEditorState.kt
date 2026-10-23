@@ -84,9 +84,6 @@ internal class WidgetEditorState(initialSlotItemHeightPx: Float) {
     var itemDragOffset by mutableFloatStateOf(0f)
     var selectedTabName by mutableStateOf("Appearance")
     var showFavouritesSheet by mutableStateOf(false)
-    /** The saved theme being renamed, or the name field of a new one ("" while saving the current design). */
-    var themeNameDialogFor by mutableStateOf<String?>(null)
-    var themeNameInput by mutableStateOf("")
 }
 
 /** The element being coloured in the Color Studio and its HSV sliders; starts over when the user switches design. */

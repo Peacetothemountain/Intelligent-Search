@@ -12,7 +12,6 @@ import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.BitmapDrawable
-import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -22,7 +21,6 @@ import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -218,19 +216,14 @@ fun SearchPillsScreen(
                             Icon(Icons.Outlined.Check, contentDescription = "Add Selected")
                         }
                     } else if (!showAppPicker) {
-                        IconButton(onClick = {
-                            resetCounter++
-                            localPillList = profiles.resetToSaved()
-                            Toast.makeText(context, "Profile $activeProfile reset to its saved state.", Toast.LENGTH_SHORT).show()
-                        }) {
-                            Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset to Saved State")
-                        }
-                        IconButton(onClick = {
-                            profiles.saveState(localPillList)
-                            Toast.makeText(context, "Profile $activeProfile state saved.", Toast.LENGTH_SHORT).show()
-                        }) {
-                            Icon(Icons.Outlined.Save, contentDescription = "Save Profile State")
-                        }
+                        ProfileStateActions(
+                            profile = activeProfile,
+                            onReset = {
+                                resetCounter++
+                                localPillList = profiles.resetToSaved()
+                            },
+                            onSave = { profiles.saveState(localPillList) }
+                        )
                         IconButton(onClick = {
                             if (localPillList.size >= SearchPillProfiles.MAX_PILLS) {
                                 showMaxWarning = true
@@ -358,38 +351,12 @@ fun SearchPillsScreen(
                     .padding(padding)
             ) {
                 // Segmented Profile Bar: each profile's outlined icon, filled while it is the active one.
-                ShellSelector(
-                    options = (1..SearchPillProfiles.PROFILE_COUNT).toList(),
+                ProfileSelector(
+                    count = SearchPillProfiles.PROFILE_COUNT,
                     selected = activeProfile,
                     onSelect = { id -> switchProfile(id) },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                    itemHeight = 60.dp,
-                    // The profile chips' own colours: no track, the active one on the primary container, the rest outlined.
-                    gap = 8.dp,
-                    contentPadding = 0.dp,
-                    indicatorShape = RoundedCornerShape(16.dp),
-                    unselectedBorder = FilterChipDefaults.filterChipBorder(enabled = true, selected = false)
-                ) { id, isSelected ->
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center,
-                        modifier = Modifier.padding(horizontal = 2.dp)
-                    ) {
-                        Icon(
-                            if (isSelected) Icons.Filled.AccountCircle else Icons.Outlined.AccountCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            "Profile $id",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            maxLines = 1,
-                            autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium)
-                        )
-                    }
-                }
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                )
 
                 if (localPillList.isEmpty()) {
                     com.pixel.intelligentsearch.core.ui.expressive.MatteShell(

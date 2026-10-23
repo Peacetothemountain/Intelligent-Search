@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.core.data
 
 import com.pixel.intelligentsearch.core.data.widget.MAX_CORNER_RADIUS
 import com.pixel.intelligentsearch.core.data.widget.MAX_OUTLINE_THICKNESS
+import com.pixel.intelligentsearch.core.data.widget.WidgetProfiles
 import com.pixel.intelligentsearch.core.util.storageContext
 import android.content.Context
 import android.content.SharedPreferences
@@ -282,8 +283,14 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** The bar's outer corner radius in dp; drawn at most half the bar's height (fully round). */
         val WIDGET_SYSTEM_CORNER_RADIUS = IntSetting("widget_system_corner_radius", 28, 0..MAX_CORNER_RADIUS)
         val WIDGET_MATERIAL_CORNER_RADIUS = IntSetting("widget_material_corner_radius", 32, 0..MAX_CORNER_RADIUS)
-        /** Named widget designs the user saved (WidgetThemeStore), as JSON. */
-        val WIDGET_SAVED_THEMES = StringSetting("widget_saved_themes", "[]")
+        /** The widget's design profile now on the widget (WidgetProfiles), 1 to WidgetProfiles.PROFILE_COUNT. */
+        val WIDGET_ACTIVE_PROFILE = IntSetting("widget_active_profile", 1, 1..WidgetProfiles.PROFILE_COUNT)
+        /** Each widget profile's design, kept while another profile is on the widget (WidgetProfiles), as JSON. */
+        val WIDGET_PROFILE_DESIGNS: List<StringSetting> =
+            (1..WidgetProfiles.PROFILE_COUNT).map { StringSetting("widget_profile_$it", "") }
+        /** The design each widget profile's Reset returns to (WidgetProfiles), as JSON. */
+        val WIDGET_PROFILE_SAVED_DESIGNS: List<StringSetting> =
+            (1..WidgetProfiles.PROFILE_COUNT).map { StringSetting("widget_profile_${it}_saved", "") }
         /**
          * What each placed countdown widget counts down to, by widget id (CountdownEventStore), as JSON. Widget ids are
          * this phone's own, so backups leave it out (BackupPreferenceSchema.DEVICE_LOCAL_KEYS).
@@ -333,11 +340,11 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION, FILES_EXCLUDED_TYPES, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_FAVOURITE_APPS, WIDGET_MATERIAL_FAVOURITE_APPS, WIDGET_SYSTEM_SHOW_MEDIA,
             WIDGET_MATERIAL_SHOW_MEDIA, WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
-            WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_SAVED_THEMES, COUNTDOWN_EVENTS,
+            WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,
             AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL, SAVED_LINKS,
             NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION,
             EDGE_SWIPE, EDGE_SWIPE_EDGE, EDGE_SWIPE_POSITION, EDGE_SWIPE_HEIGHT
-        ) + FILES_OPEN_WITH.values
+        ) + FILES_OPEN_WITH.values + WIDGET_PROFILE_DESIGNS + WIDGET_PROFILE_SAVED_DESIGNS
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =
             ALL.flatMap { key -> key.allNames.map { it to key } }.toMap()
@@ -358,10 +365,12 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /**
          * Switches an older build stored that no longer mean anything: Search from Selected Text (its entry is always
          * on now), At a Glance's one-time codes (Android 15 hides them from listeners) and On-Device Translation
-         * (translations go to Google Translate). A value an older build stored is dropped at every start, and backups
+         * (translations go to Google Translate), and the widget's Saved Themes (moved into the widget profiles first,
+         * WidgetProfiles.migrateSavedThemes). A value an older build stored is dropped at every start, and backups
          * never restore one.
          */
-        val REMOVED_NAMES: Set<String> = setOf("search_from_selected_text", "glance.codes", "on_device_translation")
+        val REMOVED_NAMES: Set<String> =
+            setOf("search_from_selected_text", "glance.codes", "on_device_translation", WidgetProfiles.SAVED_THEMES_KEY)
 
         /**
          * Set once [PILL_OPACITY] holds the pill's real opacity. Older versions drew their default, 50, fully
@@ -541,14 +550,16 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
      * One-time move to the single store (run after the user is unlocked): imports values only the old
      * DataStore copy still held, folds every legacy spelling into its canonical name, normalizes the theme,
      * drops retired keys, and deletes the DataStore file. Then moves the pill opacity to its linear meaning (see
-     * [migratePillOpacity]), fits the quick panel's max to the chosen apps (see [migrateQuickPanelMax]) and drops
-     * removed switches ([REMOVED_NAMES]). Safe to call repeatedly.
+     * [migratePillOpacity]), fits the quick panel's max to the chosen apps (see [migrateQuickPanelMax]), moves the
+     * widget's Saved Themes into its profiles ([WidgetProfiles.migrateSavedThemes]) and drops removed switches
+     * ([REMOVED_NAMES]). Safe to call repeatedly.
      */
     suspend fun migrateToSingleStore() = withContext(Dispatchers.IO) {
         val sp = prefs
         if (sp.getInt(STORAGE_VERSION_KEY, 0) < CURRENT_STORAGE_VERSION && !foldIntoSingleStore(sp)) return@withContext
         migratePillOpacity(sp)
         migrateQuickPanelMax(sp)
+        WidgetProfiles.migrateSavedThemes(sp)
         if (REMOVED_NAMES.any(sp::contains)) sp.edit { REMOVED_NAMES.forEach(::remove) }
     }
 

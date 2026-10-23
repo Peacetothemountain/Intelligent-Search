@@ -7,9 +7,9 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Pins, nicknames and trigger words, kept as one setting ([SettingsManager.RESULT_SHORTCUTS]) so backups carry them
+ * Pinned results, kept as one setting ([SettingsManager.RESULT_SHORTCUTS]) so backups carry them
  * like every other setting. Reads are synchronous and decoded once per change ([ParsedSetting]), so search can read
- * them on every keystroke. The overlay's menu and the Nicknames & Triggers page both change them through here.
+ * them on every keystroke. The overlay's menu and Pinned row change them through here.
  */
 @Singleton
 class ResultShortcutStore @Inject constructor(private val settingsManager: SettingsManager) {
@@ -21,7 +21,7 @@ class ResultShortcutStore @Inject constructor(private val settingsManager: Setti
     /** What is set right now. */
     val current: ResultShortcuts get() = setting.current
 
-    /** What is set now, then every change (from the overlay, the settings page or a restore). */
+    /** What is set now, then every change (from the overlay or a restore). */
     val flow: Flow<ResultShortcuts> = setting.observe(settingsManager)
 
     /** Applies [change] to what is set and saves the result. */

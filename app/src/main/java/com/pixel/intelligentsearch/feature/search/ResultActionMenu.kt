@@ -1,8 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.core.ui.MenuStyle
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.material.icons.outlined.Bolt
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.ComponentName
 import android.content.Context
@@ -20,25 +18,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.HistoryToggleOff
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.VerticalSplit
 import androidx.compose.material.icons.outlined.VisibilityOff
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import com.pixel.intelligentsearch.feature.settings.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -54,8 +46,6 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
@@ -64,7 +54,6 @@ import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.search.AndroidSettingResult
 import com.pixel.intelligentsearch.core.search.AndroidSettingsSearch
-import com.pixel.intelligentsearch.core.search.QuickKeys
 import com.pixel.intelligentsearch.core.search.ResultKeys
 import com.pixel.intelligentsearch.core.search.ResultShortcuts
 import com.pixel.intelligentsearch.core.util.findActivity
@@ -78,7 +67,7 @@ internal const val RESULT_MENU_TAG = "result_action_menu"
 
 /** What a long-press menu is for: a result, or a past search. */
 internal sealed interface ResultMenuTarget {
-    /** The [ResultKeys] name pins, nicknames and trigger words are stored under; null when it can't have them. */
+    /** The [ResultKeys] name pins are stored under; null when it can't be pinned. */
     val key: String?
     val title: String
 
@@ -112,9 +101,6 @@ internal sealed interface ResultMenuTarget {
 internal enum class ResultCommand(val label: String, val icon: ImageVector) {
     PIN("Pin to Top", Icons.Outlined.PushPin),
     UNPIN("Unpin", Icons.Filled.PushPin),
-    ADD_NICKNAME("Add Nickname", Icons.Outlined.Badge),
-    SET_TRIGGER("Set Trigger Word", Icons.Outlined.Bolt),
-    CHANGE_TRIGGER("Change Trigger Word", Icons.Outlined.Bolt),
     SPLIT_SCREEN("Open in Split Screen", Icons.Outlined.VerticalSplit),
     APP_INFO("App Info", Icons.Outlined.Info),
     HIDE("Hide from Results", Icons.Outlined.VisibilityOff),
@@ -124,7 +110,7 @@ internal enum class ResultCommand(val label: String, val icon: ImageVector) {
 
 /**
  * The menu's commands for [target], in groups shown with a divider between them: what the user can set on the result
- * (pin, nickname, trigger word), then how to open it, then what to do with the app. Contacts add their Call, Message,
+ * (pin), then how to open it, then what to do with the app. Contacts add their Call, Message,
  * Email and chat actions after these ([ResultMenuBox]). [splitScreen] and [canUninstall] say whether the device and
  * the app allow those.
  */
@@ -138,8 +124,6 @@ internal fun resultMenuCommands(
     val key = target.key
     val personal = if (key == null) emptyList() else buildList {
         add(if (shortcuts.isPinned(key)) ResultCommand.UNPIN else ResultCommand.PIN)
-        if (target is ResultMenuTarget.App || target is ResultMenuTarget.Contact) add(ResultCommand.ADD_NICKNAME)
-        add(if (shortcuts[key]?.trigger.isNullOrBlank()) ResultCommand.SET_TRIGGER else ResultCommand.CHANGE_TRIGGER)
     }
     if (target !is ResultMenuTarget.App) return listOf(personal).filter { it.isNotEmpty() }
     val open = if (splitScreen) listOf(ResultCommand.SPLIT_SCREEN) else emptyList()
@@ -290,37 +274,16 @@ internal fun ResultMenuBox(
     content: @Composable (openMenu: (() -> Unit)?) -> Unit
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    var dialog by remember { mutableStateOf<ResultCommand?>(null) }
     Box(modifier = modifier) {
         content(if (target == null) null else ({ menuOpen = true }))
         if (target != null && menuOpen) {
-            ResultActionMenu(s, target, onDismiss = { menuOpen = false }, onDialog = { dialog = it })
-        }
-        val key = target?.key
-        if (target != null && key != null) {
-            when (dialog) {
-                ResultCommand.ADD_NICKNAME -> NicknameDialog(
-                    title = target.title,
-                    existing = s.uiState.shortcuts.nicknamesOf(key),
-                    onSave = { s.viewModel.addNickname(key, target.title, it) },
-                    onDismiss = { dialog = null }
-                )
-                ResultCommand.SET_TRIGGER, ResultCommand.CHANGE_TRIGGER -> TriggerWordDialog(
-                    title = target.title,
-                    current = s.uiState.shortcuts[key]?.trigger.orEmpty(),
-                    bangSymbol = s.viewModel.webShortcutSymbol,
-                    check = { s.viewModel.checkTrigger(key, it) },
-                    onSave = { s.viewModel.setTrigger(key, target.title, it) },
-                    onDismiss = { dialog = null }
-                )
-                else -> {}
-            }
+            ResultActionMenu(s, target, onDismiss = { menuOpen = false })
         }
     }
 }
 
 @Composable
-private fun ResultActionMenu(s: OverlayScope, target: ResultMenuTarget, onDismiss: () -> Unit, onDialog: (ResultCommand) -> Unit) {
+private fun ResultActionMenu(s: OverlayScope, target: ResultMenuTarget, onDismiss: () -> Unit) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val app = (target as? ResultMenuTarget.App)?.app
@@ -347,7 +310,7 @@ private fun ResultActionMenu(s: OverlayScope, target: ResultMenuTarget, onDismis
             activeIconPack = s.settingsState.activeIconPack,
             onCommand = { command ->
                 onDismiss()
-                runCommand(context, s, target, command, onDialog)
+                runCommand(context, s, target, command)
             },
             onContactAction = { action ->
                 onDismiss()
@@ -358,12 +321,11 @@ private fun ResultActionMenu(s: OverlayScope, target: ResultMenuTarget, onDismis
     }
 }
 
-private fun runCommand(context: Context, s: OverlayScope, target: ResultMenuTarget, command: ResultCommand, onDialog: (ResultCommand) -> Unit) {
+private fun runCommand(context: Context, s: OverlayScope, target: ResultMenuTarget, command: ResultCommand) {
     val key = target.key
     val app = (target as? ResultMenuTarget.App)?.app
     when (command) {
         ResultCommand.PIN, ResultCommand.UNPIN -> if (key != null) s.viewModel.setPinned(key, target.title, command == ResultCommand.PIN)
-        ResultCommand.ADD_NICKNAME, ResultCommand.SET_TRIGGER, ResultCommand.CHANGE_TRIGGER -> onDialog(command)
         ResultCommand.APP_INFO, ResultCommand.UNINSTALL -> if (app != null) {
             s.ui.hasStartedTyping = false
             openAppInfo(context, app)
@@ -379,98 +341,4 @@ private fun runCommand(context: Context, s: OverlayScope, target: ResultMenuTarg
         }
         ResultCommand.REMOVE_FROM_HISTORY -> (target as? ResultMenuTarget.History)?.let { s.viewModel.removeSearchHistory(it.query) }
     }
-}
-
-/** Adds a nickname to [title]'s result; the ones it already has are listed so they aren't typed twice. */
-@Composable
-internal fun NicknameDialog(title: String, existing: List<String>, onSave: (String) -> Unit, onDismiss: () -> Unit) {
-    var text by remember { mutableStateOf("") }
-    val addable = ResultShortcuts.canAddNickname(text, existing)
-    val error = ResultShortcuts.nicknameError(text, existing, title)
-    val save = { if (addable != null) { onSave(addable); onDismiss() } }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Add Nickname", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-        text = {
-            Column {
-                Text(
-                    "Search for $title by another name, such as Dad or Bank.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.padding(top = 12.dp))
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it.take(ResultShortcuts.MAX_NICKNAME_LENGTH) },
-                    label = { Text("Nickname") },
-                    singleLine = true,
-                    isError = error != null,
-                    supportingText = {
-                        Text(error ?: if (existing.isNotEmpty()) "Also: ${existing.joinToString(", ")}." else "")
-                    },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { save() }),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = { TextButton(onClick = save, enabled = addable != null) { Text("Save", style = MaterialTheme.typography.labelLarge) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", style = MaterialTheme.typography.labelLarge) } }
-    )
-}
-
-/**
- * Sets the trigger word that opens [title]'s result when typed followed by a space. [check] says whether a word may
- * be used; its reason shows under the field and Save waits until it may. Remove clears the [current] one.
- */
-@Composable
-internal fun TriggerWordDialog(
-    title: String,
-    current: String,
-    bangSymbol: String,
-    check: (String) -> QuickKeys.Check,
-    onSave: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var text by remember { mutableStateOf(current) }
-    val result = check(text)
-    val unchanged = QuickKeys.normalize(text) == current
-    val canSave = result == QuickKeys.Check.Ok && !unchanged
-    // An empty field says nothing yet; anything else that can't be saved says why.
-    val error = if (text.isBlank()) null else QuickKeys.message(result, bangSymbol)
-    val save = { if (canSave) { onSave(QuickKeys.normalize(text)); onDismiss() } }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (current.isEmpty()) "Set Trigger Word" else "Change Trigger Word", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-        text = {
-            Column {
-                Text(
-                    QuickKeys.howTo(title),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.padding(top = 12.dp))
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it.trim().take(QuickKeys.MAX_LENGTH + 1) },
-                    label = { Text("Trigger Word") },
-                    singleLine = true,
-                    isError = error != null,
-                    supportingText = { Text(error ?: QuickKeys.HINT) },
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { save() }),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = { TextButton(onClick = save, enabled = canSave) { Text("Save", style = MaterialTheme.typography.labelLarge) } },
-        dismissButton = {
-            Row {
-                if (current.isNotEmpty()) {
-                    TextButton(onClick = { onSave(""); onDismiss() }) { Text("Remove", style = MaterialTheme.typography.labelLarge) }
-                }
-                TextButton(onClick = onDismiss) { Text("Cancel", style = MaterialTheme.typography.labelLarge) }
-            }
-        }
-    )
 }

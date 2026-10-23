@@ -240,7 +240,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val DEBUG_MOCK_TRENDING = BooleanSetting("debug.mock_zero_state", false)
         /** The user's consent to let on-device assistants search contacts (AppFunctions); off by default. */
         val APP_FUNCTIONS_SHARE_CONTACTS = BooleanSetting("appfunctions_share_contacts", false)
-        /** Pinned results, nicknames and trigger words, as JSON (ResultShortcuts); read through ResultShortcutStore. */
+        /** Pinned results, as JSON (ResultShortcuts); read through ResultShortcutStore. Older nickname and trigger word fields are ignored. */
         val RESULT_SHORTCUTS = StringSetting("result_shortcuts_json", "[]")
         /**
          * Search Your Notifications: the user's opt-in to let the notification listener read active notifications into

@@ -13,7 +13,6 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
-import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -30,6 +29,7 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -41,7 +41,7 @@ import org.robolectric.annotation.Config
 
 /**
  * The results' long-press menus in the overlay (opened by a long press or TalkBack's More options), what they set,
- * the empty overlay's Pinned row, and trigger words typed with a space or sent with Enter.
+ * the empty overlay's Pinned row, and that a trigger word an older version saved no longer opens anything.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -102,8 +102,8 @@ class ResultActionMenuOverlayTest {
         compose.settle(steps = 4)
 
         compose.onNodeWithTag(RESULT_MENU_TAG).assertExists()
-        compose.onNodeWithText("Set Trigger Word").assertExists()
-        // Nicknames are for apps and people.
+        // Nicknames and trigger words were removed.
+        compose.onNodeWithText("Set Trigger Word").assertDoesNotExist()
         compose.onNodeWithText("Add Nickname").assertDoesNotExist()
         compose.onNodeWithText("Pin to Top").performClick()
         compose.settle(steps = 4)
@@ -139,23 +139,15 @@ class ResultActionMenuOverlayTest {
     }
 
     @Test
-    fun aTriggerWordAndASpaceOpensItsResult() {
-        store.update { it.withTrigger(battery, "Battery", "bat") }
+    fun aTriggerWordFromAnOlderVersionNoLongerOpensItsResultAsItIsTyped() {
+        context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putString(SettingsManager.RESULT_SHORTCUTS.name, """[{"key":"$battery","title":"Battery","trigger":"bat"}]""")
+            .commit()
         showOverlay("")
         compose.onNode(hasSetTextAction()).performTextInput("bat ")
         compose.settle(steps = 2)
-        assertEquals(Intent.ACTION_POWER_USAGE_SUMMARY, startedAction())
-    }
-
-    @Test
-    fun aTriggerWordSentWithEnterOpensItsResult() {
-        store.update { it.withTrigger(battery, "Battery", "bat") }
-        showOverlay("")
-        compose.onNode(hasSetTextAction()).performTextInput("bat")
-        compose.settle(steps = 2)
-        compose.onNode(hasSetTextAction()).performImeAction()
-        compose.settle(steps = 2)
-        assertEquals(Intent.ACTION_POWER_USAGE_SUMMARY, startedAction())
+        assertNull(startedAction())
+        assertTrue(store.current.entries.isEmpty())
     }
 
     @Test

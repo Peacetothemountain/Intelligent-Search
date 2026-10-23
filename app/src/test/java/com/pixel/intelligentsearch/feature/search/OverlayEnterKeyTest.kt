@@ -12,8 +12,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
 /**
- * Enter's order once short action phrasing, trigger words, the keyboard highlight and Enter Key Action all apply:
- * the highlight, then a trigger word, then the phrasing's action (with Open Top Result), then Enter Key Action. And
+ * Enter's order once short action phrasing, the keyboard highlight and Enter Key Action all apply: the highlight,
+ * then the phrasing's action (with Open Top Result), then Enter Key Action. And
  * the stops the arrow keys reach for the Ask row, an AI answer and the file-type chip.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -21,34 +21,22 @@ class OverlayEnterKeyTest {
 
     private val timer = DirectAction("Start 15 min Timer", "15 minutes", "timer", Intent("android.intent.action.SET_TIMER"))
     private val highlighted = NavTarget.Correction("camera")
-    private val pinnedResult = "the trigger word's result"
 
     private fun decide(
         query: String = "15 min",
-        triggered: Any? = null,
         highlighted: NavTarget? = null,
         phrasing: DirectAction? = null,
         isBang: Boolean = false,
         setting: EnterKeyAction = EnterKeyAction.OPEN_TOP_RESULT
-    ) = OverlayEnterKey.decide(query, triggered, highlighted, phrasing, isBang, setting)
+    ) = OverlayEnterKey.decide(query, highlighted, phrasing, isBang, setting)
 
     @Test
     fun theHighlightComesBeforeEverythingElse() {
-        // A result the user moved to with the arrow keys opens, as Enter Key Action says, even on a trigger word.
+        // A result the user moved to with the arrow keys opens, as Enter Key Action says, even on a bang.
         for (setting in EnterKeyAction.entries) {
             assertEquals(
                 EnterOutcome.OpenHighlighted(highlighted),
-                decide(triggered = pinnedResult, highlighted = highlighted, phrasing = timer, isBang = true, setting = setting)
-            )
-        }
-    }
-
-    @Test
-    fun aTriggerWordComesBeforeThePhrasingABangAndTheSetting() {
-        for (setting in EnterKeyAction.entries) {
-            assertEquals(
-                EnterOutcome.OpenTriggered(pinnedResult),
-                decide(triggered = pinnedResult, phrasing = timer, isBang = true, setting = setting)
+                decide(highlighted = highlighted, phrasing = timer, isBang = true, setting = setting)
             )
         }
     }

@@ -44,7 +44,7 @@ import org.robolectric.annotation.GraphicsMode
 import kotlin.math.sqrt
 
 /**
- * The Material Morph animation with Display size and Font size turned up: on the three pages that show it, and on
+ * The Material Morph animation with Display size and Font size turned up: on Launch Portal and Search Sources, and on
  * its own in areas of many shapes and sizes. The animation keeps its rules however the screen is scaled: shapes stay
  * inside its area and below the bottom card, at most three at a time, sized for the area, each bounce a new shape and
  * a haptic tap.
@@ -75,7 +75,6 @@ class MaterialMorphAnimationScaleTest {
     /** The last row on each page: the bottom card ends just under it. */
     private val pages = mapOf(
         "Launch Portal" to "Home Screen Shortcut",
-        "Search Behavior" to "Start Assistant with Voice",
         "Search Sources" to "Android Settings"
     )
 
@@ -108,7 +107,6 @@ class MaterialMorphAnimationScaleTest {
     private fun Page(name: String) {
         when (name) {
             "Launch Portal" -> LaunchPortalScreen(prefs) {}
-            "Search Behavior" -> SearchBehaviorScreen(prefs) {}
             else -> SearchSourcesScreen(prefs, {}) {}
         }
     }

@@ -305,6 +305,8 @@ fun WeatherOneBox(
     report: WeatherReport,
     modifier: Modifier = Modifier,
     is24Hour: Boolean = android.text.format.DateFormat.is24HourFormat(LocalContext.current),
+    /** Shown for a forecast of "here": choose another location for it. */
+    onChangeLocation: (() -> Unit)? = null,
     onOpenWeather: () -> Unit
 ) {
     val locale = LocalConfiguration.current.locales[0]
@@ -379,27 +381,28 @@ fun WeatherOneBox(
         Text(text = "Weather data by Open-Meteo.com", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         AnswerChips {
             AnswerChip(label = "Open Weather", icon = Icons.AutoMirrored.Filled.OpenInNew, onClick = onOpenWeather)
+            onChangeLocation?.let { AnswerChip(label = "Change Location", icon = Icons.Default.EditLocationAlt, onClick = it) }
         }
     }
 }
 
-/** Weather for "here" with no home location: offers the phone's approximate location or choosing a home location. */
+/** Weather for "here" with no location set: offers setting a location or using the phone's approximate one. */
 @Composable
 fun WeatherLocationOneBox(
     modifier: Modifier = Modifier,
     onUseApproximateLocation: () -> Unit,
-    onSetHomeLocation: () -> Unit
+    onSetLocation: () -> Unit
 ) {
     AnswerCard(modifier) {
         AnswerHeader(icon = Icons.Default.WbSunny, label = "WEATHER", title = "Where Are You?", tone = AnswerTone.Tertiary)
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "Choose a home location for weather answers, or let them use your phone's approximate location.",
+            text = "Set a location for the weather, or use your phone's approximate location.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         AnswerChips {
-            AnswerChip(label = "Set Home Location", icon = Icons.Default.EditLocationAlt, emphasized = true, onClick = onSetHomeLocation)
+            AnswerChip(label = "Set Location", icon = Icons.Default.EditLocationAlt, emphasized = true, onClick = onSetLocation)
             AnswerChip(label = "Use Approximate Location", icon = Icons.Default.MyLocation, onClick = onUseApproximateLocation)
         }
     }

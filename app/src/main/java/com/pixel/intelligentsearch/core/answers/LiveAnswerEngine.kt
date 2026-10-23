@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.runtime.Immutable
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.net.HttpsClient
 import com.pixel.intelligentsearch.core.net.HttpsGet
@@ -31,9 +30,10 @@ sealed interface LiveAnswer {
 
     data class Definition(override val query: String, val entry: DictionaryEntry) : LiveAnswer
 
-    data class Weather(override val query: String, val report: WeatherReport) : LiveAnswer
+    /** A forecast; [here] when it is for the set location or the phone's, not a place the query named. */
+    data class Weather(override val query: String, val report: WeatherReport, val here: Boolean = false) : LiveAnswer
 
-    /** Weather for "here" with no home location set and no approximate location to use. */
+    /** Weather for "here" with no location set and no approximate location to use. */
     data class WeatherNeedsLocation(override val query: String) : LiveAnswer
 
     /** [text] to translate from [source] (null: let Google Translate tell) to [target], in Google Translate. */
@@ -46,8 +46,9 @@ sealed interface LiveAnswer {
 /**
  * Works out the overlay's instant answers: definitions, forecasts, translations (handed to Google Translate) and
  * screen time. Each answer is a flow, collected per keystroke and cancelled by the next, that emits nothing (the
- * overlay keeps its tap-through card) or the answer as it becomes known. Network answers wait [debounceMs] after the last keystroke before going
- * out, and come from the cache at once when they can.
+ * overlay keeps its tap-through card) or the answer as it becomes known. Definitions and forecasts have no switch of
+ * their own: they follow Web Suggestions ([NetworkPolicy.webAnswersAllowed]). They wait [debounceMs] after the last
+ * keystroke before going out, and come from the cache at once when they can.
  */
 @Singleton
 class LiveAnswerEngine internal constructor(
@@ -61,10 +62,8 @@ class LiveAnswerEngine internal constructor(
     /** Where a switched-off feature's saved answers are deleted, off the main thread the change arrives on. */
     private val cacheCleaner: Executor = Dispatchers.IO.asExecutor()
 ) {
-    enum class Feature(val setting: BooleanSetting) {
-        DICTIONARY(SettingsManager.DICTIONARY_ANSWERS),
-        WEATHER(SettingsManager.WEATHER_ANSWERS)
-    }
+    /** The answers that keep what they fetched on the phone. */
+    enum class Feature { DICTIONARY, WEATHER }
 
     @Inject
     constructor(@ApplicationContext context: Context, settingsManager: SettingsManager) : this(
@@ -100,7 +99,7 @@ class LiveAnswerEngine internal constructor(
     }.flowOn(Dispatchers.IO)
 
     private suspend fun FlowCollector<LiveAnswer>.define(question: LiveAnswerQuery.Define, query: String) {
-        if (!NetworkPolicy.webAnswersAllowed(prefs(), SettingsManager.DICTIONARY_ANSWERS)) return
+        if (!NetworkPolicy.webAnswersAllowed(prefs())) return
         val cached = dictionary.peek(question.word) ?: dictionary.cached(question.word)
         if (cached != null) return emit(LiveAnswer.Definition(query, cached))
         if (dictionary.recentlyMissed(question.word)) return
@@ -110,7 +109,7 @@ class LiveAnswerEngine internal constructor(
 
     private suspend fun FlowCollector<LiveAnswer>.weather(question: LiveAnswerQuery.Weather, query: String) {
         val settings = prefs()
-        if (!NetworkPolicy.webAnswersAllowed(settings, SettingsManager.WEATHER_ANSWERS)) return
+        if (!NetworkPolicy.webAnswersAllowed(settings)) return
         val unit = TemperatureUnit.forLocale(locale())
         var debounced = false
         suspend fun once() {
@@ -127,20 +126,22 @@ class LiveAnswerEngine internal constructor(
             // "Weather in Paris" means the Paris most people mean: the most populous of the places by that name.
             found?.maxByOrNull { it.population } ?: return
         } else {
-            deviceLocation(settings)?.also { onDisk = false }
-                ?: HomeLocationCodec.decode(settings[SettingsManager.WEATHER_HOME_LOCATION])
+            // The location set from the weather card wins; without one, the phone's approximate location if allowed.
+            HomeLocationCodec.decode(settings[SettingsManager.WEATHER_HOME_LOCATION])
+                ?: deviceLocation()?.also { onDisk = false }
                 ?: return emit(LiveAnswer.WeatherNeedsLocation(query))
         }
         val forecast = weather.peekForecast(place.latitude, place.longitude, unit)
             ?: (if (onDisk) weather.cachedForecast(place.latitude, place.longitude, unit) else null)
             ?: run { once(); weather.fetchForecast(place.latitude, place.longitude, unit, onDisk) }
             ?: return
-        WeatherReport.from(forecast, place.shortName, unit, question.day)?.let { emit(LiveAnswer.Weather(query, it)) }
+        WeatherReport.from(forecast, place.shortName, unit, question.day)
+            ?.let { emit(LiveAnswer.Weather(query, it, here = question.place == null)) }
     }
 
-    /** The phone's approximate location for "the weather", when chosen and allowed; otherwise the home location is used. */
-    private suspend fun deviceLocation(settings: SharedPreferences): GeoPlace? {
-        if (!settings[SettingsManager.WEATHER_USE_DEVICE_LOCATION] || !location.permitted()) return null
+    /** The phone's approximate location for "the weather", when the user allowed it. */
+    private suspend fun deviceLocation(): GeoPlace? {
+        if (!location.permitted()) return null
         return location.approximate()?.let { (latitude, longitude) -> GeoPlace(YOUR_LOCATION, null, null, latitude, longitude) }
     }
 
@@ -163,13 +164,13 @@ class LiveAnswerEngine internal constructor(
     }
 
     /**
-     * Brings the saved answers in line with the settings, at every start: a feature that is off keeps nothing, and
-     * answers past their lifetime are deleted rather than left on disk.
+     * Brings the saved answers in line with the settings, at every start: with Web or Web Suggestions off nothing is
+     * kept, and answers past their lifetime are deleted rather than left on disk.
      */
     suspend fun syncCaches() = withContext(Dispatchers.IO) {
-        val settings = prefs()
+        val kept = NetworkPolicy.webAnswersKept(prefs())
         for (feature in Feature.entries) {
-            if (!settings[feature.setting]) clearNow(feature) else when (feature) {
+            if (!kept) clearNow(feature) else when (feature) {
                 Feature.DICTIONARY -> dictionary.pruneExpired()
                 Feature.WEATHER -> weather.pruneExpired()
             }
@@ -177,15 +178,15 @@ class LiveAnswerEngine internal constructor(
     }
 
     /**
-     * Off means off, wherever it was switched (the settings page, a restore, the debug menu): when Dictionary or
-     * Weather Answers turns off, what it kept goes too. Held here, as SharedPreferences only keeps listeners weakly.
+     * Off means off, wherever it was switched (the settings page, a restore, the debug menu): when Web or Web
+     * Suggestions turns off, the definitions and forecasts kept go too. Held here, as SharedPreferences only keeps
+     * listeners weakly.
      */
     private val switchedOff = SharedPreferences.OnSharedPreferenceChangeListener { changed, key ->
-        // A null key means every setting was cleared, which turns both off.
-        for (feature in Feature.entries) {
-            if ((key == null || key in feature.setting.allNames) && !changed[feature.setting]) {
-                runCatching { cacheCleaner.execute { clearNow(feature) } }
-            }
+        // A null key means every setting was cleared.
+        val relevant = key == null || key in SettingsManager.SEARCH_WEB.allNames || key in SettingsManager.SEARCH_WEB_SUGGESTIONS.allNames
+        if (relevant && !NetworkPolicy.webAnswersKept(changed)) {
+            runCatching { cacheCleaner.execute { Feature.entries.forEach(::clearNow) } }
         }
     }
 
@@ -193,9 +194,9 @@ class LiveAnswerEngine internal constructor(
         runCatching { prefs().registerOnSharedPreferenceChangeListener(switchedOff) }
     }
 
-    /** Places called [name], for choosing a home location in settings; null when the lookup failed or isn't allowed. */
+    /** Places called [name], for setting the weather's location; null when the lookup failed or isn't allowed. */
     suspend fun findPlaces(name: String): List<GeoPlace>? = withContext(Dispatchers.IO) {
-        if (!NetworkPolicy.webAnswersAllowed(prefs(), SettingsManager.WEATHER_ANSWERS) || name.isBlank()) return@withContext null
+        if (!NetworkPolicy.webAnswersAllowed(prefs()) || name.isBlank()) return@withContext null
         val language = locale().language
         weather.cachedPlaces(name, language) ?: weather.fetchPlaces(name, language)
     }

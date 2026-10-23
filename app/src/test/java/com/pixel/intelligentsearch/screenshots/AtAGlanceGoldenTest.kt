@@ -16,7 +16,6 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.pixel.intelligentsearch.core.glance.GlanceAlarm
-import com.pixel.intelligentsearch.core.glance.GlanceBattery
 import com.pixel.intelligentsearch.core.glance.GlanceBirthday
 import com.pixel.intelligentsearch.core.glance.GlanceItem
 import com.pixel.intelligentsearch.core.glance.GlanceMedia
@@ -46,8 +45,8 @@ import java.util.TimeZone
 
 /**
  * Golden images of the At a Glance card with its clock and one of every item (a running timer, the next alarm, what
- * is playing with a stand-in cover, its seek bar and transport pill, a birthday and the battery), and of the Notifications results section, in both
- * themes. The data, the clock and the time zone are fixed, so nothing depends on the machine. See
+ * is playing with a stand-in cover, its seek bar and transport pill, and a birthday), and of the Notifications results
+ * section, in both themes. The data, the clock and the time zone are fixed, so nothing depends on the machine. See
  * [SettingsGoldenTest] for recording.
  */
 @HiltAndroidTest
@@ -96,8 +95,7 @@ class AtAGlanceGoldenTest(private val state: String, private val dark: Boolean) 
         GlanceItem.Media(GlanceMedia("Midnight City", "M83", "YouTube Music", "com.example.music", isPlaying = true, artwork = cover(), controls = StillControls,
             // 1:38 into 4:03, a player that takes a seek, read at the fixed elapsed clock below.
             progress = MediaSessionAccess.Progress(durationMs = 243_000L, positionMs = 98_000L, updatedAtElapsed = 0L, speed = 1f, canSeek = true))),
-        GlanceItem.Birthday(GlanceBirthday(7, "lk", "Ana Lima", 0, LocalDate.of(2027, 1, 15), turning = 30)),
-        GlanceItem.Battery(GlanceBattery(64, pluggedIn = true, statusLabel = "Charging"))
+        GlanceItem.Birthday(GlanceBirthday(7, "lk", "Ana Lima", 0, LocalDate.of(2027, 1, 15), turning = 30))
     )
 
     private val notifications = listOf(

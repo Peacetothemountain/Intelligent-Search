@@ -52,49 +52,40 @@ interface MediaControls {
     fun open()
 }
 
-/** The battery as At a Glance reads it: [statusLabel] is the charging status ("Fast Charging") while plugged in. */
-@Immutable
-data class GlanceBattery(val level: Int, val pluggedIn: Boolean, val statusLabel: String?) {
-    /** Worth showing: low on battery, or plugged in. */
-    val isRelevant: Boolean get() = pluggedIn || level <= LOW_LEVEL
-
-    companion object {
-        const val LOW_LEVEL = 20
-    }
-}
-
 /** Everything At a Glance may show, as last read; [glanceItems] decides what does show. */
 @Immutable
 data class GlanceSnapshot(
     val alarm: GlanceAlarm? = null,
     val timers: List<GlanceTimer> = emptyList(),
     val media: GlanceMedia? = null,
-    val birthdays: List<GlanceBirthday> = emptyList(),
-    val battery: GlanceBattery? = null
+    val birthdays: List<GlanceBirthday> = emptyList()
 ) {
     companion object {
         val EMPTY = GlanceSnapshot()
     }
 }
 
-/** The At a Glance switches in Search Behavior, and Search Your Notifications, which the notification items need. */
+/**
+ * What decides which At a Glance items can show: its own switch in Search Behavior, and the sources the items read
+ * from. Items have no switches of their own: the next alarm always shows, timers need Search Your Notifications,
+ * birthdays contact search, and media notification access (checked where the sessions are read).
+ */
 @Immutable
 data class GlanceToggles(
     val enabled: Boolean = true,
-    val alarm: Boolean = true,
-    val timers: Boolean = true,
-    val media: Boolean = true,
-    val birthdays: Boolean = true,
-    val battery: Boolean = true,
+    /** Search Sources -> Notifications (Search Your Notifications): timers are read from the clock's notifications. */
     val notifications: Boolean = false,
     /** Search Sources -> Contacts: birthdays come from the contacts, so they show only while contact search is on. */
     val contacts: Boolean = false
 ) {
-    /** Whether birthdays are read: their own switch and contact search on. */
-    val birthdaysOn: Boolean get() = birthdays && contacts
+    /** Whether timers are read: Search Your Notifications on. */
+    val timersOn: Boolean get() = enabled && notifications
 
-    /** Whether anything at all can show, so nothing is read for an empty section. */
-    val anyOn: Boolean get() = enabled && (alarm || media || birthdaysOn || battery || (notifications && timers))
+    /** Whether birthdays are read: contact search on. */
+    val birthdaysOn: Boolean get() = enabled && contacts
+
+    /** Whether anything at all can show (the alarm always can), so nothing is read while the section is off. */
+    val anyOn: Boolean get() = enabled
 }
 
 /** One card in At a Glance; [key] keeps each in place in the list. */
@@ -113,9 +104,6 @@ sealed interface GlanceItem {
     data class Birthday(val birthday: GlanceBirthday) : GlanceItem {
         override val key get() = "glance_birthday_${birthday.contactId}"
     }
-    data class Battery(val battery: GlanceBattery) : GlanceItem {
-        override val key get() = "glance_battery"
-    }
 }
 
 /** How far ahead the next alarm shows: half a day, as the Pixel's own At a Glance does. */
@@ -124,19 +112,16 @@ const val GLANCE_MAX_TIMERS = 3
 
 /**
  * What At a Glance shows at [now], in order: running timers and stopwatches, the next alarm within
- * [GLANCE_ALARM_WINDOW_MS], what is playing, birthdays this week, and the battery when low or charging. Each only
- * with its switch on; timers also need Search Your Notifications.
+ * [GLANCE_ALARM_WINDOW_MS], what is playing and birthdays this week. Timers need Search Your Notifications and
+ * birthdays contact search ([GlanceToggles]).
  */
 fun glanceItems(snapshot: GlanceSnapshot, toggles: GlanceToggles, now: Long): List<GlanceItem> {
     if (!toggles.enabled) return emptyList()
     return buildList {
-        if (toggles.timers && toggles.notifications) {
-            snapshot.timers.take(GLANCE_MAX_TIMERS).forEach { add(GlanceItem.Timer(it)) }
-        }
-        snapshot.alarm?.takeIf { toggles.alarm && it.triggerAt - now in 0..GLANCE_ALARM_WINDOW_MS }?.let { add(GlanceItem.Alarm(it)) }
-        snapshot.media?.takeIf { toggles.media }?.let { add(GlanceItem.Media(it)) }
+        if (toggles.timersOn) snapshot.timers.take(GLANCE_MAX_TIMERS).forEach { add(GlanceItem.Timer(it)) }
+        snapshot.alarm?.takeIf { it.triggerAt - now in 0..GLANCE_ALARM_WINDOW_MS }?.let { add(GlanceItem.Alarm(it)) }
+        snapshot.media?.let { add(GlanceItem.Media(it)) }
         if (toggles.birthdaysOn) snapshot.birthdays.forEach { add(GlanceItem.Birthday(it)) }
-        snapshot.battery?.takeIf { toggles.battery && it.isRelevant }?.let { add(GlanceItem.Battery(it)) }
     }
 }
 

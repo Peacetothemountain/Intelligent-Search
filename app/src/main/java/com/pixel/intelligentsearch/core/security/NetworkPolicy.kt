@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.core.security
 
 import android.content.SharedPreferences
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
 import com.pixel.intelligentsearch.core.data.settings.get
 
 /**
@@ -13,7 +12,7 @@ import com.pixel.intelligentsearch.core.data.settings.get
  *   questions or icon fetches.
  * - Web (the Search Sources master switch) off means no web traffic at all.
  * - Live web suggestions and the instant answers that send what was typed (definitions, forecasts) also need Web
- *   Suggestions on; each answer has its own switch as well.
+ *   Suggestions on, which is their only switch.
  */
 object NetworkPolicy {
 
@@ -48,8 +47,8 @@ object NetworkPolicy {
 
     /**
      * What keeps the instant answers that send what was typed (a word, a place) to a third party from running, or
-     * null when only their own switch decides. They follow the live suggestions' switches: Web and Web Suggestions on,
-     * and never while Tor is the engine.
+     * null when they may. They have no switch of their own and follow the live suggestions' switches: Web and Web
+     * Suggestions on, and never while Tor is the engine.
      */
     fun webAnswersBlock(prefs: SharedPreferences): Block? = webAnswersBlock(
         web = prefs[SettingsManager.SEARCH_WEB],
@@ -65,9 +64,15 @@ object NetworkPolicy {
         else -> null
     }
 
-    /** Whether the instant answer behind [feature] (Dictionary or Weather Answers) may reach the network. */
-    fun webAnswersAllowed(prefs: SharedPreferences, feature: BooleanSetting): Boolean =
-        prefs[feature] && webAnswersBlock(prefs) == null
+    /** Whether definitions and forecasts may reach the network ([webAnswersBlock] is null). */
+    fun webAnswersAllowed(prefs: SharedPreferences): Boolean = webAnswersBlock(prefs) == null
+
+    /**
+     * Whether definitions and forecasts may be kept on the phone: Web and Web Suggestions on. Turning either off
+     * deletes what was kept; Tor only stops new requests.
+     */
+    fun webAnswersKept(prefs: SharedPreferences): Boolean =
+        prefs[SettingsManager.SEARCH_WEB] && prefs[SettingsManager.SEARCH_WEB_SUGGESTIONS]
 
     /**
      * What keeps AI Answers from asking, apart from its own switch: Tor as the engine, or Web off. A question is only

@@ -26,8 +26,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Alarm
-import androidx.compose.material.icons.outlined.BatteryAlert
-import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.Cake
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Timer
@@ -63,7 +61,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.glance.AndroidGlanceSource
-import com.pixel.intelligentsearch.core.glance.GlanceBattery
 import com.pixel.intelligentsearch.core.glance.GlanceBirthday
 import com.pixel.intelligentsearch.core.glance.GlanceItem
 import com.pixel.intelligentsearch.core.glance.GlanceMedia
@@ -112,20 +109,13 @@ private fun rememberGlanceNow(periodMs: Long, enabled: Boolean = true): Long {
     }.value
 }
 
-/** The At a Glance switches in Search Behavior, with Search Your Notifications for the timers and Contacts for birthdays. */
+/** At a Glance's switch in Search Behavior, with Search Your Notifications for the timers and Contacts for birthdays. */
 @Composable
 private fun rememberGlanceToggles(): GlanceToggles {
     val enabled by rememberSetting(SettingsManager.GLANCE_ENABLED)
-    val alarm by rememberSetting(SettingsManager.GLANCE_ALARM)
-    val timers by rememberSetting(SettingsManager.GLANCE_TIMERS)
-    val media by rememberSetting(SettingsManager.GLANCE_MEDIA)
-    val birthdays by rememberSetting(SettingsManager.GLANCE_BIRTHDAYS)
-    val battery by rememberSetting(SettingsManager.GLANCE_BATTERY)
     val notifications by rememberSetting(SettingsManager.SEARCH_NOTIFICATIONS)
     val contacts by rememberSetting(SettingsManager.SEARCH_CONTACTS)
-    return remember(enabled, alarm, timers, media, birthdays, battery, notifications, contacts) {
-        GlanceToggles(enabled, alarm, timers, media, birthdays, battery, notifications, contacts)
-    }
+    return remember(enabled, notifications, contacts) { GlanceToggles(enabled, notifications, contacts) }
 }
 
 /**
@@ -253,10 +243,12 @@ internal fun GlanceCard(
 
 /**
  * "At a Glance" at the top of its card, in the theme's accent colour (a heading for TalkBack), with the clock in the
- * top end corner. The heading takes the room the clock leaves and wraps there at large text, so the two never overlap.
+ * top end corner unless Show Clock is off. The heading takes the room the clock leaves and wraps there at large text,
+ * so the two never overlap.
  */
 @Composable
 private fun GlanceHeader() {
+    val showClock by rememberSetting(SettingsManager.GLANCE_CLOCK)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -274,7 +266,7 @@ private fun GlanceHeader() {
                 .semantics { heading() }
                 .testTag(GLANCE_HEADER_TAG)
         )
-        GlanceClockFace()
+        if (showClock) GlanceClockFace()
     }
 }
 
@@ -291,13 +283,12 @@ private fun GlanceItemRow(item: GlanceItem, onOpened: () -> Unit, modifier: Modi
         is GlanceItem.Alarm -> AlarmRow(item.alarm.triggerAt, open, modifier)
         is GlanceItem.Media -> MediaRow(item.media, open, modifier)
         is GlanceItem.Birthday -> BirthdayRow(item.birthday, open, modifier)
-        is GlanceItem.Battery -> BatteryRow(item.battery, open, modifier)
     }
 }
 
 /**
  * What an At a Glance item opens, by tap or by Enter: a timer's own page (else the clock's timers, else its app),
- * the clock's alarms, the player's page, the contact, or Android's battery page.
+ * the clock's alarms, the player's page, or the contact.
  */
 internal fun openGlanceItem(context: Context, item: GlanceItem) {
     when (item) {
@@ -306,7 +297,6 @@ internal fun openGlanceItem(context: Context, item: GlanceItem) {
         is GlanceItem.Media -> item.media.controls.open()
         is GlanceItem.Birthday -> item.birthday.lookupUri.takeIf { it.isNotEmpty() }
             ?.let { launchSafeIntent(context, Intent(Intent.ACTION_VIEW, it.toUri())) }
-        is GlanceItem.Battery -> launchSafeIntent(context, Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
     }
 }
 
@@ -466,18 +456,6 @@ internal fun birthdayDayLabel(birthday: GlanceBirthday): String = when (birthday
     0 -> "Today"
     1 -> "Tomorrow"
     else -> birthday.date.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
-}
-
-/** The battery when it is low or plugged in, with what the charger is doing; opens Android's battery page. */
-@Composable
-private fun BatteryRow(battery: GlanceBattery, open: () -> Unit, modifier: Modifier) {
-    GlanceRow(
-        leading = { GlanceBadge(if (battery.pluggedIn) Icons.Outlined.BatteryChargingFull else Icons.Outlined.BatteryAlert) },
-        title = "Battery · ${battery.level}%",
-        subtitle = if (battery.pluggedIn) battery.statusLabel ?: "Plugged In" else "Battery Low",
-        onClick = open,
-        modifier = modifier
-    )
 }
 
 

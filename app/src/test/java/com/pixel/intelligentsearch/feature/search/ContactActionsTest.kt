@@ -286,11 +286,6 @@ class ContactActionsTest {
     }
 
     @Test
-    fun theSettingOffHidesEveryButton() {
-        assertTrue(ContactActions.forContact(alex, everything, enabled = false).isEmpty())
-    }
-
-    @Test
     fun withNothingInstalledNoButtonResolves() {
         val targets = ContactActionTargets.resolve(context)
         assertTrue(targets.available.isEmpty())

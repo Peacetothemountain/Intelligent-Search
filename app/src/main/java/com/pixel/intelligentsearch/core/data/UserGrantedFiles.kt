@@ -47,7 +47,7 @@ object UserGrantedFiles {
     val INDEX_KEYS = setOf(
         KEY_FOLDER_URIS, KEY_MEDIA_URIS, LEGACY_KEY_FOLDER_URI
     ) + SettingsManager.SEARCH_FILES.allNames + SettingsManager.FILES_HIDDEN_FILES.allNames +
-        SettingsManager.FILES_EXCLUDED_TYPES.allNames + SettingsManager.FILES_EXCLUDED_FOLDERS.allNames
+        SettingsManager.FILES_EXCLUDED_FOLDERS.allNames
 
     /** Shown as the location of photo-picker items, which have no folder path. */
     const val PICKED_MEDIA_LOCATION = "Chosen photos & videos"
@@ -78,10 +78,6 @@ object UserGrantedFiles {
 
     fun mediaUris(prefs: SharedPreferences): Set<String> =
         prefs.getStringSet(KEY_MEDIA_URIS, null)?.toSet().orEmpty()
-
-    /** The file types file search leaves out (File Types in File Search settings). */
-    fun excludedTypes(prefs: SharedPreferences): Set<FileTypeGroup> =
-        prefs[SettingsManager.FILES_EXCLUDED_TYPES].mapNotNullTo(HashSet(), FileTypeGroup::fromId)
 
     /** The subfolders of the chosen folders that file search skips, as tree URIs. */
     fun excludedFolderUris(prefs: SharedPreferences): Set<String> = prefs[SettingsManager.FILES_EXCLUDED_FOLDERS]
@@ -222,11 +218,10 @@ object UserGrantedFiles {
         val granted = grantedUris(context)
         val rules = FolderRules(
             includeHidden = includeHiddenFiles(prefs),
-            excludedTypes = excludedTypes(prefs),
             excludedFolders = excludedFolderUris(prefs).mapNotNull(FolderExclusions::parseTreeUri)
         )
         val out = ArrayList<FileItem>()
-        out += loadPickedMedia(context, mediaUris(prefs).filter { it in granted }).filter(rules::keepsType)
+        out += loadPickedMedia(context, mediaUris(prefs).filter { it in granted })
         for (tree in folderUris(prefs)) {
             if (tree !in granted) continue
             if (out.size >= MAX_FOLDER_FILES) break
@@ -236,22 +231,16 @@ object UserGrantedFiles {
     }
 
     /**
-     * Whether a file found outside the chosen folders (this app's own MediaStore files) belongs in the index: not of
-     * a type left out, and not in a folder file search always skips.
+     * Whether a file found outside the chosen folders (this app's own MediaStore files) belongs in the index: not in a
+     * folder file search always skips.
      */
-    fun keepsOwnMedia(prefs: SharedPreferences): (FileItem) -> Boolean {
-        val excluded = excludedTypes(prefs)
-        return { file -> FileTypes.groupOf(file) !in excluded && !FolderExclusions.isInAlwaysSkippedFolder(file.path) }
-    }
+    fun keepsOwnMedia(file: FileItem): Boolean = !FolderExclusions.isInAlwaysSkippedFolder(file.path)
 
     /** What indexing a chosen folder leaves out. */
     private class FolderRules(
         val includeHidden: Boolean,
-        val excludedTypes: Set<FileTypeGroup>,
         val excludedFolders: List<FolderExclusions.Excluded>
-    ) {
-        fun keepsType(file: FileItem): Boolean = FileTypes.groupOf(file) !in excludedTypes
-    }
+    )
 
     private suspend fun loadFolder(
         context: Context,
@@ -288,7 +277,7 @@ object UserGrantedFiles {
                             val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childId)
                             val modified = if (c.isNull(3)) 0L else c.getLong(3)
                             val file = FileItem(name, childPath, mime, documentUri.toString(), modified)
-                            if (rules.keepsType(file)) out.add(file)
+                            out.add(file)
                         }
                     }
                 }

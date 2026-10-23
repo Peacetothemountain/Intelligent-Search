@@ -27,8 +27,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 /**
- * Approximate location is asked for one way everywhere (the overlay's weather card and the Instant Answers page):
- * at once when allowed, otherwise after the shared rationale and Android's prompt.
+ * Approximate location is asked for the app's one way (from the overlay's weather card, its only use): at once when
+ * allowed, otherwise after the shared rationale and Android's prompt.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -56,7 +56,7 @@ class ApproximateLocationRequestTest {
         }
     }
 
-    /** Shows a "Use My Location" button that asks the way the weather card and settings row do, and taps it. */
+    /** Shows a "Use My Location" button that asks the way the weather card does, and taps it. */
     private fun askWith(allow: Boolean) {
         if (!granting) shadowOf(context).denyPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
         val registry = owner(allow)

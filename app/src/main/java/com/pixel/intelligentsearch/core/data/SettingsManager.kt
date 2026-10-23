@@ -67,7 +67,6 @@ data class IntelligentSearchSettings(
     val hiddenApps: Set<String> = SettingsManager.HIDDEN_APPS.default,
     val appQuickLaunch: Boolean = SettingsManager.APP_QUICK_LAUNCH.default,
     val contactDirectCall: Boolean = SettingsManager.CONTACT_DIRECT_CALL.default,
-    val contactActions: Boolean = SettingsManager.CONTACT_ACTIONS.default,
     val shortcutInline: Boolean = SettingsManager.SHORTCUT_INLINE.default,
     val appFuzzySearch: Boolean = SettingsManager.APP_FUZZY_SEARCH.default,
     val quickSearchHorizontal: Boolean = SettingsManager.QUICK_SEARCH_HORIZONTAL.default,
@@ -124,16 +123,10 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val LIVE_CURRENCY_RATES = BooleanSetting("live_currency_rates", true)
         val SEARCH_CALENDAR = BooleanSetting("search.calendar", true, "search_calendar")
         /**
-         * Definitions shown in the overlay ("define serendipity"), fetched from the Free Dictionary API
-         * (dictionaryapi.dev). Off by default; also needs Web and Web Suggestions on and Tor not the engine.
+         * Where weather answers are for when the query names no place: "latitude,longitude;name", empty for none. Set
+         * from the weather card (Set Location); while it is empty the phone's approximate location is used, if allowed.
          */
-        val DICTIONARY_ANSWERS = BooleanSetting("dictionary_answers", false)
-        /** Forecasts shown in the overlay ("weather tomorrow"), fetched from Open-Meteo; the same conditions apply. */
-        val WEATHER_ANSWERS = BooleanSetting("weather_answers", false)
-        /** Where weather answers are for when the query names no place: "latitude,longitude;name", empty for none. */
         val WEATHER_HOME_LOCATION = StringSetting("weather_home_location", "")
-        /** Weather answers use the phone's approximate location (when allowed) instead of the home location. */
-        val WEATHER_USE_DEVICE_LOCATION = BooleanSetting("weather_use_device_location", false)
         /**
          * Switched app shortcut results on; nothing reads it any more. Android lets only the home screen app read
          * other apps' shortcuts, so they never showed, and the row became the Quick App Panel switch
@@ -152,8 +145,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val CUSTOM_SEARCH_ENGINE_NAME = StringSetting("custom_search_engine_name", "Custom")
         val FILES_HIDDEN_FILES = BooleanSetting("search.files.hidden.files", false, "search_files_hidden_files")
         val FILES_THUMBNAILS = BooleanSetting("search.files.thumbnails", true, "search_files_thumbnails")
-        /** File types left out of file search, by [FileTypeGroup.id]; empty searches every type. */
-        val FILES_EXCLUDED_TYPES = StringSetSetting("search.files.excluded_types", emptySet())
         /**
          * Subfolders of the chosen folders that file search skips, as tree URIs. Like the chosen folders themselves
          * they only mean something on this phone, so backups leave them out (BackupPreferenceSchema.DEVICE_LOCAL_KEYS).
@@ -184,8 +175,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val HIDDEN_APPS = StringSetSetting("hidden_apps", emptySet())
         val APP_QUICK_LAUNCH = BooleanSetting("app_quick_launch", false)
         val CONTACT_DIRECT_CALL = BooleanSetting("contact_direct_call", false, "contact.direct.call")
-        /** Call, Message, Email and chat-app buttons on contact results. */
-        val CONTACT_ACTIONS = BooleanSetting("contact_actions", true)
         val SHORTCUT_INLINE = BooleanSetting("shortcut.inline", true, "shortcut_inline")
         val APP_FUZZY_SEARCH = BooleanSetting("app.fuzzy.search", true, "app_fuzzy_search")
         /** The overlay's quick-app panel; switched from Search Behavior and from App & Shortcut Search. */
@@ -247,16 +236,14 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * memory for search and At a Glance's timers. Off by default; it works only with notification access.
          */
         val SEARCH_NOTIFICATIONS = BooleanSetting("search.notifications", false)
-        /** At a Glance: timely cards above the empty search. Each item has its own switch below. */
+        /**
+         * At a Glance: timely cards above the empty search. Each item shows by itself when it has something to show
+         * and what it reads from is on: timers need [SEARCH_NOTIFICATIONS], media notification access, birthdays
+         * contact search; the next alarm always shows.
+         */
         val GLANCE_ENABLED = BooleanSetting("glance.enabled", true)
-        val GLANCE_ALARM = BooleanSetting("glance.alarm", true)
-        /** Timers and stopwatches, read from the clock's notifications (needs [SEARCH_NOTIFICATIONS]). */
-        val GLANCE_TIMERS = BooleanSetting("glance.timers", true)
-        /** At a Glance's Media Controls, read from media sessions (needs notification access). */
-        val GLANCE_MEDIA = BooleanSetting("glance.media", true)
-        /** Contacts' birthdays this week (needs contacts access). */
-        val GLANCE_BIRTHDAYS = BooleanSetting("glance.birthdays", true)
-        val GLANCE_BATTERY = BooleanSetting("glance.battery", true)
+        /** The clock in the At a Glance card's corner. */
+        val GLANCE_CLOCK = BooleanSetting("glance.clock", true)
         /**
          * AI Answers: questions ("…?", "ask …") offer an Ask row that, only when tapped, sends that one question to
          * [AI_PROVIDER] with the user's own key (kept in AiKeyVault, never here). Off by default; a backup can't
@@ -309,7 +296,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             BOTTOM_SEARCH, BOTTOM_SEARCH_RESULT, TUTORIAL_COMPLETED, FORCE_TUTORIAL, TUTORIAL_STEP, G_ICON_ENABLED,
             WIDGET_SHOW_VOICE, WIDGET_SHOW_GEMINI, QUICK_SEARCH_YOUTUBE, QUICK_SEARCH_WIKIPEDIA,
             QUICK_SEARCH_PLAY_STORE, QUICK_SEARCH_MAPS, SEARCH_PILLS, WIDGET_THEME_STYLE, HIDDEN_APPS,
-            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, CONTACT_ACTIONS, SHORTCUT_INLINE, APP_FUZZY_SEARCH,
+            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, SHORTCUT_INLINE, APP_FUZZY_SEARCH,
             QUICK_SEARCH_HORIZONTAL, WEB_RESULTS_COUNT, CONTACT_RESULTS_COUNT, FILE_RESULTS_COUNT,
             SHORTCUT_RESULTS_COUNT, SEARCH_WEIGHT_APPS, SEARCH_WEIGHT_CONTACTS, SEARCH_WEIGHT_FILES,
             SEARCH_WEIGHT_WEB, CONTEXT_AWARE_QUICK_APPS, SMART_CLIPBOARD_SUGGESTIONS, ASSISTANT_STARTS_WITH_VOICE,
@@ -320,10 +307,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, OVERLAY_SHOW_MIC, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
             SHOW_KEYBOARD_ON_OPEN, ENTER_KEY_ACTION,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
-            DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_ALARM,
-            GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_BIRTHDAYS, GLANCE_BATTERY, RESULT_SHORTCUTS,
-            DICTIONARY_ANSWERS, WEATHER_ANSWERS,
-            WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION, FILES_EXCLUDED_TYPES, FILES_EXCLUDED_FOLDERS,
+            DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, SEARCH_NOTIFICATIONS, GLANCE_ENABLED, GLANCE_CLOCK,
+            RESULT_SHORTCUTS, WEATHER_HOME_LOCATION, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,
             AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL,
@@ -350,9 +335,11 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * Settings an older build stored that no longer mean anything: Search from Selected Text (its entry is always
          * on now), At a Glance's one-time codes (Android 15 hides them from listeners), On-Device Translation
          * (translations go to Google Translate), Saved Links (removed; Web Shortcuts open sites), the widget's
-         * Saved Themes (moved into the widget profiles first, WidgetProfiles.migrateSavedThemes) and the widgets'
-         * favourite apps and media rows (removed; the Quick App Panel opens favourite apps). A value an older build
-         * stored is dropped at every start, and backups never restore one.
+         * Saved Themes (moved into the widget profiles first, WidgetProfiles.migrateSavedThemes), the widgets'
+         * favourite apps and media rows (removed; the Quick App Panel opens favourite apps), and the switches folded
+         * into others: At a Glance's battery and per-item switches, Dictionary and Weather Answers and Use Approximate
+         * Location (Web Suggestions and the weather card decide now), Contact Actions and File Types. A value an older
+         * build stored is dropped at every start, and backups never restore one.
          */
         val REMOVED_NAMES: Set<String> = setOf(
             "search_from_selected_text", "glance.codes", "on_device_translation", "saved_links_json",
@@ -361,8 +348,20 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             "launch.edge_swipe", "launch.edge_swipe_edge", "launch.edge_swipe_position", "launch.edge_swipe_height",
             // The widgets' favourite apps and media rows, removed.
             "widget_system_favourite_apps", "widget_material_favourite_apps",
-            "widget_system_show_media", "widget_material_show_media"
+            "widget_system_show_media", "widget_material_show_media",
+            // At a Glance's battery (removed) and its per-item switches (each item now shows when it can).
+            "glance.battery", "glance.timers", "glance.alarm", "glance.media", "glance.birthdays",
+            // Dictionary and weather answers follow Web Suggestions now; the weather card sets the location.
+            "dictionary_answers", "weather_answers", REMOVED_WEATHER_USE_DEVICE_LOCATION,
+            // Contact actions always show with contact search; file search covers every file type.
+            "contact_actions", "search.files.excluded_types"
         )
+
+        /**
+         * The removed Use Approximate Location switch. Someone who had it on keeps getting the forecast for where
+         * the phone is: the migration clears the home location, which would now win, before dropping the switch.
+         */
+        internal const val REMOVED_WEATHER_USE_DEVICE_LOCATION = "weather_use_device_location"
 
         /** The folder in the app's files where an older build kept Saved Links' site icons; deleted at start. */
         internal const val REMOVED_SAVED_LINK_ICONS_DIR = "saved_link_icons"
@@ -467,7 +466,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         hiddenApps = sp[HIDDEN_APPS],
         appQuickLaunch = sp[APP_QUICK_LAUNCH],
         contactDirectCall = sp[CONTACT_DIRECT_CALL],
-        contactActions = sp[CONTACT_ACTIONS],
         shortcutInline = sp[SHORTCUT_INLINE],
         appFuzzySearch = sp[APP_FUZZY_SEARCH],
         quickSearchHorizontal = sp[QUICK_SEARCH_HORIZONTAL],
@@ -547,7 +545,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
      * drops retired keys, and deletes the DataStore file. Then moves the pill opacity to its linear meaning (see
      * [migratePillOpacity]), fits the quick panel's max to the chosen apps (see [migrateQuickPanelMax]), moves the
      * widget's Saved Themes into its profiles ([WidgetProfiles.migrateSavedThemes]) and drops removed settings
-     * ([REMOVED_NAMES]) and the removed Saved Links' icon files. Safe to call repeatedly.
+     * ([REMOVED_NAMES], after [REMOVED_WEATHER_USE_DEVICE_LOCATION] is honoured) and the removed Saved Links' icon
+     * files. Safe to call repeatedly.
      */
     suspend fun migrateToSingleStore() = withContext(Dispatchers.IO) {
         val sp = prefs
@@ -555,6 +554,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         migratePillOpacity(sp)
         migrateQuickPanelMax(sp)
         WidgetProfiles.migrateSavedThemes(sp)
+        if (sp.getBoolean(REMOVED_WEATHER_USE_DEVICE_LOCATION, false)) sp.edit { remove(WEATHER_HOME_LOCATION.name) }
         if (REMOVED_NAMES.any(sp::contains)) sp.edit { REMOVED_NAMES.forEach(::remove) }
         java.io.File(context.filesDir, REMOVED_SAVED_LINK_ICONS_DIR).takeIf { it.exists() }?.let { runCatching { it.deleteRecursively() } }
     }

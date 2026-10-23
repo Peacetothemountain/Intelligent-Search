@@ -1,8 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import android.content.Context
-import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -27,7 +25,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-/** File Search settings' File Types chips, skipped subfolders and Open Files With menus. */
+/** File Search settings: no File Types picker, the skipped subfolders, and the one Open Files With row and its dialog. */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
 @Config(application = HiltTestApplication::class, qualifiers = "w412dp-h2600dp-xhdpi")
@@ -51,26 +49,12 @@ class FileSearchOptionsScreenTest {
     }
 
     @Test
-    fun aTypeChipSwitchesThatTypeOutOfSearchAndBackIn() {
+    fun thereIsNoFileTypesPicker() {
+        // File search covers every type; a search like "pdf invoice" narrows it to one.
         show()
-        compose.onNode(hasText("PDFs") and isToggleable()).performScrollTo().assertIsOn().performClick()
-        compose.settle(steps = 3)
-        assertEquals(setOf(FileTypeGroup.PDF), UserGrantedFiles.excludedTypes(prefs))
-        compose.onNode(hasText("PDFs") and isToggleable()).assertIsOff().performClick()
-        compose.settle(steps = 3)
-        assertEquals(emptySet<FileTypeGroup>(), UserGrantedFiles.excludedTypes(prefs))
+        compose.onNodeWithText("File Types").assertDoesNotExist()
+        compose.onNode(hasText("PDFs") and isToggleable()).assertDoesNotExist()
     }
-
-    @Test
-    fun theLastSearchedTypeStaysOn() {
-        val allButPdfs = FileTypeGroup.entries.filter { it != FileTypeGroup.PDF }.map { it.id }.toSet()
-        show { putStringSet(SettingsManager.FILES_EXCLUDED_TYPES.name, allButPdfs) }
-        compose.onNode(hasText("PDFs") and isToggleable()).performScrollTo().assertIsOn().performClick()
-        compose.settle(steps = 3)
-        compose.onNode(hasText("PDFs") and isToggleable()).assertIsOn()
-        assertEquals(allButPdfs, prefs[SettingsManager.FILES_EXCLUDED_TYPES])
-    }
-
     @Test
     fun skippedSubfoldersAreListedAndTappingOneSearchesItAgain() {
         show {
@@ -91,14 +75,23 @@ class FileSearchOptionsScreenTest {
     }
 
     @Test
-    fun eachTypeOpensInItsDefaultAppUntilChosenOtherwise() {
+    fun oneOpenFilesWithRowListsEveryTypeAndEachOpensInItsDefaultAppUntilChosenOtherwise() {
         show()
-        compose.onNodeWithText("Open Files With").performScrollTo()
+        // One row on the page, not a menu per type.
+        compose.onNodeWithText("Presentations").assertDoesNotExist()
+        compose.onNodeWithText("Open Files With").performScrollTo().performClick()
+        compose.settle(steps = 3)
+        for (group in FileTypeGroup.entries) compose.onNodeWithText(group.label).assertExists()
         compose.onNode(hasText("Presentations") and hasText("Default App")).performScrollTo().performClick()
         compose.settle(steps = 3)
         compose.onNodeWithText("Ask Every Time").performClick()
         compose.settle(steps = 3)
         assertEquals("ask", prefs[SettingsManager.FILES_OPEN_WITH.getValue(FileTypeGroup.PRESENTATIONS)])
         assertEquals("default", prefs[SettingsManager.FILES_OPEN_WITH.getValue(FileTypeGroup.PDF)])
+        // Back on the list of types, with the new choice under Presentations.
+        compose.onNode(hasText("Presentations") and hasText("Ask Every Time")).assertExists()
+        compose.onNodeWithText("Done").performClick()
+        compose.settle(steps = 3)
+        compose.onNodeWithText("Presentations").assertDoesNotExist()
     }
 }

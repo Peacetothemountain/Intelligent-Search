@@ -588,7 +588,7 @@ fun SearchOverlayScreen(
             else uiState.contacts
         }
     }
-    val contactActionTargets = rememberContactActionTargets(settingsState.searchContacts && settingsState.contactActions)
+    val contactActionTargets = rememberContactActionTargets(settingsState.searchContacts)
     
     val filteredApps by remember {
         derivedStateOf {

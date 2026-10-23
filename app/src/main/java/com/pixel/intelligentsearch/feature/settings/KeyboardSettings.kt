@@ -30,7 +30,7 @@ internal fun KeyboardSettingsCard() {
         var assistantVoice by rememberSetting(SettingsManager.ASSISTANT_STARTS_WITH_VOICE)
         SettingsRowToggle(
             title = "Start Assistant with Voice",
-            subtitle = "Open Search from the Assistant Gesture with the Microphone On. Only When It's Your Default Digital Assistant.",
+            subtitle = "The Assistant Gesture Opens Search with the Microphone On. Works When Intelligent Search Is Your Default Assistant.",
             icon = Icons.Outlined.Mic,
             isChecked = assistantVoice,
             onCheckedChange = { assistantVoice = it },
@@ -39,7 +39,7 @@ internal fun KeyboardSettingsCard() {
         var showKeyboard by rememberSetting(SettingsManager.SHOW_KEYBOARD_ON_OPEN)
         SettingsRowToggle(
             title = "Show Keyboard When Search Opens",
-            subtitle = "Open Search with the Keyboard Up. Off, Tap the Search Bar to Bring It Up.",
+            subtitle = "Open Search with the Keyboard Up. When Off, Tap the Search Bar to Show It.",
             icon = Icons.Outlined.Keyboard,
             isChecked = showKeyboard,
             onCheckedChange = { showKeyboard = it },
@@ -48,7 +48,7 @@ internal fun KeyboardSettingsCard() {
         var enterAction by rememberSetting(SettingsManager.ENTER_KEY_ACTION)
         SettingsSelectorRow(
             title = "Enter Key Action",
-            subtitle = "What Enter Does When No Result Is Highlighted.",
+            subtitle = "What Enter Does When No Results Are Highlighted.",
             icon = Icons.AutoMirrored.Outlined.KeyboardReturn,
             options = EnterKeyAction.entries,
             selected = EnterKeyAction.from(enterAction),

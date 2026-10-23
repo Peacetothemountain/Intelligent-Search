@@ -22,8 +22,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pixel.intelligentsearch.core.answers.GoogleTranslate
+import com.pixel.intelligentsearch.core.answers.HomeLocationCodec
 import com.pixel.intelligentsearch.core.answers.LiveAnswer
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.ui.DefinitionOneBox
 import com.pixel.intelligentsearch.core.ui.ScreenTimeOneBox
@@ -52,14 +54,7 @@ internal fun OverlayLiveAnswer(s: OverlayScope, answer: LiveAnswer) {
             entry = answer.entry,
             onOpenFullDefinition = { s.launchWebSearch("define ${answer.entry.word}") }
         )
-        is LiveAnswer.Weather -> WeatherOneBox(
-            report = answer.report,
-            onOpenWeather = {
-                s.ui.hasStartedTyping = false
-                val app = GoogleApps.weatherIntent(context)
-                if (app == null || !launchSafeIntent(context, app)) s.launchWebSearch(answer.query)
-            }
-        )
+        is LiveAnswer.Weather -> WeatherAnswer(s, answer)
         is LiveAnswer.WeatherNeedsLocation -> WeatherLocationPrompt(s)
         is LiveAnswer.Translation -> TranslationOneBox(
             answer = answer,
@@ -79,16 +74,59 @@ internal fun openInGoogleTranslate(context: android.content.Context, s: OverlayS
     if (app == null || !launchSafeIntent(context, app)) s.openWebAddress(GoogleTranslate.webAddress(text, source, target))
 }
 
-/** The weather card asking where "here" is, and the approximate-location request behind its button. */
+/** A forecast; one for "here" can have its location changed from the card. */
+@Composable
+private fun WeatherAnswer(s: OverlayScope, answer: LiveAnswer.Weather) {
+    val context = LocalContext.current
+    var choosing by remember { mutableStateOf(false) }
+    WeatherOneBox(
+        report = answer.report,
+        onChangeLocation = if (answer.here) ({ choosing = true }) else null,
+        onOpenWeather = {
+            s.ui.hasStartedTyping = false
+            val app = GoogleApps.weatherIntent(context)
+            if (app == null || !launchSafeIntent(context, app)) s.launchWebSearch(answer.query)
+        }
+    )
+    if (choosing) WeatherLocationChooser(s, onDone = { choosing = false })
+}
+
+/**
+ * The weather card asking where "here" is: Set Location opens the city search, Use Approximate Location asks for the
+ * permission (after the app's usual explanation). Either way the forecast is looked up again.
+ */
 @Composable
 private fun WeatherLocationPrompt(s: OverlayScope) {
+    var choosing by remember { mutableStateOf(false) }
     val location = rememberApproximateLocationRequest {
-        s.prefs.edit { put(SettingsManager.WEATHER_USE_DEVICE_LOCATION, true) }
+        // The set location would win over the phone's; this is the user choosing the phone's instead.
+        s.prefs.edit { put(SettingsManager.WEATHER_HOME_LOCATION, "") }
         s.viewModel.retryLiveAnswer()
     }
     WeatherLocationOneBox(
         onUseApproximateLocation = location::request,
-        onSetHomeLocation = { s.onOpenSettings("web_search") }
+        onSetLocation = { choosing = true }
+    )
+    if (choosing) WeatherLocationChooser(s, onDone = { choosing = false })
+}
+
+/** [WeatherLocationDialog] writing the weather's location, then looking the forecast up again. */
+@Composable
+private fun WeatherLocationChooser(s: OverlayScope, onDone: () -> Unit) {
+    val home = s.prefs[SettingsManager.WEATHER_HOME_LOCATION]
+    WeatherLocationDialog(
+        hasLocation = HomeLocationCodec.decode(home) != null,
+        onChosen = { place ->
+            s.prefs.edit { put(SettingsManager.WEATHER_HOME_LOCATION, HomeLocationCodec.encode(place)) }
+            onDone()
+            s.viewModel.retryLiveAnswer()
+        },
+        onCleared = {
+            s.prefs.edit { put(SettingsManager.WEATHER_HOME_LOCATION, "") }
+            onDone()
+            s.viewModel.retryLiveAnswer()
+        },
+        onDismiss = onDone
     )
 }
 

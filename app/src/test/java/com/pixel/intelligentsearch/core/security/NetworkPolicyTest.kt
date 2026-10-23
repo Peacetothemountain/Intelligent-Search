@@ -52,23 +52,28 @@ class NetworkPolicyTest {
     }
 
     @Test
-    fun webAnswersFollowTheirSwitchWebWebSuggestionsAndTor() {
-        prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true)
-            .put(SettingsManager.DICTIONARY_ANSWERS, true).commit()
+    fun webAnswersFollowWebWebSuggestionsAndTor() {
+        // Definitions and forecasts have no switch of their own: Web and Web Suggestions on is all they need.
+        prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
         assertNull(NetworkPolicy.webAnswersBlock(prefs))
-        assertTrue(NetworkPolicy.webAnswersAllowed(prefs, SettingsManager.DICTIONARY_ANSWERS))
-        // Its own switch.
-        assertFalse(NetworkPolicy.webAnswersAllowed(prefs, SettingsManager.WEATHER_ANSWERS))
+        assertTrue(NetworkPolicy.webAnswersAllowed(prefs))
+        assertTrue(NetworkPolicy.webAnswersKept(prefs))
 
         prefs.edit().put(SettingsManager.SEARCH_WEB_SUGGESTIONS, false).commit()
         assertEquals(Block.WEB_SUGGESTIONS_OFF, NetworkPolicy.webAnswersBlock(prefs))
-        assertFalse(NetworkPolicy.webAnswersAllowed(prefs, SettingsManager.DICTIONARY_ANSWERS))
+        assertFalse(NetworkPolicy.webAnswersAllowed(prefs))
+        assertFalse("with Web Suggestions off nothing is kept", NetworkPolicy.webAnswersKept(prefs))
 
-        prefs.edit().put(SettingsManager.SEARCH_WEB, false).commit()
+        prefs.edit().put(SettingsManager.SEARCH_WEB, false).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
         assertEquals(Block.WEB_OFF, NetworkPolicy.webAnswersBlock(prefs))
+        assertFalse(NetworkPolicy.webAnswersAllowed(prefs))
+        assertFalse("with Web off nothing is kept", NetworkPolicy.webAnswersKept(prefs))
 
-        // Tor outranks the rest: it is the reason the subtitle gives.
-        prefs.edit().put(SettingsManager.SEARCH_ENGINE, "Tor Project").commit()
+        // Tor outranks the rest: it is the reason the subtitle gives. It stops requests; what was kept may stay.
+        prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_ENGINE, "Tor Project").commit()
+        assertEquals(Block.TOR, NetworkPolicy.webAnswersBlock(prefs))
+        assertFalse(NetworkPolicy.webAnswersAllowed(prefs))
+        prefs.edit().put(SettingsManager.SEARCH_WEB, false).commit()
         assertEquals(Block.TOR, NetworkPolicy.webAnswersBlock(prefs))
         // A custom engine has no suggestions, yet answers don't depend on the engine's suggestion service.
         assertNull(NetworkPolicy.webAnswersBlock(web = true, webSuggestions = true, engine = "Custom"))

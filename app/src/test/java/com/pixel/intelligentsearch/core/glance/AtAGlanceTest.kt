@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.core.glance
 
 import android.app.Notification
 import android.media.session.PlaybackState
-import android.os.BatteryManager
 import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 import org.junit.Assert.assertEquals
@@ -37,17 +36,16 @@ class AtAGlanceTest {
         alarm = GlanceAlarm(now + 2 * hour),
         timers = listOf(timer),
         media = media,
-        birthdays = listOf(birthday),
-        battery = GlanceBattery(15, pluggedIn = false, statusLabel = null)
+        birthdays = listOf(birthday)
     )
     private val allOn = GlanceToggles(notifications = true, contacts = true)
 
     private fun kinds(items: List<GlanceItem>) = items.map { it::class.simpleName }
 
     @Test
-    fun itemsShowInOrderTimersAlarmMediaBirthdaysBattery() {
+    fun itemsShowInOrderTimersAlarmMediaBirthdays() {
         assertEquals(
-            listOf("Timer", "Alarm", "Media", "Birthday", "Battery"),
+            listOf("Timer", "Alarm", "Media", "Birthday"),
             kinds(glanceItems(everything, allOn, now))
         )
     }
@@ -58,30 +56,29 @@ class AtAGlanceTest {
         assertFalse(allOn.copy(enabled = false).anyOn)
     }
 
+    /** The items have no switches of their own: with At a Glance on, the alarm and media need nothing else. */
     @Test
-    fun eachSwitchHidesItsOwnItem() {
-        assertEquals(listOf("Alarm", "Media", "Birthday", "Battery"), kinds(glanceItems(everything, allOn.copy(timers = false), now)))
-        assertEquals(listOf("Timer", "Media", "Birthday", "Battery"), kinds(glanceItems(everything, allOn.copy(alarm = false), now)))
-        assertEquals(listOf("Timer", "Alarm", "Birthday", "Battery"), kinds(glanceItems(everything, allOn.copy(media = false), now)))
-        assertEquals(listOf("Timer", "Alarm", "Media", "Battery"), kinds(glanceItems(everything, allOn.copy(birthdays = false), now)))
-        assertEquals(listOf("Timer", "Alarm", "Media", "Birthday"), kinds(glanceItems(everything, allOn.copy(battery = false), now)))
+    fun theAlarmAndMediaShowWithOnlyAtAGlanceOn() {
+        val onlyGlance = GlanceToggles(enabled = true, notifications = false, contacts = false)
+        assertTrue(onlyGlance.anyOn)
+        assertEquals(listOf("Alarm", "Media"), kinds(glanceItems(everything, onlyGlance, now)))
     }
 
     @Test
     fun timersNeedSearchYourNotifications() {
         val withoutOptIn = GlanceToggles(notifications = false, contacts = true)
-        assertEquals(listOf("Alarm", "Media", "Birthday", "Battery"), kinds(glanceItems(everything, withoutOptIn, now)))
-        // With only notification items switched on and no opt-in, there is nothing to read at all.
-        assertFalse(GlanceToggles(alarm = false, media = false, birthdays = false, battery = false, notifications = false).anyOn)
-        assertTrue(GlanceToggles(alarm = false, media = false, birthdays = false, battery = false, notifications = true).anyOn)
+        assertEquals(listOf("Alarm", "Media", "Birthday"), kinds(glanceItems(everything, withoutOptIn, now)))
+        assertFalse(withoutOptIn.timersOn)
+        assertTrue(allOn.timersOn)
+        assertFalse("nothing is read with At a Glance off", allOn.copy(enabled = false).timersOn)
     }
 
     @Test
     fun birthdaysNeedContactSearch() {
-        assertEquals(listOf("Timer", "Alarm", "Media", "Battery"), kinds(glanceItems(everything, allOn.copy(contacts = false), now)))
-        // With only birthdays switched on and contact search off, nothing is read at all.
-        assertFalse(GlanceToggles(alarm = false, media = false, battery = false, birthdays = true, contacts = false).anyOn)
-        assertTrue(GlanceToggles(alarm = false, media = false, battery = false, birthdays = true, contacts = true).anyOn)
+        assertEquals(listOf("Timer", "Alarm", "Media"), kinds(glanceItems(everything, allOn.copy(contacts = false), now)))
+        assertFalse(allOn.copy(contacts = false).birthdaysOn)
+        assertTrue(allOn.birthdaysOn)
+        assertFalse("nothing is read with At a Glance off", allOn.copy(enabled = false).birthdaysOn)
     }
 
     @Test
@@ -91,27 +88,6 @@ class AtAGlanceTest {
         assertTrue(shows(now + 12 * hour))
         assertFalse(shows(now + 12 * hour + 60_000L))
         assertFalse("an alarm already past", shows(now - 60_000L))
-    }
-
-    @Test
-    fun theBatteryShowsWhenLowOrPluggedIn() {
-        fun shows(battery: GlanceBattery) = glanceItems(GlanceSnapshot(battery = battery), allOn, now).isNotEmpty()
-        assertTrue(shows(GlanceBattery(20, pluggedIn = false, statusLabel = null)))
-        assertFalse(shows(GlanceBattery(21, pluggedIn = false, statusLabel = null)))
-        assertTrue(shows(GlanceBattery(80, pluggedIn = true, statusLabel = "Charging")))
-    }
-
-    @Test
-    fun theBatteryReadsTheChargingStatus() {
-        val charging = batteryFrom(level = 64, scale = 100, plugged = BatteryManager.BATTERY_PLUGGED_AC, status = BatteryManager.BATTERY_STATUS_CHARGING)
-        assertEquals(GlanceBattery(64, pluggedIn = true, statusLabel = "Charging"), charging)
-        val full = batteryFrom(level = 100, scale = 100, plugged = BatteryManager.BATTERY_PLUGGED_USB, status = BatteryManager.BATTERY_STATUS_FULL)
-        assertEquals("Fully Charged", full?.statusLabel)
-        val protecting = batteryFrom(80, 100, BatteryManager.BATTERY_PLUGGED_AC, BatteryManager.BATTERY_STATUS_NOT_CHARGING, chargingStatus = 4)
-        assertEquals("Paused to Protect Battery", protecting?.statusLabel)
-        val onBattery = batteryFrom(level = 12, scale = 100, plugged = 0, status = BatteryManager.BATTERY_STATUS_DISCHARGING)
-        assertEquals(GlanceBattery(12, pluggedIn = false, statusLabel = null), onBattery)
-        assertNull(batteryFrom(level = -1, scale = 100, plugged = 0, status = 0))
     }
 
     @Test

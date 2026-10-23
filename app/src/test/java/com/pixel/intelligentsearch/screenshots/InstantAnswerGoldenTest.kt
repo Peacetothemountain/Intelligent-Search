@@ -74,7 +74,7 @@ internal object InstantAnswerSamples {
             "definition" -> DefinitionOneBox(entry = definition, onOpenFullDefinition = {})
             "weather" -> {
                 WeatherOneBox(report = weather, is24Hour = false, onOpenWeather = {})
-                WeatherLocationOneBox(onUseApproximateLocation = {}, onSetHomeLocation = {})
+                WeatherLocationOneBox(onUseApproximateLocation = {}, onSetLocation = {})
             }
             "translation" -> {
                 TranslationOneBox(answer = translation, onOpenGoogleTranslate = {})

@@ -118,7 +118,7 @@ class OverlayListDetailTest {
     @Test
     fun withNothingTypedThePaneSaysWhatWillShowThere() {
         showOverlay("")
-        inPane("Type to See the Top Result Here. Use the Arrow Keys to Look Through the Others.").assertExists()
+        inPane("Type to See the Top Result Here. Use the Arrow Keys to Move Through the Results.").assertExists()
     }
 
     @Config(qualifiers = "w412dp-h915dp-xhdpi")

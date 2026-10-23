@@ -172,8 +172,8 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                             )
                         }
                     }
-                    val contactActions = remember(match, s.contactActionTargets, settingsState.contactActions) {
-                        ContactActions.forContact(match, s.contactActionTargets, settingsState.contactActions)
+                    val contactActions = remember(match, s.contactActionTargets) {
+                        ContactActions.forContact(match, s.contactActionTargets)
                     }
                     if (contactActions.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(10.dp))

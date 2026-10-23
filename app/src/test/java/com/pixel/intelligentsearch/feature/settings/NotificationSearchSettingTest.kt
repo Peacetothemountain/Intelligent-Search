@@ -82,7 +82,7 @@ class NotificationSearchSettingTest {
         compose.onNode(notificationsSwitch).performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Allow Notification Access?").assertExists()
-        compose.onNodeWithText("never your messages or emails themselves", substring = true).assertExists()
+        compose.onNodeWithText("not the messages or emails behind it", substring = true).assertExists()
         compose.onNodeWithText("Open Settings").performClick()
         compose.waitForIdle()
         val opened = shadowOf(ApplicationProvider.getApplicationContext<Application>()).nextStartedActivity

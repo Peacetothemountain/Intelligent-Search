@@ -245,7 +245,7 @@ internal fun GlanceCard(
         ) {
             GlanceHeader()
             for (item in items) {
-                key(item.key) { GlanceItemRow(item, onOpened, highlight(item.key)) }
+                key(item.key) { GlanceItemRow(item, onOpened, modifier = highlight(item.key)) }
             }
         }
     }
@@ -278,20 +278,20 @@ private fun GlanceHeader() {
     }
 }
 
-/** One item's row in the card; [highlight] is the keyboard's ring on it. */
+/** One item's row in the card; [modifier] carries the keyboard's ring on it. */
 @Composable
-private fun GlanceItemRow(item: GlanceItem, onOpened: () -> Unit, highlight: Modifier) {
+private fun GlanceItemRow(item: GlanceItem, onOpened: () -> Unit, modifier: Modifier) {
     val context = LocalContext.current
     val open = {
         onOpened()
         openGlanceItem(context, item)
     }
     when (item) {
-        is GlanceItem.Timer -> TimerRow(item.timer, open, highlight)
-        is GlanceItem.Alarm -> AlarmRow(item.alarm.triggerAt, open, highlight)
-        is GlanceItem.Media -> MediaRow(item.media, open, highlight)
-        is GlanceItem.Birthday -> BirthdayRow(item.birthday, open, highlight)
-        is GlanceItem.Battery -> BatteryRow(item.battery, open, highlight)
+        is GlanceItem.Timer -> TimerRow(item.timer, open, modifier)
+        is GlanceItem.Alarm -> AlarmRow(item.alarm.triggerAt, open, modifier)
+        is GlanceItem.Media -> MediaRow(item.media, open, modifier)
+        is GlanceItem.Birthday -> BirthdayRow(item.birthday, open, modifier)
+        is GlanceItem.Battery -> BatteryRow(item.battery, open, modifier)
     }
 }
 
@@ -321,7 +321,7 @@ private fun GlanceRow(
     title: String,
     subtitle: String?,
     onClick: () -> Unit,
-    highlight: Modifier = Modifier,
+    modifier: Modifier = Modifier,
     description: String? = null,
     trailing: @Composable RowScope.() -> Unit = {}
 ) {
@@ -329,7 +329,7 @@ private fun GlanceRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(highlight)
+            .then(modifier)
             .clip(shape)
             .then(if (description != null) Modifier.semantics(mergeDescendants = true) { contentDescription = description } else Modifier)
             .bouncyClickable(shape = shape, onClick = onClick)
@@ -375,7 +375,7 @@ private fun GlanceBadge(icon: ImageVector, size: Dp = 40.dp) {
 
 /** A running timer counting down each second, a timer that has run out, or a stopwatch counting up. */
 @Composable
-private fun TimerRow(timer: GlanceTimer, open: () -> Unit, highlight: Modifier) {
+private fun TimerRow(timer: GlanceTimer, open: () -> Unit, modifier: Modifier) {
     val now = rememberGlanceNow(1_000L, enabled = timer.kind != GlanceTimer.Kind.TimesUp)
     val kindLabel = if (timer.kind == GlanceTimer.Kind.Stopwatch) "Stopwatch" else "Timer"
     val label = timer.label.takeIf { it.isNotBlank() && !it.equals(kindLabel, ignoreCase = true) }
@@ -384,13 +384,13 @@ private fun TimerRow(timer: GlanceTimer, open: () -> Unit, highlight: Modifier) 
         title = "$kindLabel · ${timerReading(timer, now)}",
         subtitle = listOfNotNull(label, timer.appLabel.takeIf { it.isNotBlank() }).joinToString(" · "),
         onClick = open,
-        highlight = highlight
+        modifier = modifier
     )
 }
 
 /** The next alarm, its time in the phone's 12 or 24 hour style; opens the clock's alarms. */
 @Composable
-private fun AlarmRow(triggerAt: Long, open: () -> Unit, highlight: Modifier) {
+private fun AlarmRow(triggerAt: Long, open: () -> Unit, modifier: Modifier) {
     val context = LocalContext.current
     val now = rememberGlanceNow(GLANCE_COARSE_TICK_MS)
     val time = remember(triggerAt) {
@@ -401,7 +401,7 @@ private fun AlarmRow(triggerAt: Long, open: () -> Unit, highlight: Modifier) {
         title = "Alarm · $time",
         subtitle = Durations.until(triggerAt - now),
         onClick = open,
-        highlight = highlight
+        modifier = modifier
     )
 }
 
@@ -410,15 +410,15 @@ private fun AlarmRow(triggerAt: Long, open: () -> Unit, highlight: Modifier) {
  * the pill of Previous, Play or Pause and Next ([GlanceMediaControls]).
  */
 @Composable
-private fun MediaRow(media: GlanceMedia, open: () -> Unit, highlight: Modifier) {
+private fun MediaRow(media: GlanceMedia, open: () -> Unit, modifier: Modifier) {
     Column(Modifier.fillMaxWidth()) {
-        MediaTitleRow(media, open, highlight)
+        MediaTitleRow(media, open, modifier)
         GlanceMediaControls(media)
     }
 }
 
 @Composable
-private fun MediaTitleRow(media: GlanceMedia, open: () -> Unit, highlight: Modifier) {
+private fun MediaTitleRow(media: GlanceMedia, open: () -> Unit, modifier: Modifier) {
     GlanceRow(
         leading = {
             val artwork = media.artwork
@@ -440,13 +440,13 @@ private fun MediaTitleRow(media: GlanceMedia, open: () -> Unit, highlight: Modif
         title = media.title,
         subtitle = listOf(media.artist, media.appLabel).filter { it.isNotBlank() }.joinToString(" · "),
         onClick = open,
-        highlight = highlight
+        modifier = modifier
     )
 }
 
 /** A contact's birthday this week, with their photo when they have one; opens the contact. */
 @Composable
-private fun BirthdayRow(birthday: GlanceBirthday, open: () -> Unit, highlight: Modifier) {
+private fun BirthdayRow(birthday: GlanceBirthday, open: () -> Unit, modifier: Modifier) {
     val lookupUri = birthday.lookupUri
     val day = birthdayDayLabel(birthday)
     GlanceRow(
@@ -457,7 +457,7 @@ private fun BirthdayRow(birthday: GlanceBirthday, open: () -> Unit, highlight: M
         title = "${birthday.name}'s Birthday",
         subtitle = listOfNotNull(day, birthday.turning?.let { "Turns $it" }).joinToString(" · "),
         onClick = open,
-        highlight = highlight
+        modifier = modifier
     )
 }
 
@@ -470,13 +470,13 @@ internal fun birthdayDayLabel(birthday: GlanceBirthday): String = when (birthday
 
 /** The battery when it is low or plugged in, with what the charger is doing; opens Android's battery page. */
 @Composable
-private fun BatteryRow(battery: GlanceBattery, open: () -> Unit, highlight: Modifier) {
+private fun BatteryRow(battery: GlanceBattery, open: () -> Unit, modifier: Modifier) {
     GlanceRow(
         leading = { GlanceBadge(if (battery.pluggedIn) Icons.Outlined.BatteryChargingFull else Icons.Outlined.BatteryAlert) },
         title = "Battery · ${battery.level}%",
         subtitle = if (battery.pluggedIn) battery.statusLabel ?: "Plugged In" else "Battery Low",
         onClick = open,
-        highlight = highlight
+        modifier = modifier
     )
 }
 

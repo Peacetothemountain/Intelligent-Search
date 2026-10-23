@@ -129,7 +129,10 @@ class AtAGlanceOverlayTest {
         val battery = compose.onNodeWithText("Battery · 15%").getUnclippedBoundsInRoot()
         assertTrue("the card starts at the list's start margin", heading.left < 40.dp)
         assertTrue("the card is about 62% of the 412 dp width, not all of it", heading.right < 300.dp)
-        assertTrue("the items sit inside the card, under its heading", birthday.right <= heading.right + 8.dp && battery.right <= heading.right + 8.dp)
+        // The clock sits at the card's end beside the heading, so the card's content ends where the clock does.
+        val clock = compose.onNodeWithTag(GLANCE_CLOCK_TAG).getUnclippedBoundsInRoot()
+        assertTrue("the items sit inside the card, under its heading", birthday.right <= clock.right + 8.dp && battery.right <= clock.right + 8.dp)
+        assertTrue("the clock is at the card's top end, beside the heading", clock.left >= heading.right && clock.top < birthday.top)
     }
 
     /** The card is about 62% of the list, 232 to 340 dp, wider with larger text, and the whole width where that won't fit. */

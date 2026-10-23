@@ -28,6 +28,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
+import dagger.hilt.android.testing.HiltTestApplication
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,11 +39,15 @@ import org.robolectric.annotation.Config
 import java.time.ZoneId
 
 /** At a Glance's media controls (the squiggly seek bar and the transport pill) and the clock in the card's corner. */
+@HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
-@Config(qualifiers = "w412dp-h915dp-xhdpi")
+@Config(application = HiltTestApplication::class, qualifiers = "w412dp-h915dp-xhdpi")
 class GlanceMediaControlsTest {
 
-    @get:Rule val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
+    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+
+    @org.junit.Before fun inject() = hilt.inject()
 
     /** Records what the controls were asked to do. */
     private class RecordingControls : MediaControls {
@@ -61,6 +68,9 @@ class GlanceMediaControlsTest {
     )
 
     private fun show(media: GlanceMedia) {
+        // A playing track's wave flows for as long as it plays, so Compose never goes idle on its own: the test clock
+        // only moves when a test moves it.
+        compose.mainClock.autoAdvance = false
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) {
                 CompositionLocalProvider(LocalGlanceClock provides GlanceClock({ 0L }, ticks = false, elapsed = { 0L })) {
@@ -68,7 +78,7 @@ class GlanceMediaControlsTest {
                 }
             }
         }
-        compose.waitForIdle()
+        compose.mainClock.advanceTimeBy(FRAME_STEP_MS)
     }
 
     @Test
@@ -107,7 +117,7 @@ class GlanceMediaControlsTest {
         compose.onNodeWithTag(GLANCE_SEEK_BAR_TAG).performTouchInput {
             swipe(start = Offset(width * 0.25f, centerY), end = Offset(width - 1f, centerY), durationMillis = 300)
         }
-        compose.waitForIdle()
+        compose.mainClock.advanceTimeBy(FRAME_STEP_MS)
         assertEquals(1, controls.seeks.size)
         assertTrue("sought to ${controls.seeks.single()}", controls.seeks.single() > 190_000L)
     }
@@ -129,7 +139,7 @@ class GlanceMediaControlsTest {
         compose.onNodeWithTag(GLANCE_SEEK_BAR_TAG).performTouchInput {
             swipe(start = Offset(width * 0.25f, centerY), end = Offset(width - 1f, centerY), durationMillis = 300)
         }
-        compose.waitForIdle()
+        compose.mainClock.advanceTimeBy(FRAME_STEP_MS)
         assertTrue(controls.seeks.isEmpty())
     }
 
@@ -184,5 +194,10 @@ class GlanceMediaControlsTest {
         assertNotNull(description)
         assertTrue(description, description!!.startsWith("Current time, "))
         assertFalse(description, description.endsWith(", "))
+    }
+
+    private companion object {
+        /** How far a test moves the paused clock to let a gesture or a first layout land. */
+        const val FRAME_STEP_MS = 500L
     }
 }

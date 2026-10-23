@@ -6,6 +6,7 @@
     Matches 1:1 with Widget Customization preview in WidgetSettingsScreen.kt.
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
@@ -15,12 +16,15 @@
     <!-- Centered capsule container matching 1:1 preview (64dp total height: 48dp pill + 8dp top/bottom outer shell rim;
          the provider sets the height and rim for the chosen outline). It clips to its own bounds, which tells the
          launcher the widget draws its own corners, so the launcher doesn't round it again and cut them off. -->
+    <!-- The parent isn't redundant: it fills the launcher's cell and centres this fixed-height capsule in it, which the
+         capsule can't do as the root (a widget's root always fills the cell). -->
     <FrameLayout
         android:id="@android:id/background"
         android:layout_width="match_parent"
         android:layout_height="64dp"
         android:layout_gravity="center"
-        android:clipToOutline="true">
+        android:clipToOutline="true"
+        tools:ignore="UselessParent">
 
         <!-- Outer rim capsule (accent-tinted border, 32dp corner radius) -->
         <ImageView

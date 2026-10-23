@@ -44,6 +44,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.ai.AiProvider
+import com.pixel.intelligentsearch.core.ui.AiProviderLogo
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.security.AiKeyVault
@@ -110,7 +111,8 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                                 }
                             },
                             label = { it.displayName },
-                            showDivider = true
+                            showDivider = true,
+                            leading = { AiProviderLogo(it, size = 18.dp) }
                         )
                         SettingsDropdownRow(
                             title = "Model",

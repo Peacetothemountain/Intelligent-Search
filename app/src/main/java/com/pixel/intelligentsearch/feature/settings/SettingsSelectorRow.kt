@@ -47,7 +47,8 @@ private fun SettingsRowDivider() {
 
 /**
  * A setting chosen from a few [options] on the app's one selector ([ShellSelector]): the row's icon, [title] and
- * [subtitle], then the choices under it, each named by [label] on one line that shrinks to fit at large text sizes.
+ * [subtitle], then the choices under it, each named by [label] on one line that shrinks to fit at large text sizes,
+ * after its [leading] mark when there is one (a provider's logo).
  */
 @Composable
 internal fun <T> SettingsSelectorRow(
@@ -60,7 +61,8 @@ internal fun <T> SettingsSelectorRow(
     label: (T) -> String,
     showDivider: Boolean,
     modifier: Modifier = Modifier,
-    selectorModifier: Modifier = Modifier
+    selectorModifier: Modifier = Modifier,
+    leading: (@Composable (T) -> Unit)? = null
 ) {
     Column(modifier = modifier) {
         SettingsRowLabel(
@@ -75,14 +77,23 @@ internal fun <T> SettingsSelectorRow(
             itemHeight = 48.dp,
             indicatorShape = RoundedCornerShape(24.dp)
         ) { option, isSelected ->
-            Text(
-                text = label(option),
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                maxLines = 1,
-                autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge),
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
+            Row(
+                modifier = Modifier.padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center
+            ) {
+                if (leading != null) {
+                    leading(option)
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text(
+                    text = label(option),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    maxLines = 1,
+                    autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge)
+                )
+            }
         }
         if (showDivider) SettingsRowDivider()
     }

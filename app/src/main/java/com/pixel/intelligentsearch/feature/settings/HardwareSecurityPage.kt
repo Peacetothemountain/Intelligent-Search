@@ -1,13 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -21,22 +14,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -45,55 +30,31 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.em
-import androidx.compose.foundation.text.appendInlineContent
 import com.pixel.intelligentsearch.core.security.AttestationResult
 import com.pixel.intelligentsearch.core.security.HardwareSecurityLevel
 import com.pixel.intelligentsearch.core.security.SecurityHardwareInfo
 import com.pixel.intelligentsearch.core.security.SecurityPosture
-import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
-
-/** Test tag of the Hardware & Security page's Verify Again button. */
-internal const val VERIFY_AGAIN_TAG = "verify_again"
-
-/** Test tag of the check indicator that shows while attestation is running. */
-internal const val ATTESTATION_CHECKING_TAG = "attestation_checking"
 
 /**
  * The Developer Note's Hardware & Security page: where this app's keys are kept, the key attestation result, and the
  * security posture chart scored from those same readings ([posture]).
  *
- * Everything is drawn at once; what moves does a job. While attestation is running ([verifying]) the banner's shield
- * gives way to a morphing check indicator and the certificate chain's pulse runs quickly; when the result comes in
- * the shield springs back with its check if the key verified, and the chain settles into a slow, calm pulse that
- * keeps it gently alive. Verify Again ([onVerifyAgain]) runs a fresh attestation with a new challenge, so the result
- * on screen is always one the phone just proved, and the time of the last check ([checkedAt]) says how fresh it is.
- * With animations off the indicator and chain are still.
+ * Every line of text is there at once and stays still. What moves is the banner's secure chip ([SecureChipEmblem]),
+ * light travelling in along its pins (quickly while attestation is [verifying], calmly once the answer is in), and
+ * the certificate chain, which sways gently with a pulse running down it. With animations off both are still.
  */
 @Composable
 internal fun HardwareSecurityPage(
     hardwareInfo: SecurityHardwareInfo,
     attestationResult: AttestationResult?,
     posture: List<SecurityPosture.AxisScore>,
-    verifying: Boolean = attestationResult == null,
-    checkedAt: Long? = null,
-    onVerifyAgain: (() -> Unit)? = null
+    verifying: Boolean = attestationResult == null
 ) {
     val scheme = MaterialTheme.colorScheme
     val animationsEnabled by rememberAnimationsEnabled()
     val verified = !verifying && attestationResult?.isHardwareAttested == true
-
-    // The check pops in on a spring each time a check finishes verified (at once with animations off).
-    val checkPop = remember { Animatable(if (verified) 1f else 0f) }
-    LaunchedEffect(verified, animationsEnabled) {
-        when {
-            !verified -> checkPop.snapTo(0f)
-            !animationsEnabled -> checkPop.snapTo(1f)
-            checkPop.value < 1f -> checkPop.animateTo(1f, ExpressiveMotionTokens.bouncySpring())
-        }
-    }
 
     Column(
         modifier = Modifier
@@ -107,29 +68,17 @@ internal fun HardwareSecurityPage(
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
-                modifier = Modifier.padding(14.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                AnimatedContent(
-                    targetState = verifying,
-                    transitionSpec = {
-                        (fadeIn(ExpressiveMotionTokens.Effects.FastSpatial()) + scaleIn(ExpressiveMotionTokens.Spatial.FastSpatial(), initialScale = 0.6f))
-                            .togetherWith(fadeOut(ExpressiveMotionTokens.Effects.FastSpatial()))
-                    },
-                    label = "bannerShield",
-                    modifier = Modifier.size(26.dp)
-                ) { checking ->
-                    if (checking) {
-                        SecurityCheckIndicator(
-                            color = scheme.onPrimaryContainer,
-                            animate = animationsEnabled,
-                            modifier = Modifier.size(26.dp).testTag(ATTESTATION_CHECKING_TAG)
-                        )
-                    } else {
-                        SecurityShield(verified = verified, color = scheme.onPrimaryContainer, modifier = Modifier.size(26.dp))
-                    }
-                }
+                SecureChipEmblem(
+                    verified = verified,
+                    verifying = verifying,
+                    animate = animationsEnabled,
+                    color = scheme.onPrimaryContainer,
+                    modifier = Modifier.size(44.dp).testTag(SECURE_CHIP_TAG)
+                )
                 Text(
                     text = hardwareInfo.title,
                     style = MaterialTheme.typography.titleMedium,
@@ -166,40 +115,8 @@ internal fun HardwareSecurityPage(
                     attestationResult.securityLevel == HardwareSecurityLevel.TEE -> "TEE Backed (TrustZone)"
                     else -> "Software Backed"
                 }
-                // The check sits right after the last word, wherever the line wraps, and pops in when a check passes.
-                val line = remember(status, verified) {
-                    androidx.compose.ui.text.buildAnnotatedString {
-                        append("Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): $status")
-                        if (verified) {
-                            append(' ')
-                            appendInlineContent(VERIFIED_CHECK_ID, "✓")
-                        }
-                    }
-                }
-                val checkColor = scheme.primary
-                val inline = mapOf(
-                    VERIFIED_CHECK_ID to androidx.compose.foundation.text.InlineTextContent(
-                        androidx.compose.ui.text.Placeholder(
-                            1.em, 1.em, androidx.compose.ui.text.PlaceholderVerticalAlign.TextCenter
-                        )
-                    ) {
-                        Text(
-                            text = "✓",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold,
-                            color = checkColor,
-                            modifier = Modifier.graphicsLayer {
-                                val s = checkPop.value
-                                scaleX = s
-                                scaleY = s
-                                alpha = s.coerceIn(0f, 1f)
-                            }
-                        )
-                    }
-                )
                 Text(
-                    text = line,
-                    inlineContent = inline,
+                    text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): $status" + if (verified) " ✓" else "",
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
                     color = if (verified) scheme.primary else scheme.onSurfaceVariant,
@@ -207,34 +124,11 @@ internal fun HardwareSecurityPage(
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                 )
                 CertificateChainRow(attestationResult, verified, verifying, animationsEnabled)
-                if (checkedAt != null && !verifying) {
-                    val context = LocalContext.current
-                    val time = remember(checkedAt) {
-                        android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(checkedAt))
-                    }
-                    DetailLine("Last Checked: $time, With a New Challenge", scheme.onSurfaceVariant, null)
-                }
-            }
-        }
-        if (onVerifyAgain != null) {
-            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
-                FilledTonalButton(
-                    onClick = onVerifyAgain,
-                    enabled = !verifying,
-                    modifier = Modifier.testTag(VERIFY_AGAIN_TAG)
-                ) {
-                    Icon(Icons.Outlined.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.size(8.dp))
-                    Text(if (verifying) "Verifying..." else "Verify Again")
-                }
             }
         }
         SecurityPostureCard(posture)
     }
 }
-
-/** The inline slot the attestation line's check sits in. */
-private const val VERIFIED_CHECK_ID = "verifiedCheck"
 
 /** One line of the details box. */
 @Composable

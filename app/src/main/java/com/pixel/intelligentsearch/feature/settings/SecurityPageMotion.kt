@@ -8,11 +8,63 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /*
- * The Hardware & Security page's motion, apart from Compose so it can be tested. The page itself is drawn at once,
- * without an entrance. What moves does a job: the check indicator runs while attestation is really running, the
- * chain carries a soft pulse from the app's key down to the root (quick while verifying, slow and calm afterwards),
- * and the posture chip counts up as the radar draws out.
+ * The Hardware & Security page's motion, apart from Compose so it can be tested. The page itself, and every line of
+ * text on it, is drawn at once, without an entrance. The banner's secure chip draws light in along its pins (quickly
+ * while attestation is verifying, calmly afterwards), the chain carries a soft pulse from the app's key down to the
+ * root, and the posture chip counts up as the radar draws out.
  */
+
+/** One round of light into the secure chip, every pin in turn, while attestation is verifying. */
+internal const val CHIP_ROUND_VERIFYING_MILLIS = 1600
+
+/** One round of light into the chip and a rest, once the result is in. */
+internal const val CHIP_ROUND_RESTING_MILLIS = 5200
+
+/** The share of a resting round the light spends coming in; the rest of it the chip is still. */
+internal const val CHIP_LIGHT_TRAVEL = 0.6f
+
+/** How long one light takes along its pin, as a share of the round's travelling part. */
+private const val CHIP_LIGHT_SPAN = 0.26f
+
+/** How long the chip glows after a light arrives, as a share of the round's travelling part. */
+private const val CHIP_GLOW_SPAN = 0.14f
+
+/**
+ * When, in the round's travelling part, pin [index] of [pins] sends its light: each a little after the one before. A
+ * round with no rest ([travel] 1, while verifying) spaces them right round, so the last leads straight into the first.
+ */
+private fun chipLightStart(index: Int, pins: Int, travel: Float): Float {
+    val spread = if (travel >= 1f) 1f else 1f - CHIP_LIGHT_SPAN
+    return index.toFloat() / pins.coerceAtLeast(1) * spread
+}
+
+/** How far into pin [index]'s turn the round is at travelling time [t], wrapping round when the round never rests. */
+private fun chipSince(t: Float, index: Int, pins: Int, travel: Float): Float {
+    val since = t - chipLightStart(index, pins, travel)
+    return if (travel >= 1f && since < 0f) since + 1f else since
+}
+
+/**
+ * How far along pin [index] of [pins] its light is at [phase] (0 to 1) of the round, from the pin's outer end (0) to
+ * the chip (1), or null while that pin has no light: the lights go in turn, round the chip, over the first [travel]
+ * of the round.
+ */
+internal fun chipLightPosition(phase: Float, index: Int, pins: Int, travel: Float = CHIP_LIGHT_TRAVEL): Float? {
+    if (pins <= 0 || travel <= 0f) return null
+    val t = (phase - phase.toInt()) / travel
+    if (t > 1f) return null
+    val along = chipSince(t, index, pins, travel) / CHIP_LIGHT_SPAN
+    return along.takeIf { it in 0f..1f }
+}
+
+/** How brightly the chip glows (0 to 1) from pin [index]'s light at [phase]: brightest as it arrives, then fading. */
+internal fun chipArrival(phase: Float, index: Int, pins: Int, travel: Float = CHIP_LIGHT_TRAVEL): Float {
+    if (pins <= 0 || travel <= 0f) return 0f
+    val t = (phase - phase.toInt()) / travel
+    val since = chipSince(t, index, pins, travel) - CHIP_LIGHT_SPAN
+    if (since < 0f || since > CHIP_GLOW_SPAN) return 0f
+    return 1f - since / CHIP_GLOW_SPAN
+}
 
 /** One trip of the chain's pulse, leaf to root, while attestation is running. */
 internal const val CHAIN_PULSE_VERIFYING_MILLIS = 1100

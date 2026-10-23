@@ -60,20 +60,10 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
     val hardwareInfo = remember(hardwareLevel) {
         com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detectSecurityHardware(context, hardwareLevel)
     }
-    // Each check, the first when the page opens and one per Verify Again (a fresh attestation with a new challenge),
-    // keeps the last result on screen while it runs.
-    var attestationRun by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-    var attestationResult by remember { androidx.compose.runtime.mutableStateOf<com.pixel.intelligentsearch.core.security.AttestationResult?>(null) }
-    var attestationCheckedAt by remember { androidx.compose.runtime.mutableStateOf<Long?>(null) }
-    var attesting by remember { androidx.compose.runtime.mutableStateOf(true) }
-    androidx.compose.runtime.LaunchedEffect(attestationRun) {
-        attesting = true
-        val fresh = attestationRun > 0
-        attestationResult = withContext(Dispatchers.IO) {
-            attestationVerifier.generateAndVerifyAttestation(forceRefresh = fresh)
+    val attestationResult by androidx.compose.runtime.produceState<com.pixel.intelligentsearch.core.security.AttestationResult?>(initialValue = null) {
+        value = withContext(Dispatchers.IO) {
+            attestationVerifier.generateAndVerifyAttestation()
         }
-        attestationCheckedAt = System.currentTimeMillis()
-        attesting = false
     }
     // Read once per opening: a screen lock can't change while this dialog is in front.
     val deviceSecure = remember {
@@ -384,14 +374,7 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                         BatteryAndMemoryDiagnosticsPage(context = context)
                     }
                     else -> {
-                        HardwareSecurityPage(
-                            hardwareInfo = hardwareInfo,
-                            attestationResult = attestationResult,
-                            posture = posture,
-                            verifying = attesting,
-                            checkedAt = attestationCheckedAt,
-                            onVerifyAgain = { attestationRun++ }
-                        )
+                        HardwareSecurityPage(hardwareInfo = hardwareInfo, attestationResult = attestationResult, posture = posture)
                     }
                 }
             }

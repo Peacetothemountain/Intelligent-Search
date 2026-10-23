@@ -11,19 +11,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp
@@ -32,88 +30,94 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.dp
-import androidx.graphics.shapes.Morph
-import androidx.graphics.shapes.toPath
+
+/** Test tag on the banner's secure chip. */
+internal const val SECURE_CHIP_TAG = "secure_chip"
 
 /**
- * The banner's shield, drawn on a 24-unit grid like a Material icon: its outline over a faint fill, with a check mark
- * inside once the key is hardware [verified]. Still: the page's motion lives in the check indicator and the chain.
+ * The banner's emblem: the secure chip the keys live in, drawn on a 24-unit grid like a Material icon. A rounded
+ * chip with three pins on each side and a small shield at its heart (with a check once the key is hardware
+ * [verified]). It is quietly alive: light travels in along the pins, one pin after the next around the chip, as data
+ * going into the vault, and the chip's edge and heart glow softly as each arrives. While attestation is still
+ * [verifying] the light comes in quickly and never rests; once the answer is in it slows to a calm round with a pause.
+ * With [animate] off it is drawn still. The paths are built once per size; a frame only places the lights.
  */
 @Composable
-internal fun SecurityShield(verified: Boolean, color: Color, modifier: Modifier = Modifier) {
+internal fun SecureChipEmblem(verified: Boolean, verifying: Boolean, animate: Boolean, color: Color, modifier: Modifier = Modifier) {
+    val phase: State<Float>? = if (animate) {
+        val millis = if (verifying) CHIP_ROUND_VERIFYING_MILLIS else CHIP_ROUND_RESTING_MILLIS
+        rememberInfiniteTransition(label = "secureChip").animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(millis, easing = LinearEasing)),
+            label = "secureChipRound"
+        )
+    } else {
+        null
+    }
+    val travel = if (verifying) 1f else CHIP_LIGHT_TRAVEL
     Spacer(modifier = modifier.drawWithCache {
         val s = size.minDimension / 24f
         val ox = (size.width - 24f * s) / 2f
         val oy = (size.height - 24f * s) / 2f
         fun x(v: Float) = ox + v * s
         fun y(v: Float) = oy + v * s
+        val body = androidx.compose.ui.geometry.RoundRect(x(6.5f), y(6.5f), x(17.5f), y(17.5f), CornerRadius(2.6f * s))
+        val bodyPath = Path().apply { addRoundRect(body) }
         val shield = Path().apply {
-            moveTo(x(12f), y(2.2f))
-            lineTo(x(19.8f), y(5.4f))
-            lineTo(x(19.8f), y(11f))
-            cubicTo(x(19.8f), y(16f), x(16.5f), y(20.4f), x(12f), y(21.8f))
-            cubicTo(x(7.5f), y(20.4f), x(4.2f), y(16f), x(4.2f), y(11f))
-            lineTo(x(4.2f), y(5.4f))
+            moveTo(x(12f), y(8.6f))
+            lineTo(x(15f), y(9.8f))
+            lineTo(x(15f), y(12f))
+            cubicTo(x(15f), y(13.9f), x(13.7f), y(15.3f), x(12f), y(15.9f))
+            cubicTo(x(10.3f), y(15.3f), x(9f), y(13.9f), x(9f), y(12f))
+            lineTo(x(9f), y(9.8f))
             close()
         }
         val check = Path().apply {
-            moveTo(x(8.4f), y(12.1f))
-            lineTo(x(10.9f), y(14.6f))
-            lineTo(x(15.8f), y(9.6f))
+            moveTo(x(10.6f), y(12.2f))
+            lineTo(x(11.6f), y(13.2f))
+            lineTo(x(13.5f), y(11.2f))
         }
-        val stroke = Stroke(width = 1.9f * s, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        // Each pin from its outer end to the chip's edge, going round clockwise from the top left.
+        val pins = buildList {
+            for (v in listOf(9f, 12f, 15f)) add(Offset(x(v), y(2.6f)) to Offset(x(v), y(6.5f)))
+            for (v in listOf(9f, 12f, 15f)) add(Offset(x(21.4f), y(v)) to Offset(x(17.5f), y(v)))
+            for (v in listOf(15f, 12f, 9f)) add(Offset(x(v), y(21.4f)) to Offset(x(v), y(17.5f)))
+            for (v in listOf(15f, 12f, 9f)) add(Offset(x(2.6f), y(v)) to Offset(x(6.5f), y(v)))
+        }
+        val stroke = Stroke(width = 1.6f * s, cap = StrokeCap.Round, join = StrokeJoin.Round)
+        val thin = 1.4f * s
         val fill = color.copy(alpha = 0.14f)
-        onDrawBehind {
-            drawPath(shield, fill)
-            drawPath(shield, color, style = stroke)
-            if (verified) drawPath(check, color, style = stroke)
-        }
-    })
-}
-
-/** One morph of the check indicator, then the next, in milliseconds. */
-private const val CHECK_MORPH_MILLIS = 650
-
-/** The shapes the check indicator morphs through, MaterialShapes' as Google's loading indicator uses them. */
-private val CheckShapes = listOf("SoftBurst", "Cookie9Sided", "Pentagon", "Pill", "Sunny", "Cookie4Sided", "Oval")
-
-/**
- * Shown in the banner while attestation is really running: a Material shape that morphs from one MaterialShapes
- * shape into the next as it turns, as Android's loading indicator does, so a re-check visibly takes place. With
- * [animate] off it is the first shape, still.
- */
-@Composable
-internal fun SecurityCheckIndicator(color: Color, animate: Boolean, modifier: Modifier = Modifier) {
-    val morphs = remember {
-        val shapes = CheckShapes.map { MaterialMorphShapes.byName.getValue(it) }
-        shapes.indices.map { i -> Morph(shapes[i], shapes[(i + 1) % shapes.size]) }
-    }
-    val phase: State<Float>? = if (animate) {
-        rememberInfiniteTransition(label = "checkIndicator").animateFloat(
-            initialValue = 0f,
-            targetValue = morphs.size.toFloat(),
-            animationSpec = infiniteRepeatable(tween(CHECK_MORPH_MILLIS * morphs.size, easing = LinearEasing)),
-            label = "checkIndicatorPhase"
+        val glow = Brush.radialGradient(
+            listOf(color.copy(alpha = 0.34f), color.copy(alpha = 0f)),
+            center = Offset(x(12f), y(12f)),
+            radius = 9f * s
         )
-    } else {
-        null
-    }
-    Spacer(modifier = modifier.drawWithCache {
-        val platformPath = android.graphics.Path()
-        val matrix = android.graphics.Matrix()
-        val box = size.minDimension * 0.86f
+        val lightRadius = 1.25f * s
         onDrawBehind {
-            val t = phase?.value ?: 0f
-            val index = t.toInt().coerceIn(0, morphs.lastIndex)
-            // Each morph eases in and out, so the shape rests a moment on each MaterialShape.
-            val f = t - t.toInt()
-            val eased = f * f * (3f - 2f * f)
-            platformPath.rewind()
-            morphs[index].toPath(eased, platformPath)
-            matrix.setScale(box, box)
-            matrix.postTranslate((size.width - box) / 2f, (size.height - box) / 2f)
-            platformPath.transform(matrix)
-            rotate(degrees = t * 140f) { drawPath(platformPath.asComposePath(), color) }
+            val p = phase?.value
+            // How strongly the chip is lit now: by the light that has most recently arrived.
+            var arrived = 0f
+            if (p != null) {
+                for (i in pins.indices) arrived = maxOf(arrived, chipArrival(p, i, pins.size, travel))
+            }
+            if (arrived > 0f) drawCircle(glow, radius = 9f * s, center = Offset(x(12f), y(12f)), alpha = arrived)
+            for ((outer, inner) in pins) drawLine(color.copy(alpha = 0.55f), outer, inner, strokeWidth = thin, cap = StrokeCap.Round)
+            drawPath(bodyPath, fill)
+            drawPath(bodyPath, color, style = stroke)
+            drawPath(shield, color.copy(alpha = 0.22f + 0.25f * arrived))
+            drawPath(shield, color, style = Stroke(width = 1.3f * s, join = StrokeJoin.Round))
+            if (verified) drawPath(check, color, style = Stroke(width = 1.3f * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            if (p != null) {
+                for (i in pins.indices) {
+                    val along = chipLightPosition(p, i, pins.size, travel) ?: continue
+                    val (outer, inner) = pins[i]
+                    val at = Offset(outer.x + (inner.x - outer.x) * along, outer.y + (inner.y - outer.y) * along)
+                    // Fades in at the pin's end and out as it goes into the chip.
+                    val alpha = kotlin.math.sin(kotlin.math.PI.toFloat() * along)
+                    drawCircle(color, radius = lightRadius, center = at, alpha = alpha)
+                }
+            }
         }
     })
 }

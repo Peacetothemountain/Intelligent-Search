@@ -225,7 +225,7 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
                 assertEquals("$label outline corners", WidgetBarShape.background(shape.outerRadius), drawn(R.id.widget_outer_background))
                 assertLayer("$label outline", preview.rim, widget, R.id.widget_outer_background)
             }
-            if (bar.material && !shape.circleIsRound) {
+            if (bar.material) {
                 assertEquals("$label circle corners", WidgetBarShape.background(shape.circleRadius), drawn(R.id.widget_sound_background))
             }
         }

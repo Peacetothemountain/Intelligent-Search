@@ -670,10 +670,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val views = RemoteViews(context.packageName, layoutId)
 
             bindShape(views, context, config)
-            if (config.shape.outline > 0) {
-                views.setColorStateList(R.id.widget_outer_background, "setImageTintList", ColorStateList.valueOf(config.rimColorOpaque))
-                views.setInt(R.id.widget_outer_background, "setImageAlpha", config.rimAlphaInt)
-            }
+            views.setColorStateList(R.id.widget_outer_background, "setImageTintList", ColorStateList.valueOf(config.rimColorOpaque))
+            views.setInt(R.id.widget_outer_background, "setImageAlpha", config.rimAlphaInt)
 
             views.setContentDescription(R.id.widget_outer_background, null)
             views.setContentDescription(R.id.widget_pill_background, null)
@@ -943,21 +941,22 @@ open class SearchWidgetProvider : AppWidgetProvider() {
          * Material design's rim, the System design's optional outline) and the rounded backgrounds of the outline, the
          * pill and the circle, each drawn with its radius ([WidgetBarShape.background]). The pill keeps its height,
          * so the buttons keep their touch targets; the outline grows the bar around it.
+         *
+         * Every shape is set on every redraw, whatever it is: a launcher redraws a placed widget by applying the new
+         * views onto the ones it already shows, so a background left unset keeps the previous design's corners (the
+         * circle stayed square after going back to fully round).
          */
         private fun bindShape(views: RemoteViews, context: Context, config: WidgetDesignConfig) {
             val shape = config.shape
             views.setViewLayoutHeight(android.R.id.background, shape.height.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
             views.setViewVisibility(R.id.widget_outer_background, if (shape.outline > 0) View.VISIBLE else View.GONE)
-            if (shape.outline > 0) {
-                views.setImageViewResource(R.id.widget_outer_background, WidgetBarShape.background(shape.outerRadius))
-            }
+            views.setImageViewResource(R.id.widget_outer_background, WidgetBarShape.background(shape.outerRadius))
             if (config.isMaterialYou) {
                 // As the layout's padding is read: rounded to whole pixels.
                 val inset = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, shape.outline.toFloat(), context.resources.displayMetrics).roundToInt()
                 views.setViewPadding(R.id.widget_bar_row, inset, inset, inset, inset)
-                if (!shape.circleIsRound) {
-                    views.setImageViewResource(R.id.widget_sound_background, WidgetBarShape.background(shape.circleRadius))
-                }
+                // A 48dp square with 24dp corners is the round circle.
+                views.setImageViewResource(R.id.widget_sound_background, WidgetBarShape.background(shape.circleRadius))
             } else {
                 val inset = shape.outline.toFloat()
                 for (side in listOf(RemoteViews.MARGIN_LEFT, RemoteViews.MARGIN_TOP, RemoteViews.MARGIN_RIGHT, RemoteViews.MARGIN_BOTTOM)) {

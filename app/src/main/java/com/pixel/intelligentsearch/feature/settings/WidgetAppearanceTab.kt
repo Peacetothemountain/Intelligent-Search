@@ -638,15 +638,15 @@ internal fun WidgetAppearanceTab(
 }
 
 /**
- * The bar's Outline Thickness and Corner Radius ([WidgetBarShape]). Corner Radius goes up to fully round for the
- * chosen outline, so every value it offers changes the bar; the widget never draws a corner rounder than its shape.
+ * The bar's Outline Thickness and Corner Radius ([WidgetBarShape]). Corner Radius is the search bar's own corners (the
+ * pill's, and the Material design's circle's), up to fully round, whatever the outline; the outline follows them.
  */
 @Composable
 private fun WidgetBarShapeSection(fields: WidgetDraftFields, isMaterialDesign: Boolean) {
     var outline by fields::outlineThickness
     var corner by fields::cornerRadius
     val design = if (isMaterialDesign) com.pixel.intelligentsearch.core.data.widget.WidgetDesign.MATERIAL else com.pixel.intelligentsearch.core.data.widget.WidgetDesign.SYSTEM
-    val maxCorner = com.pixel.intelligentsearch.feature.widget.WidgetBarShape.maxCornerRadius(isMaterialDesign, outline)
+    val maxCorner = com.pixel.intelligentsearch.feature.widget.WidgetBarShape.maxCornerRadius(isMaterialDesign)
     // The widget draws outlines and corners in whole steps (WidgetBarShape.STEP), so the sliders move in them too.
     val step = com.pixel.intelligentsearch.feature.widget.WidgetBarShape.STEP
     SettingsSectionHeader("Bar Shape")

@@ -181,4 +181,12 @@ class LaunchPortalSurfacesTest {
         switch("Floating Search Button").performScrollTo().assertIsOn()
         assertTrue(FloatingSearchOverlays.isButtonShowing)
     }
+
+    @Test
+    fun theEdgeSwipeSlidersSayWhereAndHowTall() {
+        org.junit.Assert.assertEquals("Top", edgeSwipePositionLabel(0))
+        org.junit.Assert.assertEquals("Middle", edgeSwipePositionLabel(50))
+        org.junit.Assert.assertEquals("Bottom", edgeSwipePositionLabel(100))
+        org.junit.Assert.assertEquals("30% Down", edgeSwipePositionLabel(30))
+    }
 }

@@ -1,5 +1,9 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import com.pixel.intelligentsearch.core.system.GoogleApps
+import androidx.compose.runtime.produceState
 import com.pixel.intelligentsearch.core.system.openSettingsPage
 import android.Manifest
 import android.content.Intent
@@ -49,6 +53,14 @@ internal fun notificationShortcutSubtitle(lens: Boolean): String =
 internal fun edgeSwipeSubtitle(edge: ScreenEdge): String =
     "Swipe In from the ${edge.label} Edge to Search. It Can Block the Back Gesture on That Part of the Edge."
 
+/** Where the edge swipe sits, as its slider says it: "Top", "Middle", "Bottom", or how far down in between. */
+internal fun edgeSwipePositionLabel(percent: Int): String = when (percent) {
+    in 0..5 -> "Top"
+    in 45..55 -> "Middle"
+    in 95..100 -> "Bottom"
+    else -> "$percent% Down"
+}
+
 /** Which overlay option asked for "Display over other apps", so coming back with it granted switches that one on. */
 private enum class OverlayRequest { BUTTON, EDGE_SWIPE }
 
@@ -69,7 +81,8 @@ fun AlwaysWithinReachSection() {
     var showNotificationRationale by remember { mutableStateOf(false) }
     var showNotificationSettings by remember { mutableStateOf(false) }
     var overlayRationaleFor by remember { mutableStateOf<OverlayRequest?>(null) }
-    val lens = remember { com.pixel.intelligentsearch.core.system.GoogleApps.isLensAvailable(context) }
+    // A package query: read off the main thread, as Lens rarely comes or goes while the page is open.
+    val lens by produceState(false) { value = withContext(Dispatchers.IO) { GoogleApps.isLensAvailable(context) } }
 
     // From here on the surfaces follow their settings; this also shows any already on.
     LaunchedEffect(Unit) { LaunchSurfaces.start(context) }
@@ -174,7 +187,8 @@ fun AlwaysWithinReachSection() {
                     onValueChange = { position = it.toInt() },
                     valueRange = 0f..100f,
                     icon = Icons.Outlined.UnfoldMore,
-                    showDivider = true
+                    showDivider = true,
+                    valueText = { edgeSwipePositionLabel(it.toInt()) }
                 )
                 var height by rememberSetting(SettingsManager.EDGE_SWIPE_HEIGHT)
                 SettingsSliderRow(
@@ -183,7 +197,8 @@ fun AlwaysWithinReachSection() {
                     onValueChange = { height = it.toInt() },
                     valueRange = 10f..60f,
                     icon = Icons.Outlined.Height,
-                    showDivider = false
+                    showDivider = false,
+                    valueText = { "${it.toInt()}% of the Screen" }
                 )
             }
         }

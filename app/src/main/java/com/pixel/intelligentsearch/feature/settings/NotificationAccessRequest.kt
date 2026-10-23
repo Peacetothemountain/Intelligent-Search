@@ -23,16 +23,16 @@ import com.pixel.intelligentsearch.core.glance.NotificationAccess
  * all three features, so every one of them explains all three the same way.
  */
 internal const val NOTIFICATION_ACCESS_RATIONALE =
-    "One Notification Access grant covers Search Your Notifications, Now Playing in At a Glance and the widget's " +
-        "Media Controls. Notifications are read only while Search Your Notifications is on, so you can search them " +
+    "One Notification Access grant covers Search Your Notifications and the Media Controls in At a Glance and on " +
+        "the widget. Notifications are read only while Search Your Notifications is on, so you can search them " +
         "and see running timers above the search. It sees only what each notification shows, never your messages " +
-        "or emails themselves, and holds them in memory only while they are showing. Now Playing and Media Controls " +
+        "or emails themselves, and holds them in memory only while they are showing. Media Controls " +
         "see only what is playing. Nothing is stored and nothing leaves your phone. On the next screen, allow " +
         "notification access for Intelligent Search."
 
 /**
  * The app's one way to ask for Notification Access ([NotificationAccess]), shared by Search Your Notifications, At a
- * Glance's Now Playing and the widget's Media Controls: with access already granted it answers at once; otherwise
+ * Glance's Media Controls and the widget's Media Controls: with access already granted it answers at once; otherwise
  * [request] shows the rationale ([NotificationAccessDialog]), "Open Settings" goes to Android's Notification Access
  * screen, and coming back says whether the user granted it. "Not Now" answers no.
  */

@@ -251,7 +251,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val GLANCE_ALARM = BooleanSetting("glance.alarm", true)
         /** Timers and stopwatches, read from the clock's notifications (needs [SEARCH_NOTIFICATIONS]). */
         val GLANCE_TIMERS = BooleanSetting("glance.timers", true)
-        /** Now Playing, read from media sessions (needs notification access). */
+        /** At a Glance's Media Controls, read from media sessions (needs notification access). */
         val GLANCE_MEDIA = BooleanSetting("glance.media", true)
         /** Contacts' birthdays this week (needs contacts access). */
         val GLANCE_BIRTHDAYS = BooleanSetting("glance.birthdays", true)

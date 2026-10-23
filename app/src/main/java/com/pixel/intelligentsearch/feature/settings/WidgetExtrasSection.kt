@@ -41,7 +41,7 @@ import kotlinx.coroutines.withContext
 /**
  * The Widget Shortcuts tab's rows above the bar: the favourite apps row (chosen in a sheet of installed apps) and the
  * media row, which needs notification access: turning it on without it asks through the app's shared rationale
- * ([rememberNotificationAccessRequest], the same grant as Search Your Notifications and Now Playing), and it stays off
+ * ([rememberNotificationAccessRequest], the same grant as Search Your Notifications and At a Glance's Media Controls), and it stays off
  * unless the user comes back with access granted. Revoked access switches it off (the widget never shows it without).
  */
 @OptIn(ExperimentalMaterial3Api::class)

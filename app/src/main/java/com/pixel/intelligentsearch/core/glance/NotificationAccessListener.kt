@@ -33,8 +33,8 @@ import javax.inject.Inject
  * everything that needs it ([NotificationAccess]):
  * - Search Your Notifications and At a Glance's timers: reads the phone's notifications into the in-memory
  *   [NotificationIndex], only while that switch is on.
- * - At a Glance's Now Playing and the widget's Media Controls: Android shares media sessions only with a granted
- *   listener. Now Playing asks for them itself while the search is open; while a widget design shows its media row,
+ * - At a Glance's Media Controls and the widget's Media Controls: Android shares media sessions only with a granted
+ *   listener. At a Glance asks for them itself while the search is open; while a widget design shows its media row,
  *   this listener also watches them ([WidgetMediaWatcher]) so the widget keeps up. Neither reads notifications.
  *
  * Google Play policy: notification listener access is allowed for an app's core feature with a prominent
@@ -240,7 +240,7 @@ internal class NotificationExtractor(private val context: Context) {
 
         /**
          * The index entry for [notification], or null for what search leaves out: group summaries (their children
-         * are indexed), media players (Now Playing shows those) and notifications with no words or timer.
+         * are indexed), media players (Media Controls show those) and notifications with no words or timer.
          */
         fun fromNotification(
             key: String,

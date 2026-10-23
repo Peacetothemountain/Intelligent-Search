@@ -31,7 +31,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * At a Glance's Now Playing asks for Notification Access the way Search Your Notifications and the widget's Media
+ * At a Glance's Media Controls ask for Notification Access the way Search Your Notifications and the widget's Media
  * Controls do: the one rationale, which names all three, then the one listener's page in Android's settings.
  */
 @HiltAndroidTest
@@ -44,7 +44,7 @@ class NotificationAccessSharedFlowTest {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
-    private val nowPlaying = isToggleable() and hasText("Now Playing")
+    private val nowPlaying = isToggleable() and hasText("Media Controls")
 
     @Before fun setUp() {
         hilt.inject()
@@ -63,7 +63,7 @@ class NotificationAccessSharedFlowTest {
 
     @Test
     fun theRationaleNamesAllThreeFeatures() {
-        for (feature in listOf("Search Your Notifications", "Now Playing", "Media Controls")) {
+        for (feature in listOf("Search Your Notifications", "Media Controls", "At a Glance", "widget")) {
             assertTrue(feature, NOTIFICATION_ACCESS_RATIONALE.contains(feature))
         }
         assertTrue(NOTIFICATION_ACCESS_RATIONALE.contains("Notifications are read only while Search Your Notifications is on"))

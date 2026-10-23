@@ -10,7 +10,7 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 
 /**
- * Notification Access, the one grant behind Search Your Notifications, At a Glance's Now Playing and the widget's
+ * Notification Access, the one grant behind Search Your Notifications, At a Glance's Media Controls and the widget's
  * Media Controls: the app's single listener ([component]), whether it is granted, where to grant it, and connecting
  * and disconnecting it. Every feature asks [isGranted]; notifications themselves are read only while Search Your
  * Notifications is also on ([isActive]), while media sessions need only the grant.

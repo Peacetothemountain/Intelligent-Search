@@ -106,7 +106,7 @@ fun SearchSourcesScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, o
                         var searchWeb by rememberSetting(SettingsManager.SEARCH_WEB)
                         SettingsRowToggle(
                             title = "Web",
-                            subtitle = "View Search Suggestions from Websites.",
+                            subtitle = "Web Suggestions, Instant Answers and AI Answers.",
                             icon = Icons.Outlined.Language,
                             isChecked = searchWeb,
                             onCheckedChange = { searchWeb = it },

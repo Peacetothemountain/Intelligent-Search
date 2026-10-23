@@ -69,7 +69,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                     SettingsCard {
                         var bottomSearch by rememberSetting(SettingsManager.BOTTOM_SEARCH)
                         SettingsRowToggle(
-                            title = "Bottom Searchbar",
+                            title = "Bottom Search Bar",
                             subtitle = "Position Search Bar at Bottom of Search Overlay Page.",
                             icon = Icons.Outlined.VerticalAlignBottom,
                             isChecked = bottomSearch,
@@ -92,13 +92,6 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                             icon = Icons.Outlined.ViewCompact,
                             isChecked = compactList,
                             onCheckedChange = { compactList = it },
-                            showDivider = true
-                        )
-                        SettingsRow(
-                            title = "Nicknames & Triggers",
-                            subtitle = "Your Own Names for Results and Trigger Words That Open Them.",
-                            icon = Icons.Outlined.Badge,
-                            onClick = { onNavigate(Route.NicknamesTriggers) },
                             showDivider = true
                         )
                         var contextAwareApps by rememberSetting(SettingsManager.CONTEXT_AWARE_QUICK_APPS)
@@ -151,10 +144,18 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                         var assistantVoice by rememberSetting(SettingsManager.ASSISTANT_STARTS_WITH_VOICE)
                         SettingsRowToggle(
                             title = "Start Assistant with Voice",
-                            subtitle = "Only Applies If Intelligent Search Is Your Default Digital Assistant. On, the Assistant Gesture Opens Search and Starts the Microphone Right Away. Off, It Opens Search with the Keyboard Ready and the Microphone Waits for You to Tap It.",
+                            subtitle = "Only Applies If Intelligent Search Is Your Default Digital Assistant. On, the Assistant Gesture Opens Search and Starts the Microphone Right Away. Off, It Opens Search as Show Keyboard When Search Opens Sets.",
                             icon = Icons.Outlined.Mic,
                             isChecked = assistantVoice,
                             onCheckedChange = { assistantVoice = it },
+                            showDivider = true
+                        )
+                        // The user's own shortcuts to results, after the overlay's switches rather than among them.
+                        SettingsRow(
+                            title = "Nicknames & Triggers",
+                            subtitle = "Your Own Names for Results and Trigger Words That Open Them.",
+                            icon = Icons.Outlined.Badge,
+                            onClick = { onNavigate(Route.NicknamesTriggers) },
                             showDivider = false
                         )
                     }

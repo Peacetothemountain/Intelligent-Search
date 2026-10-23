@@ -23,7 +23,7 @@ import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Apps
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Keyboard
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Person
 import androidx.compose.material.icons.outlined.Settings
@@ -244,7 +244,7 @@ internal fun EditShortcutDialog(
                     label = { Text("Trigger Word") },
                     singleLine = true,
                     isError = triggerError != null,
-                    leadingIcon = { Icon(Icons.Outlined.Keyboard, contentDescription = null) },
+                    leadingIcon = { Icon(Icons.Outlined.Bolt, contentDescription = null) },
                     supportingText = { Text(triggerError ?: "Type It and a Space in Search to Open ${entry.title}.") },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, imeAction = ImeAction.Done),
                     modifier = Modifier.fillMaxWidth()

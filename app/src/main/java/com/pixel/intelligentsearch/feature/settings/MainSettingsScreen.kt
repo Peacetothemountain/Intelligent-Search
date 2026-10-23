@@ -116,7 +116,7 @@ fun MainSettingsScreen(
                     showDivider = true,
                 )
                 SettingsRow(
-                    title = "Search Shortcuts",
+                    title = "Search Sources",
                     subtitle = "Apps, Contacts, Files, Etc.",
                     icon = Icons.Outlined.SavedSearch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchSources) },
@@ -124,7 +124,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Search Behavior",
-                    subtitle = "Custom Search Overlay and Display Settings.",
+                    subtitle = "Search Overlay, Keyboard, At a Glance and Display Settings.",
                     icon = Icons.Outlined.Tune,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior) },
                     showDivider = true,
@@ -138,7 +138,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Launch Portal",
-                    subtitle = "Quick Search Tile and Home Screen Shortcut.",
+                    subtitle = "Search Tile, Home Screen Shortcut, Notification Shortcut, Floating Button and Edge Swipe.",
                     icon = Icons.Outlined.RocketLaunch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal) },
                     showDivider = false,

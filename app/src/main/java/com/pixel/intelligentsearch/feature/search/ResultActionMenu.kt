@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import androidx.compose.material.icons.outlined.Bolt
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.ComponentName
 import android.content.Context
@@ -26,7 +27,6 @@ import androidx.compose.material.icons.outlined.Badge
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.HistoryToggleOff
 import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.VerticalSplit
 import androidx.compose.material.icons.outlined.VisibilityOff
@@ -118,8 +118,8 @@ internal enum class ResultCommand(val label: String, val icon: ImageVector) {
     PIN("Pin to Top", Icons.Outlined.PushPin),
     UNPIN("Unpin", Icons.Filled.PushPin),
     ADD_NICKNAME("Add Nickname", Icons.Outlined.Badge),
-    SET_TRIGGER("Set Trigger Word", Icons.Outlined.Keyboard),
-    CHANGE_TRIGGER("Change Trigger Word", Icons.Outlined.Keyboard),
+    SET_TRIGGER("Set Trigger Word", Icons.Outlined.Bolt),
+    CHANGE_TRIGGER("Change Trigger Word", Icons.Outlined.Bolt),
     SPLIT_SCREEN("Open in Split Screen", Icons.Outlined.VerticalSplit),
     APP_INFO("App Info", Icons.Outlined.Info),
     HIDE("Hide from Results", Icons.Outlined.VisibilityOff),

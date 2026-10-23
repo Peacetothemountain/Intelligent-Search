@@ -44,9 +44,8 @@ class NotificationAccessUnifiedTest {
     fun oneGrantIsTheOneCheck() {
         grant(NotificationAccess.component(context), false)
         assertFalse(NotificationAccess.isGranted(context))
-        // Without it, the widget's Media Controls and Now Playing see no media sessions either.
+        // Without it, At a Glance's Media Controls see no media sessions either.
         assertTrue(MediaSessionAccess.activeControllers(context).isEmpty())
-        assertEquals(null, MediaSessionAccess.nowPlaying(context))
 
         grant(NotificationAccess.component(context), true)
         assertTrue(NotificationAccess.isGranted(context))
@@ -68,15 +67,6 @@ class NotificationAccessUnifiedTest {
             intents.first().getStringExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME)
         )
         assertEquals(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS, intents.last().action)
-    }
-
-    @Test
-    fun theListenerStaysConnectedOnlyWhileSomethingNeedsIt() {
-        assertTrue(NotificationAccessListener.staysBound(searchNotifications = true, widgetMedia = false))
-        assertTrue(NotificationAccessListener.staysBound(searchNotifications = false, widgetMedia = true))
-        assertTrue(NotificationAccessListener.staysBound(searchNotifications = true, widgetMedia = true))
-        // Now Playing needs only the grant, so with search and the widget's row off the listener lets go.
-        assertFalse(NotificationAccessListener.staysBound(searchNotifications = false, widgetMedia = false))
     }
 
     @Test

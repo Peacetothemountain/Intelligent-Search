@@ -349,16 +349,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val customBar: WidgetColorRules.CustomBarColors? = null,
             /** The bar's outline, height and corners. */
             val shape: WidgetBarShape,
-            /** The System G style's plain icon colour on this pill, which the media row's title takes too. */
-            val plainIconTint: Int,
-            /** The favourite apps row's apps, by package name; empty for no row. */
-            val favouriteApps: List<String>,
-            /** Whether the design shows what's playing above the bar. */
-            val showMedia: Boolean
-        ) {
-            /** Whether the design has a row to show above the bar once the widget is tall enough. */
-            val hasExtras: Boolean get() = favouriteApps.isNotEmpty() || showMedia
-        }
+            /** The System G style's plain icon colour on this pill. */
+            val plainIconTint: Int
+        )
 
         fun updateWidgetsSync(
             context: Context,
@@ -401,15 +394,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         val EXPANDED_WIDTH = SizeF(340f, 48f)
 
         /**
-         * The heights the widget's sizes start at, in dp: one launcher row shows only the bar; from
-         * [ONE_EXTRA_ROW_HEIGHT] (the tallest bar, 72dp, plus a 52dp row, with room to spare) one row fits above it,
-         * and from [TWO_EXTRA_ROWS_HEIGHT] both.
-         */
-        const val ONE_ROW_HEIGHT = 48f
-        const val ONE_EXTRA_ROW_HEIGHT = 130f
-        const val TWO_EXTRA_ROWS_HEIGHT = 190f
-
-        /**
          * The views one widget shows at each supported width, built from the current settings and theme, keyed
          * the way [RemoteViews] expects for a responsive widget. The render goldens draw these directly.
          */
@@ -448,34 +432,18 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             // 3. Standard (260dp / 4 cells - default phone width): G logo + 2 shortcuts + circle (or 3 shortcuts)
             // 4. Expanded (340dp / 5 cells, foldables & tablets): G logo + all shortcuts
             val doodle = currentDoodle(prefs, isMaterialYou)
-            // A design with a favourite apps or media row also has a two- and a three-row tall version of each width,
-            // which show one or both rows above the bar (12 sizes, within the 16 RemoteViews allows). Their bitmaps
-            // are drawn once and shared, so the extra sizes cost the launcher no more bitmap memory.
-            val extras = if (config.hasExtras) WidgetExtras.load(context, config) else WidgetExtras.NONE
-            val heights = if (config.hasExtras) listOf(ONE_ROW_HEIGHT, ONE_EXTRA_ROW_HEIGHT, TWO_EXTRA_ROWS_HEIGHT) else listOf(ONE_ROW_HEIGHT)
             // Strictly positive SizeF keys compliant with Android 12+ RemoteViews validation:
             // SizeF(0f, 0f) is forbidden by AOSP RemoteViews constructor.
-            return heights.flatMap { height ->
-                listOf(ULTRA_COMPACT_WIDTH, COMPACT_WIDTH, STANDARD_WIDTH, EXPANDED_WIDTH).map { width ->
-                    val size = SizeF(width.width, height)
-                    size to buildRemoteViews(
-                        context = context,
-                        appWidgetId = appWidgetId,
-                        prefs = prefs,
-                        maxShortcuts = shortcutsAt(width, config),
-                        config = config,
-                        doodle = doodle,
-                        extras = extras.rows(extraRowsAt(height))
-                    )
-                }
-            }.toMap()
-        }
-
-        /** How many rows above the bar fit in a widget [height] dp tall. */
-        private fun extraRowsAt(height: Float): Int = when {
-            height >= TWO_EXTRA_ROWS_HEIGHT -> 2
-            height >= ONE_EXTRA_ROW_HEIGHT -> 1
-            else -> 0
+            return listOf(ULTRA_COMPACT_WIDTH, COMPACT_WIDTH, STANDARD_WIDTH, EXPANDED_WIDTH).associateWith { width ->
+                buildRemoteViews(
+                    context = context,
+                    appWidgetId = appWidgetId,
+                    prefs = prefs,
+                    maxShortcuts = shortcutsAt(width, config),
+                    config = config,
+                    doodle = doodle
+                )
+            }
         }
 
         /** How many shortcuts fit beside the G at [width]; the Material design's circle icon takes one place. */
@@ -596,9 +564,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     customIcons = WidgetColorRules.customIconColors(settings, isMaterialDesign = false, isPillLight = isPillLight),
                     customBar = customBar,
                     shape = WidgetBarShape.of(settings, isMaterialDesign = false),
-                    plainIconTint = plainIconTint(context, customBar, isPillLight),
-                    favouriteApps = settings.favouriteApps,
-                    showMedia = settings.showMedia
+                    plainIconTint = plainIconTint(context, customBar, isPillLight)
                 )
             } else {
                 // MATERIAL DESIGN BAR: Dual-layer accent rim, companion circle button
@@ -658,17 +624,14 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     customIcons = WidgetColorRules.customIconColors(settings, isMaterialDesign = true, isPillLight = isPillLight),
                     customBar = customBar,
                     shape = WidgetBarShape.of(settings, isMaterialDesign = true),
-                    plainIconTint = plainIconTint(context, customBar, isPillLight),
-                    favouriteApps = settings.favouriteApps,
-                    showMedia = settings.showMedia
+                    plainIconTint = plainIconTint(context, customBar, isPillLight)
                 )
             }
         }
 
         /**
-         * The System G style's colour for the mic, shortcuts and circle icon (its G stays Google's), which the media
-         * row's title takes too: the Custom subtheme's plain icon, else the light theme's on-surface on a light pill
-         * and white on a dark one.
+         * The System G style's colour for the mic, shortcuts and circle icon (its G stays Google's): the Custom
+         * subtheme's plain icon, else the light theme's on-surface on a light pill and white on a dark one.
          */
         private fun plainIconTint(context: Context, customBar: WidgetColorRules.CustomBarColors?, isPillLight: Boolean): Int =
             customBar?.plainIcon ?: if (isPillLight) DynamicThemeDetector.resolveWidgetColors(context, false).onSurface else Color.WHITE
@@ -701,8 +664,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             prefs: SharedPreferences,
             maxShortcuts: Int,
             config: WidgetDesignConfig,
-            doodle: Occasion? = null,
-            extras: WidgetExtras = WidgetExtras.NONE
+            doodle: Occasion? = null
         ): RemoteViews {
             val layoutId = if (config.isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
             val views = RemoteViews(context.packageName, layoutId)
@@ -724,7 +686,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             views.setInt(R.id.widget_sound_background, "setImageAlpha", config.circleAlphaInt)
 
             bindGIcon(views, config, context, doodle)
-            WidgetExtras.bind(views, context, appWidgetId, config, extras)
 
             val activeItems = config.allActiveItems.take(maxShortcuts)
             val viewIdTargets = listOf(

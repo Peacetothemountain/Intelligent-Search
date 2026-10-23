@@ -121,17 +121,15 @@ class PinWidgetPreviewTest {
         assertThePreviewIsThePlacedWidget(material = false)
     }
 
-    /** The outline and corners are part of the design the launcher previews; rows above the bar are not (one row tall). */
+    /** The outline and corners are part of the design the launcher previews. */
     @Test
-    fun theOutlineCornersAndExtrasPreviewAsPlaced() {
+    fun theOutlineAndCornersPreviewAsPlaced() {
         for (material in listOf(true, false)) {
             saveCustomDesign(material)
             val p = if (material) "widget_material" else "widget_system"
             prefs.edit()
                 .putInt("${p}_outline_thickness", 4)
                 .putInt("${p}_corner_radius", 6)
-                .putString("${p}_favourite_apps", context.packageName)
-                .putBoolean("${p}_show_media", true)
                 .commit()
             assertThePreviewIsThePlacedWidget(material)
         }

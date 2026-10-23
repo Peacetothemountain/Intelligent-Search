@@ -10,8 +10,8 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 
 /**
- * Notification Access, the one grant behind Search Your Notifications, At a Glance's Media Controls and the widget's
- * Media Controls: the app's single listener ([component]), whether it is granted, where to grant it, and connecting
+ * Notification Access, the one grant behind Search Your Notifications and At a Glance's Media Controls: the app's
+ * single listener ([component]), whether it is granted, where to grant it, and connecting
  * and disconnecting it. Every feature asks [isGranted]; notifications themselves are read only while Search Your
  * Notifications is also on ([isActive]), while media sessions need only the grant.
  */
@@ -39,21 +39,15 @@ object NotificationAccess {
     ).map { it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
 
     /**
-     * A feature that needs the listener connected (Search Your Notifications, a widget's media row) was switched on:
-     * with access granted, asks Android to connect it. The listener unbinds itself while nothing needs it.
+     * A feature that needs the listener connected (Search Your Notifications) was switched on: with access granted,
+     * asks Android to connect it. The listener unbinds itself while nothing needs it.
      */
     fun start(context: Context) {
         if (isGranted(context)) runCatching { NotificationListenerService.requestRebind(component(context)) }
     }
 
-    /** [start], unless the listener is already connected in this process (the widget asks on every redraw). */
-    fun ensureConnected(context: Context) {
-        if (NotificationAccessListener.current?.get() == null) start(context)
-    }
-
     /**
-     * Search Your Notifications switched off: forgets every notification read at once, and disconnects the listener
-     * unless a widget's media row still needs it.
+     * Search Your Notifications switched off: forgets every notification read at once, and disconnects the listener.
      */
     fun stop(index: NotificationIndex) {
         index.clear()

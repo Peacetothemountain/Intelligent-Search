@@ -54,8 +54,6 @@ class WidgetProfilesTest {
         lockBlack = design != WidgetDesign.MATERIAL,
         actionIcon = if (design == WidgetDesign.MATERIAL) "Now Playing" else "Search",
         showDoodles = false,
-        favouriteApps = listOf("com.example.mail", "com.example.maps"),
-        showMedia = true,
         outlineThickness = 4,
         cornerRadius = 12
     )
@@ -220,15 +218,22 @@ class WidgetProfilesTest {
     }
 
     @Test
-    fun aRestoredProfileNeverSwitchesTheMediaRowOn() {
-        val restored = """{"design":"MATERIAL","SYSTEM":{"show_media":true,"show_g_icon":true},"MATERIAL":{"show_media":true}}"""
-        val cleaned = WidgetProfiles.withoutRestoreOptIns(restored)
-        assertFalse(cleaned.contains("\"show_media\":true"))
-        assertTrue(cleaned.contains("\"show_g_icon\":true"))
+    fun theProfileKeysAreKnown() {
         assertTrue(WidgetProfiles.isProfileKey(SettingsManager.WIDGET_PROFILE_DESIGNS.first().name))
         assertTrue(WidgetProfiles.isProfileKey(SettingsManager.WIDGET_PROFILE_SAVED_DESIGNS.last().name))
         assertFalse(WidgetProfiles.isProfileKey(SettingsManager.WIDGET_ACTIVE_PROFILE.name))
-        // Text that isn't a profile comes back untouched.
-        assertEquals("not json", WidgetProfiles.withoutRestoreOptIns("not json"))
+    }
+
+    /** A profile an older build stored with the removed favourite apps and media rows still reads, without them. */
+    @Test
+    fun aProfileWithTheRemovedRowsStillReads() {
+        val stored = """{"design":"MATERIAL","MATERIAL":{"design_saved":true,"show_media":true,"favourite_apps":"com.a","outline_thickness":4,"corner_radius":12}}"""
+        prefs.edit().putString(SettingsManager.WIDGET_PROFILE_DESIGNS[1].name, stored).commit()
+        val design = profiles.design(2, live)
+        assertEquals(WidgetDesign.MATERIAL, design.design)
+        assertEquals(4, design.material.outlineThickness)
+        assertEquals(12, design.material.cornerRadius)
+        assertFalse(WidgetProfiles.encode(design).contains("show_media"))
+        assertFalse(WidgetProfiles.encode(design).contains("favourite_apps"))
     }
 }

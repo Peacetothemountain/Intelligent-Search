@@ -355,9 +355,6 @@
             android:excludeFromRecents="true"
             android:exported="false" />
 
-        <!-- The search bar widget's media row's play/pause and next; only the widget's own PendingIntents reach it. -->
-        <receiver android:name="com.pixel.intelligentsearch.feature.widget.WidgetMediaReceiver" android:exported="false" />
-
         <receiver
             android:name="com.pixel.intelligentsearch.core.system.DirectBootReceiver"
             android:exported="false">
@@ -423,10 +420,9 @@
         </service>
 
         <!-- The app's one notification listener, so one Notification Access grant covers Search Your Notifications
-             (and At a Glance's timers), Now Playing and the widget's Media Controls. Reads notifications into memory
-             only while Search Your Notifications is on, watches media sessions only while a widget shows its media
-             row, and unbinds itself while neither is on. See NotificationAccessListener for the Play policy
-             justification. -->
+             (and At a Glance's timers) and At a Glance's Media Controls. Reads notifications into memory only while
+             Search Your Notifications is on, and unbinds itself while it is off. See NotificationAccessListener for
+             the Play policy justification. -->
         <service
             android:name=".core.glance.NotificationAccessListener"
             android:label="@string/app_name"

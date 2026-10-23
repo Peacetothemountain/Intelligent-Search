@@ -116,7 +116,7 @@ internal fun AtAGlanceSettingsCard() {
                     onCheckedChange = { alarm = it }
                 )
                 var media by rememberSetting(SettingsManager.GLANCE_MEDIA)
-                // The same Notification Access grant as Search Your Notifications and the widget's Media Controls.
+                // The same Notification Access grant as Search Your Notifications.
                 val mediaAccess = rememberNotificationAccessRequest { granted ->
                     notificationAccess = NotificationAccess.isGranted(context)
                     if (granted) media = true

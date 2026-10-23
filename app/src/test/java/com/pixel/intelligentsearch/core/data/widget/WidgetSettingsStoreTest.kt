@@ -233,25 +233,19 @@ class WidgetSettingsStoreTest {
     }
 
     @Test
-    fun theExtrasOutlineAndCornersDefaultToTheWidgetsOwnLook() {
+    fun theOutlineAndCornersDefaultToTheWidgetsOwnLook() {
         val system = store.load(WidgetDesign.SYSTEM, defaults)
-        assertEquals(emptyList<String>(), system.favouriteApps)
-        assertFalse(system.showMedia)
         assertEquals(0, system.outlineThickness)
         assertEquals(28, system.cornerRadius)
 
         val material = store.load(WidgetDesign.MATERIAL, defaults)
-        assertEquals(emptyList<String>(), material.favouriteApps)
-        assertFalse(material.showMedia)
         assertEquals(8, material.outlineThickness)
         assertEquals(32, material.cornerRadius)
     }
 
     @Test
-    fun theExtrasOutlineAndCornersAreSavedPerDesign() {
+    fun theOutlineAndCornersAreSavedPerDesign() {
         val system = store.load(WidgetDesign.SYSTEM, defaults).copy(
-            favouriteApps = listOf("com.a", "com.b", "com.a", "com.c", "com.d", "com.e", "com.f"),
-            showMedia = true,
             outlineThickness = 4,
             cornerRadius = 10
         )
@@ -260,14 +254,11 @@ class WidgetSettingsStoreTest {
         editor.commit()
 
         val loaded = store.load(WidgetDesign.SYSTEM, defaults)
-        // Distinct apps, in order, at most five.
-        assertEquals(listOf("com.a", "com.b", "com.c", "com.d", "com.e"), loaded.favouriteApps)
-        assertTrue(loaded.showMedia)
         assertEquals(4, loaded.outlineThickness)
         assertEquals(10, loaded.cornerRadius)
         // The other design keeps its own.
         assertEquals(8, store.load(WidgetDesign.MATERIAL, defaults).outlineThickness)
-        assertFalse(store.load(WidgetDesign.MATERIAL, defaults).showMedia)
+        assertEquals(32, store.load(WidgetDesign.MATERIAL, defaults).cornerRadius)
     }
 
     @Test
@@ -275,11 +266,9 @@ class WidgetSettingsStoreTest {
         prefs.edit()
             .putInt("widget_material_outline_thickness", 99)
             .putInt("widget_material_corner_radius", -5)
-            .putString("widget_material_favourite_apps", " com.a ,, com.b ")
             .commit()
         val material = store.load(WidgetDesign.MATERIAL, defaults)
         assertEquals(MAX_OUTLINE_THICKNESS, material.outlineThickness)
         assertEquals(0, material.cornerRadius)
-        assertEquals(listOf("com.a", "com.b"), material.favouriteApps)
     }
 }

@@ -151,27 +151,6 @@ class WidgetProfiles(private val prefs: SharedPreferences, private val defaults:
             SettingsManager.WIDGET_PROFILE_DESIGNS.any { it.name == key } ||
                 SettingsManager.WIDGET_PROFILE_SAVED_DESIGNS.any { it.name == key }
 
-        /**
-         * A restored profile [text] with the media row switched off in both designs. Like the widget's own Media
-         * Controls switch, a restore never switches it on; only the user does. Text that isn't a profile is returned
-         * as it is (reading it later falls back to the live design).
-         */
-        fun withoutRestoreOptIns(text: String): String {
-            val json = parse(text) as? JsonObject ?: return text
-            var changed = false
-            val cleaned = JsonObject(json.mapValues { (_, element) ->
-                val values = element as? JsonObject
-                if (values != null && (values[SHOW_MEDIA_FIELD] as? JsonPrimitive)?.booleanOrNull == true) {
-                    changed = true
-                    JsonObject(values + (SHOW_MEDIA_FIELD to JsonPrimitive(false)))
-                } else element
-            })
-            return if (changed) cleaned.toString() else text
-        }
-
-        /** The media row's field in a stored design, its setting's name without the design's prefix. */
-        private const val SHOW_MEDIA_FIELD = "show_media"
-
         /** What [WidgetSettingsStore.save] writes for [settings], by key without the design's prefix. */
         internal fun valuesOf(design: WidgetDesign, settings: WidgetDesignSettings): JsonObject {
             val recorded = RecordingEditor()

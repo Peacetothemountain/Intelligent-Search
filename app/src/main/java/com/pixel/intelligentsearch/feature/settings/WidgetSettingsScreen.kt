@@ -552,8 +552,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp)
-                    // Taller when the favourite apps or media row shows above the bar.
-                    .heightIn(min = 150.dp)
+                    .height(150.dp)
                     .matteShell(previewShellLook, RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center
             ) {
@@ -612,28 +611,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
                     // The bar's outline and corners, as the widget draws them.
                     val barShape = com.pixel.intelligentsearch.feature.widget.WidgetBarShape.of(activeDraft.value, previewIsMaterialYou)
-                    val draft = activeDraft.value
-                    Column(
-                        modifier = Modifier.padding(vertical = if (draft.favouriteApps.isNotEmpty() || draft.showMedia) 20.dp else 0.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                    if (draft.favouriteApps.isNotEmpty()) {
-                        WidgetPreviewFavourites(
-                            apps = draft.favouriteApps,
-                            accent = gPrimary,
-                            plate = previewPillColorAlpha,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                    }
-                    if (draft.showMedia) {
-                        WidgetPreviewMedia(
-                            shape = barShape,
-                            fill = previewPillColorAlpha,
-                            titleColor = previewColors.systemIconTint,
-                            accent = gPrimary,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
-                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -781,7 +758,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 )
                             }
                         }
-                    }
                     }
             }
 

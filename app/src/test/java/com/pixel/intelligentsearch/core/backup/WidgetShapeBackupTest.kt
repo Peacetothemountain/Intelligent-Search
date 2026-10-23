@@ -29,12 +29,12 @@ import java.io.File
 import java.time.LocalDate
 
 /**
- * The widget's favourite apps, outline, corners and profiles are settings like any other: a backup carries them
- * back (the media row only ever off, countdown events not at all), and a backup can't plant an outline or corner the
- * sliders couldn't set.
+ * The widget's outline, corners and profiles are settings like any other: a backup carries them back (countdown events
+ * not at all), a backup can't plant an outline or corner the sliders couldn't set, and the removed favourite apps and
+ * media rows never come back.
  */
 @RunWith(RobolectricTestRunner::class)
-class WidgetExtrasBackupTest {
+class WidgetShapeBackupTest {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
@@ -54,14 +54,12 @@ class WidgetExtrasBackupTest {
     fun theNewWidgetSettingsRoundTrip() = runBlocking {
         val store = WidgetSettingsStore(prefs)
         val material = store.load(WidgetDesign.MATERIAL, defaults).copy(
-            favouriteApps = listOf("com.example.mail", "com.example.maps"),
-            showMedia = true,
             outlineThickness = 4,
             cornerRadius = 12
         )
         prefs.edit().also { store.save(WidgetDesign.MATERIAL, material, it) }.commit()
         val profiles = WidgetProfiles(prefs, defaults)
-        val dusk = WidgetProfileDesign(WidgetDesign.MATERIAL, store.load(WidgetDesign.SYSTEM, defaults), material.copy(showMedia = false, cornerRadius = 20))
+        val dusk = WidgetProfileDesign(WidgetDesign.MATERIAL, store.load(WidgetDesign.SYSTEM, defaults), material.copy(cornerRadius = 20))
         profiles.saveState(3, dusk)
         prefs.edit().also { profiles.commit(it, active = 2, left = mapOf(3 to dusk), previousLive = dusk) }.commit()
         CountdownEventStore(prefs).put(5, CountdownEvent("Halloween", LocalDate.of(2026, 10, 31), yearly = true))
@@ -71,9 +69,6 @@ class WidgetExtrasBackupTest {
         backup.importFromFile(uri, PASSPHRASE).getOrThrow()
 
         val restored = store.load(WidgetDesign.MATERIAL, defaults)
-        assertEquals(material.favouriteApps, restored.favouriteApps)
-        // Media Controls read other apps' media sessions: a restore can't switch them on (RestorePrivacyGuardsTest).
-        assertFalse(restored.showMedia)
         assertEquals(4, restored.outlineThickness)
         assertEquals(12, restored.cornerRadius)
         // The profiles come back: which one is on the widget, each one's design and the state its Reset returns to.
@@ -102,6 +97,27 @@ class WidgetExtrasBackupTest {
         assertFalse(prefs.contains(SettingsManager.WIDGET_SYSTEM_OUTLINE_THICKNESS.name))
         assertFalse(prefs.contains(SettingsManager.WIDGET_SYSTEM_CORNER_RADIUS.name))
         assertEquals(SettingsManager.WIDGET_SYSTEM_OUTLINE_THICKNESS.default, prefs[SettingsManager.WIDGET_SYSTEM_OUTLINE_THICKNESS])
+    }
+
+    @Test
+    fun theRemovedFavouriteAppsAndMediaRowsAreNeitherBackedUpNorRestored() = runBlocking {
+        val removed = listOf(
+            "widget_system_favourite_apps", "widget_material_favourite_apps",
+            "widget_system_show_media", "widget_material_show_media"
+        )
+        for (name in removed) assertTrue(name, name in SettingsManager.REMOVED_NAMES)
+        // An older build's values, as a phone updated from it still holds them.
+        prefs.edit()
+            .putString("widget_system_favourite_apps", "com.example.mail")
+            .putString("widget_material_favourite_apps", "com.example.maps")
+            .putBoolean("widget_system_show_media", true)
+            .putBoolean("widget_material_show_media", true)
+            .commit()
+        backup.exportToFile(uri, PASSPHRASE).getOrThrow()
+        prefs.edit().clear().commit()
+        backup.importFromFile(uri, PASSPHRASE).getOrThrow()
+
+        for (name in removed) assertFalse(name, prefs.contains(name))
     }
 
     private companion object {

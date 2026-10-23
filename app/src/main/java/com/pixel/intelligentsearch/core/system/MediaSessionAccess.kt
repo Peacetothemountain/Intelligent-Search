@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.core.system
 
-import android.app.PendingIntent
 import android.content.Context
 import android.media.MediaMetadata
 import android.media.session.MediaController
@@ -10,8 +9,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Log
-import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -20,8 +17,8 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 
 /**
- * The one owner of other apps' media sessions (what's playing, play/pause, next), for At a Glance's Media Controls and
- * the widget's media row. Android only shares them with an app whose notification listener the user has granted, so
+ * The one owner of other apps' media sessions (what's playing, play/pause, next), for At a Glance's Media Controls.
+ * Android only shares them with an app whose notification listener the user has granted, so
  * this asks through the app's one listener and its one grant ([NotificationAccess]), the same that Search Your
  * Notifications uses. Nothing is read from notifications themselves; only the active media sessions. Hidden apps'
  * sessions are never shown.
@@ -136,37 +133,5 @@ object MediaSessionAccess {
         PlaybackState.STATE_PAUSED ->
             if (lastUpdateElapsed != null && nowElapsed - lastUpdateElapsed in 0..PAUSED_MEDIA_MS) false else null
         else -> null
-    }
-
-    /** The apps the user hid, whose sessions the widget doesn't show either. */
-    fun hiddenApps(context: Context): Set<String> = SettingsManager.storedPrefs(context)[SettingsManager.HIDDEN_APPS]
-
-    /** The session the widget's media row shows and its buttons control; null when nothing does or there is no access. */
-    fun current(context: Context, hiddenApps: Set<String> = hiddenApps(context)): MediaController? =
-        pick(activeControllers(context).filterNot { it.packageName in hiddenApps })
-
-    /** [current] as the widget shows it. */
-    fun nowPlaying(context: Context, hiddenApps: Set<String> = hiddenApps(context)): NowPlaying? =
-        current(context, hiddenApps)?.let(::nowPlayingOf)
-
-    /** [controller] as the widget shows it, or null when it has no title. */
-    fun nowPlayingOf(controller: MediaController): NowPlaying? = NowPlaying(
-        title = titleOf(controller) ?: return null,
-        artist = runCatching { controller.metadata?.getString(MediaMetadata.METADATA_KEY_ARTIST) }.getOrNull()?.takeIf { it.isNotBlank() },
-        isPlaying = runCatching { controller.playbackState?.state }.getOrNull() == PlaybackState.STATE_PLAYING,
-        packageName = controller.packageName,
-        sessionActivity = controller.sessionActivity
-    )
-
-    /** One media session's title, artist and state; [sessionActivity] is the app's own page for it, if it has one. */
-    data class NowPlaying(
-        val title: String,
-        val artist: String?,
-        val isPlaying: Boolean,
-        val packageName: String,
-        val sessionActivity: PendingIntent? = null
-    ) {
-        /** "Title · Artist", or the title alone. */
-        val line: String get() = if (artist == null) title else "$title · $artist"
     }
 }

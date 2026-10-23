@@ -6,8 +6,6 @@
     android:gravity="center_vertical"
     android:padding="0dp">
 
-    <include layout="@layout/widget_bar_extras" />
-
     <!-- Centered capsule container matching 1:1 preview (56dp height, plus the outline when one is chosen: the provider
          sets the height and the pill's inset). It clips to its own bounds, which tells the launcher the widget draws
          its own corners, so the launcher doesn't round it again and cut them off. -->

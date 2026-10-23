@@ -31,8 +31,8 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
- * At a Glance's Media Controls ask for Notification Access the way Search Your Notifications and the widget's Media
- * Controls do: the one rationale, which names all three, then the one listener's page in Android's settings.
+ * At a Glance's Media Controls ask for Notification Access the way Search Your Notifications does: the one rationale,
+ * which names both, then the one listener's page in Android's settings.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -62,10 +62,12 @@ class NotificationAccessSharedFlowTest {
     }
 
     @Test
-    fun theRationaleNamesAllThreeFeatures() {
-        for (feature in listOf("Search Your Notifications", "Media Controls", "At a Glance", "widget")) {
+    fun theRationaleNamesBothFeatures() {
+        for (feature in listOf("Search Your Notifications", "Media Controls", "At a Glance")) {
             assertTrue(feature, NOTIFICATION_ACCESS_RATIONALE.contains(feature))
         }
+        // The widget no longer has Media Controls, so the rationale doesn't offer it as a use of the grant.
+        assertTrue(!NOTIFICATION_ACCESS_RATIONALE.contains("widget"))
         assertTrue(NOTIFICATION_ACCESS_RATIONALE.contains("Notifications are read only while Search Your Notifications is on"))
     }
 

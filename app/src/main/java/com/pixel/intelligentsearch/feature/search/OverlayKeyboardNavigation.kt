@@ -516,7 +516,7 @@ internal fun OverlayScope.onResultsKey(event: KeyEvent, context: Context, rtl: B
             true
         }
         NavOutcome.Open -> {
-            // Through Enter's rules, so a trigger word typed in full still comes before the highlight.
+            // Through Enter's rules, so the keyboard and the search key agree.
             onEnter(context, OverlayKeyboardNav.positionOf(ui.highlightedKey, rows)?.let { rows[it.row][it.column].target })
             true
         }

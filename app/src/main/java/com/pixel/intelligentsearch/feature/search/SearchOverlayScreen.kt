@@ -562,8 +562,8 @@ fun SearchOverlayScreen(
             BestMatch.find(
                 uiState.query,
                 listOf(
-                    BestMatch.Domain(appWeight, settingsState.searchApps, visibleApps, { uiState.shortcuts.nicknamesOf(com.pixel.intelligentsearch.core.search.ResultKeys.app(it)) }) { it.name },
-                    BestMatch.Domain(contactWeight, settingsState.searchContacts, uiState.contacts, { uiState.shortcuts.nicknamesOf(com.pixel.intelligentsearch.core.search.ResultKeys.contact(it)) }) { it.name },
+                    BestMatch.Domain(appWeight, settingsState.searchApps, visibleApps) { it.name },
+                    BestMatch.Domain(contactWeight, settingsState.searchContacts, uiState.contacts) { it.name },
                     BestMatch.Domain(fileWeight, settingsState.searchFiles, uiState.files) { it.name }
                 )
             )
@@ -613,7 +613,6 @@ fun SearchOverlayScreen(
     val submitQuery: (String, Boolean) -> Unit = submit@{ submittedQuery, fromVoice ->
         val outcome = OverlayEnterKey.decide(
             query = submittedQuery,
-            triggered = null,
             highlighted = null,
             phrasingAction = uiState.enterAction?.takeIf { it.intent != null },
             // A bang is an explicit request for that site: it must not be taken over by an app match or Quick Launch
@@ -634,7 +633,7 @@ fun SearchOverlayScreen(
                 return@submit
             }
             EnterOutcome.OpenTopResult -> Unit
-            // Nothing typed; a trigger word and the highlight were handled by onEnter before the results settled.
+            // Nothing typed; the highlight was handled by onEnter before the results settled.
             else -> return@submit
         }
         viewModel.addSearchHistory(submittedQuery)

@@ -18,7 +18,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
 
-/** Pins, nicknames and trigger words travel in backups like every other setting. */
+/** Pinned results travel in backups like every other setting. */
 @RunWith(RobolectricTestRunner::class)
 class ResultShortcutsBackupTest {
 
@@ -30,7 +30,7 @@ class ResultShortcutsBackupTest {
     }
 
     @Test
-    fun pinsNicknamesAndTriggersAreBackedUpAndRestored() = runBlocking {
+    fun pinsAreBackedUpAndRestored() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val db = Room.inMemoryDatabaseBuilder(context, IntelligentSearchDatabase::class.java).allowMainThreadQueries().build()
         val settingsManager = SettingsManager(context)
@@ -40,8 +40,7 @@ class ResultShortcutsBackupTest {
 
         val spotify = "app:com.spotify.music/com.spotify.music.Main@0"
         store.update {
-            it.withPinned(spotify, "Spotify", true).withTrigger(spotify, "Spotify", "sp")
-                .withNickname("contact:john", "John", "dad")
+            it.withPinned(spotify, "Spotify", true).withPinned("contact:john", "John", true)
         }
         val saved = store.current
         backupManager.exportToFile(uri, "correct horse battery").getOrThrow()
@@ -51,8 +50,7 @@ class ResultShortcutsBackupTest {
 
         backupManager.importFromFile(uri, "correct horse battery").getOrThrow()
         assertEquals(saved, store.current)
-        assertEquals("sp", store.current[spotify]?.trigger)
-        assertEquals(listOf("dad"), store.current.nicknamesOf("contact:john"))
+        assertEquals(listOf(spotify, "contact:john"), store.current.pinned.map { it.key })
         db.close()
     }
 }

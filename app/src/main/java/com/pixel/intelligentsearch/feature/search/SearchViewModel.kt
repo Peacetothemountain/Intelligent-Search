@@ -97,7 +97,7 @@ data class SearchUiState(
     val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null,
     /** The query with an obvious typo fixed, offered as "Did you mean"; null when nothing is misspelled. */
     val spellingSuggestion: String? = null,
-    /** What the user pinned, nicknamed or gave a trigger word, for the results' long-press menus. */
+    /** What the user pinned, for the results' long-press menus. */
     val shortcuts: com.pixel.intelligentsearch.core.search.ResultShortcuts = com.pixel.intelligentsearch.core.search.ResultShortcuts.EMPTY,
     /**
      * The pinned results that can be shown now, in pin order, for the empty overlay's Pinned row: [AppItem],
@@ -276,7 +276,7 @@ class SearchViewModel @Inject constructor(
             refreshPinned()
         }
 
-        // Pins, nicknames and trigger words, from the menus here, the settings page or a restore. A change ranks the
+        // Pins, from the menus here or a restore. A change ranks the
         // current results again at once, so a result pinned from its menu moves to the top.
         viewModelScope.launch {
             var first = true
@@ -1172,7 +1172,7 @@ class SearchViewModel @Inject constructor(
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Pins, nicknames and trigger words (the results' long-press menus)
+    // Pins (the results' long-press menus and the Pinned row)
     // ---------------------------------------------------------------------------------------------
 
 
@@ -1226,36 +1226,8 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    /**
-     * The result to open for a trigger word: as [query] is typed (the word and a space) or when it is sent with Enter
-     * ([submitted]: exactly the word). Null when it is no trigger, or its result can't be opened now.
-     */
-    fun quickKeyTarget(query: String, submitted: Boolean): Any? {
-        val shortcuts = resultShortcutStore.current
-        val entry = if (submitted) com.pixel.intelligentsearch.core.search.QuickKeys.matchSubmitted(query, shortcuts)
-        else com.pixel.intelligentsearch.core.search.QuickKeys.matchTyped(query, shortcuts)
-        return entry?.let { resolveShortcut(it.key) }
-    }
-
-    /** The symbol web shortcuts start with, which trigger words can't. */
-    val webShortcutSymbol: String get() = bangManager.getTriggerSymbol()
-
     fun setPinned(key: String, title: String, pinned: Boolean) =
         resultShortcutStore.update { it.withPinned(key, title, pinned) }
-
-    fun addNickname(key: String, title: String, nickname: String) =
-        resultShortcutStore.update { it.withNickname(key, title, nickname) }
-
-    /** Whether [word] can be [key]'s trigger word, or why not. */
-    fun checkTrigger(key: String, word: String): com.pixel.intelligentsearch.core.search.QuickKeys.Check =
-        com.pixel.intelligentsearch.core.search.QuickKeys.check(word, key, resultShortcutStore.current, webShortcutSymbol)
-
-    /** Sets [key]'s trigger word (blank removes it); false, changing nothing, when [checkTrigger] rejects it. */
-    fun setTrigger(key: String, title: String, word: String): Boolean {
-        if (word.isNotBlank() && checkTrigger(key, word) != com.pixel.intelligentsearch.core.search.QuickKeys.Check.Ok) return false
-        resultShortcutStore.update { it.withTrigger(key, title, word, webShortcutSymbol) }
-        return true
-    }
 
     /** Hide from Results: the app joins the hidden apps (Manage Hidden Apps lists it) and leaves the results now. */
     fun hideApp(packageName: String) {

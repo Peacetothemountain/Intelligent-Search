@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
 /**
- * A structured value (pins and nicknames, saved widget themes, countdown events) kept as one text
+ * A structured value (pinned results, saved widget themes, countdown events) kept as one text
  * setting, so backups carry it like any other setting. Reads are synchronous (SharedPreferences holds the text in
  * memory) and decoded once per change, so search can read it on every keystroke; [update] applies a change and
  * writes it back atomically with respect to other updates through this object. Text that no longer decodes reads as

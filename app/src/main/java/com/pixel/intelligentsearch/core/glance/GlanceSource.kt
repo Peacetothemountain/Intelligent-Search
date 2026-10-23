@@ -127,7 +127,8 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
             packageName = controller.packageName,
             isPlaying = playing,
             artwork = artworks.artwork(controller.packageName, title, metadata),
-            controls = SessionControls(context, controller)
+            controls = SessionControls(context, controller),
+            progress = MediaSessionAccess.progressOf(controller)
         )
     }
 
@@ -159,6 +160,8 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
         override fun play() = controller.transportControls.play()
         override fun pause() = controller.transportControls.pause()
         override fun next() = controller.transportControls.skipToNext()
+        override fun previous() = controller.transportControls.skipToPrevious()
+        override fun seekTo(positionMs: Long) = MediaSessionAccess.seekTo(controller, positionMs)
         override fun open() {
             openPendingOrApp(context, controller.sessionActivity, controller.packageName)
         }

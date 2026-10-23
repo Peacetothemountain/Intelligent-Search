@@ -49,7 +49,7 @@ internal fun pinnedIconKey(app: AppItem) = "pinned_${LaunchIconKeys.app(app)}"
 
 /**
  * Opens a result the way its own row does: an app in its profile (out of [from]'s icon), a contact's card (or the
- * dialler with Direct Call), a file in its app, a Settings page. For the Pinned row and trigger words.
+ * dialler with Direct Call), a file in its app, a Settings page. For the Pinned row.
  */
 internal fun openResult(context: Context, s: OverlayScope, result: Any, from: LaunchSource) {
     s.ui.hasStartedTyping = false

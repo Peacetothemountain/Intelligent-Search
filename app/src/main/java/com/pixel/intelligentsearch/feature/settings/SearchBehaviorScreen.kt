@@ -11,10 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.AccessTime
-import androidx.compose.material.icons.outlined.Badge
-import com.pixel.intelligentsearch.core.navigation.Route
 import androidx.compose.material.icons.outlined.AlignVerticalBottom
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.VerticalAlignBottom
@@ -39,7 +36,7 @@ import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchBehaviorScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBack: () -> Unit) {
+fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize()) {
         val morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED) {}
@@ -139,23 +136,6 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                                     smartClipboard = false
                                 }
                             },
-                            showDivider = true
-                        )
-                        var assistantVoice by rememberSetting(SettingsManager.ASSISTANT_STARTS_WITH_VOICE)
-                        SettingsRowToggle(
-                            title = "Start Assistant with Voice",
-                            subtitle = "Only Applies If Intelligent Search Is Your Default Digital Assistant. On, the Assistant Gesture Opens Search and Starts the Microphone Right Away. Off, It Opens Search as Show Keyboard When Search Opens Sets.",
-                            icon = Icons.Outlined.Mic,
-                            isChecked = assistantVoice,
-                            onCheckedChange = { assistantVoice = it },
-                            showDivider = true
-                        )
-                        // The user's own shortcuts to results, after the overlay's switches rather than among them.
-                        SettingsRow(
-                            title = "Nicknames & Triggers",
-                            subtitle = "Your Own Names for Results and Trigger Words That Open Them.",
-                            icon = Icons.Outlined.Badge,
-                            onClick = { onNavigate(Route.NicknamesTriggers) },
                             showDivider = false
                         )
                     }

@@ -19,7 +19,6 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.launch.FloatingSearchOverlays
-import com.pixel.intelligentsearch.feature.launch.ScreenEdge
 import com.pixel.intelligentsearch.feature.launch.NotificationShortcut
 import com.pixel.intelligentsearch.screenshots.confinedEffects
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -40,7 +39,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowSettings
 
 /**
- * Launch Portal's Notification Shortcut, Floating Search Button and Edge Swipe: none can be switched on without its
+ * Launch Portal's Notification Shortcut and Floating Search Button: neither can be switched on without its
  * permission; each explains itself first and sends the user to Android's page, and with the permission each
  * switches straight on.
  */
@@ -76,13 +75,10 @@ class LaunchPortalSurfacesTest {
     private fun switch(title: String) = compose.onNode(isToggleable() and hasText(title))
 
     @Test
-    fun theSubtitlesSayWhatEachDoesAndWarnAboutBack() {
+    fun theSubtitlesSayWhatEachDoes() {
         showPortal()
         compose.onNodeWithText(notificationShortcutSubtitle(lens = false)).assertExists()
         compose.onNodeWithText("Hold to Hide Until You Unlock", substring = true).assertExists()
-        compose.onNodeWithText(edgeSwipeSubtitle(ScreenEdge.RIGHT)).assertExists()
-        assertTrue(edgeSwipeSubtitle(ScreenEdge.LEFT).contains("Left Edge"))
-        assertTrue(edgeSwipeSubtitle(ScreenEdge.RIGHT).contains("Back Gesture"))
         assertTrue(notificationShortcutSubtitle(lens = true).contains("Voice and Lens"))
     }
 
@@ -139,24 +135,28 @@ class LaunchPortalSurfacesTest {
         assertFalse(FloatingSearchOverlays.isButtonShowing)
     }
 
+    /** The Edge Swipe was removed: no switch, and none of its edge, position or height controls, even with the permission. */
     @Test
-    fun withDisplayOverOtherAppsTheEdgeSwipeSwitchesOnAndShowsItsControls() {
+    fun theEdgeSwipeIsGone() {
+        ShadowSettings.setCanDrawOverlays(true)
+        prefs.edit().putBoolean("launch.edge_swipe", true).commit()
+        showPortal()
+        compose.onNodeWithText("Edge Swipe").assertDoesNotExist()
+        compose.onNodeWithText("Edge").assertDoesNotExist()
+        compose.onNodeWithText("Position").assertDoesNotExist()
+        compose.onNodeWithText("Height").assertDoesNotExist()
+        switch("Floating Search Button").performScrollTo().assertIsOff()
+    }
+
+    @Test
+    fun withDisplayOverOtherAppsTheFloatingButtonSwitchesOnAtOnce() {
         ShadowSettings.setCanDrawOverlays(true)
         showPortal()
-        compose.onNodeWithText("Edge").assertDoesNotExist()
-        switch("Edge Swipe").performScrollTo().performClick()
+        switch("Floating Search Button").performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Allow Display over Other Apps?").assertDoesNotExist()
-        assertTrue(prefs[SettingsManager.EDGE_SWIPE])
-        assertTrue(FloatingSearchOverlays.isStripShowing)
-        compose.onNodeWithText("Edge").assertExists()
-        compose.onNodeWithText("Position").assertExists()
-        compose.onNodeWithText("Height").assertExists()
-
-        compose.onNodeWithText("Left").performScrollTo().performClick()
-        compose.waitForIdle()
-        assertEquals("left", prefs[SettingsManager.EDGE_SWIPE_EDGE])
-        compose.onNodeWithText(edgeSwipeSubtitle(ScreenEdge.LEFT)).assertExists()
+        assertTrue(prefs[SettingsManager.FLOATING_SEARCH_BUTTON])
+        assertTrue(FloatingSearchOverlays.isButtonShowing)
     }
 
     @Test
@@ -180,13 +180,5 @@ class LaunchPortalSurfacesTest {
         showPortal()
         switch("Floating Search Button").performScrollTo().assertIsOn()
         assertTrue(FloatingSearchOverlays.isButtonShowing)
-    }
-
-    @Test
-    fun theEdgeSwipeSlidersSayWhereAndHowTall() {
-        org.junit.Assert.assertEquals("Top", edgeSwipePositionLabel(0))
-        org.junit.Assert.assertEquals("Middle", edgeSwipePositionLabel(50))
-        org.junit.Assert.assertEquals("Bottom", edgeSwipePositionLabel(100))
-        org.junit.Assert.assertEquals("30% Down", edgeSwipePositionLabel(30))
     }
 }

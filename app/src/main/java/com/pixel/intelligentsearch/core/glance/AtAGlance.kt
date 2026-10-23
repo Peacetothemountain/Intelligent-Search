@@ -5,6 +5,7 @@ import android.app.Notification
 import android.app.PendingIntent
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
+import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 
 /** The next alarm set in the clock app, ringing at [triggerAt] (wall clock). */
 @Immutable
@@ -34,14 +35,19 @@ data class GlanceMedia(
     val packageName: String,
     val isPlaying: Boolean,
     val artwork: ImageBitmap?,
-    val controls: MediaControls
+    val controls: MediaControls,
+    /** The track's length and position, for the seek bar; null when the session has no length (a live stream). */
+    val progress: MediaSessionAccess.Progress? = null
 )
 
-/** Play, pause and skip for a [GlanceMedia]; equal for the same session, so a fresh snapshot doesn't redraw the card. */
+/** Play, pause, skip and seek for a [GlanceMedia]; equal for the same session, so a fresh snapshot doesn't redraw the card. */
 interface MediaControls {
     fun play()
     fun pause()
     fun next()
+    fun previous()
+    /** Moves to [positionMs] into the track, when the player takes a seek. */
+    fun seekTo(positionMs: Long)
     /** Opens the player: the session's own activity, or the app. */
     fun open()
 }

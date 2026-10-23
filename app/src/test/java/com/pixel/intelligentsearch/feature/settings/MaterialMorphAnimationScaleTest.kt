@@ -108,7 +108,7 @@ class MaterialMorphAnimationScaleTest {
     private fun Page(name: String) {
         when (name) {
             "Launch Portal" -> LaunchPortalScreen(prefs) {}
-            "Search Behavior" -> SearchBehaviorScreen(prefs, {}) {}
+            "Search Behavior" -> SearchBehaviorScreen(prefs) {}
             else -> SearchSourcesScreen(prefs, {}) {}
         }
     }

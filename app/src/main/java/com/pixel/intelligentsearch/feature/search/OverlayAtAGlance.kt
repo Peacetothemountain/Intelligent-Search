@@ -4,6 +4,7 @@ import android.content.Context
 import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Intent
+import android.os.SystemClock
 import android.provider.AlarmClock
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
@@ -30,11 +31,7 @@ import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.Cake
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Timer
-import androidx.compose.material.icons.rounded.Pause
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material3.Icon
-import com.pixel.intelligentsearch.feature.settings.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -92,9 +89,12 @@ internal const val GLANCE_HEADER_TAG = "glance_header"
  */
 internal val LocalGlanceSource = staticCompositionLocalOf<GlanceSource?> { null }
 
-/** The clock At a Glance reads; [ticks] false holds it still (screenshot tests pass a fixed time). */
+/**
+ * The clocks At a Glance reads: [now] the wall clock, [elapsed] the time since boot that media positions are kept
+ * in; [ticks] false holds them still (screenshot tests pass fixed times).
+ */
 @Immutable
-internal class GlanceClock(val now: () -> Long, val ticks: Boolean)
+internal class GlanceClock(val now: () -> Long, val ticks: Boolean, val elapsed: () -> Long = SystemClock::elapsedRealtime)
 
 internal val LocalGlanceClock = staticCompositionLocalOf { GlanceClock(System::currentTimeMillis, ticks = true) }
 
@@ -216,7 +216,8 @@ internal fun LazyListScope.atAGlanceItems(items: List<GlanceItem>, highlight: @C
 
 /**
  * The At a Glance card: the recent-search pill's container (its surface at 70%, its hairline and 28 dp corners) as
- * one squarish card, "At a Glance" at its top in the theme's accent, then a row per item. Items coming and going
+ * one squarish card, "At a Glance" at its top in the theme's accent with a small clock in the top end corner, then a
+ * row per item. Items coming and going
  * resize the card with the spatial spring (at once with animations off). [fullWidth] draws it across its space (the
  * detail pane's) rather than at [glanceCardWidth]. A tap on a row (or Enter on it, [highlight] being the keyboard's
  * ring) runs [onOpened], then opens what the row is about ([openGlanceItem]).
@@ -250,20 +251,31 @@ internal fun GlanceCard(
     }
 }
 
-/** "At a Glance" at the top of its card, in the theme's accent colour; a heading for TalkBack. */
+/**
+ * "At a Glance" at the top of its card, in the theme's accent colour (a heading for TalkBack), with the clock in the
+ * top end corner. The heading takes the room the clock leaves and wraps there at large text, so the two never overlap.
+ */
 @Composable
 private fun GlanceHeader() {
-    Text(
-        text = "At a Glance",
-        color = MaterialTheme.colorScheme.primary,
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.SemiBold,
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 4.dp)
-            .semantics { heading() }
-            .testTag(GLANCE_HEADER_TAG)
-    )
+            .padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "At a Glance",
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .weight(1f)
+                .padding(top = 6.dp, bottom = 2.dp, end = 8.dp)
+                .semantics { heading() }
+                .testTag(GLANCE_HEADER_TAG)
+        )
+        GlanceClockFace()
+    }
 }
 
 /** One item's row in the card; [highlight] is the keyboard's ring on it. */
@@ -393,9 +405,20 @@ private fun AlarmRow(triggerAt: Long, open: () -> Unit, highlight: Modifier) {
     )
 }
 
-/** What is playing: the cover in the matte circle, title and artist, and play or pause and next. */
+/**
+ * What is playing: the cover in the matte circle, title and artist (a tap opens the player), then the seek bar and
+ * the pill of Previous, Play or Pause and Next ([GlanceMediaControls]).
+ */
 @Composable
 private fun MediaRow(media: GlanceMedia, open: () -> Unit, highlight: Modifier) {
+    Column(Modifier.fillMaxWidth()) {
+        MediaTitleRow(media, open, highlight)
+        GlanceMediaControls(media)
+    }
+}
+
+@Composable
+private fun MediaTitleRow(media: GlanceMedia, open: () -> Unit, highlight: Modifier) {
     GlanceRow(
         leading = {
             val artwork = media.artwork
@@ -417,19 +440,7 @@ private fun MediaRow(media: GlanceMedia, open: () -> Unit, highlight: Modifier) 
         title = media.title,
         subtitle = listOf(media.artist, media.appLabel).filter { it.isNotBlank() }.joinToString(" · "),
         onClick = open,
-        highlight = highlight,
-        trailing = {
-            IconButton(onClick = { if (media.isPlaying) media.controls.pause() else media.controls.play() }) {
-                Icon(
-                    imageVector = if (media.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    contentDescription = if (media.isPlaying) "Pause" else "Play",
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            IconButton(onClick = { media.controls.next() }) {
-                Icon(Icons.Rounded.SkipNext, contentDescription = "Next Track", tint = MaterialTheme.colorScheme.onSurface)
-            }
-        }
+        highlight = highlight
     )
 }
 

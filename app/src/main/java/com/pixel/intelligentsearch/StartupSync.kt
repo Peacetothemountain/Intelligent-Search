@@ -24,7 +24,7 @@ internal object StartupSync {
         currencyRates.syncSchedule()
         // Saved definitions and forecasts: none for a feature that is off, and none past their lifetime.
         instantAnswers.syncCaches()
-        // Launch Portal's Notification Shortcut, floating button and edge swipe, when on and allowed. This start also runs
+        // Launch Portal's Notification Shortcut and floating button, when on and allowed. This start also runs
         // after a reboot (the boot receiver starts the process) and brings back a notification the user swiped away.
         LaunchSurfaces.start(context)
     }

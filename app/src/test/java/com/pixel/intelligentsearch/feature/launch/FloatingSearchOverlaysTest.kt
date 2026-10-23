@@ -19,7 +19,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowSettings
 
-/** The floating button and edge swipe draw nothing without "Display over other apps", whatever their switches say. */
+/** The floating button draws nothing without "Display over other apps", whatever its switch says. */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
 @Config(application = HiltTestApplication::class)
@@ -41,38 +41,34 @@ class FloatingSearchOverlaysTest {
     }
 
     @Test
-    fun withoutThePermissionNeitherWindowShows() {
+    fun withoutThePermissionTheButtonDoesntShow() {
         ShadowSettings.setCanDrawOverlays(false)
-        prefs.edit().put(SettingsManager.FLOATING_SEARCH_BUTTON, true).put(SettingsManager.EDGE_SWIPE, true).commit()
+        prefs.edit().put(SettingsManager.FLOATING_SEARCH_BUTTON, true).commit()
         FloatingSearchOverlays.sync(context)
         assertFalse(FloatingSearchOverlays.isButtonShowing)
-        assertFalse(FloatingSearchOverlays.isStripShowing)
     }
 
     @Test
-    fun withThePermissionEachFollowsItsSwitch() {
+    fun withThePermissionTheButtonFollowsItsSwitch() {
         ShadowSettings.setCanDrawOverlays(true)
         prefs.edit().put(SettingsManager.FLOATING_SEARCH_BUTTON, true).commit()
         FloatingSearchOverlays.sync(context)
         assertTrue(FloatingSearchOverlays.isButtonShowing)
-        assertFalse(FloatingSearchOverlays.isStripShowing)
 
-        prefs.edit().put(SettingsManager.FLOATING_SEARCH_BUTTON, false).put(SettingsManager.EDGE_SWIPE, true).commit()
+        prefs.edit().put(SettingsManager.FLOATING_SEARCH_BUTTON, false).commit()
         FloatingSearchOverlays.sync(context)
         assertFalse(FloatingSearchOverlays.isButtonShowing)
-        assertTrue(FloatingSearchOverlays.isStripShowing)
     }
 
     @Test
-    fun revokingThePermissionTakesThemDown() {
+    fun revokingThePermissionTakesItDown() {
         ShadowSettings.setCanDrawOverlays(true)
-        prefs.edit().put(SettingsManager.FLOATING_SEARCH_BUTTON, true).put(SettingsManager.EDGE_SWIPE, true).commit()
+        prefs.edit().put(SettingsManager.FLOATING_SEARCH_BUTTON, true).commit()
         FloatingSearchOverlays.sync(context)
         assertTrue(FloatingSearchOverlays.isButtonShowing)
 
         ShadowSettings.setCanDrawOverlays(false)
         FloatingSearchOverlays.sync(context)
         assertFalse(FloatingSearchOverlays.isButtonShowing)
-        assertFalse(FloatingSearchOverlays.isStripShowing)
     }
 }

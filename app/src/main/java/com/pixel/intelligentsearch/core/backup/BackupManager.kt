@@ -138,11 +138,10 @@ class BackupManager @Inject constructor(
             // The widgets' Media Controls read other apps' media sessions through Notification Access.
             SettingsManager.WIDGET_SYSTEM_SHOW_MEDIA.name,
             SettingsManager.WIDGET_MATERIAL_SHOW_MEDIA.name,
-            // Launch Portal's notification, floating button and edge swipe need permissions this phone may not have
-            // granted, and draw over other apps; like the opt-ins above, only the user switches them on.
+            // Launch Portal's notification and floating button need permissions this phone may not have granted, and
+            // the button draws over other apps; like the opt-ins above, only the user switches them on.
             SettingsManager.NOTIFICATION_SHORTCUT.name,
-            SettingsManager.FLOATING_SEARCH_BUTTON.name,
-            SettingsManager.EDGE_SWIPE.name
+            SettingsManager.FLOATING_SEARCH_BUTTON.name
         )
 
         /** [value] as restored into [target]: a widget profile comes back with its media row off (see [PRIVACY_OPT_IN_KEYS]). */

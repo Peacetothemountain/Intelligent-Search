@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 
 /**
- * The one owner of other apps' media sessions (what's playing, play/pause, next), for At a Glance's Media Controls and
+ * The one owner of other apps' media sessions (what's playing, play/pause, skip, seek), for At a Glance's Media Controls and
  * the widget's media row. Android only shares them with an app whose notification listener the user has granted, so
  * this asks through the app's one listener and its one grant ([NotificationAccess]), the same that Search Your
  * Notifications uses. Nothing is read from notifications themselves; only the active media sessions. Hidden apps'
@@ -136,6 +136,54 @@ object MediaSessionAccess {
         PlaybackState.STATE_PAUSED ->
             if (lastUpdateElapsed != null && nowElapsed - lastUpdateElapsed in 0..PAUSED_MEDIA_MS) false else null
         else -> null
+    }
+
+    /**
+     * Where a session's track is, for At a Glance's seek bar: its length, its position at [updatedAtElapsed]
+     * (elapsedRealtime) moving at [speed] (0 while paused or buffering), and whether the player takes a seek.
+     */
+    data class Progress(
+        val durationMs: Long,
+        val positionMs: Long,
+        val updatedAtElapsed: Long,
+        val speed: Float,
+        val canSeek: Boolean
+    )
+
+    /** The track's length from its metadata ([MediaMetadata.METADATA_KEY_DURATION]); null when it has none, as a live stream. */
+    fun durationOf(controller: MediaController): Long? =
+        runCatching { controller.metadata?.getLong(MediaMetadata.METADATA_KEY_DURATION) }.getOrNull()?.takeIf { it > 0L }
+
+    /** [controller]'s [Progress], or null without a length or a known position. */
+    fun progressOf(controller: MediaController): Progress? {
+        val duration = durationOf(controller) ?: return null
+        val playback = runCatching { controller.playbackState }.getOrNull() ?: return null
+        return progressOf(duration, playback.state, playback.position, playback.lastPositionUpdateTime, playback.playbackSpeed, playback.actions)
+    }
+
+    /** [Progress] from a session's [durationMs] and playback state; null when the position is unknown (negative). */
+    fun progressOf(durationMs: Long, state: Int, positionMs: Long, updatedAtElapsed: Long, speed: Float, actions: Long): Progress? {
+        if (durationMs <= 0L || positionMs < 0L) return null
+        val moving = state == PlaybackState.STATE_PLAYING || state == PlaybackState.STATE_FAST_FORWARDING ||
+            state == PlaybackState.STATE_REWINDING
+        return Progress(durationMs, positionMs.coerceAtMost(durationMs), updatedAtElapsed, if (moving) speed else 0f, canSeek(actions))
+    }
+
+    /** Whether a session's [actions] (PlaybackState.getActions) include seeking. */
+    fun canSeek(actions: Long): Boolean = actions and PlaybackState.ACTION_SEEK_TO != 0L
+
+    /** Where [progress]'s track is at [nowElapsed]: its position moved on at its speed since then, within the track. */
+    fun livePositionMs(progress: Progress, nowElapsed: Long): Long {
+        val since = (nowElapsed - progress.updatedAtElapsed).coerceAtLeast(0L)
+        return (progress.positionMs + (since * progress.speed).toLong()).coerceIn(0L, progress.durationMs)
+    }
+
+    /** Seeks [controller] to [positionMs] when its player takes a seek; nothing otherwise. */
+    fun seekTo(controller: MediaController, positionMs: Long) {
+        val actions = runCatching { controller.playbackState?.actions }.getOrNull() ?: return
+        if (!canSeek(actions)) return
+        val length = durationOf(controller)
+        controller.transportControls.seekTo(if (length != null) positionMs.coerceIn(0L, length) else positionMs.coerceAtLeast(0L))
     }
 
     /** The apps the user hid, whose sessions the widget doesn't show either. */

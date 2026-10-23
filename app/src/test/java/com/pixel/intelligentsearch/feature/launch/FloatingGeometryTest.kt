@@ -1,11 +1,9 @@
 package com.pixel.intelligentsearch.feature.launch
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Where the floating button snaps and stays, and where the edge swipe strip goes: pure pixel arithmetic. */
+/** Where the floating button snaps and stays: pure pixel arithmetic. */
 class FloatingGeometryTest {
 
     // A 1080 x 2400 phone with a 120px status bar and a 60px gesture handle.
@@ -67,39 +65,6 @@ class FloatingGeometryTest {
         assertEquals(50, FloatingButtonGeometry.clampY(400, size, tiny))
         assertEquals(0, FloatingButtonGeometry.positionOf(400, size, tiny))
         assertEquals(0, FloatingButtonGeometry.clampX(30, size, tiny))
-    }
-
-    @Test
-    fun theStripRunsAlongTheChosenEdgeInsideTheBars() {
-        val right = edgeStripBounds(ScreenEdge.RIGHT, area, positionPercent = 50, heightPercent = 25, widthPx = 42)
-        assertEquals(1080 - 42, right.x)
-        assertEquals(42, right.width)
-        assertEquals(555, right.height) // 25% of 2220
-        assertEquals(120 + 1110 - 555 / 2, right.y)
-        val left = edgeStripBounds(ScreenEdge.LEFT, area, positionPercent = 50, heightPercent = 25, widthPx = 42)
-        assertEquals(0, left.x)
-        // Pushed to the very top or bottom, it still stays between the bars.
-        val top = edgeStripBounds(ScreenEdge.RIGHT, area, positionPercent = 0, heightPercent = 40, widthPx = 42)
-        assertEquals(120, top.y)
-        val bottom = edgeStripBounds(ScreenEdge.RIGHT, area, positionPercent = 100, heightPercent = 40, widthPx = 42)
-        assertEquals(2340, bottom.y + bottom.height)
-    }
-
-    @Test
-    fun withGestureNavigationTheStripIsCappedToWhatAndroidKeepsFromBack() {
-        val capped = edgeStripBounds(ScreenEdge.LEFT, area, positionPercent = 50, heightPercent = 60, widthPx = 42, maxHeightPx = 525)
-        assertEquals(525, capped.height)
-        assertEquals(120 + 1110 - 525 / 2, capped.y)
-    }
-
-    @Test
-    fun gestureNavigationIsToldApartFromThreeButtons() {
-        // Gesture navigation: side back zones, nothing tappable at the bottom.
-        assertTrue(isGestureNavigation(gestureLeft = 63, gestureRight = 63, tappableLeft = 0, tappableRight = 0, tappableBottom = 0))
-        // 3-button, portrait: tappable buttons at the bottom, no side gestures.
-        assertFalse(isGestureNavigation(gestureLeft = 0, gestureRight = 0, tappableLeft = 0, tappableRight = 0, tappableBottom = 126))
-        // 3-button, landscape: the bar on the side is a gesture inset there, but it's tappable.
-        assertFalse(isGestureNavigation(gestureLeft = 0, gestureRight = 126, tappableLeft = 0, tappableRight = 126, tappableBottom = 0))
     }
 
     @Test

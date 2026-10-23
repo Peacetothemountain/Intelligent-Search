@@ -25,6 +25,8 @@ class AtAGlanceTest {
         override fun play() {}
         override fun pause() {}
         override fun next() {}
+        override fun previous() {}
+        override fun seekTo(positionMs: Long) {}
         override fun open() {}
     }
 

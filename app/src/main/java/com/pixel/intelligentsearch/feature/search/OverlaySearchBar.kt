@@ -254,15 +254,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                                 /* closeOverlay() */
                             }
                         } else {
-                            // A trigger word and a space ("sp ") opens its result at once.
-                            val quickKey = viewModel.quickKeyTarget(newQuery, submitted = false)
-                            if (quickKey != null) {
-                                textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
-                                viewModel.onQueryChanged("")
-                                openResult(context, s, quickKey, LaunchSource.keyboard())
-                            } else {
-                                viewModel.onQueryChanged(newQuery)
-                            }
+                            viewModel.onQueryChanged(newQuery)
                         }
                     },
                     modifier = Modifier
@@ -286,7 +278,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
                         hasStartedTyping = false
                         keyboardController?.hide()
-                        // A trigger word, then the phrasing's action or Enter Key Action (OverlayEnterKey).
+                        // The highlight, then the phrasing's action or Enter Key Action (OverlayEnterKey).
                         s.onEnter(context, highlighted = null)
                     }),
                     decorationBox = { innerTextField ->

@@ -117,7 +117,7 @@ class ResponsiveLayoutAuditTest(private val screen: String, private val device: 
             "appearance" -> AppearanceScreen(prefs, {}, back)
             "custom_icons" -> CustomIconsScreen(prefs, back)
             "search_sources" -> SearchSourcesScreen(prefs, {}, back)
-            "search_behavior" -> SearchBehaviorScreen(prefs, {}, back)
+            "search_behavior" -> SearchBehaviorScreen(prefs, back)
             "launch_portal" -> LaunchPortalScreen(prefs, back)
             "app_search" -> AppSearchScreen(prefs, {}, back)
             "search_pills" -> SearchPillsScreen(prefs, back)

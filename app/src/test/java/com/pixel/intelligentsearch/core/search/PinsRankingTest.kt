@@ -19,9 +19,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/** Pinned results rank first when they match; nicknames find their results; nothing else moves. */
+/** Pinned results rank first when they match; nothing else moves. */
 @RunWith(RobolectricTestRunner::class)
-class PinsAndNicknamesRankingTest {
+class PinsRankingTest {
 
     private val context = ApplicationProvider.getApplicationContext<Context>()
     private val settings = SettingsManager(context)
@@ -95,49 +95,23 @@ class PinsAndNicknamesRankingTest {
     fun unpinnedResultsKeepTheirOrder() {
         val coordinator = coordinator()
         val before = coordinator.executeSearchSync("ch").apps.map { it.name }
-        store.update { it.withPinned(ResultKeys.contact(john)!!, john.name, true).withNickname(ResultKeys.contact(joan)!!, joan.name, "mum") }
+        store.update { it.withPinned(ResultKeys.contact(john)!!, john.name, true).withPinned(ResultKeys.contact(joan)!!, joan.name, true) }
         assertEquals(before, coordinator.executeSearchSync("ch").apps.map { it.name })
     }
 
+    /** Nicknames were removed: one an older version saved finds nothing now, while that version's pin still ranks. */
     @Test
-    fun aNicknameFindsItsResultWholeOrByItsStart() {
+    fun anOlderVersionsNicknameFindsNothingButItsPinStillRanks() {
         val coordinator = coordinator()
+        settings.set(
+            SettingsManager.RESULT_SHORTCUTS,
+            """[{"key":"${ResultKeys.contact(john)}","title":"John Smith","nicknames":["Dad"],"trigger":"js"},""" +
+                """{"key":"${ResultKeys.app(cheddar)}","title":"Cheddar Bank","pinned":true,"nicknames":["money"]}]"""
+        )
         assertTrue(coordinator.searchContacts("dad").isEmpty())
-        store.update { it.withNickname(ResultKeys.contact(john)!!, john.name, "Dad") }
-        assertEquals(listOf(john), coordinator.searchContacts("dad"))
-        assertEquals(john, coordinator.executeSearchSync("da").contacts.first())
-        // Not by a typo or by the middle of it.
-        assertTrue(coordinator.searchContacts("ad").isEmpty())
-
-        store.update { it.withNickname(ResultKeys.app(cheddar), cheddar.name, "bank") }
-        assertEquals("Cheddar Bank", coordinator.executeTier0Search("bank").apps.first().name)
-        assertEquals("Cheddar Bank", coordinator.searchApps("ban").first().name)
-    }
-
-    @Test
-    fun aMultiWordNicknameIsFoundToo() {
-        val coordinator = coordinator()
-        store.update { it.withNickname(ResultKeys.app(chess), chess.name, "my games") }
-        assertEquals(listOf("Chess"), coordinator.executeSearchSync("my games").apps.map { it.name })
-    }
-
-    @Test
-    fun aNicknameOutranksAnotherResultsTitle() {
-        val coordinator = coordinator()
-        // "chess" is Chess's whole name, but a nickname the user chose means that result more surely.
-        store.update { it.withNickname(ResultKeys.app(chrome), chrome.name, "chess") }
-        assertEquals("Chrome", coordinator.searchApps("chess").first().name)
-    }
-
-    @Test
-    fun callingANicknameFindsTheContact() {
-        settings.set(SettingsManager.SEARCH_CONTACTS, true)
-        val coordinator = coordinator()
-        store.update { it.withNickname(ResultKeys.contact(john)!!, john.name, "dad") }
-        val intent = coordinator.executeSearchSync("call dad").parsedIntent
-        assertTrue("$intent", intent is NaturalLanguageIntentParser.ParsedIntent.PhoneCall)
-        assertEquals("555 0100", (intent as NaturalLanguageIntentParser.ParsedIntent.PhoneCall).resolvedPhoneNumber)
-        settings.set(SettingsManager.SEARCH_CONTACTS, false)
+        assertTrue(coordinator.executeSearchSync("dad").contacts.isEmpty())
+        assertTrue(coordinator.searchApps("money").isEmpty())
+        assertEquals("Cheddar Bank", coordinator.searchApps("ch").first().name)
     }
 
     @Test

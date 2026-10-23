@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.screenshots
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.padding
@@ -10,14 +9,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
-import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
-import com.pixel.intelligentsearch.core.data.ResultShortcutStore
-import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.search.ResultActionMenuItems
 import com.pixel.intelligentsearch.feature.search.ResultCommand
-import com.pixel.intelligentsearch.feature.settings.NicknamesTriggersScreen
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -30,8 +25,8 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Golden images of an app result's long-press menu (every command an app can offer) and of the Nicknames & Triggers
- * page with two results named, light and dark. See [SettingsGoldenTest] for recording.
+ * Golden images of an app result's long-press menu (every command an app can offer), light and dark. See
+ * [SettingsGoldenTest] for recording.
  */
 @HiltAndroidTest
 @RunWith(ParameterizedRobolectricTestRunner::class)
@@ -65,7 +60,7 @@ class ResultShortcutsGoldenTest(private val dark: Boolean) {
                             ResultActionMenuItems(
                                 title = "Spotify",
                                 groups = listOf(
-                                    listOf(ResultCommand.UNPIN, ResultCommand.ADD_NICKNAME, ResultCommand.CHANGE_TRIGGER),
+                                    listOf(ResultCommand.UNPIN),
                                     listOf(ResultCommand.SPLIT_SCREEN),
                                     listOf(ResultCommand.APP_INFO, ResultCommand.HIDE, ResultCommand.UNINSTALL)
                                 ),
@@ -79,28 +74,6 @@ class ResultShortcutsGoldenTest(private val dark: Boolean) {
         compose.settle()
         compose.onRoot().captureRoboImage(
             filePath = "src/test/screenshots/overlay/result_menu_$suffix.png",
-            roborazziOptions = SettingsGoldenTest.GOLDEN_OPTIONS
-        )
-    }
-
-    @Test
-    fun nicknamesAndTriggersPage() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        ResultShortcutStore(SettingsManager(context)).update {
-            it.withNickname("contact:john", "John Smith", "Dad")
-                .withNickname("contact:john", "John Smith", "Father")
-                .withTrigger("app:com.spotify.music/com.spotify.music.Main@0", "Spotify", "sp")
-                .withNickname("app:com.spotify.music/com.spotify.music.Main@0", "Spotify", "music")
-        }
-        compose.mainClock.autoAdvance = false
-        compose.setContent {
-            IntelligentSearchTheme(darkTheme = dark) {
-                Box(Modifier.background(MaterialTheme.colorScheme.background)) { NicknamesTriggersScreen(onBack = {}) }
-            }
-        }
-        compose.settle()
-        compose.onRoot().captureRoboImage(
-            filePath = "src/test/screenshots/settings/nicknames_triggers_$suffix.png",
             roborazziOptions = SettingsGoldenTest.GOLDEN_OPTIONS
         )
     }

@@ -3,20 +3,18 @@ package com.pixel.intelligentsearch.feature.search
 /**
  * Picks the result the overlay highlights as the best match and offers as ghost text. Matches are tried in three
  * tiers (whole name, start of name, start of any word, so "notes" finds "Keep Notes"); within a tier, result
- * types are tried in the user's priority order, heaviest weight first and apps, contacts, files on a tie. A nickname
- * the user gave a result counts as one of its names, so "dad" finds the contact nicknamed so.
+ * types are tried in the user's priority order, heaviest weight first and apps, contacts, files on a tie.
  */
 internal object BestMatch {
 
     /**
      * One kind of result: its user-set weight, whether it is searched at all, its items in display order, and each
-     * item's nicknames and name.
+     * item's name.
      */
     class Domain<T : Any>(
         val weight: Int,
         val enabled: Boolean,
         val items: List<T>,
-        val nicknamesOf: (T) -> List<String> = { emptyList() },
         val nameOf: (T) -> String
     )
 
@@ -40,5 +38,5 @@ internal object BestMatch {
     }
 
     private fun <T : Any> firstMatch(domain: Domain<T>, matches: (String) -> Boolean): T? =
-        domain.items.firstOrNull { item -> matches(domain.nameOf(item)) || domain.nicknamesOf(item).any(matches) }
+        domain.items.firstOrNull { item -> matches(domain.nameOf(item)) }
 }

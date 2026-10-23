@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.outlined.Bolt
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.ComponentName
@@ -206,7 +207,7 @@ internal fun openAppInfo(context: Context, app: AppItem) {
     } else {
         launchSafeIntent(context, AndroidSettingsSearch.appDetailsIntent(app.packageName))
     }
-    if (!opened) Toast.makeText(context, "Couldn’t open App Info for ${app.name}", Toast.LENGTH_SHORT).show()
+    if (!opened) Toast.makeText(context, "Couldn't open App Info for ${app.name}.", Toast.LENGTH_SHORT).show()
 }
 
 /** Exposes [onOpen] (a result's long-press menu) to TalkBack as "More options"; nothing when there is no menu. */
@@ -385,7 +386,7 @@ private fun runCommand(context: Context, s: OverlayScope, target: ResultMenuTarg
         ResultCommand.SPLIT_SCREEN -> if (app != null) {
             val intent = splitScreenIntent(context, app)
             if (intent == null || !launchSafeIntent(context, intent)) {
-                Toast.makeText(context, "Couldn’t open ${app.name} in split screen", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Couldn't open ${app.name} in split screen.", Toast.LENGTH_SHORT).show()
             } else {
                 s.ui.hasStartedTyping = false
             }
@@ -398,13 +399,12 @@ private fun runCommand(context: Context, s: OverlayScope, target: ResultMenuTarg
 @Composable
 internal fun NicknameDialog(title: String, existing: List<String>, onSave: (String) -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf("") }
-    val clean = ResultShortcuts.cleanNickname(text)
-    val duplicate = clean != null && existing.any { it.equals(clean, ignoreCase = true) }
-    val canSave = clean != null && !duplicate && existing.size < ResultShortcuts.MAX_NICKNAMES
-    val save = { if (canSave) { onSave(clean!!); onDismiss() } }
+    val addable = ResultShortcuts.canAddNickname(text, existing)
+    val error = ResultShortcuts.nicknameError(text, existing, title)
+    val save = { if (addable != null) { onSave(addable); onDismiss() } }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Nickname", style = MaterialTheme.typography.titleLarge) },
+        title = { Text("Add Nickname", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
         text = {
             Column {
                 Text(
@@ -418,15 +418,9 @@ internal fun NicknameDialog(title: String, existing: List<String>, onSave: (Stri
                     onValueChange = { text = it.take(ResultShortcuts.MAX_NICKNAME_LENGTH) },
                     label = { Text("Nickname") },
                     singleLine = true,
-                    isError = duplicate,
+                    isError = error != null,
                     supportingText = {
-                        Text(
-                            when {
-                                duplicate -> "$title Already Has This Nickname."
-                                existing.isNotEmpty() -> "Also: ${existing.joinToString(", ")}"
-                                else -> ""
-                            }
-                        )
+                        Text(error ?: if (existing.isNotEmpty()) "Also: ${existing.joinToString(", ")}." else "")
                     },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { save() }),
@@ -434,7 +428,7 @@ internal fun NicknameDialog(title: String, existing: List<String>, onSave: (Stri
                 )
             }
         },
-        confirmButton = { TextButton(onClick = save, enabled = canSave) { Text("Save", style = MaterialTheme.typography.labelLarge) } },
+        confirmButton = { TextButton(onClick = save, enabled = addable != null) { Text("Save", style = MaterialTheme.typography.labelLarge) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", style = MaterialTheme.typography.labelLarge) } }
     )
 }
@@ -461,11 +455,11 @@ internal fun TriggerWordDialog(
     val save = { if (canSave) { onSave(QuickKeys.normalize(text)); onDismiss() } }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (current.isEmpty()) "Set Trigger Word" else "Change Trigger Word", style = MaterialTheme.typography.titleLarge) },
+        title = { Text(if (current.isEmpty()) "Set Trigger Word" else "Change Trigger Word", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
         text = {
             Column {
                 Text(
-                    "Type the word and a space to open $title at once.",
+                    QuickKeys.howTo(title),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -476,7 +470,7 @@ internal fun TriggerWordDialog(
                     label = { Text("Trigger Word") },
                     singleLine = true,
                     isError = error != null,
-                    supportingText = { Text(error ?: "Letters and Digits, Up to ${QuickKeys.MAX_LENGTH}.") },
+                    supportingText = { Text(error ?: QuickKeys.HINT) },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { save() }),
                     modifier = Modifier.fillMaxWidth()

@@ -214,7 +214,7 @@ internal fun DoodleGallery(
                             SearchWidgetProvider.doodleSearchIntent(context, prefs, 0, selected)
                                 .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                         )
-                    }.onFailure { Toast.makeText(context, "Couldn't Open the Doodle's Search", Toast.LENGTH_SHORT).show() }
+                    }.onFailure { Toast.makeText(context, "Couldn't open the doodle's search.", Toast.LENGTH_SHORT).show() }
                 },
                 onPrevious = { step(-1) },
                 onNext = { step(1) },

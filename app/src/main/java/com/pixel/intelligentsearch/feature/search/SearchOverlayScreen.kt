@@ -382,7 +382,7 @@ fun SearchOverlayScreen(
                 return@launchWebSearch
             }
             if (!launchSafeIntent(context, systemWebSearchIntent(searchQuery))) {
-                Toast.makeText(context, "No app available to search the web", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "No app available to search the web.", Toast.LENGTH_SHORT).show()
             }
         }
     }

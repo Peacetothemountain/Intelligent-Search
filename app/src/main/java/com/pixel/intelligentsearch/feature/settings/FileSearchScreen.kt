@@ -89,9 +89,9 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val excludePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) {
             val message = when (UserGrantedFiles.addExcludedFolder(prefs, uri.toString())) {
-                UserGrantedFiles.ExcludeResult.ADDED -> "Subfolder skipped in search"
-                UserGrantedFiles.ExcludeResult.ALREADY_EXCLUDED -> "That folder is already skipped"
-                UserGrantedFiles.ExcludeResult.NOT_INSIDE_A_CHOSEN_FOLDER -> "Pick a folder inside one of the folders you search"
+                UserGrantedFiles.ExcludeResult.ADDED -> "Subfolder skipped in search."
+                UserGrantedFiles.ExcludeResult.ALREADY_EXCLUDED -> "That folder is already skipped."
+                UserGrantedFiles.ExcludeResult.NOT_INSIDE_A_CHOSEN_FOLDER -> "Pick a folder inside one of the folders you search."
             }
             Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         }
@@ -101,9 +101,9 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         if (uri != null) {
             if (UserGrantedFiles.addFolder(context, prefs, uri)) {
                 folderUris = UserGrantedFiles.folderUris(prefs)
-                Toast.makeText(context, "Folder added to search", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Folder added to search.", Toast.LENGTH_SHORT).show()
             } else {
-                Toast.makeText(context, "Android didn't allow lasting access to that folder", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Android didn't allow lasting access to that folder.", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -119,7 +119,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 val message = if (added < uris.size && mediaCount >= UserGrantedFiles.MAX_PICKED_MEDIA) {
                     "Added $added. You can choose up to ${UserGrantedFiles.MAX_PICKED_MEDIA} photos and videos."
                 } else {
-                    "$added photos and videos added to search"
+                    "$added photos and videos added to search."
                 }
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }

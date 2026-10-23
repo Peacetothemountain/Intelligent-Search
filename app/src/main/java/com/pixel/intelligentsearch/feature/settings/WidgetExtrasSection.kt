@@ -74,9 +74,9 @@ internal fun WidgetExtrasSection(fields: WidgetDraftFields, ui: WidgetEditorStat
         SettingsRow(
             title = "Favorite Apps",
             subtitle = if (favouriteApps.isEmpty()) {
-                "Pick Up to $MAX_FAVOURITE_APPS Apps to Open From a Row of Icons."
+                "Pick Up to $MAX_FAVOURITE_APPS Apps to Open from a Row of Icons."
             } else {
-                "${favouriteApps.size} of $MAX_FAVOURITE_APPS Apps, With Your Icon Pack."
+                "${favouriteApps.size} of $MAX_FAVOURITE_APPS Apps, with Your Icon Pack."
             },
             icon = Icons.Outlined.GridView,
             onClick = { showFavouritesSheet = true },
@@ -84,7 +84,7 @@ internal fun WidgetExtrasSection(fields: WidgetDraftFields, ui: WidgetEditorStat
         )
         SettingsRowToggle(
             title = "Media Controls",
-            subtitle = "Show What's Playing With Play, Pause and Next. Needs Notification Access.",
+            subtitle = "Show What's Playing with Play, Pause and Next. Uses Notification Access.",
             icon = Icons.Outlined.LibraryMusic,
             isChecked = showMedia,
             onCheckedChange = { on -> if (on) mediaAccess.request() else showMedia = false },
@@ -100,7 +100,7 @@ internal fun WidgetExtrasSection(fields: WidgetDraftFields, ui: WidgetEditorStat
                     favouriteApps = when {
                         !add -> favouriteApps - packageName
                         favouriteApps.size >= MAX_FAVOURITE_APPS -> {
-                            Toast.makeText(context, "Up to $MAX_FAVOURITE_APPS apps fit in the row", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Up to $MAX_FAVOURITE_APPS apps fit in the row.", Toast.LENGTH_SHORT).show()
                             favouriteApps
                         }
                         else -> favouriteApps + packageName

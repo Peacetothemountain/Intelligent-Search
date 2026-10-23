@@ -221,13 +221,13 @@ fun SearchPillsScreen(
                         IconButton(onClick = {
                             resetCounter++
                             localPillList = profiles.resetToSaved()
-                            Toast.makeText(context, "Profile $activeProfile Reset to Saved State", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Profile $activeProfile reset to its saved state.", Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset to Saved State")
                         }
                         IconButton(onClick = {
                             profiles.saveState(localPillList)
-                            Toast.makeText(context, "Profile $activeProfile State Saved", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Profile $activeProfile state saved.", Toast.LENGTH_SHORT).show()
                         }) {
                             Icon(Icons.Outlined.Save, contentDescription = "Save Profile State")
                         }

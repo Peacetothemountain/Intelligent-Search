@@ -89,7 +89,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 icon = Icons.Outlined.Delete,
                 onClick = {
                     settingsViewModel?.clearSearchHistory()
-                    android.widget.Toast.makeText(context, "Search history cleared", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(context, "Search history cleared.", android.widget.Toast.LENGTH_SHORT).show()
                 },
                 showDivider = true
             )

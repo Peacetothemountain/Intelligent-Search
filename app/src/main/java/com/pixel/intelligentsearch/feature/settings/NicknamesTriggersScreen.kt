@@ -203,14 +203,13 @@ internal fun EditShortcutDialog(
     var trigger by remember(entry.key) { mutableStateOf(entry.trigger) }
     val triggerCheck = if (trigger.isBlank()) QuickKeys.Check.Ok else QuickKeys.check(trigger, entry.key, shortcuts, bangSymbol)
     val triggerError = QuickKeys.message(triggerCheck, bangSymbol)
-    val addable = ResultShortcuts.cleanNickname(newNickname)?.takeIf { clean ->
-        nicknames.none { it.equals(clean, ignoreCase = true) } && nicknames.size < ResultShortcuts.MAX_NICKNAMES
-    }
+    val addable = ResultShortcuts.canAddNickname(newNickname, nicknames)
+    val nicknameError = ResultShortcuts.nicknameError(newNickname, nicknames, entry.title.ifBlank { "This Result" })
     val add = { if (addable != null) { nicknames = nicknames + addable; newNickname = "" } }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(entry.title.ifBlank { "Result" }, style = MaterialTheme.typography.titleLarge) },
+        title = { Text(entry.title.ifBlank { "Result" }, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text("Nicknames", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
@@ -227,6 +226,8 @@ internal fun EditShortcutDialog(
                     onValueChange = { newNickname = it.take(ResultShortcuts.MAX_NICKNAME_LENGTH) },
                     label = { Text("Add Nickname") },
                     singleLine = true,
+                    isError = nicknameError != null,
+                    supportingText = nicknameError?.let { { Text(it) } },
                     trailingIcon = {
                         IconButton(onClick = add, enabled = addable != null) {
                             Icon(Icons.Outlined.Add, contentDescription = "Add Nickname")
@@ -238,6 +239,11 @@ internal fun EditShortcutDialog(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text("Trigger Word", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    QuickKeys.howTo(entry.title.ifBlank { "the result" }),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 OutlinedTextField(
                     value = trigger,
                     onValueChange = { trigger = it.trim().take(QuickKeys.MAX_LENGTH + 1) },
@@ -245,7 +251,7 @@ internal fun EditShortcutDialog(
                     singleLine = true,
                     isError = triggerError != null,
                     leadingIcon = { Icon(Icons.Outlined.Bolt, contentDescription = null) },
-                    supportingText = { Text(triggerError ?: "Type It and a Space in Search to Open ${entry.title}.") },
+                    supportingText = { Text(triggerError ?: QuickKeys.HINT) },
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false, imeAction = ImeAction.Done),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -258,7 +264,7 @@ internal fun EditShortcutDialog(
         },
         dismissButton = {
             Row {
-                TextButton(onClick = onDelete) { Text("Delete", style = MaterialTheme.typography.labelLarge) }
+                TextButton(onClick = onDelete) { Text("Remove", style = MaterialTheme.typography.labelLarge) }
                 TextButton(onClick = onDismiss) { Text("Cancel", style = MaterialTheme.typography.labelLarge) }
             }
         }

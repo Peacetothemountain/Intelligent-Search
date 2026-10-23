@@ -494,7 +494,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     if (!requested) {
                                         android.widget.Toast.makeText(
                                             context,
-                                            "Your launcher doesn't support adding widgets from apps",
+                                            "Your launcher doesn't support adding widgets from apps.",
                                             android.widget.Toast.LENGTH_SHORT
                                         ).show()
                                     }

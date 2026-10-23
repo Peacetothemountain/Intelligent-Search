@@ -154,7 +154,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                 TextButton(onClick = {
                     val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
                     clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", SearchRoleManager.ADB_ACTIVATION_COMMANDS))
-                    Toast.makeText(context, "Commands copied", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Commands copied.", Toast.LENGTH_SHORT).show()
                     showSearchBarHelp = false
                 }) { Text("Copy Commands") }
             },

@@ -168,7 +168,7 @@ internal fun SavedLinkDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (link == null) "Add Link" else "Edit Link", style = MaterialTheme.typography.titleLarge) },
+        title = { Text(if (link == null) "Add Link" else "Edit Link", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 OutlinedTextField(
@@ -201,7 +201,7 @@ internal fun SavedLinkDialog(
                                 val icons = context.appEntryPoint.savedLinkIcons()
                                 val ok = icons.fetch(link.url)
                                 fetching = false
-                                if (!ok) Toast.makeText(context, "This Site Has No Icon to Fetch.", Toast.LENGTH_SHORT).show()
+                                if (!ok) Toast.makeText(context, "This site has no icon to fetch.", Toast.LENGTH_SHORT).show()
                             }
                         }
                     ) {

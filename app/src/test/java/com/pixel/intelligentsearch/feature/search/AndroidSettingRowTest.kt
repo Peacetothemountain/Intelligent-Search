@@ -106,7 +106,7 @@ class AndroidSettingRowTest {
         val battery = AndroidSettingResult("battery", "Battery", "Settings", "battery", Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
         openAndroidSetting(nothingOpens, battery)
 
-        assertEquals("Couldn’t open Battery", ShadowToast.getTextOfLatestToast())
+        assertEquals("Couldn't open Battery.", ShadowToast.getTextOfLatestToast())
     }
 
     /** User 10, a work profile: the profile of uid 10 × 100000 + 10000. */
@@ -141,7 +141,7 @@ class AndroidSettingRowTest {
 
         val started = shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity
         assertNull("opened ${started?.action} ${started?.dataString}", started)
-        assertEquals("Couldn’t open Chrome App Info", ShadowToast.getTextOfLatestToast())
+        assertEquals("Couldn't open Chrome App Info.", ShadowToast.getTextOfLatestToast())
     }
 
     @Test

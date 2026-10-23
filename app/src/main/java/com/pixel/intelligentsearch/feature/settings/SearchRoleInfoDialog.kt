@@ -287,7 +287,7 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                                             onClick = {
                                                 val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                                                 clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS))
-                                                Toast.makeText(context, "ADB commands copied to clipboard", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
                                             },
                                             modifier = Modifier.size(32.dp)
                                         ) {
@@ -398,7 +398,7 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                             val clip = android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS)
                             clipboard?.setPrimaryClip(clip)
                             com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click(view)
-                            Toast.makeText(context, "ADB commands copied to clipboard", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
                         }) {
                             Text("Copy Command")
                         }

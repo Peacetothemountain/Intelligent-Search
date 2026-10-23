@@ -189,6 +189,24 @@ class ResultShortcuts(val entries: List<ResultShortcut>) {
         private val JSON = Json { ignoreUnknownKeys = true }
 
         /** [nickname] as stored: trimmed, inner spaces collapsed; null if blank or too long. */
+        /**
+         * The nickname [typed] adds to a result that has [existing] ones, cleaned, or null when it can't be added:
+         * empty, one it already has (in any case), or the result has [MAX_NICKNAMES]. Both editors use it.
+         */
+        fun canAddNickname(typed: String, existing: List<String>): String? = cleanNickname(typed)?.takeIf { clean ->
+            existing.none { it.equals(clean, ignoreCase = true) } && existing.size < MAX_NICKNAMES
+        }
+
+        /** Why [typed] can't be added to [title]'s [existing] nicknames, for under the field; null when it can or is empty. */
+        fun nicknameError(typed: String, existing: List<String>, title: String): String? {
+            val clean = cleanNickname(typed) ?: return null
+            return when {
+                existing.any { it.equals(clean, ignoreCase = true) } -> "$title Already Has This Nickname."
+                existing.size >= MAX_NICKNAMES -> "Up to $MAX_NICKNAMES Nicknames."
+                else -> null
+            }
+        }
+
         fun cleanNickname(nickname: String): String? =
             nickname.trim().replace(Regex("\\s+"), " ").takeIf { it.isNotEmpty() && it.length <= MAX_NICKNAME_LENGTH }
 
@@ -231,6 +249,12 @@ class ResultShortcuts(val entries: List<ResultShortcut>) {
 object QuickKeys {
 
     const val MAX_LENGTH = 12
+
+    /** What the trigger word field says while there is nothing wrong, in both editors. */
+    val HINT: String = "Letters and Digits, Up to $MAX_LENGTH."
+
+    /** How a trigger word is used, the editors' sentence above the field. */
+    fun howTo(title: String): String = "Type the word and a space in search to open $title."
 
     /** Whether a trigger word may be saved, or why not. */
     sealed interface Check {

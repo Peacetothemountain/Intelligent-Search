@@ -170,4 +170,18 @@ class ResultShortcutsTest {
         assertNull(QuickKeys.matchSubmitted("!yt", set))
         assertNull(QuickKeys.matchSubmitted("!yt cats", set))
     }
+
+    /** Both nickname editors (the long-press menu and the settings page) check a new nickname the same way. */
+    @Test
+    fun aNewNicknameIsCheckedOneWay() {
+        assertEquals("Dad", ResultShortcuts.canAddNickname("  Dad ", emptyList()))
+        assertNull(ResultShortcuts.canAddNickname("   ", emptyList()))
+        assertNull(ResultShortcuts.canAddNickname("dad", listOf("Dad")))
+        assertEquals("John Already Has This Nickname.", ResultShortcuts.nicknameError("DAD", listOf("Dad"), "John"))
+        val full = (1..ResultShortcuts.MAX_NICKNAMES).map { "n$it" }
+        assertNull(ResultShortcuts.canAddNickname("one more", full))
+        assertEquals("Up to ${ResultShortcuts.MAX_NICKNAMES} Nicknames.", ResultShortcuts.nicknameError("one more", full, "John"))
+        assertNull(ResultShortcuts.nicknameError("", emptyList(), "John"))
+        assertEquals("Letters and Digits, Up to ${QuickKeys.MAX_LENGTH}.", QuickKeys.HINT)
+    }
 }

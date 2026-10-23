@@ -64,7 +64,7 @@ class NicknamesTriggersScreenTest {
     fun deleteClearsTheNamesButKeepsThePin() {
         compose.setContent { NicknamesTriggersScreen(onBack = {}) }
         compose.onNodeWithText("Spotify").performClick()
-        compose.onNodeWithText("Delete").performClick()
+        compose.onNodeWithText("Remove").performClick()
         compose.waitForIdle()
         assertEquals("", store.current[spotify]?.trigger)
         assertTrue(store.current.isPinned(spotify))

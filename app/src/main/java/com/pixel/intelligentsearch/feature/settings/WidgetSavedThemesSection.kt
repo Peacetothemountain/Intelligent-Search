@@ -66,7 +66,7 @@ internal fun WidgetSavedThemesSection(saved: WidgetSavedThemes, ui: WidgetEditor
                     icon = Icons.Outlined.Palette,
                     onClick = {
                         saved.apply(theme)
-                        Toast.makeText(context, "\"${theme.name}\" applied: Save to put it on the widget", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "\"${theme.name}\" applied. Save to put it on the widget.", Toast.LENGTH_SHORT).show()
                     },
                     onLongClick = { menuOpen = true },
                     showDivider = index < saved.themes.lastIndex

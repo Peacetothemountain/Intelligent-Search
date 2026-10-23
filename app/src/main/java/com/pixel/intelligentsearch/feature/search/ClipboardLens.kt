@@ -93,7 +93,7 @@ internal object ClipboardLens {
             intentFor(uri, imageType(description)) { context.packageManager.resolveActivityCompat(it) != null }
         } else null
         val opened = intent != null && launchSafeIntent(context, intent)
-        if (!opened) Toast.makeText(context, "Couldn’t open Lens with the copied image", Toast.LENGTH_SHORT).show()
+        if (!opened) Toast.makeText(context, "Couldn't open Lens with the copied image.", Toast.LENGTH_SHORT).show()
         return opened
     }
 }

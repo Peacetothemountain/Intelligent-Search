@@ -170,7 +170,7 @@ class AtAGlanceOverlayTest {
         val opens = indexDinner()
         showOverlay(query = "dinner")
         compose.onNodeWithText("Notifications").assertExists()
-        compose.onNodeWithText("Dinner at the café at 8?").performClick()
+        compose.onNodeWithText("Dinner at the café at 8?", substring = true).performClick()
         compose.settle(steps = 3)
         val started = shadowOf(compose.activity.application).nextStartedActivity
         assertEquals(opens.component, started?.component)
@@ -180,7 +180,7 @@ class AtAGlanceOverlayTest {
     fun withoutTheOptInNoNotificationIsSearched() {
         indexDinner()
         showOverlay(query = "dinner")
-        compose.onNodeWithText("Dinner at the café at 8?").assertDoesNotExist()
+        compose.onNodeWithText("Dinner at the café at 8?", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -188,7 +188,15 @@ class AtAGlanceOverlayTest {
         prefs.edit().put(SettingsManager.SEARCH_NOTIFICATIONS, true).commit()
         indexDinner()
         showOverlay(query = "dinner")
-        compose.onNodeWithText("Dinner at the café at 8?").assertDoesNotExist()
+        compose.onNodeWithText("Dinner at the café at 8?", substring = true).assertDoesNotExist()
         assertTrue(index.entries.value.isEmpty())
+    }
+
+    /** A notification row has the title and one smaller line, as the file and contact rows do. */
+    @Test
+    fun aNotificationRowsSecondLineNamesTheAppTheAgeAndTheText() {
+        val entry = IndexedNotification("k", "com.example.chat", "Chat", "Ana Lima", " Dinner at 8? ", postedAt = 0L)
+        assertEquals("Chat · 5 min ago · Dinner at 8?", notificationDetail(entry, now = 5 * 60_000L))
+        assertEquals("Chat · Now", notificationDetail(entry.copy(text = ""), now = 0L))
     }
 }

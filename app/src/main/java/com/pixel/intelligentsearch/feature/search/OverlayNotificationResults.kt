@@ -98,8 +98,9 @@ internal fun NotificationsHeader() {
 }
 
 /**
- * One matching notification as the file and contact rows are laid out: the app's icon, the title, the text and
- * which app and how long ago. A tap does what tapping the notification does, or opens the app.
+ * One matching notification as the file and contact rows are laid out: the app's icon, the title, then one smaller
+ * line (at most two at large text sizes) with which app, how long ago and the text. A tap does what tapping the
+ * notification does, or opens the app.
  */
 @Composable
 internal fun NotificationResultRow(entry: IndexedNotification, now: Long, iconPack: String?, onOpened: () -> Unit, modifier: Modifier = Modifier) {
@@ -124,25 +125,22 @@ internal fun NotificationResultRow(entry: IndexedNotification, now: Long, iconPa
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (entry.text.isNotBlank()) {
-                Text(
-                    text = entry.text,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
             Text(
-                text = listOf(entry.appLabel, Durations.ago(now - entry.postedAt)).filter { it.isNotBlank() }.joinToString(" · "),
+                text = notificationDetail(entry, now),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
         }
     }
 }
+
+/** A notification row's second line: "Chat · 5 min ago · Dinner at the café at 8?", leaving out what is blank. */
+internal fun notificationDetail(entry: IndexedNotification, now: Long): String =
+    listOf(entry.appLabel, Durations.ago(now - entry.postedAt), entry.text.trim())
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
 
 /** The app's themed icon in a 40 dp circle, as the quick apps show it; a bell until it has loaded. */
 @Composable

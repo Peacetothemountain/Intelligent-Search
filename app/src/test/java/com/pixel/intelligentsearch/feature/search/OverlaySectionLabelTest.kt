@@ -4,7 +4,6 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
-import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -18,7 +17,7 @@ class OverlaySectionLabelTest {
 
     @Test
     fun aSectionLabelIsAHeading() {
-        compose.setContent { IntelligentSearchTheme(darkTheme = false) { OverlaySectionLabel("Recent") } }
+        compose.setContent { androidx.compose.material3.MaterialTheme { OverlaySectionLabel("Recent") } }
         compose.onNode(hasText("Recent") and SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading)).assertExists()
     }
 }

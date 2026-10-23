@@ -38,4 +38,15 @@ class SettingsStoreCleanupTest {
         // The mirror itself is running: settings the widgets draw with are copied.
         assertEquals(false, deviceProtected.getBoolean(SettingsManager.WIDGET_SHOW_VOICE.name, true))
     }
+
+    /** Settings removed with their features are dropped, so an older build's leftovers don't linger or get backed up. */
+    @Test
+    fun anOlderBuildsRemovedSwitchesAreDropped() = kotlinx.coroutines.runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val settingsManager = SettingsManager(context)
+        settingsManager.prefs.edit().putBoolean("glance.codes", true).putBoolean("on_device_translation", true).commit()
+        settingsManager.migrateToSingleStore()
+        assertFalse(settingsManager.prefs.contains("glance.codes"))
+        assertFalse(settingsManager.prefs.contains("on_device_translation"))
+    }
 }

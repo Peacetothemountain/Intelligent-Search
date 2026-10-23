@@ -356,10 +356,12 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         private val RETIRED_NAMES = listOf("search_sections_config_json", "datastore_migration_v1_completed")
 
         /**
-         * Switches removed while their feature stayed: Search from Selected Text, whose entry is always on now. A value
-         * an older version stored is dropped at every start, and backups never restore one.
+         * Switches an older build stored that no longer mean anything: Search from Selected Text (its entry is always
+         * on now), At a Glance's one-time codes (Android 15 hides them from listeners) and On-Device Translation
+         * (translations go to Google Translate). A value an older build stored is dropped at every start, and backups
+         * never restore one.
          */
-        val REMOVED_NAMES: Set<String> = setOf("search_from_selected_text")
+        val REMOVED_NAMES: Set<String> = setOf("search_from_selected_text", "glance.codes", "on_device_translation")
 
         /**
          * Set once [PILL_OPACITY] holds the pill's real opacity. Older versions drew their default, 50, fully

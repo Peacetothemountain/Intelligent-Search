@@ -655,7 +655,7 @@ private fun WidgetBarShapeSection(fields: WidgetDraftFields, isMaterialDesign: B
     SettingsSectionHeader("Bar Shape")
     SettingsCard(lit = false) {
         SettingsSliderRow(
-            title = if (isMaterialDesign) "Rim Thickness" else "Outline Thickness",
+            title = "Outline Thickness",
             value = outline.toFloat(),
             onValueChange = { outline = kotlin.math.round(it).toInt() },
             valueRange = 0f..com.pixel.intelligentsearch.core.data.widget.MAX_OUTLINE_THICKNESS.toFloat(),

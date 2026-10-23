@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.ui.MenuStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.outlined.Bolt
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
@@ -9,7 +10,6 @@ import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.LauncherApps
 import android.widget.Toast
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -67,7 +67,6 @@ import com.pixel.intelligentsearch.core.search.AndroidSettingsSearch
 import com.pixel.intelligentsearch.core.search.QuickKeys
 import com.pixel.intelligentsearch.core.search.ResultKeys
 import com.pixel.intelligentsearch.core.search.ResultShortcuts
-import androidx.compose.foundation.shape.RoundedCornerShape
 import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
 
@@ -216,14 +215,6 @@ internal fun Modifier.moreOptions(onOpen: (() -> Unit)?): Modifier =
         customActions = listOf(CustomAccessibilityAction(MORE_OPTIONS_LABEL) { onOpen(); true })
     }
 
-/** The menu panel's shape and colours, shared by the popup and its golden. */
-internal object ResultMenuStyle {
-    // The 24dp rounded corners of the app's other menus (SettingsDropdownRow), which cast a clean shadow.
-    val shape = RoundedCornerShape(24.dp)
-    @Composable fun containerColor() = MaterialTheme.colorScheme.surfaceContainerHigh
-    @Composable fun border() = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
-}
-
 /**
  * The menu's contents: the result's name as a heading, then [groups] of commands and the contact's [contactActions]
  * (Call, Message, Email, chat apps), a hairline between groups. Rows press like the overlay's result rows.
@@ -350,9 +341,9 @@ private fun ResultActionMenu(s: OverlayScope, target: ResultMenuTarget, onDismis
         expanded = true,
         onDismissRequest = onDismiss,
         offset = DpOffset(16.dp, 0.dp),
-        shape = ResultMenuStyle.shape,
-        containerColor = ResultMenuStyle.containerColor(),
-        border = ResultMenuStyle.border()
+        shape = MenuStyle.shape,
+        containerColor = MenuStyle.containerColor(),
+        border = MenuStyle.border()
     ) {
         ResultActionMenuItems(
             title = target.title,

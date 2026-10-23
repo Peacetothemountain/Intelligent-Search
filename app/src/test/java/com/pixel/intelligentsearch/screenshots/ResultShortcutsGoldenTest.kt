@@ -17,7 +17,6 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.search.ResultActionMenuItems
 import com.pixel.intelligentsearch.feature.search.ResultCommand
-import com.pixel.intelligentsearch.feature.search.ResultMenuStyle
 import com.pixel.intelligentsearch.feature.settings.NicknamesTriggersScreen
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -57,9 +56,9 @@ class ResultShortcutsGoldenTest(private val dark: Boolean) {
             IntelligentSearchTheme(darkTheme = dark) {
                 Box(Modifier.background(MaterialTheme.colorScheme.surface).padding(24.dp)) {
                     Surface(
-                        shape = ResultMenuStyle.shape,
-                        color = ResultMenuStyle.containerColor(),
-                        border = ResultMenuStyle.border(),
+                        shape = com.pixel.intelligentsearch.core.ui.MenuStyle.shape,
+                        color = com.pixel.intelligentsearch.core.ui.MenuStyle.containerColor(),
+                        border = com.pixel.intelligentsearch.core.ui.MenuStyle.border(),
                         shadowElevation = 3.dp
                     ) {
                         Box(Modifier.padding(vertical = 8.dp)) {

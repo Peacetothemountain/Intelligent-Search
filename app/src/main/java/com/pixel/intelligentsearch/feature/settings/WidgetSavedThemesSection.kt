@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.MenuStyle
 import android.widget.Toast
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
@@ -62,7 +63,7 @@ internal fun WidgetSavedThemesSection(saved: WidgetSavedThemes, ui: WidgetEditor
             Box {
                 SettingsRow(
                     title = theme.name,
-                    subtitle = "Tap to Apply. Touch and Hold to Rename or Delete.",
+                    subtitle = "Tap to Apply. Long-Press to Rename or Delete.",
                     icon = Icons.Outlined.Palette,
                     onClick = {
                         saved.apply(theme)
@@ -71,7 +72,13 @@ internal fun WidgetSavedThemesSection(saved: WidgetSavedThemes, ui: WidgetEditor
                     onLongClick = { menuOpen = true },
                     showDivider = index < saved.themes.lastIndex
                 )
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { menuOpen = false },
+                    shape = MenuStyle.shape,
+                    containerColor = MenuStyle.containerColor(),
+                    border = MenuStyle.border()
+                ) {
                     DropdownMenuItem(
                         text = { Text("Rename") },
                         leadingIcon = { Icon(Icons.Outlined.DriveFileRenameOutline, contentDescription = null) },

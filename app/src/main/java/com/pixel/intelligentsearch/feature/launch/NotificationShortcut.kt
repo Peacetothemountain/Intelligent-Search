@@ -18,7 +18,7 @@ import com.pixel.intelligentsearch.feature.widget.BackgroundLaunchOptions
 import com.pixel.intelligentsearch.feature.widget.WidgetActivity
 
 /**
- * Search Notification: an optional, silent, ongoing notification that opens search, like the search bar some phones
+ * Notification Shortcut: an optional, silent, ongoing notification that opens search, like the search bar some phones
  * keep in the shade. A tap opens the overlay with the keyboard up; Voice opens it listening; Lens (only when Google
  * Lens is installed) opens Lens.
  *
@@ -27,10 +27,10 @@ import com.pixel.intelligentsearch.feature.widget.WidgetActivity
  * starts (opening search, a widget, the tile, or after a reboot) while the setting is on, rather than at once, which
  * would fight the user's swipe. On the lock screen it shows as private: Android hides its content there.
  */
-object SearchShortcutNotification {
+object NotificationShortcut {
 
     const val CHANNEL_ID = "search_shortcut"
-    const val CHANNEL_NAME = "Search Shortcut"
+    const val CHANNEL_NAME = "Notification Shortcut"
     const val NOTIFICATION_ID = 0x5EA2C4
     const val TITLE = "Search Your Phone"
 

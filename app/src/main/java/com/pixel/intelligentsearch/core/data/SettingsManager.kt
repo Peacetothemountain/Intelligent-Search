@@ -293,7 +293,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * Launch Portal's extra ways to open search. Each is off by default and works only with its permission
          * (notifications; display over other apps), so a restore never switches one on.
          */
-        val SEARCH_NOTIFICATION_SHORTCUT = BooleanSetting("launch.search_notification", false)
+        val NOTIFICATION_SHORTCUT = BooleanSetting("launch.search_notification", false)
         val FLOATING_SEARCH_BUTTON = BooleanSetting("launch.floating_button", false)
         /** The edge the floating button rests on, "left" or "right" (ScreenEdge). */
         val FLOATING_BUTTON_EDGE = StringSetting("launch.floating_button_edge", "right")
@@ -335,7 +335,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             WIDGET_MATERIAL_SHOW_MEDIA, WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_SAVED_THEMES, COUNTDOWN_EVENTS,
             AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL, SAVED_LINKS,
-            SEARCH_NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION,
+            NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION,
             EDGE_SWIPE, EDGE_SWIPE_EDGE, EDGE_SWIPE_POSITION, EDGE_SWIPE_HEIGHT
         ) + FILES_OPEN_WITH.values
 

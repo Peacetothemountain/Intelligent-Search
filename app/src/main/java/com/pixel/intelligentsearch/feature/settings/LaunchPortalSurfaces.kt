@@ -38,10 +38,10 @@ import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.feature.launch.FloatingSearchOverlays
 import com.pixel.intelligentsearch.feature.launch.LaunchSurfaces
 import com.pixel.intelligentsearch.feature.launch.ScreenEdge
-import com.pixel.intelligentsearch.feature.launch.SearchShortcutNotification
+import com.pixel.intelligentsearch.feature.launch.NotificationShortcut
 
-/** The Search Notification's subtitle: what it offers ([lens] when Google Lens is installed) and what a swipe does. */
-internal fun searchNotificationSubtitle(lens: Boolean): String =
+/** The Notification Shortcut's subtitle: what it offers ([lens] when Google Lens is installed) and what a swipe does. */
+internal fun notificationShortcutSubtitle(lens: Boolean): String =
     "Search from Your Notifications, with Voice${if (lens) " and Lens" else ""}. " +
         "Swiped Away, It Returns the Next Time the App Starts."
 
@@ -53,17 +53,17 @@ internal fun edgeSwipeSubtitle(edge: ScreenEdge): String =
 private enum class OverlayRequest { BUTTON, EDGE_SWIPE }
 
 /**
- * Launch Portal's "Always Within Reach" options: the Search Notification, the floating search button and the edge
+ * Launch Portal's "Always Within Reach" options: the Notification Shortcut, the floating search button and the edge
  * swipe. Each is off by default and asks for its permission when switched on, after explaining why; none shows as on
  * while its permission is missing, and one whose permission was revoked is switched off on the way back.
  */
 @Composable
 fun AlwaysWithinReachSection() {
     val context = LocalContext.current
-    var notification by rememberSetting(SettingsManager.SEARCH_NOTIFICATION_SHORTCUT)
+    var notification by rememberSetting(SettingsManager.NOTIFICATION_SHORTCUT)
     var button by rememberSetting(SettingsManager.FLOATING_SEARCH_BUTTON)
     var edgeSwipe by rememberSetting(SettingsManager.EDGE_SWIPE)
-    var canPost by remember { mutableStateOf(SearchShortcutNotification.canPost(context)) }
+    var canPost by remember { mutableStateOf(NotificationShortcut.canPost(context)) }
     var canDraw by remember { mutableStateOf(FloatingSearchOverlays.canDraw(context)) }
     var pendingOverlay by rememberSaveable { mutableStateOf<String?>(null) }
     var showNotificationRationale by remember { mutableStateOf(false) }
@@ -78,7 +78,7 @@ fun AlwaysWithinReachSection() {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event != Lifecycle.Event.ON_RESUME) return@LifecycleEventObserver
-            canPost = SearchShortcutNotification.canPost(context)
+            canPost = NotificationShortcut.canPost(context)
             canDraw = FloatingSearchOverlays.canDraw(context)
             // Back from Android's "Display over other apps" page: switch on what asked for it, if it was allowed.
             when (pendingOverlay?.let(OverlayRequest::valueOf)) {
@@ -98,7 +98,7 @@ fun AlwaysWithinReachSection() {
     }
 
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        canPost = SearchShortcutNotification.canPost(context)
+        canPost = NotificationShortcut.canPost(context)
         if (granted && canPost) {
             notification = true
         } else if (!granted && context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) == false) {
@@ -110,15 +110,15 @@ fun AlwaysWithinReachSection() {
     SettingsSectionHeader("Always Within Reach")
     SettingsCard {
         SettingsRowToggle(
-            title = "Search Notification",
-            subtitle = searchNotificationSubtitle(lens),
+            title = "Notification Shortcut",
+            subtitle = notificationShortcutSubtitle(lens),
             icon = Icons.Outlined.NotificationsActive,
             isChecked = notification && canPost,
             onCheckedChange = { on ->
                 when {
                     !on -> notification = false
-                    SearchShortcutNotification.canPost(context) -> notification = true
-                    SearchShortcutNotification.needsPermission(context) -> showNotificationRationale = true
+                    NotificationShortcut.canPost(context) -> notification = true
+                    NotificationShortcut.needsPermission(context) -> showNotificationRationale = true
                     else -> showNotificationSettings = true
                 }
             },
@@ -192,7 +192,7 @@ fun AlwaysWithinReachSection() {
     if (showNotificationRationale) {
         PermissionRationaleDialog(
             title = "Allow Notifications?",
-            text = "The Search Notification keeps search one tap away in your notifications, with Voice" +
+            text = "The Notification Shortcut keeps search one tap away in your notifications, with Voice" +
                 (if (lens) " and Lens" else "") + ". It is silent, and on the lock screen its content stays hidden. " +
                 "Android asks you to allow notifications for it.",
             confirm = "Allow",
@@ -207,7 +207,7 @@ fun AlwaysWithinReachSection() {
     if (showNotificationSettings) {
         PermissionRationaleDialog(
             title = "Notifications Are Off",
-            text = "Notifications for Intelligent Search are turned off. Allow them in Android settings to show the Search Notification.",
+            text = "Notifications for Intelligent Search are turned off. Allow them in Android settings to show the Notification Shortcut.",
             confirm = "Open Settings",
             onConfirm = {
                 showNotificationSettings = false

@@ -9,13 +9,13 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import java.lang.ref.WeakReference
 
 /**
- * Launch Portal's always-there ways to open search: the Search Notification, the floating button and the edge swipe.
+ * Launch Portal's always-there ways to open search: the Notification Shortcut, the floating button and the edge swipe.
  * [start] runs at every app start (StartupSync, so also after a reboot) and from the Launch Portal page; from then on
  * the surfaces follow their settings, whoever changes them (the page, a backup restore).
  */
 object LaunchSurfaces {
 
-    private val NOTIFICATION_KEYS = SettingsManager.SEARCH_NOTIFICATION_SHORTCUT.allNames.toSet()
+    private val NOTIFICATION_KEYS = SettingsManager.NOTIFICATION_SHORTCUT.allNames.toSet()
     private val WINDOW_KEYS = listOf(
         SettingsManager.FLOATING_SEARCH_BUTTON, SettingsManager.FLOATING_BUTTON_EDGE, SettingsManager.FLOATING_BUTTON_POSITION,
         SettingsManager.EDGE_SWIPE, SettingsManager.EDGE_SWIPE_EDGE, SettingsManager.EDGE_SWIPE_POSITION, SettingsManager.EDGE_SWIPE_HEIGHT
@@ -44,7 +44,7 @@ object LaunchSurfaces {
                 val follow = SharedPreferences.OnSharedPreferenceChangeListener { sp, key ->
                     when (key) {
                         null -> sync(app)
-                        in NOTIFICATION_KEYS -> SearchShortcutNotification.sync(app, sp[SettingsManager.SEARCH_NOTIFICATION_SHORTCUT])
+                        in NOTIFICATION_KEYS -> NotificationShortcut.sync(app, sp[SettingsManager.NOTIFICATION_SHORTCUT])
                         in WINDOW_KEYS -> FloatingSearchOverlays.sync(app)
                     }
                 }
@@ -61,7 +61,7 @@ object LaunchSurfaces {
     fun sync(context: Context) {
         val app = context.applicationContext
         onMain {
-            SearchShortcutNotification.sync(app, prefs(app)[SettingsManager.SEARCH_NOTIFICATION_SHORTCUT])
+            NotificationShortcut.sync(app, prefs(app)[SettingsManager.NOTIFICATION_SHORTCUT])
             FloatingSearchOverlays.sync(app)
         }
     }

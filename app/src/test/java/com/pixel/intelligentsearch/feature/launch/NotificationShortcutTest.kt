@@ -24,11 +24,11 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 
 /**
- * The Search Notification: its own quiet channel, an ongoing notification that opens search, Voice and (with Lens
+ * The Notification Shortcut: its own quiet channel, an ongoing notification that opens search, Voice and (with Lens
  * installed) Lens actions behind immutable PendingIntents, and nothing posted without the notifications permission.
  */
 @RunWith(RobolectricTestRunner::class)
-class SearchShortcutNotificationTest {
+class NotificationShortcutTest {
 
     private val context: Application get() = ApplicationProvider.getApplicationContext()
     private val manager get() = context.getSystemService(NotificationManager::class.java)
@@ -39,9 +39,9 @@ class SearchShortcutNotificationTest {
 
     @Test
     fun itsChannelIsQuietBadgeFreeAndPrivateOnTheLockScreen() {
-        val channel = SearchShortcutNotification.channel()
+        val channel = NotificationShortcut.channel()
         assertEquals("search_shortcut", channel.id)
-        assertEquals("Search Shortcut", channel.name)
+        assertEquals("Notification Shortcut", channel.name)
         assertTrue(channel.importance <= NotificationManager.IMPORTANCE_LOW)
         assertFalse(channel.canShowBadge())
         assertNull(channel.sound)
@@ -51,8 +51,8 @@ class SearchShortcutNotificationTest {
 
     @Test
     fun itIsAnOngoingSearchShortcutOnItsChannel() {
-        val notification = SearchShortcutNotification.build(context, lensAvailable = false)
-        assertEquals(SearchShortcutNotification.CHANNEL_ID, notification.channelId)
+        val notification = NotificationShortcut.build(context, lensAvailable = false)
+        assertEquals(NotificationShortcut.CHANNEL_ID, notification.channelId)
         assertEquals("Search Your Phone", notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
         assertTrue(notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
         assertTrue(notification.flags and Notification.FLAG_NO_CLEAR != 0)
@@ -62,7 +62,7 @@ class SearchShortcutNotificationTest {
 
     @Test
     fun aTapOpensSearchAndVoiceOpensItListening() {
-        val notification = SearchShortcutNotification.build(context, lensAvailable = false)
+        val notification = NotificationShortcut.build(context, lensAvailable = false)
         val tap = shadowOf(notification.contentIntent)
         assertTrue(tap.isActivity)
         assertTrue(notification.contentIntent.isImmutable)
@@ -84,7 +84,7 @@ class SearchShortcutNotificationTest {
         installLens()
         assertTrue(com.pixel.intelligentsearch.core.system.GoogleApps.isLensAvailable(context))
 
-        val notification = SearchShortcutNotification.build(context)
+        val notification = NotificationShortcut.build(context)
         assertEquals(listOf("Voice", "Lens"), notification.actions.map { it.title.toString() })
         val lens = notification.actions[1].actionIntent
         assertTrue(lens.isImmutable)
@@ -98,30 +98,30 @@ class SearchShortcutNotificationTest {
 
     @Test
     fun switchedOnItIsPostedAndSwitchedOffItGoes() {
-        SearchShortcutNotification.sync(context, on = true)
-        val posted = shadowOf(manager).getNotification(SearchShortcutNotification.NOTIFICATION_ID)
+        NotificationShortcut.sync(context, on = true)
+        val posted = shadowOf(manager).getNotification(NotificationShortcut.NOTIFICATION_ID)
         assertNotNull(posted)
-        assertNotNull(manager.getNotificationChannel(SearchShortcutNotification.CHANNEL_ID))
+        assertNotNull(manager.getNotificationChannel(NotificationShortcut.CHANNEL_ID))
 
-        SearchShortcutNotification.sync(context, on = false)
-        assertNull(shadowOf(manager).getNotification(SearchShortcutNotification.NOTIFICATION_ID))
+        NotificationShortcut.sync(context, on = false)
+        assertNull(shadowOf(manager).getNotification(NotificationShortcut.NOTIFICATION_ID))
     }
 
     @Test
     fun withoutTheNotificationsPermissionNothingIsPosted() {
         shadowOf(context).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
-        assertTrue(SearchShortcutNotification.needsPermission(context))
-        assertFalse(SearchShortcutNotification.canPost(context))
-        SearchShortcutNotification.sync(context, on = true)
-        assertNull(shadowOf(manager).getNotification(SearchShortcutNotification.NOTIFICATION_ID))
+        assertTrue(NotificationShortcut.needsPermission(context))
+        assertFalse(NotificationShortcut.canPost(context))
+        NotificationShortcut.sync(context, on = true)
+        assertNull(shadowOf(manager).getNotification(NotificationShortcut.NOTIFICATION_ID))
     }
 
     @Test
     fun withNotificationsBlockedNothingIsPosted() {
         shadowOf(manager).setNotificationsEnabled(false)
-        assertFalse(SearchShortcutNotification.canPost(context))
-        SearchShortcutNotification.sync(context, on = true)
-        assertNull(shadowOf(manager).getNotification(SearchShortcutNotification.NOTIFICATION_ID))
+        assertFalse(NotificationShortcut.canPost(context))
+        NotificationShortcut.sync(context, on = true)
+        assertNull(shadowOf(manager).getNotification(NotificationShortcut.NOTIFICATION_ID))
     }
 
     private fun installLens() {

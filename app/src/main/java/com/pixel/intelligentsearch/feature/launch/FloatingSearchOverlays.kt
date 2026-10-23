@@ -149,7 +149,7 @@ object FloatingSearchOverlays {
     private fun openSearch(context: Context) {
         try {
             // Allowed from the background: the app holds "Display over other apps" and its window was just touched.
-            context.startActivity(SearchShortcutNotification.searchIntent(context.applicationContext))
+            context.startActivity(NotificationShortcut.searchIntent(context.applicationContext))
         } catch (e: RuntimeException) {
             Log.w(TAG, "Could not open search", e)
         }

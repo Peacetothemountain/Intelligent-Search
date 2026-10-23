@@ -16,13 +16,13 @@ import org.robolectric.RobolectricTestRunner
 import java.io.File
 
 /**
- * Launch Portal's Search Notification, floating button and edge swipe are backed up, but each needs a permission and
+ * Launch Portal's Notification Shortcut, floating button and edge swipe are backed up, but each needs a permission and
  * the last two draw over other apps, so a restore can switch them off and never on. Where they sit comes back.
  */
 @RunWith(RobolectricTestRunner::class)
 class LaunchPortalBackupTest {
 
-    private val optIns = listOf(SettingsManager.SEARCH_NOTIFICATION_SHORTCUT, SettingsManager.FLOATING_SEARCH_BUTTON, SettingsManager.EDGE_SWIPE)
+    private val optIns = listOf(SettingsManager.NOTIFICATION_SHORTCUT, SettingsManager.FLOATING_SEARCH_BUTTON, SettingsManager.EDGE_SWIPE)
 
     @Test
     fun theSettingsAreKnownWithTheirTypesAndRanges() {

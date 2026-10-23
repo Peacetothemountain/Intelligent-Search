@@ -54,6 +54,7 @@ fun TorBrowserInstallDialog(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -148,7 +149,10 @@ fun TorBrowserInstallDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     OutlinedButton(
-                        onClick = onDismiss,
+                        onClick = {
+                            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.playButtonTap(context, view)
+                            onDismiss()
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .heightIn(min = 48.dp)
@@ -172,6 +176,7 @@ fun TorBrowserInstallDialog(
 
                     Button(
                         onClick = {
+                            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.playButtonTap(context, view)
                             onDismiss()
                             launchTorPlayStore(context)
                         },

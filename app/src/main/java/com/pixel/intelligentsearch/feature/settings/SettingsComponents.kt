@@ -499,6 +499,7 @@ fun SettingsRowToggle(
     }
 }
 
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SettingsSliderRow(
     title: String,
@@ -528,10 +529,12 @@ fun SettingsSliderRow(
             )
             Spacer(modifier = Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Row(
+                // The value (and reset) sit beside the title when they fit, and move under it when large text or a
+                // narrow window leaves no room, so neither is ever clipped.
+                androidx.compose.foundation.layout.FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    itemVerticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
                         text = title,
@@ -540,6 +543,7 @@ fun SettingsSliderRow(
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                     if (valueText != null) {
                         Text(
                             text = valueText(value),
@@ -564,6 +568,7 @@ fun SettingsSliderRow(
                                 modifier = Modifier.size(20.dp)
                             )
                         }
+                    }
                     }
                 }
                 Android17Slider(

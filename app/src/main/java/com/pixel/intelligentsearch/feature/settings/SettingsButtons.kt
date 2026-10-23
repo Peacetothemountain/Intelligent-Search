@@ -175,6 +175,5 @@ internal fun OutlinedButton(
  * The predictive-back haptic every button plays, the app's one haptic. Where the app's object graph isn't there (a
  * Compose preview, a plain unit test) there is nothing to play it with, and the button still works.
  */
-private fun playButtonHaptic(context: android.content.Context, view: android.view.View) {
-    runCatching { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }.getOrNull()?.performPredictiveBackHaptic(view)
-}
+private fun playButtonHaptic(context: android.content.Context, view: android.view.View) =
+    com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.playButtonTap(context, view)

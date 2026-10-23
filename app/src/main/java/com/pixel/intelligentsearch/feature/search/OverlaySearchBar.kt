@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.feature.settings.IconButton
 import com.pixel.intelligentsearch.core.ui.uniqueItems
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -253,15 +254,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                                 /* closeOverlay() */
                             }
                         } else {
-                            // A trigger word and a space ("sp ") opens its result at once.
-                            val quickKey = viewModel.quickKeyTarget(newQuery, submitted = false)
-                            if (quickKey != null) {
-                                textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
-                                viewModel.onQueryChanged("")
-                                openResult(context, s, quickKey, LaunchSource.keyboard())
-                            } else {
-                                viewModel.onQueryChanged(newQuery)
-                            }
+                            viewModel.onQueryChanged(newQuery)
                         }
                     },
                     modifier = Modifier
@@ -285,7 +278,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
                         hasStartedTyping = false
                         keyboardController?.hide()
-                        // A trigger word, then the phrasing's action or Enter Key Action (OverlayEnterKey).
+                        // The highlight, then the phrasing's action or the top result (OverlayEnterKey).
                         s.onEnter(context, highlighted = null)
                     }),
                     decorationBox = { innerTextField ->

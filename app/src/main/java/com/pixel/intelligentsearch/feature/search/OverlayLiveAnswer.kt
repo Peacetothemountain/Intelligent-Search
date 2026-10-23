@@ -1,17 +1,14 @@
 package com.pixel.intelligentsearch.feature.search
 
-import android.Manifest
+import com.pixel.intelligentsearch.feature.settings.rememberApproximateLocationRequest
+import com.pixel.intelligentsearch.feature.settings.PermissionRationaleDialog
+import com.pixel.intelligentsearch.core.system.openSettingsPage
+import com.pixel.intelligentsearch.core.system.GoogleApps
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -20,31 +17,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.edit
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pixel.intelligentsearch.core.answers.GoogleTranslate
+import com.pixel.intelligentsearch.core.answers.HomeLocationCodec
 import com.pixel.intelligentsearch.core.answers.LiveAnswer
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.ui.DefinitionOneBox
 import com.pixel.intelligentsearch.core.ui.ScreenTimeOneBox
 import com.pixel.intelligentsearch.core.ui.TranslationOneBox
 import com.pixel.intelligentsearch.core.ui.WeatherLocationOneBox
 import com.pixel.intelligentsearch.core.ui.WeatherOneBox
-import com.pixel.intelligentsearch.feature.widget.resolveActivityCompat
-
-/** The weather app to open from a forecast: Pixel Weather, else the Google app's weather page; null for neither. */
-internal fun weatherAppIntent(context: Context): Intent? {
-    val pm = context.packageManager
-    pm.getLaunchIntentForPackage("com.google.android.apps.weather")?.let { return it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-    val google = Intent(Intent.ACTION_VIEW)
-        .setClassName("com.google.android.googlequicksearchbox", "com.google.android.apps.search.weather.WeatherExportedActivity")
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    return google.takeIf { pm.resolveActivity(it, 0) != null }
-}
+import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 
 /** Where today's screen time is broken down in full: Digital Wellbeing (Pixel's, or Samsung's), if the phone has it. */
 internal fun digitalWellbeingIntent(context: Context): Intent? =
@@ -66,14 +54,7 @@ internal fun OverlayLiveAnswer(s: OverlayScope, answer: LiveAnswer) {
             entry = answer.entry,
             onOpenFullDefinition = { s.launchWebSearch("define ${answer.entry.word}") }
         )
-        is LiveAnswer.Weather -> WeatherOneBox(
-            report = answer.report,
-            onOpenWeather = {
-                s.ui.hasStartedTyping = false
-                val app = weatherAppIntent(context)
-                if (app == null || !launchSafeIntent(context, app)) s.launchWebSearch(answer.query)
-            }
-        )
+        is LiveAnswer.Weather -> WeatherAnswer(s, answer)
         is LiveAnswer.WeatherNeedsLocation -> WeatherLocationPrompt(s)
         is LiveAnswer.Translation -> TranslationOneBox(
             answer = answer,
@@ -93,54 +74,59 @@ internal fun openInGoogleTranslate(context: android.content.Context, s: OverlayS
     if (app == null || !launchSafeIntent(context, app)) s.openWebAddress(GoogleTranslate.webAddress(text, source, target))
 }
 
-/** The weather card asking where "here" is, and the approximate-location request behind its button. */
+/** A forecast; one for "here" can have its location changed from the card. */
 @Composable
-private fun WeatherLocationPrompt(s: OverlayScope) {
+private fun WeatherAnswer(s: OverlayScope, answer: LiveAnswer.Weather) {
     val context = LocalContext.current
-    var showRationale by remember { mutableStateOf(false) }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
-            s.prefs.edit { put(SettingsManager.WEATHER_USE_DEVICE_LOCATION, true) }
-            s.viewModel.retryLiveAnswer()
+    var choosing by remember { mutableStateOf(false) }
+    WeatherOneBox(
+        report = answer.report,
+        onChangeLocation = if (answer.here) ({ choosing = true }) else null,
+        onOpenWeather = {
+            s.ui.hasStartedTyping = false
+            val app = GoogleApps.weatherIntent(context)
+            if (app == null || !launchSafeIntent(context, app)) s.launchWebSearch(answer.query)
         }
-    }
-    WeatherLocationOneBox(
-        onUseApproximateLocation = {
-            if (context.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-                s.prefs.edit { put(SettingsManager.WEATHER_USE_DEVICE_LOCATION, true) }
-                s.viewModel.retryLiveAnswer()
-            } else {
-                showRationale = true
-            }
-        },
-        onSetHomeLocation = { s.onOpenSettings("web_search") }
     )
-    if (showRationale) {
-        LocationRationaleDialog(
-            onAllow = {
-                showRationale = false
-                permission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-            },
-            onDismiss = { showRationale = false }
-        )
-    }
+    if (choosing) WeatherLocationChooser(s, onDone = { choosing = false })
 }
 
-/** Why weather answers would like approximate location, shown before Android's own prompt. */
+/**
+ * The weather card asking where "here" is: Set Location opens the city search, Use Approximate Location asks for the
+ * permission (after the app's usual explanation). Either way the forecast is looked up again.
+ */
 @Composable
-internal fun LocationRationaleDialog(onAllow: () -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Allow Approximate Location?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-        text = {
-            Text(
-                "Weather answers can use your phone's approximate location, never its precise one. Only rounded " +
-                    "coordinates are sent to Open-Meteo for the forecast, and only when you ask for the weather.",
-                style = MaterialTheme.typography.bodyLarge
-            )
+private fun WeatherLocationPrompt(s: OverlayScope) {
+    var choosing by remember { mutableStateOf(false) }
+    val location = rememberApproximateLocationRequest {
+        // The set location would win over the phone's; this is the user choosing the phone's instead.
+        s.prefs.edit { put(SettingsManager.WEATHER_HOME_LOCATION, "") }
+        s.viewModel.retryLiveAnswer()
+    }
+    WeatherLocationOneBox(
+        onUseApproximateLocation = location::request,
+        onSetLocation = { choosing = true }
+    )
+    if (choosing) WeatherLocationChooser(s, onDone = { choosing = false })
+}
+
+/** [WeatherLocationDialog] writing the weather's location, then looking the forecast up again. */
+@Composable
+private fun WeatherLocationChooser(s: OverlayScope, onDone: () -> Unit) {
+    val home = s.prefs[SettingsManager.WEATHER_HOME_LOCATION]
+    WeatherLocationDialog(
+        hasLocation = HomeLocationCodec.decode(home) != null,
+        onChosen = { place ->
+            s.prefs.edit { put(SettingsManager.WEATHER_HOME_LOCATION, HomeLocationCodec.encode(place)) }
+            onDone()
+            s.viewModel.retryLiveAnswer()
         },
-        confirmButton = { TextButton(onClick = onAllow) { Text("Allow", style = MaterialTheme.typography.labelLarge) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Not Now", style = MaterialTheme.typography.labelLarge) } }
+        onCleared = {
+            s.prefs.edit { put(SettingsManager.WEATHER_HOME_LOCATION, "") }
+            onDone()
+            s.viewModel.retryLiveAnswer()
+        },
+        onDismiss = onDone
     )
 }
 
@@ -171,29 +157,22 @@ private fun ScreenTimePrompt(s: OverlayScope, answer: LiveAnswer.ScreenTime) {
         }
     )
     if (showRationale) {
-        AlertDialog(
-            onDismissRequest = { showRationale = false },
-            title = { Text("Allow Usage Access?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-            text = {
-                Text(
-                    "Intelligent Search reads how long you've used each app today to show your screen time, and to " +
-                        "suggest the apps you use most. It stays on your phone. Turn on Usage Access for Intelligent " +
-                        "Search on the next screen.",
-                    style = MaterialTheme.typography.bodyLarge
+        PermissionRationaleDialog(
+            title = "Allow Usage Access?",
+            text = "Intelligent Search reads how long you've used each app today to show your screen time, and to " +
+                "suggest the apps you use most. It stays on your phone. Turn on Usage Access for Intelligent " +
+                "Search on the next screen.",
+            confirm = "Open Settings",
+            onConfirm = {
+                showRationale = false
+                s.ui.hasStartedTyping = false
+                openSettingsPage(
+                    context,
+                    Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
+                    Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
                 )
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    showRationale = false
-                    s.ui.hasStartedTyping = false
-                    val forThisApp = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.fromParts("package", context.packageName, null))
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    if (!launchSafeIntent(context, forThisApp)) {
-                        launchSafeIntent(context, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    }
-                }) { Text("Open Settings", style = MaterialTheme.typography.labelLarge) }
-            },
-            dismissButton = { TextButton(onClick = { showRationale = false }) { Text("Not Now", style = MaterialTheme.typography.labelLarge) } }
+            onDismiss = { showRationale = false }
         )
     }
 }

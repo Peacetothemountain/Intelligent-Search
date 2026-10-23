@@ -7,8 +7,8 @@
     <uses-permission android:name="android.permission.HIDE_OVERLAY_WINDOWS" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <!-- Launch Portal: the optional Search Notification (asked for when switched on, Android 13+) and the optional
-         floating search button and edge swipe, drawn over other apps once the user allows it on Android's page. -->
+    <!-- Launch Portal: the optional Notification Shortcut (asked for when switched on, Android 13+) and the optional
+         floating search button, drawn over other apps once the user allows it on Android's page. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
@@ -328,10 +328,12 @@
                 android:resource="@xml/search_widget_material_info" />
         </receiver>
 
-        <!-- The countdown widget, redrawn after each local midnight and when the clock or time zone changes. -->
+        <!-- The countdown widget, redrawn after each local midnight and when the clock or time zone changes. Direct
+             boot aware like the search bar widgets, so a restart before unlock still draws it. -->
         <receiver
             android:name="com.pixel.intelligentsearch.feature.widget.CountdownWidgetProvider"
             android:label="@string/widget_countdown_label"
+            android:directBootAware="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -352,9 +354,6 @@
             android:windowSoftInputMode="adjustResize"
             android:excludeFromRecents="true"
             android:exported="false" />
-
-        <!-- The search bar widget's media row's play/pause and next; only the widget's own PendingIntents reach it. -->
-        <receiver android:name="com.pixel.intelligentsearch.feature.widget.WidgetMediaReceiver" android:exported="false" />
 
         <receiver
             android:name="com.pixel.intelligentsearch.core.system.DirectBootReceiver"
@@ -421,10 +420,9 @@
         </service>
 
         <!-- The app's one notification listener, so one Notification Access grant covers Search Your Notifications
-             (and At a Glance's timers), Now Playing and the widget's Media Controls. Reads notifications into memory
-             only while Search Your Notifications is on, watches media sessions only while a widget shows its media
-             row, and unbinds itself while neither is on. See NotificationAccessListener for the Play policy
-             justification. -->
+             (and At a Glance's timers) and At a Glance's Media Controls. Reads notifications into memory only while
+             Search Your Notifications is on, and unbinds itself while it is off. See NotificationAccessListener for
+             the Play policy justification. -->
         <service
             android:name=".core.glance.NotificationAccessListener"
             android:label="@string/app_name"

@@ -1,5 +1,9 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.openPendingOrApp
+import com.pixel.intelligentsearch.core.glance.IndexedNotification
+import com.pixel.intelligentsearch.core.glance.GlanceItem
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.gestures.animateScrollBy
@@ -31,7 +35,6 @@ import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.FileTypeGroup
-import com.pixel.intelligentsearch.core.data.SavedLink
 import com.pixel.intelligentsearch.core.data.WebSuggestion
 import com.pixel.intelligentsearch.core.search.AndroidSettingResult
 import com.pixel.intelligentsearch.core.search.ResultKeys
@@ -49,8 +52,8 @@ import com.pixel.intelligentsearch.feature.settings.focusRing
 /** What a highlighted result opens. */
 internal sealed interface NavTarget {
     /**
-     * An app, contact, file, Android Settings page or Saved Link ([AppItem], [ContactItem], [FileItem],
-     * [AndroidSettingResult], [SavedLink]), opened as its own row opens it; an app opens out of the icon under [iconKey].
+     * An app, contact, file or Android Settings page ([AppItem], [ContactItem], [FileItem], [AndroidSettingResult]),
+     * opened as its own row opens it; an app opens out of the icon under [iconKey].
      */
     data class Result(val item: Any, val iconKey: String? = null) : NavTarget
 
@@ -71,6 +74,12 @@ internal sealed interface NavTarget {
 
     /** The file-type chip above the files ("PDFs Only"): removes the limit to [group] for this query. */
     data class RemoveFileTypeFilter(val group: FileTypeGroup) : NavTarget
+
+    /** A matching notification: does what tapping it does, or opens its app. */
+    data class Notification(val entry: IndexedNotification) : NavTarget
+
+    /** An item in the At a Glance card: opens what it is about ([openGlanceItem]). */
+    data class Glance(val item: GlanceItem) : NavTarget
 }
 
 /** The main action of an instant answer's card. */
@@ -89,7 +98,7 @@ internal sealed interface AnswerAction {
 
 /**
  * One place the highlight can stop: [key] is unique among the stops, [listKey] is the results list item it sits in
- * (several stops share the app row's), and [target] is what Enter opens.
+ * (several stops share the app row's, and At a Glance's items its card's), and [target] is what Enter opens.
  */
 internal data class NavStop(val key: String, val listKey: String, val target: NavTarget)
 
@@ -128,7 +137,7 @@ internal object OverlayKeyboardNav {
      * Down from the field highlights the first result and stops at the last; Up from the first goes back to the field.
      * Left and Right move along a row of several (the app row). Tab and Shift+Tab step through every stop in order,
      * Shift+Tab from the first back to the field and Tab past the last on out of the results. Enter opens the
-     * highlighted result, and without one is the field's (Enter Key Action). Escape clears what was typed, then closes.
+     * highlighted result, and without one is the field's (OverlayEnterKey). Escape clears what was typed, then closes.
      */
     fun reduce(at: NavPosition?, key: NavKey, rowSizes: List<Int>, queryEmpty: Boolean): NavOutcome {
         val rows = rowSizes
@@ -215,6 +224,8 @@ internal object ResultListKeys {
     const val ASK_AI = "ask_ai"
     const val AI_ANSWER = "ai_answer"
     const val FILE_TYPE_FILTER = "files_type_filter"
+    /** At a Glance's one card; each of its items is a stop of its own inside it. */
+    const val GLANCE = "at_a_glance"
 
     fun directAction(action: DirectAction) = "direct_action_${action.title}_${action.subtitle}"
     fun recent(query: String) = "recent_$query"
@@ -223,7 +234,7 @@ internal object ResultListKeys {
     fun suggestion(query: String) = "sugg_$query"
     fun contact(contact: ContactItem) = "contact_${contact.lookupUri.ifBlank { "${contact.name}_${contact.phoneNumber}" }}"
     fun file(file: FileItem) = "file_${file.uri}"
-    fun savedLink(link: SavedLink) = "saved_link_${link.url}"
+    fun notification(entry: IndexedNotification) = "notification_${entry.key}"
 
     /** A stop inside a row of several: the row's key and the item's. */
     fun inRow(rowKey: String, itemKey: String) = "$rowKey/$itemKey"
@@ -234,7 +245,6 @@ internal object ResultListKeys {
         is ContactItem -> ResultKeys.contact(result) ?: contact(result)
         is FileItem -> ResultKeys.file(result)
         is AndroidSettingResult -> ResultKeys.setting(result) ?: setting(result)
-        is SavedLink -> ResultKeys.link(result)
         else -> result.hashCode().toString()
     })
 }
@@ -250,7 +260,8 @@ internal data class NavSources(
     val aiAsk: Pair<AiProvider, String>? = null,
     /** The AI answer for this query, whose card's main action is "Continue in". */
     val aiAnswer: AiAnswerState? = null,
-    val savedLinks: List<SavedLink> = emptyList(),
+    /** At a Glance's items, in its one card above the empty search. */
+    val glance: List<GlanceItem> = emptyList(),
     val bestMatch: Any? = null,
     val pinned: List<Any> = emptyList(),
     val recents: List<String> = emptyList(),
@@ -264,7 +275,9 @@ internal data class NavSources(
     val contacts: List<ContactItem> = emptyList(),
     /** The file type the query limits [files] to; its chip leads the files. */
     val fileTypeFilter: FileTypeGroup? = null,
-    val files: List<FileItem> = emptyList()
+    val files: List<FileItem> = emptyList(),
+    /** Matching notifications, after the phone's other results. */
+    val notifications: List<IndexedNotification> = emptyList()
 ) {
     /** The stops, a row per result (the app and Pinned rows are one row of several). */
     fun rows(): List<List<NavStop>> = buildList {
@@ -274,7 +287,7 @@ internal data class NavSources(
         val answer = aiAnswer
         if (answer != null) single(ResultListKeys.AI_ANSWER, NavTarget.Answer(AnswerAction.ContinueInAssistant(answer.provider, answer.question)))
         else aiAsk?.let { (provider, question) -> single(ResultListKeys.ASK_AI, NavTarget.AskAi(provider, question)) }
-        savedLinks.distinctBy(ResultListKeys::savedLink).forEach { single(ResultListKeys.savedLink(it), NavTarget.Result(it)) }
+        glance.distinctBy { it.key }.forEach { add(listOf(NavStop(it.key, ResultListKeys.GLANCE, NavTarget.Glance(it)))) }
         bestMatch?.let { single(ResultListKeys.BEST_MATCH, NavTarget.Result(it, (it as? AppItem)?.let { LaunchIconKeys.BEST_MATCH })) }
         if (pinned.isNotEmpty()) {
             add(pinned.distinctBy(ResultListKeys::pinned).map { item ->
@@ -298,6 +311,7 @@ internal data class NavSources(
                 files.distinctBy(ResultListKeys::file).forEach { single(ResultListKeys.file(it), NavTarget.Result(it)) }
             }
         }
+        notifications.distinctBy { it.key }.forEach { single(ResultListKeys.notification(it), NavTarget.Notification(it)) }
     }
 }
 
@@ -351,23 +365,24 @@ internal fun navSources(s: OverlayScope): NavSources {
     return NavSources(
         spellingSuggestion = uiState.spellingSuggestion,
         directActions = uiState.directActions,
-        aiAsk = uiState.aiOffer?.let { provider -> AiAnswers.questionIn(query)?.let { provider to it } },
+        aiAsk = uiState.askAi?.let { provider -> AiAnswers.questionIn(query)?.let { provider to it } },
         aiAnswer = uiState.aiAnswer,
-        savedLinks = uiState.savedLinks,
+        glance = if (query.isEmpty()) s.glanceItems else emptyList(),
         bestMatch = s.bestMatch,
         pinned = if (query.isEmpty()) uiState.pinned else emptyList(),
         recents = if (settings.searchPreviousSearches && query.isEmpty()) s.distinctRecents else emptyList(),
         answers = answers,
         sectionOrder = resultSectionOrder(s.appWeight, s.webWeight, s.contactWeight, s.fileWeight, uiState.androidSettings.any { it.isStrongMatch }),
         apps = if (settings.searchApps) s.filteredApps.ifEmpty { s.visibleApps } else emptyList(),
-        androidSettings = if (settings.searchAndroidSettings && query.isNotEmpty()) uiState.androidSettings else emptyList(),
+        androidSettings = if (query.isNotEmpty()) uiState.androidSettings else emptyList(),
         suggestions = if ((settings.searchWeb || s.suggestionsEnabled) && query.isNotEmpty()) {
             displayedSuggestions(query, uiState.recentSearches, settings.searchPreviousSearches, uiState.webSuggestions, settings.webResultsCount)
         } else emptyList(),
         history = uiState.recentSearches,
         contacts = if (settings.searchContacts) s.filteredContacts.ifEmpty { uiState.contacts } else emptyList(),
         fileTypeFilter = uiState.fileTypeFilter.takeIf { settings.searchFiles },
-        files = if (settings.searchFiles) s.filteredFiles.ifEmpty { uiState.files } else emptyList()
+        files = if (settings.searchFiles) s.filteredFiles.ifEmpty { uiState.files } else emptyList(),
+        notifications = if (query.isNotEmpty()) s.notificationHits else emptyList()
     )
 }
 
@@ -402,7 +417,7 @@ internal fun openNavTarget(context: Context, s: OverlayScope, target: NavTarget)
                 AnswerAction.OpenCalculator -> launchSafeIntent(context, Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR))
                 AnswerAction.ShowAlarms -> launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
                 is AnswerAction.OpenWeather -> {
-                    val app = weatherAppIntent(context)
+                    val app = com.pixel.intelligentsearch.core.system.GoogleApps.weatherIntent(context)
                     if (app == null || !launchSafeIntent(context, app)) s.launchWebSearch(action.query)
                 }
                 is AnswerAction.Translate -> openInGoogleTranslate(context, s, action.text, action.source, action.target)
@@ -413,6 +428,14 @@ internal fun openNavTarget(context: Context, s: OverlayScope, target: NavTarget)
         // Nothing is sent until the row is chosen; then its answer card takes the row's place.
         is NavTarget.AskAi -> s.viewModel.askAi()
         is NavTarget.RemoveFileTypeFilter -> s.viewModel.clearFileTypeFilter()
+        is NavTarget.Notification -> {
+            s.ui.hasStartedTyping = false
+            openPendingOrApp(context, target.entry.contentIntent, target.entry.packageName)
+        }
+        is NavTarget.Glance -> {
+            s.ui.hasStartedTyping = false
+            openGlanceItem(context, target.item)
+        }
     }
 }
 
@@ -493,7 +516,7 @@ internal fun OverlayScope.onResultsKey(event: KeyEvent, context: Context, rtl: B
             true
         }
         NavOutcome.Open -> {
-            // Through Enter's rules, so a trigger word typed in full still comes before the highlight.
+            // Through Enter's rules, so the keyboard and the search key agree.
             onEnter(context, OverlayKeyboardNav.positionOf(ui.highlightedKey, rows)?.let { rows[it.row][it.column].target })
             true
         }

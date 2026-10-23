@@ -60,10 +60,20 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
     val hardwareInfo = remember(hardwareLevel) {
         com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detectSecurityHardware(context, hardwareLevel)
     }
-    val attestationResult by androidx.compose.runtime.produceState<com.pixel.intelligentsearch.core.security.AttestationResult?>(initialValue = null) {
-        value = withContext(Dispatchers.IO) {
-            attestationVerifier.generateAndVerifyAttestation()
+    // Each check, the first when the page opens and one per Verify Again (a fresh attestation with a new challenge),
+    // keeps the last result on screen while it runs.
+    var attestationRun by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    var attestationResult by remember { androidx.compose.runtime.mutableStateOf<com.pixel.intelligentsearch.core.security.AttestationResult?>(null) }
+    var attestationCheckedAt by remember { androidx.compose.runtime.mutableStateOf<Long?>(null) }
+    var attesting by remember { androidx.compose.runtime.mutableStateOf(true) }
+    androidx.compose.runtime.LaunchedEffect(attestationRun) {
+        attesting = true
+        val fresh = attestationRun > 0
+        attestationResult = withContext(Dispatchers.IO) {
+            attestationVerifier.generateAndVerifyAttestation(forceRefresh = fresh)
         }
+        attestationCheckedAt = System.currentTimeMillis()
+        attesting = false
     }
     // Read once per opening: a screen lock can't change while this dialog is in front.
     val deviceSecure = remember {
@@ -287,7 +297,7 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                                             onClick = {
                                                 val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                                                 clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS))
-                                                Toast.makeText(context, "ADB commands copied to clipboard", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
                                             },
                                             modifier = Modifier.size(32.dp)
                                         ) {
@@ -374,7 +384,14 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                         BatteryAndMemoryDiagnosticsPage(context = context)
                     }
                     else -> {
-                        HardwareSecurityPage(hardwareInfo = hardwareInfo, attestationResult = attestationResult, posture = posture)
+                        HardwareSecurityPage(
+                            hardwareInfo = hardwareInfo,
+                            attestationResult = attestationResult,
+                            posture = posture,
+                            verifying = attesting,
+                            checkedAt = attestationCheckedAt,
+                            onVerifyAgain = { attestationRun++ }
+                        )
                     }
                 }
             }
@@ -398,7 +415,7 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                             val clip = android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS)
                             clipboard?.setPrimaryClip(clip)
                             com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click(view)
-                            Toast.makeText(context, "ADB commands copied to clipboard", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
                         }) {
                             Text("Copy Command")
                         }

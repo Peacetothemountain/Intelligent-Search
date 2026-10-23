@@ -7,7 +7,6 @@ import android.os.Bundle
 import android.service.notification.StatusBarNotification
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.data.settings.put
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -59,6 +58,27 @@ class NotificationIndexTest {
         )
         assertEquals(listOf("prefix", "word", "new-text", "old-text"), NotificationIndex.search(entries, "ana", limit = 10).map { it.key })
         assertEquals(2, NotificationIndex.search(entries, "ana", limit = 2).size)
+    }
+
+    /** Notifications are matched the way every other result is (QueryNormalizer), not by a looser fold of their own. */
+    @Test
+    fun searchFoldsTextLikeTheRestOfSearch() {
+        val entries = listOf(
+            entry("lotus", "ハス", "Garden"),
+            entry("bus", "バス", "Leaves at 8"),
+            entry("street", "Weißstraße 5", "Your parcel"),
+            entry("hindi", "किताब", "Library")
+        )
+        // A voicing mark makes another letter: "バス" (bus) is not "ハス" (lotus).
+        assertEquals(listOf("bus"), NotificationIndex.search(entries, "バス").map { it.key })
+        assertEquals(listOf("lotus"), NotificationIndex.search(entries, "ハス").map { it.key })
+        // Typed without the special letters, as other results allow.
+        assertEquals(listOf("street"), NotificationIndex.search(entries, "weissstrasse").map { it.key })
+        // A Devanagari vowel sign is part of the word.
+        assertEquals(listOf("hindi"), NotificationIndex.search(entries, "किताब").map { it.key })
+        assertTrue(NotificationIndex.search(entries, "कतब").isEmpty())
+        // Punctuation doesn't have to be typed.
+        assertEquals(listOf("bus"), NotificationIndex.search(entries, "at 8").map { it.key })
     }
 
     @Test
@@ -147,8 +167,6 @@ class NotificationIndexTest {
 
     @Test
     fun openingSearchAfterAccessIsRevokedForgetsWhatWasRead() {
-        val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().put(SettingsManager.SEARCH_NOTIFICATIONS, true).commit()
         val notifications = shadowOf(context.getSystemService(NotificationManager::class.java))
         val component = NotificationAccessListener.component(context)
         val index = NotificationIndex()
@@ -162,12 +180,11 @@ class NotificationIndexTest {
         NotificationAccess.syncIndex(context, index)
         assertTrue(index.entries.value.isEmpty())
 
-        // The switch off, with access still granted, forgets them too.
+        // Granted again, with no switch of the app's own in the way, what is read stays.
         notifications.setNotificationListenerAccessGranted(component, true)
         index.post(entry("a", "Ana"))
-        prefs.edit().put(SettingsManager.SEARCH_NOTIFICATIONS, false).commit()
         NotificationAccess.syncIndex(context, index)
-        assertTrue(index.entries.value.isEmpty())
+        assertEquals(1, index.entries.value.size)
     }
 
     @Test

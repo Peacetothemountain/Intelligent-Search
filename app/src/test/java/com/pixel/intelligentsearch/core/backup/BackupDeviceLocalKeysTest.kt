@@ -114,6 +114,17 @@ class BackupDeviceLocalKeysTest {
         file.writeText(envelope.toString())
     }
 
+    @Test
+    fun countdownWidgetEventsStayOnThisPhone() = runBlocking {
+        prefs.edit().putString(SettingsManager.COUNTDOWN_EVENTS.name, """{"5":{"title":"Halloween","date":"2026-10-31","yearly":true}}""").commit()
+        assertFalse(JSONObject(backupManager.createBackupPayload().sharedPreferencesJson).has(SettingsManager.COUNTDOWN_EVENTS.name))
+        backupManager.exportToFile(Uri.fromFile(file), PASSPHRASE).getOrThrow()
+
+        prefs.edit().putString(SettingsManager.COUNTDOWN_EVENTS.name, "{}").commit()
+        backupManager.importFromFile(Uri.fromFile(file), PASSPHRASE).getOrThrow()
+        assertEquals("{}", prefs.getString(SettingsManager.COUNTDOWN_EVENTS.name, null))
+    }
+
     private companion object {
         const val PASSPHRASE = "correct horse battery"
         const val KDF_ITERATIONS = 10_000

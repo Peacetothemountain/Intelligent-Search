@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.feature.settings.IconButton
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import com.pixel.intelligentsearch.core.haptics.rememberTactileSonicEngine
 import androidx.compose.animation.*

@@ -1,13 +1,12 @@
 package com.pixel.intelligentsearch.feature.launch
 
-import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-/** A side of the screen the floating button rests on or the edge swipe strip runs along, as stored in settings. */
-enum class ScreenEdge(val stored: String, val label: String) {
-    LEFT("left", "Left"),
-    RIGHT("right", "Right");
+/** A side of the screen the floating button rests on, as stored in settings. */
+enum class ScreenEdge(val stored: String) {
+    LEFT("left"),
+    RIGHT("right");
 
     companion object {
         /** The edge stored as [stored]; an unknown value (an old or crafted backup) reads as the right edge. */
@@ -16,7 +15,7 @@ enum class ScreenEdge(val stored: String, val label: String) {
 }
 
 /**
- * The part of the screen the floating windows may use, in screen pixels: the display minus the status bar, the
+ * The part of the screen the floating button may use, in screen pixels: the display minus the status bar, the
  * navigation bar and any cutout. Nothing is placed over the system bars.
  */
 data class SafeArea(val left: Int, val top: Int, val right: Int, val bottom: Int) {
@@ -72,92 +71,5 @@ object FloatingButtonGeometry {
     fun snapped(x: Int, y: Int, sizePx: Int, area: SafeArea, marginPx: Int): Pair<ScreenEdge, WindowBounds> {
         val edge = nearestEdge(x, sizePx, area)
         return edge to WindowBounds(restingX(edge, sizePx, area, marginPx), clampY(y, sizePx, area), sizePx, sizePx)
-    }
-}
-
-/**
- * Where the edge swipe strip goes: a thin band against [edge] of the safe area, centred at [positionPercent] of its
- * height and [heightPercent] of it tall. [maxHeightPx], when set, caps the height: with gesture navigation Android
- * only lets an app keep the back gesture off 200dp of each edge, so a taller strip would lose the rest to Back.
- */
-fun edgeStripBounds(
-    edge: ScreenEdge,
-    area: SafeArea,
-    positionPercent: Int,
-    heightPercent: Int,
-    widthPx: Int,
-    maxHeightPx: Int? = null
-): WindowBounds {
-    val wanted = (area.height * heightPercent.coerceIn(0, 100) / 100f).roundToInt()
-    val height = (maxHeightPx?.let { minOf(wanted, it) } ?: wanted).coerceIn(0, area.height)
-    val centre = area.top + (area.height * positionPercent.coerceIn(0, 100) / 100f).roundToInt()
-    val top = (centre - height / 2).coerceIn(area.top, max(area.top, area.bottom - height))
-    val width = minOf(widthPx, area.width)
-    val x = if (edge == ScreenEdge.LEFT) area.left else area.right - width
-    return WindowBounds(x, top, width, height)
-}
-
-/**
- * The edge swipe's gesture: a finger that lands on the strip and travels inward past [thresholdPx] arms it (the
- * predictive back haptic plays), pulling back below [releaseFraction] of the threshold disarms it (the cancel
- * haptic), and lifting while armed opens search. A drag that is mostly vertical before it arms (scrolling along the
- * edge) is let go and can't open anything. Pure, so the thresholds are unit tested.
- */
-class EdgeSwipeGesture(
-    private val edge: ScreenEdge,
-    private val thresholdPx: Float,
-    private val slopPx: Float,
-    private val releaseFraction: Float = 0.75f
-) {
-    enum class Event { NONE, ARMED, DISARMED, OPEN }
-
-    private var startX = 0f
-    private var startY = 0f
-    private var tracking = false
-    private var armed = false
-
-    val isArmed: Boolean get() = armed
-
-    fun down(x: Float, y: Float) {
-        startX = x
-        startY = y
-        tracking = true
-        armed = false
-    }
-
-    /** How far the finger has come in from the edge (negative while moving toward it). */
-    fun inward(x: Float): Float = if (edge == ScreenEdge.LEFT) x - startX else startX - x
-
-    fun move(x: Float, y: Float): Event {
-        if (!tracking) return Event.NONE
-        val inward = inward(x)
-        val vertical = abs(y - startY)
-        if (!armed && vertical > slopPx && vertical > inward) {
-            // Mostly vertical: a scroll along the edge, not a swipe in.
-            tracking = false
-            return Event.NONE
-        }
-        return when {
-            !armed && inward >= thresholdPx -> { armed = true; Event.ARMED }
-            armed && inward < thresholdPx * releaseFraction -> { armed = false; Event.DISARMED }
-            else -> Event.NONE
-        }
-    }
-
-    fun up(x: Float, y: Float): Event {
-        val event = move(x, y).let { if (armed) Event.OPEN else Event.NONE }
-        reset()
-        return event
-    }
-
-    fun cancel(): Event {
-        val wasArmed = armed
-        reset()
-        return if (wasArmed) Event.DISARMED else Event.NONE
-    }
-
-    private fun reset() {
-        tracking = false
-        armed = false
     }
 }

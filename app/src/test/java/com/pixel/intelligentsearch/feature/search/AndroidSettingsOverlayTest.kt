@@ -86,11 +86,12 @@ class AndroidSettingsOverlayTest {
     }
 
     @Test
-    fun turningTheSourceOffHidesTheSection() {
+    fun anOlderBuildsSwitchedOffSourceNoLongerHidesTheSection() {
+        // The Android Settings source has no switch now; a value an older build left behind changes nothing.
         context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putBoolean(SettingsManager.SEARCH_ANDROID_SETTINGS.name, false).commit()
+            .putBoolean("search.android.settings", false).commit()
         showOverlay("battery")
 
-        compose.onNodeWithContentDescription("Battery settings").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Battery settings").assertExists()
     }
 }

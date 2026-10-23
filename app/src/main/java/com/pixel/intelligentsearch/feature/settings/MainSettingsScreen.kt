@@ -116,7 +116,7 @@ fun MainSettingsScreen(
                     showDivider = true,
                 )
                 SettingsRow(
-                    title = "Search Shortcuts",
+                    title = "Search Sources",
                     subtitle = "Apps, Contacts, Files, Etc.",
                     icon = Icons.Outlined.SavedSearch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchSources) },
@@ -124,7 +124,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Search Behavior",
-                    subtitle = "Custom Search Overlay and Display Settings.",
+                    subtitle = "Search Overlay, Keyboard, At a Glance and Display Settings.",
                     icon = Icons.Outlined.Tune,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior) },
                     showDivider = true,
@@ -138,7 +138,7 @@ fun MainSettingsScreen(
                 )
                 SettingsRow(
                     title = "Launch Portal",
-                    subtitle = "Quick Search Tile and Home Screen Shortcut.",
+                    subtitle = "Search Tile, Home Screen Shortcut, Notification Shortcut and Floating Button.",
                     icon = Icons.Outlined.RocketLaunch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal) },
                     showDivider = false,
@@ -146,6 +146,13 @@ fun MainSettingsScreen(
             }
 
             SettingsCard {
+                SettingsRow(
+                    title = "Encrypted Backup",
+                    subtitle = "Import, Export, and Restore Backup App Data.",
+                    icon = Icons.Outlined.Security,
+                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
+                    showDivider = true
+                )
                 SettingsRow(
                     title = "Google Activity",
                     subtitle = "View and Manage Your Google Activity.",
@@ -195,7 +202,7 @@ fun MainSettingsScreen(
                             }
                         }
                     },
-                    showDivider = true,
+                    showDivider = isDebugUnlocked,
                 )
 
                 if (showTorBrowserSettingsDialog) {
@@ -203,13 +210,6 @@ fun MainSettingsScreen(
                         onDismiss = { showTorBrowserSettingsDialog = false }
                     )
                 }
-                SettingsRow(
-                    title = "Encrypted Backup",
-                    subtitle = "Import, Export, and Restore Backup App Data.",
-                    icon = Icons.Outlined.Security,
-                    onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
-                    showDivider = isDebugUnlocked
-                )
                 
                 if (isDebugUnlocked) {
                     SettingsRow(

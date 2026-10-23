@@ -105,8 +105,8 @@ class GlobalSearchProvider : ContentProvider() {
         val webOn = prefs?.get(SettingsManager.SEARCH_WEB) ?: true
         val me = Process.myUserHandle()
 
-        val isTorEngine = engine == "Tor Project" || engine == "Tor Browser"
-        val isCustomEngine = engine == "Custom"
+        val isTorEngine = com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(engine)
+        val isCustomEngine = engine == com.pixel.intelligentsearch.core.security.NetworkPolicy.CUSTOM_ENGINE
         val providerName = when {
             isTorEngine -> "Tor"
             engine == "DuckDuckGo" -> "DuckDuckGo"
@@ -218,7 +218,7 @@ class GlobalSearchProvider : ContentProvider() {
             }
 
             // 5. Dynamic Autocomplete Suggestions
-            val suggestions = if (isTorEngine || isCustomEngine || !suggestionsEnabled || !webOn) {
+            val suggestions = if (prefs == null || !com.pixel.intelligentsearch.core.security.NetworkPolicy.webSuggestionsAllowed(prefs)) {
                 emptyList()
             } else {
                 WebSearchProvider.getCachedSuggestions(queryTerm, engine)?.map { it.query } ?: emptyList()

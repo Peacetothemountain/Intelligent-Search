@@ -1,7 +1,8 @@
 package com.pixel.intelligentsearch.feature.widget
 
+import com.pixel.intelligentsearch.core.util.getApplicationInfoCompat
+import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 import com.pixel.intelligentsearch.di.appEntryPoint
-import com.pixel.intelligentsearch.core.util.storageContext
 import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -194,15 +195,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        fun getSafeSharedPreferences(context: Context, name: String = SettingsManager.PREFS_NAME): SharedPreferences =
-            context.storageContext().getSharedPreferences(name, Context.MODE_PRIVATE)
-
         fun updateAllWidgets(context: Context, pendingResult: android.content.BroadcastReceiver.PendingResult? = null) {
             val appContext = context.applicationContext
             context.appEntryPoint.applicationScope().launch(Dispatchers.IO) {
                 try {
                     val appWidgetManager = AppWidgetManager.getInstance(appContext) ?: return@launch
-                    val prefs = getSafeSharedPreferences(appContext)
+                    val prefs = SettingsManager.storedPrefs(appContext)
                     val isDark = ThemeMode.from(prefs[SettingsManager.THEME])
                         .isDark(ThemeMode.systemIsDark(appContext.resources.configuration))
                     val widgetColors = DynamicThemeDetector.resolveWidgetColors(appContext, isDark)
@@ -269,7 +267,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     val inputs = previewInputs(context, prefs, design, isDark, widgetColors)
                     if (publishedPreviews[provider.name] == inputs) continue
                     // No doodle: the picker keeps its preview long after the holiday is over.
-                    val preview = buildPreview(context, prefs, isMaterialYou, isDark, widgetColors, withDoodle = false)
+                    val preview = buildPickerPreview(context, prefs, isMaterialYou, isDark, widgetColors)
                     if (publish(ComponentName(context, provider), preview)) {
                         publishedPreviews[provider.name] = inputs
                     } else {
@@ -329,11 +327,10 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         internal data class WidgetDesignConfig(
             val isMaterialYou: Boolean,
             val rimColorOpaque: Int,
-            val rimAlphaInt: Int,
             val pillColorOpaque: Int,
-            val pillAlphaInt: Int,
             val circleColorOpaque: Int,
-            val circleAlphaInt: Int,
+            /** How see-through the outline, pill and circle are drawn, as one group ([WidgetColorRules.backdropAlphas]). */
+            val backdrop: WidgetColorRules.BackdropAlphas,
             val showGIcon: Boolean,
             /** Whether the G is Google's four-colour one: the System G style, or the Custom style with Keep System G. */
             val useOriginalG: Boolean,
@@ -351,16 +348,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val customBar: WidgetColorRules.CustomBarColors? = null,
             /** The bar's outline, height and corners. */
             val shape: WidgetBarShape,
-            /** The System G style's plain icon colour on this pill, which the media row's title takes too. */
-            val plainIconTint: Int,
-            /** The favourite apps row's apps, by package name; empty for no row. */
-            val favouriteApps: List<String>,
-            /** Whether the design shows what's playing above the bar. */
-            val showMedia: Boolean
-        ) {
-            /** Whether the design has a row to show above the bar once the widget is tall enough. */
-            val hasExtras: Boolean get() = favouriteApps.isNotEmpty() || showMedia
-        }
+            /** The System G style's plain icon colour on this pill. */
+            val plainIconTint: Int
+        )
 
         fun updateWidgetsSync(
             context: Context,
@@ -368,7 +358,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             appWidgetIds: IntArray,
             forcedIsMaterial: Boolean? = null
         ) {
-            val prefs = getSafeSharedPreferences(context)
+            val prefs = SettingsManager.storedPrefs(context)
             val isDark = ThemeMode.from(prefs[SettingsManager.THEME])
                 .isDark(ThemeMode.systemIsDark(context.resources.configuration))
 
@@ -403,15 +393,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         val EXPANDED_WIDTH = SizeF(340f, 48f)
 
         /**
-         * The heights the widget's sizes start at, in dp: one launcher row shows only the bar; from
-         * [ONE_EXTRA_ROW_HEIGHT] (the tallest bar, 72dp, plus a 52dp row, with room to spare) one row fits above it,
-         * and from [TWO_EXTRA_ROWS_HEIGHT] both.
-         */
-        const val ONE_ROW_HEIGHT = 48f
-        const val ONE_EXTRA_ROW_HEIGHT = 130f
-        const val TWO_EXTRA_ROWS_HEIGHT = 190f
-
-        /**
          * The views one widget shows at each supported width, built from the current settings and theme, keyed
          * the way [RemoteViews] expects for a responsive widget. The render goldens draw these directly.
          */
@@ -419,7 +400,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             context: Context,
             appWidgetId: Int,
             isMaterialYou: Boolean,
-            prefs: SharedPreferences = getSafeSharedPreferences(context)
+            prefs: SharedPreferences = SettingsManager.storedPrefs(context)
         ): Map<SizeF, RemoteViews> {
             val isDark = ThemeMode.from(prefs[SettingsManager.THEME])
                 .isDark(ThemeMode.systemIsDark(context.resources.configuration))
@@ -427,13 +408,15 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             return buildResponsiveViews(context, prefs, appWidgetId, isMaterialYou, isDark, widgetColors)
         }
 
+        /** [buildResponsiveViews] in the given theme; [withDoodle] false leaves today's doodle out (for previews). */
         private fun buildResponsiveViews(
             context: Context,
             prefs: SharedPreferences,
             appWidgetId: Int,
             isMaterialYou: Boolean,
             isDark: Boolean,
-            widgetColors: DynamicThemeDetector.ResolvedWidgetColors
+            widgetColors: DynamicThemeDetector.ResolvedWidgetColors,
+            withDoodle: Boolean = true
         ): Map<SizeF, RemoteViews> {
             val config = resolveWidgetConfig(
                 context = context,
@@ -449,35 +432,19 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             // 2. Compact (180dp / 3 cells): G logo + 1 shortcut + circle (or 2 shortcuts)
             // 3. Standard (260dp / 4 cells - default phone width): G logo + 2 shortcuts + circle (or 3 shortcuts)
             // 4. Expanded (340dp / 5 cells, foldables & tablets): G logo + all shortcuts
-            val doodle = currentDoodle(prefs, isMaterialYou)
-            // A design with a favourite apps or media row also has a two- and a three-row tall version of each width,
-            // which show one or both rows above the bar (12 sizes, within the 16 RemoteViews allows). Their bitmaps
-            // are drawn once and shared, so the extra sizes cost the launcher no more bitmap memory.
-            val extras = if (config.hasExtras) WidgetExtras.load(context, config) else WidgetExtras.NONE
-            val heights = if (config.hasExtras) listOf(ONE_ROW_HEIGHT, ONE_EXTRA_ROW_HEIGHT, TWO_EXTRA_ROWS_HEIGHT) else listOf(ONE_ROW_HEIGHT)
+            val doodle = if (withDoodle) currentDoodle(prefs, isMaterialYou) else null
             // Strictly positive SizeF keys compliant with Android 12+ RemoteViews validation:
             // SizeF(0f, 0f) is forbidden by AOSP RemoteViews constructor.
-            return heights.flatMap { height ->
-                listOf(ULTRA_COMPACT_WIDTH, COMPACT_WIDTH, STANDARD_WIDTH, EXPANDED_WIDTH).map { width ->
-                    val size = SizeF(width.width, height)
-                    size to buildRemoteViews(
-                        context = context,
-                        appWidgetId = appWidgetId,
-                        prefs = prefs,
-                        maxShortcuts = shortcutsAt(width, config),
-                        config = config,
-                        doodle = doodle,
-                        extras = extras.rows(extraRowsAt(height))
-                    )
-                }
-            }.toMap()
-        }
-
-        /** How many rows above the bar fit in a widget [height] dp tall. */
-        private fun extraRowsAt(height: Float): Int = when {
-            height >= TWO_EXTRA_ROWS_HEIGHT -> 2
-            height >= ONE_EXTRA_ROW_HEIGHT -> 1
-            else -> 0
+            return listOf(ULTRA_COMPACT_WIDTH, COMPACT_WIDTH, STANDARD_WIDTH, EXPANDED_WIDTH).associateWith { width ->
+                buildRemoteViews(
+                    context = context,
+                    appWidgetId = appWidgetId,
+                    prefs = prefs,
+                    maxShortcuts = shortcutsAt(width, config),
+                    config = config,
+                    doodle = doodle
+                )
+            }
         }
 
         /** How many shortcuts fit beside the G at [width]; the Material design's circle icon takes one place. */
@@ -498,30 +465,39 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         /**
-         * The widget of the given design exactly as a newly placed one at a phone's default width ([STANDARD_WIDTH],
-         * 4 cells) draws itself from the saved settings: colours, shape, G style or doodle, shortcuts, light or dark.
-         * The launcher's add-widget dialog shows it when the widget is pinned from Widget Customization, so what the
-         * user is asked to add is what they designed. Built on a background thread: it draws bitmaps.
+         * The widget of the given design as Widget Customization's live preview shows it, for the launcher's
+         * add-widget dialog when the widget is pinned from there: drawn from the saved settings (the editor saves its
+         * design first) exactly as a placed widget draws itself, and responsive like one, so the dialog shows the
+         * size the widget will be placed at. A 4-cell phone widget is wide enough for every shortcut the editor's
+         * preview shows; the older single preview was always the narrow 4-cell layout, which dropped shortcuts the
+         * editor and the placed widget both show. Like the editor's preview it has no doodle, which only lasts the
+         * day. Built on a background thread: it draws bitmaps.
          */
         internal fun buildPinPreview(
             context: Context,
             isMaterialYou: Boolean,
-            prefs: SharedPreferences = getSafeSharedPreferences(context)
-        ): RemoteViews {
+            prefs: SharedPreferences = SettingsManager.storedPrefs(context)
+        ): RemoteViews = RemoteViews(pinPreviewSizes(context, isMaterialYou, prefs))
+
+        /** The views [buildPinPreview] shows at each width: a placed widget's, without the doodle. */
+        internal fun pinPreviewSizes(
+            context: Context,
+            isMaterialYou: Boolean,
+            prefs: SharedPreferences = SettingsManager.storedPrefs(context)
+        ): Map<SizeF, RemoteViews> {
             val isDark = ThemeMode.from(prefs[SettingsManager.THEME])
                 .isDark(ThemeMode.systemIsDark(context.resources.configuration))
             val widgetColors = DynamicThemeDetector.resolveWidgetColors(context, isDark)
-            return buildPreview(context, prefs, isMaterialYou, isDark, widgetColors, withDoodle = true)
+            return buildResponsiveViews(context, prefs, appWidgetId = 0, isMaterialYou, isDark, widgetColors, withDoodle = false)
         }
 
-        /** A placed widget's [STANDARD_WIDTH] views, for a preview not tied to any placed widget; [withDoodle] adds today's doodle. */
-        private fun buildPreview(
+        /** A placed widget's [STANDARD_WIDTH] views without the doodle, for the widget picker's preview. */
+        private fun buildPickerPreview(
             context: Context,
             prefs: SharedPreferences,
             isMaterialYou: Boolean,
             isDark: Boolean,
-            widgetColors: DynamicThemeDetector.ResolvedWidgetColors,
-            withDoodle: Boolean
+            widgetColors: DynamicThemeDetector.ResolvedWidgetColors
         ): RemoteViews {
             val config = resolveWidgetConfig(context, prefs, isMaterialYou, isDark, widgetColors)
             return buildRemoteViews(
@@ -529,8 +505,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 appWidgetId = 0,
                 prefs = prefs,
                 maxShortcuts = shortcutsAt(STANDARD_WIDTH, config),
-                config = config,
-                doodle = if (withDoodle) currentDoodle(prefs, isMaterialYou) else null
+                config = config
             )
         }
 
@@ -545,8 +520,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val design = if (isMaterialYou) WidgetDesign.MATERIAL else WidgetDesign.SYSTEM
             val settings = WidgetSettingsStore(prefs).load(design, WidgetDefaults(widgetColors.primary, widgetColors.isDynamicActive))
             val isCustom = settings.subtheme == "Custom"
-            val containerAlphaInt = WidgetColorRules.alphaInt(WidgetColorRules.backgroundAlpha(settings))
-            val effectiveColorAlphaInt = WidgetColorRules.alphaInt(WidgetColorRules.customColorAlpha(settings))
+            val backdrop = WidgetColorRules.backdropAlphas(settings, isMaterialYou)
             val customBar = if (isCustom) WidgetColorRules.customBarColors(settings, isMaterialYou) else null
             val actualCustomColor = settings.customColorInt
             val effectiveIconTheme = settings.gIconTheme
@@ -561,7 +535,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     "Custom" -> actualCustomColor
                     else -> widgetColors.surfaceContainer
                 }
-                val pillAlphaInt = if (isCustom) effectiveColorAlphaInt else containerAlphaInt
                 val isPillLight = when (settings.subtheme) {
                     "Light" -> true
                     "Dark" -> false
@@ -580,13 +553,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
                 WidgetDesignConfig(
                     isMaterialYou = false,
-                    // The optional outline is the accent, as see-through as the pill.
+                    // The optional outline is the accent, as see-through as the pill: the backdrop fades both.
                     rimColorOpaque = themePColor or Color.BLACK,
-                    rimAlphaInt = pillAlphaInt,
                     pillColorOpaque = pillColorOpaque,
-                    pillAlphaInt = pillAlphaInt,
                     circleColorOpaque = pillColorOpaque,
-                    circleAlphaInt = pillAlphaInt,
+                    backdrop = backdrop,
                     showGIcon = settings.showGIcon,
                     useOriginalG = useOriginalG,
                     themePColor = themePColor,
@@ -598,9 +569,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     customIcons = WidgetColorRules.customIconColors(settings, isMaterialDesign = false, isPillLight = isPillLight),
                     customBar = customBar,
                     shape = WidgetBarShape.of(settings, isMaterialDesign = false),
-                    plainIconTint = plainIconTint(context, customBar, isPillLight),
-                    favouriteApps = settings.favouriteApps,
-                    showMedia = settings.showMedia
+                    plainIconTint = plainIconTint(context, customBar, isPillLight)
                 )
             } else {
                 // MATERIAL DESIGN BAR: Dual-layer accent rim, companion circle button
@@ -625,9 +594,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 }
 
                 val circleColor = pillColor
-                val rimAlphaInt = WidgetColorRules.alphaInt(WidgetColorRules.rimAlpha(settings))
-                val pillAlphaInt = if (lockBlack) 255 else (if (isCustom) effectiveColorAlphaInt else containerAlphaInt)
-                val circleAlphaInt = pillAlphaInt
 
                 val rimColorOpaque = Color.rgb(Color.red(rimColor), Color.green(rimColor), Color.blue(rimColor))
                 val pillColorOpaque = Color.rgb(Color.red(pillColor), Color.green(pillColor), Color.blue(pillColor))
@@ -644,11 +610,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 WidgetDesignConfig(
                     isMaterialYou = true,
                     rimColorOpaque = rimColorOpaque,
-                    rimAlphaInt = rimAlphaInt,
                     pillColorOpaque = pillColorOpaque,
-                    pillAlphaInt = pillAlphaInt,
                     circleColorOpaque = circleColorOpaque,
-                    circleAlphaInt = circleAlphaInt,
+                    backdrop = backdrop,
                     showGIcon = settings.showGIcon,
                     useOriginalG = useOriginalG,
                     themePColor = themePColor,
@@ -660,17 +624,14 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     customIcons = WidgetColorRules.customIconColors(settings, isMaterialDesign = true, isPillLight = isPillLight),
                     customBar = customBar,
                     shape = WidgetBarShape.of(settings, isMaterialDesign = true),
-                    plainIconTint = plainIconTint(context, customBar, isPillLight),
-                    favouriteApps = settings.favouriteApps,
-                    showMedia = settings.showMedia
+                    plainIconTint = plainIconTint(context, customBar, isPillLight)
                 )
             }
         }
 
         /**
-         * The System G style's colour for the mic, shortcuts and circle icon (its G stays Google's), which the media
-         * row's title takes too: the Custom subtheme's plain icon, else the light theme's on-surface on a light pill
-         * and white on a dark one.
+         * The System G style's colour for the mic, shortcuts and circle icon (its G stays Google's): the Custom
+         * subtheme's plain icon, else the light theme's on-surface on a light pill and white on a dark one.
          */
         private fun plainIconTint(context: Context, customBar: WidgetColorRules.CustomBarColors?, isPillLight: Boolean): Int =
             customBar?.plainIcon ?: if (isPillLight) DynamicThemeDetector.resolveWidgetColors(context, false).onSurface else Color.WHITE
@@ -703,30 +664,15 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             prefs: SharedPreferences,
             maxShortcuts: Int,
             config: WidgetDesignConfig,
-            doodle: Occasion? = null,
-            extras: WidgetExtras = WidgetExtras.NONE
+            doodle: Occasion? = null
         ): RemoteViews {
             val layoutId = if (config.isMaterialYou) R.layout.widget_search else R.layout.widget_search_colorful
             val views = RemoteViews(context.packageName, layoutId)
 
             bindShape(views, context, config)
-            if (config.shape.outline > 0) {
-                views.setColorStateList(R.id.widget_outer_background, "setImageTintList", ColorStateList.valueOf(config.rimColorOpaque))
-                views.setInt(R.id.widget_outer_background, "setImageAlpha", config.rimAlphaInt)
-            }
-
-            views.setContentDescription(R.id.widget_outer_background, null)
-            views.setContentDescription(R.id.widget_pill_background, null)
-            views.setContentDescription(R.id.widget_sound_background, null)
-
-            views.setColorStateList(R.id.widget_pill_background, "setImageTintList", ColorStateList.valueOf(config.pillColorOpaque))
-            views.setInt(R.id.widget_pill_background, "setImageAlpha", config.pillAlphaInt)
-
-            views.setColorStateList(R.id.widget_sound_background, "setImageTintList", ColorStateList.valueOf(config.circleColorOpaque))
-            views.setInt(R.id.widget_sound_background, "setImageAlpha", config.circleAlphaInt)
+            bindBackdrop(views, config)
 
             bindGIcon(views, config, context, doodle)
-            WidgetExtras.bind(views, context, appWidgetId, config, extras)
 
             val activeItems = config.allActiveItems.take(maxShortcuts)
             val viewIdTargets = listOf(
@@ -827,11 +773,13 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             )
             views.setContentDescription(R.id.widget_pill_container, context.getString(R.string.widget_search_description))
 
-            // Circle button handling (Material Design bar)
+            // Circle button handling (Material Design bar). Its background, in the backdrop, shows with it.
             if (!config.isMaterialYou || config.actionIconStr == "None") {
                 views.setViewVisibility(R.id.widget_sound_search, View.GONE)
+                views.setViewVisibility(R.id.widget_sound_background, View.GONE)
             } else {
                 views.setViewVisibility(R.id.widget_sound_search, View.VISIBLE)
+                views.setViewVisibility(R.id.widget_sound_background, View.VISIBLE)
                 val circleActionIntent = Intent(when (config.actionIconStr) {
                     "Search" -> getGeminiSearchIntent(context)
                     "Assistant", "Voice", "Gemini" -> getGeminiSearchIntent(context)
@@ -957,7 +905,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 }
             } else {
                 Intent("android.search.action.GLOBAL_SEARCH").apply {
-                    setPackage("com.google.android.googlequicksearchbox")
+                    setPackage(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
                 }.takeIf { context.packageManager.resolveActivityCompat(it) != null }
                     ?: Intent(Intent.ACTION_WEB_SEARCH).apply {
@@ -984,28 +932,53 @@ open class SearchWidgetProvider : AppWidgetProvider() {
          * Material design's rim, the System design's optional outline) and the rounded backgrounds of the outline, the
          * pill and the circle, each drawn with its radius ([WidgetBarShape.background]). The pill keeps its height,
          * so the buttons keep their touch targets; the outline grows the bar around it.
+         *
+         * Every shape is set on every redraw, whatever it is: a launcher redraws a placed widget by applying the new
+         * views onto the ones it already shows, so a background left unset keeps the previous design's corners (the
+         * circle stayed square after going back to fully round).
          */
         private fun bindShape(views: RemoteViews, context: Context, config: WidgetDesignConfig) {
             val shape = config.shape
             views.setViewLayoutHeight(android.R.id.background, shape.height.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
             views.setViewVisibility(R.id.widget_outer_background, if (shape.outline > 0) View.VISIBLE else View.GONE)
-            if (shape.outline > 0) {
-                views.setImageViewResource(R.id.widget_outer_background, WidgetBarShape.background(shape.outerRadius))
-            }
+            views.setImageViewResource(R.id.widget_outer_background, WidgetBarShape.background(shape.outerRadius))
+            // The backdrop's pill and circle lie exactly under the buttons they back, so both get the same insets.
             if (config.isMaterialYou) {
                 // As the layout's padding is read: rounded to whole pixels.
                 val inset = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, shape.outline.toFloat(), context.resources.displayMetrics).roundToInt()
-                views.setViewPadding(R.id.widget_bar_row, inset, inset, inset, inset)
-                if (!shape.circleIsRound) {
-                    views.setImageViewResource(R.id.widget_sound_background, WidgetBarShape.background(shape.circleRadius))
-                }
+                for (row in listOf(R.id.widget_bar_row, R.id.widget_backdrop_row)) views.setViewPadding(row, inset, inset, inset, inset)
+                // A 48dp square with 24dp corners is the round circle.
+                views.setImageViewResource(R.id.widget_sound_background, WidgetBarShape.background(shape.circleRadius))
             } else {
                 val inset = shape.outline.toFloat()
-                for (side in listOf(RemoteViews.MARGIN_LEFT, RemoteViews.MARGIN_TOP, RemoteViews.MARGIN_RIGHT, RemoteViews.MARGIN_BOTTOM)) {
-                    views.setViewLayoutMargin(R.id.widget_pill_container, side, inset, TypedValue.COMPLEX_UNIT_DIP)
+                for (id in listOf(R.id.widget_pill_container, R.id.widget_pill_background)) {
+                    for (side in listOf(RemoteViews.MARGIN_LEFT, RemoteViews.MARGIN_TOP, RemoteViews.MARGIN_RIGHT, RemoteViews.MARGIN_BOTTOM)) {
+                        views.setViewLayoutMargin(id, side, inset, TypedValue.COMPLEX_UNIT_DIP)
+                    }
                 }
             }
             views.setImageViewResource(R.id.widget_pill_background, WidgetBarShape.background(shape.pillRadius))
+        }
+
+        /**
+         * Paints the bar's backdrop: the outline, the pill and the circle in their colours, each at its opacity within
+         * the backdrop, and the whole backdrop faded once by Transparency ([WidgetColorRules.backdropAlphas]; a pill
+         * locked black stays solid and only the rim fades), so where the pill and circle sit over the outline they are
+         * neither painted twice nor tinted by it. The icons are
+         * outside the backdrop and stay fully opaque. Everything is set on every redraw, as in [bindShape].
+         */
+        private fun bindBackdrop(views: RemoteViews, config: WidgetDesignConfig) {
+            val alphas = config.backdrop
+            views.setFloat(R.id.widget_backdrop, "setAlpha", alphas.backdrop)
+            views.setColorStateList(R.id.widget_outer_background, "setImageTintList", ColorStateList.valueOf(config.rimColorOpaque))
+            views.setInt(R.id.widget_outer_background, "setImageAlpha", WidgetColorRules.alphaInt(alphas.rim))
+            views.setColorStateList(R.id.widget_pill_background, "setImageTintList", ColorStateList.valueOf(config.pillColorOpaque))
+            views.setInt(R.id.widget_pill_background, "setImageAlpha", 255)
+            views.setColorStateList(R.id.widget_sound_background, "setImageTintList", ColorStateList.valueOf(config.circleColorOpaque))
+            views.setInt(R.id.widget_sound_background, "setImageAlpha", 255)
+            views.setContentDescription(R.id.widget_outer_background, null)
+            views.setContentDescription(R.id.widget_pill_background, null)
+            views.setContentDescription(R.id.widget_sound_background, null)
         }
 
         /**

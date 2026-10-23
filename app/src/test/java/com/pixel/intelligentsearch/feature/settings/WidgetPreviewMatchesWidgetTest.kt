@@ -36,10 +36,10 @@ import org.robolectric.annotation.GraphicsMode
 import kotlin.math.abs
 
 /**
- * The editor's live preview paints what the widget draws for the same settings: the rim, the pill, the circle, the G
- * and every icon, for each design, subtheme, inner pill state and G style (the Material G style's drawings compared
- * pixel for pixel), with the Color Studio sliders at several values. The preview is drawn with the colour scheme of
- * the theme the widget follows.
+ * The editor's live preview paints what the widget draws for the same settings: the backdrop's opacity, the rim, the
+ * pill, the circle, the G and every icon, for each design, subtheme, inner pill state and G style (the Material G
+ * style's drawings compared pixel for pixel), with the Color Studio sliders at several values. The preview is drawn
+ * with the colour scheme of the theme the widget follows.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -95,8 +95,7 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
                 primary = Color(theme.primary),
                 primaryContainer = Color(theme.primaryContainer),
                 surfaceContainer = Color(theme.surfaceContainer),
-                appDark = dark,
-                systemDark = dark
+                appDark = dark
             ),
             isDynamicColorActive = dynamic,
             iconAccents = { SearchIconColors.themeAccents(context, it) }
@@ -141,6 +140,8 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
             val preview = preview()
             val label = "$bar $gStyle ${if (dark) "dark" else "light"} $s"
 
+            // The rim, pill and circle below are each at their opacity within the backdrop, which both fade at once.
+            assertEquals("$label backdrop alpha", preview.backdropAlpha, widget.findViewById<View>(R.id.widget_backdrop).alpha, 0f)
             assertLayer("$label pill", preview.pill.fill, widget, R.id.widget_pill_background)
             // The Material G style draws its mic as a bitmap, compared below.
             if (gStyle != "Material G Icon") {
@@ -198,67 +199,36 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
     }
 
     /**
-     * The bar's outline and corners, and the rows above it, as the preview draws them ([WidgetBarShape] and the
-     * preview's colours): the bar's height, the outline's colour and corners, the pill's and circle's corners, the
-     * favourite app icons pixel for pixel, and the media row's colours.
+     * The bar's outline and corners as the preview draws them ([WidgetBarShape] and the preview's colours): the bar's
+     * height, the outline's colour and corners, and the pill's and circle's corners.
      */
     @Test
-    fun previewShapeAndRowsMatchWidget() {
-        val app = "com.example.mail"
-        val main = android.content.ComponentName(app, "$app.Main")
-        Shadows.shadowOf(context.packageManager).apply {
-            addActivityIfNotPresent(main)
-            addIntentFilterForActivity(main, android.content.IntentFilter(android.content.Intent.ACTION_MAIN).apply { addCategory(android.content.Intent.CATEGORY_LAUNCHER) })
-            setApplicationIcon(app, android.graphics.drawable.ColorDrawable(0xFF3366CC.toInt()))
-        }
-        val defaultNowPlaying = com.pixel.intelligentsearch.feature.widget.WidgetExtras.nowPlaying
-        com.pixel.intelligentsearch.feature.widget.WidgetExtras.nowPlaying = {
-            com.pixel.intelligentsearch.core.system.MediaSessionAccess.NowPlaying("Song", "Artist", isPlaying = false, packageName = app)
-        }
-        try {
-            val p = design.prefix
-            for ((outline, corner) in listOf(0 to 0, 2 to 40, 6 to 14, 12 to 20, 8 to 32)) {
-                store(Sliders(hue = 40, saturation = 20, lightness = 100, opacity = 45, transparency = 35))
-                prefs.edit()
-                    .putInt("${p}_outline_thickness", outline)
-                    .putInt("${p}_corner_radius", corner)
-                    .putString("${p}_favourite_apps", app)
-                    .putBoolean("${p}_show_media", true)
-                    .commit()
-                val widget = SearchWidgetProvider.buildResponsiveViews(context, appWidgetId = 1, isMaterialYou = bar.material, prefs = prefs)
-                    .getValue(android.util.SizeF(SearchWidgetProvider.EXPANDED_WIDTH.width, SearchWidgetProvider.TWO_EXTRA_ROWS_HEIGHT))
-                    .apply(activity, FrameLayout(activity))
-                val preview = preview()
-                val shape = WidgetBarShape.of(WidgetSettingsStore(prefs).load(design, WidgetDefaults(0, false)), bar.material)
-                val label = "$bar $gStyle ${if (dark) "dark" else "light"} outline=$outline corner=$corner"
-                val density = context.resources.displayMetrics.density
+    fun previewShapeMatchesWidget() {
+        val p = design.prefix
+        for ((outline, corner) in listOf(0 to 0, 2 to 40, 6 to 14, 12 to 20, 8 to 32)) {
+            store(Sliders(hue = 40, saturation = 20, lightness = 100, opacity = 45, transparency = 35))
+            prefs.edit()
+                .putInt("${p}_outline_thickness", outline)
+                .putInt("${p}_corner_radius", corner)
+                .commit()
+            val widget = widget()
+            val preview = preview()
+            val shape = WidgetBarShape.of(WidgetSettingsStore(prefs).load(design, WidgetDefaults(0, false)), bar.material)
+            val label = "$bar $gStyle ${if (dark) "dark" else "light"} outline=$outline corner=$corner"
+            val density = context.resources.displayMetrics.density
 
-                assertEquals("$label bar height", (shape.height * density).toInt(), widget.findViewById<View>(android.R.id.background).layoutParams.height)
-                fun drawn(id: Int) = Shadows.shadowOf(widget.findViewById<ImageView>(id).drawable).createdFromResId
-                assertEquals("$label pill corners", WidgetBarShape.background(shape.pillRadius), drawn(R.id.widget_pill_background))
-                val outer = widget.findViewById<ImageView>(R.id.widget_outer_background)
-                assertEquals("$label outline shown", shape.outline > 0, outer.visibility == View.VISIBLE)
-                if (shape.outline > 0) {
-                    assertEquals("$label outline corners", WidgetBarShape.background(shape.outerRadius), drawn(R.id.widget_outer_background))
-                    assertLayer("$label outline", preview.rim, widget, R.id.widget_outer_background)
-                }
-                if (bar.material && !shape.circleIsRound) {
-                    assertEquals("$label circle corners", WidgetBarShape.background(shape.circleRadius), drawn(R.id.widget_sound_background))
-                }
-
-                val favourite = (widget.findViewById<ImageView>(R.id.widget_favourite_0).drawable as BitmapDrawable).bitmap
-                val previewIcon = com.pixel.intelligentsearch.feature.widget.createFavouriteAppBitmap(
-                    context, app, accent = preview.accentPrimary.toArgb(), plate = preview.pill.fill.toArgb()
-                )
-                assertTrue("$label favourite icon", previewIcon != null && favourite.sameAs(previewIcon))
-
-                assertLayer("$label media row", preview.pill.fill, widget, R.id.widget_media_background)
-                assertEquals("$label media row corners", WidgetBarShape.background(shape.pillRadius), drawn(R.id.widget_media_background))
-                assertEquals("$label media title", hex(preview.systemIconTint.toArgb()), hex(widget.findViewById<android.widget.TextView>(R.id.widget_media_title).currentTextColor))
-                assertTint("$label media button", preview.accentPrimary, widget, R.id.widget_media_play_pause)
+            assertEquals("$label bar height", (shape.height * density).toInt(), widget.findViewById<View>(android.R.id.background).layoutParams.height)
+            fun drawn(id: Int) = Shadows.shadowOf(widget.findViewById<ImageView>(id).drawable).createdFromResId
+            assertEquals("$label pill corners", WidgetBarShape.background(shape.pillRadius), drawn(R.id.widget_pill_background))
+            val outer = widget.findViewById<ImageView>(R.id.widget_outer_background)
+            assertEquals("$label outline shown", shape.outline > 0, outer.visibility == View.VISIBLE)
+            if (shape.outline > 0) {
+                assertEquals("$label outline corners", WidgetBarShape.background(shape.outerRadius), drawn(R.id.widget_outer_background))
+                assertLayer("$label outline", preview.rim, widget, R.id.widget_outer_background)
             }
-        } finally {
-            com.pixel.intelligentsearch.feature.widget.WidgetExtras.nowPlaying = defaultNowPlaying
+            if (bar.material) {
+                assertEquals("$label circle corners", WidgetBarShape.background(shape.circleRadius), drawn(R.id.widget_sound_background))
+            }
         }
     }
 

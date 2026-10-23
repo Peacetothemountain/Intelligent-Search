@@ -174,18 +174,10 @@ class ContactActionButtonsTest {
     }
 
     @Test
-    fun withTheSettingOffNothingIsLookedUpOrCached() {
+    fun withContactSearchOffNothingIsLookedUpOrCached() {
         ContactActionTargets.cached = null
         compose.setContent { rememberContactActionTargets(enabled = false) }
         compose.waitForIdle()
         assertNull(ContactActionTargets.cached)
-    }
-
-    @Test
-    fun withTheSettingOffThereAreNoButtons() {
-        compose.setContent {
-            ContactActionButtons(ContactActions.forContact(alex, targets, enabled = false), "system_default") { }
-        }
-        compose.onAllNodesWithContentDescription("Alex", substring = true).assertCountEquals(0)
     }
 }

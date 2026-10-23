@@ -34,14 +34,11 @@ import androidx.compose.material.icons.outlined.Contrast
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material.icons.outlined.Widgets
-import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -49,7 +46,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
@@ -212,13 +208,13 @@ internal fun DoodleGallery(
                 onWidgets = previewing == selected,
                 onShowOnWidgets = { onPreview(if (previewing == selected) null else selected) },
                 onTestTap = {
-                    val prefs = SearchWidgetProvider.getSafeSharedPreferences(context)
+                    val prefs = com.pixel.intelligentsearch.core.data.SettingsManager.storedPrefs(context)
                     runCatching {
                         context.startActivity(
                             SearchWidgetProvider.doodleSearchIntent(context, prefs, 0, selected)
                                 .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                         )
-                    }.onFailure { Toast.makeText(context, "Couldn't Open the Doodle's Search", Toast.LENGTH_SHORT).show() }
+                    }.onFailure { Toast.makeText(context, "Couldn't open the doodle's search.", Toast.LENGTH_SHORT).show() }
                 },
                 onPrevious = { step(-1) },
                 onNext = { step(1) },

@@ -24,7 +24,23 @@ class ExpressiveComponentsTest {
             layoutDirection = LayoutDirection.Ltr,
             density = density
         )
-        assertTrue(outline is Outline.Generic)
+        // A rounded rectangle, so backgrounds, borders, clips and shadows take Android's fast rounded paths: 16 dp at
+        // density 2, grown by the smoothing (× 1.3), on every corner.
+        assertTrue(outline is Outline.Rounded)
+        val rect = (outline as Outline.Rounded).roundRect
+        assertEquals(Size(200f, 100f), Size(rect.width, rect.height))
+        for (corner in listOf(rect.topLeftCornerRadius, rect.topRightCornerRadius, rect.bottomRightCornerRadius, rect.bottomLeftCornerRadius)) {
+            assertEquals(41.6f, corner.x, 1e-3f)
+            assertEquals(41.6f, corner.y, 1e-3f)
+        }
+    }
+
+    @Test
+    fun testSquircleShapeCornersStopAtHalfTheShorterSide() {
+        val outline = ExpressiveCornerTokens.ShapeFull.createOutline(Size(300f, 80f), LayoutDirection.Ltr, Density(3f))
+        val rect = (outline as Outline.Rounded).roundRect
+        assertEquals(40f, rect.topLeftCornerRadius.x, 1e-3f)
+        assertEquals(40f, rect.bottomRightCornerRadius.y, 1e-3f)
     }
 
     @Test

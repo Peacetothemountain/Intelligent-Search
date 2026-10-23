@@ -92,6 +92,9 @@ internal class LaunchSource(val iconKeys: List<String>, val byTouch: Boolean) {
 internal object LaunchIconKeys {
     const val BEST_MATCH = "best_match"
 
+    /** The big icon in the detail pane beside the results (large screens). */
+    const val DETAIL = "detail_app"
+
     /** [app]'s icon in the app row (its work or Private Space copy is a different icon). */
     fun app(app: AppItem) = "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}"
 

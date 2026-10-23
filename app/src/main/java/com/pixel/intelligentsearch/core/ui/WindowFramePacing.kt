@@ -23,6 +23,7 @@ object WindowFramePacing {
     const val FRAME_RATE_CATEGORY_HIGH = 4
     const val FRAME_RATE_CATEGORY_NORMAL = 2
     const val FRAME_RATE_CATEGORY_LOW = 1
+    const val FRAME_RATE_CATEGORY_NO_PREFERENCE = 0
 
     /**
      * Safely retrieves the Display instance even if called early in Activity lifecycle before window attachment.
@@ -55,12 +56,15 @@ object WindowFramePacing {
     }
 
     /**
-     * Resets refresh rate to normal category (60Hz / standard pacing) and unlocks LTPO panel scaling.
+     * Hands the window's refresh rate back to Android once a gesture that asked for the high rate is over: no
+     * preferred category, touch boost on (Android's own default) and the panel's LTPO scaling unlocked. Pinning the
+     * "normal" category here instead held the whole window near 60 Hz, without touch boost, for every animation and
+     * scroll after the first back swipe, which is what made later motion feel sluggish.
      */
-    fun setNormalRefreshRateCategory(activity: Activity?) {
+    fun restoreDefaultRefreshRate(activity: Activity?) {
         if (activity == null) return
-        setFrameRateCategory(activity, FRAME_RATE_CATEGORY_NORMAL)
-        enableHardwareTouchBoost(activity, false)
+        setFrameRateCategory(activity, FRAME_RATE_CATEGORY_NO_PREFERENCE)
+        enableHardwareTouchBoost(activity, true)
         unlockDisplayRefreshRate(activity)
     }
 

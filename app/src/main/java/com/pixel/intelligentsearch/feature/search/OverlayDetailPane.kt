@@ -1,9 +1,14 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.ui.fileTypeIcon
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.runtime.getValue
+import com.pixel.intelligentsearch.core.ui.rememberAppIcon
+import com.pixel.intelligentsearch.core.ui.AppIconImage
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,14 +44,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ColorFilter
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -60,21 +60,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
 import androidx.core.net.toUri
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
-import com.pixel.intelligentsearch.core.data.SavedLink
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.search.AndroidSettingResult
-import com.pixel.intelligentsearch.core.ui.AppIconResult
 import com.pixel.intelligentsearch.core.ui.MathResultOneBox
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
-import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
-import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
 import com.pixel.intelligentsearch.core.util.findActivity
 
 /** The test tag of the detail pane beside the results on large screens. */
@@ -142,6 +137,8 @@ internal fun OverlayDetailPane(s: OverlayScope, modifier: Modifier = Modifier) {
                         AiAnswerCard(answer, model = answer.provider.model(aiModel)) { openNavTarget(context, s, stop.target) }
                     }
                 }
+                // The highlighted item in the At a Glance card, the card across the pane as the answers are.
+                stop.target is NavTarget.Glance -> GlanceCard(listOf(stop.target.item), onOpened = { s.ui.hasStartedTyping = false }, fullWidth = true)
                 else -> DetailCard(s, stop.target)
             }
         }
@@ -184,7 +181,7 @@ private fun DetailEmpty() {
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "Type to See the Top Result Here. Use the Arrow Keys to Look Through the Others.",
+            text = "Type to See the Top Result Here. Use the Arrow Keys to Move Through the Results.",
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -200,12 +197,16 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
         is NavTarget.Result -> when (val item = target.item) {
             is AppItem -> {
                 val otherProfile = item.userHandle != null && item.userHandle != android.os.Process.myUserHandle()
-                DetailAppIcon(item, s.settingsState.activeIconPack, otherProfile)
+                DetailAppIcon(item, s.settingsState.activeIconPack, otherProfile, Modifier.launchIcon(s.launchIcons, LaunchIconKeys.DETAIL))
                 DetailTitle(item.name, if (otherProfile) "Work App" else "Application")
                 val configuration = LocalConfiguration.current
                 val splitScreen = splitScreenOffered(isInMultiWindow(context), configuration.smallestScreenWidthDp, otherProfile)
                 DetailActions {
-                    DetailAction("Open", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true, onClick = open)
+                    // A tap, so the app opens out of the big icon above it (App Animations).
+                    DetailAction("Open", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true) {
+                        s.ui.highlightedKey = null
+                        openResult(context, s, item, LaunchSource.tap(LaunchIconKeys.DETAIL))
+                    }
                     DetailAction("App Info", Icons.Outlined.Info) {
                         s.ui.hasStartedTyping = false
                         openAppInfo(context, item)
@@ -218,8 +219,8 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
             is ContactItem -> {
                 ContactAvatar(item, DETAIL_PICTURE_SIZE) { DetailSymbol(Icons.Outlined.Person) }
                 DetailTitle(item.name.ifBlank { item.phoneNumber }, listOf(item.phoneNumber, item.email).filter { it.isNotBlank() }.joinToString("\n").ifBlank { null })
-                val actions = remember(item, s.contactActionTargets, s.settingsState.contactActions) {
-                    ContactActions.forContact(item, s.contactActionTargets, s.settingsState.contactActions)
+                val actions = remember(item, s.contactActionTargets) {
+                    ContactActions.forContact(item, s.contactActionTargets)
                 }
                 DetailActions {
                     DetailAction("Open Contact", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true) {
@@ -243,11 +244,6 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
                         launchSafeIntent(context, shareFileIntent(item))
                     }
                 }
-            }
-            is SavedLink -> {
-                SavedLinkIcon(item, rememberSavedLinkIcon(item), DETAIL_PICTURE_SIZE)
-                DetailTitle(item.name, item.host.ifBlank { null })
-                DetailActions { DetailAction("Open", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true, onClick = open) }
             }
             is AndroidSettingResult -> {
                 val app = item.app
@@ -287,10 +283,18 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
         }
         is NavTarget.RemoveFileTypeFilter -> {
             DetailSymbol(fileTypeIcon(target.group))
-            DetailTitle("${target.group.label} Only", "Files Are Limited to This Type.")
+            DetailTitle("${target.group.label} Only", "Only Files of This Type Are Shown.")
             DetailActions { DetailAction("Show All Files", Icons.Outlined.FilterListOff, emphasized = true, onClick = open) }
         }
-        is NavTarget.Answer -> Unit // drawn as the answer's own card by OverlayDetailPane
+        is NavTarget.Notification -> {
+            val entry = target.entry
+            AppIconImage(rememberAppIcon(entry.packageName, s.settingsState.activeIconPack), Modifier.size(DETAIL_PICTURE_SIZE)) {
+                DetailSymbol(Icons.Outlined.Notifications)
+            }
+            DetailTitle(entry.title.ifBlank { entry.appLabel }, notificationDetail(entry, System.currentTimeMillis()))
+            DetailActions { DetailAction("Open", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true, onClick = open) }
+        }
+        is NavTarget.Answer, is NavTarget.Glance -> Unit // drawn as their own cards by OverlayDetailPane
     }
 }
 
@@ -335,33 +339,10 @@ private fun DetailSymbol(icon: ImageVector) {
 
 /** An app's icon at the pane's size, themed as the results draw it; another profile's copy keeps its badged icon. */
 @Composable
-private fun DetailAppIcon(app: AppItem, iconPack: String, otherProfile: Boolean) {
-    val context = LocalContext.current
-    val themed = remember(app.packageName, iconPack, otherProfile) {
-        mutableStateOf<AppIconResult?>(if (otherProfile) null else peekThemedAppIcon(app.packageName, iconPack))
-    }
-    LaunchedEffect(app.packageName, iconPack, otherProfile) {
-        if (themed.value == null && !otherProfile) {
-            themed.value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                getThemedAppIcon(context, app.packageName, activePackOverride = iconPack)
-            }
-        }
-    }
-    val icon by themed
+private fun DetailAppIcon(app: AppItem, iconPack: String, otherProfile: Boolean, modifier: Modifier = Modifier) {
     val px = with(LocalDensity.current) { DETAIL_PICTURE_SIZE.roundToPx() }
-    val current = icon
-    if (current != null) {
-        Image(
-            bitmap = current.bitmap,
-            contentDescription = null,
-            modifier = Modifier.size(DETAIL_PICTURE_SIZE),
-            colorFilter = if (current.isMonochrome) ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
-        )
-    } else {
-        val fallback = remember(app.packageName, px) { runCatching { app.icon.toBitmap(px, px).asImageBitmap() }.getOrNull() }
-        if (fallback != null) Image(bitmap = fallback, contentDescription = null, modifier = Modifier.size(DETAIL_PICTURE_SIZE))
-        else DetailSymbol(Icons.AutoMirrored.Outlined.ArrowForward)
-    }
+    val icon = rememberAppIcon(app.packageName, iconPack, otherProfile, fallback = app.icon, sizePx = px)
+    AppIconImage(icon, modifier.size(DETAIL_PICTURE_SIZE)) { DetailSymbol(Icons.AutoMirrored.Outlined.ArrowForward) }
 }
 
 /** The pane's actions, flowing onto more lines at large text sizes. */

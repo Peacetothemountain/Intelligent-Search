@@ -1,10 +1,7 @@
 package com.pixel.intelligentsearch.core.backup
 
 import com.pixel.intelligentsearch.core.system.WidgetUpdater
-import com.pixel.intelligentsearch.core.data.settings.StringSetSetting
-import com.pixel.intelligentsearch.core.data.settings.StringSetting
 import com.pixel.intelligentsearch.core.data.settings.IntSetting
-import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
 import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import android.content.Context
 import android.net.Uri
@@ -59,7 +56,6 @@ class BackupManager @Inject constructor(
             "searchFiles" to SettingsManager.SEARCH_FILES,
             "searchWeb" to SettingsManager.SEARCH_WEB,
             "searchCalculator" to SettingsManager.SEARCH_CALCULATOR,
-            "searchCalendar" to SettingsManager.SEARCH_CALENDAR,
             "showWallpaper" to SettingsManager.SHOW_WALLPAPER,
             "filesHiddenFiles" to SettingsManager.FILES_HIDDEN_FILES,
             "filesThumbnails" to SettingsManager.FILES_THUMBNAILS,
@@ -95,7 +91,7 @@ class BackupManager @Inject constructor(
 
         private fun isBlockedInternalKey(key: String): Boolean {
             if (key.isBlank() || key.length > 128) return true
-            return key in UserGrantedFiles.DEVICE_LOCAL_KEYS ||
+            return key in BackupPreferenceSchema.DEVICE_LOCAL_KEYS ||
                 key.endsWith("_vault") ||
                 key.endsWith("_iv") ||
                 key.endsWith("_level") ||
@@ -111,14 +107,6 @@ class BackupManager @Inject constructor(
                 key in SettingsManager.REMOVED_NAMES
         }
 
-        /** The backup file's type label for a declared setting. */
-        private fun sharedPrefTypeName(setting: SettingKey<*>): String = when (setting) {
-            is BooleanSetting -> "BOOLEAN"
-            is IntSetting -> "INT"
-            is StringSetting -> "STRING"
-            is StringSetSetting -> "STRING_SET"
-        }
-
         private fun sharedPrefTypeName(value: Any): String? = when (value) {
             is Boolean -> "BOOLEAN"
             is Int -> "INT"
@@ -132,27 +120,35 @@ class BackupManager @Inject constructor(
         /**
          * Opt-ins that share data or reach the network. A backup may switch them off but never on: a file someone
          * else made must not be able to start sharing contacts with assistants, sending clipboard text and keystrokes
-         * out, reading notifications, or making requests the user turned off (definitions, forecasts, location use).
+         * out, or making requests the user turned off (web searches, and the suggestions, definitions and forecasts
+         * that Web Suggestions sends for). Notifications are read only with Android's notification access, which no
+         * backup carries.
          */
         private val PRIVACY_OPT_IN_KEYS = setOf(
             SettingsManager.APP_FUNCTIONS_SHARE_CONTACTS.name,
+            SettingsManager.SEARCH_WEB.name,
             SettingsManager.SMART_CLIPBOARD_SUGGESTIONS.name,
             SettingsManager.SEARCH_WEB_SUGGESTIONS.name,
             SettingsManager.LIVE_CURRENCY_RATES.name,
-            SettingsManager.SEARCH_NOTIFICATIONS.name,
-            SettingsManager.DICTIONARY_ANSWERS.name,
-            SettingsManager.WEATHER_ANSWERS.name,
-            SettingsManager.WEATHER_USE_DEVICE_LOCATION.name,
             SettingsManager.AI_ANSWERS_ENABLED.name,
-            // Launch Portal's notification, floating button and edge swipe need permissions this phone may not have
-            // granted, and draw over other apps; like the opt-ins above, only the user switches them on.
-            SettingsManager.SEARCH_NOTIFICATION_SHORTCUT.name,
-            SettingsManager.FLOATING_SEARCH_BUTTON.name,
-            SettingsManager.EDGE_SWIPE.name
+            // Launch Portal's notification and floating button need permissions this phone may not have granted, and
+            // the button draws over other apps; like the opt-ins above, only the user switches them on.
+            SettingsManager.NOTIFICATION_SHORTCUT.name,
+            SettingsManager.FLOATING_SEARCH_BUTTON.name
         )
 
         private fun isPrivacyOptInKey(key: String): Boolean =
             key in PRIVACY_OPT_IN_KEYS || SettingsManager.keyFor(key)?.name in PRIVACY_OPT_IN_KEYS
+
+        /**
+         * Whether restoring [value] into [target] would move a phone searching through Tor off it: another engine, or
+         * a custom search address. A restore never does; only the user leaves Tor.
+         */
+        private fun leavesTor(torHere: Boolean, target: String, value: String): Boolean = torHere && when (target) {
+            SettingsManager.SEARCH_ENGINE.name -> !com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(value)
+            SettingsManager.CUSTOM_SEARCH_ENGINE_URL.name -> true
+            else -> false
+        }
 
         /** Blank (no custom engine) or an address that passes the same checks as one typed in settings. */
         private fun isValidCustomSearchUrl(url: String): Boolean =
@@ -172,7 +168,6 @@ class BackupManager @Inject constructor(
         prefsMap["searchFiles"] = currentSettings.searchFiles.toString()
         prefsMap["searchWeb"] = currentSettings.searchWeb.toString()
         prefsMap["searchCalculator"] = currentSettings.searchCalculator.toString()
-        prefsMap["searchCalendar"] = currentSettings.searchCalendar.toString()
         prefsMap["backgroundBlur"] = currentSettings.backgroundBlur.toString()
         prefsMap["showWallpaper"] = currentSettings.showWallpaper.toString()
         prefsMap["backgroundTransparency"] = currentSettings.backgroundTransparency.toString()
@@ -205,7 +200,7 @@ class BackupManager @Inject constructor(
         val allCustomPrefs = sharedPrefs.all
         val spJsonObj = JSONObject()
         for ((k, v) in allCustomPrefs) {
-            if (v == null || k in UserGrantedFiles.DEVICE_LOCAL_KEYS) continue
+            if (v == null || k in BackupPreferenceSchema.DEVICE_LOCAL_KEYS) continue
             val itemObj = JSONObject()
             when (v) {
                 is Boolean -> {
@@ -502,6 +497,8 @@ class BackupManager @Inject constructor(
     private suspend fun restorePayload(payload: BackupContentPayload): Int = withContext(Dispatchers.IO) {
         var restoredCount = 0
         val sharedPrefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        // Read before anything is restored: a phone on Tor stays on Tor whatever the file says.
+        val torHere = com.pixel.intelligentsearch.core.security.NetworkPolicy.torSelected(sharedPrefs)
         // Files saved before the pill opacity became linear hold 50 for an opaque pill (schema 1 files never say).
         val pillOpacityIsLinear = runCatching {
             JSONObject(payload.sharedPreferencesJson).optJSONObject(SettingsManager.PILL_OPACITY_LINEAR_KEY)
@@ -537,8 +534,7 @@ class BackupManager @Inject constructor(
                         val type = itemObj.optString("type")
                         // Known keys (including per-shortcut custom actions and pill profiles) must carry the type
                         // the app reads them with. Keys the schema doesn't name must at least match what is stored here now.
-                        val expectedType = setting?.let(::sharedPrefTypeName)
-                            ?: BackupPreferenceSchema.expectedType(key)
+                        val expectedType = BackupPreferenceSchema.expectedType(key)
                             ?: localValues[key]?.let { sharedPrefTypeName(it) }
                         if (expectedType != null && expectedType != type) {
                             return@runCatching
@@ -566,6 +562,7 @@ class BackupManager @Inject constructor(
                                 if (target == SettingsManager.CUSTOM_SEARCH_ENGINE_URL.name && !isValidCustomSearchUrl(strVal)) {
                                     return@runCatching
                                 }
+                                if (leavesTor(torHere, target, strVal)) return@runCatching
                                 editor.putString(target, strVal)
                             }
                             "STRING_SET" -> {
@@ -615,6 +612,8 @@ class BackupManager @Inject constructor(
                     ?.let { settingsManager.updateSetting(key, restoredInt(key, it)) }
             } ?: STRING_SETTING_KEYS[k]?.let { key ->
                 if (key == SettingsManager.CUSTOM_SEARCH_ENGINE_URL && !isValidCustomSearchUrl(v)) {
+                    null
+                } else if (leavesTor(torHere, key.name, v)) {
                     null
                 } else {
                     settingsManager.updateSetting(key, v)

@@ -49,6 +49,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -181,10 +182,15 @@ private const val HAPTIC_SPACING_MS = 90L
 /** Test tag on the Material Morph animation's area. */
 internal const val MORPH_ANIMATION_TAG = "material_morph_animation"
 
+/** How long a taller area must hold before the scene takes it, so a card closing up above doesn't re-size it per frame. */
+internal const val MORPH_RESIZE_SETTLE_MILLIS = 120L
+
 /** What a running [MaterialMorphAnimation] is showing, for tests, through [MorphSceneKey] on its area. */
 internal class MorphSceneInfo(val physics: MorphBouncePhysics) {
     /** How many pixels make one metre of the scene. */
     var pxPerMetre = 0f
+    /** The area height the scene is sized for, which waits for the area to stop resizing ([MORPH_RESIZE_SETTLE_MILLIS]). */
+    var sceneHeightPx = 0f
     /** Bounces that asked for a haptic tap (taps closer together than [HAPTIC_SPACING_MS] are then felt as one). */
     var bouncesFelt = 0
     /** The MaterialShapes names of the shapes, in the order a shape morphs through them. */
@@ -431,11 +437,25 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
             .clipToBounds()
     ) {
         val widthPx = constraints.maxWidth.toFloat()
-        val heightPx = constraints.maxHeight.toFloat()
+        val measuredHeightPx = constraints.maxHeight.toFloat()
+        // The area's height follows the cards above it, so a card closing up (a switch's rows rising away) grows it
+        // on every frame of that motion. The scene takes the taller height once it has settled instead, so the
+        // physics isn't re-sized, and its shapes thrown back up, frame after frame; meanwhile the shapes simply
+        // stay inside the smaller scene. A shorter area is taken at once, so no shape is ever outside the area.
+        val settledHeightPx = remember { mutableFloatStateOf(measuredHeightPx) }
+        LaunchedEffect(measuredHeightPx) {
+            if (measuredHeightPx > settledHeightPx.floatValue && settledHeightPx.floatValue > 0f) {
+                kotlinx.coroutines.delay(MORPH_RESIZE_SETTLE_MILLIS)
+            }
+            settledHeightPx.floatValue = measuredHeightPx
+        }
+        val settled = settledHeightPx.floatValue
+        val heightPx = if (settled <= 0f || measuredHeightPx < settled) measuredHeightPx else settled
         val scene = remember(widthPx, heightPx, density.density) { morphSceneFor(widthPx, heightPx, density.density) }
             ?: return@BoxWithConstraints
         val pxPerMetre = scene.pxPerMetre
         sceneInfo.pxPerMetre = pxPerMetre
+        sceneInfo.sceneHeightPx = heightPx
         // Applied before this frame is drawn, so shapes never show at one size's scale in another size's area.
         SideEffect { physics.resize(scene.widthMetres, scene.heightMetres, scene.radiiMetres) }
         LaunchedEffect(Unit) {

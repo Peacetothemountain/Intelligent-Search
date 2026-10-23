@@ -1,6 +1,16 @@
 package com.pixel.intelligentsearch.core.ui.expressive
 
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.VisibilityThreshold
+import androidx.compose.ui.unit.IntSize
 
 /**
  * Standardized Material 3 Expressive Motion and Spring Physics Tokens.
@@ -141,4 +151,29 @@ object ExpressiveMotionTokens {
         stiffness = GENTLE_STIFFNESS,
         visibilityThreshold = visibilityThreshold
     )
+
+    /**
+     * The rows a settings switch attaches under itself (At a Glance's items, Live Currency Rates under Calculator):
+     * they drop down out of the row when it is switched on and rise back up into it when switched off. Switching off
+     * should feel as immediate as the switch: the rows fade out at once and the card closes up on a short emphasized
+     * accelerate curve, done in [COLLAPSE_MILLIS]; switching on opens on a critically damped spring, the rows fading in
+     * as they arrive.
+     */
+    object Reveal {
+        const val COLLAPSE_MILLIS = 200
+        const val FADE_OUT_MILLIS = 90
+        const val FADE_IN_MILLIS = 150
+        const val FADE_IN_DELAY_MILLIS = 40
+        const val EXPAND_STIFFNESS = 700f
+
+        /** Material's emphasized accelerate easing, for things leaving the screen. */
+        val EmphasizedAccelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
+
+        val enter: EnterTransition =
+            expandVertically(spring(dampingRatio = 1f, stiffness = EXPAND_STIFFNESS, visibilityThreshold = IntSize.VisibilityThreshold)) +
+                fadeIn(tween(FADE_IN_MILLIS, delayMillis = FADE_IN_DELAY_MILLIS))
+
+        val exit: ExitTransition =
+            shrinkVertically(tween(COLLAPSE_MILLIS, easing = EmphasizedAccelerate)) + fadeOut(tween(FADE_OUT_MILLIS))
+    }
 }

@@ -22,7 +22,7 @@ object WebSearchProvider {
     @androidx.annotation.VisibleForTesting
     internal fun clearCacheForTests() = synchronized(suggestionCache) { suggestionCache.evictAll() }
 
-    private fun suggestsFor(engine: String) = engine != "Tor Project" && engine != "Tor Browser" && engine != "Custom"
+    private fun suggestsFor(engine: String) = com.pixel.intelligentsearch.core.security.NetworkPolicy.engineSuggests(engine)
 
     fun getCachedSuggestions(query: String, engine: String = "Google"): List<WebSuggestion>? {
         val trimmed = query.trim().lowercase()

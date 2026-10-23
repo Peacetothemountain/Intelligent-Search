@@ -50,10 +50,12 @@ import java.time.Duration
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** A device with three apps, one event and one contact, standing in for the real providers. */
-class FakeDeviceSearchSources : DeviceSearchSources {
-    private fun app(name: String, pkg: String) = AppItem(name, pkg, ColorDrawable(0))
-    val apps = listOf(app("Calendar", "com.example.calendar"), app("Camera", "com.example.camera"), app("Hidden Thing", "com.example.hidden"))
+/** A device with three apps (or [apps]), one event and one contact, standing in for the real providers. */
+class FakeDeviceSearchSources(val apps: List<AppItem> = DEFAULT_APPS) : DeviceSearchSources {
+    companion object {
+        private fun app(name: String, pkg: String) = AppItem(name, pkg, ColorDrawable(0))
+        val DEFAULT_APPS = listOf(app("Calendar", "com.example.calendar"), app("Camera", "com.example.camera"), app("Hidden Thing", "com.example.hidden"))
+    }
     var webSuggestions = listOf("weather today", "weather tomorrow")
     /** The calendar, which a test may change while the overlay is away. */
     @Volatile var events = listOf(CalendarEvent("Dentist", "09:30", eventId = 7, beginMillis = 1_000))
@@ -166,7 +168,7 @@ class SearchViewModelTest {
 
     @Test
     fun initialLoadListsAppsEventsAndRecentsWithoutHiddenApps() {
-        prefs.edit().put(SettingsManager.HIDDEN_APPS, setOf("com.example.hidden")).put(SettingsManager.SEARCH_CALENDAR, true).commit()
+        prefs.edit().put(SettingsManager.HIDDEN_APPS, setOf("com.example.hidden")).commit()
         start()
         viewModel.loadInitialData()
         val state = await("initial data") { it.allApps.isNotEmpty() && it.calendarEvents.isNotEmpty() }
@@ -316,14 +318,14 @@ class SearchViewModelTest {
     }
 
     @Test
-    fun turningTheAndroidSettingsSourceOffHidesSettingsPages() {
+    fun anOlderBuildsSwitchedOffSourceStillOffersSettingsPages() {
+        // Android Settings pages are always searched now; a switch an older build stored changes nothing.
         batteryPageResolves()
-        prefs.edit().put(SettingsManager.SEARCH_ANDROID_SETTINGS, false).commit()
+        prefs.edit().putBoolean("search.android.settings", false).commit()
         start()
         viewModel.onQueryChanged("battery")
-        kotlinx.coroutines.runBlocking { viewModel.awaitSearch() }
-        val state = await("local results") { it.systemToggle?.id == "battery" }
-        assertEquals(emptyList<Any>(), state.androidSettings)
+        val state = await("settings results") { it.androidSettings.isNotEmpty() }
+        assertEquals("Battery", state.androidSettings.first().title)
     }
 
     /** Makes [intent] open a Settings activity. */
@@ -388,7 +390,7 @@ class SearchViewModelTest {
     }
 
     @Test
-    fun quickTogglesAreTheSameWithSettingsPagesOnAndOff() {
+    fun quickTogglesShowAlongsideTheirSettingsPages() {
         opens(android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
         opens(android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS))
         opens(android.content.Intent(android.provider.Settings.ACTION_AIRPLANE_MODE_SETTINGS))
@@ -401,16 +403,8 @@ class SearchViewModelTest {
             assertEquals("pages for \"$query\"", query != "flashlight", state.androidSettings.isNotEmpty())
             shown(state)
         }
-
-        prefs.edit().put(SettingsManager.SEARCH_ANDROID_SETTINGS, false).commit()
-        shadowOf(Looper.getMainLooper()).idle()
-        val withoutPages = toggles.map { (query, _) ->
-            search("")
-            val state = search(query)
-            assertEquals(emptyList<Any>(), state.androidSettings)
-            shown(state)
-        }
-        assertEquals(withoutPages, withPages)
+        // Every query kept its own toggle.
+        assertEquals(toggles.map { it.second }, withPages.map { it[1] })
     }
 
     /** Installs a browser for https links. */

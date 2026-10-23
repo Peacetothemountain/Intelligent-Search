@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.screenshots
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,21 +14,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.unit.dp
-import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.pixel.intelligentsearch.core.ai.AiAnswerState
 import com.pixel.intelligentsearch.core.ai.AiProblem
 import com.pixel.intelligentsearch.core.ai.AiProvider
-import com.pixel.intelligentsearch.core.data.SavedLink
-import com.pixel.intelligentsearch.core.data.SavedLinkStore
-import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.search.AiAnswerCard
 import com.pixel.intelligentsearch.feature.search.AskAiRow
 import com.pixel.intelligentsearch.feature.search.DirectActionRow
-import com.pixel.intelligentsearch.feature.search.SavedLinkRow
 import com.pixel.intelligentsearch.feature.settings.AiAnswersScreen
-import com.pixel.intelligentsearch.feature.settings.SavedLinksScreen
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -42,8 +35,8 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Golden images, light and dark, of the short-phrasing action suggestions with the Ask row and a Saved Link result,
- * of an AI answer card (a stand-in answer and a failure), and of the Saved Links and AI Answers settings pages.
+ * Golden images, light and dark, of the short-phrasing action suggestions with the Ask row, of an AI answer card (a
+ * stand-in answer and a failure), and of the AI Answers settings page.
  * See [SettingsGoldenTest] for recording.
  */
 @HiltAndroidTest
@@ -56,7 +49,6 @@ class ActionsAndAnswersGoldenTest(private val dark: Boolean) {
     @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
 
     private val suffix get() = if (dark) "dark" else "light"
-    private val context get() = ApplicationProvider.getApplicationContext<Context>()
 
     @Before fun inject() {
         hilt.inject()
@@ -78,7 +70,6 @@ class ActionsAndAnswersGoldenTest(private val dark: Boolean) {
                     DirectActionRow("Set Alarm for 7:30 AM", "Clock Alarm · Tomorrow", Icons.Default.Alarm) {}
                     DirectActionRow("Remind: Laundry at 4:12 PM", "Calendar Reminder · Thu, Oct 22", Icons.Default.Event) {}
                     AskAiRow(AiProvider.ANTHROPIC, "how tall is everest?") {}
-                    SavedLinkRow(SavedLink("Timesheet", "https://work.example.com/timesheet"), icon = null, onLongClick = {}) {}
                 }
             }
         }
@@ -105,20 +96,6 @@ class ActionsAndAnswersGoldenTest(private val dark: Boolean) {
             }
         }
         capture("src/test/screenshots/overlay/ai_answer_$suffix.png")
-    }
-
-    @Test
-    fun savedLinksPage() {
-        SavedLinkStore(SettingsManager(context)).update {
-            listOf(SavedLink("Timesheet", "https://work.example.com/timesheet"), SavedLink("Bank", "https://bank.example.com/"))
-        }
-        compose.mainClock.autoAdvance = false
-        compose.setContent {
-            IntelligentSearchTheme(darkTheme = dark) {
-                Box(Modifier.background(MaterialTheme.colorScheme.background)) { SavedLinksScreen(onBack = {}) }
-            }
-        }
-        capture("src/test/screenshots/settings/saved_links_$suffix.png")
     }
 
     @Test

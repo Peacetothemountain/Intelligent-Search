@@ -1,9 +1,9 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.ui.rememberAppIcon
+import com.pixel.intelligentsearch.core.ui.AppIconImage
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import androidx.core.net.toUri
-import com.pixel.intelligentsearch.core.ui.AppIconResult
-import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
-import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.ContactItem
@@ -13,7 +13,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
@@ -30,7 +29,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -38,7 +36,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.core.search.ResultKeys
@@ -175,8 +172,8 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                             )
                         }
                     }
-                    val contactActions = remember(match, s.contactActionTargets, settingsState.contactActions) {
-                        ContactActions.forContact(match, s.contactActionTargets, settingsState.contactActions)
+                    val contactActions = remember(match, s.contactActionTargets) {
+                        ContactActions.forContact(match, s.contactActionTargets)
                     }
                     if (contactActions.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(10.dp))
@@ -187,25 +184,8 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                     // Another profile's copy keeps its own (badged) icon and has no quick actions: those would open
                     // the personal app, putting the event or alarm in the wrong profile.
                     val otherProfile = match.userHandle != null && match.userHandle != android.os.Process.myUserHandle()
-                    val appIconState = remember(match.packageName, settingsState.activeIconPack, otherProfile) {
-                        mutableStateOf<AppIconResult?>(if (otherProfile) null else peekThemedAppIcon(match.packageName, settingsState.activeIconPack))
-                    }
-                    LaunchedEffect(match.packageName, settingsState.activeIconPack, otherProfile) {
-                        if (appIconState.value == null && !otherProfile) {
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                val icon = getThemedAppIcon(context, match.packageName, activePackOverride = settingsState.activeIconPack)
-                                appIconState.value = icon
-                            }
-                        }
-                    }
-                    val appIcon = appIconState.value
-                    // Rasterised only while the themed icon loads, and at the size shown (see AppGridItem).
                     val iconPx = with(LocalDensity.current) { 52.dp.roundToPx() }
-                    val fallbackBitmap = if (appIcon == null) {
-                        remember(match.packageName, iconPx) {
-                            runCatching { match.icon.toBitmap(iconPx, iconPx).asImageBitmap() }.getOrNull()
-                        }
-                    } else null
+                    val appIcon = rememberAppIcon(match.packageName, settingsState.activeIconPack, otherProfile, fallback = match.icon, sizePx = iconPx)
 
                     Column {
                         ResultMenuBox(s, ResultMenuTarget.App(match)) { openMenu ->
@@ -217,16 +197,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                     .padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                if (appIcon != null) {
-                                    Image(
-                                        bitmap = appIcon.bitmap,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(52.dp).launchIcon(launchIcons, LaunchIconKeys.BEST_MATCH),
-                                        colorFilter = if (appIcon.isMonochrome) androidx.compose.ui.graphics.ColorFilter.tint(MaterialTheme.colorScheme.onSurfaceVariant) else null
-                                    )
-                                } else if (fallbackBitmap != null) {
-                                    Image(bitmap = fallbackBitmap, contentDescription = null, modifier = Modifier.size(52.dp).launchIcon(launchIcons, LaunchIconKeys.BEST_MATCH))
-                                }
+                                AppIconImage(appIcon, Modifier.size(52.dp).launchIcon(launchIcons, LaunchIconKeys.BEST_MATCH))
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
@@ -264,9 +235,12 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                             val intent = Intent(action.action)
                                             if (action.dataUri != null) intent.data = action.dataUri.toUri()
                                             intent.setPackage(match.packageName)
-                                            if (!launchSafeIntent(context, intent)) {
+                                            // Opens out of the app's icon, as the app itself does (App Animations).
+                                            val launch = s.appLaunch(LaunchSource.tap(LaunchIconKeys.BEST_MATCH))
+                                            intent.sourceBounds = launch?.sourceBounds
+                                            if (!launchSafeIntent(context, intent, launch?.options)) {
                                                 intent.setPackage(null)
-                                                launchSafeIntent(context, intent)
+                                                launchSafeIntent(context, intent, launch?.options)
                                             }
                                         },
                                         label = { Text(action.title, color = MaterialTheme.colorScheme.onPrimaryContainer, fontFamily = GoogleSansFlex) },

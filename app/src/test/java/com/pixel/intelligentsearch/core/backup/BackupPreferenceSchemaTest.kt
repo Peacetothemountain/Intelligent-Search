@@ -43,12 +43,23 @@ class BackupPreferenceSchemaTest {
         assertNull(BackupPreferenceSchema.expectedType("some_future_key"))
     }
 
+    /** A declared setting needs no literal entry in the schema: its own type is the one checked, old spellings too. */
     @Test
-    fun androidSettingsSourceIsRegisteredAsABoolean() {
-        assertEquals("BOOLEAN", BackupPreferenceSchema.expectedType(SettingsManager.SEARCH_ANDROID_SETTINGS.name))
-        assertEquals("search.android.settings", SettingsManager.SEARCH_ANDROID_SETTINGS.name)
-        assertTrue(SettingsManager.SEARCH_ANDROID_SETTINGS.default)
-        assertTrue(SettingsManager.SEARCH_ANDROID_SETTINGS in SettingsManager.ALL)
+    fun everyDeclaredSettingCarriesItsOwnType() {
+        for (setting in SettingsManager.ALL) {
+            val type = BackupPreferenceSchema.typeOf(setting)
+            for (name in setting.allNames) assertEquals(name, type, BackupPreferenceSchema.expectedType(name))
+        }
+        assertEquals("INT", BackupPreferenceSchema.expectedType(SettingsManager.FLOATING_BUTTON_POSITION.name))
+        assertEquals("STRING", BackupPreferenceSchema.expectedType(SettingsManager.RESULT_SHORTCUTS.name))
+    }
+
+    @Test
+    fun savedLinksAreNoLongerASetting() {
+        // Removed with the feature; an older backup's links are ignored on restore.
+        assertNull(SettingsManager.keyFor("saved_links_json"))
+        assertNull(BackupPreferenceSchema.expectedType("saved_links_json"))
+        assertTrue("saved_links_json" in SettingsManager.REMOVED_NAMES)
     }
 
     @Test

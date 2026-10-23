@@ -236,4 +236,33 @@ class OverlayKeyboardNavTest {
         assertFalse(useListDetailLayout(412f, 915f))
         assertFalse(useListDetailLayout(915f, 412f))
     }
+
+    /**
+     * At a Glance's items and matching notifications are stops like every other result, where the list shows them;
+     * each At a Glance item is a stop of its own, all in the one card's list item.
+     */
+    @Test
+    fun glanceItemsAndNotificationsAreStops() {
+        val birthday = com.pixel.intelligentsearch.core.glance.GlanceItem.Birthday(com.pixel.intelligentsearch.core.glance.GlanceBirthday(7, "lk", "Ana Lima", 0, java.time.LocalDate.of(2027, 1, 15), turning = null))
+        val alarm = com.pixel.intelligentsearch.core.glance.GlanceItem.Alarm(com.pixel.intelligentsearch.core.glance.GlanceAlarm(1_000L))
+        val note = com.pixel.intelligentsearch.core.glance.IndexedNotification("n1", "com.example.chat", "Chat", "Ana", "Dinner?", postedAt = 0L)
+        val contact = ContactItem("Ana Lima", "+1 555 0100", "content://contacts/ana")
+        val rows = NavSources(
+            glance = listOf(alarm, birthday),
+            bestMatch = contact,
+            sectionOrder = listOf("contacts"),
+            contacts = listOf(contact),
+            notifications = listOf(note)
+        ).rows().map { it.single() }
+        assertEquals(
+            listOf(alarm.key, birthday.key, ResultListKeys.BEST_MATCH, ResultListKeys.contact(contact), ResultListKeys.notification(note)),
+            rows.map { it.key }
+        )
+        assertEquals(NavTarget.Glance(alarm), rows[0].target)
+        assertEquals(NavTarget.Glance(birthday), rows[1].target)
+        assertEquals("both items sit in the one At a Glance card", listOf(ResultListKeys.GLANCE, ResultListKeys.GLANCE), rows.take(2).map { it.listKey })
+        assertEquals(NavTarget.Notification(note), rows.last().target)
+        // The list draws each notification under the same key, so the ring and the scroll find it.
+        assertEquals("notification_n1", ResultListKeys.notification(note))
+    }
 }

@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.feature.search
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import androidx.annotation.VisibleForTesting
 import androidx.compose.animation.core.Animatable
@@ -114,7 +113,7 @@ internal object ResultThumbnails {
                     // high-density screen), else the thumbnail; null for a contact without a photo.
                     is ThumbnailSource.ContactPhoto -> android.provider.ContactsContract.Contacts
                         .openContactPhotoInputStream(context.contentResolver, source.uri.toUri(), true)
-                        ?.use { decodeSampled(it.readBytes(), px) }
+                        ?.use { com.pixel.intelligentsearch.core.ui.decodeSampledBitmap(it.readBytes(), px) }
                     is ThumbnailSource.MediaFile -> mediaThumbnail(context, source, px)
                 }?.asImageBitmap()
             } catch (e: CancellationException) {
@@ -137,7 +136,7 @@ internal object ResultThumbnails {
             url.startsWith("https://") -> download(url)
             else -> null
         } ?: return null
-        return decodeSampled(bytes, px)
+        return com.pixel.intelligentsearch.core.ui.decodeSampledBitmap(bytes, px)
     }
 
     private fun httpsBytes(url: String): ByteArray? {
@@ -194,16 +193,6 @@ internal object ResultThumbnails {
         } finally {
             retriever.release()
         }
-    }
-
-    /** Decodes [bytes] no larger than needed for a [px] square (a power-of-two step down, never below [px]). */
-    internal fun decodeSampled(bytes: ByteArray, px: Int): Bitmap? {
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
-        var sample = 1
-        while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= px) sample *= 2
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
     }
 }
 

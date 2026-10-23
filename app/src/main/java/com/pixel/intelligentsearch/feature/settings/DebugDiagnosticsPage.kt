@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
+import com.pixel.intelligentsearch.core.system.battery.BatteryReadings
 import com.pixel.intelligentsearch.core.util.clampSafely
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Canvas
@@ -52,7 +54,7 @@ data class ProcessRamEntry(
 )
 
 /** Process-wide so the learned current unit and sign survive reopening the page. */
-private val batteryCurrentReader = DiagnosticsReadings.CurrentReader()
+private val batteryCurrentReader = BatteryReadings.CurrentReader()
 
 internal data class MemorySnapshot(
     val totalGb: Double,
@@ -76,7 +78,7 @@ internal data class BatteryTelemetrySnapshot(
     val volt: Float,
     val watts: Float?,
     val health: String,
-    val healthSeverity: DiagnosticsReadings.HealthSeverity,
+    val healthSeverity: BatteryReadings.HealthSeverity,
     val cycles: Int,
     val technology: String,
     val thermalStatus: String,
@@ -153,7 +155,7 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
     // Carried across polls: the smoothed net current behind the time estimates, reset whenever the charging
     // state changes. The current unit and sign are learned process-wide by batteryCurrentReader.
     private var smoothedNetMa: Float? = null
-    private var lastChargeState: DiagnosticsReadings.ChargeState? = null
+    private var lastChargeState: BatteryReadings.ChargeState? = null
 
     override fun sample(): DiagnosticsSample {
         val ifilter = android.content.IntentFilter(Intent.ACTION_BATTERY_CHANGED)
@@ -170,7 +172,7 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
 
         val status = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
         val plugged = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0) ?: 0
-        val chargeState = DiagnosticsReadings.chargeState(status, plugged)
+        val chargeState = BatteryReadings.chargeState(status, plugged)
         if (chargeState != lastChargeState) {
             // Also covers the page opening: plug changes made while it was closed were not seen.
             smoothedNetMa = null
@@ -180,8 +182,8 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
 
         val h = batteryStatus?.getIntExtra(android.os.BatteryManager.EXTRA_HEALTH, android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN)
             ?: android.os.BatteryManager.BATTERY_HEALTH_UNKNOWN
-        val bHealth = DiagnosticsReadings.healthLabel(h)
-        val bHealthSeverity = DiagnosticsReadings.healthSeverity(h)
+        val bHealth = BatteryReadings.healthLabel(h)
+        val bHealthSeverity = BatteryReadings.healthSeverity(h)
 
         // Cycle count is part of the battery broadcast from Android 14 (API 34); 0 is valid on a new battery.
         val cycles = if (Build.VERSION.SDK_INT >= 34) {
@@ -202,14 +204,14 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
         // learning the unit and sign; CURRENT_AVERAGE (smoothed further) for time estimates once the plug
         // state has settled and it agrees with CURRENT_NOW, so a stale or differently scaled average
         // can't drive them.
-        val unplugged = chargeState == DiagnosticsReadings.ChargeState.Discharging
+        val unplugged = chargeState == BatteryReadings.ChargeState.Discharging
         val nowMs = android.os.SystemClock.elapsedRealtime()
         val rawCurrentNow = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW) } catch (_: Throwable) { null } ?: Int.MIN_VALUE
         val rawCurrentAvg = try { bm?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_AVERAGE) } catch (_: Throwable) { null } ?: Int.MIN_VALUE
         val netNowMa = batteryCurrentReader.readNow(rawCurrentNow, unplugged, nowMs)
         val netAvgMa = batteryCurrentReader.convert(rawCurrentAvg)
-        val netForEstimate = if (batteryCurrentReader.isSettled(nowMs) && DiagnosticsReadings.averageAgrees(netNowMa, netAvgMa)) netAvgMa else netNowMa
-        if (netForEstimate != null) smoothedNetMa = DiagnosticsReadings.smooth(smoothedNetMa, netForEstimate)
+        val netForEstimate = if (batteryCurrentReader.isSettled(nowMs) && BatteryReadings.averageAgrees(netNowMa, netAvgMa)) netAvgMa else netNowMa
+        if (netForEstimate != null) smoothedNetMa = BatteryReadings.smooth(smoothedNetMa, netForEstimate)
         val bWatts = if (bVolt > 0f && netNowMa != null) bVolt * kotlin.math.abs(netNowMa) / 1000f else null
 
         // CHARGE_COUNTER is µAh; dropped when it implies an implausible full capacity.
@@ -221,7 +223,7 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
         }
 
         fun untilEmpty(otherwise: String): String {
-            val minutes = DiagnosticsReadings.minutesUntilEmpty(chargeMah, smoothedNetMa)
+            val minutes = BatteryReadings.minutesUntilEmpty(chargeMah, smoothedNetMa)
             return when {
                 minutes == null -> otherwise
                 minutes > 7 * 24 * 60 -> "Over a week left"
@@ -253,14 +255,14 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
         val bChargingRateStr = power?.label ?: "Discharging"
         val bTimeEstimateStr: String
         when (chargeState) {
-            DiagnosticsReadings.ChargeState.Charging -> {
+            BatteryReadings.ChargeState.Charging -> {
                 val systemMs = try { bm?.computeChargeTimeRemaining() ?: -1L } catch (_: Throwable) { -1L }
                 // Until an unplugged reading has confirmed the vendor's sign, the direction is unproven:
                 // trust the CHARGING status for the estimate and never claim the phone is losing charge.
                 val signKnown = batteryCurrentReader.signLocked
                 val chargeInMa = if (signKnown) smoothedNetMa else smoothedNetMa?.let { kotlin.math.abs(it) }
                 val minutes = if (systemMs > 0L) (systemMs / 60_000L).toInt().coerceAtLeast(1)
-                    else DiagnosticsReadings.minutesUntilFull(chargeMah, bLevel, chargeInMa)
+                    else BatteryReadings.minutesUntilFull(chargeMah, bLevel, chargeInMa)
                 // Both the live and the smoothed current must show a drain, so a lagging average right
                 // after plugging in can't claim the phone is losing charge.
                 val draining = signKnown && (netNowMa ?: 0f) < -20f && (smoothedNetMa ?: 0f) < -20f
@@ -274,14 +276,14 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
                     else -> "${DiagnosticsReadings.formatMinutes(minutes)} until full"
                 }
             }
-            DiagnosticsReadings.ChargeState.Full -> {
+            BatteryReadings.ChargeState.Full -> {
                 bTimeEstimateStr = "Fully charged"
             }
-            DiagnosticsReadings.ChargeState.PluggedNotCharging -> {
+            BatteryReadings.ChargeState.PluggedNotCharging -> {
                 // The charger is not adding charge; the phone may still be running down slowly.
                 bTimeEstimateStr = untilEmpty(otherwise = "Charging paused")
             }
-            DiagnosticsReadings.ChargeState.PluggedUnknown, DiagnosticsReadings.ChargeState.Discharging -> {
+            BatteryReadings.ChargeState.PluggedUnknown, BatteryReadings.ChargeState.Discharging -> {
                 bTimeEstimateStr = untilEmpty(otherwise = "Estimating...")
             }
         }
@@ -296,8 +298,8 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
             cycles = cycles,
             technology = bTechnology,
             thermalStatus = bThermalStatus,
-            isCharging = chargeState == DiagnosticsReadings.ChargeState.Charging ||
-                chargeState == DiagnosticsReadings.ChargeState.Full,
+            isCharging = chargeState == BatteryReadings.ChargeState.Charging ||
+                chargeState == BatteryReadings.ChargeState.Full,
             chargingRateStr = bChargingRateStr,
             timeEstimateStr = bTimeEstimateStr,
             power = power
@@ -368,8 +370,8 @@ internal fun BatteryAndMemoryDiagnosticsPage(
     var batteryTemp by remember { mutableFloatStateOf(0f) }
     var batteryVolt by remember { mutableFloatStateOf(0f) }
     var batteryWatts by remember { mutableStateOf<Float?>(null) }
-    var batteryHealth by remember { mutableStateOf(DiagnosticsReadings.HEALTH_NOT_REPORTED) }
-    var batteryHealthSeverity by remember { mutableStateOf(DiagnosticsReadings.HealthSeverity.Ok) }
+    var batteryHealth by remember { mutableStateOf(BatteryReadings.HEALTH_NOT_REPORTED) }
+    var batteryHealthSeverity by remember { mutableStateOf(BatteryReadings.HealthSeverity.Ok) }
     var batteryCycles by remember { mutableIntStateOf(-1) }
     var batteryTechnology by remember { mutableStateOf("Li-ion") }
     var thermalStatus by remember { mutableStateOf("Normal") }
@@ -545,9 +547,9 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                         "Health",
                         batteryHealth,
                         when (batteryHealthSeverity) {
-                            DiagnosticsReadings.HealthSeverity.Bad -> scheme.error
-                            DiagnosticsReadings.HealthSeverity.Caution -> scheme.tertiary
-                            DiagnosticsReadings.HealthSeverity.Ok -> Color.Unspecified
+                            BatteryReadings.HealthSeverity.Bad -> scheme.error
+                            BatteryReadings.HealthSeverity.Caution -> scheme.tertiary
+                            BatteryReadings.HealthSeverity.Ok -> Color.Unspecified
                         }
                     )
                 )
@@ -645,10 +647,10 @@ internal fun BatteryAndMemoryDiagnosticsPage(
 }
 
 /** The health chip's background and label colours for each rating. */
-internal fun healthChipColors(severity: DiagnosticsReadings.HealthSeverity, scheme: ColorScheme): Pair<Color, Color> = when (severity) {
-    DiagnosticsReadings.HealthSeverity.Bad -> scheme.errorContainer to scheme.onErrorContainer
-    DiagnosticsReadings.HealthSeverity.Caution -> scheme.tertiaryContainer to scheme.onTertiaryContainer
-    DiagnosticsReadings.HealthSeverity.Ok -> scheme.primaryContainer.copy(alpha = 0.6f) to scheme.onPrimaryContainer
+internal fun healthChipColors(severity: BatteryReadings.HealthSeverity, scheme: ColorScheme): Pair<Color, Color> = when (severity) {
+    BatteryReadings.HealthSeverity.Bad -> scheme.errorContainer to scheme.onErrorContainer
+    BatteryReadings.HealthSeverity.Caution -> scheme.tertiaryContainer to scheme.onTertiaryContainer
+    BatteryReadings.HealthSeverity.Ok -> scheme.primaryContainer.copy(alpha = 0.6f) to scheme.onPrimaryContainer
 }
 
 /** Height of the battery wave and the RAM graph. */

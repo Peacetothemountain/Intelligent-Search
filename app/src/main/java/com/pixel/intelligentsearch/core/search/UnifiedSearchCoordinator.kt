@@ -40,12 +40,12 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager,
     settingsManager: SettingsManager,
     private val currencyRates: CurrencyRateRepository,
-    /** Pins and nicknames, applied to ranking at search time. */
+    /** Pins, applied to ranking at search time. */
     private val resultShortcuts: ResultShortcutStore
 ) {
     /**
-     * Outside Hilt (tests): currency answers use the saved or built-in rates from a repository of its own, and pins and
-     * nicknames are read from [settingsManager] through a store of its own.
+     * Outside Hilt (tests): currency answers use the saved or built-in rates from a repository of its own, and pins are
+     * read from [settingsManager] through a store of its own.
      */
     constructor(
         context: Context,
@@ -74,7 +74,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         val payload: Any,
         val metadata: SearchScoringEngine.ScoringMetadata = SearchScoringEngine.ScoringMetadata(),
         val precomputedMetaphone: DoubleMetaphone.MetaphoneResult? = null,
-        /** The result's [ResultKeys] name, under which pins and nicknames are stored; null when it can't have any. */
+        /** The result's [ResultKeys] name, under which its pin is stored; null when it can't be pinned. */
         val shortcutKey: String? = null
     ) {
         override fun equals(other: Any?): Boolean {
@@ -119,8 +119,8 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val fileRadixTree = RadixTreeIndex<SearchItem>()
     private val phoneticIndex = ConcurrentHashMap<String, MutableSet<SearchItem>>()
     /**
-     * Every indexed app, contact and file by its [SearchItem.shortcutKey]: nickname matches are looked up here, and the
-     * overlay finds pinned results and trigger words' targets here. Each replace swaps its own domain's entries.
+     * Every indexed app, contact and file by its [SearchItem.shortcutKey]: the overlay finds pinned results here. Each
+     * replace swaps its own domain's entries.
      */
     @Volatile private var itemsByShortcutKey: Map<String, SearchItem> = emptyMap()
 
@@ -332,7 +332,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         return metadata
     }
 
-    /** Scores [item] for [query] with its usage, pin and nicknames, as every search pipeline here does. */
+    /** Scores [item] for [query] with its usage and pin, as every search pipeline here does. */
     private fun scoreItem(
         query: String,
         item: SearchItem,
@@ -347,16 +347,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         domainWeightMultiplier = 1.0f,
         precomputedQueryMetaphone = queryMetaphone,
         precomputedTargetMetaphone = item.precomputedMetaphone,
-        targetSubtitle = item.subtitle,
-        nicknames = shortcuts.nicknamesOf(item.shortcutKey)
+        targetSubtitle = item.subtitle
     )
-
-    /** Indexed items of [domain] with a nickname that is [query] or starts with it. */
-    private fun nicknameMatches(query: String, shortcuts: ResultShortcuts, domain: SearchScoringEngine.EntityDomain? = null): List<SearchItem> {
-        if (!shortcuts.hasNicknames) return emptyList()
-        val items = itemsByShortcutKey
-        return shortcuts.keysWithNicknameFor(query).mapNotNull { items[it] }.filter { domain == null || it.domain == domain }
-    }
 
     private fun newAppItem(app: AppItem, metadata: SearchScoringEngine.ScoringMetadata): SearchItem {
         return SearchItem(
@@ -559,7 +551,6 @@ class UnifiedSearchCoordinator @Inject constructor(
             }
         }
         val shortcuts = resultShortcuts.current
-        candidates.addAll(nicknameMatches(query, shortcuts, SearchScoringEngine.EntityDomain.APPLICATION))
 
         val now = System.currentTimeMillis()
         val queryMetaphone = DoubleMetaphone.encode(query)
@@ -601,7 +592,6 @@ class UnifiedSearchCoordinator @Inject constructor(
             appPrefixMatches(normalized, packageLimit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.APPLICATION }
         }
         val shortcuts = resultShortcuts.current
-        candidates.addAll(nicknameMatches(q, shortcuts, SearchScoringEngine.EntityDomain.APPLICATION))
 
         val now = System.currentTimeMillis()
         val queryMetaphone = DoubleMetaphone.encode(q)
@@ -641,9 +631,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         if (queryMetaphone.primary.isNotEmpty()) {
             phoneticIndex[queryMetaphone.primary]?.filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
         }
-        // "Call dad" reaches the contact nicknamed "dad" through here.
         val shortcuts = resultShortcuts.current
-        candidates.addAll(nicknameMatches(q, shortcuts, SearchScoringEngine.EntityDomain.CONTACT))
 
         val now = System.currentTimeMillis()
         val scoredContacts = ArrayList<ScoredCandidate<ContactItem>>(candidates.size)
@@ -724,9 +712,7 @@ class UnifiedSearchCoordinator @Inject constructor(
                 QueryNormalizer.containsAllTokens("${item.title} ${item.subtitle.orEmpty()}", tokens)
             }
         }
-        // The user's own names for results ("dad", "my bank"), after the filter above, which only reads titles.
         val shortcuts = resultShortcuts.current
-        candidates.addAll(nicknameMatches(query, shortcuts))
 
         // 5. Phonetic Candidate Retrieval via Double Metaphone (< 0.2ms)
         cancellationCheck?.invoke()

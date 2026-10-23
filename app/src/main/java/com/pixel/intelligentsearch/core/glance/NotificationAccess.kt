@@ -6,15 +6,12 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
-import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.util.storageContext
 
 /**
- * Notification Access, the one grant behind Search Your Notifications, At a Glance's Now Playing and the widget's
- * Media Controls: the app's single listener ([component]), whether it is granted, where to grant it, and connecting
- * and disconnecting it. Every feature asks [isGranted]; notifications themselves are read only while Search Your
- * Notifications is also on ([isActive]), while media sessions need only the grant.
+ * Notification Access, the one grant behind notification search, At a Glance's timers and its Media Controls: the
+ * app's single listener ([component]), whether it is granted, where to grant it, and connecting it. There is no switch
+ * of the app's own: the grant on Android's Notification Access screen turns it all on, and taking it back there turns
+ * it all off.
  */
 object NotificationAccess {
 
@@ -27,11 +24,6 @@ object NotificationAccess {
             ?.isNotificationListenerAccessGranted(component(context)) == true
     }.getOrDefault(false)
 
-    /** Whether notifications are read now: the user's Search Your Notifications switch and Android's grant. */
-    fun isActive(context: Context): Boolean =
-        context.storageContext().getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)[SettingsManager.SEARCH_NOTIFICATIONS] &&
-            isGranted(context)
-
     /** Android's page for granting this app's listener, or the list of all listeners where the page is missing. */
     fun settingsIntents(context: Context): List<Intent> = listOf(
         Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
@@ -39,38 +31,16 @@ object NotificationAccess {
         Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
     ).map { it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
 
-    /** Opens Android's notification access page; false if no page could open. */
-    fun openSettings(context: Context): Boolean = settingsIntents(context).any { intent ->
-        runCatching { context.startActivity(intent) }.isSuccess
-    }
-
-    /**
-     * A feature that needs the listener connected (Search Your Notifications, a widget's media row) was switched on:
-     * with access granted, asks Android to connect it. The listener unbinds itself while nothing needs it.
-     */
+    /** Access was just granted (or something needs the listener): asks Android to connect it, if granted. */
     fun start(context: Context) {
         if (isGranted(context)) runCatching { NotificationListenerService.requestRebind(component(context)) }
     }
 
-    /** [start], unless the listener is already connected in this process (the widget asks on every redraw). */
-    fun ensureConnected(context: Context) {
-        if (NotificationAccessListener.current?.get() == null) start(context)
-    }
-
     /**
-     * Search Your Notifications switched off: forgets every notification read at once, and disconnects the listener
-     * unless a widget's media row still needs it.
-     */
-    fun stop(index: NotificationIndex) {
-        index.clear()
-        NotificationAccessListener.current?.get()?.unbindUnlessNeeded()
-    }
-
-    /**
-     * Brings the index in line with the switch and Android's grant, as the search opens: whatever was read is
-     * forgotten the moment access is revoked or the switch is off, even if the listener never heard of it.
+     * Brings the index in line with Android's grant, as the search opens: whatever was read is forgotten the moment
+     * access is revoked, even if the listener never heard of it.
      */
     fun syncIndex(context: Context, index: NotificationIndex) {
-        if (!isActive(context)) index.clear()
+        if (!isGranted(context)) index.clear()
     }
 }

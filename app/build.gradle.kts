@@ -108,6 +108,12 @@ android {
           test.systemProperty("intelligentsearch.matteGrain", "off")
           test.systemProperty("layoutAudit", if (project.hasProperty("layoutAudit")) "true" else "false")
           test.systemProperty("layoutAuditDir", layout.buildDirectory.dir("layout-audit").get().asFile.path)
+          // The audit appends each screen's findings to one report, so a run starts from an empty one; without this,
+          // an earlier run's findings would stay in the report after they were fixed.
+          if (project.hasProperty("layoutAudit")) {
+            val auditDir = layout.buildDirectory.dir("layout-audit").get().asFile
+            test.doFirst { auditDir.deleteRecursively() }
+          }
         }
         isReturnDefaultValues = true
         // Robolectric tests load the merged manifest and resources.

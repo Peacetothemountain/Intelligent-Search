@@ -1,13 +1,17 @@
 package com.pixel.intelligentsearch.core.ai
 
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.net.HttpsResponse
+import com.pixel.intelligentsearch.core.net.HttpsTimeoutException
+import com.pixel.intelligentsearch.core.net.withHttpsCall
 import com.pixel.intelligentsearch.core.security.AiKeyVault
-import com.pixel.intelligentsearch.core.security.SafeWebLaunch
+import com.pixel.intelligentsearch.core.security.NetworkPolicy
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import java.io.IOException
 import java.net.ConnectException
 import java.net.UnknownHostException
@@ -19,6 +23,7 @@ import javax.inject.Singleton
 enum class AiProblem(val message: String) {
     OFF("AI Answers is off."),
     TOR("AI Answers is off while Tor is your search engine."),
+    WEB_OFF("AI Answers needs Web on in Search Sources."),
     NO_KEY("Add your API key in Settings to ask."),
     BAD_KEY("The API key was refused. Check it in Settings."),
     QUOTA("Your key's rate limit or quota is used up. Try again later."),
@@ -35,7 +40,10 @@ sealed interface AiAnswerState {
     val question: String
 
     data class Asking(override val provider: AiProvider, override val question: String) : AiAnswerState
-    /** [text] so far; [done] once the stream ended, [truncated] when it hit the output limit. */
+    /**
+     * [text] so far; [done] once the stream ended, [truncated] when the answer was cut short: it hit the output limit,
+     * or the stream stopped before the provider said it was finished.
+     */
     data class Answer(
         override val provider: AiProvider,
         override val question: String,
@@ -63,11 +71,13 @@ class AiAnswers internal constructor(
     val provider: AiProvider get() = AiProvider.fromId(settings[SettingsManager.AI_PROVIDER])
 
     /** Why asking isn't possible right now, or null when it is. */
-    fun unavailableReason(): AiProblem? = when {
-        !settings[SettingsManager.AI_ANSWERS_ENABLED] -> AiProblem.OFF
-        SafeWebLaunch.isTorEngine(settings[SettingsManager.SEARCH_ENGINE]) -> AiProblem.TOR
-        !vault.has(provider) -> AiProblem.NO_KEY
-        else -> null
+    fun unavailableReason(): AiProblem? {
+        if (!settings[SettingsManager.AI_ANSWERS_ENABLED]) return AiProblem.OFF
+        return when (NetworkPolicy.aiBlock(settings.prefs)) {
+            NetworkPolicy.Block.TOR -> AiProblem.TOR
+            NetworkPolicy.Block.WEB_OFF, NetworkPolicy.Block.WEB_SUGGESTIONS_OFF -> AiProblem.WEB_OFF
+            null -> AiProblem.NO_KEY.takeUnless { vault.has(provider) }
+        }
     }
 
     /** The provider an Ask row offers for [query], or null when there is no row: not a question, or asking is off. */
@@ -95,16 +105,19 @@ class AiAnswers internal constructor(
         val request = AiRequests.build(provider, provider.model(settings[SettingsManager.AI_MODEL]), key, question)
         val text = StringBuilder()
         var truncated = false
+        var finished = false
         var problem: AiProblem? = null
         val response = try {
-            runInterruptible {
-                transport.post(request) { line ->
+            // Typing on cancels this flow; that cancels the call, which closes the connection mid-stream.
+            withHttpsCall { call ->
+                transport.post(request, call) { line ->
                     for (event in AiRequests.parseLine(provider, line)) {
                         when (event) {
                             is AiEvent.Text -> {
                                 text.append(event.text)
                                 trySend(AiAnswerState.Answer(provider, question, text.toString()))
                             }
+                            AiEvent.Finished -> finished = true
                             AiEvent.Truncated -> truncated = true
                             AiEvent.Refused -> if (text.isEmpty()) problem = AiProblem.REFUSED
                             is AiEvent.Error -> if (problem == null) problem = AiProblem.PROVIDER
@@ -112,8 +125,8 @@ class AiAnswers internal constructor(
                     }
                 }
             }
-        } catch (e: AiTimeoutException) {
-            if (text.isNotEmpty()) truncated = true else problem = AiProblem.TIMEOUT
+        } catch (e: HttpsTimeoutException) {
+            if (text.isEmpty()) problem = AiProblem.TIMEOUT
             null
         } catch (e: UnknownHostException) {
             problem = AiProblem.OFFLINE
@@ -122,11 +135,14 @@ class AiAnswers internal constructor(
             problem = AiProblem.OFFLINE
             null
         } catch (e: IOException) {
-            problem = if (text.isEmpty()) AiProblem.OFFLINE else null
-            if (text.isNotEmpty()) truncated = true
+            if (text.isEmpty()) problem = AiProblem.OFFLINE
             null
         }
+        currentCoroutineContext().ensureActive()
         if (response != null && response.code != 200) problem = problemFor(response)
+        // Words came but the stream never said it ended (dropped, timed out, an error mid-answer): the card says the
+        // answer was cut short rather than passing part of one off as whole.
+        if (text.isNotEmpty() && !finished) truncated = true
         val failed = problem
         send(
             if (failed != null && text.isEmpty()) AiAnswerState.Failed(provider, question, failed)
@@ -154,7 +170,7 @@ class AiAnswers internal constructor(
         const val MAX_QUESTION_LENGTH = 500
 
         /** What a refused request's [response] means. */
-        internal fun problemFor(response: AiHttpResponse): AiProblem = when (response.code) {
+        internal fun problemFor(response: HttpsResponse): AiProblem = when (response.code) {
             401, 403 -> AiProblem.BAD_KEY
             429 -> AiProblem.QUOTA
             404 -> AiProblem.MODEL

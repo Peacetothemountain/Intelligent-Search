@@ -28348,7 +28348,7 @@ SPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setDynamicLtpoPacing$
 SPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setDynamicLtpoPacing(Landroid/view/View;ZF)V
 SPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setFrameRateCategory(Landroid/app/Activity;I)V
 SPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setHighRefreshRateCategory(Landroid/app/Activity;)V
-SPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->setNormalRefreshRateCategory(Landroid/app/Activity;)V
+SPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->restoreDefaultRefreshRate(Landroid/app/Activity;)V
 SPLcom/pixel/intelligentsearch/core/ui/WindowFramePacing;->unlockDisplayRefreshRate(Landroid/app/Activity;)V
 Lcom/pixel/intelligentsearch/core/ui/expressive/ExpressiveCornerTokens;
 SPLcom/pixel/intelligentsearch/core/ui/expressive/ExpressiveCornerTokens;-><clinit>()V

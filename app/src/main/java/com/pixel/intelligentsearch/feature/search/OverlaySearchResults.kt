@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.feature.settings.IconButton
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import com.pixel.intelligentsearch.core.ui.uniqueItems
 import com.pixel.intelligentsearch.core.search.ResultKeys
 import com.pixel.intelligentsearch.feature.widget.getLensSearchIntent
@@ -165,8 +167,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         val order = rows.map { it.first().listKey }
         searchResultsListState.scrollIntoView(stop.listKey, isTowardEnd(searchResultsListState, order, stop.listKey), animationsOn)
     }
-    val glanceItems = rememberGlanceItems(settingsState.hiddenApps)
-    val notificationHits = rememberNotificationHits(uiState.query, settingsState.hiddenApps)
+    val glanceItems = s.glanceItems
+    val notificationHits = s.notificationHits
 
     LazyColumn(
         state = searchResultsListState,
@@ -329,7 +331,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         }
 
         // AI Answers: "Ask Claude" for a question, sending it only when tapped; then its answer, for this query only.
-        val aiOffer = uiState.aiOffer
+        val aiOffer = uiState.askAi
         val aiAnswer = uiState.aiAnswer
         val question = com.pixel.intelligentsearch.core.ai.AiAnswers.questionIn(uiState.query)
         if (aiAnswer != null) {
@@ -351,25 +353,10 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             }
         }
 
-        // Saved Links the query names, each with its long-press menu (pin, nickname, trigger word).
-        if (uiState.savedLinks.isNotEmpty()) {
-            item(key = "saved_links_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-            uniqueItems(uiState.savedLinks, key = ResultListKeys::savedLink, contentType = { "saved_link" }) { link ->
-                ResultMenuBox(s, ResultMenuTarget.Link(link)) { openMenu ->
-                    SavedLinkRow(
-                        link,
-                        rememberSavedLinkIcon(link),
-                        onLongClick = openMenu,
-                        modifier = Modifier.keyboardHighlight(s, ResultListKeys.savedLink(link), ResultHighlightRowShape)
-                    ) {
-                        openResult(context, s, link, LaunchSource.keyboard())
-                    }
-                }
-            }
+        // At a Glance, one card in the top start corner: timers, the next alarm, what's playing, birthdays and the battery.
+        if (uiState.query.isEmpty()) {
+            atAGlanceItems(glanceItems, highlight = { key -> Modifier.keyboardHighlight(s, key, GlanceRowShape) }) { hasStartedTyping = false }
         }
-
-        // At a Glance: codes, timers, the next alarm, what's playing, birthdays and the battery, above the empty search.
-        if (uiState.query.isEmpty()) atAGlanceItems(glanceItems) { hasStartedTyping = false }
 
         if (bestMatch != null) {
             item(key = ResultListKeys.BEST_MATCH, contentType = "best_match") {
@@ -385,14 +372,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         // Debug menu: Mock Trending Queries fills the empty search state with stand-in topics.
         if (mockTrendingOn && uiState.query.isEmpty()) {
             item(key = "header_trending", contentType = "recent_label") {
-                Text(
-                    text = "Trending",
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 13.sp,
-                    fontFamily = GoogleSansFlex,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp)
-                )
+                OverlaySectionLabel("Trending")
             }
             uniqueItems(DebugMocks.trendingQueries, key = { topic -> "trending_$topic" }, contentType = { "recent_query" }) { topic ->
                 val pillShape = RoundedCornerShape(28.dp)
@@ -441,13 +421,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Recent",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 13.sp,
-                        fontFamily = GoogleSansFlex,
-                        fontWeight = FontWeight.SemiBold
-                    )
+                    OverlaySectionLabel("Recent", inset = false)
                     if (distinctRecents.size > 7) {
                         Surface(
                             onClick = {
@@ -491,7 +465,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             }
         }
 
-        if (settingsState.searchCalendar && uiState.calendarEvents.isNotEmpty()) {
+        if (uiState.calendarEvents.isNotEmpty()) {
             // Title + time can repeat (same meeting on two calendars); the instance id and begin time cannot.
             uniqueItems(uiState.calendarEvents, key = { event -> "event_${event.eventId}_${event.beginMillis}_${event.title}" }, contentType = { "calendar_event" }) { event ->
                 val swipe = rememberSwipeToDismiss(sensoryEngine, view) { viewModel.dismissCalendarEvent(event) }
@@ -602,6 +576,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     ResultMenuBox(s, ResultMenuTarget.App(app)) { openMenu ->
                                         AppGridItem(
                                             app,
+                                            settingsState.activeIconPack,
                                             launchIcon = LaunchIconTarget(launchIcons, iconKey),
                                             onLongClick = openMenu,
                                             modifier = Modifier.keyboardHighlight(s, ResultListKeys.inRow(ResultListKeys.APPS_ROW, ResultListKeys.app(app)), ResultHighlightTileShape)
@@ -613,7 +588,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     }
                 }
                 "android_settings" -> {
-                    if (settingsState.searchAndroidSettings && uiState.query.isNotEmpty() && uiState.androidSettings.isNotEmpty()) {
+                    if (uiState.query.isNotEmpty() && uiState.androidSettings.isNotEmpty()) {
                         item(key = "android_settings_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                         uniqueItems(uiState.androidSettings, key = ResultListKeys::setting, contentType = { "android_setting" }) { setting ->
                             // App Info rows stand for an app, so they have no menu of their own.
@@ -700,8 +675,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         }
                                     }
                                     Spacer(modifier = Modifier.width(16.dp))
-                                    val contactActions = remember(contact, s.contactActionTargets, settingsState.contactActions) {
-                                        ContactActions.forContact(contact, s.contactActionTargets, settingsState.contactActions)
+                                    val contactActions = remember(contact, s.contactActionTargets) {
+                                        ContactActions.forContact(contact, s.contactActionTargets)
                                     }
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
@@ -781,7 +756,11 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         }
 
         // Search Your Notifications: matching notifications after the phone's other results.
-        if (uiState.query.isNotEmpty()) notificationResultItems(notificationHits) { hasStartedTyping = false }
+        if (uiState.query.isNotEmpty()) notificationResultItems(
+            notificationHits,
+            settingsState.activeIconPack,
+            highlight = { entry -> Modifier.keyboardHighlight(s, ResultListKeys.notification(entry), ResultHighlightRowShape) }
+        ) { hasStartedTyping = false }
 
         if (!isBottomResults) {
             renderInlineShortcuts()

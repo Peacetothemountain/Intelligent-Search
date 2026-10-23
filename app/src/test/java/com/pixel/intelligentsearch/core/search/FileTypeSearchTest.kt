@@ -15,7 +15,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/** Searching only one type of file ("pdf invoice"), and leaving types out of the index. */
+/** Searching only one type of file ("pdf invoice"); the index itself holds every type. */
 @RunWith(RobolectricTestRunner::class)
 class FileTypeSearchTest {
 
@@ -63,12 +63,12 @@ class FileTypeSearchTest {
     }
 
     @Test
-    fun ownMediaOfALeftOutTypeOrInASkippedFolderIsNotIndexed() {
-        val prefs = SettingsManager(context).prefs
-        prefs.edit().clear().putStringSet(SettingsManager.FILES_EXCLUDED_TYPES.name, setOf("images")).commit()
-        val keep = UserGrantedFiles.keepsOwnMedia(prefs)
+    fun ownMediaOfEveryTypeIsIndexedUnlessInASkippedFolder() {
+        // File search covers every type; an older build's File Types choice leaves nothing out.
+        SettingsManager(context).prefs.edit().clear().putStringSet("search.files.excluded_types", setOf("images")).commit()
+        val keep = UserGrantedFiles::keepsOwnMedia
         assertTrue(keep(FileItem("a.pdf", "/storage/emulated/0/Download/a.pdf", "application/pdf", "content://media/external/file/1")))
-        assertFalse(keep(FileItem("a.jpg", "/storage/emulated/0/DCIM/a.jpg", "image/jpeg", "content://media/external/file/2")))
+        assertTrue(keep(FileItem("a.jpg", "/storage/emulated/0/DCIM/a.jpg", "image/jpeg", "content://media/external/file/2")))
         assertFalse(keep(FileItem("t.pdf", "/storage/emulated/0/DCIM/.thumbnails/t.pdf", "application/pdf", "content://media/external/file/3")))
     }
 }

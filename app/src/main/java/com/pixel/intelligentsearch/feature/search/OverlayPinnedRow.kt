@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -28,7 +29,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,7 +37,6 @@ import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
-import com.pixel.intelligentsearch.core.data.SavedLink
 import com.pixel.intelligentsearch.core.search.AndroidSettingResult
 import com.pixel.intelligentsearch.core.ui.uniqueItems
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
@@ -50,7 +49,7 @@ internal fun pinnedIconKey(app: AppItem) = "pinned_${LaunchIconKeys.app(app)}"
 
 /**
  * Opens a result the way its own row does: an app in its profile (out of [from]'s icon), a contact's card (or the
- * dialler with Direct Call), a file in its app, a Settings page. For the Pinned row and trigger words.
+ * dialler with Direct Call), a file in its app, a Settings page. For the Pinned row.
  */
 internal fun openResult(context: Context, s: OverlayScope, result: Any, from: LaunchSource) {
     s.ui.hasStartedTyping = false
@@ -59,8 +58,6 @@ internal fun openResult(context: Context, s: OverlayScope, result: Any, from: La
         is ContactItem -> launchSafeIntent(context, ContactActions.openIntent(result, s.settingsState.contactDirectCall))
         is FileItem -> openFileResult(context, s.prefs, result)
         is AndroidSettingResult -> openAndroidSetting(context, result)
-        // In the browser or the site's own app; under Tor, only in Tor Browser.
-        is SavedLink -> s.openWebAddress(result.url)
     }
 }
 
@@ -70,7 +67,6 @@ private fun menuTargetFor(result: Any): ResultMenuTarget? = when (result) {
     is ContactItem -> ResultMenuTarget.Contact(result)
     is FileItem -> ResultMenuTarget.File(result)
     is AndroidSettingResult -> ResultMenuTarget.Setting(result)
-    is SavedLink -> ResultMenuTarget.Link(result)
     else -> null
 }
 
@@ -83,16 +79,7 @@ internal fun OverlayPinnedRow(s: OverlayScope) {
     val context = LocalContext.current
     val pinned = s.uiState.pinned
     Column(modifier = Modifier.fillMaxWidth().testTag(PINNED_ROW_TAG)) {
-        Text(
-            text = "Pinned",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 6.dp)
-                .semantics { heading() }
-        )
+        OverlaySectionLabel("Pinned")
         val rowState = androidx.compose.foundation.lazy.rememberLazyListState()
         val rowKey: (Any) -> String = { menuTargetFor(it)?.key ?: it.hashCode().toString() }
         // A pin the arrow keys highlight is scrolled into view along the row.
@@ -110,7 +97,7 @@ internal fun OverlayPinnedRow(s: OverlayScope) {
                     when (result) {
                         is AppItem -> {
                             val iconKey = pinnedIconKey(result)
-                            AppGridItem(result, launchIcon = LaunchIconTarget(s.launchIcons, iconKey), onLongClick = openMenu, modifier = highlight) {
+                            AppGridItem(result, s.settingsState.activeIconPack, launchIcon = LaunchIconTarget(s.launchIcons, iconKey), onLongClick = openMenu, modifier = highlight) {
                                 openResult(context, s, result, LaunchSource.tap(iconKey))
                             }
                         }
@@ -123,9 +110,6 @@ internal fun OverlayPinnedRow(s: OverlayScope) {
                         }
                         is AndroidSettingResult -> PinnedTile(result.title, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }, spokenLabel = result.spokenLabel, modifier = highlight) {
                             TileSymbol(androidSettingIcon(result.iconType))
-                        }
-                        is SavedLink -> PinnedTile(result.name, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }) {
-                            SavedLinkIcon(result, rememberSavedLinkIcon(result), 48.dp)
                         }
                     }
                 }

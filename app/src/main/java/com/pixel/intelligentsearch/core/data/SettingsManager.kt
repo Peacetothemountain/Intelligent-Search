@@ -268,13 +268,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** The chosen model of [AI_PROVIDER]; blank (or another provider's) means its default. */
         val AI_MODEL = StringSetting("ai.answers.model", "")
 
-        // Each search bar widget design's extras, kept per design like the rest of its customization
-        // (WidgetSettingsStore reads and writes them). Favourite apps are package names, comma separated, in order.
-        val WIDGET_SYSTEM_FAVOURITE_APPS = StringSetting("widget_system_favourite_apps", "")
-        val WIDGET_MATERIAL_FAVOURITE_APPS = StringSetting("widget_material_favourite_apps", "")
-        /** The media row (current media title, play/pause, next); it needs notification access (MediaSessionAccess). */
-        val WIDGET_SYSTEM_SHOW_MEDIA = BooleanSetting("widget_system_show_media", false)
-        val WIDGET_MATERIAL_SHOW_MEDIA = BooleanSetting("widget_material_show_media", false)
+        // Each search bar widget design's outline and corners, kept per design like the rest of its customization
+        // (WidgetSettingsStore reads and writes them).
         /** The bar's outline in dp: the System design has none by default, the Material design's rim is 8dp. */
         val WIDGET_SYSTEM_OUTLINE_THICKNESS = IntSetting("widget_system_outline_thickness", 0, 0..MAX_OUTLINE_THICKNESS)
         val WIDGET_MATERIAL_OUTLINE_THICKNESS = IntSetting("widget_material_outline_thickness", 8, 0..MAX_OUTLINE_THICKNESS)
@@ -329,8 +324,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_BIRTHDAYS, GLANCE_BATTERY, RESULT_SHORTCUTS,
             DICTIONARY_ANSWERS, WEATHER_ANSWERS,
             WEATHER_HOME_LOCATION, WEATHER_USE_DEVICE_LOCATION, FILES_EXCLUDED_TYPES, FILES_EXCLUDED_FOLDERS,
-            WIDGET_SYSTEM_FAVOURITE_APPS, WIDGET_MATERIAL_FAVOURITE_APPS, WIDGET_SYSTEM_SHOW_MEDIA,
-            WIDGET_MATERIAL_SHOW_MEDIA, WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
+            WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,
             AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL,
             NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION
@@ -355,15 +349,19 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /**
          * Settings an older build stored that no longer mean anything: Search from Selected Text (its entry is always
          * on now), At a Glance's one-time codes (Android 15 hides them from listeners), On-Device Translation
-         * (translations go to Google Translate), Saved Links (removed; Web Shortcuts open sites) and the widget's
-         * Saved Themes (moved into the widget profiles first, WidgetProfiles.migrateSavedThemes). A value an older
-         * build stored is dropped at every start, and backups never restore one.
+         * (translations go to Google Translate), Saved Links (removed; Web Shortcuts open sites), the widget's
+         * Saved Themes (moved into the widget profiles first, WidgetProfiles.migrateSavedThemes) and the widgets'
+         * favourite apps and media rows (removed; the Quick App Panel opens favourite apps). A value an older build
+         * stored is dropped at every start, and backups never restore one.
          */
         val REMOVED_NAMES: Set<String> = setOf(
             "search_from_selected_text", "glance.codes", "on_device_translation", "saved_links_json",
             WidgetProfiles.SAVED_THEMES_KEY,
             // Launch Portal's Edge Swipe, removed.
-            "launch.edge_swipe", "launch.edge_swipe_edge", "launch.edge_swipe_position", "launch.edge_swipe_height"
+            "launch.edge_swipe", "launch.edge_swipe_edge", "launch.edge_swipe_position", "launch.edge_swipe_height",
+            // The widgets' favourite apps and media rows, removed.
+            "widget_system_favourite_apps", "widget_material_favourite_apps",
+            "widget_system_show_media", "widget_material_show_media"
         )
 
         /** The folder in the app's files where an older build kept Saved Links' site icons; deleted at start. */

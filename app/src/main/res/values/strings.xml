@@ -30,11 +30,6 @@
     <string name="widget_talkback_open_web">Open %1$s</string>
     <string name="widget_talkback_calculator">Calculate in search</string>
     <string name="widget_talkback_discover">Google Discover</string>
-    <string name="widget_talkback_media_play">Play</string>
-    <string name="widget_talkback_media_pause">Pause</string>
-    <string name="widget_talkback_media_next">Next track</string>
-    <!-- The media row's title: TalkBack reads "<title>, open <app>". -->
-    <string name="widget_talkback_media_open">%1$s, open %2$s</string>
 
     <!-- The countdown widget. -->
     <string name="widget_countdown_label">Countdown</string>

@@ -56,8 +56,9 @@ class PinWidgetReceiver : BroadcastReceiver() {
 
         /**
          * Requests the system launcher to pin an Intelligent Search widget to the home screen. The launcher's
-         * add-widget dialog shows the widget exactly as the user's saved design draws it
-         * ([SearchWidgetProvider.buildPinPreview]), and the widget it places is drawn from that same design.
+         * add-widget dialog shows the widget exactly as the user's saved design draws it, at the size it will be
+         * placed at ([SearchWidgetProvider.buildPinPreview]), and the widget it places is drawn from that same design.
+         * Widget Customization saves the design in its preview before asking, so all three match.
          * Returns true if pinning is supported by the current launcher and the request was dispatched.
          * [request] stands in for [AppWidgetManager.requestPinAppWidget] in tests.
          */

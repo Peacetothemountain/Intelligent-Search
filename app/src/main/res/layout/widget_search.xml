@@ -12,8 +12,6 @@
     android:gravity="center_vertical"
     android:padding="0dp">
 
-    <include layout="@layout/widget_bar_extras" />
-
     <!-- Centered capsule container matching 1:1 preview (64dp total height: 48dp pill + 8dp top/bottom outer shell rim;
          the provider sets the height and rim for the chosen outline). It clips to its own bounds, which tells the
          launcher the widget draws its own corners, so the launcher doesn't round it again and cut them off. -->

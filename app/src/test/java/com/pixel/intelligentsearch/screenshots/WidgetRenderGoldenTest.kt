@@ -10,12 +10,6 @@ import com.pixel.intelligentsearch.HiltTestActivity
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.occasion.OccasionCalendar
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
-import com.pixel.intelligentsearch.feature.widget.WidgetExtras
-import com.pixel.intelligentsearch.core.system.MediaSessionAccess
-import android.content.ComponentName
-import android.content.Intent
-import android.content.IntentFilter
-import android.util.SizeF
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -33,8 +27,8 @@ import org.robolectric.annotation.GraphicsMode
  * Goldens of the home-screen widget itself: the RemoteViews the provider builds at a phone's default width,
  * applied the way a launcher applies them, for each design in light and dark, with default settings, with a
  * customized design, with settings as an older version saved them (shared keys, no per-design keys), and on
- * Halloween, when the G has its doodle around it (the doodle's first frame); with a thin outline and tight corners;
- * and three rows tall with the favourite apps and what's playing above the bar.
+ * Halloween, when the G has its doodle around it (the doodle's first frame); and with a thin outline and tight
+ * corners.
  */
 @HiltAndroidTest
 @RunWith(ParameterizedRobolectricTestRunner::class)
@@ -48,11 +42,8 @@ class WidgetRenderGoldenTest(private val case: String, private val material: Boo
 
     private val defaultNow = OccasionCalendar.now
 
-    private val defaultNowPlaying = WidgetExtras.nowPlaying
-
     @After fun restoreClock() {
         OccasionCalendar.now = defaultNow
-        WidgetExtras.nowPlaying = defaultNowPlaying
     }
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
@@ -96,37 +87,11 @@ class WidgetRenderGoldenTest(private val case: String, private val material: Boo
             "shape" -> edit
                 .putInt("${p}_outline_thickness", 4)
                 .putInt("${p}_corner_radius", 12)
-            // Three rows tall: the favourite apps and what's playing above the bar.
-            "extras" -> {
-                // Themed (monochrome) icons, and an old-style icon the overlay draws as a Material outline: all on the
-                // pill's colour in the accent.
-                val apps = mapOf(
-                    "com.example.mail" to context.getDrawable(com.pixel.intelligentsearch.R.mipmap.ic_launcher)!!,
-                    "com.example.maps" to context.getDrawable(com.pixel.intelligentsearch.R.mipmap.ic_launcher)!!,
-                    "com.example.photos" to context.getDrawable(com.pixel.intelligentsearch.R.drawable.ic_weather)!!
-                )
-                // Icons are cached for the process: forget any another test drew for these apps.
-                com.pixel.intelligentsearch.core.ui.clearThemedIconCache()
-                com.pixel.intelligentsearch.feature.widget.clearBitmapCache()
-                for ((packageName, icon) in apps) {
-                    val app = ComponentName(packageName, "$packageName.Main")
-                    shadowOf(context.packageManager).apply {
-                        addActivityIfNotPresent(app)
-                        addIntentFilterForActivity(app, IntentFilter(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) })
-                        setApplicationIcon(packageName, icon)
-                    }
-                }
-                WidgetExtras.nowPlaying = { MediaSessionAccess.NowPlaying("Golden Hour", "JVKE", isPlaying = true, packageName = "com.example.music") }
-                edit
-                    .putString("${p}_favourite_apps", apps.keys.joinToString(","))
-                    .putBoolean("${p}_show_media", true)
-            }
         }
         edit.commit()
 
-        val size = if (case == "extras") SizeF(SearchWidgetProvider.STANDARD_WIDTH.width, SearchWidgetProvider.TWO_EXTRA_ROWS_HEIGHT) else SearchWidgetProvider.STANDARD_WIDTH
         val views = SearchWidgetProvider.buildResponsiveViews(context, appWidgetId = 1, isMaterialYou = material, prefs = prefs)
-            .getValue(size)
+            .getValue(SearchWidgetProvider.STANDARD_WIDTH)
 
         ActivityScenario.launch(HiltTestActivity::class.java).use { scenario ->
             lateinit var host: FrameLayout
@@ -151,7 +116,7 @@ class WidgetRenderGoldenTest(private val case: String, private val material: Boo
     companion object {
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0} material={1} dark={2}")
-        fun parameters(): List<Array<Any>> = listOf("default", "custom", "legacy", "doodle", "doodle_off", "shape", "extras").flatMap { case ->
+        fun parameters(): List<Array<Any>> = listOf("default", "custom", "legacy", "doodle", "doodle_off", "shape").flatMap { case ->
             listOf(false, true).flatMap { material -> listOf(arrayOf<Any>(case, material, false), arrayOf<Any>(case, material, true)) }
         }
     }

@@ -135,20 +135,11 @@ class BackupManager @Inject constructor(
             SettingsManager.WEATHER_ANSWERS.name,
             SettingsManager.WEATHER_USE_DEVICE_LOCATION.name,
             SettingsManager.AI_ANSWERS_ENABLED.name,
-            // The widgets' Media Controls read other apps' media sessions through Notification Access.
-            SettingsManager.WIDGET_SYSTEM_SHOW_MEDIA.name,
-            SettingsManager.WIDGET_MATERIAL_SHOW_MEDIA.name,
             // Launch Portal's notification and floating button need permissions this phone may not have granted, and
             // the button draws over other apps; like the opt-ins above, only the user switches them on.
             SettingsManager.NOTIFICATION_SHORTCUT.name,
             SettingsManager.FLOATING_SEARCH_BUTTON.name
         )
-
-        /** [value] as restored into [target]: a widget profile comes back with its media row off (see [PRIVACY_OPT_IN_KEYS]). */
-        private fun restoredString(target: String, value: String): String =
-            if (com.pixel.intelligentsearch.core.data.widget.WidgetProfiles.isProfileKey(target)) {
-                com.pixel.intelligentsearch.core.data.widget.WidgetProfiles.withoutRestoreOptIns(value)
-            } else value
 
         private fun isPrivacyOptInKey(key: String): Boolean =
             key in PRIVACY_OPT_IN_KEYS || SettingsManager.keyFor(key)?.name in PRIVACY_OPT_IN_KEYS
@@ -577,7 +568,7 @@ class BackupManager @Inject constructor(
                                     return@runCatching
                                 }
                                 if (leavesTor(torHere, target, strVal)) return@runCatching
-                                editor.putString(target, restoredString(target, strVal))
+                                editor.putString(target, strVal)
                             }
                             "STRING_SET" -> {
                                 val arr = itemObj.getJSONArray("value")
@@ -630,7 +621,7 @@ class BackupManager @Inject constructor(
                 } else if (leavesTor(torHere, key.name, v)) {
                     null
                 } else {
-                    settingsManager.updateSetting(key, restoredString(key.name, v))
+                    settingsManager.updateSetting(key, v)
                 }
             }
             if (restored != null) restoredCount++

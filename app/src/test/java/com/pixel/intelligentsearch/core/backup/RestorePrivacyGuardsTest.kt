@@ -35,7 +35,7 @@ class RestorePrivacyGuardsTest {
     private val file get() = File(context.cacheDir, "restore_privacy.json")
     private val uri get() = Uri.fromFile(file)
 
-    private val optIns = listOf(SettingsManager.SEARCH_WEB, SettingsManager.WIDGET_SYSTEM_SHOW_MEDIA, SettingsManager.WIDGET_MATERIAL_SHOW_MEDIA)
+    private val optIns = listOf(SettingsManager.SEARCH_WEB, SettingsManager.SEARCH_NOTIFICATIONS)
 
     @Before fun setUp() {
         prefs.edit().clear().commit()
@@ -46,7 +46,7 @@ class RestorePrivacyGuardsTest {
     @After fun tearDown() = db.close()
 
     @Test
-    fun webAndTheWidgetsMediaControlsCanBeSwitchedOffButNeverOn() = runBlocking {
+    fun webAndNotificationSearchCanBeSwitchedOffButNeverOn() = runBlocking {
         for (key in optIns) settings.updateSetting(key, true)
         backup.exportToFile(uri, PASSPHRASE).getOrThrow()
         for (key in optIns) settings.updateSetting(key, false)

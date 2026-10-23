@@ -186,7 +186,7 @@ internal fun SavedLinkDialog(
                     label = { Text("Web Address") },
                     singleLine = true,
                     isError = addressError != null,
-                    supportingText = { Text(addressError ?: "Opens over HTTPS, for Example github.com/notifications.") },
+                    supportingText = { Text(addressError ?: "Opens over HTTPS. For Example, github.com/notifications.") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, autoCorrectEnabled = false),
                     modifier = Modifier.fillMaxWidth()
                 )

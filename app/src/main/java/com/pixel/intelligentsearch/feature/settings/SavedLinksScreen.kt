@@ -81,7 +81,7 @@ fun SavedLinksScreen(onBack: () -> Unit) {
                     SettingsSectionHeader("Your Links")
                     SettingsCard {
                         links.forEach { link ->
-                            val icon = com.pixel.intelligentsearch.feature.search.rememberSavedLinkIcon(link)
+                            val icon = com.pixel.intelligentsearch.core.ui.rememberSavedLinkIcon(link)
                             SettingsRow(
                                 title = link.name,
                                 subtitle = "${link.host}.",

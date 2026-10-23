@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.ui.rememberSavedLinkIcon
+import com.pixel.intelligentsearch.core.ui.fileTypeIcon
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.runtime.getValue
 import com.pixel.intelligentsearch.core.ui.rememberAppIcon

@@ -45,7 +45,7 @@ import com.pixel.intelligentsearch.core.data.FileTypeGroup
 import com.pixel.intelligentsearch.core.data.OpenWithChoice
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import com.pixel.intelligentsearch.feature.search.fileTypeIcon
+import com.pixel.intelligentsearch.core.ui.fileTypeIcon
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 

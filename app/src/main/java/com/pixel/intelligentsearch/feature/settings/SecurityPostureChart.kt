@@ -68,6 +68,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
@@ -88,6 +90,8 @@ import androidx.graphics.shapes.toPath
 import com.pixel.intelligentsearch.core.security.SecurityPosture
 import com.pixel.intelligentsearch.core.security.SecurityPosture.Axis
 import com.pixel.intelligentsearch.core.system.openSettingsPage
+import com.pixel.intelligentsearch.core.ui.geminiPlateIdleFlow
+import com.pixel.intelligentsearch.core.ui.materialYouGeminiPlate
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import kotlin.math.PI
 import kotlin.math.atan2
@@ -262,7 +266,7 @@ internal fun SecurityPostureCard(axes: List<SecurityPosture.AxisScore>, modifier
 }
 
 /**
- * The radar. Behind it, tonal rings and a spoke per check. Its shape reaches out along each spoke to that check's
+ * The radar, on the overlay search bar's plate. Behind it, fine rings of the plate's light and a spoke per check. Its shape reaches out along each spoke to that check's
  * score, rounded through every point and breathing a little, and at each point sits the check's badge: its icon in
  * a circle that morphs towards the check's own Material shape ([postureShape]). On entry, and on a tap on the centre
  * to re-scan, the checks spring out one after another. A beam turns round it, and each badge it passes pops and
@@ -345,8 +349,11 @@ private fun PostureRadar(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(28.dp))
-            .background(scheme.surfaceContainerLow)
+            .clip(RoundedCornerShape(RADAR_PLATE_RADIUS))
+            // The overlay search bar's own plate: deep Material You interior, light pooling along the bottom edge,
+            // a soft rim glow, and that bottom light gently flowing.
+            .materialYouGeminiPlate(cornerRadius = RADAR_PLATE_RADIUS)
+            .geminiPlateIdleFlow(idle = true)
             .testTag(POSTURE_RADAR_TAG)
             .clearAndSetSemantics { contentDescription = description }
             .pointerInput(count, animationsEnabled) {
@@ -376,16 +383,17 @@ private fun PostureRadar(
                     val angles = FloatArray(count) { radarAngle(it, count) }
                     val cosA = FloatArray(count) { cos(angles[it]) }
                     val sinA = FloatArray(count) { sin(angles[it]) }
-                    val bandOuter = scheme.surfaceContainerHighest
-                    val bandInner = scheme.surfaceContainerHigh
-                    val spokeColor = scheme.outlineVariant.copy(alpha = 0.6f)
+                    val ringColor = scheme.primary.copy(alpha = 0.16f)
+                    val outerRingColor = scheme.primary.copy(alpha = 0.32f)
+                    val ringStroke = Stroke(width = 1.dp.toPx())
+                    val spokeColor = scheme.primary.copy(alpha = 0.12f)
                     val spokeWidth = 1.dp.toPx()
                     val chosenSpoke = 4.dp.toPx()
                     val edgeWidth = 2.dp.toPx()
                     val hub = 4.dp.toPx()
                     val primary = scheme.primary
                     val fill = Brush.radialGradient(
-                        listOf(primary.copy(alpha = 0.06f), primary.copy(alpha = 0.22f)),
+                        listOf(primary.copy(alpha = 0f), primary.copy(alpha = 0.08f), primary.copy(alpha = 0.34f)),
                         center = centre,
                         radius = radius.coerceAtLeast(1f)
                     )
@@ -408,10 +416,10 @@ private fun PostureRadar(
                     val iconSize = 16.dp.toPx()
                     val tints = colors.map { ColorFilter.tint(it) }
                     val onTint = ColorFilter.tint(scheme.surface)
-                    val badgeBase = scheme.surfaceContainerLow
+                    val badgeBase = radarBadgeBase(scheme)
                     onDrawBehind {
-                        // Tonal rings, the outer deepest, and a spoke per check.
-                        for (k in 4 downTo 1) drawCircle(if (k % 2 == 0) bandOuter else bandInner, radius * k / 4f, centre)
+                        // Fine rings of the plate's light, the outer one brightest, and a spoke per check.
+                        for (k in 1..4) drawCircle(if (k == 4) outerRingColor else ringColor, radius * k / 4f, centre, style = ringStroke)
                         for (i in 0 until count) {
                             drawLine(spokeColor, centre, Offset(centre.x + cosA[i] * radius, centre.y + sinA[i] * radius), spokeWidth, StrokeCap.Round)
                         }
@@ -483,6 +491,16 @@ private fun PostureRadar(
         )
     }
 }
+
+/** The radar plate's corner radius. */
+private val RADAR_PLATE_RADIUS = 28.dp
+
+/**
+ * What each badge on the radar sits on, so it reads as a hole cut into the plate: the plate's own deep interior in dark
+ * theme (near-black with a trace of the primary container), its light interior in light theme.
+ */
+private fun radarBadgeBase(scheme: ColorScheme): Color =
+    if (scheme.surface.luminance() < 0.5f) lerp(Color(0xFF060305), scheme.primaryContainer, 0.12f) else scheme.surfaceContainerLowest
 
 /** How far out [check] reaches on the radar: its score, or a short stub while it is still being checked. */
 private fun radarReach(check: SecurityPosture.AxisScore): Float =

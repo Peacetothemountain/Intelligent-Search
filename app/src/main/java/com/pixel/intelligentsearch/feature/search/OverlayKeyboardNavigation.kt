@@ -79,7 +79,7 @@ internal sealed interface NavTarget {
     /** A matching notification: does what tapping it does, or opens its app. */
     data class Notification(val entry: IndexedNotification) : NavTarget
 
-    /** An At a Glance card: opens what it is about ([openGlanceItem]). */
+    /** An item in the At a Glance card: opens what it is about ([openGlanceItem]). */
     data class Glance(val item: GlanceItem) : NavTarget
 }
 
@@ -99,7 +99,7 @@ internal sealed interface AnswerAction {
 
 /**
  * One place the highlight can stop: [key] is unique among the stops, [listKey] is the results list item it sits in
- * (several stops share the app row's), and [target] is what Enter opens.
+ * (several stops share the app row's, and At a Glance's items its card's), and [target] is what Enter opens.
  */
 internal data class NavStop(val key: String, val listKey: String, val target: NavTarget)
 
@@ -225,6 +225,8 @@ internal object ResultListKeys {
     const val ASK_AI = "ask_ai"
     const val AI_ANSWER = "ai_answer"
     const val FILE_TYPE_FILTER = "files_type_filter"
+    /** At a Glance's one card; each of its items is a stop of its own inside it. */
+    const val GLANCE = "at_a_glance"
 
     fun directAction(action: DirectAction) = "direct_action_${action.title}_${action.subtitle}"
     fun recent(query: String) = "recent_$query"
@@ -262,7 +264,7 @@ internal data class NavSources(
     /** The AI answer for this query, whose card's main action is "Continue in". */
     val aiAnswer: AiAnswerState? = null,
     val savedLinks: List<SavedLink> = emptyList(),
-    /** At a Glance's cards, above the empty search. */
+    /** At a Glance's items, in its one card above the empty search. */
     val glance: List<GlanceItem> = emptyList(),
     val bestMatch: Any? = null,
     val pinned: List<Any> = emptyList(),
@@ -290,7 +292,7 @@ internal data class NavSources(
         if (answer != null) single(ResultListKeys.AI_ANSWER, NavTarget.Answer(AnswerAction.ContinueInAssistant(answer.provider, answer.question)))
         else aiAsk?.let { (provider, question) -> single(ResultListKeys.ASK_AI, NavTarget.AskAi(provider, question)) }
         savedLinks.distinctBy(ResultListKeys::savedLink).forEach { single(ResultListKeys.savedLink(it), NavTarget.Result(it)) }
-        glance.distinctBy { it.key }.forEach { single(it.key, NavTarget.Glance(it)) }
+        glance.distinctBy { it.key }.forEach { add(listOf(NavStop(it.key, ResultListKeys.GLANCE, NavTarget.Glance(it)))) }
         bestMatch?.let { single(ResultListKeys.BEST_MATCH, NavTarget.Result(it, (it as? AppItem)?.let { LaunchIconKeys.BEST_MATCH })) }
         if (pinned.isNotEmpty()) {
             add(pinned.distinctBy(ResultListKeys::pinned).map { item ->

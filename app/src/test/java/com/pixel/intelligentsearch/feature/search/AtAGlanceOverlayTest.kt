@@ -11,6 +11,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.HiltTestActivity
@@ -116,6 +117,30 @@ class AtAGlanceOverlayTest {
         val recent = compose.onNodeWithText("Recent").getUnclippedBoundsInRoot()
         assertTrue("heading, birthday, battery, then Recent", glance.top < birthday.top && birthday.top < battery.top && battery.top < recent.top)
         assertEquals("the empty search reads At a Glance", 1, collecting.get())
+    }
+
+    /** At a Glance is one squarish card in the top start corner holding every item, not a full-width card for each. */
+    @Test
+    fun atAGlanceIsOneCardInTheTopStartCorner() {
+        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).commit()
+        showOverlay()
+        val heading = compose.onNodeWithTag(GLANCE_HEADER_TAG).getUnclippedBoundsInRoot()
+        val birthday = compose.onNodeWithText("Ana Lima's Birthday").getUnclippedBoundsInRoot()
+        val battery = compose.onNodeWithText("Battery · 15%").getUnclippedBoundsInRoot()
+        assertTrue("the card starts at the list's start margin", heading.left < 40.dp)
+        assertTrue("the card is about 62% of the 412 dp width, not all of it", heading.right < 300.dp)
+        assertTrue("the items sit inside the card, under its heading", birthday.right <= heading.right + 8.dp && battery.right <= heading.right + 8.dp)
+    }
+
+    /** The card is about 62% of the list, 232 to 340 dp, wider with larger text, and the whole width where that won't fit. */
+    @Test
+    fun theCardsWidthFollowsTheListAndTheText() {
+        assertEquals(380f * 0.62f, glanceCardWidth(380.dp, 1f).value, 0.01f)
+        assertEquals(232f, glanceCardWidth(300.dp, 1f).value, 0.01f)
+        assertEquals(340f, glanceCardWidth(800.dp, 1f).value, 0.01f)
+        assertEquals("larger text widens the narrowest card", 232f * 1.3f, glanceCardWidth(380.dp, 1.3f).value, 0.01f)
+        assertEquals("a narrow window gets the whole width", 208f, glanceCardWidth(208.dp, 1f).value, 0.01f)
+        assertEquals("double text gets the whole width", 380f, glanceCardWidth(380.dp, 2f).value, 0.01f)
     }
 
     @Test

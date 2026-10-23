@@ -371,9 +371,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             }
         }
 
-        // At a Glance: codes, timers, the next alarm, what's playing, birthdays and the battery, above the empty search.
+        // At a Glance, one card in the top start corner: timers, the next alarm, what's playing, birthdays and the battery.
         if (uiState.query.isEmpty()) {
-            atAGlanceItems(glanceItems, highlight = { key -> Modifier.keyboardHighlight(s, key, GlanceCardShape) }) { hasStartedTyping = false }
+            atAGlanceItems(glanceItems, highlight = { key -> Modifier.keyboardHighlight(s, key, GlanceRowShape) }) { hasStartedTyping = false }
         }
 
         if (bestMatch != null) {

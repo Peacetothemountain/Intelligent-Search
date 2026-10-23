@@ -5,6 +5,7 @@ import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Intent
 import android.provider.AlarmClock
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -39,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -47,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
@@ -75,6 +78,7 @@ import com.pixel.intelligentsearch.core.glance.glanceItems
 import com.pixel.intelligentsearch.core.system.openPendingOrApp
 import com.pixel.intelligentsearch.core.glance.timerReading
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
+import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import kotlinx.coroutines.delay
@@ -152,66 +156,135 @@ internal fun rememberGlanceItems(hiddenApps: Set<String>, active: Boolean): List
     return remember(snapshot, toggles, now) { glanceItems(snapshot, toggles, now) }
 }
 
-/** The shape of an At a Glance card, which the keyboard's ring follows. */
+/** The At a Glance card's shape: the recent-search pill's 28 dp corners, on a squarer card. */
 internal val GlanceCardShape = RoundedCornerShape(28.dp)
+
+/** The shape of one item's row inside the card, which its press and the keyboard's ring follow. */
+internal val GlanceRowShape = RoundedCornerShape(20.dp)
 
 /** How often the alarm's "in" time moves on. */
 private const val GLANCE_COARSE_TICK_MS = 30_000L
 
-/** The At a Glance section of the empty search: its heading, then one card per item. [onOpened] runs as a card opens something. */
+/** The card's share of the list's width, and the narrowest and widest it is drawn at ordinary text sizes. */
+private const val GLANCE_WIDTH_FRACTION = 0.62f
+private val GLANCE_MIN_WIDTH = 232.dp
+private val GLANCE_MAX_WIDTH = 340.dp
+
+/**
+ * How wide the At a Glance card is in a list [available] wide (inside its margins) at [fontScale]: about 62% of it,
+ * between 232 dp and 340 dp, so it sits as a squarish card in the top start corner. The narrowest width grows with
+ * the text, and where even that doesn't fit (a narrow window, very large text) the card takes the whole width, so
+ * nothing in it is clipped.
+ */
+internal fun glanceCardWidth(available: Dp, fontScale: Float): Dp {
+    val min = GLANCE_MIN_WIDTH * fontScale.coerceAtLeast(1f)
+    if (min >= available) return available
+    return (available * GLANCE_WIDTH_FRACTION).coerceIn(min, maxOf(GLANCE_MAX_WIDTH, min))
+}
+
+/** Measures the card at [glanceCardWidth] of the width it is offered. */
+private fun Modifier.glanceCardWidth(): Modifier = layout { measurable, constraints ->
+    if (!constraints.hasBoundedWidth) {
+        val placeable = measurable.measure(constraints)
+        return@layout layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+    }
+    val width = glanceCardWidth(constraints.maxWidth.toDp(), fontScale).roundToPx().coerceIn(constraints.minWidth, constraints.maxWidth)
+    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+}
+
+/**
+ * The At a Glance section of the empty search: one card in the top start corner holding every item. It is one list
+ * item ([ResultListKeys.GLANCE]), so the keyboard's stop on any of its items scrolls the card into view. [highlight]
+ * is the keyboard's ring for the item under a key; [onOpened] runs as an item opens something.
+ */
 internal fun LazyListScope.atAGlanceItems(items: List<GlanceItem>, highlight: @Composable (key: String) -> Modifier, onOpened: () -> Unit) {
     if (items.isEmpty()) return
-    item(key = "glance_header", contentType = "recent_label") {
-        GlanceHeader(Modifier.animateItem(
-            placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
-            fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
-            fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-        ))
+    item(key = ResultListKeys.GLANCE, contentType = "glance") {
+        GlanceCard(
+            items,
+            onOpened = onOpened,
+            modifier = Modifier.animateItem(
+                placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
+                fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
+                fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
+            ),
+            highlight = highlight
+        )
     }
-    for (glance in items) {
-        item(key = glance.key, contentType = "glance_card") {
-            GlanceCard(
-                glance,
-                onOpened = onOpened,
-                modifier = Modifier.animateItem(
-                    placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
-                    fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
-                    fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-                ),
-                highlight = highlight(glance.key)
-            )
+}
+
+/**
+ * The At a Glance card: the recent-search pill's container (its surface at 70%, its hairline and 28 dp corners) as
+ * one squarish card, "At a Glance" at its top in the theme's accent, then a row per item. Items coming and going
+ * resize the card with the spatial spring (at once with animations off). [fullWidth] draws it across its space (the
+ * detail pane's) rather than at [glanceCardWidth]. A tap on a row (or Enter on it, [highlight] being the keyboard's
+ * ring) runs [onOpened], then opens what the row is about ([openGlanceItem]).
+ */
+@Composable
+internal fun GlanceCard(
+    items: List<GlanceItem>,
+    onOpened: () -> Unit,
+    modifier: Modifier = Modifier,
+    fullWidth: Boolean = false,
+    highlight: @Composable (key: String) -> Modifier = { Modifier }
+) {
+    val scheme = MaterialTheme.colorScheme
+    val animate by rememberAnimationsEnabled()
+    Box(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+        Column(
+            modifier = Modifier
+                .then(if (fullWidth) Modifier.fillMaxWidth() else Modifier.glanceCardWidth())
+                .background(scheme.surfaceContainerHigh.copy(alpha = 0.70f), GlanceCardShape)
+                .border(1.dp, scheme.outlineVariant.copy(alpha = 0.20f), GlanceCardShape)
+                .clip(GlanceCardShape)
+                .then(if (animate) Modifier.animateContentSize(ExpressiveMotionTokens.Spatial.ExpressiveDefault()) else Modifier)
+                .padding(6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            GlanceHeader()
+            for (item in items) {
+                key(item.key) { GlanceItemRow(item, onOpened, highlight(item.key)) }
+            }
         }
     }
 }
 
-/** "At a Glance", in the same small heading as "Recent". */
+/** "At a Glance" at the top of its card, in the theme's accent colour; a heading for TalkBack. */
 @Composable
-internal fun GlanceHeader(modifier: Modifier = Modifier) {
-    OverlaySectionLabel("At a Glance", modifier.testTag(GLANCE_HEADER_TAG))
+private fun GlanceHeader() {
+    Text(
+        text = "At a Glance",
+        color = MaterialTheme.colorScheme.primary,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 10.dp, end = 10.dp, top = 10.dp, bottom = 4.dp)
+            .semantics { heading() }
+            .testTag(GLANCE_HEADER_TAG)
+    )
 }
 
-/**
- * One At a Glance card. A tap (or Enter on it, [highlight] being the keyboard's ring) runs [onOpened], then opens what
- * the card is about ([openGlanceItem]).
- */
+/** One item's row in the card; [highlight] is the keyboard's ring on it. */
 @Composable
-internal fun GlanceCard(item: GlanceItem, onOpened: () -> Unit, modifier: Modifier = Modifier, highlight: Modifier = Modifier) {
+private fun GlanceItemRow(item: GlanceItem, onOpened: () -> Unit, highlight: Modifier) {
     val context = LocalContext.current
     val open = {
         onOpened()
         openGlanceItem(context, item)
     }
     when (item) {
-        is GlanceItem.Timer -> TimerCard(item.timer, open, modifier, highlight)
-        is GlanceItem.Alarm -> AlarmCard(item.alarm.triggerAt, open, modifier, highlight)
-        is GlanceItem.Media -> MediaCard(item.media, open, modifier, highlight)
-        is GlanceItem.Birthday -> BirthdayCard(item.birthday, open, modifier, highlight)
-        is GlanceItem.Battery -> BatteryCard(item.battery, open, modifier, highlight)
+        is GlanceItem.Timer -> TimerRow(item.timer, open, highlight)
+        is GlanceItem.Alarm -> AlarmRow(item.alarm.triggerAt, open, highlight)
+        is GlanceItem.Media -> MediaRow(item.media, open, highlight)
+        is GlanceItem.Birthday -> BirthdayRow(item.birthday, open, highlight)
+        is GlanceItem.Battery -> BatteryRow(item.battery, open, highlight)
     }
 }
 
 /**
- * What an At a Glance card opens, by tap or by Enter: a timer's own page (else the clock's timers, else its app),
+ * What an At a Glance item opens, by tap or by Enter: a timer's own page (else the clock's timers, else its app),
  * the clock's alarms, the player's page, the contact, or Android's battery page.
  */
 internal fun openGlanceItem(context: Context, item: GlanceItem) {
@@ -226,8 +299,9 @@ internal fun openGlanceItem(context: Context, item: GlanceItem) {
 }
 
 /**
- * The card all At a Glance items share: the recent-search pill's container (its surface, hairline and 28 dp
- * shape), a 40 dp round badge or picture, a title and a line under it, and any buttons of the card's own.
+ * The row all At a Glance items share inside the card: a 40 dp round badge or picture, a title and a line under it,
+ * and any buttons of the item's own. It has no container of its own (the card is the container); its press and the
+ * keyboard's ring follow the row's rounded shape.
  */
 @Composable
 private fun GlanceRow(
@@ -235,19 +309,15 @@ private fun GlanceRow(
     title: String,
     subtitle: String?,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
     highlight: Modifier = Modifier,
     description: String? = null,
     trailing: @Composable RowScope.() -> Unit = {}
 ) {
-    val shape = GlanceCardShape
+    val shape = GlanceRowShape
     Row(
-        modifier = modifier
+        modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
             .then(highlight)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f), shape)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f), shape)
             .clip(shape)
             .then(if (description != null) Modifier.semantics(mergeDescendants = true) { contentDescription = description } else Modifier)
             .bouncyClickable(shape = shape, onClick = onClick)
@@ -280,7 +350,7 @@ private fun GlanceRow(
     }
 }
 
-/** The round badge on a card: the item's icon on the secondary container, as the OneBox cards badge theirs. */
+/** The round badge on a row: the item's icon on the secondary container, as the OneBox cards badge theirs. */
 @Composable
 private fun GlanceBadge(icon: ImageVector, size: Dp = 40.dp) {
     Box(
@@ -293,7 +363,7 @@ private fun GlanceBadge(icon: ImageVector, size: Dp = 40.dp) {
 
 /** A running timer counting down each second, a timer that has run out, or a stopwatch counting up. */
 @Composable
-private fun TimerCard(timer: GlanceTimer, open: () -> Unit, modifier: Modifier, highlight: Modifier) {
+private fun TimerRow(timer: GlanceTimer, open: () -> Unit, highlight: Modifier) {
     val now = rememberGlanceNow(1_000L, enabled = timer.kind != GlanceTimer.Kind.TimesUp)
     val kindLabel = if (timer.kind == GlanceTimer.Kind.Stopwatch) "Stopwatch" else "Timer"
     val label = timer.label.takeIf { it.isNotBlank() && !it.equals(kindLabel, ignoreCase = true) }
@@ -302,14 +372,13 @@ private fun TimerCard(timer: GlanceTimer, open: () -> Unit, modifier: Modifier, 
         title = "$kindLabel · ${timerReading(timer, now)}",
         subtitle = listOfNotNull(label, timer.appLabel.takeIf { it.isNotBlank() }).joinToString(" · "),
         onClick = open,
-        modifier = modifier,
         highlight = highlight
     )
 }
 
 /** The next alarm, its time in the phone's 12 or 24 hour style; opens the clock's alarms. */
 @Composable
-private fun AlarmCard(triggerAt: Long, open: () -> Unit, modifier: Modifier, highlight: Modifier) {
+private fun AlarmRow(triggerAt: Long, open: () -> Unit, highlight: Modifier) {
     val context = LocalContext.current
     val now = rememberGlanceNow(GLANCE_COARSE_TICK_MS)
     val time = remember(triggerAt) {
@@ -320,14 +389,13 @@ private fun AlarmCard(triggerAt: Long, open: () -> Unit, modifier: Modifier, hig
         title = "Alarm · $time",
         subtitle = Durations.until(triggerAt - now),
         onClick = open,
-        modifier = modifier,
         highlight = highlight
     )
 }
 
 /** What is playing: the cover in the matte circle, title and artist, and play or pause and next. */
 @Composable
-private fun MediaCard(media: GlanceMedia, open: () -> Unit, modifier: Modifier, highlight: Modifier) {
+private fun MediaRow(media: GlanceMedia, open: () -> Unit, highlight: Modifier) {
     GlanceRow(
         leading = {
             val artwork = media.artwork
@@ -349,7 +417,6 @@ private fun MediaCard(media: GlanceMedia, open: () -> Unit, modifier: Modifier, 
         title = media.title,
         subtitle = listOf(media.artist, media.appLabel).filter { it.isNotBlank() }.joinToString(" · "),
         onClick = open,
-        modifier = modifier,
         highlight = highlight,
         trailing = {
             IconButton(onClick = { if (media.isPlaying) media.controls.pause() else media.controls.play() }) {
@@ -368,7 +435,7 @@ private fun MediaCard(media: GlanceMedia, open: () -> Unit, modifier: Modifier, 
 
 /** A contact's birthday this week, with their photo when they have one; opens the contact. */
 @Composable
-private fun BirthdayCard(birthday: GlanceBirthday, open: () -> Unit, modifier: Modifier, highlight: Modifier) {
+private fun BirthdayRow(birthday: GlanceBirthday, open: () -> Unit, highlight: Modifier) {
     val lookupUri = birthday.lookupUri
     val day = birthdayDayLabel(birthday)
     GlanceRow(
@@ -379,7 +446,6 @@ private fun BirthdayCard(birthday: GlanceBirthday, open: () -> Unit, modifier: M
         title = "${birthday.name}'s Birthday",
         subtitle = listOfNotNull(day, birthday.turning?.let { "Turns $it" }).joinToString(" · "),
         onClick = open,
-        modifier = modifier,
         highlight = highlight
     )
 }
@@ -393,13 +459,12 @@ internal fun birthdayDayLabel(birthday: GlanceBirthday): String = when (birthday
 
 /** The battery when it is low or plugged in, with what the charger is doing; opens Android's battery page. */
 @Composable
-private fun BatteryCard(battery: GlanceBattery, open: () -> Unit, modifier: Modifier, highlight: Modifier) {
+private fun BatteryRow(battery: GlanceBattery, open: () -> Unit, highlight: Modifier) {
     GlanceRow(
         leading = { GlanceBadge(if (battery.pluggedIn) Icons.Outlined.BatteryChargingFull else Icons.Outlined.BatteryAlert) },
         title = "Battery · ${battery.level}%",
         subtitle = if (battery.pluggedIn) battery.statusLabel ?: "Plugged In" else "Battery Low",
         onClick = open,
-        modifier = modifier,
         highlight = highlight
     )
 }

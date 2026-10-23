@@ -139,8 +139,8 @@ internal fun OverlayDetailPane(s: OverlayScope, modifier: Modifier = Modifier) {
                         AiAnswerCard(answer, model = answer.provider.model(aiModel)) { openNavTarget(context, s, stop.target) }
                     }
                 }
-                // A glance card at full size, as the answers are.
-                stop.target is NavTarget.Glance -> GlanceCard(stop.target.item, onOpened = { s.ui.hasStartedTyping = false })
+                // The highlighted item in the At a Glance card, the card across the pane as the answers are.
+                stop.target is NavTarget.Glance -> GlanceCard(listOf(stop.target.item), onOpened = { s.ui.hasStartedTyping = false }, fullWidth = true)
                 else -> DetailCard(s, stop.target)
             }
         }

@@ -26,7 +26,6 @@ import com.pixel.intelligentsearch.core.glance.MediaControls
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.search.GlanceClock
 import com.pixel.intelligentsearch.feature.search.GlanceCard
-import com.pixel.intelligentsearch.feature.search.GlanceHeader
 import com.pixel.intelligentsearch.feature.search.LocalGlanceClock
 import com.pixel.intelligentsearch.feature.search.NotificationResultRow
 import com.pixel.intelligentsearch.feature.search.NotificationsHeader
@@ -45,8 +44,8 @@ import java.time.LocalDate
 import java.util.TimeZone
 
 /**
- * Golden images of At a Glance with one of every card (a running timer, the next alarm, what is playing with a
- * stand-in cover, a birthday and the battery), and of the Notifications results section, in both
+ * Golden images of the At a Glance card with one of every item (a running timer, the next alarm, what is playing
+ * with a stand-in cover, a birthday and the battery), and of the Notifications results section, in both
  * themes. The data, the clock and the time zone are fixed, so nothing depends on the machine. See
  * [SettingsGoldenTest] for recording.
  */
@@ -109,7 +108,7 @@ class AtAGlanceGoldenTest(private val state: String, private val dark: Boolean) 
                 CompositionLocalProvider(LocalGlanceClock provides GlanceClock({ NOW }, ticks = false)) {
                     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(vertical = 8.dp)) {
                         when (state) {
-                            "glance" -> GlanceSection(items)
+                            "glance" -> GlanceCard(items, onOpened = {})
                             else -> {
                                 NotificationsHeader()
                                 notifications.forEach { NotificationResultRow(it, now = NOW, iconPack = null, onOpened = {}) }
@@ -134,15 +133,5 @@ class AtAGlanceGoldenTest(private val state: String, private val dark: Boolean) 
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0} dark={1}")
         fun parameters(): List<Array<Any>> = listOf("glance", "notifications")
             .flatMap { state -> listOf(arrayOf<Any>(state, false), arrayOf<Any>(state, true)) }
-    }
-}
-
-/** The At a Glance section on its own, as the empty search shows it: its heading, then one card per item. */
-@androidx.compose.runtime.Composable
-private fun GlanceSection(items: List<com.pixel.intelligentsearch.core.glance.GlanceItem>) {
-    androidx.compose.foundation.layout.Column {
-        if (items.isEmpty()) return@Column
-        GlanceHeader()
-        items.forEach { GlanceCard(it, onOpened = {}) }
     }
 }

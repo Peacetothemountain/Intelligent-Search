@@ -380,6 +380,34 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         leftProfiles.clear()
     }
 
+    // Adding the widget from here: the launcher previews, and places, the saved design, so the design in the preview
+    // is saved first. With unsaved changes the user is asked ([SaveBeforePinDialog]) rather than saved silently.
+    var showSaveBeforePinDialog by remember { mutableStateOf(false) }
+    val pinWidget: () -> Unit = {
+        val isMaterial = !isSystem
+        coroutineScope.launch {
+            val requested = com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
+                .requestPinWidget(context, isMaterial = isMaterial)
+            if (!requested) {
+                android.widget.Toast.makeText(
+                    context,
+                    "Your launcher doesn't support adding widgets from apps.",
+                    android.widget.Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+    if (showSaveBeforePinDialog) {
+        SaveBeforePinDialog(
+            onSaveAndAdd = {
+                showSaveBeforePinDialog = false
+                saveSettings()
+                pinWidget()
+            },
+            onDismiss = { showSaveBeforePinDialog = false }
+        )
+    }
+
     val handleBack = {
         val suppressed = prefs.getBoolean("widget_suppress_unsaved_warning", false)
         if (hasUnsavedChanges && !suppressed) {
@@ -510,21 +538,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     if (canPinWidget) {
                         IconButton(
                             onClick = {
-                                // Pin the design shown in the preview, so apply any pending edits first.
-                                if (hasUnsavedChanges) saveSettings()
-                                val isMaterial = !isSystem
-                                coroutineScope.launch {
-                                    // The launcher's dialog previews the widget as just saved.
-                                    val requested = com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
-                                        .requestPinWidget(context, isMaterial = isMaterial)
-                                    if (!requested) {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            "Your launcher doesn't support adding widgets from apps.",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
-                                }
+                                // The launcher previews the saved design: changes in the preview are saved first.
+                                if (hasUnsavedChanges) showSaveBeforePinDialog = true else pinWidget()
                             }
                         ) {
                             Icon(Icons.AutoMirrored.Outlined.AddToHomeScreen, contentDescription = "Add widget to Home screen")
@@ -876,3 +891,22 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 }
 
+/**
+ * Asked when the widget is added to the Home screen with unsaved changes: the launcher's dialog previews, and places,
+ * the saved design, so the design in the preview has to be saved first for the three to match.
+ */
+@Composable
+internal fun SaveBeforePinDialog(onSaveAndAdd: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Save and Add to Home Screen?") },
+        text = {
+            Text(
+                "The widget is added with the design in the preview, so your unsaved changes are saved first. " +
+                    "Search bar widgets already on your Home screen change to it too."
+            )
+        },
+        confirmButton = { TextButton(onClick = onSaveAndAdd) { Text("Save and Add") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
+}

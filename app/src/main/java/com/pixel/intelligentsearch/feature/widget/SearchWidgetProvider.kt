@@ -267,7 +267,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     val inputs = previewInputs(context, prefs, design, isDark, widgetColors)
                     if (publishedPreviews[provider.name] == inputs) continue
                     // No doodle: the picker keeps its preview long after the holiday is over.
-                    val preview = buildPreview(context, prefs, isMaterialYou, isDark, widgetColors, withDoodle = false)
+                    val preview = buildPickerPreview(context, prefs, isMaterialYou, isDark, widgetColors)
                     if (publish(ComponentName(context, provider), preview)) {
                         publishedPreviews[provider.name] = inputs
                     } else {
@@ -409,13 +409,15 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             return buildResponsiveViews(context, prefs, appWidgetId, isMaterialYou, isDark, widgetColors)
         }
 
+        /** [buildResponsiveViews] in the given theme; [withDoodle] false leaves today's doodle out (for previews). */
         private fun buildResponsiveViews(
             context: Context,
             prefs: SharedPreferences,
             appWidgetId: Int,
             isMaterialYou: Boolean,
             isDark: Boolean,
-            widgetColors: DynamicThemeDetector.ResolvedWidgetColors
+            widgetColors: DynamicThemeDetector.ResolvedWidgetColors,
+            withDoodle: Boolean = true
         ): Map<SizeF, RemoteViews> {
             val config = resolveWidgetConfig(
                 context = context,
@@ -431,7 +433,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             // 2. Compact (180dp / 3 cells): G logo + 1 shortcut + circle (or 2 shortcuts)
             // 3. Standard (260dp / 4 cells - default phone width): G logo + 2 shortcuts + circle (or 3 shortcuts)
             // 4. Expanded (340dp / 5 cells, foldables & tablets): G logo + all shortcuts
-            val doodle = currentDoodle(prefs, isMaterialYou)
+            val doodle = if (withDoodle) currentDoodle(prefs, isMaterialYou) else null
             // Strictly positive SizeF keys compliant with Android 12+ RemoteViews validation:
             // SizeF(0f, 0f) is forbidden by AOSP RemoteViews constructor.
             return listOf(ULTRA_COMPACT_WIDTH, COMPACT_WIDTH, STANDARD_WIDTH, EXPANDED_WIDTH).associateWith { width ->
@@ -464,30 +466,39 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         /**
-         * The widget of the given design exactly as a newly placed one at a phone's default width ([STANDARD_WIDTH],
-         * 4 cells) draws itself from the saved settings: colours, shape, G style or doodle, shortcuts, light or dark.
-         * The launcher's add-widget dialog shows it when the widget is pinned from Widget Customization, so what the
-         * user is asked to add is what they designed. Built on a background thread: it draws bitmaps.
+         * The widget of the given design as Widget Customization's live preview shows it, for the launcher's
+         * add-widget dialog when the widget is pinned from there: drawn from the saved settings (the editor saves its
+         * design first) exactly as a placed widget draws itself, and responsive like one, so the dialog shows the
+         * size the widget will be placed at. A 4-cell phone widget is wide enough for every shortcut the editor's
+         * preview shows; the older single preview was always the narrow 4-cell layout, which dropped shortcuts the
+         * editor and the placed widget both show. Like the editor's preview it has no doodle, which only lasts the
+         * day. Built on a background thread: it draws bitmaps.
          */
         internal fun buildPinPreview(
             context: Context,
             isMaterialYou: Boolean,
             prefs: SharedPreferences = SettingsManager.storedPrefs(context)
-        ): RemoteViews {
+        ): RemoteViews = RemoteViews(pinPreviewSizes(context, isMaterialYou, prefs))
+
+        /** The views [buildPinPreview] shows at each width: a placed widget's, without the doodle. */
+        internal fun pinPreviewSizes(
+            context: Context,
+            isMaterialYou: Boolean,
+            prefs: SharedPreferences = SettingsManager.storedPrefs(context)
+        ): Map<SizeF, RemoteViews> {
             val isDark = ThemeMode.from(prefs[SettingsManager.THEME])
                 .isDark(ThemeMode.systemIsDark(context.resources.configuration))
             val widgetColors = DynamicThemeDetector.resolveWidgetColors(context, isDark)
-            return buildPreview(context, prefs, isMaterialYou, isDark, widgetColors, withDoodle = true)
+            return buildResponsiveViews(context, prefs, appWidgetId = 0, isMaterialYou, isDark, widgetColors, withDoodle = false)
         }
 
-        /** A placed widget's [STANDARD_WIDTH] views, for a preview not tied to any placed widget; [withDoodle] adds today's doodle. */
-        private fun buildPreview(
+        /** A placed widget's [STANDARD_WIDTH] views without the doodle, for the widget picker's preview. */
+        private fun buildPickerPreview(
             context: Context,
             prefs: SharedPreferences,
             isMaterialYou: Boolean,
             isDark: Boolean,
-            widgetColors: DynamicThemeDetector.ResolvedWidgetColors,
-            withDoodle: Boolean
+            widgetColors: DynamicThemeDetector.ResolvedWidgetColors
         ): RemoteViews {
             val config = resolveWidgetConfig(context, prefs, isMaterialYou, isDark, widgetColors)
             return buildRemoteViews(
@@ -495,8 +506,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 appWidgetId = 0,
                 prefs = prefs,
                 maxShortcuts = shortcutsAt(STANDARD_WIDTH, config),
-                config = config,
-                doodle = if (withDoodle) currentDoodle(prefs, isMaterialYou) else null
+                config = config
             )
         }
 

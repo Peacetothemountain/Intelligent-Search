@@ -562,16 +562,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Live Preview Card (Pinned at the top for real-time visual feedback), with the matte grain. It stands on
-            // the colours of the user's own wallpaper (which Android shares without any permission), so a see-through
-            // bar shows here as it will on the Home screen, not against the page; without them, on the page's colour.
+            // Live Preview Card (Pinned at the top for real-time visual feedback), in the page's own colour, so the
+            // widget sits on what a Home screen would show behind it, with only the matte grain added.
             val previewShellLook = com.pixel.intelligentsearch.core.ui.expressive.rememberMatteShellLook(
                 containerColor = MaterialTheme.colorScheme.background,
                 border = null
             )
-            val wallpaperStage by androidx.compose.runtime.produceState<List<androidx.compose.ui.graphics.Color>?>(null, context) {
-                value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { wallpaperStageColors(context) }
-            }
             val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
             // Worked out by the widget's own rules, so the preview shows what the widget will draw.
             val previewColors = widgetPreviewColors(
@@ -591,10 +587,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp)
                     .height(150.dp)
-                    .matteShell(previewShellLook, RoundedCornerShape(24.dp))
-                    .then(
-                        wallpaperStage?.let { Modifier.background(androidx.compose.ui.graphics.Brush.linearGradient(it)) } ?: Modifier
-                    ),
+                    .matteShell(previewShellLook, RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center
             ) {
                     val isCustomTheme = localSubtheme == "Custom"
@@ -961,18 +954,3 @@ internal fun SaveBeforePinDialog(onSaveAndAdd: () -> Unit, onDismiss: () -> Unit
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
-
-/**
- * The colours the widget editor's preview stands on: the user's Home screen wallpaper's main colours as Android
- * reports them (primary, then secondary and tertiary when it has them), so a see-through bar previews over what it
- * will sit on. Null when the wallpaper reports none (some live wallpapers) or can't be read.
- */
-internal fun wallpaperStageColors(context: android.content.Context): List<androidx.compose.ui.graphics.Color>? = runCatching {
-    android.app.WallpaperManager.getInstance(context)
-        .getWallpaperColors(android.app.WallpaperManager.FLAG_SYSTEM)
-        ?.let { wallpaperStage(it.primaryColor.toArgb(), it.secondaryColor?.toArgb(), it.tertiaryColor?.toArgb()) }
-}.getOrNull()
-
-/** The preview's backdrop from a wallpaper's [primary], [secondary] and [tertiary] colours, as a diagonal blend. */
-internal fun wallpaperStage(primary: Int, secondary: Int?, tertiary: Int?): List<androidx.compose.ui.graphics.Color> =
-    listOfNotNull(primary, secondary ?: primary, tertiary).map { androidx.compose.ui.graphics.Color(it) }

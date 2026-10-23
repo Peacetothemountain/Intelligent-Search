@@ -1,50 +1,67 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Key
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.LockOpen
+import androidx.compose.material.icons.outlined.Password
+import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -55,28 +72,35 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.graphics.shapes.Morph
+import androidx.graphics.shapes.toPath
 import com.pixel.intelligentsearch.core.security.SecurityPosture
 import com.pixel.intelligentsearch.core.security.SecurityPosture.Axis
 import com.pixel.intelligentsearch.core.system.openSettingsPage
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import kotlin.math.PI
-import kotlin.math.exp
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.hypot
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /** Test tag on the posture card's advice for the chosen check. */
 internal const val POSTURE_ADVICE_TAG = "posture_advice"
 
-/** Test tag prefix on each defense layer's row: the prefix and the check's name. */
-internal const val POSTURE_LAYER_TAG_PREFIX = "posture_layer_"
+/** Test tag on the posture ring. */
+internal const val POSTURE_RING_TAG = "posture_ring"
+
+/** Test tag prefix on each check's tile: the prefix and the check's name. */
+internal const val POSTURE_TILE_TAG_PREFIX = "posture_tile_"
 
 /**
- * The checks as Android stacks its defences, from the hardware at the bottom up to the user's own lock on top (the
- * Android platform security model's defence in depth): keys kept in hardware, the hardware vouching for itself, the
- * system checked at startup, the bootloader that guards it, the security fixes on top of it, and the screen lock.
+ * The checks in the order the card shows them, round the ring clockwise from the top and across the tiles: the
+ * phone's defences from the hardware up (the Android platform security model's defence in depth), keys kept in
+ * hardware first and the user's own screen lock last.
  */
-internal val DEFENSE_ORDER: List<Axis> = listOf(
-    Axis.ScreenLock, Axis.PatchLevel, Axis.Bootloader, Axis.VerifiedBoot, Axis.Attestation, Axis.KeyStorage
+internal val POSTURE_ORDER: List<Axis> = listOf(
+    Axis.KeyStorage, Axis.Attestation, Axis.VerifiedBoot, Axis.Bootloader, Axis.PatchLevel, Axis.ScreenLock
 )
 
 /** What one check could still add to the overall score, in whole percent: its missing share of the average. */
@@ -92,60 +116,73 @@ internal fun improvementPlan(axes: List<SecurityPosture.AxisScore>): List<Pair<S
     val checked = axes.count { it.rating != SecurityPosture.Rating.Pending }
     return axes.filter { it.rating != SecurityPosture.Rating.Pending && it.score < FULL_MARKS }
         .map { it to scoreGainPercent(it, checked) }
-        .sortedWith(compareByDescending<Pair<SecurityPosture.AxisScore, Int>> { it.first.let { s -> 1f - s.score } }
+        .sortedWith(compareByDescending<Pair<SecurityPosture.AxisScore, Int>> { 1f - it.first.score }
             .thenBy { if (it.first.rating == SecurityPosture.Rating.Weak) 0 else 1 })
 }
 
-/** One rise of the scan through every layer, from the hardware up, and a short rest. */
-internal const val SCAN_RISE_MILLIS = 3600
+/** The space between the ring's arcs, in degrees. */
+internal const val RING_GAP_DEGREES = 9f
 
-/** The share of a rise the scan spends climbing; the rest it waits below the stack. */
-internal const val SCAN_CLIMB = 0.78f
+/** One flow of the ring's wave along its arcs. */
+internal const val RING_FLOW_MILLIS = 2600
 
-/** How many sparks escape through a layer's gap as the scan passes it. */
-private const val GAP_SPARKS = 5
+/** The degrees each of [count] arcs spans, leaving [RING_GAP_DEGREES] between them. */
+internal fun ringSweep(count: Int): Float = 360f / count.coerceAtLeast(1) - RING_GAP_DEGREES
 
-/** One shimmer across a layer's missing part. */
-internal const val GAP_SHIMMER_MILLIS = 1800
+/** Where arc [index] of [count] starts, in degrees clockwise from 12 o'clock (half a gap in, so the gaps are even). */
+internal fun ringStart(index: Int, count: Int): Float = index * 360f / count.coerceAtLeast(1) + RING_GAP_DEGREES / 2f
 
 /**
- * Where the scan is in the stack at [phase] (0 to 1) of its rise: 0 at the bottom (the hardware) to 1 at the top, or
- * null while it rests between rises.
+ * The arc under a tap at [degrees] clockwise from 12 o'clock on a ring of [count] arcs: the arc whose span (or the
+ * half-gaps either side of it) the tap falls in.
  */
-internal fun scanHeight(phase: Float): Float? {
-    val p = phase - phase.toInt()
-    return if (p > SCAN_CLIMB) null else p / SCAN_CLIMB
+internal fun ringArcAt(degrees: Float, count: Int): Int {
+    if (count <= 0) return 0
+    val d = ((degrees % 360f) + 360f) % 360f
+    return (d / (360f / count)).toInt().coerceIn(0, count - 1)
 }
 
 /**
- * How lit layer [index] of [layers] (0 at the top) is when the scan is at [height] (0 bottom to 1 top): a soft bell
- * centred on the layer, full as the scan crosses it.
+ * How far the wave lifts the ring's line at [along] degrees into an arc, at [phase] (0 to 1) of its flow: a gentle
+ * sine that travels round the ring as the phase runs, eased to nothing at both ends of the arc so each arc starts and
+ * ends cleanly, as Material's wavy progress indicator does.
  */
-internal fun layerLight(height: Float?, index: Int, layers: Int): Float {
-    if (height == null || layers <= 0) return 0f
-    val centre = 1f - (index + 0.5f) / layers
-    val d = (height - centre) * layers
-    return exp(-d * d * 3f).coerceIn(0f, 1f)
+internal fun ringWave(along: Float, sweep: Float, phase: Float, wavelengthDegrees: Float = 14f): Float {
+    if (sweep <= 0f) return 0f
+    val edge = minOf(along, sweep - along).coerceAtLeast(0f)
+    val taper = (edge / 6f).coerceAtMost(1f)
+    return sin(2f * PI.toFloat() * (along / wavelengthDegrees - phase)) * taper
+}
+
+/** The Material shape each check's badge becomes when it is chosen, so each check has its own. */
+internal fun postureShape(axis: Axis): String = when (axis) {
+    Axis.KeyStorage -> "Cookie4Sided"
+    Axis.Attestation -> "Sunny"
+    Axis.VerifiedBoot -> "Gem"
+    Axis.Bootloader -> "Clover4Leaf"
+    Axis.PatchLevel -> "Cookie9Sided"
+    Axis.ScreenLock -> "Pentagon"
+}
+
+private fun postureIcon(score: SecurityPosture.AxisScore): ImageVector = when (score.axis) {
+    Axis.KeyStorage -> Icons.Outlined.Key
+    Axis.Attestation -> Icons.Outlined.VerifiedUser
+    Axis.VerifiedBoot -> Icons.Outlined.RestartAlt
+    Axis.Bootloader -> if (score.value == "Unlocked") Icons.Outlined.LockOpen else Icons.Outlined.Lock
+    Axis.PatchLevel -> Icons.Outlined.SystemUpdate
+    Axis.ScreenLock -> Icons.Outlined.Password
 }
 
 /**
- * How far the scan at [height] has passed through layer [index] of [layers] (0 at the top): 0 as it reaches the layer's
- * lower neighbour's middle, 1 as it reaches its upper neighbour's, or null while it is further away. Drives the
- * shine along a full layer and the sparks rising out of a gap, so both move with the scan.
- */
-internal fun layerPass(height: Float?, index: Int, layers: Int): Float? {
-    if (height == null || layers <= 0) return null
-    val centre = 1f - (index + 0.5f) / layers
-    val pass = (height - centre) * layers * 0.5f + 0.5f
-    return pass.takeIf { it in 0f..1f }
-}
-
-/**
- * The Hardware & Security page's posture card: the overall rating, then each check as a layer of the phone's
- * defences, hardware at the bottom ([DefenseLayers]), then what to improve, ranked by what it wins back
- * ([improvementPlan]), with the chosen check explained and Android's page to fix it where the phone can. It opens on
- * the check most worth improving; tapping a layer or an item explains that one. Text is shown as it is, never
- * animated.
+ * The Hardware & Security page's posture card, in Material 3 Expressive's language:
+ * - a ring of six arcs, one per check in [POSTURE_ORDER], each filled to its score in its rating's colour along a
+ *   gently flowing wave (Material's wavy progress), the rest of the arc left as track, with the overall percentage
+ *   and rating at its heart;
+ * - a tile per check, its icon in a badge that morphs into that check's own Material shape when chosen;
+ * - what to improve, ranked by what it wins back ([improvementPlan]), the chosen check explained with Android's page
+ *   to fix it where the phone can.
+ * Tapping an arc or a tile chooses that check: its arc thickens and the others step back, its tile lifts. It opens on
+ * the check most worth improving. Text is shown as it is, never animated.
  */
 @Composable
 internal fun SecurityPostureCard(axes: List<SecurityPosture.AxisScore>, modifier: Modifier = Modifier) {
@@ -153,200 +190,226 @@ internal fun SecurityPostureCard(axes: List<SecurityPosture.AxisScore>, modifier
     val overall = SecurityPosture.overall(axes)
     val percent = overall?.let { (it * 100).roundToInt() }
     val plan = remember(axes) { improvementPlan(axes) }
-    // The user's choice wins; until they make one, the card explains the check most worth improving.
     var chosen by remember { mutableStateOf<Axis?>(null) }
     val selected = chosen ?: plan.firstOrNull()?.first?.axis
+    val ordered = POSTURE_ORDER.mapNotNull { axis -> axes.firstOrNull { it.axis == axis } }
     DiagnosticsCard(
         icon = Icons.Outlined.Shield,
         title = "Security Posture",
         accent = scheme.primary,
-        modifier = modifier,
-        trailing = {
-            val (container, content) = when {
-                overall == null -> scheme.surfaceVariant to scheme.onSurfaceVariant
-                overall >= 0.65f -> scheme.primaryContainer.copy(alpha = 0.6f) to scheme.onPrimaryContainer
-                overall >= 0.4f -> scheme.tertiaryContainer to scheme.onTertiaryContainer
-                else -> scheme.errorContainer to scheme.onErrorContainer
-            }
-            val label = SecurityPosture.overallLabel(overall)
-            DiagnosticsStatusChip(text = if (percent == null) label else "$label · $percent%", container = container, content = content)
-        }
+        modifier = modifier
     ) {
-        DefenseLayers(axes, selected = selected, onSelect = { chosen = it })
+        PostureRing(
+            checks = ordered,
+            percent = percent,
+            label = SecurityPosture.overallLabel(overall),
+            selected = selected,
+            onSelect = { chosen = it },
+            modifier = Modifier.align(Alignment.CenterHorizontally)
+        )
+        Spacer(Modifier.size(12.dp))
+        PostureTiles(ordered, selected, onSelect = { chosen = it })
         ImprovementList(axes, plan, selected, onSelect = { chosen = it })
     }
 }
 
 /**
- * Each check as a layer of the phone's defences, in [DEFENSE_ORDER] (the screen lock on top, the hardware key store
- * at the bottom): its name and value, and a bar filled to its score in its rating's colour, the rest of the bar (what
- * is missing) outlined. A scan rises through the stack from the hardware up, as a signal passing each defence: a
- * layer at full marks flashes solid as it passes, and a layer with a gap lets sparks escape through it, so what is
- * thin shows where it is; between scans the gaps shimmer. With animations off the stack is drawn still. A tap on a
- * layer explains it ([onSelect]); the [selected] layer is tinted.
+ * The ring: six arcs round a still centre that reads the overall percentage and rating. Each arc fills to its check's
+ * score along a wave that keeps flowing round (still with animations off); a check still being checked shows a short
+ * wave chasing along its empty arc. The [selected] check's arc thickens and glows on a spring and the others step
+ * back. A tap on an arc chooses its check ([onSelect]).
  */
 @Composable
-internal fun DefenseLayers(
-    axes: List<SecurityPosture.AxisScore>,
-    modifier: Modifier = Modifier,
-    selected: Axis? = null,
-    onSelect: (Axis) -> Unit = {}
+private fun PostureRing(
+    checks: List<SecurityPosture.AxisScore>,
+    percent: Int?,
+    label: String,
+    selected: Axis?,
+    onSelect: (Axis) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val scheme = MaterialTheme.colorScheme
     val animationsEnabled by rememberAnimationsEnabled()
-    val scan: State<Float>?
-    val shimmer: State<Float>?
-    if (animationsEnabled) {
-        val transition = rememberInfiniteTransition(label = "defenseLayers")
-        scan = transition.animateFloat(
+    val flow: State<Float>? = if (animationsEnabled) {
+        rememberInfiniteTransition(label = "postureRing").animateFloat(
             initialValue = 0f,
             targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(SCAN_RISE_MILLIS, easing = LinearEasing), RepeatMode.Restart),
-            label = "defenseScan"
+            animationSpec = infiniteRepeatable(tween(RING_FLOW_MILLIS, easing = LinearEasing), RepeatMode.Restart),
+            label = "postureRingFlow"
         )
-        shimmer = transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(GAP_SHIMMER_MILLIS, easing = LinearEasing), RepeatMode.Restart),
-            label = "defenseShimmer"
+    } else null
+    val count = checks.size
+    // Each arc's emphasis springs between chosen (1), stepped back (0) and evenly shown (0.5, nothing chosen).
+    val emphasis = checks.map { check ->
+        animateFloatAsState(
+            targetValue = when (selected) {
+                null -> 0.5f
+                check.axis -> 1f
+                else -> 0f
+            },
+            animationSpec = spring(dampingRatio = 0.6f, stiffness = 380f),
+            label = "postureArc"
         )
-    } else {
-        scan = null
-        shimmer = null
     }
-    val layers = DEFENSE_ORDER.mapNotNull { axis -> axes.firstOrNull { it.axis == axis } }
-    Column(
+    val currentChecks by rememberUpdatedState(checks)
+    val currentOnSelect by rememberUpdatedState(onSelect)
+    val track = scheme.surfaceContainerHighest
+    val colors = checks.map { ratingColor(it.rating, scheme) }
+    val description = remember(checks, percent, label) { SecurityPosture.describe(checks) }
+    Box(
         modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(scheme.surfaceVariant.copy(alpha = 0.45f))
-            .padding(vertical = 6.dp)
-    ) {
-        layers.forEachIndexed { index, layer ->
-            DefenseLayerRow(
-                layer = layer,
-                index = index,
-                count = layers.size,
-                isSelected = layer.axis == selected,
-                scan = scan,
-                shimmer = shimmer,
-                scheme = scheme,
-                onSelect = { onSelect(layer.axis) }
-            )
-        }
-    }
-}
-
-@Composable
-private fun DefenseLayerRow(
-    layer: SecurityPosture.AxisScore,
-    index: Int,
-    count: Int,
-    isSelected: Boolean,
-    scan: State<Float>?,
-    shimmer: State<Float>?,
-    scheme: ColorScheme,
-    onSelect: () -> Unit
-) {
-    val color = ratingColor(layer.rating, scheme)
-    val track = scheme.onSurface.copy(alpha = 0.08f)
-    val tint = if (isSelected) color.copy(alpha = 0.12f) else Color.Transparent
-    val pending = layer.rating == SecurityPosture.Rating.Pending
-    val gapDash = remember { PathEffect.dashPathEffect(floatArrayOf(6f, 5f)) }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(POSTURE_LAYER_TAG_PREFIX + layer.axis.name)
-            .clip(RoundedCornerShape(10.dp))
-            .background(tint)
-            .clearAndSetSemantics {
-                contentDescription = "${layer.axis.label}: ${layer.value}"
-                role = Role.Button
-                selected = isSelected
-                onClick(label = "Explain ${layer.axis.label}") { onSelect(); true }
+            .widthIn(max = 260.dp)
+            .fillMaxWidth(0.78f)
+            .aspectRatio(1f)
+            .testTag(POSTURE_RING_TAG)
+            .clearAndSetSemantics { contentDescription = description }
+            .pointerInput(count) {
+                detectTapGestures { at ->
+                    val cx = size.width / 2f
+                    val cy = size.height / 2f
+                    val dx = at.x - cx
+                    val dy = at.y - cy
+                    // Only on the ring itself, not its centre.
+                    if (hypot(dx, dy) < size.width * 0.3f) return@detectTapGestures
+                    val degrees = (atan2(dx, -dy) * 180f / PI.toFloat() + 360f) % 360f
+                    currentChecks.getOrNull(ringArcAt(degrees, count))?.let { currentOnSelect(it.axis) }
+                }
             }
-            .then(Modifier.bouncyClickable(shape = RoundedCornerShape(10.dp), onClick = onSelect))
-            .padding(horizontal = 12.dp, vertical = 6.dp)
-    ) {
-        // Name and value share a line when they fit; with large text the value wraps under the name, never mid-word.
-        @OptIn(ExperimentalLayoutApi::class)
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            itemVerticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = layer.axis.label,
-                style = MaterialTheme.typography.labelMedium,
-                color = scheme.onSurfaceVariant,
-                modifier = Modifier.padding(end = 8.dp)
-            )
-            Text(
-                text = layer.value,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = color
-            )
-        }
-        Spacer(Modifier.height(5.dp))
-        Spacer(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(12.dp)
-                .drawWithCache {
-                    val radius = CornerRadius(size.height / 2f)
-                    val filled = if (pending) 0f else size.width * layer.score.coerceIn(0f, 1f)
-                    val gap = !pending && layer.score < FULL_MARKS
-                    val gapStroke = Stroke(width = 1.2.dp.toPx(), pathEffect = gapDash)
-                    val sparkRadius = 1.6.dp.toPx()
-                    val shine = Brush.horizontalGradient(
-                        0f to Color.White.copy(alpha = 0f),
-                        0.5f to Color.White.copy(alpha = 0.55f),
-                        1f to Color.White.copy(alpha = 0f),
-                        startX = 0f,
-                        endX = size.height * 4f
-                    )
-                    onDrawBehind {
-                        drawRoundRect(track, cornerRadius = radius)
-                        val height = scan?.value?.let(::scanHeight)
-                        val lit = layerLight(height, index, count)
-                        val pass = layerPass(height, index, count)
-                        if (filled > 0f) {
-                            drawRoundRect(color, size = Size(filled, size.height), cornerRadius = radius, alpha = 0.78f + 0.22f * lit)
-                            // A full layer flashes solid as the scan crosses it: a shine runs along the bar.
-                            if (!gap && pass != null) {
-                                val x = (size.width + size.height * 4f) * pass - size.height * 4f
-                                clipRect(right = filled) {
-                                    drawRect(shine, topLeft = Offset(x, 0f), size = Size(size.height * 4f, size.height), alpha = lit)
-                                }
-                            }
+            .drawWithCache {
+                val stroke = 7.dp.toPx()
+                val trackStroke = Stroke(width = stroke * 1.55f, cap = StrokeCap.Round)
+                val radius = size.minDimension / 2f - stroke * 2f
+                val centre = Offset(size.width / 2f, size.height / 2f)
+                val amplitude = 2.6.dp.toPx()
+                val sweep = ringSweep(count)
+                val wave = Path()
+                fun point(degrees: Float, lift: Float): Offset {
+                    val a = (degrees - 90f) * PI.toFloat() / 180f
+                    val r = radius + lift
+                    return Offset(centre.x + cos(a) * r, centre.y + sin(a) * r)
+                }
+                onDrawBehind {
+                    val phase = flow?.value ?: 0f
+                    for (i in 0 until count) {
+                        val start = ringStart(i, count)
+                        val e = emphasis[i].value
+                        // The track: the whole arc, a little deeper for the chosen check.
+                        drawArc(
+                            track, startAngle = start - 90f, sweepAngle = sweep, useCenter = false,
+                            topLeft = Offset(centre.x - radius, centre.y - radius),
+                            size = androidx.compose.ui.geometry.Size(radius * 2f, radius * 2f),
+                            style = trackStroke, alpha = 0.7f + 0.3f * e
+                        )
+                        val check = checks[i]
+                        val pending = check.rating == SecurityPosture.Rating.Pending
+                        val filled = if (pending) sweep * 0.22f else sweep * check.score.coerceIn(0f, 1f)
+                        if (filled <= 0.5f) continue
+                        // A pending check's short wave chases along its arc; a checked one fills from the arc's start.
+                        val from = if (pending) (sweep - filled) * ((phase * 1.3f) % 1f) else 0f
+                        wave.rewind()
+                        val steps = (filled * 1.6f).toInt().coerceAtLeast(8)
+                        for (s in 0..steps) {
+                            val along = from + filled * s / steps
+                            val p = point(start + along, amplitude * (0.55f + 0.45f * e) * ringWave(along, sweep, phase))
+                            if (s == 0) wave.moveTo(p.x, p.y) else wave.lineTo(p.x, p.y)
                         }
-                        if (gap) {
-                            // What is missing: outlined, shimmering, and letting sparks out as the scan passes.
-                            val left = filled
-                            val gapWidth = size.width - left
-                            val s = shimmer?.value ?: 0f
-                            val glow = 0.10f + 0.10f * (0.5f + 0.5f * sin(2f * PI.toFloat() * s))
-                            drawRoundRect(color, topLeft = Offset(left, 0f), size = Size(gapWidth, size.height), cornerRadius = radius, alpha = glow)
-                            drawRoundRect(color.copy(alpha = 0.6f), topLeft = Offset(left, 0f), size = Size(gapWidth, size.height), cornerRadius = radius, style = gapStroke)
-                            if (pass != null && lit > 0.02f) {
-                                for (k in 0 until GAP_SPARKS) {
-                                    val f = (k + 0.5f) / GAP_SPARKS
-                                    val x = left + gapWidth * f
-                                    // Each spark rises out of the gap with the scan and fades as it moves on.
-                                    val rise = pass * size.height * 1.4f + (k % 2) * size.height * 0.2f
-                                    drawCircle(color, radius = sparkRadius * (0.6f + 0.6f * lit), center = Offset(x, size.height / 2f - rise), alpha = lit)
-                                }
-                            }
-                        }
+                        val width = stroke * (0.75f + 0.55f * e)
+                        val alpha = 0.55f + 0.45f * e
+                        // The chosen check's arc glows under its line.
+                        if (e > 0.6f) drawPath(wave, colors[i], alpha = 0.22f * (e - 0.6f) / 0.4f, style = Stroke(width = width * 2.4f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                        drawPath(wave, colors[i], alpha = alpha, style = Stroke(width = width, cap = StrokeCap.Round, join = StrokeJoin.Round))
                     }
                 }
-        )
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = percent?.let { "$it%" } ?: "...",
+                style = MaterialTheme.typography.displaySmall,
+                fontWeight = FontWeight.Bold,
+                color = scheme.onSurface
+            )
+            Text(text = label, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium, color = scheme.primary)
+        }
     }
 }
 
 /**
- * Under the layers: what to improve, most first, each with what it would add to the overall score; the [selected]
+ * A tile per check, two to a row: its icon in a badge, its name and its value. The [selected] check's tile lifts onto
+ * the secondary container and its badge morphs from a circle into the check's own Material shape ([postureShape]),
+ * turning as it goes, on a spring; it morphs back when another is chosen.
+ */
+@Composable
+private fun PostureTiles(checks: List<SecurityPosture.AxisScore>, selected: Axis?, onSelect: (Axis) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        checks.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                row.forEach { check ->
+                    PostureTile(check, check.axis == selected, onSelect = { onSelect(check.axis) }, modifier = Modifier.weight(1f))
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PostureTile(check: SecurityPosture.AxisScore, isSelected: Boolean, onSelect: () -> Unit, modifier: Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val color = ratingColor(check.rating, scheme)
+    val animationsEnabled by rememberAnimationsEnabled()
+    val container by animateColorAsState(if (isSelected) scheme.secondaryContainer else scheme.surfaceContainerHigh, label = "postureTile")
+    val morph = remember { Animatable(if (isSelected) 1f else 0f) }
+    LaunchedEffect(isSelected, animationsEnabled) {
+        val target = if (isSelected) 1f else 0f
+        if (animationsEnabled) morph.animateTo(target, spring(dampingRatio = 0.55f, stiffness = 320f)) else morph.snapTo(target)
+    }
+    val shapes = remember(check.axis) {
+        Morph(MaterialMorphShapes.byName.getValue("Circle"), MaterialMorphShapes.byName.getValue(postureShape(check.axis)))
+    }
+    val badgeFill by animateColorAsState(if (isSelected) color else color.copy(alpha = 0.16f), label = "postureBadge")
+    val iconTint by animateColorAsState(if (isSelected) scheme.surface else color, label = "postureIcon")
+    val shape = RoundedCornerShape(20.dp)
+    Row(
+        modifier = modifier
+            .testTag(POSTURE_TILE_TAG_PREFIX + check.axis.name)
+            .clip(shape)
+            .background(container)
+            .clearAndSetSemantics {
+                contentDescription = "${check.axis.label}: ${check.value}"
+                role = Role.Button
+                selected = isSelected
+                onClick(label = "Explain ${check.axis.label}") { onSelect(); true }
+            }
+            .bouncyClickable(shape = shape, onClick = onSelect)
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .drawBehind {
+                    val m = morph.value
+                    val path = android.graphics.Path()
+                    shapes.toPath(m.coerceIn(0f, 1f), path)
+                    path.transform(android.graphics.Matrix().apply { setScale(size.width, size.height) })
+                    rotate(degrees = 45f * m) { drawPath(path.asComposePath(), badgeFill) }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(postureIcon(check), contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = check.axis.label, style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant)
+            Text(text = check.value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = color)
+        }
+    }
+}
+
+/**
+ * Under the tiles: what to improve, most first, each with what it would add to the overall score; the [selected]
  * check explained in full with Android's page to fix it where the phone can. With nothing to improve, says so.
  */
 @Composable
@@ -368,11 +431,36 @@ private fun ImprovementList(
         val explained = axes.firstOrNull { it.axis == selected }
         if (plan.isEmpty() && explained == null) {
             Text(
-                text = if (axes.any { it.rating == SecurityPosture.Rating.Pending }) "Checking the rest..." else "Every layer is at full strength. Nothing to improve.",
+                text = if (axes.any { it.rating == SecurityPosture.Rating.Pending }) "Checking the rest..." else "Every check is at full strength. Nothing to improve.",
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant
             )
             return@Column
+        }
+        if (explained != null) {
+            val advice = postureAdvice(explained)
+            val color = ratingColor(explained.rating, scheme)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(scheme.surfaceContainerHigh)
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = "${explained.axis.label} · ${explained.value}",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = color
+                )
+                Text(text = advice.text, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface)
+                advice.fix?.let { fix ->
+                    FilledTonalButton(onClick = { openSettingsPage(context, *fix.intents().toTypedArray()) }) {
+                        Text(fix.label)
+                    }
+                }
+            }
         }
         if (plan.isNotEmpty()) {
             Text("To Improve", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = scheme.onSurface)
@@ -382,9 +470,9 @@ private fun ImprovementList(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(if (isSelected) color.copy(alpha = 0.12f) else Color.Transparent)
-                        .bouncyClickable(shape = RoundedCornerShape(10.dp)) { onSelect(score.axis) }
+                        .bouncyClickable(shape = RoundedCornerShape(16.dp)) { onSelect(score.axis) }
                         .padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -402,35 +490,10 @@ private fun ImprovementList(
                 }
             }
         }
-        if (explained != null) {
-            val advice = postureAdvice(explained)
-            val color = ratingColor(explained.rating, scheme)
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(scheme.surfaceVariant.copy(alpha = 0.45f))
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text = "${explained.axis.label} · ${explained.value}",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = color
-                )
-                Text(text = advice.text, style = MaterialTheme.typography.bodySmall, color = scheme.onSurface)
-                advice.fix?.let { fix ->
-                    FilledTonalButton(onClick = { openSettingsPage(context, *fix.intents().toTypedArray()) }) {
-                        Text(fix.label)
-                    }
-                }
-            }
-        }
     }
 }
 
-/** The colour that marks a check's rating, on its layer and in its value. */
+/** The colour that marks a check's rating, on its arc, its tile and its value. */
 internal fun ratingColor(rating: SecurityPosture.Rating, scheme: ColorScheme): Color = when (rating) {
     SecurityPosture.Rating.Good -> scheme.primary
     SecurityPosture.Rating.Fair -> scheme.tertiary

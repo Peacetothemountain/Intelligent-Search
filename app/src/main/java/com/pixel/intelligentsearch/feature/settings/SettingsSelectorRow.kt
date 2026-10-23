@@ -62,7 +62,8 @@ internal fun <T> SettingsSelectorRow(
     showDivider: Boolean,
     modifier: Modifier = Modifier,
     selectorModifier: Modifier = Modifier,
-    leading: (@Composable (option: T, isSelected: Boolean) -> Unit)? = null
+    leading: (@Composable (option: T, isSelected: Boolean) -> Unit)? = null,
+    indicatorColor: (T) -> androidx.compose.ui.graphics.Color = ShellSelectorDefaults.NoOverride
 ) {
     Column(modifier = modifier) {
         SettingsRowLabel(
@@ -75,7 +76,8 @@ internal fun <T> SettingsSelectorRow(
             onSelect = onSelect,
             modifier = selectorModifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
             itemHeight = 48.dp,
-            indicatorShape = RoundedCornerShape(24.dp)
+            indicatorShape = RoundedCornerShape(24.dp),
+            indicatorColor = indicatorColor
         ) { option, isSelected ->
             Row(
                 modifier = Modifier.padding(horizontal = 8.dp),

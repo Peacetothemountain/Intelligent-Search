@@ -505,9 +505,32 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 appWidgetId = 0,
                 prefs = prefs,
                 maxShortcuts = shortcutsAt(STANDARD_WIDTH, config),
-                config = config
+                config = pickerPreviewConfig(config, editorPageColor(context, isDark))
             )
         }
+
+        /**
+         * The bar as the picker shows it: exactly as Widget Customization's preview draws it. That preview stands on
+         * the editor's page; the picker would show its own lighter card through every see-through part of the bar (the
+         * outline at any Transparency, the whole bar unlocked), so the same bar looked different in the two places. So
+         * here each see-through part is drawn already blended over the editor's page colour [page], fully opaque:
+         * the outline at its own opacity within the bar's, the pill and the circle at the bar's.
+         */
+        internal fun pickerPreviewConfig(config: WidgetDesignConfig, page: Int): WidgetDesignConfig {
+            val alphas = config.backdrop
+            return config.copy(
+                rimColorOpaque = WidgetColorRules.blendOver(config.rimColorOpaque, alphas.backdrop * alphas.rim, page),
+                pillColorOpaque = WidgetColorRules.blendOver(config.pillColorOpaque, alphas.backdrop, page),
+                circleColorOpaque = WidgetColorRules.blendOver(config.circleColorOpaque, alphas.backdrop, page),
+                backdrop = WidgetColorRules.BackdropAlphas(backdrop = 1f, rim = 1f)
+            )
+        }
+
+        /** The page colour Widget Customization's preview stands on: the app theme's background, as the editor draws it. */
+        internal fun editorPageColor(context: Context, isDark: Boolean): Int = runCatching<Int> {
+            val scheme = if (isDark) androidx.compose.material3.dynamicDarkColorScheme(context) else androidx.compose.material3.dynamicLightColorScheme(context)
+            android.graphics.Color.valueOf(scheme.background.red, scheme.background.green, scheme.background.blue).toArgb()
+        }.getOrDefault(if (isDark) 0xFF121212.toInt() else 0xFFFFFFFF.toInt())
 
         private fun resolveWidgetConfig(
             context: Context,

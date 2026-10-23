@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.feature.settings
 import android.app.Application
 import android.provider.Settings
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertContentDescriptionContains
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -31,9 +32,9 @@ import org.robolectric.annotation.Config
 import java.time.LocalDate
 
 /**
- * The posture card shows the checks as the layers of the phone's defences, hardware at the bottom, and is for
- * improving them: what to improve comes ranked by what it wins back, the top one explained with Android's page to fix
- * it where the phone can, and a tap on any layer explains that one. The scan's light follows pure rules.
+ * The posture card: a ring of an arc per check and a tile per check, from the hardware up, for improving them: what
+ * to improve comes ranked by what it wins back, the top one explained with Android's page to fix it where the phone
+ * can, and a tap on any tile or arc explains that one. The ring's wave follows pure rules.
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -61,13 +62,44 @@ class SecurityPostureCardTest {
     }
 
     @Test
-    fun theLayersStackFromTheHardwareUpToTheScreenLock() {
+    fun theRingAndTilesRunFromTheHardwareUpToTheScreenLock() {
         show(posture(deviceSecure = true))
-        val tops = DEFENSE_ORDER.map { compose.onNodeWithTag(POSTURE_LAYER_TAG_PREFIX + it.name).getUnclippedBoundsInRoot().top }
-        assertEquals("top to bottom: screen lock first, key storage last", tops.sorted(), tops)
-        assertEquals(Axis.ScreenLock, DEFENSE_ORDER.first())
-        assertEquals(Axis.KeyStorage, DEFENSE_ORDER.last())
-        assertEquals(Axis.entries.toSet(), DEFENSE_ORDER.toSet())
+        assertEquals(Axis.KeyStorage, POSTURE_ORDER.first())
+        assertEquals(Axis.ScreenLock, POSTURE_ORDER.last())
+        assertEquals(Axis.entries.toSet(), POSTURE_ORDER.toSet())
+        for (axis in POSTURE_ORDER) compose.onNodeWithTag(POSTURE_TILE_TAG_PREFIX + axis.name).assertExists()
+        compose.onNodeWithTag(POSTURE_RING_TAG).assertExists()
+        // The overall score sits still in the ring's centre.
+        compose.onNodeWithTag(POSTURE_RING_TAG).assertContentDescriptionContains("98 percent", substring = true)
+    }
+
+    @Test
+    fun aTapOnTheRingChoosesTheArcsCheck() {
+        // Six arcs clockwise from 12: just right of 12 is the first, just left of it the last, 6 o'clock the fourth.
+        assertEquals(0, ringArcAt(5f, 6))
+        assertEquals(5, ringArcAt(355f, 6))
+        assertEquals(3, ringArcAt(185f, 6))
+        assertEquals("a full turn on is the first again", 0, ringArcAt(361f, 6))
+        // The arcs leave even gaps between them and fill the circle with them.
+        assertEquals(360f, (ringSweep(6) + RING_GAP_DEGREES) * 6, 1e-3f)
+        assertEquals(RING_GAP_DEGREES / 2f, ringStart(0, 6), 0f)
+    }
+
+    @Test
+    fun theWaveFlowsButEachArcStartsAndEndsClean() {
+        val sweep = ringSweep(6)
+        assertEquals(0f, ringWave(0f, sweep, 0.3f), 1e-5f)
+        assertEquals(0f, ringWave(sweep, sweep, 0.3f), 1e-5f)
+        // Mid-arc it moves as the flow runs.
+        assertTrue(kotlin.math.abs(ringWave(sweep / 2, sweep, 0f) - ringWave(sweep / 2, sweep, 0.25f)) > 0.3f)
+        for (i in 0..100) assertTrue(ringWave(sweep * i / 100f, sweep, i / 37f) in -1f..1f)
+    }
+
+    @Test
+    fun eachCheckHasItsOwnMaterialShape() {
+        val shapes = Axis.entries.map(::postureShape)
+        assertEquals(shapes.size, shapes.toSet().size)
+        for (name in shapes) assertTrue(name, name in MaterialMorphShapes.byName)
     }
 
     @Test
@@ -101,7 +133,7 @@ class SecurityPostureCardTest {
     @Test
     fun aTapOnALayerExplainsIt() {
         show(posture(deviceSecure = true))
-        compose.onNodeWithTag(POSTURE_LAYER_TAG_PREFIX + Axis.Bootloader.name).performClick()
+        compose.onNodeWithTag(POSTURE_TILE_TAG_PREFIX + Axis.Bootloader.name).performClick()
         compose.mainClock.advanceTimeBy(600)
         compose.onNodeWithText("The bootloader is locked", substring = true).assertExists()
     }
@@ -123,32 +155,5 @@ class SecurityPostureCardTest {
         val unlocked = SecurityPosture.AxisScore(Axis.Bootloader, 0.15f, "Unlocked", Rating.Weak)
         assertNull(postureAdvice(unlocked).fix)
         assertTrue(postureAdvice(unlocked).text.contains("unlocked"))
-    }
-
-    @Test
-    fun theScanRisesFromTheHardwareToTheTopThenRests() {
-        assertEquals(0f, scanHeight(0f)!!, 0f)
-        assertEquals(1f, scanHeight(SCAN_CLIMB)!!, 1e-5f)
-        assertNull("resting", scanHeight(SCAN_CLIMB + 0.05f))
-        val layers = DEFENSE_ORDER.size
-        // Lit in turn from the bottom layer (the last) to the top one (the first).
-        fun brightestAt(height: Float) = (0 until layers).maxByOrNull { layerLight(height, it, layers) }!!
-        assertEquals(layers - 1, brightestAt(0.05f))
-        assertEquals(0, brightestAt(0.95f))
-        for (i in 0..100) for (k in 0 until layers) assertTrue(layerLight(i / 100f, k, layers) in 0f..1f)
-        assertEquals(0f, layerLight(null, 0, layers), 0f)
-    }
-
-    @Test
-    fun aLayersShineAndSparksMoveOneWayWithTheScan() {
-        val layers = DEFENSE_ORDER.size
-        var last = -1f
-        for (i in 0..200) {
-            val pass = layerPass(i / 200f, 2, layers) ?: continue
-            assertTrue("never goes back", pass >= last)
-            last = pass
-        }
-        assertNotNull(layerPass(1f - 2.5f / layers, 2, layers))
-        assertNull("far below", layerPass(0f, 0, layers))
     }
 }

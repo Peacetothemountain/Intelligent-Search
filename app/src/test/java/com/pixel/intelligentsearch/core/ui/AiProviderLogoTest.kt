@@ -5,6 +5,9 @@ import android.graphics.drawable.VectorDrawable
 import androidx.core.content.ContextCompat
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.ai.AiProvider
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -32,14 +35,38 @@ class AiProviderLogoTest {
     }
 
     @Test
-    fun eachLogoHasItsOwnFlourishWhenPicked() {
-        val flourishes = AiProvider.entries.map(::logoFlourish)
-        assertEquals("each provider moves in its own way", flourishes.size, flourishes.toSet().size)
-        assertEquals(LogoFlourish.Spin, logoFlourish(AiProvider.ANTHROPIC))
-        assertEquals(LogoFlourish.Turn, logoFlourish(AiProvider.OPENAI))
-        assertEquals(LogoFlourish.Twinkle, logoFlourish(AiProvider.GEMINI))
-        // Short enough to finish before the next tap, and every one ends upright at its own size.
-        assertTrue(LOGO_FLOURISH_MILLIS in 300..800)
-        for (f in LogoFlourish.entries) assertTrue(f.turnDegrees > 0f && f.fromScale in 0.1f..1f)
+    fun theRevealTracesEachLogosOwnOutline() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        for (provider in AiProvider.entries) {
+            val outline = logoOutline(context.resources, aiProviderLogo(provider))
+            assertTrue("$provider's outline is read from its drawable", outline != null && !outline.isEmpty)
+        }
+    }
+
+    @Test
+    fun theSparksAndThePillAreInTheBrandsColours() {
+        assertEquals(listOf(Color(0xFFD97757), Color(0xFFF0A48A)), aiProviderBrandColors(AiProvider.ANTHROPIC))
+        // Gemini's sparkle: blue with its green, red and yellow.
+        assertEquals(4, aiProviderBrandColors(AiProvider.GEMINI).size)
+        assertTrue(aiProviderBrandColors(AiProvider.OPENAI).isEmpty())
+        val base = Color(0xFF334455)
+        assertEquals(lerp(base, Color(0xFFD97757), BRAND_TINT), aiProviderPillColor(AiProvider.ANTHROPIC, base))
+        assertEquals("OpenAI keeps the theme's own", base, aiProviderPillColor(AiProvider.OPENAI, base))
+    }
+
+    @Test
+    fun theSparksFlyOutEvenlyAndSlowAsTheyGo() {
+        val centre = Offset(50f, 50f)
+        for (k in 0 until LOGO_SPARKS) {
+            val start = sparkPosition(0f, k, LOGO_SPARKS, centre, 10f)
+            val mid = sparkPosition(0.5f, k, LOGO_SPARKS, centre, 10f)
+            val end = sparkPosition(1f, k, LOGO_SPARKS, centre, 10f)
+            val d0 = (start - centre).getDistance()
+            val d1 = (mid - centre).getDistance()
+            val d2 = (end - centre).getDistance()
+            assertTrue("spark $k leaves the logo's edge and flies out", d0 < d1 && d1 < d2 && d0 >= 6.9f)
+            assertTrue("and slows as it goes", d1 - d0 > d2 - d1)
+        }
+        assertTrue(LOGO_TRACE_MILLIS + LOGO_BURST_DELAY_MILLIS < 1000)
     }
 }

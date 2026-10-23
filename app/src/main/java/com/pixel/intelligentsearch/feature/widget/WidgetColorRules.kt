@@ -5,6 +5,7 @@ import com.pixel.intelligentsearch.core.data.widget.WidgetDesignSettings
 import com.pixel.intelligentsearch.core.data.widget.WidgetElementColors
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import com.pixel.intelligentsearch.core.theme.SearchIconColors
+import kotlin.math.roundToInt
 
 /**
  * The colour rules the widget and the widget editor's live preview share, so the preview paints what the widget
@@ -132,6 +133,16 @@ internal object WidgetColorRules {
             !isCustom -> BackdropAlphas(backdrop = transparency, rim = 1f)
             else -> BackdropAlphas(backdrop = transparency * opacity, rim = 1f)
         }
+    }
+
+    /**
+     * [color] (opaque) drawn at [alpha] over [background], as one opaque colour: what the eye sees there. Used to draw
+     * a see-through bar onto a known background, so it looks the same whatever is really behind it.
+     */
+    fun blendOver(color: Int, alpha: Float, background: Int): Int {
+        val a = alpha.coerceIn(0f, 1f)
+        fun channel(shift: Int) = ((color shr shift and 0xFF) * a + (background shr shift and 0xFF) * (1f - a)).roundToInt().coerceIn(0, 255)
+        return (0xFF shl 24) or (channel(16) shl 16) or (channel(8) shl 8) or channel(0)
     }
 
     /** [alpha] as the 0..255 the widget's views take. */

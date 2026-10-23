@@ -290,7 +290,30 @@ class PinWidgetPreviewTest {
             previews[provider.className] = views
             true
         }
-        assertTrue(render(previews.getValue(SearchWidgetMaterialProvider::class.java.name)).sameAs(placedWidget(material = true)))
+        // The picker's preview is drawn already blended over the editor's page, as Widget Customization shows it, so
+        // it looks like the placed widget seen over that same page.
+        val page = SearchWidgetProvider.editorPageColor(context, isDark = false)
+        val picker = renderOver(previews.getValue(SearchWidgetMaterialProvider::class.java.name), page)
+        val placed = renderOver(SearchWidgetProvider.buildResponsiveViews(context, appWidgetId = 1, isMaterialYou = true, prefs = prefs).getValue(SearchWidgetProvider.STANDARD_WIDTH), page)
+        assertEquals(placed.width, picker.width)
+        assertEquals(placed.height, picker.height)
+        var worst = 0
+        for (y in 0 until placed.height) for (x in 0 until placed.width) {
+            val a = placed.getPixel(x, y)
+            val b = picker.getPixel(x, y)
+            for (shift in intArrayOf(0, 8, 16)) worst = maxOf(worst, abs((a shr shift and 0xFF) - (b shr shift and 0xFF)))
+        }
+        assertTrue("worst channel difference $worst", worst <= 2)
+    }
+
+    /** [views] at the standard width drawn over a [page] of one colour, as pixels. */
+    private fun renderOver(views: RemoteViews, page: Int): Bitmap {
+        val host = apply(views, SearchWidgetProvider.STANDARD_WIDTH.width)
+        return Bitmap.createBitmap(host.measuredWidth, host.measuredHeight, Bitmap.Config.ARGB_8888).also {
+            val canvas = Canvas(it)
+            canvas.drawColor(page)
+            host.draw(canvas)
+        }
     }
 
     /** The editor's preview never shows the day's doodle (it only lasts the day), so neither does the launcher's. */

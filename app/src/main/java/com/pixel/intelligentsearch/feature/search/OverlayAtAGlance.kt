@@ -187,7 +187,7 @@ internal fun LazyListScope.atAGlanceItems(items: List<GlanceItem>, highlight: @C
 /** "At a Glance", in the same small heading as "Recent". */
 @Composable
 internal fun GlanceHeader(modifier: Modifier = Modifier) {
-    OverlaySectionLabel("At a Glance", modifier.testTag(GLANCE_HEADER_TAG).then(SectionLabelPadding))
+    OverlaySectionLabel("At a Glance", modifier.testTag(GLANCE_HEADER_TAG))
 }
 
 /**

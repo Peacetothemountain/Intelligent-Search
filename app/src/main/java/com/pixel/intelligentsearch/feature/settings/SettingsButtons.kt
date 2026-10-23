@@ -32,7 +32,7 @@ internal fun IconButton(
     val view = androidx.compose.ui.platform.LocalView.current
     androidx.compose.material3.IconButton(
         onClick = {
-            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            playButtonHaptic(context, view)
             onClick()
         },
         modifier = modifier,
@@ -60,7 +60,7 @@ internal fun TextButton(
     val view = androidx.compose.ui.platform.LocalView.current
     androidx.compose.material3.TextButton(
         onClick = {
-            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            playButtonHaptic(context, view)
             onClick()
         },
         modifier = modifier,
@@ -92,7 +92,7 @@ internal fun Button(
     val view = androidx.compose.ui.platform.LocalView.current
     androidx.compose.material3.Button(
         onClick = {
-            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            playButtonHaptic(context, view)
             onClick()
         },
         modifier = modifier,
@@ -124,7 +124,7 @@ internal fun FilledTonalButton(
     val view = androidx.compose.ui.platform.LocalView.current
     androidx.compose.material3.FilledTonalButton(
         onClick = {
-            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            playButtonHaptic(context, view)
             onClick()
         },
         modifier = modifier,
@@ -156,7 +156,7 @@ internal fun OutlinedButton(
     val view = androidx.compose.ui.platform.LocalView.current
     androidx.compose.material3.OutlinedButton(
         onClick = {
-            com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context).performPredictiveBackHaptic(view)
+            playButtonHaptic(context, view)
             onClick()
         },
         modifier = modifier,
@@ -169,4 +169,12 @@ internal fun OutlinedButton(
         interactionSource = interactionSource,
         content = content
     )
+}
+
+/**
+ * The predictive-back haptic every button plays, the app's one haptic. Where the app's object graph isn't there (a
+ * Compose preview, a plain unit test) there is nothing to play it with, and the button still works.
+ */
+private fun playButtonHaptic(context: android.content.Context, view: android.view.View) {
+    runCatching { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }.getOrNull()?.performPredictiveBackHaptic(view)
 }

@@ -11,20 +11,21 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-/** Where a section label sits on its own: across the list, inset like the rows under it. */
-internal val SectionLabelPadding = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp)
-
 /**
  * The overlay's one small section heading ("Pinned", "At a Glance", "Recent", "Notifications", "Trending"): the same
- * type and colour everywhere, and a heading for TalkBack, so its users can jump between sections.
+ * type and colour everywhere, and a heading for TalkBack, so its users can jump between sections. On its own it runs
+ * across the list, inset like the rows under it; with [inset] false it sits in a row of its own (Recent's, beside
+ * Clear All).
  */
 @Composable
-internal fun OverlaySectionLabel(text: String, modifier: Modifier = SectionLabelPadding) {
+internal fun OverlaySectionLabel(text: String, modifier: Modifier = Modifier, inset: Boolean = true) {
     Text(
         text = text,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
-        modifier = modifier.semantics { heading() }
+        modifier = modifier
+            .then(if (inset) Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 6.dp) else Modifier)
+            .semantics { heading() }
     )
 }

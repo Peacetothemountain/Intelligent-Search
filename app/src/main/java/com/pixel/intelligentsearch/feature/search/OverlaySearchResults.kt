@@ -439,7 +439,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OverlaySectionLabel("Recent", Modifier)
+                    OverlaySectionLabel("Recent", inset = false)
                     if (distinctRecents.size > 7) {
                         Surface(
                             onClick = {

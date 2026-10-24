@@ -201,6 +201,28 @@ class BackupRestoreScreenTest {
     }
 
     @Test
+    fun thePageAsksToUnlockEvenWithNothingHiddenOrSaved() {
+        // A fresh install: no hidden apps and no saved passphrase, but the backup still holds every setting.
+        FakeVerifyPrompt.lockSet = true
+        FakeVerifyPrompt.approve = true
+        showPage()
+
+        assertEquals(1, FakeVerifyPrompt.prompts)
+        compose.onNodeWithText("Select Backup to Restore").assertExists()
+    }
+
+    @Test
+    fun cancellingTheUnlockLeavesThePage() {
+        FakeVerifyPrompt.lockSet = true
+        FakeVerifyPrompt.approve = false
+        showPage()
+        advance()
+
+        assertEquals(1, FakeVerifyPrompt.prompts)
+        assertEquals(1, backs)
+    }
+
+    @Test
     fun aPassphraseShorterThanTheBackupMinimumCantBeSaved() {
         showPage()
         typePassphrase("short")
@@ -405,10 +427,13 @@ class FakeSecurityChip {
     }
 }
 
-/** The system prompt: never needed to open the page; when shown, the user [approve]s it or cancels. */
+/**
+ * The system prompt: by default the phone has no screen lock, so opening the page needs none ([lockSet] gives it
+ * one); when shown, the user [approve]s it or cancels.
+ */
 @Implements(BiometricSearchGate::class)
 class FakeVerifyPrompt {
-    @Implementation fun canPrompt(): Boolean = false
+    @Implementation fun canPrompt(): Boolean = lockSet
 
     @Implementation
     fun authenticate(activity: Activity, title: String, subtitle: String?, onSuccess: () -> Unit, onFailure: () -> Unit) {
@@ -424,10 +449,12 @@ class FakeVerifyPrompt {
     companion object {
         var approve = false
         var prompts = 0
+        var lockSet = false
 
         fun reset() {
             approve = false
             prompts = 0
+            lockSet = false
         }
     }
 }

@@ -118,18 +118,12 @@ fun BackupRestoreScreen(
     var dialogErrorMessage by remember { mutableStateOf<String?>(null) }
     // A passphrase restore spends seconds deriving the key; meanwhile it shows progress and can't be started again.
     var restoring by remember { mutableStateOf(false) }
-    // Backups carry the hidden-app list (export reveals it, restore replaces it) and this screen fills in
-    // the saved passphrase, so whenever either exists it asks for the same unlock as Manage Hidden Apps.
+    // A backup carries every setting (export reveals them, restore replaces them), so the page always asks for the
+    // same unlock as Manage Hidden Apps, even before any app is hidden or a passphrase saved.
     val isScreenUnlocked = rememberProtectedPageUnlock(
         title = "Unlock Encrypted Backup",
         subtitle = "Verify it’s you to back up or restore your settings",
-        onBack = onBack,
-        isProtectionNeeded = {
-            withContext(Dispatchers.IO) {
-                !prefs[SettingsManager.HIDDEN_APPS].isNullOrEmpty() ||
-                    viewModel?.hasSavedPassphraseOnSecurityChip() == true
-            }
-        }
+        onBack = onBack
     )
     val backupExoPlayer = rememberBugdroidPlayer(BugdroidClip.BACKUP, enabled = isScreenUnlocked)
     // Only whether one is saved: the saved passphrase is never decrypted into the field. Read again after a save that

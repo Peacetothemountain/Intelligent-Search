@@ -1,9 +1,4 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  Intelligent Search launcher icon. With themed icons off it is drawn as is, in the wallpaper's Material You colors
-  (light and dark). With themed icons on, the launcher tints the monochrome layer instead: the lens, the sparkle and
-  the halftone light as one alpha mask (drawable-nodpi/ic_launcher_monochrome), so the themed icon keeps the halftone.
--->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@drawable/ic_launcher_background" />
     <foreground android:drawable="@drawable/ic_launcher_foreground" />

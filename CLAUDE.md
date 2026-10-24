@@ -33,3 +33,10 @@ and force pushes are blocked. So:
 3. Then push the same commit to `main` (`git push origin dev:main`, a fast-forward).
 
 If CI fails, fix it on `dev` and repeat; never push to `main` around it.
+
+## Finding your way through the history
+
+`docs/HISTORY.md` maps the branches and tags, every version code to its commit, and known Play Console crashes to
+their fixes. Each version is tagged `v<versionName>-<versionCode>`. Read history with `git log dev` or `git log main`,
+not `--all`: the `refs/t3/` checkpoint refs on the owner's PC hold copies of commits that were never on GitHub. Pushing a
+`v*` tag starts the release workflow, so tag only a release you mean to publish.

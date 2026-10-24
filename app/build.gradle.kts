@@ -102,6 +102,10 @@ android {
           // (-PlayoutAudit) and writes its report and captures to build/layout-audit.
           // Gradle's default 512 MB isn't enough for this many Robolectric and screenshot tests in one worker.
           test.maxHeapSize = "2g"
+          // Robolectric runs each test on one thread, so the tests spread over up to three JVMs side by side (CI's four
+          // cores: about a third of the time of one). The layout audit appends to one shared report, so it keeps to one.
+          test.maxParallelForks =
+            if (project.hasProperty("layoutAudit")) 1 else (Runtime.getRuntime().availableProcessors() - 1).coerceIn(1, 3)
           // Widget doodles follow the date; an ordinary day keeps screenshots from changing on holidays.
           test.systemProperty("intelligentsearch.doodleDate", "2026-03-03")
           // The matte shells' film grain doesn't compress; goldens leave it out except the one that pins it.

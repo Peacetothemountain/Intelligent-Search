@@ -12,7 +12,7 @@ permissions:
 jobs:
   release:
     name: Build & Upload Release APK
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       # Actions are pinned to full commit SHAs (tag in the comment) so a moved tag can't change the build.
       # The job's token can write to the repository and the build runs third-party Gradle code, so the token is not

@@ -13,7 +13,7 @@ permissions:
 jobs:
   build:
     name: Build & Check
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     # A normal run takes well under this; a hung test stops here instead of holding a runner for six hours.
     timeout-minutes: 45
     steps:

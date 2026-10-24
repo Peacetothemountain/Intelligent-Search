@@ -4,7 +4,7 @@
   ic_launcher_background. Engineered by NG Designs.
   108 x 108 dp canvas. The mark is drawn in the search icons' 24-unit box (SearchIconPaths), scaled to 56% of the
   72 dp visible plate (40.3 dp, inside the 66 dp safe zone) and nudged right and up so the lens and sparkle together
-  sit centred. The lens is one true circle (centre 10.5,10.5, radius 6.5) open from 300 to 45 degrees, with the
+  sit centered. The lens is one true circle (center 10.5,10.5, radius 6.5) open from 300 to 45 degrees, with the
   handle starting exactly on it; the sparkle runs from light blue at its far tip to deep blue beside the lens.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"

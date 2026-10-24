@@ -28,7 +28,7 @@ import androidx.compose.ui.graphics.asComposePath
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -99,6 +99,8 @@ internal fun sparkPosition(burst: Float, index: Int, count: Int, centre: Offset,
 }
 
 /** The mark's outline as one path in its drawable's 24-unit grid, read from the drawable's own path data. */
+// The logos are vector drawables, which are XML resources, so reading one with getXml is valid.
+@android.annotation.SuppressLint("ResourceType")
 internal fun logoOutline(resources: Resources, @DrawableRes drawable: Int): android.graphics.Path? = runCatching {
     val parser = resources.getXml(drawable)
     var path: android.graphics.Path? = null
@@ -125,10 +127,10 @@ private const val ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/androi
  */
 @Composable
 fun AiProviderLogo(provider: AiProvider, modifier: Modifier = Modifier, size: Dp = 20.dp, selected: Boolean = false) {
-    val context = LocalContext.current
+    val resources = LocalResources.current
     val painter = painterResource(aiProviderLogo(provider))
     val animate by rememberAnimationsEnabled()
-    val outline = remember(provider) { logoOutline(context.resources, aiProviderLogo(provider)) }
+    val outline = remember(provider, resources) { logoOutline(resources, aiProviderLogo(provider)) }
     val contentColor = LocalContentColor.current
     val brand = aiProviderBrandColors(provider).ifEmpty { listOf(contentColor) }
     // 1 is finished: a logo first drawn shows as it is.

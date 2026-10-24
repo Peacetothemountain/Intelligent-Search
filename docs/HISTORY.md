@@ -49,6 +49,7 @@ were never on GitHub.
 | 9.3 | 123 | `e1ac99c9` | 2026-10-17 |
 | 9.3.1 | 124 | `2ab4882f` | 2026-10-17 |
 | 9.3.1 | 125 | `678bc5cf` (the released commit) | 2026-10-18 |
+| 9.4 | 126 | the commit tagged `v9.4-126` | 2026-10-23 |
 
 Some codes that reached Google Play were never committed with their number: 9.06 (105), 9.1.1 (109), and 111, 117 and
 119. A crash report from one of them belongs to the code between the tags either side of it: 105 sits between

@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="docs/images/logo.svg" width="72" height="72" alt="Intelligent Search logo" />
-
-# Intelligent Search
+<img src="docs/images/banner.png" width="640" alt="Intelligent Search" />
 
 **A Pixel-inspired search overlay, assistant and home screen widget for Android**
 

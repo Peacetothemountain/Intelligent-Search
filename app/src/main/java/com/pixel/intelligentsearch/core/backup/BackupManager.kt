@@ -587,6 +587,10 @@ class BackupManager @Inject constructor(
                     val flag = WidgetSettingsStore.hctFlagKey(design)
                     val restoresSliders = listOf("hue", "saturation", "lightness").any { spObj.has("${design.prefix}_custom_$it") }
                     if (restoresSliders && !spObj.has(flag)) editor.remove(flag)
+                    // A file from before the inner pill and circle had their own palette forces them, or not, without
+                    // a color: they take the default then, not whatever this phone had picked since.
+                    val pill = "${design.prefix}_lock_pill_color"
+                    if (spObj.has("${design.prefix}_lock_black") && !spObj.has(pill)) editor.remove(pill)
                 }
                 if (editor.commit()) {
                     restoredCount += typedRestored

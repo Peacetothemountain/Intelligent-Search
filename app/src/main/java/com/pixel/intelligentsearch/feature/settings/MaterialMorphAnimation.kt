@@ -71,7 +71,6 @@ import androidx.graphics.shapes.MutableCubic
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import kotlinx.coroutines.flow.collectLatest
-import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.max
@@ -538,7 +537,6 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val wideOcclusionStroke = remember(density) { Stroke(width = with(density) { 7.dp.toPx() }) }
     val rippleStroke = remember(density) { Stroke(width = with(density) { 1.dp.toPx() }) }
     val hardRippleStroke = remember(density) { Stroke(width = with(density) { 1.5.dp.toPx() }) }
-    val surfaceLinePx = with(density) { 1.dp.toPx() }
     val innerShadowPx = with(density) { 2.5.dp.toPx() }
     val lipPx = with(density) { 1.5.dp.toPx() }
     val membraneBandPx = with(density) { 1.5.dp.toPx() }
@@ -555,9 +553,7 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val dipAlpha = if (isDark) 0.28f else 0.1f
     val slopeAlpha = if (isDark) 0.45f else 0.18f
     val membraneLightAlpha = if (isDark) 0.32f else 0.45f
-    val floorLineAlpha = if (isDark) 0.5f else 0.28f
     val pixelAlphaMax = if (isDark) 0.75f else 0.6f
-    val scanlineAlphaMax = if (isDark) 0.35f else 0.28f
     // Bumped every frame; the Canvas reads it so only drawing reruns, never composition.
     val frame = remember { mutableLongStateOf(0L) }
 
@@ -750,14 +746,6 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                             val side = pixelPx * (1f - 0.45f * local)
                             drawRect(pixelColor, topLeft = Offset(px - side / 2f, py - side / 2f), size = Size(side, side), alpha = a * pixelAlphaMax)
                         }
-                        val scan = scanlineAlpha(phase)
-                        if (scan > 0f) {
-                            val half = halfWidth * (0.45f + 0.8f * k)
-                            for (line in 0..1) {
-                                val y = snapTo(centreY + (line - 0.5f) * pixelPx * 1.5f, pixelPx / 2f)
-                                drawLine(pixelColor, Offset(xPx - half, y), Offset(xPx + half, y), strokeWidth = surfaceLinePx * 0.75f, alpha = scan * scanlineAlphaMax * (1f - 0.4f * line))
-                            }
-                        }
                     }
                 }
                 if (imprint.soft) {
@@ -874,8 +862,8 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                 }
             }
 
-            // The floor's surface, seen only where a shape has broken it: dipping round a pressing shape and catching
-            // its light along the stretch, then springing back past its rest line and ringing out across the rubber.
+            // Where a shape presses the floor, its near edge dips round it and catches the shape's light along the
+            // stretch. No line is drawn along the floor itself.
             for (i in 0 until count) {
                 if (!sunk[i]) continue
                 val body = bodies[i]
@@ -902,21 +890,6 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                         )
                     }
                 }
-            }
-            val typicalPx = scene.radiiMetres[1] * ppm
-            for (n in 0 until edge.lastIndex) {
-                val moved = max(abs(edge[n] - floorPx), abs(edge[n + 1] - floorPx)) / (0.12f * typicalPx)
-                var fresh = 0f
-                val x = (n + 0.5f) * nodePx
-                for (imprint in physics.imprints) {
-                    if (!imprint.active) continue
-                    val strength = imprint.shrink
-                    if (strength <= 0f) continue
-                    fresh = max(fresh, strength * membraneBump((x - imprint.x * ppm) / (imprint.radius * ppm * MEMBRANE_REACH)))
-                }
-                val strength = (fresh * 0.5f + moved).coerceIn(0f, 1f)
-                if (strength < 0.02f) continue
-                drawLine(shadowColor, Offset(n * nodePx, edge[n]), Offset((n + 1) * nodePx, edge[n + 1]), strokeWidth = surfaceLinePx, alpha = floorLineAlpha * sqrt(strength))
             }
         }
     }

@@ -61,9 +61,6 @@ class MorphFloorEffectsTest {
             val peak = samples().maxOf { pixelAlpha(it, delay) }
             assertTrue("delay $delay: peak $peak", peak in 0.95f..1f)
         }
-        assertEquals(0f, scanlineAlpha(0f), 0f)
-        assertEquals(0f, scanlineAlpha(0.5f), 0f)
-        assertTrue(samples().all { scanlineAlpha(it) in 0f..1f })
     }
 
     @Test

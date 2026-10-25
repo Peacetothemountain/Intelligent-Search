@@ -124,10 +124,6 @@ internal fun pixelAlpha(phase: Float, delay: Float): Float {
     return 4f * local * (1f - local)
 }
 
-/** The faint scanlines across the closing hollow: their opacity, 0 to 1, at [phase] of the pixel phase. */
-internal fun scanlineAlpha(phase: Float): Float =
-    if (phase <= 0f || phase >= 0.5f) 0f else sin(PI.toFloat() * phase / 0.5f)
-
 private fun smoothStep(from: Float, to: Float, x: Float): Float {
     val t = ((x - from) / (to - from)).coerceIn(0f, 1f)
     return t * t * (3f - 2f * t)

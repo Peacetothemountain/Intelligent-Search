@@ -74,7 +74,11 @@ class AtAGlanceOverlayTest {
         hilt.inject()
         disableHandRolledAnimations()
         TutorialManager.completeTutorial(prefs)
-        prefs.edit().put(SettingsManager.SEARCH_WEB_SUGGESTIONS, false).commit()
+        // Every item switched on (they are off by default), so each test turns off only what it is about.
+        prefs.edit().put(SettingsManager.SEARCH_WEB_SUGGESTIONS, false)
+            .put(SettingsManager.GLANCE_ALARM, true).put(SettingsManager.GLANCE_TIMERS, true)
+            .put(SettingsManager.GLANCE_MEDIA, true).put(SettingsManager.GLANCE_BIRTHDAYS, true)
+            .put(SettingsManager.GLANCE_CLOCK, true).commit()
         index.clear()
     }
 

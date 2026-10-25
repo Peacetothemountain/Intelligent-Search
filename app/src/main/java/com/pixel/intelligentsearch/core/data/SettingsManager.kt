@@ -149,7 +149,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             StringSetting("search.files.open_with.${group.id}", OpenWithChoice.DEFAULT_STORED)
         }
         val APP_ANIMATIONS = BooleanSetting("app_animations", true, "app.animation")
-        val MORPH_ANIMATION_ENABLED = BooleanSetting("morph_animation_enabled", false)
+        val MORPH_ANIMATION_ENABLED = BooleanSetting("morph_animation_enabled", true)
         val BOTTOM_SEARCH = BooleanSetting("settings.bottom.search", true, "bottom_search")
         val BOTTOM_SEARCH_RESULT = BooleanSetting("settings.bottom.search.result", true, "bottom_search_result")
         val TUTORIAL_COMPLETED = BooleanSetting("tutorial_completed", false)
@@ -223,17 +223,17 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val APP_FUNCTIONS_SHARE_CONTACTS = BooleanSetting("appfunctions_share_contacts", false)
         /** Pinned results, as JSON (ResultShortcuts); read through ResultShortcutStore. Older nickname and trigger word fields are ignored. */
         val RESULT_SHORTCUTS = StringSetting("result_shortcuts_json", "[]")
-        /** At a Glance: timely cards above the empty search. Each item has its own switch below. */
+        /** At a Glance: timely cards above the empty search, on by default; each item has its own switch below, off by default. */
         val GLANCE_ENABLED = BooleanSetting("glance.enabled", true)
-        val GLANCE_ALARM = BooleanSetting("glance.alarm", true)
+        val GLANCE_ALARM = BooleanSetting("glance.alarm", false)
         /** Timers and stopwatches, read from the clock's notifications (needs notification access). */
-        val GLANCE_TIMERS = BooleanSetting("glance.timers", true)
+        val GLANCE_TIMERS = BooleanSetting("glance.timers", false)
         /** At a Glance's Media Controls, read from media sessions (needs notification access). */
-        val GLANCE_MEDIA = BooleanSetting("glance.media", true)
+        val GLANCE_MEDIA = BooleanSetting("glance.media", false)
         /** Contacts' birthdays this week (needs contact search and the contacts permission). */
-        val GLANCE_BIRTHDAYS = BooleanSetting("glance.birthdays", true)
+        val GLANCE_BIRTHDAYS = BooleanSetting("glance.birthdays", false)
         /** The clock in the At a Glance card's corner. */
-        val GLANCE_CLOCK = BooleanSetting("glance.clock", true)
+        val GLANCE_CLOCK = BooleanSetting("glance.clock", false)
         /** The clock's face, as a GlanceClockStyle's stored value. */
         val GLANCE_CLOCK_STYLE = StringSetting("glance.clock_style", "cookie")
         /**

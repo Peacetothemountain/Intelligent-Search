@@ -1,14 +1,20 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ActivityInfo
 import android.content.pm.ApplicationInfo
 import android.content.pm.ResolveInfo
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -28,6 +34,7 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -36,7 +43,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/** The Application Search pills page: system back in its app picker, and TalkBack's way to reorder pills. */
+/**
+ * The Application Search pills page: system back in its app picker, TalkBack's way to reorder and remove pills, and
+ * pills swiped away: one still flying off is saved however the list goes away, and Reset puts it back.
+ */
 @OptIn(ExperimentalTestApi::class)
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -144,5 +154,136 @@ class SearchPillsScreenTest {
         compose.onNode(hasText("a.\u200Bb")).performCustomAccessibilityActionWithLabel("Remove")
         compose.settle(steps = 5)
         assertEquals(listOf("c.d"), SearchPillProfiles(prefs).pills())
+    }
+
+    // ---- With animations on, as on a phone: a removed pill flies off before it is saved ----
+
+    private var shown by mutableStateOf(true)
+
+    private fun showAnimated() {
+        // The scale is static, and @Before (and screenshot tests run earlier in this JVM) turn animations off.
+        ValueAnimator::class.java.getMethod("setDurationScale", Float::class.javaPrimitiveType).invoke(null, 1f)
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            IntelligentSearchTheme(darkTheme = false) { if (shown) SearchPillsScreen(prefs, onBack = { backCalls++ }) }
+        }
+        compose.settle(steps = 5)
+    }
+
+    /** Publishes the test thread's writes (with auto-advance off nothing else would) and runs [n] frames. */
+    private fun frames(n: Int) {
+        Snapshot.sendApplyNotifications()
+        repeat(n) { compose.mainClock.advanceTimeByFrame() }
+    }
+
+    private fun pill(packageName: String) = compose.onNode(hasText(packageName.replace(".", ".\u200B")))
+
+    private fun pillLeft(packageName: String) = pill(packageName).getUnclippedBoundsInRoot().left.value
+
+    /** Asks TalkBack's Remove of [packageName] and lets a few frames of its flight run. */
+    private fun removeMidFlight(packageName: String) {
+        pill(packageName).performCustomAccessibilityActionWithLabel("Remove")
+        frames(3)
+        assertTrue("$packageName is still flying off, not yet saved", packageName in SearchPillProfiles(prefs).pills())
+    }
+
+    @Test
+    fun talkBackRemoveFliesThePillOffThenRemovesIt() {
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, "a.b,c.d").commit()
+        showAnimated()
+        val restingLeft = pillLeft("a.b")
+        removeMidFlight("a.b")
+        assertTrue("on its way to the wall", pillLeft("a.b") < restingLeft)
+
+        compose.settle(steps = 10)
+        assertEquals(listOf("c.d"), SearchPillProfiles(prefs).pills())
+        pill("a.b").assertDoesNotExist()
+    }
+
+    @Test
+    fun aRemovalSurvivesClosingThePageMidFlight() {
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, "a.b,c.d").commit()
+        showAnimated()
+        removeMidFlight("a.b")
+
+        shown = false
+        frames(2)
+        assertEquals(listOf("c.d"), SearchPillProfiles(prefs).pills())
+    }
+
+    @Test
+    fun aRemovalSurvivesOpeningThePickerMidFlight() {
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, "a.b,c.d").commit()
+        showAnimated()
+        removeMidFlight("a.b")
+
+        openPicker()
+        assertEquals(listOf("c.d"), SearchPillProfiles(prefs).pills())
+        systemBack()
+        pill("a.b").assertDoesNotExist()
+    }
+
+    /** Switching profile mid-flight removes the pill from the profile it was swiped on, not the one switched to. */
+    @Test
+    fun aRemovalMidFlightStaysWithItsProfile() {
+        prefs.edit()
+            .put(SettingsManager.SEARCH_PILLS, "a.b,c.d")
+            .putString("app_search_profile_2", "a.b,e.f")
+            .commit()
+        showAnimated()
+        removeMidFlight("a.b")
+
+        compose.onNodeWithText("Profile 2").performClick()
+        compose.settle(steps = 10)
+        assertEquals(listOf("a.b", "e.f"), SearchPillProfiles(prefs).pills())
+        assertEquals("c.d", prefs.getString("app_search_profile_1", null))
+    }
+
+    /** Reset puts back the saved list, so a pill still flying off stays. */
+    @Test
+    fun resetDuringARemovalKeepsThePill() {
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, "a.b,c.d").commit()
+        SearchPillProfiles(prefs).saveState(listOf("a.b", "c.d"))
+        showAnimated()
+        removeMidFlight("a.b")
+
+        compose.onNodeWithContentDescription("Reset to Saved State").performClick()
+        compose.settle(steps = 10)
+        assertEquals(listOf("a.b", "c.d"), SearchPillProfiles(prefs).pills())
+        pill("a.b").assertExists()
+    }
+
+    @Test
+    fun resetSlidesThePillsInFromTheRight() {
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, "a.b,c.d").commit()
+        SearchPillProfiles(prefs).saveState(listOf("a.b", "c.d"))
+        showAnimated()
+        val restingLeft = pillLeft("c.d")
+
+        compose.onNodeWithContentDescription("Reset to Saved State").performClick()
+        frames(4)
+        assertTrue("arriving from the right", pillLeft("a.b") > restingLeft)
+        assertTrue("arriving from the right", pillLeft("c.d") > restingLeft)
+
+        compose.settle(steps = 10)
+        assertEquals(restingLeft, pillLeft("a.b"), 0.5f)
+        assertEquals(restingLeft, pillLeft("c.d"), 0.5f)
+    }
+
+    @Test
+    fun anAddedAppSlidesIn() {
+        installLauncherApp("Alpha Notes", "com.example.alpha")
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, "a.b").commit()
+        showAnimated()
+        openPicker()
+
+        compose.onNodeWithText("Alpha Notes").performClick()
+        frames(4)
+        val restingLeft = pillLeft("a.b")
+        assertTrue("arriving from the right", pillLeft("com.example.alpha") > restingLeft)
+
+        compose.settle(steps = 10)
+        assertEquals(listOf("a.b", "com.example.alpha"), SearchPillProfiles(prefs).pills())
+        assertEquals(restingLeft, pillLeft("com.example.alpha"), 0.5f)
     }
 }

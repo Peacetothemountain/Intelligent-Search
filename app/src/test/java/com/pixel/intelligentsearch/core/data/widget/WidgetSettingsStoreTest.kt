@@ -68,7 +68,7 @@ class WidgetSettingsStoreTest {
         assertEquals("System", unsaved.subtheme)
         assertEquals("Google Lens", unsaved.shortcut1)
         assertFalse(store.isSaved(WidgetDesign.SYSTEM))
-        // Element colours always fell back to the shared key.
+        // Element colors always fell back to the shared key.
         assertEquals(0xFF00FF00.toInt(), unsaved.elementColors.mic)
 
         prefs.edit().putBoolean("widget_system_design_saved", true).commit()
@@ -155,7 +155,7 @@ class WidgetSettingsStoreTest {
         assertFalse(prefs.contains(WidgetSettingsStore.hctFlagKey(WidgetDesign.SYSTEM)))
     }
 
-    /** The slider values an older version's HSV hue, saturation and value are read as: the colour they showed. */
+    /** The slider values an older version's HSV hue, saturation and value are read as: the color they showed. */
     private fun shown(hue: Int, saturation: Int, value: Int = 100) = MaterialYouPaletteHelper.wholeSeedSliders(
         Color.HSVToColor(floatArrayOf(hue.toFloat(), saturation / 100f, value / 100f)), greyHue = hue.toFloat()
     )

@@ -39,7 +39,7 @@ import kotlin.math.abs
  * The editor's live preview paints what the widget draws for the same settings: the backdrop's opacity, the rim, the
  * pill, the circle, the G and every icon, for each design, subtheme, inner pill state and G style (the Material G
  * style's drawings compared pixel for pixel), with the Color Studio sliders at several values. The preview is drawn
- * with the colour scheme of the theme the widget follows.
+ * with the color scheme of the theme the widget follows.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -128,7 +128,7 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
             Sliders(lightness = 30, opacity = 100, transparency = 0),
             Sliders(hue = 40, saturation = 20, lightness = 100, opacity = 45, transparency = 35),
             Sliders(hue = 300, saturation = 100, lightness = 60, opacity = 100, transparency = 70),
-            // Black, mid-tone, grey and white seeds, where the icons flip or run out of colour.
+            // Black, mid-tone, grey and white seeds, where the icons flip or run out of color.
             Sliders(hue = 120, saturation = 80, lightness = 0),
             Sliders(hue = 20, saturation = 90, lightness = 50),
             Sliders(hue = 250, saturation = 0, lightness = 45),
@@ -170,7 +170,7 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
                     if (bar.material) assertTint("$label circle icon", Color(preview.customIcons.action), widget, R.id.widget_sound_icon)
                 }
                 "Material G Icon" -> {
-                    // The widget draws these as bitmaps from the colours the preview draws them with.
+                    // The widget draws these as bitmaps from the colors the preview draws them with.
                     val a = preview.materialIconAccents
                     val light = preview.pill.isLight
                     assertBitmap(
@@ -199,8 +199,8 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
     }
 
     /**
-     * The bar's outline and corners as the preview draws them ([WidgetBarShape] and the preview's colours): the bar's
-     * height, the outline's colour and corners, and the pill's and circle's corners.
+     * The bar's outline and corners as the preview draws them ([WidgetBarShape] and the preview's colors): the bar's
+     * height, the outline's color and corners, and the pill's and circle's corners.
      */
     @Test
     fun previewShapeMatchesWidget() {

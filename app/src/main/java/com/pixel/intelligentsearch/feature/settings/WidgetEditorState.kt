@@ -42,7 +42,7 @@ internal class WidgetDraftFields(active: MutableState<WidgetDesignSettings>, mat
     var customActionColor by draftField(active, { it.elementColors.action }) { d, v -> d.copy(elementColors = d.elementColors.copy(action = v)) }
     var customSyncColors by draftField(active, { it.syncColors }) { d, v -> d.copy(syncColors = v) }
     // The Color Studio sliders pass fractions, but a design is saved in whole numbers; the draft keeps whole numbers
-    // too, so the preview shows the colour the widget will draw once saved.
+    // too, so the preview shows the color the widget will draw once saved.
     var hue by draftField(active, { it.hue }) { d, v -> d.copy(hue = whole(v)) }
     var saturation by draftField(active, { it.saturation }) { d, v -> d.copy(saturation = whole(v)) }
     var lightness by draftField(active, { it.lightness }) { d, v -> d.copy(lightness = whole(v)) }
@@ -84,7 +84,7 @@ internal class WidgetEditorState(initialSlotItemHeightPx: Float) {
 }
 
 /**
- * The element being coloured by the Custom G style's sliders, and their Hue, Saturation and Brightness (HSV, 0..360 and
+ * The element being colored by the Custom G style's sliders, and their Hue, Saturation and Brightness (HSV, 0..360 and
  * 0..100); starts over when the user switches design.
  */
 internal class WidgetColorSelection {
@@ -93,13 +93,13 @@ internal class WidgetColorSelection {
     var customIconSat by mutableFloatStateOf(100f)
     var customIconVal by mutableFloatStateOf(100f)
 
-    /** The colour the sliders are on: the one they last picked or were put on, null before either. */
+    /** The color the sliders are on: the one they last picked or were put on, null before either. */
     private var shown: Int? = null
 
     /**
-     * Puts the sliders on [color], the colour of the element being edited, unless they are already on it. A colour set
+     * Puts the sliders on [color], the color of the element being edited, unless they are already on it. A color set
      * anywhere but the sliders (another element, another profile, Reset, the hex field) moves them, so they never show
-     * one colour while the next touch picks from another. A colour they picked themselves leaves them exactly where
+     * one color while the next touch picks from another. A color they picked themselves leaves them exactly where
      * they are: it holds only whole steps of 1/255, and a grey or black has no hue (or black no saturation) to give
      * back. A grey keeps the hue the sliders had.
      */
@@ -113,7 +113,7 @@ internal class WidgetColorSelection {
         shown = color
     }
 
-    /** Moves the sliders to [hue], [saturation] and [brightness] and gives the opaque colour they pick there. */
+    /** Moves the sliders to [hue], [saturation] and [brightness] and gives the opaque color they pick there. */
     fun pick(hue: Float = customIconHue, saturation: Float = customIconSat, brightness: Float = customIconVal): Int {
         customIconHue = hue
         customIconSat = saturation

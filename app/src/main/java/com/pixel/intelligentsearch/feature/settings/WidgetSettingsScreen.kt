@@ -61,14 +61,14 @@ import kotlinx.coroutines.launch
 private data class SlotPreviewItem(val slotKey: String, val label: String, val resId: Int)
 
 /**
- * The live preview's pill: its fill, and whether that fill is light, which picks the colours of the icons on it. The
+ * The live preview's pill: its fill, and whether that fill is light, which picks the colors of the icons on it. The
  * fill is opaque, as the widget's is within its backdrop; the backdrop's own opacity is [WidgetPreviewColors.backdropAlpha].
  */
 internal data class PreviewPill(val fill: Color, val isLight: Boolean)
 
 /**
- * The preview pill of the design being edited. Whether a theme-coloured pill is light or dark comes from
- * the colour scheme this screen is drawn with, the same source as its fill, so the icons drawn on it keep their
+ * The preview pill of the design being edited. Whether a theme-colored pill is light or dark comes from
+ * the color scheme this screen is drawn with, the same source as its fill, so the icons drawn on it keep their
  * contrast when the app's theme differs from the system's.
  */
 @Composable
@@ -85,8 +85,8 @@ internal fun previewPill(
 )
 
 /**
- * [previewPill] with the screen's theme passed in: [themedSurface] fills a theme-coloured pill. The fixed light and
- * dark pills of the System subtheme without dynamic colour follow the app's theme ([appDark]), as the widget does: it
+ * [previewPill] with the screen's theme passed in: [themedSurface] fills a theme-colored pill. The fixed light and
+ * dark pills of the System subtheme without dynamic color follow the app's theme ([appDark]), as the widget does: it
  * draws in the app's theme, which the system's dark theme only decides while the app follows the system.
  */
 internal fun previewPill(
@@ -123,7 +123,7 @@ internal fun previewPill(
     }
 }
 
-/** The colours the preview is drawn with: this screen's scheme, and whether the app is dark. */
+/** The colors the preview is drawn with: this screen's scheme, and whether the app is dark. */
 internal data class PreviewTheme(
     val primary: Color,
     val primaryContainer: Color,
@@ -151,7 +151,7 @@ internal data class WidgetPreviewColors(
     val materialIconAccents: SearchIconColors.Accents,
     /** What the System G style tints the shortcuts and the circle's icon. */
     val systemIconTint: Color,
-    /** The Custom G style's colours as drawn: Sync All Colors applied, and darker where the widget darkens them. */
+    /** The Custom G style's colors as drawn: Sync All Colors applied, and darker where the widget darkens them. */
     val customIcons: WidgetElementColors,
     /** Whether the mic is the Material You drawing rather than the original one. */
     val usesMaterialYouIcons: Boolean
@@ -160,7 +160,7 @@ internal data class WidgetPreviewColors(
 /**
  * What the live preview paints for [draft] on the [isMaterialDesign] design, drawn with [theme], as the widget draws
  * the same settings. [iconAccents] gives the search overlay's icon accents for a light (true) or dark bar
- * ([SearchIconColors.themeAccents]), and [widgetColors] the widget's own colours for a dark (true) or light surface.
+ * ([SearchIconColors.themeAccents]), and [widgetColors] the widget's own colors for a dark (true) or light surface.
  */
 internal fun widgetPreviewColors(
     draft: WidgetDesignSettings,
@@ -178,7 +178,7 @@ internal fun widgetPreviewColors(
     val accentColor = if (isCustomTheme) Color(draft.customColorInt) else theme.primary
 
     val materialRim = if (isMaterialDesign) {
-        // Locked black, the widget rims its black pill in the dark theme's colours, whatever the theme.
+        // Locked black, the widget rims its black pill in the dark theme's colors, whatever the theme.
         val (rimPrimary, rimContainer) = if (lockBlack && !theme.appDark) {
             widgetColors(true).let { Color(it.primary) to Color(it.primaryContainer) }
         } else {
@@ -293,7 +293,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     // Material-only settings.
     var localActionIcon by fields::actionIcon
 
-    // The custom colour exactly as the widget will draw it from the saved settings.
+    // The custom color exactly as the widget will draw it from the saved settings.
     val computedCustomColorInt = activeDraft.value.customColorInt
     var draggingSlotKey by ui::draggingSlotKey
     val view = androidx.compose.ui.platform.LocalView.current
@@ -357,7 +357,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
         // Both designs are persisted so edits made on the other tab before switching aren't lost. A design only
         // counts as saved once it differs from what was loaded, which keeps the legacy-key fallbacks intact for a
-        // design the user never touched. Element colours are stored per design only; the old shared
+        // design the user never touched. Element colors are stored per design only; the old shared
         // "widget_custom_*" keys stay as the fallback for a design that has never been saved.
         val system = systemDraft.value
         val material = materialDraft.value
@@ -562,7 +562,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Live Preview Card (Pinned at the top for real-time visual feedback), in the page's own colour, so the
+            // Live Preview Card (Pinned at the top for real-time visual feedback), in the page's own color, so the
             // widget sits on what a Home screen would show behind it, with only the matte grain added.
             val previewShellLook = com.pixel.intelligentsearch.core.ui.expressive.rememberMatteShellLook(
                 containerColor = MaterialTheme.colorScheme.background,
@@ -591,7 +591,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) {
                     val isCustomTheme = localSubtheme == "Custom"
-                    // The wave behind the preview takes the custom colour as picked, opacity and all.
+                    // The wave behind the preview takes the custom color as picked, opacity and all.
                     val waveColor = if (isCustomTheme) {
                         androidx.compose.ui.graphics.Color(computedCustomColorInt)
                     } else {

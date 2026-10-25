@@ -22,7 +22,7 @@ enum class WidgetDesign(val prefix: String, val themeStyle: String) {
         get() = if (this == SYSTEM) SettingsManager.WIDGET_SYSTEM_CORNER_RADIUS else SettingsManager.WIDGET_MATERIAL_CORNER_RADIUS
 }
 
-/** Custom colours for each widget element (used by the "Custom" G icon style). */
+/** Custom colors for each widget element (used by the "Custom" G icon style). */
 data class WidgetElementColors(
     val gIcon: Int,
     val mic: Int,
@@ -33,7 +33,7 @@ data class WidgetElementColors(
 )
 
 /**
- * Everything the user customizes for one widget design. Hue is 0..360, saturation, lightness, colour opacity
+ * Everything the user customizes for one widget design. Hue is 0..360, saturation, lightness, color opacity
  * and background transparency are 0..100 (what the sliders show). [lockBlack] and [actionIcon] only apply to
  * the Material design.
  */
@@ -64,7 +64,7 @@ data class WidgetDesignSettings(
     val cornerRadius: Int = 28
 ) {
     /**
-     * The custom pill colour these settings produce (what the widget draws for the "Custom" subtheme): the HCT seed
+     * The custom pill color these settings produce (what the widget draws for the "Custom" subtheme): the HCT seed
      * Hue, Saturation and Lightness pick ([MaterialYouPaletteHelper.seedColor]), as opaque as Color Opacity says.
      */
     val customColorInt: Int
@@ -73,8 +73,8 @@ data class WidgetDesignSettings(
 }
 
 /**
- * Values that depend on the device rather than on stored settings: the theme's primary colour (default for
- * custom element colours, hue and saturation), and whether dynamic colour is active (default G icon style).
+ * Values that depend on the device rather than on stored settings: the theme's primary color (default for
+ * custom element colors, hue and saturation), and whether dynamic color is active (default G icon style).
  */
 data class WidgetDefaults(val primaryColor: Int, val isDynamicColorActive: Boolean) {
     private val hsv = FloatArray(3).also { Color.colorToHSV(primaryColor, it) }
@@ -111,9 +111,9 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
             prefs.getString("${p}_$key", if (saved) prefs.getString(legacy, default) else default) ?: default
         fun int(key: String, legacy: String, default: Int): Int =
             prefs.getInt("${p}_$key", if (saved) prefs.getInt(legacy, default) else default)
-        // Element colours: per-design key, else the old shared key, else the fallback. The old builds wrote
+        // Element colors: per-design key, else the old shared key, else the fallback. The old builds wrote
         // Google blue as a placeholder; an unsaved placeholder means "use the fallback". For the slots the
-        // fallback is the old single "all shortcuts" colour when one was stored, else the theme colour.
+        // fallback is the old single "all shortcuts" color when one was stored, else the theme color.
         fun color(key: String, fallback: Int = defaults.primaryColor): Int {
             val perDesign = "${p}_custom_${key}_color"
             val value = prefs.getInt(perDesign, prefs.getInt("widget_custom_${key}_color", fallback))
@@ -133,7 +133,7 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
             string("shortcut_$n", "widget_shortcut_$n", default).let { if (it == "Voice Search") "None" else it }
 
         // Hue, Saturation and Lightness pick an HCT seed. Versions before the seed's flag read them as HSV, so values
-        // they left (or none, for the defaults they showed) are read as the colour they showed, in the whole numbers
+        // they left (or none, for the defaults they showed) are read as the color they showed, in the whole numbers
         // the sliders hold.
         val hue = themed("custom_hue", "widget_custom_hue", 277, defaults.hue)
         val saturation = themed("custom_saturation", "widget_custom_saturation", 51, defaults.saturation)

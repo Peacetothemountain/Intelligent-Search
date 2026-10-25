@@ -68,15 +68,15 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 
 /**
- * The Material You colour roles the shapes are filled with, one per shape in turn, so the three on screen at most are
- * always different colours. Material 3 keeps container roles for filled shapes that are not text, and its fixed roles
+ * The Material You color roles the shapes are filled with, one per shape in turn, so the three on screen at most are
+ * always different colors. Material 3 keeps container roles for filled shapes that are not text, and its fixed roles
  * at the same tone in light and dark themes (https://m3.material.io/styles/color/roles): the fixed-dim tones carry the
  * set on a light page and glow on a dark one, while the containers are its light accents in the light theme and its
- * deep ones in the dark. All of them follow the wallpaper with dynamic colour, as Pixel's own expressive UI does.
+ * deep ones in the dark. All of them follow the wallpaper with dynamic color, as Pixel's own expressive UI does.
  */
 internal val MORPH_COLOR_ROLES = listOf("primaryFixedDim", "tertiaryContainer", "secondaryFixedDim", "primaryContainer", "tertiaryFixedDim")
 
-/** The fill colours for [scheme], in the order of [MORPH_COLOR_ROLES]. */
+/** The fill colors for [scheme], in the order of [MORPH_COLOR_ROLES]. */
 internal fun morphPalette(scheme: ColorScheme): List<Color> = MORPH_COLOR_ROLES.map { role ->
     when (role) {
         "primaryFixedDim" -> scheme.primaryFixedDim
@@ -153,7 +153,7 @@ private class MorphPathBuilder : (MutableCubic) -> Unit {
     }
 }
 
-/** A soft, round falloff (close to a Gaussian) of [color] from the centre of a circle of radius [UNIT] at the origin. */
+/** A soft, round falloff (close to a Gaussian) of [color] from the center of a circle of radius [UNIT] at the origin. */
 private fun softFalloff(color: Color): Brush = Brush.radialGradient(
     0f to color,
     0.25f to color.copy(alpha = color.alpha * 0.86f),
@@ -170,7 +170,7 @@ private const val UNIT = 64f
 /** How flat the floor is seen: a shadow or silhouette on it is drawn this share as tall as it is wide. */
 private const val FLOOR_FORESHORTENING = 0.2f
 
-/** A shape sunk into the floor is seen through it: its colour this far towards the floor's. */
+/** A shape sunk into the floor is seen through it: its color this far towards the floor's. */
 private const val SUBMERGED_TINT = 0.5f
 
 /** On a dark page a shadow is less visible, so it is drawn this much darker. */
@@ -195,7 +195,7 @@ internal class MorphSceneInfo(val physics: MorphBouncePhysics) {
     var bouncesFelt = 0
     /** The MaterialShapes names of the shapes, in the order a shape morphs through them. */
     var shapeNames: List<String> = emptyList()
-    /** The fill colours, from the theme's roles in [MORPH_COLOR_ROLES]; shape n is filled with colour n mod five. */
+    /** The fill colors, from the theme's roles in [MORPH_COLOR_ROLES]; shape n is filled with color n mod five. */
     var palette: List<Color> = emptyList()
 }
 
@@ -303,22 +303,22 @@ private fun rememberPowerSaveMode(): State<Boolean> {
  * - every bounce morphs the shape into the next of a shuffled sequence with androidx.graphics.shapes' [Morph], on the
  *   expressive fast spatial spring, overshooting a touch, while it turns a quarter turn the way it travels, as
  *   Google's morphing LoadingIndicator turns 90 degrees with each morph;
- * - they are filled with Material You's dynamic colour roles ([MORPH_COLOR_ROLES]), so they follow the wallpaper and
+ * - they are filled with Material You's dynamic color roles ([MORPH_COLOR_ROLES]), so they follow the wallpaper and
  *   the dark theme, and a shape brightens briefly with each bounce;
  * - each casts a contact shadow on the floor from one light above and a little to the left, shaped from its own
  *   silhouette seen flat on the floor: sharp, dark and tight on the floor, with a dark ambient occlusion right at the
  *   contact, and wider, softer and fainter the higher it is (see [MorphBouncePhysics.shadowFor]); on a dark page it is
- *   drawn darker, with a faint reflection of the shape's colour;
- * - landing soft, a shape sends two or three thin ripples in its colour across the floor, each following its outline
+ *   drawn darker, with a faint reflection of the shape's color;
+ * - landing soft, a shape sends two or three thin ripples in its color across the floor, each following its outline
  *   seen flat on the floor and fading as it spreads; landing hard, one sharp, quick one;
  * - sunk into the floor, a shape is in it: the floor membrane dips smoothly round it over nearly three radii, stretched
  *   over it and catching the light along the stretch, and under the membrane's near edge only a ghost of the shape
- *   shows through, its colour towards the floor's;
+ *   shows through, its color towards the floor's;
  * - the silhouette it leaves is a real hollow in the floor's perspective, lit from above: crisp at its edge in its
- *   outline and colour, its far wall in shadow softening to the centre, a thin bright lip on its near edge, and soft
+ *   outline and color, its far wall in shadow softening to the center, a thin bright lip on its near edge, and soft
  *   occlusion just outside the rim; it lingers, then the floor fills it in from the rim on a spring
  *   ([healShrink]), the rim's light fading last, and its last moment breaks into a few tiny pixels in the primary
- *   colour that dissolve, as the floor's surface rings back;
+ *   color that dissolve, as the floor's surface rings back;
  * - they flatten a little as they sink, wobble once off the hard floor, stretch a little along their path when
  *   falling fast and scale in on a spatial spring as they come out from under the card (see
  *   [MorphBouncePhysics.animateLook] and [morphPoseOf]).
@@ -364,7 +364,7 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val colors = remember(colorScheme) { morphPalette(colorScheme) }
     val isDark = colorScheme.background.luminance() < 0.5f
     val shadowColor = if (isDark) Color.Black else colorScheme.onSurface
-    // The floor's own colour, a touch off the page's, which a shape sunk into it is seen through.
+    // The floor's own color, a touch off the page's, which a shape sunk into it is seen through.
     val floorColor = lerp(colorScheme.background, colorScheme.onSurface, 0.12f)
     // The last moment of a healing silhouette breaks into a few pixels of this.
     val pixelColor = colorScheme.primary
@@ -373,7 +373,7 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     // Shade falling off from a hollow's far wall, and darkening down the membrane's slope into it.
     val shadeDownBrush = remember(shadowColor) { verticalFade(shadowColor, darkAtTop = true) }
     val shadeUpBrush = remember(shadowColor) { verticalFade(shadowColor, darkAtTop = false) }
-    // The light a hollow's near lip and the stretched membrane catch, from each shape's own colour.
+    // The light a hollow's near lip and the stretched membrane catch, from each shape's own color.
     val lipColors = remember(colors, isDark) { colors.map { if (isDark) lerp(it, Color.White, 0.3f) else it } }
     val membraneLights = remember(colors, isDark) { colors.map { lerp(it, Color.White, if (isDark) 0.45f else 0.15f) } }
     // Everything a frame draws with is made here, once: paths, poses, the shadow, strokes.
@@ -510,7 +510,7 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                 val xPx = imprint.x * ppm
                 val colorIndex = imprint.bodyId % colors.size
                 if (!imprint.holding) {
-                    // The hollow: the floor fills it back in from the rim, so its outline closes on its centre.
+                    // The hollow: the floor fills it back in from the rim, so its outline closes on its center.
                     val heal = healProgress(imprint.sinceRelease)
                     val shrink = healShrink(heal)
                     val k = abs(shrink)
@@ -542,7 +542,7 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                             clipPath(hollowComposePath) {
                                 // Its floor, out of the light from above.
                                 drawPath(hollowComposePath, shadowColor, alpha = hollowAlpha * shade)
-                                // The far wall, under the floor line, darkest at the top, softening to the centre.
+                                // The far wall, under the floor line, darkest at the top, softening to the center.
                                 drawUnitGradient(shadeDownBrush, xPx - spanPx, top, 2f * spanPx, (centreY - top) * 1.3f + 1f, farWallAlpha * shade)
                                 // The inner shadow under every upper edge of the outline (a lobe turned up).
                                 for (layer in 1..2) {
@@ -560,7 +560,7 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                                     }
                                 }
                             }
-                            // The crisp edge, in the shape's own outline and colour, fading last.
+                            // The crisp edge, in the shape's own outline and color, fading last.
                             drawPath(hollowComposePath, colors[colorIndex], alpha = edgeAlpha * rimLight, style = rimStroke)
                         }
                     } else if (shrink < -0.005f) {
@@ -685,7 +685,7 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                 if (shadow.aoAlpha > 0.01f) {
                     drawSoft(shadowBrush, xPx, floorPx - shadow.aoWidth * ppm * FLOOR_FORESHORTENING * 0.15f, shadow.aoWidth * ppm, (shadow.aoAlpha * boost).coerceAtMost(0.9f))
                 }
-                // A dark floor shows a faint reflection of the shape's colour as it comes close.
+                // A dark floor shows a faint reflection of the shape's color as it comes close.
                 if (isDark && body.penetration <= 0f) {
                     val closeness = 1f - ((physics.floor - yM - body.radius) / (6f * body.radius)).coerceIn(0f, 1f)
                     if (closeness > 0.02f) drawSoft(reflectionBrushes[body.id % colors.size], xPx, floorPx, 2.4f * radiusPx, 0.22f * closeness * closeness)
@@ -870,7 +870,7 @@ private fun DrawScope.drawOutlineRipple(
     drawPath(targetCompose, color, alpha = alpha.coerceAtMost(1f), style = stroke)
 }
 
-/** A soft falloff ellipse [widthPx] wide (and [FLOOR_FORESHORTENING] as tall), centred on [cx], [cy], lying on the floor. */
+/** A soft falloff ellipse [widthPx] wide (and [FLOOR_FORESHORTENING] as tall), centerd on [cx], [cy], lying on the floor. */
 private fun DrawScope.drawSoft(brush: Brush, cx: Float, cy: Float, widthPx: Float, alpha: Float) {
     if (widthPx <= 0f || alpha <= 0f) return
     translate(cx, cy) {
@@ -881,7 +881,7 @@ private fun DrawScope.drawSoft(brush: Brush, cx: Float, cy: Float, widthPx: Floa
 }
 
 /**
- * One shape, [path] being its outline in the polygon's own units: centred on [cx], [cy], stretched along its path,
+ * One shape, [path] being its outline in the polygon's own units: centerd on [cx], [cy], stretched along its path,
  * squashed, turned, drawn [sizePx] per polygon unit about its pivot, with a soft halo while it [glow]s.
  */
 private fun DrawScope.drawShape(

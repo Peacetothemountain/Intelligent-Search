@@ -28,30 +28,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 
-/** The hue slider's track: the colour wheel unrolled, red to red. */
+/** The hue slider's track: the color wheel unrolled, red to red. */
 internal val HUE_GRADIENT = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)
 
-/** The Color Studio's hue track: the custom colour's HCT hues round the wheel, at full saturation and mid lightness. */
+/** The Color Studio's hue track: the custom color's HCT hues round the wheel, at full saturation and mid lightness. */
 private val SEED_HUE_GRADIENT: List<Color> by lazy {
     (0..12).map { Color(MaterialYouPaletteHelper.seedColor(it * 30f, 100f, 60f)) }
 }
 
-/** The custom colour's [hue] and [saturation] at each of [lightnesses]. */
+/** The custom color's [hue] and [saturation] at each of [lightnesses]. */
 private fun seedTrack(hue: Float, saturation: Float, lightnesses: List<Float>): List<Color> =
     lightnesses.map { Color(MaterialYouPaletteHelper.seedColor(hue, saturation, it)) }
 
-/** The space between two of the editor's colour sliders, below the room the slider leaves under its track. */
+/** The space between two of the editor's color sliders, below the room the slider leaves under its track. */
 internal val SLIDER_ROW_GAP = 4.dp
 
 /**
  * The Transparency slider's track, left to right as the slider runs from 0 to 100: the bar's background as it is
- * drawn at Transparency 0 ([color], at the custom colour's opacity for the Custom subtheme), fading to nothing. The
- * colour keeps its hue all the way, rather than darkening towards black.
+ * drawn at Transparency 0 ([color], at the custom color's opacity for the Custom subtheme), fading to nothing. The
+ * color keeps its hue all the way, rather than darkening towards black.
  */
 internal fun transparencyTrack(color: Color): List<Color> = listOf(color, color.copy(alpha = 0f))
 
 /**
- * The Color Opacity slider's track: the custom colour from fully see-through to fully opaque. It fades from the colour
+ * The Color Opacity slider's track: the custom color from fully see-through to fully opaque. It fades from the color
  * itself at no opacity; fading from transparent black darkened the left half of the track.
  */
 internal fun colorOpacityTrack(color: Color): List<Color> = listOf(color.copy(alpha = 0f), color.copy(alpha = 1f))
@@ -74,9 +74,9 @@ private fun Modifier.checkerboard(light: Color, dark: Color, cell: androidx.comp
     }
 
 /**
- * One of the widget editor's colour sliders: an icon, the [label] and [valueText] above, and the slider over an 8dp
+ * One of the widget editor's color sliders: an icon, the [label] and [valueText] above, and the slider over an 8dp
  * [gradient] track, drawn over a [checkerboard] when the track fades out. The slider keeps its full 48dp height, with
- * the track centred in it, so its 36dp thumb stays clear of the text above; it is named [label] for TalkBack, so the
+ * the track centerd in it, so its 36dp thumb stays clear of the text above; it is named [label] for TalkBack, so the
  * icon beside it isn't announced, and reads [valueText] as its value ("180°" rather than a share of the range).
  */
 @Composable
@@ -128,7 +128,7 @@ internal fun GradientSliderRow(
 }
 
 /**
- * The Color Studio tab of the widget editor: the custom colour sliders, Transparency with them, and hex entry.
+ * The Color Studio tab of the widget editor: the custom color sliders, Transparency with them, and hex entry.
  * [barBackground] is the bar's background as the preview draws it at Transparency 0, for the Transparency track.
  */
 @Composable
@@ -175,7 +175,7 @@ internal fun WidgetColorStudioTab(
                 icon = Icons.Default.WaterDrop,
                 label = "Saturation",
                 valueText = "${localSaturation.toInt()}%",
-                // Grey to the most colourful at this lightness (kept off black and white, where no hue shows).
+                // Grey to the most colorful at this lightness (kept off black and white, where no hue shows).
                 gradient = listOf(0f, 100f).map {
                     Color(MaterialYouPaletteHelper.seedColor(localHue, it, localLightness.coerceIn(15f, 85f)))
                 },
@@ -194,7 +194,7 @@ internal fun WidgetColorStudioTab(
                 icon = Icons.Outlined.BrightnessMedium,
                 label = "Lightness",
                 valueText = "${localLightness.toInt()}%",
-                // Black through the colour to white.
+                // Black through the color to white.
                 gradient = seedTrack(localHue, localSaturation, listOf(0f, 25f, 50f, 75f, 100f)),
                 value = localLightness,
                 onValueChange = {

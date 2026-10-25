@@ -89,7 +89,7 @@ class MorphFloorEffectsTest {
         assertEquals(0f, membraneBump(1f), 0f)
         assertEquals(0f, membraneBump(-1f), 0f)
         assertEquals(0f, membraneBump(1.4f), 0f)
-        // Symmetric, falling away from the centre, and meeting the floor flat (no kink at the edge).
+        // Symmetric, falling away from the center, and meeting the floor flat (no kink at the edge).
         for (u in samples()) {
             assertEquals(membraneBump(u), membraneBump(-u), 1e-6f)
         }

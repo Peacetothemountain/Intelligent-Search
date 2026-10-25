@@ -265,7 +265,7 @@ class MorphBouncePhysicsTest {
             val entered = mutableSetOf<Int>()
             run(physics, 30f, onFrame = {
                 for (b in physics.bodies) {
-                    // A shape enters from just under the card (centre at -radius); once fully in, its top stays in.
+                    // A shape enters from just under the card (center at -radius); once fully in, its top stays in.
                     if (b.y - b.radius >= 0f) entered += b.id
                     if (b.id in entered) assertTrue("seed $seed: shape ${b.id} rose to ${b.y - b.radius}", b.y - b.radius >= -1e-3f)
                 }

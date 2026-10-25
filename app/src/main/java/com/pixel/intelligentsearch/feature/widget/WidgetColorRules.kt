@@ -8,7 +8,7 @@ import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import kotlin.math.roundToInt
 
 /**
- * The colour rules the widget and the widget editor's live preview share, so the preview paints what the widget
+ * The color rules the widget and the widget editor's live preview share, so the preview paints what the widget
  * draws for the same settings. Slider values are as [WidgetDesignSettings] holds them: hue 0..360, the rest 0..100.
  */
 @Suppress("RestrictedApi")
@@ -23,7 +23,7 @@ internal object WidgetColorRules {
     /** The contrast the System G style's plain icons keep with the bar: Material's high-contrast level for on-surface. */
     private const val PLAIN_CONTRAST = 11.0
 
-    /** Chroma of the System G style's plain icons against the custom colour's, as Material's tonal-spot neutrals. */
+    /** Chroma of the System G style's plain icons against the custom color's, as Material's tonal-spot neutrals. */
     private const val PLAIN_SHARE = 1.0 / 6.0
 
     /**
@@ -56,7 +56,7 @@ internal object WidgetColorRules {
     }
 
     /**
-     * [settings]' Custom subtheme colours on the Material ([isMaterialDesign]) or System design. The accent keeps 7:1
+     * [settings]' Custom subtheme colors on the Material ([isMaterialDesign]) or System design. The accent keeps 7:1
      * with the pill and the plain icons 11:1 (Material's high-contrast levels for primary and on-surface; a mid-tone
      * pill that can't reach them gets the better of white and black).
      */
@@ -82,7 +82,7 @@ internal object WidgetColorRules {
     /**
      * The accents the Material G style's icons (its G, mic, shortcuts and circle icon) are worked out from, the search
      * overlay's way ([SearchIconColors]), for a light ([isPillLight]) or dark pill: the theme's ([themeAccents]), or
-     * for the Custom subtheme those a wallpaper of the custom colour would give, so the icons are the overlay's in
+     * for the Custom subtheme those a wallpaper of the custom color would give, so the icons are the overlay's in
      * that hue.
      */
     fun materialIconAccents(
@@ -115,12 +115,12 @@ internal object WidgetColorRules {
      * fades the whole bar's background at once, so every part of it is exactly as see-through as the slider says,
      * except a pill locked black ([LOCKED_PILL]), which stays solid.
      *
-     * Color Opacity is the custom colour's own opacity. When the whole backdrop is the custom colour (the Custom
+     * Color Opacity is the custom color's own opacity. When the whole backdrop is the custom color (the Custom
      * subtheme's pill, circle and rim, or on the System design its pill and the outline that is as see-through as it)
      * it fades the backdrop with Transparency, for the same reason.
      *
      * The Material design's Inner Pill & Circle State locks the pill and circle to a solid black: the backdrop stays
-     * fully opaque, and the rim alone takes Transparency (with Color Opacity when it's the custom colour). The opaque
+     * fully opaque, and the rim alone takes Transparency (with Color Opacity when it's the custom color). The opaque
      * pill and circle cover the rim beneath them, so nothing is painted twice there either.
      */
     fun backdropAlphas(settings: WidgetDesignSettings, isMaterialDesign: Boolean): BackdropAlphas {
@@ -136,7 +136,7 @@ internal object WidgetColorRules {
     }
 
     /**
-     * [color] (opaque) drawn at [alpha] over [background], as one opaque colour: what the eye sees there. Used to draw
+     * [color] (opaque) drawn at [alpha] over [background], as one opaque color: what the eye sees there. Used to draw
      * a see-through bar onto a known background, so it looks the same whatever is really behind it.
      */
     fun blendOver(color: Int, alpha: Float, background: Int): Int {
@@ -153,15 +153,15 @@ internal object WidgetColorRules {
         isMaterialDesign && !lockBlack && isPillLight
 
     /**
-     * An icon colour as the bar draws it: the colour the user picked (Custom G style) or the theme's accent, darkened
+     * An icon color as the bar draws it: the color the user picked (Custom G style) or the theme's accent, darkened
      * to [targetTone] where [darkensIcons] says so, and as given everywhere else.
      */
     fun iconColor(color: Int, isMaterialDesign: Boolean, lockBlack: Boolean, isPillLight: Boolean, targetTone: Double = 32.0): Int =
         if (darkensIcons(isMaterialDesign, lockBlack, isPillLight)) MaterialYouPaletteHelper.darkenForContrast(color, targetTone) else color
 
     /**
-     * The Custom G style's colours for each element as the bar draws them: with Sync All Colors every icon takes the
-     * G's colour, and on a light Material pill that isn't locked black each is darkened for contrast ([iconColor]).
+     * The Custom G style's colors for each element as the bar draws them: with Sync All Colors every icon takes the
+     * G's color, and on a light Material pill that isn't locked black each is darkened for contrast ([iconColor]).
      */
     fun customIconColors(settings: WidgetDesignSettings, isMaterialDesign: Boolean, isPillLight: Boolean): WidgetElementColors {
         val c = settings.elementColors
@@ -179,7 +179,7 @@ internal object WidgetColorRules {
 
     /**
      * Whether the mic is the Material You drawing rather than the original one: always on the Material design, and
-     * on the System design unless the System G style sits on a dark theme-coloured pill.
+     * on the System design unless the System G style sits on a dark theme-colored pill.
      */
     fun usesMaterialYouIcons(isMaterialDesign: Boolean, gIconTheme: String, isPillLight: Boolean, subtheme: String): Boolean =
         isMaterialDesign || gIconTheme != "System G Icon" || isPillLight || subtheme == "Custom"

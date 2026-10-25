@@ -53,7 +53,7 @@ internal fun rippleAlpha(progress: Float): Float {
 internal const val MEMBRANE_REACH = 2.8f
 
 /**
- * How far down the membrane is [u] of the way from the sunk shape's centre (0) to the edge of the dip (±1), as a share
+ * How far down the membrane is [u] of the way from the sunk shape's center (0) to the edge of the dip (±1), as a share
  * of its sag there: 1 under the shape, easing smoothly to 0, flat, at the edge, so the floor curves down into it.
  */
 internal fun membraneBump(u: Float): Float {

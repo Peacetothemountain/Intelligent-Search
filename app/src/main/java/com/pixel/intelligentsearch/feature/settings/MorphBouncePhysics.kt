@@ -34,7 +34,7 @@ import kotlin.random.Random
  * are fully past the edge. The silhouette it left in the floor heals after it has gone.
  *
  * The floor line sits [FLOOR_DEPTH_SHARE] of the largest shape's height above the bottom of the area, so a shape
- * sunk into the floor, and its silhouette, are still on screen. Positions are body centres, y downwards, with the top
+ * sunk into the floor, and its silhouette, are still on screen. Positions are body centers, y downwards, with the top
  * of the area at 0, the floor line at [floor] and the bottom of the area at [height].
  *
  * Shapes come at random, never more than [MAX_SHAPES] at a time: sometimes one, sometimes a burst of two or three,
@@ -132,7 +132,7 @@ internal class MorphBouncePhysics(
      */
     class Imprint {
         var active = false
-        /** The body that made it, for its colour. */
+        /** The body that made it, for its color. */
         var bodyId = 0
         var x = 0f
         var y = 0f
@@ -163,7 +163,7 @@ internal class MorphBouncePhysics(
      */
     class Ripple {
         var active = false
-        /** The body that struck, for its colour. */
+        /** The body that struck, for its color. */
         var bodyId = 0
         var x = 0f
         var radius = 0f
@@ -285,7 +285,7 @@ internal class MorphBouncePhysics(
     }
 
     /**
-     * Shapes that touch bounce apart: an impulse along the line between their centres, shared by mass, and a
+     * Shapes that touch bounce apart: an impulse along the line between their centers, shared by mass, and a
      * friction impulse across it that sets them spinning. Overlap is pushed out so they never sink into each other.
      */
     private fun collide() {

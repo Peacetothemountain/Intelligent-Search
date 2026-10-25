@@ -11,7 +11,7 @@ import kotlin.math.abs
 import kotlin.random.Random
 
 /**
- * How the Material Morph animation looks: Material 3 Expressive shapes, Material You colour roles, a morph that
+ * How the Material Morph animation looks: Material 3 Expressive shapes, Material You color roles, a morph that
  * completes on every bounce, squash, stretch and scale-in that stay within their bounds, and no fading.
  */
 class MaterialMorphLookTest {
@@ -126,7 +126,7 @@ class MaterialMorphLookTest {
         val dark = morphPalette(darkColorScheme())
         assertTrue(light[1] != dark[1] && light[3] != dark[3])
         assertEquals(light[0], dark[0])
-        // Three shapes at most, five colours, given in turn: no two on screen alike.
+        // Three shapes at most, five colors, given in turn: no two on screen alike.
         assertEquals(5, light.toSet().size)
         assertEquals(5, dark.toSet().size)
     }

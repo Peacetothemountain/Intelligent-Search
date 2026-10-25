@@ -52,6 +52,16 @@ internal object WallBounce {
     /** A flick toward a wall at least this fast (dp per second) dismisses, however short the drag. */
     const val FLING_DP_PER_S = 900f
 
+    /**
+     * The hit on the wall before the card flies off: the squash is kicked (in widths per second, at least
+     * [MIN_HIT_KICK] however gently it arrives) and springs back on a bouncy spring, so the card visibly presses into
+     * the wall, rebounds with a stretch and is off.
+     */
+    const val HIT_DAMPING = 0.35f
+    const val HIT_STIFFNESS = 500f
+    const val MIN_HIT_KICK = 1.6f
+    const val MAX_HIT_KICK = 2.4f
+
     /** The pace the rebound off the wall is measured against: the exit's distance over this long. */
     const val EXIT_MILLIS = 420
 
@@ -355,12 +365,12 @@ internal class WallBounceState(
                         offset.snapTo(target)
                     }
                 }
-                // 2. The hit: it presses in a little more for the speed it arrives with, springs back out and leaves
-                // as it comes clear of the wall; the spring's small overshoot is the stretch of the rebound.
+                // 2. The hit: it presses well into the wall (harder the faster it arrives, and always visibly), springs
+                // back out and leaves as it comes clear of the wall; the spring's overshoot is the stretch of the rebound.
                 squash.animateTo(
                     targetValue = 0f,
-                    animationSpec = spring(dampingRatio = 0.45f, stiffness = 700f),
-                    initialVelocity = (speed / width).coerceAtMost(0.6f)
+                    animationSpec = spring(dampingRatio = WallBounce.HIT_DAMPING, stiffness = WallBounce.HIT_STIFFNESS),
+                    initialVelocity = (speed / width).coerceIn(WallBounce.MIN_HIT_KICK, WallBounce.MAX_HIT_KICK)
                 ) { if (value <= 0f) leave() }
                 leave()
             }

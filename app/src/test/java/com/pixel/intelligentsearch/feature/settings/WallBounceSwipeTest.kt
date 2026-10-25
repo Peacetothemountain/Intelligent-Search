@@ -166,7 +166,7 @@ class WallBounceSwipeTest {
         compose.mainClock.advanceTimeBy(2_000)
     }
 
-    /** It leaves at the Widget Shortcuts slots' pace: off the wall and clear of the far edge in about a third of a second. */
+    /** It bounces visibly off the wall, then leaves at the Widget Shortcuts slots' pace, gone in under half a second. */
     @Test
     fun aDismissedCardIsGoneQuickly() {
         show()
@@ -174,9 +174,20 @@ class WallBounceSwipeTest {
         state.onDrag(-(GAP + 0.3f * WIDTH))
         frames()
         state.onDragStop(0f)
-        compose.mainClock.advanceTimeBy(340)
+        // Pressed visibly further into the wall as it is let go, then a stretch as it rebounds: the bounce off it.
+        val held = WallBounce.squashFor(0.3f * WIDTH, WIDTH)
+        var deepest = 0f
+        var stretched = 0f
+        repeat(12) {
+            frames(1)
+            deepest = maxOf(deepest, state.squash.value)
+            stretched = minOf(stretched, state.squash.value)
+        }
+        assertTrue("barely pressed in: $deepest after $held", deepest > held + 0.02f)
+        assertTrue("no rebound stretch: $stretched", stretched < -0.005f)
+        compose.mainClock.advanceTimeBy(250)
         frames()
-        assertEquals("gone in about a third of a second", 1, exits)
+        assertEquals("gone in well under half a second", 1, exits)
         assertEquals(-GAP + WallBounce.exitDistance(GAP, WIDTH, GAP), state.offset.value, 0.5f)
     }
 

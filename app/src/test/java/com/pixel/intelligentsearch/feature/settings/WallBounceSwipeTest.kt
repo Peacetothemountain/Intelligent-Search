@@ -106,29 +106,6 @@ class WallBounceSwipeTest {
     }
 
     @Test
-    fun exitEasingRisesFromZeroToOneLeavingAtItsStartingShare() {
-        for (share in listOf(0f, 0.15f, 0.35f, 0.6f, 1f)) {
-            val easing = WallBounce.exitEasing(share)
-            assertEquals(0f, easing.transform(0f), 1e-6f)
-            assertEquals(1f, easing.transform(1f), 1e-6f)
-            var last = 0f
-            for (i in 1..100) {
-                val f = easing.transform(i / 100f)
-                assertTrue("share $share: rises at ${i / 100f}", f > last)
-                last = f
-            }
-            // It leaves the wall at [share] of the average speed (the slope at the start).
-            val t = 1e-3f
-            assertEquals("share $share: starting speed", share, easing.transform(t) / t, 2e-3f)
-            // And speeds up after: never faster at the start than at the end.
-            assertTrue(easing.transform(t) / t <= (1f - easing.transform(1f - t)) / t + 1e-3f)
-        }
-        // A share outside 0..1 is held to it.
-        assertEquals(WallBounce.exitEasing(0f).transform(0.5f), WallBounce.exitEasing(-1f).transform(0.5f), 0f)
-        assertEquals(WallBounce.exitEasing(1f).transform(0.5f), WallBounce.exitEasing(3f).transform(0.5f), 0f)
-    }
-
-    @Test
     fun reboundShareIsAThirdOfTheHitWithinItsBounds() {
         assertEquals(0f, WallBounce.reboundShare(5_000f, 0f), 0f)
         assertEquals(0f, WallBounce.reboundShare(5_000f, -10f), 0f)
@@ -187,6 +164,20 @@ class WallBounceSwipeTest {
     private fun runOut() {
         frames()
         compose.mainClock.advanceTimeBy(2_000)
+    }
+
+    /** It leaves at the Widget Shortcuts slots' pace: off the wall and clear of the far edge in about a third of a second. */
+    @Test
+    fun aDismissedCardIsGoneQuickly() {
+        show()
+        state.onDragStart()
+        state.onDrag(-(GAP + 0.3f * WIDTH))
+        frames()
+        state.onDragStop(0f)
+        compose.mainClock.advanceTimeBy(340)
+        frames()
+        assertEquals("gone in about a third of a second", 1, exits)
+        assertEquals(-GAP + WallBounce.exitDistance(GAP, WIDTH, GAP), state.offset.value, 0.5f)
     }
 
     @Test

@@ -103,6 +103,8 @@ fun SearchPillsScreen(
     // One state object, so drag handlers never write a stale copy.
     var localPillList by remember { mutableStateOf(profiles.pills()) }
     var resetCounter by remember { mutableIntStateOf(0) }
+    // Pills Reset brought back, each with how many times: a new key gives each a fresh card that slides in.
+    var revived by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
     fun persistPills(newPills: List<String>) {
         localPillList = newPills
@@ -245,11 +247,15 @@ fun SearchPillsScreen(
                         ProfileStateActions(
                             profile = activeProfile,
                             onReset = {
-                                // Reset puts back the saved list, so a pill still flying off stays.
+                                // Reset puts back the saved list, so a pill still flying off stays. Only the pills
+                                // that were missing (swiped away, or still flying off) slide back in; the rest stay put.
+                                val shown = (localPillList - leavingPills.toSet()).toSet()
                                 leavingPills.clear()
-                                resetCounter++
-                                localPillList = profiles.resetToSaved()
-                                slideIn(localPillList)
+                                val saved = profiles.resetToSaved()
+                                val missing = saved.filter { it !in shown }
+                                revived = revived + missing.associateWith { (revived[it] ?: 0) + 1 }
+                                localPillList = saved
+                                slideIn(missing)
                             },
                             // A pill flying off is already gone: it isn't part of what's saved.
                             onSave = { profiles.saveState(localPillList - leavingPills.toSet()) }
@@ -595,7 +601,7 @@ fun SearchPillsScreen(
                             }
 
                             Box(modifier = itemModifier) {
-                                key(packageName, resetCounter) {
+                                key(packageName, resetCounter, revived[packageName] ?: 0) {
                                     // Swiped toward a wall, the card presses into it, springs off, comes back through
                                     // the middle and leaves past the other edge; after Reset or an add it slides in
                                     // from the right and settles with a small bounce.

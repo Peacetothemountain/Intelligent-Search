@@ -199,6 +199,12 @@ internal class MorphBouncePhysics(
         internal var onClock = false
         /** How far its healing has got, 0 to 1. */
         var heal = 0f
+        /** Pressed by its shape's second bounce: the one silhouette of that shape that sparkles. */
+        var sparkle = false
+        /** Seconds since its sparkles began, as its shape left it (negative before). */
+        var sparkleAge = -1f
+        /** How far its sparkles have got, 0 to 1, or -1 if it has none (or they haven't begun). */
+        val sparklePhase: Float get() = if (!sparkle || sparkleAge < 0f) -1f else (sparkleAge / SPARKLE_TIME).coerceAtMost(1f)
         /** How much of the hollow is left, as a share of the silhouette: 1 fresh, 0 closed. */
         val shrink: Float get() = if (holding) 1f else if (heal >= HEAL_CLOSE) 0f else healShrink(heal).coerceAtLeast(0f)
     }
@@ -1034,6 +1040,8 @@ internal class MorphBouncePhysics(
         pick.restAtRelease = 0.0
         pick.onClock = false
         pick.heal = 0f
+        pick.sparkle = b.bounces == SPARKLE_BOUNCE
+        pick.sparkleAge = -1f
         b.imprint = pick
     }
 
@@ -1070,6 +1078,7 @@ internal class MorphBouncePhysics(
             if (imprint.holding) {
                 if (bodies.any { it.imprint === imprint && it.inContact }) continue
                 imprint.holding = false
+                if (imprint.sparkle) imprint.sparkleAge = 0f
                 imprint.restAtRelease = min(restUnder(imprint), imprint.depth.toDouble())
                 if (imprint.restAtRelease < 1e-4) imprint.onClock = true
             }
@@ -1079,7 +1088,9 @@ internal class MorphBouncePhysics(
                 else imprint.heal = max(imprint.heal, healForShrink(left))
             }
             if (imprint.onClock) imprint.heal = min(1f, imprint.heal + dt / HEAL_TIME)
-            if (imprint.heal >= 1f && imprint.sincePressed > RIPPLES_DONE) imprint.active = false
+            if (imprint.sparkleAge >= 0f && imprint.sparkleAge < SPARKLE_TIME) imprint.sparkleAge += dt
+            val sparkled = !imprint.sparkle || imprint.sparkleAge >= SPARKLE_TIME
+            if (imprint.heal >= 1f && imprint.sincePressed > RIPPLES_DONE && sparkled) imprint.active = false
         }
     }
 
@@ -1277,6 +1288,9 @@ internal class MorphBouncePhysics(
         const val HEAL_TIME = 1.6f
         /** A later (hard) landing's one ripple runs across the floor this long, seconds: sharp and quick. */
         const val HARD_RIPPLE_TIME = 0.34f
+        /** Only the silhouette of a shape's second bounce sparkles, once, for this long, as the shape leaves it. */
+        const val SPARKLE_BOUNCE = 2
+        const val SPARKLE_TIME = 0.45f
         /** A silhouette is kept at least this long, so its ripples run their course. */
         const val RIPPLES_DONE = 1.2f
 

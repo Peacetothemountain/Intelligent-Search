@@ -729,8 +729,8 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                             drawPath(hollowComposePath, colors[colorIndex], alpha = edgeAlpha * rimLight, style = rimStroke)
                         }
                     }
-                    // The hollow's last moment breaks into a few tiny pixels, which dissolve.
-                    val phase = healPixelPhase(heal)
+                    // A shape's second landing, as it leaves, breaks into a few tiny pixels, which dissolve: once a shape.
+                    val phase = imprint.sparklePhase
                     if (phase > 0f && phase < 1f) {
                         val halfWidth = radiusPx * 0.8f
                         val mirror = if (imprint.bodyId % 2 == 0) 1f else -1f

@@ -254,6 +254,37 @@ class MorphBouncePhysicsTest {
     }
 
     @Test
+    fun aShapeSparklesOnceBrieflyAfterItsSecondBounce() {
+        var shapes = 0
+        for (seed in 1..6) {
+            val physics = world(seed)
+            val sparkles = HashMap<Int, Int>()
+            val bouncesAtSparkle = HashMap<Int, Int>()
+            val seenSparkling = java.util.IdentityHashMap<MorphBouncePhysics.Imprint, Float>()
+            run(physics, 30f, onFrame = {
+                for (imprint in physics.imprints) {
+                    if (!imprint.active || imprint.sparklePhase < 0f || imprint in seenSparkling) continue
+                    seenSparkling[imprint] = imprint.sincePressed
+                    sparkles[imprint.bodyId] = (sparkles[imprint.bodyId] ?: 0) + 1
+                    physics.bodies.firstOrNull { it.id == imprint.bodyId }?.let { bouncesAtSparkle[it.id] = it.bounces }
+                }
+                // Gone again within the moment.
+                for (imprint in physics.imprints) if (imprint.active && imprint.sparkleAge > 0f) {
+                    assertTrue("seed $seed: sparkling for ${imprint.sparkleAge}s", imprint.sparkleAge <= MorphBouncePhysics.SPARKLE_TIME + 1f / 120f)
+                }
+                // A silhouette reused for a later landing is a new one.
+                seenSparkling.keys.removeAll { !it.active || it.holding }
+            })
+            for ((id, n) in sparkles) {
+                assertEquals("seed $seed: shape $id sparkled $n times", 1, n)
+                bouncesAtSparkle[id]?.let { assertEquals("seed $seed: shape $id sparkled after bounce $it", 2, it) }
+                shapes++
+            }
+        }
+        assertTrue("only $shapes shapes sparkled", shapes > 30)
+    }
+
+    @Test
     fun anOldDentUnderANewLandingHealsOnOut() {
         val physics = quietWorld(3)
         val first = drop(physics, 0, 0.23f, 100f, 2f, 6f)

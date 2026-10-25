@@ -68,12 +68,16 @@ class WallBounceSwipeTest {
     }
 
     @Test
-    fun aLongEnoughPushPastTheWallDismissesWhicheverWayTheFingerMoves() {
+    fun aLongEnoughPushPastTheWallDismissesUnlessFlickedBack() {
         val over = WallBounce.COMMIT_FRACTION * WIDTH
+        val fast = WallBounce.FLING_DP_PER_S * DENSITY
         for (side in listOf(-1f, 1f)) {
             assertTrue(WallBounce.commits(side * (GAP + over + 1f), 0f, GAP, WIDTH, DENSITY))
-            // Even moving back from the wall as it is let go.
-            assertTrue(WallBounce.commits(side * (GAP + over + 1f), -side * 5_000f, GAP, WIDTH, DENSITY))
+            // Drifting back from the wall as it is let go, it still goes...
+            assertTrue(WallBounce.commits(side * (GAP + over + 1f), -side * (fast - 1f), GAP, WIDTH, DENSITY))
+            // ...but a quick flick back toward the middle takes it back, however far it was pushed.
+            assertFalse(WallBounce.commits(side * (GAP + over + 1f), -side * fast, GAP, WIDTH, DENSITY))
+            assertFalse(WallBounce.commits(side * (GAP + 3f * over), -side * 5_000f * DENSITY, GAP, WIDTH, DENSITY))
             assertFalse(WallBounce.commits(side * (GAP + over - 1f), 0f, GAP, WIDTH, DENSITY))
             assertFalse(WallBounce.commits(side * GAP * 0.8f, 0f, GAP, WIDTH, DENSITY))
         }

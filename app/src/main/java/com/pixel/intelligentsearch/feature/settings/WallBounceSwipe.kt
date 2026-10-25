@@ -84,6 +84,9 @@ internal object WallBounce {
     fun commits(position: Float, velocity: Float, gap: Float, width: Float, density: Float): Boolean {
         if (width <= 0f) return false
         val over = abs(position) - gap
+        // A quick flick back toward the middle takes the card back, however far it was pushed.
+        val backOut = position != 0f && sign(velocity) == -sign(position) && abs(velocity) >= FLING_DP_PER_S * density
+        if (backOut) return false
         if (over > COMMIT_FRACTION * width) return true
         val towardWall = position != 0f && sign(velocity) == sign(position)
         return towardWall && abs(velocity) >= FLING_DP_PER_S * density && abs(position) >= gap * 0.5f

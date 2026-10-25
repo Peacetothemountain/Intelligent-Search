@@ -449,7 +449,7 @@ private class HalftoneScratch {
  * - the floor is drawn only where a shape breaks it, as before: each shape casts a contact shadow from one light above
  *   and a little to the left, sharp and dark on the floor, wider, softer and fainter the higher it is, with a faint
  *   reflection of its color on a dark page; pressed into the rubber it sinks past the floor's near edge, under which
- *   only a ghost of it shows, the edge dipping round it and catching its color along the stretch;
+ *   only a ghost of it shows, the floor shading darker into the dip; no line is drawn along the floor;
  * - a first landing sends three thin ripples in its color across the floor, following its outline seen flat on the
  *   floor; a later one, one sharp quick ripple;
  * - the silhouette it leaves is a real hollow in the floor's perspective, lit from above: crisp at its edge in its
@@ -509,9 +509,8 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     // Shade falling off from a hollow's far wall, and darkening down the floor's slope into a dip.
     val shadeDownBrush = remember(shadowColor) { verticalFade(shadowColor, darkAtTop = true) }
     val shadeUpBrush = remember(shadowColor) { verticalFade(shadowColor, darkAtTop = false) }
-    // The light a hollow's near lip and the stretched floor catch, from each shape's own color.
+    // The light a hollow's near lip catches, from each shape's own color.
     val lipColors = remember(colors, isDark) { colors.map { if (isDark) lerp(it, Color.White, 0.3f) else it } }
-    val membraneLights = remember(colors, isDark) { colors.map { lerp(it, Color.White, if (isDark) 0.45f else 0.15f) } }
     // Everything a frame draws with is made here, once: paths, poses, the shadow, strokes.
     val builder = remember { MorphPathBuilder() }
     val bodyPaths = remember { Array(physics.maxBodies) { android.graphics.Path() } }
@@ -539,7 +538,6 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val hardRippleStroke = remember(density) { Stroke(width = with(density) { 1.5.dp.toPx() }) }
     val innerShadowPx = with(density) { 2.5.dp.toPx() }
     val lipPx = with(density) { 1.5.dp.toPx() }
-    val membraneBandPx = with(density) { 1.5.dp.toPx() }
     val pixelPx = with(density) { 2.dp.toPx() }
     // How strongly each part of the floor is drawn: a light page a lighter touch, a dark one deeper shade.
     val occlusionAlpha = if (isDark) 0.22f else 0.08f
@@ -552,7 +550,6 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val hardRippleAlpha = if (isDark) 0.6f else 0.75f
     val dipAlpha = if (isDark) 0.28f else 0.1f
     val slopeAlpha = if (isDark) 0.45f else 0.18f
-    val membraneLightAlpha = if (isDark) 0.32f else 0.45f
     val pixelAlphaMax = if (isDark) 0.75f else 0.6f
     // Bumped every frame; the Canvas reads it so only drawing reruns, never composition.
     val frame = remember { mutableLongStateOf(0L) }
@@ -862,35 +859,6 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                 }
             }
 
-            // Where a shape presses the floor, its near edge dips round it and catches the shape's light along the
-            // stretch. No line is drawn along the floor itself.
-            for (i in 0 until count) {
-                if (!sunk[i]) continue
-                val body = bodies[i]
-                val sagPx = sags[i]
-                val stretch = membraneStretch(sagPx / ppm, body.radius)
-                if (stretch <= 0f) continue
-                val light = membraneLights[body.id % colors.size]
-                val xPx = (body.prevX + (body.x - body.prevX) * f) * ppm
-                val reach = body.radius * ppm * MEMBRANE_REACH
-                val a = ((xPx - reach) / nodePx).toInt().coerceIn(0, edge.lastIndex)
-                val z = ceil((xPx + reach) / nodePx).toInt().coerceIn(0, edge.lastIndex)
-                for (band in 1..3) {
-                    for (n in a until z) {
-                        val d0 = ((edge[n] - floorPx) / sagPx).coerceIn(0f, 1f)
-                        val d1 = ((edge[n + 1] - floorPx) / sagPx).coerceIn(0f, 1f)
-                        val fade = min(d0, d1)
-                        if (fade <= 0.01f) continue
-                        drawLine(
-                            light,
-                            Offset(n * nodePx, edge[n] + band * membraneBandPx * d0),
-                            Offset((n + 1) * nodePx, edge[n + 1] + band * membraneBandPx * d1),
-                            strokeWidth = membraneBandPx * 1.2f,
-                            alpha = (membraneLightAlpha * stretch / band * fade).coerceAtMost(1f)
-                        )
-                    }
-                }
-            }
         }
     }
 }

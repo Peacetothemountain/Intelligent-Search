@@ -64,6 +64,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.withClip
+import androidx.core.graphics.withSave
 import androidx.graphics.shapes.Morph
 import androidx.graphics.shapes.MutableCubic
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
@@ -858,19 +860,16 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                     val cy = (body.prevY + (body.y - body.prevY) * f) * ppm
                     val r = body.radius * ppm * pose.scale
                     val path = screenPaths[i]
-                    canvas.save()
-                    if (sunk[i]) canvas.clipPath(membranePath)
-                    canvas.save()
-                    canvas.clipPath(path)
-                    look.draw(canvas, body, cx, cy, r, halftone)
-                    canvas.restore()
-                    look.drawRim(canvas, path, cy, r)
-                    canvas.restore()
+                    canvas.withSave {
+                        if (sunk[i]) clipPath(membranePath)
+                        withClip(path) { look.draw(this, body, cx, cy, r, halftone) }
+                        look.drawRim(this, path, cy, r)
+                    }
                     if (sunk[i]) {
-                        canvas.save()
-                        canvas.clipOutPath(membranePath)
-                        canvas.drawPath(path, look.ghostPaint)
-                        canvas.restore()
+                        canvas.withSave {
+                            clipOutPath(membranePath)
+                            drawPath(path, look.ghostPaint)
+                        }
                     }
                 }
             }

@@ -410,8 +410,8 @@ internal class MorphBouncePhysics(
     }
 
     /**
-     * Finds the sheet's tension and damping for this area: a stone ([REFERENCE_DENSITY]) shape of the middle size,
-     * dropped from the top, sinks [REFERENCE_SINK] of its height and comes back at [REFERENCE_REBOUND] of its landing
+     * Finds the sheet's tension and damping for this area: a shape of the middle size and the middle weight
+     * ([REFERENCE_POUNDS]), dropped from the top, sinks [REFERENCE_SINK] of its height and comes back at [REFERENCE_REBOUND] of its landing
      * speed. Found again only when the width or the shapes' size (to within a tenth) changes, so an area resizing
      * every frame under a card that is opening never recalibrates; remembered per width and size, as it is the same
      * every time.
@@ -429,7 +429,7 @@ internal class MorphBouncePhysics(
         val one = ArrayList<Body>(1)
         fun run(): Pair<Float, Float> {
             val s = newSheet()
-            val b = Body(-1, r, REFERENCE_DENSITY * SLAB_THICKNESS * PI.toFloat() * r * r).apply {
+            val b = Body(-1, r, REFERENCE_POUNDS * POUND).apply {
                 x = width / 2f; y = floor - r - 1e-3f; vy = v0; real = false; shapeIndex = 1
             }
             one.clear(); one += b
@@ -669,6 +669,8 @@ internal class MorphBouncePhysics(
     private fun keepsTheRules(g: Body): Boolean {
         if (g.contacts > MAX_LANDINGS || g.stuck) return false
         if (g.entered && g.y - g.radius < -1e-3f) return false
+        // Pressed in, never out of sight: a small heavy shape that would sink right under the floor isn't thrown so.
+        if (g.penetration > MAX_SINK_SHARE * 2f * g.radius) return false
         if (g.landCount >= 1 && (g.landX0 < g.radius || g.landX0 > width - g.radius)) return false
         if (g.landCount >= 2 && (g.landX1 < g.radius || g.landX1 > width - g.radius)) return false
         return true
@@ -1165,7 +1167,11 @@ internal class MorphBouncePhysics(
         const val SUBSTEPS = 6
         /** The floor line sits this share of the largest shape's height above the bottom of the area. */
         const val FLOOR_DEPTH_SHARE = 0.66f
-        /** The sheet is tuned so a stone shape sinks half its height and comes back at 60% of its landing speed. */
+        /** The sheet is tuned so a shape of the middle weight sinks half its height and comes back at 60% of its speed. */
+        const val REFERENCE_POUNDS = 75f
+        /** No shape is thrown so that it would sink deeper than this share of its height. */
+        const val MAX_SINK_SHARE = 0.9f
+        /** The hard ground's restitution is given for a stone shape (density, kg/m³). */
         const val REFERENCE_DENSITY = 2600f
         const val REFERENCE_SINK = 0.5f
         const val REFERENCE_REBOUND = 0.6f

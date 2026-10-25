@@ -79,7 +79,8 @@ class MaterialMorphAnimationThemeTest {
                     listOf(s.primaryFixedDim, s.tertiaryContainer, s.secondaryFixedDim, s.primaryContainer, s.tertiaryFixedDim),
                     info().palette
                 )
-                repeat(60) { compose.mainClock.advanceTimeBy(16) }
+                // Each drop is planned a moment ahead, so the first comes about a second after the page opens.
+                repeat(150) { compose.mainClock.advanceTimeBy(16) }
                 assertTrue("dark $dark: no shapes", info().physics.bodies.isNotEmpty())
             } finally {
                 scenario.close()

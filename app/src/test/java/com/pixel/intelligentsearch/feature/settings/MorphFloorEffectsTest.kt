@@ -113,7 +113,7 @@ class MorphFloorEffectsTest {
         val physics = MorphBouncePhysics(kotlin.random.Random(3), autoSpawn = false).apply {
             resize(scene.widthMetres, scene.heightMetres, scene.radiiMetres)
         }
-        val body = physics.spawn(0.5f)!!
+        val body = physics.spawn()!!
         val kinds = ArrayList<Boolean>()
         var t = 0f
         while (t < 8f && body in physics.bodies) {

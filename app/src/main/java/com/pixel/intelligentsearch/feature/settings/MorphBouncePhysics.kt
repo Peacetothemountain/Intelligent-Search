@@ -349,7 +349,9 @@ internal class MorphBouncePhysics(
         pending.clear()
         desired = if (first && autoSpawn) stepCount + ((FIRST_DROP_MIN + random.nextFloat() * (FIRST_DROP_MAX - FIRST_DROP_MIN)) / STEP).roundToInt()
         else max(desired, stepCount)
-        bodies.removeAll { it.radius > height * MAX_RADIUS_SHARE }
+        // A shape bigger than the new area's largest leaves with the change.
+        val biggest = radii.max().coerceAtMost(height * MAX_RADIUS_SHARE) * 1.001f
+        bodies.removeAll { it.radius > biggest }
         for (body in bodies) {
             if (!keepSheet) body.imprint = null
             if (body.y + body.radius > floor) {
@@ -669,6 +671,8 @@ internal class MorphBouncePhysics(
     private fun keepsTheRules(g: Body): Boolean {
         if (g.contacts > MAX_LANDINGS || g.stuck) return false
         if (g.entered && g.y - g.radius < -1e-3f) return false
+        // Nor is one still coming in knocked back up under the card.
+        if (g.y + g.radius < -1e-3f) return false
         // Pressed in, never out of sight: a small heavy shape that would sink right under the floor isn't thrown so.
         if (g.penetration > MAX_SINK_SHARE * 2f * g.radius) return false
         if (g.landCount >= 1 && (g.landX0 < g.radius || g.landX0 > width - g.radius)) return false
@@ -993,6 +997,13 @@ internal class MorphBouncePhysics(
                 b.vx -= friction * tx * inverseB; b.vy -= friction * ty * inverseB
                 a.spin += friction * a.radius / a.inertia
                 b.spin += friction * b.radius / b.inertia
+            }
+        }
+        // A knock never pushes a shape through the hard ground at the bottom of the area.
+        for (b in list) {
+            if (!shapeOffScreen(b) && b.y + b.radius > height) {
+                b.y = height - b.radius
+                if (b.vy > 0f) b.vy = 0f
             }
         }
     }

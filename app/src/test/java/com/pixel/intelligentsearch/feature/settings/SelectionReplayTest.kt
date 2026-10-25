@@ -1,9 +1,11 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import android.animation.ValueAnimator
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.test.junit4.createComposeRule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -26,6 +28,8 @@ class SelectionReplayTest {
     private var taps by mutableIntStateOf(0)
 
     private fun show() {
+        // The scale is static, and the screenshot tests that may run first in this JVM leave animations off.
+        ValueAnimator::class.java.getMethod("setDurationScale", Float::class.javaPrimitiveType).invoke(null, 1f)
         compose.mainClock.autoAdvance = false
         compose.setContent { motion = rememberSelectionMotion(selected, 600, taps) }
         compose.mainClock.advanceTimeByFrame()
@@ -34,6 +38,8 @@ class SelectionReplayTest {
 
     /** Lets the effect start the animation and a frame or two of it run. */
     private fun aFewFrames() {
+        // Publish the test thread's writes; with auto-advance off nothing else would.
+        Snapshot.sendApplyNotifications()
         compose.mainClock.advanceTimeByFrame()
         compose.mainClock.advanceTimeByFrame()
         compose.mainClock.advanceTimeByFrame()

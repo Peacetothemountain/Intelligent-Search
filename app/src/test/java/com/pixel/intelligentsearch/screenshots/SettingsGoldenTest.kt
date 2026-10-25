@@ -1,7 +1,9 @@
 package com.pixel.intelligentsearch.screenshots
 
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.SharedPreferences
+import android.hardware.biometrics.BiometricManager
 import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -33,6 +35,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.ParameterizedRobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadow.api.Shadow
+import org.robolectric.shadows.ShadowBiometricManager
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -88,6 +93,13 @@ class SettingsGoldenTest(private val page: String, private val dark: Boolean) {
 
     @Test
     fun page() {
+        if (page == "backup") {
+            // Encrypted Backup always asks to unlock, and draws nothing behind the prompt. Its golden is of the page
+            // itself, as a phone with no screen lock or biometrics opens it straight away.
+            val context = ApplicationProvider.getApplicationContext<Context>()
+            shadowOf(context.getSystemService(KeyguardManager::class.java)).setIsDeviceSecure(false)
+            Shadow.extract<ShadowBiometricManager>(context.getSystemService(BiometricManager::class.java)).setCanAuthenticate(false)
+        }
         compose.mainClock.autoAdvance = false
         compose.setContent {
             IntelligentSearchTheme(darkTheme = dark) {

@@ -146,12 +146,17 @@ internal fun WidgetAppearanceTab(
         )
         val currentAction = if (localActionIcon == "Gemini") "Assistant" else localActionIcon
         val actionTile = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        // Taps on each option, so every tap, the chosen option's included, replays that icon's animation.
+        val actionTaps = remember { mutableStateMapOf<String, Int>() }
         // In a settings card as it always was, each option its own soft tile and the chosen one primary.
         SettingsCard(lit = false) {
             ShellSelector(
                 options = actionOptions,
                 selected = actionOptions.firstOrNull { it.first == currentAction } ?: actionOptions.first(),
-                onSelect = { localActionIcon = it.first },
+                onSelect = {
+                    localActionIcon = it.first
+                    actionTaps[it.first] = (actionTaps[it.first] ?: 0) + 1
+                },
                 itemHeight = 64.dp,
                 contentPadding = 6.dp,
                 gap = 6.dp,
@@ -161,7 +166,7 @@ internal fun WidgetAppearanceTab(
                 val tint = LocalContentColor.current
                 // Choosing an option plays its icon's own short animation, clipped within the column's padding
                 // so it never leaves the tile; the label stays still.
-                val motion = rememberSelectionMotion(isSel, ActionIconMotion.durationMillis(optionKey))
+                val motion = rememberSelectionMotion(isSel, ActionIconMotion.durationMillis(optionKey), actionTaps[optionKey] ?: 0)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,

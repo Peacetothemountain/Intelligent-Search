@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -99,6 +100,8 @@ fun AiAnswersScreen(onBack: () -> Unit) {
 
                     SettingsSectionHeader("Provider and Key")
                     val providerPillBase = MaterialTheme.colorScheme.primaryContainer
+                    // Taps on each provider, so every tap, the chosen one's included, replays that logo's reveal.
+                    val providerTaps = remember { mutableStateMapOf<AiProvider, Int>() }
                     SettingsCard {
                         SettingsSelectorRow(
                             title = "Provider",
@@ -111,10 +114,13 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                                     providerId = chosen.id
                                     model = ""
                                 }
+                                providerTaps[chosen] = (providerTaps[chosen] ?: 0) + 1
                             },
                             label = { it.displayName },
                             showDivider = true,
-                            leading = { option, isSelected -> AiProviderLogo(option, size = 20.dp, selected = isSelected) },
+                            leading = { option, isSelected ->
+                                AiProviderLogo(option, size = 20.dp, selected = isSelected, taps = providerTaps[option] ?: 0)
+                            },
                             // The chosen provider's pill takes a wash of its brand colour.
                             indicatorColor = { option -> aiProviderPillColor(option, providerPillBase) }
                         )

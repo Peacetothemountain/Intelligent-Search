@@ -189,20 +189,24 @@ internal inline fun DrawScope.withPart(part: IconPartPose, block: DrawScope.() -
 
 /**
  * The progress (0 to 1) of an option icon's one-shot animation in a picker, for [ComposeActionIcon]'s `motion`:
- * it plays each time [isSelected] becomes true, never on first composition or while already chosen, and is held at
- * 1 (at rest) with animations off. Read it while drawing, so the animation redraws without recomposing.
+ * it plays each time the option is tapped while it is (or becomes) the chosen one, so tapping the chosen option again
+ * plays it again: [isSelected] becoming true, or [taps] (how many times this option has been tapped) changing while
+ * it is selected. It never plays on first composition, and is held at 1 (at rest) with animations off. Read it while
+ * drawing, so the animation redraws without recomposing.
  */
 @Composable
-internal fun rememberSelectionMotion(isSelected: Boolean, durationMillis: Int): () -> Float {
+internal fun rememberSelectionMotion(isSelected: Boolean, durationMillis: Int, taps: Int = 0): () -> Float {
     val animationsOn = rememberAnimationsEnabled()
     val progress = remember { Animatable(1f) }
     val wasSelected = remember { booleanArrayOf(isSelected) }
-    LaunchedEffect(isSelected, animationsOn.value) {
-        val becameSelected = isSelected && !wasSelected[0]
+    val seenTaps = remember { intArrayOf(taps) }
+    LaunchedEffect(isSelected, taps, animationsOn.value) {
+        val play = isSelected && (!wasSelected[0] || taps != seenTaps[0])
         wasSelected[0] = isSelected
+        seenTaps[0] = taps
         if (!animationsOn.value) {
             progress.snapTo(1f)
-        } else if (becameSelected) {
+        } else if (play) {
             progress.snapTo(0f)
             progress.animateTo(1f, tween(durationMillis, easing = LinearEasing))
         }

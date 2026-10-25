@@ -19,6 +19,10 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -34,6 +38,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
+import com.pixel.intelligentsearch.feature.settings.ActionIconMotion
 import com.pixel.intelligentsearch.feature.settings.MaterialMorphShapes
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -88,6 +93,47 @@ internal enum class GlanceClockStyle(val storedValue: String, val label: String)
     }
 }
 
+/**
+ * The one-shot animation a face plays in the Clock Style picker when it is chosen, as pure curves of its progress (0
+ * to 1, linear in time): the face turns one step of its own symmetry (a Cookie scallop, a Sunny point, a quarter of
+ * the square) with a small pop, while the hands sweep an hour forward and the seconds dot laps once, so all of it
+ * lands back on the 10:10 it started from. Outside (0, 1) everything is at rest.
+ */
+internal object ClockFaceMotion {
+    const val DURATION_MILLIS = 900
+    const val MAX_POP = 1.08f
+
+    /** How far the face's shape is turned, in degrees; it ends a whole symmetry step round, which looks unturned. */
+    fun faceTurn(style: GlanceClockStyle, progress: Float): Float {
+        if (progress <= 0f || progress >= 1f) return 0f
+        val step = when (style) {
+            GlanceClockStyle.COOKIE -> 30f
+            GlanceClockStyle.SUNNY -> 45f
+            GlanceClockStyle.SQUARE, GlanceClockStyle.DIGITAL -> 90f
+        }
+        return step * ActionIconMotion.springStep(ActionIconMotion.segment(progress, 0f, 0.75f))
+    }
+
+    /** How much the whole face is scaled up, peaking early and back to 1. */
+    fun pop(progress: Float): Float {
+        if (progress <= 0f || progress >= 1f) return 1f
+        val u = ActionIconMotion.segment(progress, 0f, 0.6f)
+        return 1f + (MAX_POP - 1f) * ActionIconMotion.bell(1f - (1f - u) * (1f - u))
+    }
+
+    /** How far through its hour sweep the hands are: the minute hand adds 360 times this, the hour hand 30. */
+    fun handSweep(progress: Float): Float {
+        if (progress <= 0f || progress >= 1f) return 0f
+        return ActionIconMotion.springStep(ActionIconMotion.segment(progress, 0.05f, 0.9f))
+    }
+
+    /** How far round its extra lap the seconds dot is, in degrees. */
+    fun secondsLap(progress: Float): Float {
+        if (progress <= 0f || progress >= 1f) return 0f
+        return 360f * ActionIconMotion.springStep(ActionIconMotion.segment(progress, 0.1f, 1f))
+    }
+}
+
 /** The Material shape a face is cut from. */
 private fun faceShape(style: GlanceClockStyle): RoundedPolygon = MaterialMorphShapes.byName.getValue(
     when (style) {
@@ -125,13 +171,15 @@ internal fun digitalClockFigures(epochMs: Long, zone: ZoneId, is24Hour: Boolean)
  * lighter than the card with two thick round-capped hands in the theme's primary (the hour hand shorter) and, on the
  * Cookie and Sunny faces, a tertiary dot circling near the edge for the seconds; or the Digital face's stacked
  * figures. It shows the phone's local time; the hands move each minute and the dot each second, only while the search
- * is on screen. With animations off it moves once a minute and the dot rests at 12.
+ * is on screen. With animations off it moves once a minute and the dot rests at 12. [motion] is the progress of the
+ * Clock Style picker's [ClockFaceMotion], read only while drawing; elsewhere it stays at rest.
  */
 @Composable
 internal fun GlanceClockFace(
     modifier: Modifier = Modifier,
     size: Dp = GLANCE_CLOCK_SIZE,
-    style: GlanceClockStyle = GlanceClockStyle.COOKIE
+    style: GlanceClockStyle = GlanceClockStyle.COOKIE,
+    motion: () -> Float = { 1f }
 ) {
     val clock = LocalGlanceClock.current
     val animate = rememberAnimationsEnabled()
@@ -184,11 +232,27 @@ internal fun GlanceClockFace(
         Box(
             modifier = faceModifier.drawWithCache {
                 val path = shapePath(shape, this.size.width, this.size.height)
-                onDrawBehind { drawPath(path, face) }
+                val centre = Offset(this.size.width / 2f, this.size.height / 2f)
+                onDrawBehind {
+                    val p = motion()
+                    val pop = ClockFaceMotion.pop(p)
+                    withTransform({
+                        rotate(ClockFaceMotion.faceTurn(style, p), centre)
+                        scale(pop, pop, centre)
+                    }) { drawPath(path, face) }
+                }
             },
             contentAlignment = Alignment.Center
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // The figures pop with the face but stay upright.
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.graphicsLayer {
+                    val pop = ClockFaceMotion.pop(motion())
+                    scaleX = pop
+                    scaleY = pop
+                }
+            ) {
                 Text(hour, style = figures, color = hourColor, maxLines = 1)
                 Text(minutes, style = figures, color = minuteColor, maxLines = 1)
             }
@@ -206,20 +270,28 @@ internal fun GlanceClockFace(
             val markInset = radius * 0.74f
             onDrawBehind {
                 val hands = angles.value
-                drawPath(path, face)
-                if (style == GlanceClockStyle.SQUARE) {
-                    // A dot at 12, 3, 6 and 9, set in from the square's flat sides.
-                    for (k in 0 until 4) {
-                        val a = k * PI.toFloat() / 2f
-                        drawCircle(minuteColor, radius = markRadius, center = Offset(centre.x + sin(a) * markInset, centre.y - cos(a) * markInset))
+                val p = motion()
+                val pop = ClockFaceMotion.pop(p)
+                val sweep = ClockFaceMotion.handSweep(p)
+                scale(pop, pop, centre) {
+                    // The shape and its quarter marks turn together; the hands keep telling the time.
+                    rotate(ClockFaceMotion.faceTurn(style, p), centre) {
+                        drawPath(path, face)
+                        if (style == GlanceClockStyle.SQUARE) {
+                            // A dot at 12, 3, 6 and 9, set in from the square's flat sides.
+                            for (k in 0 until 4) {
+                                val a = k * PI.toFloat() / 2f
+                                drawCircle(minuteColor, radius = markRadius, center = Offset(centre.x + sin(a) * markInset, centre.y - cos(a) * markInset))
+                            }
+                        }
                     }
-                }
-                drawHand(centre, hands.minute, radius * 0.56f, handWidth, minuteColor)
-                drawHand(centre, hands.hour, radius * 0.38f, handWidth, hourColor)
-                if (showsSeconds) {
-                    val s = hands.second / 180f * PI.toFloat()
-                    val orbit = radius * 0.66f
-                    drawCircle(dotColor, radius = radius * 0.11f, center = Offset(centre.x + sin(s) * orbit, centre.y - cos(s) * orbit))
+                    drawHand(centre, hands.minute + 360f * sweep, radius * 0.56f, handWidth, minuteColor)
+                    drawHand(centre, hands.hour + 30f * sweep, radius * 0.38f, handWidth, hourColor)
+                    if (showsSeconds) {
+                        val s = (hands.second + ClockFaceMotion.secondsLap(p)) / 180f * PI.toFloat()
+                        val orbit = radius * 0.66f
+                        drawCircle(dotColor, radius = radius * 0.11f, center = Offset(centre.x + sin(s) * orbit, centre.y - cos(s) * orbit))
+                    }
                 }
             }
         }

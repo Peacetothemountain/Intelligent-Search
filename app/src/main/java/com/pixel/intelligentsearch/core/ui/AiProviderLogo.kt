@@ -120,13 +120,20 @@ private const val ANDROID_NAMESPACE = "http://schemas.android.com/apk/res/androi
 
 /**
  * [provider]'s official logo at [size]: in its own colours, or (OpenAI's one-colour mark) in the current content
- * colour. While not [selected] it shows a little muted. Each time it becomes selected (not when first shown, and not
- * with animations off) it reveals itself: its own outline traces round in the brand's colour, the logo blooms in from
- * the centre on a spring, and a ring of sparks in the brand's colours (Gemini's four) flies out with a soft glow.
- * Decorative: the name beside it is what TalkBack reads.
+ * colour. While not [selected] it shows a little muted. Each time it becomes selected, and each time [taps] (how
+ * many times its option has been tapped) changes while it is selected, so tapping the chosen provider again replays
+ * it (not when first shown, and not with animations off), it reveals itself: its own outline traces round in the
+ * brand's colour, the logo blooms in from the centre on a spring, and a ring of sparks in the brand's colours
+ * (Gemini's four) flies out with a soft glow. Decorative: the name beside it is what TalkBack reads.
  */
 @Composable
-fun AiProviderLogo(provider: AiProvider, modifier: Modifier = Modifier, size: Dp = 20.dp, selected: Boolean = false) {
+fun AiProviderLogo(
+    provider: AiProvider,
+    modifier: Modifier = Modifier,
+    size: Dp = 20.dp,
+    selected: Boolean = false,
+    taps: Int = 0
+) {
     val resources = LocalResources.current
     val painter = painterResource(aiProviderLogo(provider))
     val animate by rememberAnimationsEnabled()
@@ -138,12 +145,16 @@ fun AiProviderLogo(provider: AiProvider, modifier: Modifier = Modifier, size: Dp
     val fill = remember { Animatable(1f) }
     val burst = remember { Animatable(1f) }
     val shownSelected = remember { booleanArrayOf(selected) }
-    LaunchedEffect(selected, animate) {
-        val becameSelected = selected && !shownSelected[0]
+    val seenTaps = remember { intArrayOf(taps) }
+    LaunchedEffect(selected, taps, animate) {
+        val play = selected && (!shownSelected[0] || taps != seenTaps[0])
         shownSelected[0] = selected
-        if (!becameSelected || !animate) return@LaunchedEffect
+        seenTaps[0] = taps
+        if (!play || !animate) return@LaunchedEffect
         trace.snapTo(0f)
         fill.snapTo(0f)
+        // A replay can cut in mid-flight: clear the last sparks rather than hold them while the new ones wait.
+        burst.snapTo(1f)
         coroutineScope {
             launch { trace.animateTo(1f, tween(LOGO_TRACE_MILLIS, easing = FastOutSlowInEasing)) }
             launch {

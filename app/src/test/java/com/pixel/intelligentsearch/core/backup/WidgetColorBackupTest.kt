@@ -75,6 +75,19 @@ class WidgetColorBackupTest {
         assertTrue(prefs.getBoolean(flag, false))
     }
 
+    /** The Inner Pill & Circle's color is backed up and restored with the rest of the Material design. */
+    @Test
+    fun theInnerPillColorIsRestored() = runBlocking {
+        val cream = 0xFFF5E6C8.toInt()
+        prefs.edit().putInt("widget_material_lock_pill_color", cream).commit()
+        backup.exportToFile(uri, PASSPHRASE).getOrThrow()
+
+        prefs.edit().putInt("widget_material_lock_pill_color", 0xFF1E3A5F.toInt()).commit()
+        backup.importFromFile(uri, PASSPHRASE).getOrThrow()
+
+        assertEquals(cream, prefs.getInt("widget_material_lock_pill_color", 0))
+    }
+
     private companion object {
         const val PASSPHRASE = "correct horse battery"
     }

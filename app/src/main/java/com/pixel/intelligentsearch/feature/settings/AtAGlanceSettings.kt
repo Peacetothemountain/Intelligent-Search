@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -50,6 +51,7 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import com.pixel.intelligentsearch.di.appEntryPoint
+import com.pixel.intelligentsearch.feature.search.ClockFaceMotion
 import com.pixel.intelligentsearch.feature.search.GlanceClock
 import com.pixel.intelligentsearch.feature.search.GlanceClockFace
 import com.pixel.intelligentsearch.feature.search.GlanceClockStyle
@@ -222,11 +224,13 @@ private val PreviewClock: GlanceClock by lazy {
 
 /**
  * Clock Style: the clock faces side by side, each a still 10:10 on its own tile with its name under it, the chosen
- * one on the secondary container with a primary ring. One tap picks; TalkBack hears each as a radio button.
+ * one on the secondary container with a primary ring. One tap picks; TalkBack hears each as a radio button. Every
+ * tap, the chosen face's included, plays that face's [ClockFaceMotion].
  */
 @Composable
 internal fun ClockStylePicker(selected: GlanceClockStyle, onSelect: (GlanceClockStyle) -> Unit, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
+    val taps = remember { mutableStateMapOf<GlanceClockStyle, Int>() }
     Column(modifier = modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp)) {
         Text(
             text = "Clock Style",
@@ -245,6 +249,7 @@ internal fun ClockStylePicker(selected: GlanceClockStyle, onSelect: (GlanceClock
                 for (style in GlanceClockStyle.entries) {
                     val isSelected = style == selected
                     val tileShape = RoundedCornerShape(if (isSelected) 22.dp else 18.dp)
+                    val motion = rememberSelectionMotion(isSelected, ClockFaceMotion.DURATION_MILLIS, taps[style] ?: 0)
                     Column(
                         modifier = Modifier
                             .weight(1f)
@@ -254,7 +259,10 @@ internal fun ClockStylePicker(selected: GlanceClockStyle, onSelect: (GlanceClock
                                 role = Role.RadioButton
                                 this.selected = isSelected
                             }
-                            .bouncyClickable(shape = tileShape, role = Role.RadioButton) { if (!isSelected) onSelect(style) },
+                            .bouncyClickable(shape = tileShape, role = Role.RadioButton) {
+                                taps[style] = (taps[style] ?: 0) + 1
+                                if (!isSelected) onSelect(style)
+                            },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Box(
@@ -265,7 +273,7 @@ internal fun ClockStylePicker(selected: GlanceClockStyle, onSelect: (GlanceClock
                                 .border(2.dp, if (isSelected) scheme.primary else Color.Transparent, tileShape),
                             contentAlignment = Alignment.Center
                         ) {
-                            GlanceClockFace(size = 44.dp, style = style)
+                            GlanceClockFace(size = 44.dp, style = style, motion = motion)
                         }
                         Text(
                             text = style.label,

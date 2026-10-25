@@ -110,21 +110,24 @@ internal fun webSearchLaunch(context: Context, engine: String, customUrl: String
         return if (context.packageManager.resolveActivity(view, 0) != null) view else systemWebSearchIntent(query)
     }
     val encoded = Uri.encode(query)
+    fun googleSearch(): Intent {
+        val google = systemWebSearchIntent(query).setPackage(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
+        // Without the Google app the system web search would come back to this app, which answers it as the
+        // search engine; open Google's results page instead.
+        return if (context.packageManager.resolveActivity(google, 0) != null) google
+        else viewOrFallback("https://www.google.com/search?q=$encoded")
+    }
     val intent = when (engine) {
+        // No valid address yet (Custom was just picked, or the address was cleared): search Google, as global search
+        // does, rather than the system web search, which this app answers itself.
         "Custom" -> com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(customUrl, query)?.let { uri ->
             com.pixel.intelligentsearch.core.security.CustomSearchUrl.browsableViewIntent(uri).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             }
-        } ?: systemWebSearchIntent(query)
+        } ?: googleSearch()
         "DuckDuckGo" -> viewOrFallback("https://duckduckgo.com/?q=$encoded")
         "Bing" -> viewOrFallback("https://www.bing.com/search?q=$encoded")
-        else -> {
-            val google = systemWebSearchIntent(query).setPackage(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
-            // Without the Google app the system web search would come back to this app, which answers it as the
-            // search engine; open Google's results page instead.
-            if (context.packageManager.resolveActivity(google, 0) != null) google
-            else viewOrFallback("https://www.google.com/search?q=$encoded")
-        }
+        else -> googleSearch()
     }
     return com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open(intent)
 }

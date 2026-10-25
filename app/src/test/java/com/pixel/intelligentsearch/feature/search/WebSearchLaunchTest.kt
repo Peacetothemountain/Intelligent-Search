@@ -80,6 +80,18 @@ class WebSearchLaunchTest {
     }
 
     @Test
+    fun customWithNoAddressYetSearchesGoogleNotThisApp() {
+        // Custom starts blank now: until an address is typed, searches must not loop back into this app.
+        installBrowser()
+        for (blankOrBad in listOf("", "http://plain.example.org/?q=%s")) {
+            val intent = intentFor("Custom", "cats", customUrl = blankOrBad)
+            assertNotEquals(context.packageName, context.packageManager.resolveActivity(intent, 0)?.activityInfo?.packageName)
+            assertEquals(Intent.ACTION_VIEW, intent.action)
+            assertEquals("https://www.google.com/search?q=cats", intent.dataString)
+        }
+    }
+
+    @Test
     fun torWithoutTorBrowserAsksForItInsteadOfUsingAnotherBrowser() {
         installBrowser()
         assertEquals(SafeWebLaunch.Launch.NeedsTorBrowser, webSearchLaunch(context, "Tor Browser", "", "q"))

@@ -96,16 +96,22 @@ internal class GlanceClock(val now: () -> Long, val ticks: Boolean, val elapsed:
 
 internal val LocalGlanceClock = staticCompositionLocalOf { GlanceClock(System::currentTimeMillis, ticks = true) }
 
-/** The time now, updated every [periodMs] (on the whole period) while composed and ticking. */
+/**
+ * The time now, updated every [periodMs] (on the whole period) while composed and ticking, and only while the search
+ * is on screen (started): the search is kept between looks, and its rows shouldn't wake the phone in the background.
+ */
 @Composable
 private fun rememberGlanceNow(periodMs: Long, enabled: Boolean = true): Long {
     val clock = LocalGlanceClock.current
-    return produceState(clock.now(), clock, periodMs, enabled) {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    return produceState(clock.now(), clock, periodMs, enabled, lifecycle) {
         value = clock.now()
         if (!clock.ticks || !enabled) return@produceState
-        while (true) {
-            delay(periodMs - clock.now() % periodMs)
-            value = clock.now()
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                value = clock.now()
+                delay(periodMs - clock.now() % periodMs)
+            }
         }
     }.value
 }
@@ -309,12 +315,14 @@ private fun GlanceItemRow(item: GlanceItem, onOpened: () -> Unit, modifier: Modi
 
 /**
  * What an At a Glance item opens, by tap or by Enter: a timer's own page (else the clock's timers, else its app),
- * the clock's alarms, the player's page, or the contact.
+ * the alarm's own page (else the clock's alarms, else the app that set it), the player's page, or the contact.
  */
 internal fun openGlanceItem(context: Context, item: GlanceItem) {
     when (item) {
         is GlanceItem.Timer -> openPendingOrApp(context, item.timer.contentIntent, item.timer.packageName, fallback = Intent(AlarmClock.ACTION_SHOW_TIMERS))
-        is GlanceItem.Alarm -> launchSafeIntent(context, Intent(AlarmClock.ACTION_SHOW_ALARMS))
+        is GlanceItem.Alarm -> item.alarm.showIntent.let { show ->
+            openPendingOrApp(context, show, show?.creatorPackage.orEmpty(), fallback = Intent(AlarmClock.ACTION_SHOW_ALARMS))
+        }
         is GlanceItem.Media -> item.media.controls.open()
         is GlanceItem.Birthday -> item.birthday.lookupUri.takeIf { it.isNotEmpty() }
             ?.let { launchSafeIntent(context, Intent(Intent.ACTION_VIEW, it.toUri())) }
@@ -399,12 +407,13 @@ private fun TimerRow(timer: GlanceTimer, open: () -> Unit, modifier: Modifier) {
     )
 }
 
-/** The next alarm, its time in the phone's 12 or 24 hour style; opens the clock's alarms. */
+/** The next alarm, its time in the phone's 12 or 24 hour style; opens the alarm's own page, else the clock's alarms. */
 @Composable
 private fun AlarmRow(triggerAt: Long, open: () -> Unit, modifier: Modifier) {
     val context = LocalContext.current
     val now = rememberGlanceNow(GLANCE_COARSE_TICK_MS)
-    val time = remember(triggerAt) {
+    // Formatted again on each tick, so a new time zone or 12 or 24 hour style shows while the search is kept open.
+    val time = remember(triggerAt, now) {
         android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(triggerAt))
     }
     GlanceRow(

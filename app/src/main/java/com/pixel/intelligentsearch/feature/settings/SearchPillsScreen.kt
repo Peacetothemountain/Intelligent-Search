@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -108,8 +109,32 @@ fun SearchPillsScreen(
         profiles.setPills(newPills)
     }
 
+    // Pills swiped away and still flying off screen: gone as far as the user is concerned, saved once clear of the
+    // edge, or at once if the list goes first (the page closes, the picker opens, the profile changes).
+    val leavingPills = remember { mutableStateListOf<String>() }
+    fun finishLeaving(packageName: String) {
+        if (leavingPills.remove(packageName)) persistPills(localPillList - packageName)
+    }
+    fun flushLeaving() {
+        if (leavingPills.isEmpty()) return
+        val gone = leavingPills.toSet()
+        leavingPills.clear()
+        persistPills(localPillList - gone)
+    }
+
+    // Pills to slide in from the right when next shown (after Reset, or added from the picker), each with its place
+    // in the ripple. Asked for under [enterRound]; anything not shown soon after (scrolled out of view) just appears.
+    var enteringPills by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    var enterRound by remember { mutableIntStateOf(0) }
+    fun slideIn(packages: List<String>) {
+        enteringPills = packages.withIndex().associate { (i, pkg) -> pkg to i }
+        enterRound++
+    }
+
     fun switchProfile(id: Int) {
         if (id == activeProfile) return
+        flushLeaving()
+        enteringPills = emptyMap()
         localPillList = profiles.switchTo(id)
         activeProfile = id
         resetCounter++
@@ -208,6 +233,7 @@ fun SearchPillsScreen(
                                 currentList.addAll(newApps)
                                 resetCounter++
                                 persistPills(currentList)
+                                slideIn(newApps)
                                 multiSelectMode = false
                                 selectedApps = emptySet()
                                 showAppPicker = false
@@ -219,13 +245,17 @@ fun SearchPillsScreen(
                         ProfileStateActions(
                             profile = activeProfile,
                             onReset = {
+                                // Reset puts back the saved list, so a pill still flying off stays.
+                                leavingPills.clear()
                                 resetCounter++
                                 localPillList = profiles.resetToSaved()
+                                slideIn(localPillList)
                             },
-                            onSave = { profiles.saveState(localPillList) }
+                            // A pill flying off is already gone: it isn't part of what's saved.
+                            onSave = { profiles.saveState(localPillList - leavingPills.toSet()) }
                         )
                         IconButton(onClick = {
-                            if (localPillList.size >= SearchPillProfiles.MAX_PILLS) {
+                            if (localPillList.size - leavingPills.size >= SearchPillProfiles.MAX_PILLS) {
                                 showMaxWarning = true
                             } else {
                                 showAppPicker = true
@@ -324,6 +354,7 @@ fun SearchPillsScreen(
                                                     val updated = localPillList + packageName
                                                     resetCounter++
                                                     persistPills(updated)
+                                                    slideIn(listOf(packageName))
                                                     showAppPicker = false
                                                 }
                                             } else {
@@ -422,6 +453,24 @@ fun SearchPillsScreen(
                     var autoScrollVelocity by remember { mutableFloatStateOf(0f) }
                     val listState = rememberLazyListState()
                     val coroutineScope = rememberCoroutineScope()
+                    val animationsOn by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
+
+                    // The list going away (page closed, picker opened) saves any pill still flying off.
+                    DisposableEffect(Unit) { onDispose { flushLeaving() } }
+
+                    // Pills added below the fold scroll into view to slide in; a slide-in not shown within a moment
+                    // (the pill was out of view) is dropped, so it can't play later on a scroll.
+                    LaunchedEffect(enterRound) {
+                        if (enteringPills.isEmpty()) return@LaunchedEffect
+                        val first = localPillList.indexOfFirst { it in enteringPills }
+                        // Coming back from the picker, the list may not be laid out yet: wait for its first layout.
+                        val visible = kotlinx.coroutines.withTimeoutOrNull(500) {
+                            androidx.compose.runtime.snapshotFlow { listState.layoutInfo.visibleItemsInfo }.first { it.isNotEmpty() }
+                        }.orEmpty().map { it.index }
+                        if (first >= 0 && visible.isNotEmpty() && first !in visible) listState.animateScrollToItem(first)
+                        kotlinx.coroutines.delay(1_500)
+                        enteringPills = emptyMap()
+                    }
 
                     LaunchedEffect(wasReordered) {
                         if (wasReordered) {
@@ -547,26 +596,33 @@ fun SearchPillsScreen(
 
                             Box(modifier = itemModifier) {
                                 key(packageName, resetCounter) {
-                                    val dismissState = rememberSwipeToDismissBoxState(
-                                        positionalThreshold = { it * 0.5f }
+                                    // Swiped toward a wall, the card presses into it, springs off, comes back through
+                                    // the middle and leaves past the other edge; after Reset or an add it slides in
+                                    // from the right and settles with a small bounce.
+                                    val enterPlace = remember { enteringPills[packageName] }
+                                    val bounce = rememberWallBounce(
+                                        gap = 16.dp,
+                                        entering = enterPlace != null && animationsOn,
+                                        animate = { animationsOn },
+                                        onThreshold = { past ->
+                                            if (past) hapticEngine.performPredictiveBackHaptic(view)
+                                            else hapticEngine.performPredictiveBackCancelHaptic(view)
+                                        },
+                                        onCommit = { if (packageName !in leavingPills) leavingPills.add(packageName) },
+                                        onExited = { finishLeaving(packageName) }
                                     )
-                                    LaunchedEffect(dismissState.currentValue) {
-                                        if (dismissState.currentValue == SwipeToDismissBoxValue.EndToStart || dismissState.currentValue == SwipeToDismissBoxValue.StartToEnd) {
-                                            hapticEngine.performPredictiveBackHaptic(view)
-                                            val updated = localPillList.toMutableList()
-                                            updated.remove(packageName)
-                                            persistPills(updated)
+                                    // Scrolled out of view (or the list gone) mid-flight: it would never come back.
+                                    DisposableEffect(bounce) {
+                                        onDispose { if (bounce.phase == WallBouncePhase.Exiting) finishLeaving(packageName) }
+                                    }
+                                    LaunchedEffect(bounce) {
+                                        if (enterPlace != null) {
+                                            enteringPills = enteringPills - packageName
+                                            bounce.enter(WallBounce.enterDelay(enterPlace))
                                         }
                                     }
 
-                                    SwipeToDismissBox(
-                                        state = dismissState,
-                                        enableDismissFromStartToEnd = !isReordering,
-                                        enableDismissFromEndToStart = !isReordering,
-                                        backgroundContent = {
-                                            Box(modifier = Modifier.fillMaxSize())
-                                        }
-                                    ) {
+                                    Box(modifier = Modifier.wallBounce(bounce, enabled = !isReordering)) {
                                         val appName = pillAppLabels[packageName] ?: packageName
                                         // Cached icons show at once; others are rasterized off the main thread.
                                         val appIcon by produceState(peekNativeAppIcon(packageName), packageName) {
@@ -584,7 +640,7 @@ fun SearchPillsScreen(
                                                 // TalkBack can't swipe or drag the row, so removing and moving it are actions on it.
                                                 .semantics(mergeDescendants = true) {
                                                     customActions = buildList {
-                                                        add(CustomAccessibilityAction("Remove") { persistPills(localPillList - packageName); true })
+                                                        add(CustomAccessibilityAction("Remove") { bounce.dismiss(-1f); true })
                                                         if (itemIndex > 0) add(CustomAccessibilityAction("Move up") { movePill(packageName, -1) })
                                                         if (itemIndex < localPillList.lastIndex) add(CustomAccessibilityAction("Move down") { movePill(packageName, 1) })
                                                     }
@@ -637,6 +693,8 @@ fun SearchPillsScreen(
                                                         .pointerInput(currentPkg, localPillList.size) {
                                                             awaitEachGesture {
                                                                 val down = awaitFirstDown(requireUnconsumed = false)
+                                                                // Not while a pill is still flying off: its place in the list is about to go.
+                                                                if (leavingPills.isNotEmpty()) return@awaitEachGesture
 
                                                                 dropJob?.cancel()
                                                                 dropJob = null

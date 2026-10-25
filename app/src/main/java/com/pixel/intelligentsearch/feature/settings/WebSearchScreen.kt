@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.SharedPreferences
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
@@ -33,7 +32,6 @@ fun WebSearchScreen(
     onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = {}
 ) {
     val context = LocalContext.current
-    val settingsViewModel = LocalSettingsViewModel.current
     Scaffold(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.ime),
@@ -75,14 +73,8 @@ fun WebSearchScreen(
                                 return@SettingsDropdownRow
                             }
                         }
-                        if (selected == "Custom" && settingsViewModel != null &&
-                            prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL].isNullOrBlank()
-                        ) {
-                            // The URL field shows this default; persist it so searches use what is displayed
-                            // instead of silently falling back to the generic web-search intent.
-                            val defaultUrl = "https://duckduckgo.com/?q=%s"
-                            settingsViewModel.updateSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_URL, defaultUrl)
-                        }
+                        // Custom starts with an empty address for the user to fill in; until there is a valid one,
+                        // searches go to the phone's own web search rather than to an engine nobody chose.
                         searchEngine = selected
                     },
                     showDivider = searchEngine != "Custom",

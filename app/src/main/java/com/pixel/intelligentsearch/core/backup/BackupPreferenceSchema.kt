@@ -56,7 +56,7 @@ internal object BackupPreferenceSchema {
             "widget_system_custom_keep_system_g", "widget_system_custom_sync_colors", "widget_system_design_saved",
             "widget_system_show_doodles", "widget_system_show_g_icon", "widget_system_show_voice", "widget_system_lock_black"
         )
-        // The per-design element colours the widget reads with getInt (WidgetDesignSettings).
+        // The per-design element colors the widget reads with getInt (WidgetDesignSettings).
         for (design in listOf("widget", "widget_system", "widget_material")) {
             for (element in listOf("g_icon", "mic", "shortcut1", "shortcut2", "shortcut3", "action_icon", "shortcuts")) {
                 put("${design}_custom_${element}_color", "INT")
@@ -72,7 +72,7 @@ internal object BackupPreferenceSchema {
             "widget_custom_lightness", "widget_custom_saturation", "widget_custom_shortcuts_color",
             "widget_material_background_transparency", "widget_material_custom_color_int",
             "widget_material_custom_color_opacity", "widget_material_custom_hue", "widget_material_custom_lightness",
-            "widget_material_custom_saturation", "widget_system_background_transparency",
+            "widget_material_custom_saturation", "widget_material_lock_pill_color", "widget_system_background_transparency",
             "widget_system_custom_color_int", "widget_system_custom_color_opacity", "widget_system_custom_hue",
             "widget_system_custom_lightness", "widget_system_custom_saturation"
         )

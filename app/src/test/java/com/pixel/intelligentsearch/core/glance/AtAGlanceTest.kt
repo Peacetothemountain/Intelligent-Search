@@ -4,6 +4,11 @@ import android.app.Notification
 import android.media.session.PlaybackState
 import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.system.MediaSessionAccess
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -133,6 +138,38 @@ class AtAGlanceTest {
         assertEquals(1, MediaSessionAccess.pickIndex(listOf(pausedLongAgo, pausedRecently), now))
         assertNull(MediaSessionAccess.pickIndex(listOf(pausedLongAgo, untitled), now))
         assertNull(MediaSessionAccess.pickIndex(emptyList(), now))
+    }
+
+    /** A player left paused leaves when its half hour is up, though nothing about the session changes then. */
+    @Test
+    fun aPausedPlayerLeavesOnTimeWithoutAnyChangeToItsSession() = runTest {
+        val start = 10_000_000L
+        val paused = MediaSessionAccess.SessionState("Podcast", PlaybackState.STATE_PAUSED, start - MediaSessionAccess.PAUSED_MEDIA_MS + 60_000)
+        val shown = mutableListOf<String?>()
+        val job = launch {
+            MediaSessionAccess.pickedBy(flowOf(listOf(paused)), { it }, { start + testScheduler.currentTime })
+                .collect { shown += it?.title }
+        }
+        runCurrent()
+        assertEquals(listOf("Podcast"), shown)
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertEquals("still within its half hour", listOf("Podcast"), shown)
+        advanceTimeBy(2)
+        runCurrent()
+        assertEquals(listOf("Podcast", null), shown)
+        job.cancel()
+    }
+
+    @Test
+    fun aPausedPlayerShowsUntilItsHalfHourIsUp() {
+        val now = 10_000_000L
+        val paused = MediaSessionAccess.SessionState("Podcast", PlaybackState.STATE_PAUSED, now - 60_000)
+        val pausedLater = MediaSessionAccess.SessionState("Song", PlaybackState.STATE_PAUSED, now)
+        val playing = MediaSessionAccess.SessionState("Radio", PlaybackState.STATE_PLAYING, now)
+        assertEquals(now - 60_000 + MediaSessionAccess.PAUSED_MEDIA_MS + 1, MediaSessionAccess.pausedShownUntil(listOf(pausedLater, paused), now))
+        assertNull("nothing paused, nothing runs out", MediaSessionAccess.pausedShownUntil(listOf(playing), now))
+        assertNull(MediaSessionAccess.pausedShownUntil(listOf(paused.copy(title = null)), now))
     }
 
     private fun clockEntry(key: String, countDown: Boolean, category: String?, base: Long) = IndexedNotification(

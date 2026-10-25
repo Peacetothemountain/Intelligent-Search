@@ -32,6 +32,9 @@ data class WidgetElementColors(
     val action: Int
 )
 
+/** The Inner Pill & Circle's color until one is picked: the near-black #121212 it has always been forced to. */
+const val DEFAULT_LOCKED_PILL_COLOR: Int = 0xFF121212.toInt()
+
 /**
  * Everything the user customizes for one widget design. Hue is 0..360, saturation, lightness, color opacity
  * and background transparency are 0..100 (what the sliders show). [lockBlack] and [actionIcon] only apply to
@@ -61,7 +64,9 @@ data class WidgetDesignSettings(
     /** The bar's outline in dp (the Material design's rim), 0 to [MAX_OUTLINE_THICKNESS]. */
     val outlineThickness: Int = 0,
     /** The bar's outer corner radius in dp, 0 to [MAX_CORNER_RADIUS]; drawn at most half the bar's height. */
-    val cornerRadius: Int = 28
+    val cornerRadius: Int = 28,
+    /** The color the Material design's Inner Pill & Circle are forced to while [lockBlack] is on (opaque). */
+    val lockedPillColor: Int = DEFAULT_LOCKED_PILL_COLOR
 ) {
     /**
      * The custom pill color these settings produce (what the widget draws for the "Custom" subtheme): the HCT seed
@@ -174,6 +179,7 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
             shortcut3 = shortcut(3, "None"),
             slotOrder = string("shortcut_order", "widget_shortcut_order", DEFAULT_SLOT_ORDER),
             lockBlack = prefs.getBoolean("${p}_lock_black", true),
+            lockedPillColor = prefs.getInt("${p}_lock_pill_color", DEFAULT_LOCKED_PILL_COLOR) or 0xFF000000.toInt(),
             actionIcon = string("action_icon", "widget_action_icon", "Search"),
             showDoodles = prefs.getBoolean("${p}_show_doodles", true),
             outlineThickness = prefs[design.outlineThicknessKey],
@@ -223,6 +229,7 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
         if (design == WidgetDesign.MATERIAL) {
             editor
                 .putBoolean("${p}_lock_black", settings.lockBlack)
+                .putInt("${p}_lock_pill_color", settings.lockedPillColor)
                 .putString("${p}_action_icon", settings.actionIcon)
         }
     }

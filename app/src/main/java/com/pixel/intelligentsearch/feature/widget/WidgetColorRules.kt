@@ -14,8 +14,21 @@ import kotlin.math.roundToInt
 @Suppress("RestrictedApi")
 internal object WidgetColorRules {
 
-    /** The Material design's pill and circle when its Inner Pill & Circle State locks them black. */
-    const val LOCKED_PILL = 0xFF121212.toInt()
+    /** The Material design's pill and circle when Inner Pill & Circle is on and no color has been picked. */
+    const val LOCKED_PILL = com.pixel.intelligentsearch.core.data.widget.DEFAULT_LOCKED_PILL_COLOR
+
+    /** The color [settings]' Inner Pill & Circle forces the Material design's pill and circle to, opaque. */
+    fun lockedPill(settings: WidgetDesignSettings): Int = settings.lockedPillColor or 0xFF000000.toInt()
+
+    /**
+     * Whether [settings] force the Material design's pill and circle to a dark color (the default #121212, or any
+     * color light icons stand on): the bar then draws as it always did locked black. A light color picked for them
+     * makes it a light pill instead, with icons darkened for contrast.
+     */
+    fun locksDark(settings: WidgetDesignSettings): Boolean = settings.lockBlack && !iconsGoDark(lockedPill(settings))
+
+    /** Whether [settings] force the Material design's pill and circle to a light color, so it is a light pill. */
+    fun locksLight(settings: WidgetDesignSettings): Boolean = settings.lockBlack && iconsGoDark(lockedPill(settings))
 
     /** The contrast the Custom subtheme's accent keeps with the bar: Material's high-contrast level for primary. */
     private const val ACCENT_CONTRAST = 7.0
@@ -62,7 +75,7 @@ internal object WidgetColorRules {
      */
     fun customBarColors(settings: WidgetDesignSettings, isMaterialDesign: Boolean): CustomBarColors {
         val seed = settings.customColorInt or 0xFF000000.toInt()
-        val background = if (isMaterialDesign && settings.lockBlack) LOCKED_PILL else seed
+        val background = if (isMaterialDesign && settings.lockBlack) lockedPill(settings) else seed
         val backgroundTone = Hct.fromInt(background).tone
         // Material's rule picks the side; every tone below stays on it.
         val darkIcons = iconsGoDark(background)
@@ -165,7 +178,7 @@ internal object WidgetColorRules {
      */
     fun customIconColors(settings: WidgetDesignSettings, isMaterialDesign: Boolean, isPillLight: Boolean): WidgetElementColors {
         val c = settings.elementColors
-        fun drawn(color: Int) = iconColor(color, isMaterialDesign, settings.lockBlack, isPillLight)
+        fun drawn(color: Int) = iconColor(color, isMaterialDesign, locksDark(settings), isPillLight)
         fun slot(color: Int) = drawn(if (settings.syncColors) c.gIcon else color)
         return WidgetElementColors(
             gIcon = drawn(c.gIcon),

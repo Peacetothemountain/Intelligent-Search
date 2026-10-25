@@ -91,4 +91,11 @@ class BackupPreferenceSchemaTest {
         assertTrue(BackupPreferenceSchema.isDebugKey("debug.verbose_logging"))
         assertFalse(BackupPreferenceSchema.isDebugKey("diagnostics_overlay_enabled"))
     }
+
+    /** The Inner Pill & Circle's color is a packed ARGB int: read as an int, and never range-checked (it is negative). */
+    @Test
+    fun theInnerPillColorIsAnUncheckedInt() {
+        assertEquals("INT", BackupPreferenceSchema.expectedType("widget_material_lock_pill_color"))
+        assertNull(BackupPreferenceSchema.intRange("widget_material_lock_pill_color"))
+    }
 }

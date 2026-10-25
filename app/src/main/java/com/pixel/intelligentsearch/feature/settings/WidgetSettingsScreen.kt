@@ -96,7 +96,8 @@ internal fun previewPill(
     accentColor: Color,
     isDynamicColorActive: Boolean,
     themedSurface: Color,
-    appDark: Boolean
+    appDark: Boolean,
+    lockedPill: Color = Color(WidgetColorRules.LOCKED_PILL)
 ): PreviewPill {
     val themed = themedSurface.copy(alpha = 1f)
     val custom = accentColor.copy(alpha = 1f)
@@ -105,7 +106,7 @@ internal fun previewPill(
     val dark = Color(0xFF303134)
     return if (isMaterialDesign) {
         when {
-            lockBlack -> PreviewPill(Color(WidgetColorRules.LOCKED_PILL), isLight = false)
+            lockBlack -> lockedPill.copy(alpha = 1f).let { PreviewPill(it, isLight = WidgetColorRules.iconsGoDark(it.toArgb())) }
             subtheme == "Custom" -> PreviewPill(custom, customIsLight)
             else -> PreviewPill(themed, !appDark)
         }
@@ -172,15 +173,19 @@ internal fun widgetPreviewColors(
 ): WidgetPreviewColors {
     val isCustomTheme = draft.subtheme == "Custom"
     val lockBlack = draft.lockBlack
+    // Locked to a dark color, the bar draws as it always did locked black; to a light one, as a light pill.
+    val lockDark = isMaterialDesign && WidgetColorRules.locksDark(draft)
     val alphas = WidgetColorRules.backdropAlphas(draft, isMaterialDesign)
     // The outline's alpha as the widget's view takes it (whole steps of 1/255), so the preview is exactly as see-through.
     val rimAlpha = WidgetColorRules.alphaInt(alphas.rim) / 255f
     val accentColor = if (isCustomTheme) Color(draft.customColorInt) else theme.primary
 
     val materialRim = if (isMaterialDesign) {
-        // Locked black, the widget rims its black pill in the dark theme's colors, whatever the theme.
-        val (rimPrimary, rimContainer) = if (lockBlack && !theme.appDark) {
-            widgetColors(true).let { Color(it.primary) to Color(it.primaryContainer) }
+        // Locked, the widget rims its pill in the colors of the theme that suits it (dark for a dark pill, light
+        // for a light one), whatever the app's theme.
+        val lockedDarkTheme = WidgetColorRules.locksDark(draft)
+        val (rimPrimary, rimContainer) = if (lockBlack && lockedDarkTheme != theme.appDark) {
+            widgetColors(lockedDarkTheme).let { Color(it.primary) to Color(it.primaryContainer) }
         } else {
             theme.primary to theme.primaryContainer
         }
@@ -198,23 +203,24 @@ internal fun widgetPreviewColors(
         accentColor = accentColor,
         isDynamicColorActive = isDynamicColorActive,
         themedSurface = theme.surfaceContainer,
-        appDark = theme.appDark
+        appDark = theme.appDark,
+        lockedPill = Color(WidgetColorRules.lockedPill(draft))
     )
     val isPillLight = pill.isLight
 
-    val isDarkSurface = if (isMaterialDesign) lockBlack || !isPillLight else !isPillLight
+    val isDarkSurface = if (isMaterialDesign) lockDark || !isPillLight else !isPillLight
     val surfaceColors = widgetColors(isDarkSurface)
     // The Custom subtheme's accent and plain icons come from its seed, already in contrast with the pill.
     val customBar = if (isCustomTheme) WidgetColorRules.customBarColors(draft, isMaterialDesign) else null
 
     val accentPrimary = customBar?.let { Color(it.accent) }
-        ?: Color(WidgetColorRules.iconColor(surfaceColors.primary, isMaterialDesign, lockBlack, isPillLight, 32.0))
+        ?: Color(WidgetColorRules.iconColor(surfaceColors.primary, isMaterialDesign, lockDark, isPillLight, 32.0))
     // The System design's optional outline is its accent, as see-through as its pill: the backdrop fades both.
     val rim = materialRim ?: accentPrimary.copy(alpha = rimAlpha)
 
     val systemIconTint = when {
         customBar != null -> Color(customBar.plainIcon)
-        isPillLight && (!isMaterialDesign || !lockBlack) -> Color(surfaceColors.onSurface)
+        isPillLight && !lockDark -> Color(surfaceColors.onSurface)
         else -> Color.White
     }
     return WidgetPreviewColors(
@@ -806,11 +812,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
             // Material 3 Expressive Segmented Tab Bar
             val isCustomActive = localSubtheme == "Custom"
+            // Color Studio holds the search bar's palette (Custom subtheme) and, on the Material design, the Inner
+            // Pill & Circle's: it shows whenever either applies.
+            val hasColorStudio = isCustomActive || previewIsMaterialYou
             // Each tab's outlined icon, and the filled one it shows while selected.
-            val tabs = remember(isCustomActive) {
+            val tabs = remember(hasColorStudio) {
                 listOfNotNull(
                     Triple("Appearance", Icons.Outlined.Palette, Icons.Filled.Palette),
-                    if (isCustomActive) Triple("Color Studio", Icons.Outlined.Tune, Icons.Filled.Tune) else null,
+                    if (hasColorStudio) Triple("Color Studio", Icons.Outlined.Tune, Icons.Filled.Tune) else null,
                     Triple("Widget Shortcuts", Icons.Outlined.Widgets, Icons.Filled.Widgets)
                 )
             }
@@ -881,6 +890,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         val opaqueBackdrop = WidgetColorRules.backdropAlphas(activeDraft.value.copy(transparency = 0f), previewIsMaterialYou).backdrop
                         WidgetColorStudioTab(
                             fields = fields, ui = ui, computedCustomColorInt = computedCustomColorInt,
+                            isMaterialDesign = previewIsMaterialYou,
                             barBackground = previewColors.pill.fill.copy(alpha = previewColors.pill.fill.alpha * opaqueBackdrop)
                         )
                     }

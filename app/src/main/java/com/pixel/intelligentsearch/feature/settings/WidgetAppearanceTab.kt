@@ -294,21 +294,8 @@ internal fun WidgetAppearanceTab(
         }
     }
 
-    // Material Design Inner Pill & Circle Switcher
+    // The Material design's Inner Pill & Circle switch lives in Color Studio, with the color it forces them to.
     val isMaterialDesign = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
-    if (isMaterialDesign) {
-        Spacer(modifier = Modifier.height(8.dp))
-        SettingsCard(lit = false) {
-            SettingsRowToggle(
-                title = "Inner Pill & Circle State",
-                subtitle = "Force Inner Pill & Circle to #121212.",
-                isChecked = localLockBlack,
-                onCheckedChange = { checked ->
-                    localLockBlack = checked
-                }
-            )
-        }
-    }
 
     WidgetBarShapeSection(fields = fields, isMaterialDesign = isMaterialDesign)
 

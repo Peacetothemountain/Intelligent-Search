@@ -596,8 +596,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 )
             } else {
                 // MATERIAL DESIGN BAR: Dual-layer accent rim, companion circle button
+                // Inner Pill & Circle forces the pill and circle to one color; whether it is light or dark decides the
+                // theme the rim and icons are drawn in, as the theme's own light or dark pill does.
                 val lockBlack = settings.lockBlack
-                val isDarkForWidget = if (lockBlack) true else isDark
+                val lockDark = WidgetColorRules.locksDark(settings)
+                val lockLight = WidgetColorRules.locksLight(settings)
+                val isDarkForWidget = if (lockBlack) lockDark else isDark
                 val effectiveWidgetColors = if (isDarkForWidget != isDark) {
                     DynamicThemeDetector.resolveWidgetColors(context, isDarkForWidget)
                 } else {
@@ -611,7 +615,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 }
 
                 val pillColor = if (lockBlack) {
-                    WidgetColorRules.LOCKED_PILL
+                    WidgetColorRules.lockedPill(settings)
                 } else {
                     if (isCustom) actualCustomColor else effectiveWidgetColors.surfaceContainer
                 }
@@ -622,12 +626,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 val pillColorOpaque = Color.rgb(Color.red(pillColor), Color.green(pillColor), Color.blue(pillColor))
                 val circleColorOpaque = Color.rgb(Color.red(circleColor), Color.green(circleColor), Color.blue(circleColor))
 
-                val isPillLight = customBar?.darkIcons ?: (!isDark && !lockBlack)
+                val isPillLight = customBar?.darkIcons ?: if (lockBlack) lockLight else !isDark
 
                 // The Custom subtheme's accent already keeps its contrast on the pill; the theme's is darkened on a
                 // light one.
                 val themePColor = customBar?.accent
-                    ?: WidgetColorRules.iconColor(effectiveWidgetColors.primary, true, lockBlack, isPillLight, targetTone = 32.0)
+                    ?: WidgetColorRules.iconColor(effectiveWidgetColors.primary, true, lockDark, isPillLight, targetTone = 32.0)
                 val iconAccents = WidgetColorRules.materialIconAccents(settings, isPillLight) { SearchIconColors.themeAccents(context, it) }
 
                 WidgetDesignConfig(

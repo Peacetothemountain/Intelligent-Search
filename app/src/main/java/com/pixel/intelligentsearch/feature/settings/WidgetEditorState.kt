@@ -60,6 +60,7 @@ internal class WidgetDraftFields(active: MutableState<WidgetDesignSettings>, mat
     var cornerRadius by draftField(active, { it.cornerRadius }) { d, v -> d.copy(cornerRadius = v) }
     // Material-only settings.
     var lockBlack by draftField(material, { it.lockBlack }) { d, v -> d.copy(lockBlack = v) }
+    var lockedPillColor by draftField(material, { it.lockedPillColor }) { d, v -> d.copy(lockedPillColor = v or 0xFF000000.toInt()) }
     var actionIcon by draftField(material, { it.actionIcon }) { d, v -> d.copy(actionIcon = v) }
 }
 

@@ -271,4 +271,44 @@ class WidgetSettingsStoreTest {
         assertEquals(MAX_OUTLINE_THICKNESS, material.outlineThickness)
         assertEquals(0, material.cornerRadius)
     }
+
+    /** Inner Pill & Circle's color is the #121212 it has always been forced to until one is picked. */
+    @Test
+    fun theLockedPillColorDefaultsToTheOldBlack() {
+        assertEquals(0xFF121212.toInt(), DEFAULT_LOCKED_PILL_COLOR)
+        assertEquals(DEFAULT_LOCKED_PILL_COLOR, store.load(WidgetDesign.MATERIAL, defaults).lockedPillColor)
+        assertEquals(DEFAULT_LOCKED_PILL_COLOR, store.load(WidgetDesign.SYSTEM, defaults).lockedPillColor)
+    }
+
+    @Test
+    fun theLockedPillColorIsSavedForTheMaterialDesign() {
+        val cream = 0xFFF5E6C8.toInt()
+        val material = store.load(WidgetDesign.MATERIAL, defaults).copy(lockedPillColor = cream)
+        val editor = prefs.edit()
+        store.save(WidgetDesign.MATERIAL, material, editor)
+        editor.commit()
+
+        assertEquals(cream, prefs.getInt("widget_material_lock_pill_color", 0))
+        assertEquals(cream, store.load(WidgetDesign.MATERIAL, defaults).lockedPillColor)
+    }
+
+    /** Only the Material design has an Inner Pill & Circle, so the System design never saves the color. */
+    @Test
+    fun theSystemDesignDoesNotSaveALockedPillColor() {
+        val system = store.load(WidgetDesign.SYSTEM, defaults).copy(lockedPillColor = 0xFFF5E6C8.toInt())
+        val editor = prefs.edit()
+        store.save(WidgetDesign.SYSTEM, system, editor)
+        editor.commit()
+
+        assertFalse(prefs.contains("widget_system_lock_pill_color"))
+        assertFalse(prefs.contains("widget_material_lock_pill_color"))
+        assertEquals(DEFAULT_LOCKED_PILL_COLOR, store.load(WidgetDesign.MATERIAL, defaults).lockedPillColor)
+    }
+
+    /** The pill and circle are drawn opaque: a stored color with any alpha (a restored backup) loads as opaque. */
+    @Test
+    fun aSeeThroughLockedPillColorLoadsOpaque() {
+        prefs.edit().putInt("widget_material_lock_pill_color", 0x40F5E6C8).commit()
+        assertEquals(0xFFF5E6C8.toInt(), store.load(WidgetDesign.MATERIAL, defaults).lockedPillColor)
+    }
 }

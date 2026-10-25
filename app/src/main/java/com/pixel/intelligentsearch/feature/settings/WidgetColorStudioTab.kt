@@ -26,7 +26,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.selection.selectable
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
+import com.pixel.intelligentsearch.feature.widget.WidgetColorRules
 
 /** The hue slider's track: the color wheel unrolled, red to red. */
 internal val HUE_GRADIENT = listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red)
@@ -128,7 +130,8 @@ internal fun GradientSliderRow(
 }
 
 /**
- * The Color Studio tab of the widget editor: the custom color sliders, Transparency with them, and hex entry.
+ * The Color Studio tab of the widget editor: the search bar's palette (the custom color sliders, Transparency with
+ * them, and hex entry) and, on the Material design ([isMaterialDesign]), the Inner Pill & Circle's own palette.
  * [barBackground] is the bar's background as the preview draws it at Transparency 0, for the Transparency track.
  */
 @Composable
@@ -136,7 +139,33 @@ internal fun WidgetColorStudioTab(
     fields: WidgetDraftFields,
     ui: WidgetEditorState,
     computedCustomColorInt: Int,
+    isMaterialDesign: Boolean,
     barBackground: Color
+) {
+    val localSubtheme by fields::subtheme
+    val dynamicCustomColor = androidx.compose.ui.graphics.Color(computedCustomColorInt)
+
+    // The search bar's palette on top (the Custom subtheme's own color); the Inner Pill & Circle's under it on the
+    // Material design. Each is named in the accent color.
+    if (localSubtheme == "Custom") SearchBarPalette(
+        fields = fields,
+        ui = ui,
+        computedCustomColorInt = computedCustomColorInt,
+        barBackground = barBackground,
+        dynamicCustomColor = dynamicCustomColor
+    )
+
+    if (isMaterialDesign) InnerPillPalette(fields)
+}
+
+/** The search bar's palette: the custom color's sliders, Transparency with them, and hex entry. */
+@Composable
+private fun SearchBarPalette(
+    fields: WidgetDraftFields,
+    ui: WidgetEditorState,
+    computedCustomColorInt: Int,
+    barBackground: Color,
+    dynamicCustomColor: Color
 ) {
     var localSubtheme by fields::subtheme
     var localHue by fields::hue
@@ -146,12 +175,7 @@ internal fun WidgetColorStudioTab(
     var localTransparency by fields::transparency
     var showHexInput by ui::showHexInput
     var tempHexInput by ui::tempHexInput
-
-    // TAB 1: COLOR STUDIO
-    val dynamicCustomColor = androidx.compose.ui.graphics.Color(computedCustomColorInt)
-
-    // Custom Color Palette Container on Top
-    SettingsSectionHeader("Custom Color Palette")
+    SettingsSectionHeader("Search Bar Color Palette")
     SettingsCard(lit = false) {
         Column(modifier = Modifier.padding(16.dp)) {
             // 1. Hue Slider
@@ -274,6 +298,180 @@ internal fun WidgetColorStudioTab(
                     modifier = Modifier.size(18.dp)
                 )
             }
+        }
+    }
+}
+
+/**
+ * The Inner Pill & Circle's palette (Material design only): the switch that forces the pill and circle to one color,
+ * and under it that color: the default #121212, or one picked with Hue, Saturation and Lightness (the same seed
+ * sliders as the search bar's) or typed as hex.
+ */
+@Composable
+private fun InnerPillPalette(fields: WidgetDraftFields) {
+    var lockBlack by fields::lockBlack
+    var pillColor by fields::lockedPillColor
+    val opaque = pillColor or 0xFF000000.toInt()
+    val isDefault = opaque == WidgetColorRules.LOCKED_PILL
+    // The sliders keep their own positions (a grey has no hue, so the color alone can't say where Hue was); a color
+    // set some other way (Default, hex, a discarded draft) moves them to match.
+    var sliders by remember { mutableStateOf(MaterialYouPaletteHelper.wholeSeedSliders(opaque, greyHue = 0f)) }
+    LaunchedEffect(opaque) {
+        val shown = MaterialYouPaletteHelper.seedColor(sliders.hue, sliders.saturation, sliders.lightness) or 0xFF000000.toInt()
+        if (shown != opaque) sliders = MaterialYouPaletteHelper.wholeSeedSliders(opaque, greyHue = sliders.hue)
+    }
+    fun pick(next: MaterialYouPaletteHelper.SeedSliders) {
+        sliders = next
+        pillColor = MaterialYouPaletteHelper.seedColor(next.hue, next.saturation, next.lightness) or 0xFF000000.toInt()
+    }
+    var showHex by remember { mutableStateOf(false) }
+    var hexInput by remember { mutableStateOf("") }
+    val hex = String.format("#%06X", 0xFFFFFF and opaque)
+
+    SettingsSectionHeader("Inner Pill & Circle Color Palette")
+    SettingsCard(lit = false) {
+        SettingsRowToggle(
+            title = "Inner Pill & Circle State",
+            subtitle = "Force the Inner Pill & Circle to One Color.",
+            isChecked = lockBlack,
+            onCheckedChange = { lockBlack = it },
+            showDivider = false
+        )
+        AttachedRows(visible = lockBlack) {
+            Column(modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)) {
+                // The default first: the near-black the pill and circle have always been forced to.
+                PaletteChoiceRow(
+                    swatch = Color(WidgetColorRules.LOCKED_PILL),
+                    title = "Default",
+                    detail = "#121212",
+                    selected = isDefault,
+                    onClick = { pillColor = WidgetColorRules.LOCKED_PILL }
+                )
+
+                Spacer(modifier = Modifier.height(SLIDER_ROW_GAP + 4.dp))
+
+                GradientSliderRow(
+                    icon = Icons.Default.Palette,
+                    label = "Hue",
+                    valueText = "${sliders.hue.toInt()}°",
+                    gradient = SEED_HUE_GRADIENT,
+                    value = sliders.hue,
+                    onValueChange = { pick(sliders.copy(hue = it.toInt().toFloat())) },
+                    valueRange = 0f..360f
+                )
+                Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
+                GradientSliderRow(
+                    icon = Icons.Default.WaterDrop,
+                    label = "Saturation",
+                    valueText = "${sliders.saturation.toInt()}%",
+                    gradient = listOf(0f, 100f).map {
+                        Color(MaterialYouPaletteHelper.seedColor(sliders.hue, it, sliders.lightness.coerceIn(15f, 85f)))
+                    },
+                    value = sliders.saturation,
+                    onValueChange = { pick(sliders.copy(saturation = it.toInt().toFloat())) },
+                    valueRange = 0f..100f
+                )
+                Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
+                GradientSliderRow(
+                    icon = Icons.Outlined.BrightnessMedium,
+                    label = "Lightness",
+                    valueText = "${sliders.lightness.toInt()}%",
+                    gradient = seedTrack(sliders.hue, sliders.saturation, listOf(0f, 25f, 50f, 75f, 100f)),
+                    value = sliders.lightness,
+                    onValueChange = { pick(sliders.copy(lightness = it.toInt().toFloat())) },
+                    valueRange = 0f..100f
+                )
+                Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
+                PaletteChoiceRow(
+                    swatch = Color(opaque),
+                    title = hex,
+                    detail = null,
+                    selected = false,
+                    trailing = Icons.Default.Edit,
+                    trailingDescription = "Edit Inner Pill & Circle Hex",
+                    onClick = {
+                        hexInput = hex
+                        showHex = true
+                    }
+                )
+            }
+        }
+    }
+
+    if (showHex) {
+        val parsed = parseHexColor(hexInput)
+        AlertDialog(
+            onDismissRequest = { showHex = false },
+            title = { Text("Inner Pill & Circle Hex") },
+            text = {
+                OutlinedTextField(
+                    value = hexInput,
+                    onValueChange = { hexInput = it },
+                    label = { Text("Hex Code") },
+                    singleLine = true,
+                    isError = hexInput.isNotBlank() && parsed == null,
+                    supportingText = if (hexInput.isNotBlank() && parsed == null) {
+                        { Text("Enter six hex digits, e.g. #121212") }
+                    } else null
+                )
+            },
+            confirmButton = {
+                TextButton(enabled = parsed != null, onClick = {
+                    // Exactly the color typed; the sliders move to the nearest they can show.
+                    if (parsed != null) pillColor = parsed
+                    showHex = false
+                }) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { showHex = false }) { Text("Cancel") } }
+        )
+    }
+}
+
+/**
+ * One choice in a palette: a pill with the color's [swatch], its [title] and [detail], and a check while [selected]
+ * or a [trailing] icon (the hex field's pencil).
+ */
+@Composable
+private fun PaletteChoiceRow(
+    swatch: Color,
+    title: String,
+    detail: String?,
+    selected: Boolean,
+    onClick: () -> Unit,
+    trailing: ImageVector? = null,
+    trailingDescription: String? = null
+) {
+    val scheme = MaterialTheme.colorScheme
+    val shape = RoundedCornerShape(24.dp)
+    val textColor = if (selected) scheme.onSecondaryContainer else scheme.onSurfaceVariant
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(shape)
+            .background(if (selected) scheme.secondaryContainer else scheme.surfaceVariant.copy(alpha = 0.7f))
+            .then(if (selected) Modifier.border(1.dp, scheme.primary, shape) else Modifier)
+            .selectable(selected = selected, onClick = onClick, role = androidx.compose.ui.semantics.Role.RadioButton)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .clip(CircleShape)
+                .background(swatch)
+                .border(1.dp, scheme.outlineVariant, CircleShape)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = textColor)
+        if (detail != null) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(detail, style = MaterialTheme.typography.bodyMedium, color = textColor)
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        when {
+            selected -> Icon(Icons.Default.Check, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(20.dp))
+            trailing != null -> Icon(trailing, contentDescription = trailingDescription, tint = scheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
     }
 }

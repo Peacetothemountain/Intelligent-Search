@@ -132,6 +132,25 @@ class WidgetInnerPillPaletteTest {
         compose.onNodeWithText("Inner Pill & Circle State").assertExists()
     }
 
+    /** TalkBack reads the hex row, which opens an editor, as a button, not as an unchosen radio button. */
+    @Test
+    fun theHexRowIsAButton() {
+        materialCustom().commit()
+        openEditor()
+        tap("Color Studio")
+        val hexRow = compose.onNodeWithContentDescription("Edit Inner Pill & Circle Hex").fetchSemanticsNode()
+        var node: androidx.compose.ui.semantics.SemanticsNode? = hexRow
+        var role: androidx.compose.ui.semantics.Role? = null
+        var selectable = false
+        while (node != null && role == null) {
+            role = node.config.getOrElseNullable(androidx.compose.ui.semantics.SemanticsProperties.Role) { null }
+            selectable = node.config.contains(androidx.compose.ui.semantics.SemanticsProperties.Selected)
+            node = node.parent
+        }
+        assertEquals(androidx.compose.ui.semantics.Role.Button, role)
+        assertFalse(selectable)
+    }
+
     @Test
     fun theDefaultIsChosenAtFirst() {
         materialCustom().commit()

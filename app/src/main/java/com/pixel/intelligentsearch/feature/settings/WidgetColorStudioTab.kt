@@ -451,7 +451,11 @@ private fun PaletteChoiceRow(
             .clip(shape)
             .background(if (selected) scheme.secondaryContainer else scheme.surfaceVariant.copy(alpha = 0.7f))
             .then(if (selected) Modifier.border(1.dp, scheme.primary, shape) else Modifier)
-            .selectable(selected = selected, onClick = onClick, role = androidx.compose.ui.semantics.Role.RadioButton)
+            // A choice reads as a radio button; the hex row, which opens an editor, as a button.
+            .then(
+                if (trailing != null) Modifier.clickable(onClick = onClick, role = androidx.compose.ui.semantics.Role.Button)
+                else Modifier.selectable(selected = selected, onClick = onClick, role = androidx.compose.ui.semantics.Role.RadioButton)
+            )
             .padding(horizontal = 16.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

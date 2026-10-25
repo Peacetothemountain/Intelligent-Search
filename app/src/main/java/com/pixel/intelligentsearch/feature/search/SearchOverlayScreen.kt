@@ -792,9 +792,11 @@ fun SearchOverlayScreen(
         contentAlignment = Alignment.BottomCenter
     ) {
         val isShowWallpaper = settingsState.showWallpaper
-        val isTransparency = settingsState.backgroundTransparency
+        val blurAvailable by com.pixel.intelligentsearch.core.ui.rememberCrossWindowBlurEnabled()
         val scrimColor = if (isShowWallpaper) MaterialTheme.colorScheme.scrim else MaterialTheme.colorScheme.background
-        val scrimAlphaFactor = if (isShowWallpaper) ((isTransparency / 100f) * 0.7f).coerceIn(0f, 1f) else 1.0f
+        val scrimAlphaFactor = if (isShowWallpaper) {
+            overlayScrimAlpha(settingsState.backgroundTransparency, settingsState.backgroundBlur, blurAvailable)
+        } else 1.0f
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -844,7 +846,7 @@ fun SearchOverlayScreen(
                 }
             }
             
-            val surfaceAlpha = if (isShowWallpaper) ((100 - isTransparency) / 100f).coerceIn(0f, 1f) else 1f
+            val surfaceAlpha = if (isShowWallpaper) ((100 - settingsState.backgroundTransparency) / 100f).coerceIn(0f, 1f) else 1f
             // Expanded screens (an unfolded Pixel Fold or a tablet in landscape) get list and detail: the search bar,
             // quick apps and results at the start, the highlighted or top result's details beside them, in a wider
             // panel. Everything narrower keeps one column in the 720dp panel (useListDetailLayout).

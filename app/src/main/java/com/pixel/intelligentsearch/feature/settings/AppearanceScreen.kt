@@ -191,27 +191,32 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     var transparency by rememberSetting(SettingsManager.BACKGROUND_TRANSPARENCY)
                     var pillOpacity by rememberSetting(SettingsManager.PILL_OPACITY)
 
-                    SettingsSliderRow(
-                        title = "Background Blur",
-                        value = blur.toFloat(),
-                        onValueChange = { blur = it.toInt() },
-                        valueRange = 0f..100f,
-                        icon = Icons.Outlined.BlurOn,
-                        showDivider = true,
-                        steps = 9,
-                        onReset = { blur = 50 }
-                    )
-                    
-                    SettingsSliderRow(
-                        title = "Background Transparency",
-                        value = transparency.toFloat(),
-                        onValueChange = { transparency = it.toInt() },
-                        valueRange = 0f..100f,
-                        icon = Icons.Outlined.Opacity,
-                        showDivider = true,
-                        steps = 9,
-                        onReset = { transparency = 50 }
-                    )
+                    // Blur and transparency act on the wallpaper behind the overlay, so they show only with it.
+                    AttachedRows(visible = showWall) {
+                        Column {
+                            SettingsSliderRow(
+                                title = "Background Blur",
+                                value = blur.toFloat(),
+                                onValueChange = { blur = it.toInt() },
+                                valueRange = 0f..100f,
+                                icon = Icons.Outlined.BlurOn,
+                                showDivider = true,
+                                steps = 9,
+                                onReset = { blur = 50 }
+                            )
+
+                            SettingsSliderRow(
+                                title = "Background Transparency",
+                                value = transparency.toFloat(),
+                                onValueChange = { transparency = it.toInt() },
+                                valueRange = 0f..100f,
+                                icon = Icons.Outlined.Opacity,
+                                showDivider = true,
+                                steps = 9,
+                                onReset = { transparency = 50 }
+                            )
+                        }
+                    }
                     
                     SettingsSliderRow(
                         title = "Search Pill Opacity",

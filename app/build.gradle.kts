@@ -94,6 +94,8 @@ android {
         all { test ->
           test.systemProperty("roborazzi.test.record", recordScreenshots.toString())
           test.systemProperty("roborazzi.test.verify", (!recordScreenshots).toString())
+          // Robolectric has no window blur; screens are drawn as on a phone that has it on (see CrossWindowBlur.kt).
+          test.systemProperty("intelligentsearch.test.crossWindowBlur", "true")
           // Goldens are inputs: replacing an image must re-run the comparison instead of reusing a cached result.
           test.inputs.files(project.fileTree("src/test/screenshots")).withPropertyName("screenshotGoldens")
           // Goldens are recorded on Windows and match on CI's Linux runners; -PskipScreenshots leaves them out of a run.

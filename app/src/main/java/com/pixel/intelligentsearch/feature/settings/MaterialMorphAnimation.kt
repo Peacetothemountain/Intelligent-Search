@@ -519,7 +519,8 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val poses = remember { Array(physics.maxBodies) { MorphPose() } }
     val sunk = remember { BooleanArray(physics.maxBodies) }
     val sags = remember { FloatArray(physics.maxBodies) }
-    val edge = remember { FloatArray(MorphBouncePhysics.SHEET_NODES + 1) }
+    // The floor's near edge, one point per rubber node (remade only if the node count changes).
+    val edgeHolder = remember { arrayOf(FloatArray(MorphBouncePhysics.MIN_SHEET_NODES + 1)) }
     val membranePath = remember { android.graphics.Path() }
     val membraneComposePath = remember(membranePath) { membranePath.asComposePath() }
     val imprintPath = remember { android.graphics.Path() }
@@ -631,6 +632,8 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
             val nodePx = physics.nodeSpacing * ppm
 
             // The floor's near edge: the rubber's surface seen in perspective, dipping a share of the way it does.
+            if (edgeHolder[0].size != sheet.u.size) edgeHolder[0] = FloatArray(sheet.u.size)
+            val edge = edgeHolder[0]
             for (i in edge.indices) edge[i] = floorPx + (SURFACE_SAG * (sheet.u[i] - base[i]) * ppm).toFloat()
             membranePath.rewind()
             membranePath.moveTo(-1f, -size.height)

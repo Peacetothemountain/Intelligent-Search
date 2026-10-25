@@ -28,7 +28,8 @@ import kotlin.random.Random
  * - shapes spin as solid discs do (moment of inertia ½mr²): friction with the floor and between shapes trades
  *   sideways speed for spin and back, so a shape that lands moving sideways leaves rolling;
  * - shapes knock into each other like the hard objects they are, trading momentum by mass;
- * - the floor is a rubber sheet stretched across the area ([SHEET_NODES] nodes, a string under tension that stiffens
+ * - the floor is a rubber sheet stretched across the area (at least [MIN_SHEET_NODES] nodes, never farther apart than
+ *   the smallest shape's radius, so every shape always presses some: a string under tension that stiffens
  *   as it stretches), integrated implicitly so it is stable however hard it is struck. A shape presses into it along
  *   its own outline: each node under it is pushed by a simultaneous contact impulse, with Coulomb friction, so a heavy
  *   shape sinks deeper and comes back up slower than a light one, and the sheet's ringing carries the blow across;
@@ -149,7 +150,7 @@ internal class MorphBouncePhysics(
     }
 
     /**
-     * The rubber floor: [SHEET_NODES] + 1 nodes across the area, fixed at both ends. [u] is each node's depth below the
+     * The rubber floor: its nodes across the area, fixed at both ends. [u] is each node's depth below the
      * floor line, [rest] the dent the rubber has kept there, [heat] its warmth above the room's (kelvin) and [damage]
      * how worn it is, 0 to 1. [by] is the body that last pressed each node, for its color.
      */
@@ -240,10 +241,13 @@ internal class MorphBouncePhysics(
         private set
     val bodies = mutableListOf<Body>()
     val imprints = Array(MAX_IMPRINTS) { Imprint() }
-    var sheet = Sheet(SHEET_NODES + 1)
+    /** How many node spacings cross the area. */
+    var nodes = MIN_SHEET_NODES
+        private set
+    var sheet = Sheet(MIN_SHEET_NODES + 1)
         private set
     /** The sheet hanging at rest under its own weight, which the drawing measures the floor's movement from. */
-    var sheetBase = DoubleArray(SHEET_NODES + 1)
+    var sheetBase = DoubleArray(MIN_SHEET_NODES + 1)
         private set
     /** How far through the next step the scene is, 0 to 1, for drawing. */
     var renderFraction = 0f
@@ -268,30 +272,53 @@ internal class MorphBouncePhysics(
         val iterator: Iterator<Unit> = iterator { result = planDrop(step, start, snapshot, sheetCopy, queued) }
     }
     private var plan: Plan? = null
+    /** After a missed planning window the next plan gets twice the lead, up to [MAX_LEAD_BOOST] times. */
+    private var leadBoost = 1
+    /** The step at which to check, once the area has stopped changing, that every shape still leaves (0: none due). */
+    private var checkLeavingAt = 0
+    private var calibratedFor = ""
 
     // Scratch for the contact solve, made once: each body's outline, and its lowest point over each sheet node.
-    private val low = DoubleArray(SHEET_NODES + 1) { Double.NEGATIVE_INFINITY }
     private val ox = DoubleArray(OUTLINE_POINTS)
     private val oy = DoubleArray(OUTLINE_POINTS)
     private val slots = maxBodies + 2
-    private val pIdx = Array(slots) { IntArray(SHEET_NODES + 1) }
-    private val pRx = Array(slots) { DoubleArray(SHEET_NODES + 1) }
-    private val pRy = Array(slots) { DoubleArray(SHEET_NODES + 1) }
     private val pCount = IntArray(slots)
-    private val tIdx = IntArray(SHEET_NODES + 1)
-    private val tRx = DoubleArray(SHEET_NODES + 1)
-    private val tRy = DoubleArray(SHEET_NODES + 1)
-    private val tJ = DoubleArray(SHEET_NODES + 1)
-    private val tRel = DoubleArray(SHEET_NODES + 1)
+    private var low = DoubleArray(0)
+    private var pIdx = emptyArray<IntArray>()
+    private var pRx = emptyArray<DoubleArray>()
+    private var pRy = emptyArray<DoubleArray>()
+    private var tIdx = IntArray(0)
+    private var tRx = DoubleArray(0)
+    private var tRy = DoubleArray(0)
+    private var tJ = DoubleArray(0)
+    private var tRel = DoubleArray(0)
+
+    /** Scratch for [n] + 1 nodes, made only when the node count changes. */
+    private fun allocateScratch(n: Int) {
+        low = DoubleArray(n + 1) { Double.NEGATIVE_INFINITY }
+        pIdx = Array(slots) { IntArray(n + 1) }
+        pRx = Array(slots) { DoubleArray(n + 1) }
+        pRy = Array(slots) { DoubleArray(n + 1) }
+        tIdx = IntArray(n + 1)
+        tRx = DoubleArray(n + 1)
+        tRy = DoubleArray(n + 1)
+        tJ = DoubleArray(n + 1)
+        tRel = DoubleArray(n + 1)
+    }
 
     /**
-     * Sizes the area, in metres. The first call schedules the first drop. A later one (the phone turned, or the text
-     * grew while the page is open) lays a fresh sheet and keeps the shapes inside the new area: one now under the floor
-     * is set on it, one now past a side edge is moved in to it, and one too big for the area leaves.
+     * Sizes the area, in metres. The first call schedules the first drop. A later one (the phone turned, the text grew,
+     * or a card above opened or closed while the page is open) keeps the shapes inside the new area: one now under the
+     * floor is set on it, one now past a side edge is moved in to it, and one too big for the area leaves. With the
+     * width unchanged the rubber, and the dents in it, stay as they are. It is cheap, so it can follow an area resizing
+     * every frame; once the area has held still a moment, every shape's flight is checked again ([checkEveryShapeLeaves]).
      */
     fun resize(widthMetres: Float, heightMetres: Float, radiiMetres: List<Float>) {
         if (widthMetres == width && heightMetres == height && radiiMetres == radii) return
         val first = width == 0f
+        val oldWidth = width
+        val oldFloor = floor
+        val oldNodes = nodes
         width = widthMetres
         height = heightMetres
         radii = radiiMetres
@@ -299,29 +326,37 @@ internal class MorphBouncePhysics(
         val largest = radii.max().coerceAtMost(height * MAX_RADIUS_SHARE)
         floorDepth = FLOOR_DEPTH_SHARE * 2f * largest
         floor = height - floorDepth
-        nodeSpacing = width / SHEET_NODES
+        // Nodes never farther apart than the smallest shape's radius, so every shape always presses some.
+        nodes = max(MIN_SHEET_NODES, kotlin.math.ceil(width / radii.min().coerceAtLeast(1e-3f)).toInt())
+        nodeSpacing = width / nodes
         nodeMass = lineDensity * nodeSpacing
+        if (nodes != oldNodes || low.isEmpty()) allocateScratch(nodes)
         calibrate()
-        sheet = newSheet()
-        sheetBase = sheet.u.copyOf()
-        for (imprint in imprints) imprint.active = false
+        val keepSheet = !first && width == oldWidth && nodes == oldNodes && sheet.u.size == nodes + 1
+        if (keepSheet) {
+            for (i in sheet.u.indices) {
+                sheet.u[i] = min(sheet.u[i], floorDepth.toDouble())
+                sheet.rest[i] = min(sheet.rest[i], floorDepth.toDouble())
+            }
+            val shift = floor - oldFloor
+            for (imprint in imprints) if (imprint.active) imprint.y += shift
+        } else {
+            sheet = newSheet()
+            for (imprint in imprints) imprint.active = false
+        }
+        sheetBase = newSheet().u
         plan = null
         pending.clear()
-        if (first && autoSpawn) desired = stepCount + ((FIRST_DROP_MIN + random.nextFloat() * (FIRST_DROP_MAX - FIRST_DROP_MIN)) / STEP).roundToInt()
-        else desired = stepCount
-        var i = bodies.size - 1
-        while (i >= 0) {
-            if (bodies[i].radius > height * MAX_RADIUS_SHARE) bodies.removeAt(i)
-            i--
-        }
+        desired = if (first && autoSpawn) stepCount + ((FIRST_DROP_MIN + random.nextFloat() * (FIRST_DROP_MAX - FIRST_DROP_MIN)) / STEP).roundToInt()
+        else max(desired, stepCount)
+        bodies.removeAll { it.radius > height * MAX_RADIUS_SHARE }
         for (body in bodies) {
-            body.imprint = null
+            if (!keepSheet) body.imprint = null
             if (body.y + body.radius > floor) {
                 // Set on the new floor line, keeping any upward speed it had; it isn't thrown anywhere.
                 body.y = floor - body.radius
                 body.vy = body.vy.coerceAtMost(0f)
                 body.penetration = 0f
-                body.inContact = false
                 body.contactTime = 0f
                 body.sinceLift = 0f
             }
@@ -329,30 +364,45 @@ internal class MorphBouncePhysics(
             body.prevX = body.x
             body.prevY = body.y
         }
-        // Their throws were planned for the old area: one that wouldn't now leave by itself, in time, leaves now,
-        // so no shape is ever left sitting on the floor.
-        bodies.removeAll { !leavesOnItsOwn(it) }
+        checkLeavingAt = if (bodies.isEmpty()) 0 else stepCount + SETTLE_STEPS
     }
 
-    /** Whether [body], left alone on the floor as it is, flies off the screen before [MAX_LIFETIME] without sitting. */
-    private fun leavesOnItsOwn(body: Body): Boolean {
-        val ghost = body.ghost().apply { contactTime = 0f; stuck = false }
-        val one = mutableListOf(ghost)
-        val s = Sheet(SHEET_NODES + 1).also { it.copyFrom(sheet) }
-        var t = body.age
-        while (t < MAX_LIFETIME) {
-            stepScene(one, s, null)
-            if (gone(ghost)) return true
-            if (ghost.stuck) return false
-            t += STEP
+    /**
+     * The shapes' throws were planned for the area as it was. Once it has held still, the scene as it stands is run
+     * forward, all of them together: any shape that wouldn't now fly off by itself, in time, leaves now (and the run is
+     * tried again without it), so no shape is ever left sitting on the floor.
+     */
+    private fun checkEveryShapeLeaves() {
+        var removed = false
+        while (bodies.isNotEmpty()) {
+            val ghosts = bodies.map { b -> b.ghost().apply { contactTime = 0f; stuck = false } }
+            val running = ghosts.toMutableList()
+            val s = Sheet(nodes + 1).also { it.copyFrom(sheet) }
+            val stays = HashSet<Int>()
+            var t = 0f
+            while (running.isNotEmpty() && t < MAX_LIFETIME) {
+                stepScene(running, s, null)
+                running.removeAll { gone(it) }
+                for (g in running) if (g.stuck) stays += g.id
+                if (stays.isNotEmpty()) break
+                t += STEP
+            }
+            if (t >= MAX_LIFETIME) for (g in running) stays += g.id
+            if (stays.isEmpty()) break
+            bodies.removeAll { it.id in stays }
+            removed = true
         }
-        return false
+        if (removed) {
+            plan = null
+            pending.clear()
+            desired = max(desired, stepCount)
+        }
     }
 
     private fun newSheet(): Sheet {
-        val s = Sheet(SHEET_NODES + 1)
+        val s = Sheet(nodes + 1)
         // Hanging under its own weight: a shallow parabola.
-        for (i in 1 until SHEET_NODES) {
+        for (i in 1 until nodes) {
             val x = i * nodeSpacing.toDouble()
             s.u[i] = lineDensity * GRAVITY * x * (width - x) / (2.0 * tension)
         }
@@ -362,11 +412,17 @@ internal class MorphBouncePhysics(
     /**
      * Finds the sheet's tension and damping for this area: a stone ([REFERENCE_DENSITY]) shape of the middle size,
      * dropped from the top, sinks [REFERENCE_SINK] of its height and comes back at [REFERENCE_REBOUND] of its landing
-     * speed. Remembered per area, as it is the same every time.
+     * speed. Found again only when the width or the shapes' size (to within a tenth) changes, so an area resizing
+     * every frame under a card that is opening never recalibrates; remembered per width and size, as it is the same
+     * every time.
      */
     private fun calibrate() {
-        val r = radii[min(1, radii.size - 1)].coerceAtMost(height * MAX_RADIUS_SHARE)
-        val key = "$width,$height,$r"
+        val raw = radii[min(1, radii.size - 1)].coerceAtMost(height * MAX_RADIUS_SHARE).coerceAtLeast(1e-3f)
+        val step = ln(SIZE_STEP)
+        val r = exp((ln(raw) / step).roundToInt() * step)
+        val key = "$width,$nodes,$r"
+        if (key == calibratedFor) return
+        calibratedFor = key
         calibrated[key]?.let { tension = it.first; damping = it.second; return }
         val target = REFERENCE_SINK * 2f * r
         val v0 = sqrt(2f * GRAVITY * floor)
@@ -426,13 +482,30 @@ internal class MorphBouncePhysics(
                 if (p.step == stepCount) bodies += Body(p.body.id, p.body.radius, p.body.mass).also { it.copyFrom(p.body) }
             }
             plan?.let { if (it.step <= stepCount) abandonPlan() }
+            if (checkLeavingAt in 1..stepCount) {
+                checkLeavingAt = 0
+                checkEveryShapeLeaves()
+            }
             if (autoSpawn) startPlans()
             stepScene(bodies, sheet, listener)
             floorEffects(STEP)
             var i = bodies.size - 1
+            var lost = false
             while (i >= 0) {
-                if (isGone(bodies[i])) bodies.removeAt(i)
+                val b = bodies[i]
+                if (isGone(b)) bodies.removeAt(i)
+                else if (b.stuck || b.age > MAX_LIFETIME + LIFETIME_SLACK) {
+                    // The last resort, for a scene the forecast never saw (none should reach it): a shape that would
+                    // sit on the floor, or outstay its time, leaves rather than sit there for good.
+                    bodies.removeAt(i)
+                    lost = true
+                }
                 i--
+            }
+            if (lost) {
+                plan = null
+                pending.clear()
+                desired = max(desired, stepCount)
             }
             stepCount++
         }
@@ -441,23 +514,23 @@ internal class MorphBouncePhysics(
 
     /** Starts planning the next drop once it is near ([PLAN_LEAD]) and there is room; synchronous plans finish here. */
     private fun startPlans() {
-        while (plan == null && bodies.size + pending.size < maxBodies && stepCount >= desired - LEAD_STEPS) {
-            val step = max(desired, stepCount + MIN_LEAD_STEPS)
+        while (plan == null && bodies.size + pending.size < maxBodies && stepCount >= desired - LEAD_STEPS * leadBoost) {
+            val step = max(desired, stepCount + MIN_LEAD_STEPS * leadBoost)
             val snapshot = bodies.map { it.ghost() }
-            val copy = Sheet(SHEET_NODES + 1).also { it.copyFrom(sheet) }
+            val copy = Sheet(nodes + 1).also { it.copyFrom(sheet) }
             plan = Plan(step, stepCount, snapshot, copy, pending.toList())
             if (planBudgetNanos > 0L) return
             finishPlan()
         }
     }
 
-    /** Works on the planned drop for up to [budgetNanos]. */
+    /** Works on the planned drop for up to [budgetNanos], and at least one slice of it, so it always moves on. */
     fun work(budgetNanos: Long) {
         val end = System.nanoTime() + budgetNanos
-        while (plan != null && System.nanoTime() < end) {
+        do {
             val p = plan ?: return
             if (p.iterator.hasNext()) p.iterator.next() else settlePlan(p)
-        }
+        } while (System.nanoTime() < end)
     }
 
     private fun finishPlan() {
@@ -472,14 +545,17 @@ internal class MorphBouncePhysics(
         if (body != null) {
             pending += Pending(p.step, Body(nextId++, body.radius, body.mass).also { it.copyFrom(body); it.real = true })
             desired = p.step + gapSteps()
+            leadBoost = 1
         } else {
             desired = p.step + RETRY_STEPS
         }
     }
 
+    /** A plan not done in time is dropped; the next gets more time, as this phone needs it. */
     private fun abandonPlan() {
         plan = null
-        desired = stepCount + LEAD_STEPS
+        leadBoost = min(leadBoost * 2, MAX_LEAD_BOOST)
+        desired = stepCount + LEAD_STEPS * leadBoost
     }
 
     /** The steps to the next drop: a short gap within a burst, a long and uneven one between bursts. */
@@ -517,7 +593,7 @@ internal class MorphBouncePhysics(
         while (queue.isNotEmpty() && queue.first().step == n) ghosts += queue.removeFirst().body.ghost()
         if (ghosts.size >= maxBodies) return null
         val template = newDrop() ?: return null
-        val attemptSheet = Sheet(SHEET_NODES + 1)
+        val attemptSheet = Sheet(nodes + 1)
         repeat(PLAN_TRIES) {
             val thrown = aim(template) ?: return@repeat
             attemptSheet.copyFrom(sheetCopy)
@@ -611,7 +687,7 @@ internal class MorphBouncePhysics(
                 thrown.x = (width * fraction).clampSafely(thrown.radius * PLAN_EDGE_MARGIN, width - thrown.radius * PLAN_EDGE_MARGIN)
                 thrown.prevX = thrown.x
             }
-            val s = Sheet(SHEET_NODES + 1).also { it.copyFrom(sheet) }
+            val s = Sheet(nodes + 1).also { it.copyFrom(sheet) }
             val run = iterator { spawnForecastKept = forecast(bodies.map { it.ghost() }.toMutableList(), s, thrown.ghost()) }
             while (run.hasNext()) run.next()
             if (spawnForecastKept || fraction != null) {
@@ -661,7 +737,7 @@ internal class MorphBouncePhysics(
 
     /** The rubber over [dt]: tension (stiffening with stretch) and damping solved implicitly, heat, creep and healing. */
     private fun sheetStep(s: Sheet, dt: Double) {
-        val n = SHEET_NODES + 1
+        val n = s.u.size
         val dx = nodeSpacing.toDouble()
         var length = 0.0
         for (i in 0 until n - 1) {
@@ -742,7 +818,7 @@ internal class MorphBouncePhysics(
             ox[k] = (COS[k] * c - SIN[k] * sn) * rr
             oy[k] = (COS[k] * sn + SIN[k] * c) * rr
         }
-        var first = SHEET_NODES
+        var first = nodes
         var last = 0
         for (k in 0 until OUTLINE_POINTS) {
             val k2 = if (k + 1 == OUTLINE_POINTS) 0 else k + 1
@@ -752,7 +828,7 @@ internal class MorphBouncePhysics(
             val y2 = oy[k2]
             if (x1 == x2) continue
             val a = max(kotlin.math.ceil((b.x + min(x1, x2)) / dx).toInt(), 1)
-            val z = min(kotlin.math.floor((b.x + max(x1, x2)) / dx).toInt(), SHEET_NODES - 1)
+            val z = min(kotlin.math.floor((b.x + max(x1, x2)) / dx).toInt(), nodes - 1)
             val slope = (y2 - y1) / (x2 - x1)
             for (i in a..z) {
                 val y = y1 + slope * (i * dx - b.x - x1)
@@ -886,6 +962,8 @@ internal class MorphBouncePhysics(
             for (j in i + 1 until list.size) {
                 val a = list[i]
                 val b = list[j]
+                // A shape already gone from the screen knocks nothing, as the forecast, which drops it then, has it.
+                if (gone(a) || gone(b)) continue
                 val dx = b.x - a.x
                 val dy = b.y - a.y
                 val minDistance = a.radius + b.radius
@@ -949,7 +1027,7 @@ internal class MorphBouncePhysics(
     /** The deepest dent the rubber keeps under [imprint]. */
     private fun restUnder(imprint: Imprint): Double {
         val a = max(1, ((imprint.x - imprint.radius * 0.9f) / nodeSpacing).toInt())
-        val z = min(SHEET_NODES - 1, kotlin.math.ceil((imprint.x + imprint.radius * 0.9f) / nodeSpacing).toInt())
+        val z = min(nodes - 1, kotlin.math.ceil((imprint.x + imprint.radius * 0.9f) / nodeSpacing).toInt())
         var most = 0.0
         for (i in a..z) if (sheet.rest[i] > most) most = sheet.rest[i]
         return most
@@ -1083,7 +1161,7 @@ internal class MorphBouncePhysics(
         const val RUBBER_DENSITY = 1100.0
         const val SHEET_THICKNESS = 0.006
         const val STIFFENING = 6.0
-        const val SHEET_NODES = 56
+        const val MIN_SHEET_NODES = 56
         const val SUBSTEPS = 6
         /** The floor line sits this share of the largest shape's height above the bottom of the area. */
         const val FLOOR_DEPTH_SHARE = 0.66f
@@ -1134,6 +1212,8 @@ internal class MorphBouncePhysics(
         /** Each drop is planned this far ahead, and never less than [MIN_LEAD] ahead. */
         const val PLAN_LEAD = 1f
         const val MIN_LEAD = 0.25f
+        /** A missed plan doubles the lead, up to this many times. */
+        const val MAX_LEAD_BOOST = 4
         /** Planning yields every this many steps. */
         const val PLAN_SLICE = 8
         /** The animation gives planning this much of each frame. */
@@ -1155,6 +1235,12 @@ internal class MorphBouncePhysics(
         const val QUIET_GAP_MAX = 4.5f
         /** Every shape has left by this age: every drop is planned to. */
         const val MAX_LIFETIME = 9f
+        /** A shape the forecast never saw is let go this long after [MAX_LIFETIME] at the latest. */
+        const val LIFETIME_SLACK = 1f
+        /** The area must hold still this long before its shapes' flights are checked again. */
+        const val SETTLE_SECONDS = 0.25f
+        /** The rubber is calibrated afresh only when the shapes' size changes by this factor. */
+        const val SIZE_STEP = 1.1f
 
         /** The simulation's fixed step: 240 Hz, two steps a frame at 120 Hz, four at 60 Hz. */
         const val STEP = 1f / 240f
@@ -1164,6 +1250,7 @@ internal class MorphBouncePhysics(
         private val LEAD_STEPS = (PLAN_LEAD / STEP).roundToInt()
         private val MIN_LEAD_STEPS = (MIN_LEAD / STEP).roundToInt()
         private val RETRY_STEPS = (RETRY / STEP).roundToInt()
+        private val SETTLE_STEPS = (SETTLE_SECONDS / STEP).roundToInt()
 
         /** Silhouettes kept at once. */
         const val MAX_IMPRINTS = 8

@@ -435,6 +435,45 @@ class MorphBouncePhysicsTest {
     }
 
     @Test
+    fun planningAFewMomentsAFrameStillBringsDropsOnASlowPhone() {
+        // The least a frame can give: one slice of planning. A missed window gives the next plan more time.
+        val physics = MorphBouncePhysics(Random(5), planBudgetNanos = 1L).apply { resize(phone.widthMetres, phone.heightMetres, phone.radiiMetres) }
+        val seen = HashSet<Int>()
+        run(physics, 60f, onFrame = { for (b in physics.bodies) seen += b.id })
+        assertTrue("only ${seen.size} drops", seen.size >= 5)
+    }
+
+    @Test
+    fun anAreaResizingEveryFrameKeepsItsRubberAndDents() {
+        val physics = world(9)
+        while (physics.imprints.none { it.active && !it.holding }) physics.advance(1f / 120f)
+        val dents = physics.imprints.count { it.active }
+        val floorBefore = physics.floor
+        // A card opening above: the area a few millimetres shorter every frame.
+        repeat(20) { i ->
+            physics.resize(phone.widthMetres, phone.heightMetres - 0.005f * (i + 1), phone.radiiMetres)
+            physics.advance(1f / 120f)
+        }
+        assertTrue("the dents went: $dents before, ${physics.imprints.count { it.active }} after", physics.imprints.count { it.active } >= 1)
+        assertEquals(floorBefore - 0.1f, physics.floor, 1e-3f)
+    }
+
+    @Test
+    fun afterTheAreaChangesNoShapeIsLeftSittingOnTheFloor() {
+        for (seed in 1..8) {
+            val physics = world(seed)
+            run(physics, 4f)
+            val shorter = morphSceneFor(411f * 3f, 100f * 3f, 3f)!!
+            physics.resize(shorter.widthMetres, shorter.heightMetres, shorter.radiiMetres)
+            val there = physics.bodies.toList()
+            run(physics, MorphBouncePhysics.MAX_LIFETIME + 1f, onFrame = {
+                for (b in physics.bodies) assertTrue("seed $seed: shape ${b.id} on the floor for ${b.contactTime}s", b.contactTime <= MorphBouncePhysics.STUCK_TIME)
+            })
+            for (b in there) assertTrue("seed $seed: shape ${b.id} still there", b !in physics.bodies)
+        }
+    }
+
+    @Test
     fun whenTheAreaShrinksEveryShapeIsKeptInsideIt() {
         for (seed in 1..8) {
             val physics = world(seed)

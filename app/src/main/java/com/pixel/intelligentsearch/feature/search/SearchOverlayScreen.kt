@@ -127,7 +127,7 @@ fun SearchOverlayScreen(
             "DuckDuckGo" -> "DuckDuckGo"
             "Bing" -> "Bing"
             "Google" -> "Google"
-            "Custom" -> com.pixel.intelligentsearch.core.security.CustomSearchUrl.displayName(settingsState.customSearchEngineUrl) ?: "Web"
+            "Custom" -> com.pixel.intelligentsearch.core.security.CustomSearchUrl.displayName(settingsState.customSearchEngineUrl) ?: "Google"
             else -> if (settingsState.searchEngine.isNotBlank()) settingsState.searchEngine else "Google"
         }
     }

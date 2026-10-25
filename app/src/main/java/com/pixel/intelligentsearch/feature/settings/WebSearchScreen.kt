@@ -74,7 +74,7 @@ fun WebSearchScreen(
                             }
                         }
                         // Custom starts with an empty address for the user to fill in; until there is a valid one,
-                        // searches go to the phone's own web search rather than to an engine nobody chose.
+                        // searches go to Google rather than to an engine nobody chose.
                         searchEngine = selected
                     },
                     showDivider = searchEngine != "Custom",
@@ -115,6 +115,8 @@ fun WebSearchScreen(
                             urlText = typed.take(com.pixel.intelligentsearch.core.security.CustomSearchUrl.MAX_LENGTH)
                             val check = com.pixel.intelligentsearch.core.security.CustomSearchUrl.validate(urlText)
                             if (check is com.pixel.intelligentsearch.core.security.CustomSearchUrl.Validation.Valid) customUrl = check.template
+                            // Cleared, it is cleared: searches go back to Google, as the field now says.
+                            else if (urlText.isBlank()) customUrl = ""
                         },
                         label = { Text("Custom Search URL (use %s for query)") },
                         singleLine = true,

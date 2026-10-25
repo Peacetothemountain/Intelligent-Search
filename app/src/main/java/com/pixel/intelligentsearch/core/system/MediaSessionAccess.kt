@@ -11,8 +11,11 @@ import android.os.SystemClock
 import android.util.Log
 import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 
@@ -122,6 +125,33 @@ object MediaSessionAccess {
     /** The session to show out of [controllers]: the first one playing, else one paused a short while ago. */
     fun pick(controllers: List<MediaController>, nowElapsed: Long = SystemClock.elapsedRealtime()): MediaController? =
         pickIndex(controllers.map(::stateOf), nowElapsed)?.let(controllers::get)
+
+    /**
+     * [pick]'s session out of each list [sessions] gives, picked again as a paused session's [PAUSED_MEDIA_MS] runs
+     * out, so a player left paused leaves on time even though nothing about it changes.
+     */
+    fun picked(sessions: Flow<List<MediaController>>, nowElapsed: () -> Long = SystemClock::elapsedRealtime): Flow<MediaController?> =
+        pickedBy(sessions, ::stateOf, nowElapsed)
+
+    /** [picked] for sessions read through [stateOf], so tests can hand in plain states. */
+    internal fun <T> pickedBy(sessions: Flow<List<T>>, stateOf: (T) -> SessionState, nowElapsed: () -> Long): Flow<T?> = channelFlow {
+        sessions.collectLatest { found ->
+            while (true) {
+                val now = nowElapsed()
+                val states = found.map(stateOf)
+                send(pickIndex(states, now)?.let(found::get))
+                val until = pausedShownUntil(states, now) ?: break
+                delay(until - now)
+            }
+        }
+    }
+
+    /** When the first of [sessions] showing only because it was paused a short while ago stops showing; null when none is. */
+    fun pausedShownUntil(sessions: List<SessionState>, nowElapsed: Long): Long? = sessions.mapNotNull { session ->
+        val since = session.lastUpdateElapsed ?: return@mapNotNull null
+        val pausedAndShown = session.title != null && playingState(session.state, since, nowElapsed) == false
+        if (pausedAndShown) since + PAUSED_MEDIA_MS + 1 else null
+    }.minOrNull()
 
     /**
      * Whether a session in playback [state] shows, and as playing: true while playing or buffering, false while paused

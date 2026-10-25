@@ -128,7 +128,7 @@ class WidgetEditorAccessibilityTest {
         }
         // The 36dp thumb was drawn inside an 8dp box, over the value text above it.
         compose.onNodeWithContentDescription("Hue").assertHeightIsAtLeast(48.dp)
-        compose.onNodeWithText("Custom Color Palette").assert(isHeading)
+        compose.onNodeWithText("Search Bar Color Palette").assert(isHeading)
     }
 
     @Test
@@ -136,7 +136,7 @@ class WidgetEditorAccessibilityTest {
         prefs.edit()
             .putBoolean("widget_system_design_saved", true)
             .putString("widget_system_subtheme", "Custom")
-            // Saved by this version (an older one's HSV hue would be read as the colour it showed).
+            // Saved by this version (an older one's HSV hue would be read as the color it showed).
             .putBoolean("widget_system_custom_color_hct", true)
             .putInt("widget_system_custom_hue", 180)
             .commit()
@@ -193,7 +193,7 @@ class WidgetEditorAccessibilityTest {
         tap("System Design")
 
         compose.onNode(hasText("Widget Shortcuts") and isHeading).assertExists()
-        compose.onNodeWithText("Custom Color Palette").assertDoesNotExist()
+        compose.onNodeWithText("Search Bar Color Palette").assertDoesNotExist()
     }
 
     @Test
@@ -211,7 +211,7 @@ class WidgetEditorAccessibilityTest {
         tap("Custom")
 
         compose.onNodeWithText("Appearance").assertIsSelected()
-        compose.onNodeWithText("Custom Color Palette").assertDoesNotExist()
+        compose.onNodeWithText("Search Bar Color Palette").assertDoesNotExist()
     }
 
     @Test

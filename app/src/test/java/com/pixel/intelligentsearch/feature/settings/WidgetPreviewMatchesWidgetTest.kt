@@ -19,6 +19,7 @@ import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.WidgetBarShape
+import com.pixel.intelligentsearch.feature.widget.WidgetColorRules
 import com.pixel.intelligentsearch.feature.widget.createCustomMaterialGBitmap
 import com.pixel.intelligentsearch.feature.widget.createThemedActionIconBitmap
 import com.pixel.intelligentsearch.feature.widget.createThemedShortcutBitmap
@@ -39,7 +40,7 @@ import kotlin.math.abs
  * The editor's live preview paints what the widget draws for the same settings: the backdrop's opacity, the rim, the
  * pill, the circle, the G and every icon, for each design, subtheme, inner pill state and G style (the Material G
  * style's drawings compared pixel for pixel), with the Color Studio sliders at several values. The preview is drawn
- * with the colour scheme of the theme the widget follows.
+ * with the color scheme of the theme the widget follows.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -51,9 +52,10 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
     private val activity by lazy { Robolectric.buildActivity(Activity::class.java).setup().get() }
     private val design get() = if (bar.material) WidgetDesign.MATERIAL else WidgetDesign.SYSTEM
 
-    private fun store(s: Sliders) {
+    private fun store(s: Sliders, lockedPill: Int? = null) {
         val p = design.prefix
         prefs.edit().clear()
+            .apply { if (lockedPill != null) putInt("${p}_lock_pill_color", lockedPill) }
             .putString(SettingsManager.THEME.name, if (dark) "Material Dark" else "Material Light")
             .putBoolean("${p}_design_saved", true)
             .putString("${p}_subtheme", bar.subtheme)
@@ -128,7 +130,7 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
             Sliders(lightness = 30, opacity = 100, transparency = 0),
             Sliders(hue = 40, saturation = 20, lightness = 100, opacity = 45, transparency = 35),
             Sliders(hue = 300, saturation = 100, lightness = 60, opacity = 100, transparency = 70),
-            // Black, mid-tone, grey and white seeds, where the icons flip or run out of colour.
+            // Black, mid-tone, grey and white seeds, where the icons flip or run out of color.
             Sliders(hue = 120, saturation = 80, lightness = 0),
             Sliders(hue = 20, saturation = 90, lightness = 50),
             Sliders(hue = 250, saturation = 0, lightness = 45),
@@ -136,71 +138,96 @@ class WidgetPreviewMatchesWidgetTest(private val bar: Bar, private val gStyle: S
         )
         for (s in settings) {
             store(s)
-            val widget = widget()
-            val preview = preview()
-            val label = "$bar $gStyle ${if (dark) "dark" else "light"} $s"
+            assertPreviewMatchesWidget(s.toString())
+        }
+    }
 
-            // The rim, pill and circle below are each at their opacity within the backdrop, which both fade at once.
-            assertEquals("$label backdrop alpha", preview.backdropAlpha, widget.findViewById<View>(R.id.widget_backdrop).alpha, 0f)
-            assertLayer("$label pill", preview.pill.fill, widget, R.id.widget_pill_background)
-            // The Material G style draws its mic as a bitmap, compared below.
-            if (gStyle != "Material G Icon") {
-                val mic = Shadows.shadowOf(widget.findViewById<ImageView>(R.id.widget_voice_search).drawable).createdFromResId
-                assertEquals(
-                    "$label mic drawing",
-                    context.resources.getResourceEntryName(if (preview.usesMaterialYouIcons) R.drawable.ic_mic else R.drawable.ic_mic_original),
-                    context.resources.getResourceEntryName(mic)
-                )
-            }
-            if (bar.material) {
-                assertLayer("$label rim", preview.rim, widget, R.id.widget_outer_background)
-                assertLayer("$label circle", preview.pill.fill, widget, R.id.widget_sound_background)
-            }
-            when (gStyle) {
-                "Accented G Icon" -> {
-                    assertTint("$label G", preview.accentPrimary, widget, R.id.widget_g_logo)
-                    assertTint("$label mic", preview.accentPrimary, widget, R.id.widget_voice_search)
-                    assertTint("$label shortcut", preview.accentPrimary, widget, R.id.widget_lens_search)
-                    if (bar.material) assertTint("$label circle icon", preview.accentPrimary, widget, R.id.widget_sound_icon)
-                }
-                "Custom G Icon" -> {
-                    assertTint("$label G", Color(preview.customIcons.gIcon), widget, R.id.widget_g_logo)
-                    assertTint("$label mic", Color(preview.customIcons.mic), widget, R.id.widget_voice_search)
-                    assertTint("$label shortcut", Color(preview.customIcons.shortcut1), widget, R.id.widget_lens_search)
-                    if (bar.material) assertTint("$label circle icon", Color(preview.customIcons.action), widget, R.id.widget_sound_icon)
-                }
-                "Material G Icon" -> {
-                    // The widget draws these as bitmaps from the colours the preview draws them with.
-                    val a = preview.materialIconAccents
-                    val light = preview.pill.isLight
-                    assertBitmap(
-                        "$label G",
-                        createCustomMaterialGBitmap(a.primary, a.secondary, a.tertiary, light, context),
-                        widget, R.id.widget_g_logo
-                    )
-                    assertBitmap(
-                        "$label mic",
-                        createThemedShortcutBitmap(context, R.drawable.ic_mic, a.primary, a.secondary, light, a.tertiary),
-                        widget, R.id.widget_voice_search
-                    )
-                    if (bar.material) assertBitmap(
-                        "$label circle icon",
-                        createThemedActionIconBitmap(context, R.drawable.ic_lens_action, a.primary, a.secondary, light, a.tertiary),
-                        widget, R.id.widget_sound_icon
-                    )
-                }
-                "System G Icon" -> {
-                    assertTint("$label mic", preview.systemIconTint, widget, R.id.widget_voice_search)
-                    assertTint("$label shortcut", preview.systemIconTint, widget, R.id.widget_lens_search)
-                    if (bar.material) assertTint("$label circle icon", preview.systemIconTint, widget, R.id.widget_sound_icon)
+    /**
+     * With a color picked for the Inner Pill & Circle (a light one, a dark one, a saturated light one), the preview
+     * still paints what the widget draws; on the designs where it doesn't apply, it changes neither.
+     */
+    @Test
+    fun previewMatchesWidgetWithALockedPillColor() {
+        for (lockedPill in listOf(0xFFF5E6C8.toInt(), 0xFF1E3A5F.toInt(), 0xFFFFD54F.toInt())) {
+            for (s in listOf(Sliders(), Sliders(hue = 20, saturation = 90, lightness = 50), Sliders(hue = 60, saturation = 70, lightness = 100))) {
+                store(s, lockedPill)
+                val preview = assertPreviewMatchesWidget("$s locked=${hex(lockedPill)}")
+                if (bar.material && bar.lockBlack) {
+                    // The color picked is the pill's, and a light one makes it a light pill.
+                    assertEquals(hex(lockedPill), hex(preview.pill.fill.copy(alpha = 1f).toArgb()))
+                    assertEquals(WidgetColorRules.iconsGoDark(lockedPill), preview.pill.isLight)
                 }
             }
         }
     }
 
+    /** Compares the preview with the widget for the stored settings, and returns the preview's colors. */
+    private fun assertPreviewMatchesWidget(what: String): WidgetPreviewColors {
+        val widget = widget()
+        val preview = preview()
+        val label = "$bar $gStyle ${if (dark) "dark" else "light"} $what"
+
+        // The rim, pill and circle below are each at their opacity within the backdrop, which both fade at once.
+        assertEquals("$label backdrop alpha", preview.backdropAlpha, widget.findViewById<View>(R.id.widget_backdrop).alpha, 0f)
+        assertLayer("$label pill", preview.pill.fill, widget, R.id.widget_pill_background)
+        // The Material G style draws its mic as a bitmap, compared below.
+        if (gStyle != "Material G Icon") {
+            val mic = Shadows.shadowOf(widget.findViewById<ImageView>(R.id.widget_voice_search).drawable).createdFromResId
+            assertEquals(
+                "$label mic drawing",
+                context.resources.getResourceEntryName(if (preview.usesMaterialYouIcons) R.drawable.ic_mic else R.drawable.ic_mic_original),
+                context.resources.getResourceEntryName(mic)
+            )
+        }
+        if (bar.material) {
+            assertLayer("$label rim", preview.rim, widget, R.id.widget_outer_background)
+            assertLayer("$label circle", preview.pill.fill, widget, R.id.widget_sound_background)
+        }
+        when (gStyle) {
+            "Accented G Icon" -> {
+                assertTint("$label G", preview.accentPrimary, widget, R.id.widget_g_logo)
+                assertTint("$label mic", preview.accentPrimary, widget, R.id.widget_voice_search)
+                assertTint("$label shortcut", preview.accentPrimary, widget, R.id.widget_lens_search)
+                if (bar.material) assertTint("$label circle icon", preview.accentPrimary, widget, R.id.widget_sound_icon)
+            }
+            "Custom G Icon" -> {
+                assertTint("$label G", Color(preview.customIcons.gIcon), widget, R.id.widget_g_logo)
+                assertTint("$label mic", Color(preview.customIcons.mic), widget, R.id.widget_voice_search)
+                assertTint("$label shortcut", Color(preview.customIcons.shortcut1), widget, R.id.widget_lens_search)
+                if (bar.material) assertTint("$label circle icon", Color(preview.customIcons.action), widget, R.id.widget_sound_icon)
+            }
+            "Material G Icon" -> {
+                // The widget draws these as bitmaps from the colors the preview draws them with.
+                val a = preview.materialIconAccents
+                val light = preview.pill.isLight
+                assertBitmap(
+                    "$label G",
+                    createCustomMaterialGBitmap(a.primary, a.secondary, a.tertiary, light, context),
+                    widget, R.id.widget_g_logo
+                )
+                assertBitmap(
+                    "$label mic",
+                    createThemedShortcutBitmap(context, R.drawable.ic_mic, a.primary, a.secondary, light, a.tertiary),
+                    widget, R.id.widget_voice_search
+                )
+                if (bar.material) assertBitmap(
+                    "$label circle icon",
+                    createThemedActionIconBitmap(context, R.drawable.ic_lens_action, a.primary, a.secondary, light, a.tertiary),
+                    widget, R.id.widget_sound_icon
+                )
+            }
+            "System G Icon" -> {
+                assertTint("$label mic", preview.systemIconTint, widget, R.id.widget_voice_search)
+                assertTint("$label shortcut", preview.systemIconTint, widget, R.id.widget_lens_search)
+                if (bar.material) assertTint("$label circle icon", preview.systemIconTint, widget, R.id.widget_sound_icon)
+            }
+        }
+        return preview
+    }
+
     /**
-     * The bar's outline and corners as the preview draws them ([WidgetBarShape] and the preview's colours): the bar's
-     * height, the outline's colour and corners, and the pill's and circle's corners.
+     * The bar's outline and corners as the preview draws them ([WidgetBarShape] and the preview's colors): the bar's
+     * height, the outline's color and corners, and the pill's and circle's corners.
      */
     @Test
     fun previewShapeMatchesWidget() {

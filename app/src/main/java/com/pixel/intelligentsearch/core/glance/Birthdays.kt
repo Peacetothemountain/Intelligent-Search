@@ -4,8 +4,14 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.provider.ContactsContract
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
+import java.time.Duration
 import java.time.LocalDate
 import java.time.MonthDay
+import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 
 /** A contact's birthday in the coming week: [daysAway] 0 is today; [turning] is the age reached, when the year is known. */
@@ -66,9 +72,13 @@ object Birthdays {
     /** One stored birthday event. */
     data class Event(val contactId: Long, val lookupKey: String, val name: String, val startDate: String?)
 
-    /** The birthdays among [events] from [today] through the next [WINDOW_DAYS] - 1 days, soonest first, one per contact. */
+    /**
+     * The birthdays among [events] from [today] through the next [WINDOW_DAYS] - 1 days, soonest first, one per contact.
+     * Each date is read before a contact's others are dropped, so a second, unreadable birthday row (the provider
+     * returns them in no set order) doesn't hide the real one.
+     */
     fun inWindow(events: List<Event>, today: LocalDate): List<GlanceBirthday> =
-        events.distinctBy { it.contactId }.mapNotNull { event ->
+        events.mapNotNull { event ->
             val parsed = parse(event.startDate) ?: return@mapNotNull null
             val date = nextOccurrence(parsed.monthDay, today)
             val days = ChronoUnit.DAYS.between(today, date).toInt()
@@ -81,7 +91,45 @@ object Birthdays {
                 date = date,
                 turning = parsed.year?.let { date.year - it }?.takeIf { it in 1..150 }
             )
-        }.sortedWith(compareBy<GlanceBirthday> { it.daysAway }.thenBy { it.name.lowercase() }).take(MAX_SHOWN)
+        }.sortedWith(compareBy<GlanceBirthday> { it.daysAway }.thenBy { it.name.lowercase() })
+            .distinctBy { it.contactId }
+            .take(MAX_SHOWN)
+
+    /**
+     * The week's birthdays as At a Glance shows them: read with [load] (off the main thread), and read again at each
+     * midnight, so "Today" and "Tomorrow" move on while the search stays open. It starts with what [cache] kept for
+     * today (none on the day's first look), so the contacts provider never holds up the rest of the card.
+     */
+    fun upcoming(
+        load: () -> List<Event>,
+        cache: DayCache,
+        now: () -> ZonedDateTime = ZonedDateTime::now
+    ): Flow<List<GlanceBirthday>> = flow {
+        emit(cache.shown(now().toLocalDate()))
+        while (true) {
+            val time = now()
+            val today = time.toLocalDate()
+            val shown = inWindow(load(), today)
+            cache.keep(today, shown)
+            emit(shown)
+            delay(untilNextDay(time))
+        }
+    }.distinctUntilChanged()
+
+    /** How long from [time] until the next day starts where it is (at least a moment, so a loop can't spin). */
+    internal fun untilNextDay(time: ZonedDateTime): Long =
+        Duration.between(time, time.toLocalDate().plusDays(1).atStartOfDay(time.zone)).toMillis().coerceAtLeast(1L)
+
+    /** The birthdays last shown and the day they were for, so the next look that day shows them at once. */
+    class DayCache {
+        private var kept: Pair<LocalDate, List<GlanceBirthday>>? = null
+
+        @Synchronized fun shown(day: LocalDate): List<GlanceBirthday> = kept?.takeIf { it.first == day }?.second.orEmpty()
+
+        @Synchronized fun keep(day: LocalDate, shown: List<GlanceBirthday>) {
+            kept = day to shown
+        }
+    }
 
     /** Every Birthday event on the phone, or none without the contacts permission. Reads the provider: call off the main thread. */
     fun load(context: Context): List<Event> {

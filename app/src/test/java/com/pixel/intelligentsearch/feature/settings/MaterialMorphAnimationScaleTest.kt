@@ -41,7 +41,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import kotlin.math.sqrt
 
 /**
  * The Material Morph animation with Display size and Font size turned up: on Launch Portal and Search Sources, and on
@@ -117,10 +116,10 @@ class MaterialMorphAnimationScaleTest {
     private class Run(var bounces: Int = 0, var shapesSeen: Int = 0)
 
     /**
-     * Steps the animation for [seconds] and checks the rules on every frame: at most three shapes, nothing NaN, every
+     * Steps the animation for [seconds] and checks the rules on every frame: at most four shapes, nothing NaN, every
      * shape sized for the area and inside it (or just coming in from under the card), every landing a bounce that
-     * changes the shape, every bounce a haptic tap, and every shape that leaves having sunk into the floor and bounced
-     * off it.
+     * changes the shape, every bounce a haptic tap, and every shape that flies off having bounced at least twice and
+     * touched down at most four times.
      */
     private fun checkRules(where: String, seconds: Float = 10f): Run {
         val run = Run()
@@ -143,39 +142,33 @@ class MaterialMorphAnimationScaleTest {
             val density = area.layoutInfo.density.density
             val widthPx = area.size.width.toFloat()
             val heightPx = area.size.height.toFloat()
-            assertTrue("$where: ${physics.bodies.size} shapes", physics.bodies.size <= 3)
+            assertTrue("$where: ${physics.bodies.size} shapes", physics.bodies.size <= MorphBouncePhysics.MAX_SHAPES)
             if (physics.bodies.isNotEmpty()) {
                 assertEquals("$where: scene width", widthPx, physics.width * ppm, 2f)
                 assertEquals("$where: scene height", heightPx, physics.height * ppm, 2f)
             }
             for (b in physics.bodies) {
                 seen[b.id] = b
-                val values = listOf(b.x, b.y, b.vx, b.vy, b.spin, b.angle, b.radius, b.morphProgress, b.glow, b.penetration)
+                val values = listOf(b.x, b.y, b.vx, b.vy, b.spin, b.angle, b.radius, b.morphProgress, b.penetration, b.lightX, b.lightY, b.flash)
                 assertTrue("$where: shape ${b.id} has $values", values.all { it.isFinite() })
                 val diameterPx = 2f * b.radius * ppm
                 assertTrue("$where: shape ${b.id} is ${diameterPx / density} dp in a ${heightPx / density} dp tall area", diameterPx <= heightPx * 0.25f)
                 assertTrue("$where: shape ${b.id} is only ${diameterPx / density} dp", diameterPx >= 8f * density)
-                // Even the lowest bounce the floor gives is a real flight, counted as a bounce and felt as a tap.
-                val lowestRise = (physics.floor - 2f * b.radius - MorphBouncePhysics.TOP_MARGIN) * MorphBouncePhysics.MIN_REBOUND_SHARE
-                val lowestFlight = 2f * sqrt(2f * lowestRise / MorphBouncePhysics.GRAVITY)
-                assertTrue("$where: shape ${b.id}'s lowest bounce lasts $lowestFlight s", lowestFlight > MorphBouncePhysics.MIN_FLIGHT * 1.2f)
-                assertTrue("$where: shape ${b.id}'s lowest bounce is too soft to feel", sqrt(2f * MorphBouncePhysics.GRAVITY * lowestRise) >= MorphBouncePhysics.HAPTIC_MIN_SPEED)
                 // Coming in from under the card at most; once fully in, its top never rises above the area's.
                 assertTrue("$where: shape ${b.id} at ${b.y - b.radius} m above the card", b.y + b.radius >= -1e-3f)
                 if (b.entered) assertTrue("$where: shape ${b.id} rose ${(b.y - b.radius) * ppm} px above the card", (b.y - b.radius) * ppm >= -1f)
-                // Sunk into the floor at most down to the bottom of the area, never through it, and never deeper than its height.
+                // Pressed into the floor at most down to the bottom of the area, never through it, and never deeper than its height.
                 assertTrue("$where: shape ${b.id} ${b.penetration} m into the floor, centre at ${b.y * ppm} px in a $heightPx px area", (b.y + b.radius) * ppm <= heightPx + 1f && b.penetration <= 2f * b.radius)
-                // Never past a side before it has bounced off the hard floor.
-                if (!b.exiting) assertTrue("$where: shape ${b.id} centre at ${b.x * ppm} px in a $widthPx px area", b.x * ppm in -1f..widthPx + 1f)
+                assertTrue("$where: shape ${b.id} touched down ${b.contacts} times", b.contacts <= MorphBouncePhysics.MAX_LANDINGS)
                 assertTrue("$where: shape ${b.id} still there after ${b.age} s", b.age < 10f)
 
-                // Every landing is a new bounce, with a new shape, unless a knock pushed the shape straight back onto
-                // the bed, which is the same bounce.
-                val landed = b.penetration > 0f && penetrated[b.id] == false
+                // Every landing is a new bounce, with a new shape, unless it touches down again straight after leaving
+                // the rubber, which is the same bounce.
+                val landed = b.inContact && penetrated[b.id] == false
                 if (landed && b.bounces == (bouncesSoFar[b.id] ?: 0)) {
                     assertTrue("$where: shape ${b.id} landed after a ${b.sinceLift} s flight without bouncing", b.sinceLift < MorphBouncePhysics.MIN_FLIGHT)
                 }
-                penetrated[b.id] = b.penetration > 0f
+                penetrated[b.id] = b.inContact
                 bouncesSoFar[b.id] = b.bounces
             }
             val alive = physics.bodies.map { it.id }.toSet()
@@ -184,7 +177,8 @@ class MaterialMorphAnimationScaleTest {
                 penetrated.remove(id)
                 val body = seen.getValue(id)
                 run.shapesSeen++
-                assertTrue("$where: shape $id left after ${body.bounces} bounces", body.bounces >= 2)
+                // (One the area changed under, whose planned flight no longer leaves by itself, leaves with the change.)
+                if (body.age > 0.5f && (body.x < 0f || body.x > physics.width)) assertTrue("$where: shape $id left after ${body.bounces} bounces", body.bounces >= 2)
             }
             run.bounces = seen.values.sumOf { it.bounces }
             assertEquals("$where: bounces felt", run.bounces, info.bouncesFelt - feltBefore)

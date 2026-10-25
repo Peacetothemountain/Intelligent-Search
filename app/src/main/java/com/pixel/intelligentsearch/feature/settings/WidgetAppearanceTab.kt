@@ -34,12 +34,12 @@ import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 
-/** One colourable widget element as listed in the Appearance tab: its colour key, label and current colour. */
+/** One colorable widget element as listed in the Appearance tab: its color key, label and current color. */
 private data class CustomElementTarget(val key: String, val label: String, val color: Int)
 
 /**
- * The label colour for a subtheme pill filled with [fill]: black or white, whichever contrasts more with what
- * the label actually sits on. The fill can be translucent (the custom colour's opacity, the unselected pill's
+ * The label color for a subtheme pill filled with [fill]: black or white, whichever contrasts more with what
+ * the label actually sits on. The fill can be translucent (the custom color's opacity, the unselected pill's
  * gradient), so it is composited over [surface], the page behind the pills, first.
  */
 internal fun subthemePillLabelColor(fill: Color, surface: Color): Color {
@@ -50,8 +50,8 @@ internal fun subthemePillLabelColor(fill: Color, surface: Color): Color {
 }
 
 /**
- * The Custom G style's Saturation track: from grey to the most colourful at the [hue] and [brightness] (0..360 and
- * 0..100) the other two sliders have set, so every point on it is the colour the slider picks there.
+ * The Custom G style's Saturation track: from grey to the most colorful at the [hue] and [brightness] (0..360 and
+ * 0..100) the other two sliders have set, so every point on it is the color the slider picks there.
  */
 internal fun elementSaturationTrack(hue: Float, brightness: Float): List<Color> {
     val value = (brightness / 100f).coerceIn(0f, 1f)
@@ -65,7 +65,7 @@ internal fun elementBrightnessTrack(hue: Float, saturation: Float): List<Color> 
 }
 
 /**
- * The Appearance tab of the widget editor: G icon, subtheme, Material options and element colours.
+ * The Appearance tab of the widget editor: G icon, subtheme, Material options and element colors.
  */
 @Composable
 internal fun WidgetAppearanceTab(
@@ -146,12 +146,17 @@ internal fun WidgetAppearanceTab(
         )
         val currentAction = if (localActionIcon == "Gemini") "Assistant" else localActionIcon
         val actionTile = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        // Taps on each option, so every tap, the chosen option's included, replays that icon's animation.
+        val actionTaps = remember { mutableStateMapOf<String, Int>() }
         // In a settings card as it always was, each option its own soft tile and the chosen one primary.
         SettingsCard(lit = false) {
             ShellSelector(
                 options = actionOptions,
                 selected = actionOptions.firstOrNull { it.first == currentAction } ?: actionOptions.first(),
-                onSelect = { localActionIcon = it.first },
+                onSelect = {
+                    localActionIcon = it.first
+                    actionTaps[it.first] = (actionTaps[it.first] ?: 0) + 1
+                },
                 itemHeight = 64.dp,
                 contentPadding = 6.dp,
                 gap = 6.dp,
@@ -161,7 +166,7 @@ internal fun WidgetAppearanceTab(
                 val tint = LocalContentColor.current
                 // Choosing an option plays its icon's own short animation, clipped within the column's padding
                 // so it never leaves the tile; the label stays still.
-                val motion = rememberSelectionMotion(isSel, ActionIconMotion.durationMillis(optionKey))
+                val motion = rememberSelectionMotion(isSel, ActionIconMotion.durationMillis(optionKey), actionTaps[optionKey] ?: 0)
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
@@ -209,7 +214,7 @@ internal fun WidgetAppearanceTab(
     }
 
     // Floating Theme Pills
-    // The Custom pill is painted in the custom colour, so its label is black or white to match. Unselected, the
+    // The Custom pill is painted in the custom color, so its label is black or white to match. Unselected, the
     // pill is a gradient up from half opacity and the label sits on its midpoint, both shown over the page. The
     // other pills are each a soft tile, the chosen one primary, straight on the page with no track behind them.
     val pageColor = MaterialTheme.colorScheme.background
@@ -289,21 +294,8 @@ internal fun WidgetAppearanceTab(
         }
     }
 
-    // Material Design Inner Pill & Circle Switcher
+    // The Material design's Inner Pill & Circle switch lives in Color Studio, with the color it forces them to.
     val isMaterialDesign = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
-    if (isMaterialDesign) {
-        Spacer(modifier = Modifier.height(8.dp))
-        SettingsCard(lit = false) {
-            SettingsRowToggle(
-                title = "Inner Pill & Circle State",
-                subtitle = "Force Inner Pill & Circle to #121212.",
-                isChecked = localLockBlack,
-                onCheckedChange = { checked ->
-                    localLockBlack = checked
-                }
-            )
-        }
-    }
 
     WidgetBarShapeSection(fields = fields, isMaterialDesign = isMaterialDesign)
 
@@ -538,8 +530,8 @@ internal fun WidgetAppearanceTab(
                     }
                 }
 
-                // The sliders follow the colour being edited wherever it was set: picking another element, Sync All
-                // Colors, the hex field, another profile or Reset all put a different colour here. A colour the
+                // The sliders follow the color being edited wherever it was set: picking another element, Sync All
+                // Colors, the hex field, another profile or Reset all put a different color here. A color the
                 // sliders picked themselves leaves them where they are.
                 LaunchedEffect(colors, activeColor) { colors.show(activeColor) }
 

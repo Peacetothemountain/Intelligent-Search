@@ -148,7 +148,7 @@ class SettingsSectionHeaderTest {
         prefs.edit().putBoolean("widget_system_design_saved", true).putString("widget_system_subtheme", "Custom").commit()
         show { WidgetSettingsScreen(prefs) {} }
         tap("Color Studio")
-        assertSectionHeader("Custom Color Palette")
+        assertSectionHeader("Search Bar Color Palette")
         tap("Widget Shortcuts")
         assertSectionHeader("Widget Shortcuts")
     }

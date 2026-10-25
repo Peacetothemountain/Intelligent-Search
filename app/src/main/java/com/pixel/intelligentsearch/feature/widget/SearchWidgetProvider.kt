@@ -332,7 +332,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             /** How see-through the outline, pill and circle are drawn, as one group ([WidgetColorRules.backdropAlphas]). */
             val backdrop: WidgetColorRules.BackdropAlphas,
             val showGIcon: Boolean,
-            /** Whether the G is Google's four-colour one: the System G style, or the Custom style with Keep System G. */
+            /** Whether the G is Google's four-color one: the System G style, or the Custom style with Keep System G. */
             val useOriginalG: Boolean,
             /** The Accented G style's G, mic, shortcuts and circle icon. */
             val themePColor: Int,
@@ -342,13 +342,13 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val actionIconStr: String,
             val allActiveItems: List<ActiveShortcutItem>,
             val isPillLight: Boolean,
-            /** The Custom G style's colour for each element as drawn (see [WidgetColorRules.customIconColors]). */
+            /** The Custom G style's color for each element as drawn (see [WidgetColorRules.customIconColors]). */
             val customIcons: WidgetElementColors,
-            /** The Custom subtheme's bar, themed from its seed; null for the theme-coloured subthemes. */
+            /** The Custom subtheme's bar, themed from its seed; null for the theme-colored subthemes. */
             val customBar: WidgetColorRules.CustomBarColors? = null,
             /** The bar's outline, height and corners. */
             val shape: WidgetBarShape,
-            /** The System G style's plain icon colour on this pill. */
+            /** The System G style's plain icon color on this pill. */
             val plainIconTint: Int
         )
 
@@ -513,7 +513,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
          * The bar as the picker shows it: exactly as Widget Customization's preview draws it. That preview stands on
          * the editor's page; the picker would show its own lighter card through every see-through part of the bar (the
          * outline at any Transparency, the whole bar unlocked), so the same bar looked different in the two places. So
-         * here each see-through part is drawn already blended over the editor's page colour [page], fully opaque:
+         * here each see-through part is drawn already blended over the editor's page color [page], fully opaque:
          * the outline at its own opacity within the bar's, the pill and the circle at the bar's.
          */
         internal fun pickerPreviewConfig(config: WidgetDesignConfig, page: Int): WidgetDesignConfig {
@@ -526,7 +526,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             )
         }
 
-        /** The page colour Widget Customization's preview stands on: the app theme's background, as the editor draws it. */
+        /** The page color Widget Customization's preview stands on: the app theme's background, as the editor draws it. */
         internal fun editorPageColor(context: Context, isDark: Boolean): Int = runCatching<Int> {
             val scheme = if (isDark) androidx.compose.material3.dynamicDarkColorScheme(context) else androidx.compose.material3.dynamicLightColorScheme(context)
             android.graphics.Color.valueOf(scheme.background.red, scheme.background.green, scheme.background.blue).toArgb()
@@ -596,8 +596,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 )
             } else {
                 // MATERIAL DESIGN BAR: Dual-layer accent rim, companion circle button
+                // Inner Pill & Circle forces the pill and circle to one color; whether it is light or dark decides the
+                // theme the rim and icons are drawn in, as the theme's own light or dark pill does.
                 val lockBlack = settings.lockBlack
-                val isDarkForWidget = if (lockBlack) true else isDark
+                val lockDark = WidgetColorRules.locksDark(settings)
+                val lockLight = WidgetColorRules.locksLight(settings)
+                val isDarkForWidget = if (lockBlack) lockDark else isDark
                 val effectiveWidgetColors = if (isDarkForWidget != isDark) {
                     DynamicThemeDetector.resolveWidgetColors(context, isDarkForWidget)
                 } else {
@@ -611,7 +615,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 }
 
                 val pillColor = if (lockBlack) {
-                    WidgetColorRules.LOCKED_PILL
+                    WidgetColorRules.lockedPill(settings)
                 } else {
                     if (isCustom) actualCustomColor else effectiveWidgetColors.surfaceContainer
                 }
@@ -622,12 +626,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 val pillColorOpaque = Color.rgb(Color.red(pillColor), Color.green(pillColor), Color.blue(pillColor))
                 val circleColorOpaque = Color.rgb(Color.red(circleColor), Color.green(circleColor), Color.blue(circleColor))
 
-                val isPillLight = customBar?.darkIcons ?: (!isDark && !lockBlack)
+                val isPillLight = customBar?.darkIcons ?: if (lockBlack) lockLight else !isDark
 
                 // The Custom subtheme's accent already keeps its contrast on the pill; the theme's is darkened on a
                 // light one.
                 val themePColor = customBar?.accent
-                    ?: WidgetColorRules.iconColor(effectiveWidgetColors.primary, true, lockBlack, isPillLight, targetTone = 32.0)
+                    ?: WidgetColorRules.iconColor(effectiveWidgetColors.primary, true, lockDark, isPillLight, targetTone = 32.0)
                 val iconAccents = WidgetColorRules.materialIconAccents(settings, isPillLight) { SearchIconColors.themeAccents(context, it) }
 
                 WidgetDesignConfig(
@@ -653,7 +657,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         /**
-         * The System G style's colour for the mic, shortcuts and circle icon (its G stays Google's): the Custom
+         * The System G style's color for the mic, shortcuts and circle icon (its G stays Google's): the Custom
          * subtheme's plain icon, else the light theme's on-surface on a light pill and white on a dark one.
          */
         private fun plainIconTint(context: Context, customBar: WidgetColorRules.CustomBarColors?, isPillLight: Boolean): Int =
@@ -718,7 +722,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     val hasCustomShortcuts = config.effectiveIconTheme == "Custom G Icon"
 
                     if (hasCustomShortcuts) {
-                        // Each design keeps its own saved colours, so a System and a Material widget on the
+                        // Each design keeps its own saved colors, so a System and a Material widget on the
                         // same home screen each follow their own customization.
                         val colors = config.customIcons
                         val customScColor = when (item.slotKey) {
@@ -984,7 +988,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         /**
-         * Paints the bar's backdrop: the outline, the pill and the circle in their colours, each at its opacity within
+         * Paints the bar's backdrop: the outline, the pill and the circle in their colors, each at its opacity within
          * the backdrop, and the whole backdrop faded once by Transparency ([WidgetColorRules.backdropAlphas]; a pill
          * locked black stays solid and only the rim fades), so where the pill and circle sit over the outline they are
          * neither painted twice nor tinted by it. The icons are

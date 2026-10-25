@@ -20,12 +20,10 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
-import java.time.LocalDate
 
 /** Where At a Glance reads from; the screen collects it only while the search is on screen. Tests hand in fixed data. */
 fun interface GlanceSource {
@@ -40,10 +38,13 @@ fun interface GlanceSource {
  */
 class AndroidGlanceSource(private val context: Context, private val index: NotificationIndex) : GlanceSource {
 
+    /** Today's birthdays from the last look, shown at once while the contacts are read again. */
+    private val birthdayCache = Birthdays.DayCache()
+
     override fun snapshots(toggles: GlanceToggles, hiddenApps: Set<String>): Flow<GlanceSnapshot> {
         if (!toggles.anyOn) return flowOf(GlanceSnapshot.EMPTY)
         val birthdays = if (toggles.birthdaysOn) {
-            flow { emit(Birthdays.inWindow(Birthdays.load(context), LocalDate.now())) }.flowOn(Dispatchers.IO)
+            Birthdays.upcoming({ Birthdays.load(context) }, birthdayCache).flowOn(Dispatchers.IO)
         } else flowOf(emptyList())
         val timers = if (toggles.timersOn) timerFlow(hiddenApps) else flowOf(emptyList())
         val alarm = if (toggles.alarmOn) alarmFlow() else flowOf(null)
@@ -54,15 +55,19 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
     }
 
     private fun timerFlow(hiddenApps: Set<String>): Flow<List<GlanceTimer>> = index.entries
-        // Access revoked since the last look: forget what was read before showing anything.
-        .onStart { NotificationAccess.syncIndex(context, index) }
+        .onStart {
+            // Access revoked since the last look: forget what was read before showing anything.
+            NotificationAccess.syncIndex(context, index)
+            // Granted: make sure Android has the listener connected (it can drop it, after an update say).
+            NotificationAccess.start(context)
+        }
         .map { all -> timersFrom(all.filterNot { it.packageName in hiddenApps }) }
         .distinctUntilChanged()
         .flowOn(Dispatchers.Default)
 
     private fun alarmFlow(): Flow<GlanceAlarm?> = callbackFlow {
         val alarms = context.getSystemService(AlarmManager::class.java)
-        fun read() = runCatching { alarms?.nextAlarmClock?.let { GlanceAlarm(it.triggerTime) } }.getOrNull()
+        fun read() = runCatching { alarms?.nextAlarmClock?.let { GlanceAlarm(it.triggerTime, it.showIntent) } }.getOrNull()
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(c: Context?, intent: Intent?) {
                 trySend(read())
@@ -75,14 +80,11 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
         awaitClose { runCatching { context.unregisterReceiver(receiver) } }
     }.distinctUntilChanged().flowOn(Dispatchers.Default)
 
-    /** The media session At a Glance shows ([MediaSessionAccess.pick]), with its artwork and controls. */
+    /** The media session At a Glance shows ([MediaSessionAccess.picked]), with its artwork and controls. */
     private fun mediaFlow(hiddenApps: Set<String>): Flow<GlanceMedia?> {
         val artworks = ArtworkCache()
-        return MediaSessionAccess.sessions(context)
-            .map { found ->
-                MediaSessionAccess.pick(found.filterNot { it.packageName in hiddenApps }, SystemClock.elapsedRealtime())
-                    ?.let { glanceMedia(it, artworks) }
-            }
+        return MediaSessionAccess.picked(MediaSessionAccess.sessions(context).map { found -> found.filterNot { it.packageName in hiddenApps } })
+            .map { picked -> picked?.let { glanceMedia(it, artworks) } }
             .distinctUntilChanged()
             .flowOn(Dispatchers.Default)
     }

@@ -198,9 +198,9 @@ internal fun GlanceClockFace(
             }
         }
     }
-    val zone = remember { ZoneId.systemDefault() }
-    // Worked out once per tick, not per frame the card redraws (as it resizes).
-    val angles = remember(zone) { derivedStateOf { clockAngles(now.value, zone, secondsStill = !animate.value) } }
+    // Worked out once per tick, not per frame the card redraws (as it resizes). The zone is read on each tick too: the
+    // search is kept between looks, and the phone may have moved zones since it opened.
+    val angles = remember { derivedStateOf { clockAngles(now.value, ZoneId.systemDefault(), secondsStill = !animate.value) } }
     val context = LocalContext.current
     val minuteOfDay = now.value / 60_000L
     val description = remember(minuteOfDay) {
@@ -219,8 +219,11 @@ internal fun GlanceClockFace(
         .semantics { contentDescription = description }
 
     if (style == GlanceClockStyle.DIGITAL) {
-        val is24Hour = remember(context) { android.text.format.DateFormat.is24HourFormat(context) }
-        val (hour, minutes) = remember(minuteOfDay, is24Hour) { digitalClockFigures(minuteOfDay * 60_000L, zone, is24Hour) }
+        // The zone and the 12 or 24 hour style are read each minute, as the description's are.
+        val (hour, minutes) = remember(minuteOfDay) {
+            val is24Hour = android.text.format.DateFormat.is24HourFormat(context)
+            digitalClockFigures(minuteOfDay * 60_000L, ZoneId.systemDefault(), is24Hour)
+        }
         val density = LocalDensity.current
         // Sized to the face, not the user's text size: the face is a fixed picture of the time, and TalkBack reads it.
         val figures = MaterialTheme.typography.titleLarge.copy(

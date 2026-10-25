@@ -7,9 +7,12 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
 import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 
-/** The next alarm set in the clock app, ringing at [triggerAt] (wall clock). */
+/**
+ * The next alarm set in the clock app, ringing at [triggerAt] (wall clock); [showIntent] is the page its app asked
+ * to open for it (AlarmClockInfo.getShowIntent), when it gave one.
+ */
 @Immutable
-data class GlanceAlarm(val triggerAt: Long)
+data class GlanceAlarm(val triggerAt: Long, val showIntent: PendingIntent? = null)
 
 /** A clock app's running timer or stopwatch, read from its notification. */
 @Immutable

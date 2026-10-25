@@ -3,132 +3,178 @@ package com.pixel.intelligentsearch.feature.settings
 import com.pixel.intelligentsearch.core.util.clampSafely
 import kotlin.math.PI
 import kotlin.math.abs
-import kotlin.math.atan
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.exp
+import kotlin.math.hypot
 import kotlin.math.ln
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.roundToInt
+import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.random.Random
 
 /**
  * The physics behind the Material Morph animation: heavy shapes that drop in from under the bottom card onto a floor
- * at the bottom of the screen, sink into it the first time as if it weren't really there, are sprung back up by it,
- * and the second time bounce off it, hard, out past a side of the screen.
+ * of rubber at the bottom of the screen, bounce on it a few times and leave past a side of the screen.
  *
  * The scene is simulated in metres, drawn at one dp per centimetre (smaller in an area too short for that, see
- * [morphSceneFor]), so gravity, 9.81 m/s², is 981 dp/s² on screen: real gravity, scaled with the screen's density.
- * Everything else is real physics too:
- * - the shapes are dense and heavy, stone slabs [SLAB_THICKNESS] thick, so their mass follows their area and air
- *   drag (quadratic, a rounded body's drag coefficient) barely slows them;
- * - they spin as solid discs do: contact friction with the floor, and between shapes, trades sideways speed for
- *   spin and back (moment of inertia ½mr²), so a shape that lands moving sideways leaves the floor rolling;
- * - shapes knock into each other like the hard objects they are, trading momentum by mass.
+ * [morphSceneFor]), so gravity, 9.81 m/s², is 981 dp/s² on screen. Everything is real physics:
+ * - every shape weighs, at random, between [MIN_POUNDS] and [MAX_POUNDS] whatever its size, a slab [SLAB_THICKNESS]
+ *   thick, so a small heavy shape is dense and a big light one less so; air drag (quadratic, a rounded body's drag
+ *   coefficient) barely slows it;
+ * - shapes spin as solid discs do (moment of inertia ½mr²): friction with the floor and between shapes trades
+ *   sideways speed for spin and back, so a shape that lands moving sideways leaves rolling;
+ * - shapes knock into each other like the hard objects they are, trading momentum by mass;
+ * - the floor is a rubber sheet stretched across the area ([SHEET_NODES] nodes, a string under tension that stiffens
+ *   as it stretches), integrated implicitly so it is stable however hard it is struck. A shape presses into it along
+ *   its own outline: each node under it is pushed by a simultaneous contact impulse, with Coulomb friction, so a heavy
+ *   shape sinks deeper and comes back up slower than a light one, and the sheet's ringing carries the blow across;
+ * - the energy the rubber's damping takes becomes heat where it is taken. Warm, loaded rubber creeps: it keeps some of
+ *   the shape's dent, in the shape's outline, and heals it once the load has gone. Blows on the same spot damage it, so
+ *   it damps harder and creeps more there, giving back less of a bounce, and heals that too, more slowly.
+ * - nothing adds energy: there are no walls at the side edges and no ceiling, and nothing but gravity, the air, the
+ *   rubber and the other shapes ever pushes a shape.
+ * The sheet's tension and damping are found once per area ([calibrate]) so a reference stone shape sinks about half its
+ * height and comes back at about [REFERENCE_REBOUND] of its landing speed.
  *
- * The floor, like the street the first time Neo jumps in The Matrix, isn't hard until a shape has fallen through it
- * once. Each shape's first landing is on a soft membrane: a spring and damper that gives under its weight, so the
- * shape sinks about half its height through the floor line ([SINK_MIN] to [SINK_MAX] of it), leaving its silhouette
- * in the floor (an [Imprint]), before the membrane springs back, overshooting past its rest line, and throws the
- * shape back up. Its second landing is on a real floor: a hard, lively, instantaneous bounce (restitution about
- * 0.8, Coulomb friction) that sends it flying up and off the screen past a side edge, spinning. It leaves only that
- * way, by flying out of the area: nothing fades or shrinks, and a shape is removed only once it, and its shadow,
- * are fully past the edge. The silhouette it left in the floor heals after it has gone.
- *
- * The floor line sits [FLOOR_DEPTH_SHARE] of the largest shape's height above the bottom of the area, so a shape
- * sunk into the floor, and its silhouette, are still on screen. Positions are body centers, y downwards, with the top
- * of the area at 0, the floor line at [floor] and the bottom of the area at [height].
- *
- * Shapes come at random, never more than [MAX_SHAPES] at a time: sometimes one, sometimes a burst of two or three,
- * with uneven gaps, each from a random place under the card, thrown a random way with a random spin. Each throw is
- * checked by simulating it beforehand, so a shape makes both landings on screen; until it has made them, the side
- * edges are walls, so a knock from another shape can never send it out early. No shape rises above the top of the
- * area, and every one has left within [MAX_LIFETIME] of appearing.
+ * Shapes come at random, never more than [MAX_SHAPES] at a time: sometimes one, sometimes a burst, with uneven gaps,
+ * each from a random place under the card, thrown a random way with a random spin. Each drop is planned a second ahead
+ * ([PLAN_LEAD]): the whole scene is forecast under exactly these physics, the shapes already in it included, and a
+ * throw is taken only if every shape then bounces at least twice and touches down at most [MAX_LANDINGS] times, its first two
+ * landings on screen, never rises back above the card, never sits on the floor, and leaves within [MAX_LIFETIME]. The
+ * simulation is deterministic, so the scene that plays is the scene that was forecast. The planning runs a few
+ * milliseconds of each frame at a time ([work]), or all at once when [planBudgetNanos] is 0, as in tests.
  *
  * The simulation steps at a fixed [STEP] whatever the frame rate, so a run is the same at 60, 90 or 120 Hz, and a
- * seed always gives the same run; [renderFraction] lets drawing interpolate between steps.
+ * seed always gives the same run; [renderFraction] lets drawing interpolate between steps. How each shape looks as it
+ * moves (its morph and scale-in, on Material 3 Expressive's spatial springs, and the light inside it, which sloshes
+ * with the acceleration it feels) is stepped with the physics but never feeds back into the motion, except that the
+ * morphing outline is the one that touches the rubber.
  *
- * How each shape looks as it moves (its morph, squash and scale-in, see [animateLook]) runs on the springs of
- * Material 3 Expressive's motion scheme (androidx.compose.material3 ExpressiveMotionTokens; spatial springs, which
- * overshoot; https://m3.material.io/styles/motion/overview), stepped with the physics. None of it feeds back into the
- * motion: the landings, the haptics and every rule above are the physics' alone.
+ * Positions are body centers, y downwards, with the top of the area at 0, the floor line (the rubber at rest) at
+ * [floor] and the bottom of the area at [height].
+ *
+ * [outlines] are the shape sequence's outlines as radii by angle ([MorphOutlines]), so the rubber is pressed in the
+ * shape's own outline.
  */
 internal class MorphBouncePhysics(
     private val random: Random = Random.Default,
     val maxBodies: Int = MAX_SHAPES,
-    private val autoSpawn: Boolean = true
+    private val autoSpawn: Boolean = true,
+    outlines: List<FloatArray> = MorphOutlines.forSequence(MaterialMorphShapes.sequence(0)),
+    private val planBudgetNanos: Long = 0L
 ) {
+    private val outlines: Array<FloatArray> = outlines.ifEmpty { listOf(MorphOutlines.circle) }.toTypedArray()
+
     class Body(val id: Int, val radius: Float, val mass: Float) {
-        /** A solid disc's moment of inertia, kg m². */
+        /** Its density, from its weight and size: a small heavy shape is dense, a big light one less so. */
+        val density: Float = mass / (SLAB_THICKNESS * PI.toFloat() * radius * radius)
         val inertia = INERTIA_SHARE * mass * radius * radius
+        internal val dragK: Float = 0.5f * AIR_DENSITY * DRAG_COEFFICIENT * (2f * radius * SLAB_THICKNESS) / mass
         var x = 0f
         var y = 0f
         var vx = 0f
         var vy = 0f
-        /** Clockwise spin, radians per second. */
+        /** Radians per second, clockwise on screen. */
         var spin = 0f
         var angle = 0f
-        /** Where the body was one [STEP] ago, for drawing between steps. */
+        /** Where it was at the last step, so drawing can interpolate. */
         internal var prevX = 0f
         internal var prevY = 0f
         internal var prevAngle = 0f
-        /** Landings so far: the first on the soft membrane, every one after it on the hard floor. */
+        /** Landings counted as bounces (a touch sooner than [MIN_FLIGHT] after leaving the floor is the same one). */
         var bounces = 0
-        /** Seconds since the body appeared. */
+        /** Every touch of the floor, bounces or not. */
+        var contacts = 0
+        internal var landCount = 0
+        internal var landX0 = 0f
+        internal var landX1 = 0f
+        /** Seconds since it appeared. */
         var age = 0f
-        /** How far the body's lowest point is below the floor line, metres; 0 above it. */
+        /** How far its lowest point is below the floor line. */
         var penetration = 0f
-        /** How deep the body sinks into the membrane, as a share of its height (drawn at spawn). */
-        internal var sinkShare = 0.5f
-        /** The share of its landing speed the hard floor gives back (drawn at spawn). */
-        internal var liveliness = 0.8f
-        /** Decides which edge a shape that has all but stopped leaves by (drawn at spawn). */
-        internal var exitBias = 0f
-        /** The membrane's natural frequency for this landing, rad/s, set as the shape lands on it. */
-        internal var membraneOmega = 0f
-        /** Which shape the body is changing into, counted up on every bounce. */
+        /** Index into the shape sequence of the shape it is morphing to (from the one before). */
         var shapeIndex = 0
-        /**
-         * 0 at the moment of a bounce, springing to 1 once the new shape has formed, on Material 3 Expressive's fast
-         * spatial spring ([MORPH_DAMPING], [MORPH_STIFFNESS]): it overshoots 1 a little and settles, as Google's
-         * morphing loading indicator does. Exactly 1 once settled.
-         */
         var morphProgress = 1f
         internal var morphVelocity = 0f
-        /** 1 at the moment of a bounce, fading back to 0: the shape's brief brightening. */
-        var glow = 0f
-        /**
-         * How flat the shape is drawn: positive squashed flat and wide, negative stretched tall in the wobble after a
-         * hard bounce; never past [MAX_SQUASH] or [MAX_JELLY_STRETCH]. Drawn with its area kept. Dense as they are,
-         * the shapes give little: it is the floor that gives.
-         */
-        var squash = 0f
-        internal var squashVelocity = 0f
-        /** 0 as the shape appears from under the card, springing to 1 (its full size) on the default spatial spring. */
+        internal var morphOnLift = false
+        /** Its scale-in from under the card, 0 to 1 (overshooting a touch). */
         var appear = 0f
         internal var appearVelocity = 0f
-        /** +1 if the shape turns clockwise as it morphs (it came in heading right), -1 if anticlockwise. */
+        /** Which way it was thrown, 1 to the right, -1 to the left. */
         var turnDirection = 1f
-        /** True once the shape has come fully out from under the bottom card. */
+        /** Whether it has come fully out from under the card; from then on it never rises back above it. */
         internal var entered = false
-        /** Seconds since the shape last left the floor. */
         internal var sinceLift = 10f
-        /** Seconds the shape has been in the membrane in its current landing. */
         internal var contactTime = 0f
-        /** Bounced off the hard floor, on its way off the screen; nothing knocks it back. */
-        internal var exiting = false
-        /** Which side an [exiting] shape leaves by. */
-        internal var exitTowardsRight = false
-        internal var inContact = false
-        /** False for the planning ghosts [spawn] simulates: no side walls, no silhouettes. */
+        internal var stuck = false
+        internal var touched = false
+        internal var profiled = false
+        var inContact = false
+            internal set
         internal var real = true
-        /** The silhouette this body is pressing into the membrane, while it is in it. */
         internal var imprint: Imprint? = null
-        internal val dragK: Float = 0.5f * AIR_DENSITY * DRAG_COEFFICIENT * (2f * radius * SLAB_THICKNESS) / mass
+
+        /** The light inside: where it pools (in radii from the center), how wide, a flash on impact and its swirl. */
+        var lightX = 0f
+        var lightY = 0.3f
+        internal var lightVX = 0f
+        internal var lightVY = 0f
+        var lightSpread = 0.6f
+        var flash = 0f
+        var swirl = 0f
+        internal var lastVX = 0f
+        internal var lastVY = 0f
+
+        /** Weight in pounds. */
+        val pounds: Float get() = mass / POUND
+
+        internal fun copyFrom(o: Body) {
+            x = o.x; y = o.y; vx = o.vx; vy = o.vy; spin = o.spin; angle = o.angle
+            prevX = o.prevX; prevY = o.prevY; prevAngle = o.prevAngle
+            bounces = o.bounces; contacts = o.contacts; landCount = o.landCount; landX0 = o.landX0; landX1 = o.landX1
+            age = o.age; penetration = o.penetration; shapeIndex = o.shapeIndex; morphProgress = o.morphProgress
+            morphVelocity = o.morphVelocity; morphOnLift = o.morphOnLift; appear = o.appear; appearVelocity = o.appearVelocity
+            turnDirection = o.turnDirection; entered = o.entered; sinceLift = o.sinceLift; contactTime = o.contactTime
+            stuck = o.stuck; touched = o.touched; inContact = o.inContact
+            lightX = o.lightX; lightY = o.lightY; lightVX = o.lightVX; lightVY = o.lightVY; lightSpread = o.lightSpread
+            flash = o.flash; swirl = o.swirl; lastVX = o.lastVX; lastVY = o.lastVY
+        }
+
+        /** A copy for a forecast: the same physics, drawn nowhere and felt by no one. */
+        internal fun ghost(): Body = Body(id, radius, mass).also { it.copyFrom(this); it.real = false }
     }
 
     /**
-     * The silhouette a shape leaves where it sank into the floor: its outline at its deepest, and the floor's
-     * surface there, which follows the shape down and, once the shape is thrown back up, springs back past its rest
-     * line and rings out. The silhouette lingers for [HEAL_DELAY], then heals over [HEAL_TIME].
+     * The rubber floor: [SHEET_NODES] + 1 nodes across the area, fixed at both ends. [u] is each node's depth below the
+     * floor line, [rest] the dent the rubber has kept there, [heat] its warmth above the room's (kelvin) and [damage]
+     * how worn it is, 0 to 1. [by] is the body that last pressed each node, for its color.
+     */
+    class Sheet internal constructor(n: Int) {
+        val u = DoubleArray(n)
+        internal val v = DoubleArray(n)
+        val rest = DoubleArray(n)
+        val heat = DoubleArray(n)
+        val damage = DoubleArray(n)
+        internal val load = BooleanArray(n)
+        val by = IntArray(n)
+        internal val rhs = DoubleArray(n)
+        internal val cp = DoubleArray(n)
+
+        internal fun copyFrom(o: Sheet) {
+            o.u.copyInto(u); o.v.copyInto(v); o.rest.copyInto(rest); o.heat.copyInto(heat); o.damage.copyInto(damage)
+            o.load.copyInto(load); o.by.copyInto(by)
+        }
+    }
+
+    /**
+     * The silhouette a landing presses into the rubber: the shape's outline at its deepest, held while the shape is in
+     * it. Released, it closes as the rubber's dent there recovers, never growing back: [heal] runs from 0 to 1, the
+     * hollow being [MorphFloorEffects]' healShrink of it, and its last moment breaking into pixels. Pressed over by a
+     * newer silhouette, it heals on out on its own clock instead, so an old dent never comes back under a new one.
      */
     class Imprint {
         var active = false
@@ -139,38 +185,21 @@ internal class MorphBouncePhysics(
         var radius = 0f
         /** How far below the floor line the shape's lowest point reached. */
         var depth = 0f
-        /** The shape it was pressed by, as [Body.shapeIndex] and [Body.morphProgress], and how it was turned. */
         var shapeIndex = 0
         var morphProgress = 1f
         var rotationDegrees = 0f
-        var squash = 0f
         /** True while its shape is still in it. */
         var holding = false
-        /** Seconds since its shape first pressed into it: the soft landing's ripples spread from that moment. */
+        /** A first landing (soft, three ripples) rather than a later one (one sharp ripple). */
+        var soft = true
+        /** Seconds since its shape first pressed into it: the ripples spread from that moment. */
         var sincePressed = 0f
-        var sinceRelease = 0f
-        /** 1 fresh, falling to 0 as it heals. */
-        var strength = 0f
-        /** The floor's surface at the silhouette, metres below the floor line (negative bulging above it). */
-        var surface = 0f
-        var surfaceVelocity = 0f
-    }
-
-    /**
-     * The one sharp ripple a hard landing sends across the floor: where the shape struck and its outline then (as
-     * [Body.shapeIndex], [Body.morphProgress] and how it was turned), and how long ago, for drawing only. Gone after
-     * [HARD_RIPPLE_TIME].
-     */
-    class Ripple {
-        var active = false
-        /** The body that struck, for its color. */
-        var bodyId = 0
-        var x = 0f
-        var radius = 0f
-        var shapeIndex = 0
-        var morphProgress = 1f
-        var rotationDegrees = 0f
-        var age = 0f
+        internal var restAtRelease = 0.0
+        internal var onClock = false
+        /** How far its healing has got, 0 to 1. */
+        var heal = 0f
+        /** How much of the hollow is left, as a share of the silhouette: 1 fresh, 0 closed. */
+        val shrink: Float get() = if (holding) 1f else if (heal >= HEAL_CLOSE) 0f else healShrink(heal).coerceAtLeast(0f)
     }
 
     /** A shape's contact shadow on the floor, in metres, filled in by [shadowFor] so drawing allocates nothing. */
@@ -191,7 +220,7 @@ internal class MorphBouncePhysics(
         var aoAlpha = 0f
     }
 
-    /** A bounce worth feeling: emitted when a body lands faster than [HAPTIC_MIN_SPEED]. */
+    /** A landing counted as a bounce, on a shape on screen, with the speed it landed at. */
     fun interface BounceListener {
         fun onBounce(body: Body, impactSpeed: Float)
     }
@@ -200,31 +229,65 @@ internal class MorphBouncePhysics(
         private set
     var height = 0f
         private set
-    /** The floor line, metres from the top of the area. */
+    /** The floor line: the rubber at rest. */
     var floor = 0f
         private set
-    /** How far the floor line sits above the bottom of the area: room for a shape sunk into it. */
+    /** How far below the floor line the bottom of the area is. */
     var floorDepth = 0f
         private set
-
+    /** The node spacing across the sheet, metres. */
+    var nodeSpacing = 0f
+        private set
     val bodies = mutableListOf<Body>()
     val imprints = Array(MAX_IMPRINTS) { Imprint() }
-    /** The hard landings' ripples, one per shape at most. */
-    val ripples = Array(MAX_SHAPES) { Ripple() }
-    /** How far, as a share of [STEP], the time shown is past the last step; drawing interpolates by it. */
+    var sheet = Sheet(SHEET_NODES + 1)
+        private set
+    /** The sheet hanging at rest under its own weight, which the drawing measures the floor's movement from. */
+    var sheetBase = DoubleArray(SHEET_NODES + 1)
+        private set
+    /** How far through the next step the scene is, 0 to 1, for drawing. */
     var renderFraction = 0f
         private set
+
     private var nextId = 0
-    private var dropTimer = 0f
     private var burstLeft = 0
     private var accumulator = 0.0
+    private var stepCount = 0
+    private var desired = 0
     private var radii: List<Float> = emptyList()
     private val scratchShadow = Shadow()
+    private var tension = 0.0
+    private var damping = 0.0
+    private var lineDensity = RUBBER_DENSITY * SHEET_THICKNESS * SLAB_THICKNESS.toDouble()
+    private var nodeMass = 0.0
+
+    private class Pending(val step: Int, val body: Body)
+    private val pending = ArrayList<Pending>()
+    private inner class Plan(val step: Int, start: Int, snapshot: List<Body>, sheetCopy: Sheet, queued: List<Pending>) {
+        var result: Body? = null
+        val iterator: Iterator<Unit> = iterator { result = planDrop(step, start, snapshot, sheetCopy, queued) }
+    }
+    private var plan: Plan? = null
+
+    // Scratch for the contact solve, made once: each body's outline, and its lowest point over each sheet node.
+    private val low = DoubleArray(SHEET_NODES + 1) { Double.NEGATIVE_INFINITY }
+    private val ox = DoubleArray(OUTLINE_POINTS)
+    private val oy = DoubleArray(OUTLINE_POINTS)
+    private val slots = maxBodies + 2
+    private val pIdx = Array(slots) { IntArray(SHEET_NODES + 1) }
+    private val pRx = Array(slots) { DoubleArray(SHEET_NODES + 1) }
+    private val pRy = Array(slots) { DoubleArray(SHEET_NODES + 1) }
+    private val pCount = IntArray(slots)
+    private val tIdx = IntArray(SHEET_NODES + 1)
+    private val tRx = DoubleArray(SHEET_NODES + 1)
+    private val tRy = DoubleArray(SHEET_NODES + 1)
+    private val tJ = DoubleArray(SHEET_NODES + 1)
+    private val tRel = DoubleArray(SHEET_NODES + 1)
 
     /**
      * Sizes the area, in metres. The first call schedules the first drop. A later one (the phone turned, or the text
-     * grew while the page is open) keeps the shapes in the air inside the new area: one now under the floor is thrown
-     * back up from it, one past a side wall is set against it, and one too big for the area leaves.
+     * grew while the page is open) lays a fresh sheet and keeps the shapes inside the new area: one now under the floor
+     * is set on it, one now past a side edge is moved in to it, and one too big for the area leaves.
      */
     fun resize(widthMetres: Float, heightMetres: Float, radiiMetres: List<Float>) {
         if (widthMetres == width && heightMetres == height && radiiMetres == radii) return
@@ -232,14 +295,20 @@ internal class MorphBouncePhysics(
         width = widthMetres
         height = heightMetres
         radii = radiiMetres
-        val largest = (radii.maxOrNull() ?: 0f).coerceAtMost(height * MAX_RADIUS_SHARE)
+        if (width <= 0f || height <= 0f || radii.isEmpty()) return
+        val largest = radii.max().coerceAtMost(height * MAX_RADIUS_SHARE)
         floorDepth = FLOOR_DEPTH_SHARE * 2f * largest
         floor = height - floorDepth
-        if (first && autoSpawn && width > 0f && height > 0f) {
-            dropTimer = FIRST_DROP_MIN + random.nextFloat() * (FIRST_DROP_MAX - FIRST_DROP_MIN)
-        }
+        nodeSpacing = width / SHEET_NODES
+        nodeMass = lineDensity * nodeSpacing
+        calibrate()
+        sheet = newSheet()
+        sheetBase = sheet.u.copyOf()
         for (imprint in imprints) imprint.active = false
-        for (ripple in ripples) ripple.active = false
+        plan = null
+        pending.clear()
+        if (first && autoSpawn) desired = stepCount + ((FIRST_DROP_MIN + random.nextFloat() * (FIRST_DROP_MAX - FIRST_DROP_MIN)) / STEP).roundToInt()
+        else desired = stepCount
         var i = bodies.size - 1
         while (i >= 0) {
             if (bodies[i].radius > height * MAX_RADIUS_SHARE) bodies.removeAt(i)
@@ -248,54 +317,575 @@ internal class MorphBouncePhysics(
         for (body in bodies) {
             body.imprint = null
             if (body.y + body.radius > floor) {
-                // Thrown straight back up, like any bounce, so it never lands softly from nowhere.
+                // Set on the new floor line, keeping any upward speed it had; it isn't thrown anywhere.
                 body.y = floor - body.radius
-                body.vy = -minimumRebound(body, MIN_REBOUND_SHARE)
+                body.vy = body.vy.coerceAtMost(0f)
                 body.penetration = 0f
                 body.inContact = false
                 body.contactTime = 0f
                 body.sinceLift = 0f
             }
-            if (!body.exiting) body.x = body.x.clampSafely(body.radius, width - body.radius)
+            if (!shapeOffScreen(body)) body.x = body.x.clampSafely(body.radius, width - body.radius)
             body.prevX = body.x
             body.prevY = body.y
-            capRise(body)
         }
+        // Their throws were planned for the old area: one that wouldn't now leave by itself, in time, leaves now,
+        // so no shape is ever left sitting on the floor.
+        bodies.removeAll { !leavesOnItsOwn(it) }
     }
 
-    /** Advances the scene by [frameSeconds] (clamped), in fixed steps of [STEP] so results don't depend on frame rate. */
+    /** Whether [body], left alone on the floor as it is, flies off the screen before [MAX_LIFETIME] without sitting. */
+    private fun leavesOnItsOwn(body: Body): Boolean {
+        val ghost = body.ghost().apply { contactTime = 0f; stuck = false }
+        val one = mutableListOf(ghost)
+        val s = Sheet(SHEET_NODES + 1).also { it.copyFrom(sheet) }
+        var t = body.age
+        while (t < MAX_LIFETIME) {
+            stepScene(one, s, null)
+            if (gone(ghost)) return true
+            if (ghost.stuck) return false
+            t += STEP
+        }
+        return false
+    }
+
+    private fun newSheet(): Sheet {
+        val s = Sheet(SHEET_NODES + 1)
+        // Hanging under its own weight: a shallow parabola.
+        for (i in 1 until SHEET_NODES) {
+            val x = i * nodeSpacing.toDouble()
+            s.u[i] = lineDensity * GRAVITY * x * (width - x) / (2.0 * tension)
+        }
+        return s
+    }
+
+    /**
+     * Finds the sheet's tension and damping for this area: a stone ([REFERENCE_DENSITY]) shape of the middle size,
+     * dropped from the top, sinks [REFERENCE_SINK] of its height and comes back at [REFERENCE_REBOUND] of its landing
+     * speed. Remembered per area, as it is the same every time.
+     */
+    private fun calibrate() {
+        val r = radii[min(1, radii.size - 1)].coerceAtMost(height * MAX_RADIUS_SHARE)
+        val key = "$width,$height,$r"
+        calibrated[key]?.let { tension = it.first; damping = it.second; return }
+        val target = REFERENCE_SINK * 2f * r
+        val v0 = sqrt(2f * GRAVITY * floor)
+        val one = ArrayList<Body>(1)
+        fun run(): Pair<Float, Float> {
+            val s = newSheet()
+            val b = Body(-1, r, REFERENCE_DENSITY * SLAB_THICKNESS * PI.toFloat() * r * r).apply {
+                x = width / 2f; y = floor - r - 1e-3f; vy = v0; real = false; shapeIndex = 1
+            }
+            one.clear(); one += b
+            var sink = 0f
+            var out = 0f
+            var landed = false
+            var steps = 0
+            while (steps < 480 && out == 0f) {
+                stepScene(one, s, null)
+                b.spin = 0f; b.vx = 0f
+                sink = max(sink, b.penetration)
+                if (b.inContact) landed = true else if (landed && b.vy < 0f) out = -b.vy
+                steps++
+            }
+            return sink to out / v0
+        }
+        damping = 2.0
+        repeat(2) {
+            var lo = 1e2
+            var hi = 1e8
+            repeat(20) {
+                tension = sqrt(lo * hi)
+                if (run().first > target) lo = tension else hi = tension
+            }
+            tension = sqrt(lo * hi)
+            var dLo = 0.0
+            var dHi = 400.0
+            repeat(16) {
+                damping = (dLo + dHi) / 2
+                if (run().second > REFERENCE_REBOUND) dLo = damping else dHi = damping
+            }
+            damping = (dLo + dHi) / 2
+        }
+        calibrated[key] = tension to damping
+    }
+
+    /**
+     * Advances the scene by [frameSeconds] (clamped), in fixed steps of [STEP] so results don't depend on frame rate,
+     * planning the next drops first within this frame's share of time ([planBudgetNanos]).
+     */
     fun advance(frameSeconds: Float, listener: BounceListener? = null) {
-        if (width <= 0f || height <= 0f) return
+        if (width <= 0f || height <= 0f || radii.isEmpty()) return
+        if (planBudgetNanos > 0L) work(planBudgetNanos)
         accumulator += frameSeconds.coerceIn(0f, MAX_FRAME).toDouble()
         while (accumulator >= STEP_SECONDS - STEP_TOLERANCE) {
             accumulator -= STEP_SECONDS
-            if (autoSpawn) schedule(STEP)
-            for (i in 0 until bodies.size) {
-                val body = bodies[i]
-                step(body, STEP, listener)
-                animateLook(body, STEP)
-                body.age += STEP
+            // A planned drop enters on exactly the step it was forecast from.
+            while (pending.isNotEmpty() && pending[0].step <= stepCount) {
+                val p = pending.removeAt(0)
+                if (p.step == stepCount) bodies += Body(p.body.id, p.body.radius, p.body.mass).also { it.copyFrom(p.body) }
             }
-            collide()
-            healImprints(STEP)
-            ageRipples(STEP)
-            removeGone()
+            plan?.let { if (it.step <= stepCount) abandonPlan() }
+            if (autoSpawn) startPlans()
+            stepScene(bodies, sheet, listener)
+            floorEffects(STEP)
+            var i = bodies.size - 1
+            while (i >= 0) {
+                if (isGone(bodies[i])) bodies.removeAt(i)
+                i--
+            }
+            stepCount++
         }
         renderFraction = (accumulator / STEP_SECONDS).toFloat().coerceIn(0f, 1f)
+    }
+
+    /** Starts planning the next drop once it is near ([PLAN_LEAD]) and there is room; synchronous plans finish here. */
+    private fun startPlans() {
+        while (plan == null && bodies.size + pending.size < maxBodies && stepCount >= desired - LEAD_STEPS) {
+            val step = max(desired, stepCount + MIN_LEAD_STEPS)
+            val snapshot = bodies.map { it.ghost() }
+            val copy = Sheet(SHEET_NODES + 1).also { it.copyFrom(sheet) }
+            plan = Plan(step, stepCount, snapshot, copy, pending.toList())
+            if (planBudgetNanos > 0L) return
+            finishPlan()
+        }
+    }
+
+    /** Works on the planned drop for up to [budgetNanos]. */
+    fun work(budgetNanos: Long) {
+        val end = System.nanoTime() + budgetNanos
+        while (plan != null && System.nanoTime() < end) {
+            val p = plan ?: return
+            if (p.iterator.hasNext()) p.iterator.next() else settlePlan(p)
+        }
+    }
+
+    private fun finishPlan() {
+        val p = plan ?: return
+        while (p.iterator.hasNext()) p.iterator.next()
+        settlePlan(p)
+    }
+
+    private fun settlePlan(p: Plan) {
+        plan = null
+        val body = p.result
+        if (body != null) {
+            pending += Pending(p.step, Body(nextId++, body.radius, body.mass).also { it.copyFrom(body); it.real = true })
+            desired = p.step + gapSteps()
+        } else {
+            desired = p.step + RETRY_STEPS
+        }
+    }
+
+    private fun abandonPlan() {
+        plan = null
+        desired = stepCount + LEAD_STEPS
+    }
+
+    /** The steps to the next drop: a short gap within a burst, a long and uneven one between bursts. */
+    private fun gapSteps(): Int {
+        if (burstLeft <= 0) {
+            val roll = random.nextFloat()
+            burstLeft = when {
+                roll < BURST_ONE -> 1
+                roll < BURST_ONE + BURST_TWO -> 2
+                roll < BURST_THREE_BELOW -> 3
+                else -> 4
+            }
+        }
+        burstLeft--
+        val gap = if (burstLeft > 0) BURST_GAP_MIN + random.nextFloat() * (BURST_GAP_MAX - BURST_GAP_MIN)
+        else min(QUIET_GAP_MIN - ln(1f - random.nextFloat() * 0.999f) * QUIET_GAP_MEAN, QUIET_GAP_MAX)
+        return (gap / STEP).roundToInt()
+    }
+
+    /**
+     * Plans one drop for [spawnStep]: runs the scene as it stands (the drops already planned entering on theirs) up to
+     * it, then tries throws until the forecast keeps every rule, yielding every few steps.
+     */
+    private suspend fun SequenceScope<Unit>.planDrop(spawnStep: Int, start: Int, snapshot: List<Body>, sheetCopy: Sheet, queued: List<Pending>): Body? {
+        val ghosts = snapshot.toMutableList()
+        val queue = ArrayDeque(queued)
+        var n = start
+        while (n < spawnStep) {
+            while (queue.isNotEmpty() && queue.first().step == n) ghosts += queue.removeFirst().body.ghost()
+            stepScene(ghosts, sheetCopy, null)
+            ghosts.removeAll { gone(it) }
+            n++
+            if (n % PLAN_SLICE == 0) yield(Unit)
+        }
+        while (queue.isNotEmpty() && queue.first().step == n) ghosts += queue.removeFirst().body.ghost()
+        if (ghosts.size >= maxBodies) return null
+        val template = newDrop() ?: return null
+        val attemptSheet = Sheet(SHEET_NODES + 1)
+        repeat(PLAN_TRIES) {
+            val thrown = aim(template) ?: return@repeat
+            attemptSheet.copyFrom(sheetCopy)
+            if (forecast(ghosts.map { it.ghost() }.toMutableList(), attemptSheet, thrown.ghost())) return thrown
+        }
+        return null
+    }
+
+    /** A new shape, not yet thrown: its size from the area's four, its weight at random, a random shape and turn. */
+    private fun newDrop(): Body? {
+        if (radii.isEmpty()) return null
+        val r = radii[random.nextInt(radii.size)].coerceAtMost(height * MAX_RADIUS_SHARE)
+        val pounds = MIN_POUNDS + random.nextFloat() * (MAX_POUNDS - MIN_POUNDS)
+        return Body(-1, r, pounds * POUND).apply {
+            angle = random.nextFloat() * 360f
+            shapeIndex = random.nextInt(outlines.size) + outlines.size * 100
+            y = -r
+        }
+    }
+
+    /**
+     * A throw for [template]: from a random place under the card, at a random downward speed, sideways towards the
+     * nearer edge more often than not, fast enough to have left after [MAX_LANDINGS] flights and slow enough to land
+     * first on screen, spinning the way it flies. Null if no throw from that place can.
+     */
+    private fun aim(template: Body): Body? {
+        val r = template.radius
+        val margin = r * PLAN_EDGE_MARGIN
+        val reach = r * SHAPE_REACH
+        val x = (width * random.nextFloat()).clampSafely(margin, width - margin)
+        val vy = DROP_MIN + random.nextFloat() * (DROP_MAX - DROP_MIN)
+        val v1 = sqrt(vy * vy + 2f * GRAVITY * floor)
+        val tFall = (v1 - vy) / GRAVITY
+        val towardRight = (x > width / 2f) != (random.nextFloat() < 0.25f)
+        val dir = if (towardRight) 1f else -1f
+        val toEdge = if (towardRight) width - x else x
+        val least = min((toEdge + reach) / (tFall + 4f * v1 / GRAVITY), MAX_THROW)
+        val most = min((toEdge - margin) / tFall, MAX_THROW)
+        if (least > most) return null
+        val vx = dir * (least + random.nextFloat() * (most - least))
+        val spin = vx / r * (0.75f + 0.25f * random.nextFloat())
+        return Body(-1, r, template.mass).apply {
+            copyFrom(template)
+            this.x = x; this.vy = vy; this.vx = vx; this.spin = spin; turnDirection = dir
+            lastVX = vx; lastVY = vy; prevX = x; prevY = y; prevAngle = angle
+        }
+    }
+
+    /** Runs [ghosts] and [candidate] on [s] until all have left; false as soon as any breaks a rule. */
+    private suspend fun SequenceScope<Unit>.forecast(ghosts: MutableList<Body>, s: Sheet, candidate: Body): Boolean {
+        ghosts += candidate
+        var time = 0f
+        var steps = 0
+        while (ghosts.isNotEmpty()) {
+            if (time > MAX_LIFETIME) return false
+            stepScene(ghosts, s, null)
+            var i = ghosts.size - 1
+            while (i >= 0) {
+                val g = ghosts[i]
+                if (!keepsTheRules(g)) return false
+                if (gone(g)) {
+                    if (g.bounces < 2) return false
+                    ghosts.removeAt(i)
+                } else if (g.age > MAX_LIFETIME) return false
+                i--
+            }
+            time += STEP
+            if (++steps % PLAN_SLICE == 0) yield(Unit)
+        }
+        return true
+    }
+
+    private fun keepsTheRules(g: Body): Boolean {
+        if (g.contacts > MAX_LANDINGS || g.stuck) return false
+        if (g.entered && g.y - g.radius < -1e-3f) return false
+        if (g.landCount >= 1 && (g.landX0 < g.radius || g.landX0 > width - g.radius)) return false
+        if (g.landCount >= 2 && (g.landX1 < g.radius || g.landX1 > width - g.radius)) return false
+        return true
+    }
+
+    /**
+     * Drops a shape in now, planned as every drop is but from the scene as it stands, at [fraction] of the width if
+     * given; null if no throw keeps the rules. For tests.
+     */
+    internal fun spawn(fraction: Float? = null): Body? {
+        if (radii.isEmpty() || bodies.size >= maxBodies) return null
+        val template = newDrop() ?: return null
+        repeat(PLAN_TRIES * 2) {
+            val thrown = aim(template) ?: return@repeat
+            if (fraction != null) {
+                thrown.x = (width * fraction).clampSafely(thrown.radius * PLAN_EDGE_MARGIN, width - thrown.radius * PLAN_EDGE_MARGIN)
+                thrown.prevX = thrown.x
+            }
+            val s = Sheet(SHEET_NODES + 1).also { it.copyFrom(sheet) }
+            val run = iterator { spawnForecastKept = forecast(bodies.map { it.ghost() }.toMutableList(), s, thrown.ghost()) }
+            while (run.hasNext()) run.next()
+            if (spawnForecastKept || fraction != null) {
+                val body = Body(nextId++, thrown.radius, thrown.mass).also { it.copyFrom(thrown); it.real = true }
+                bodies += body
+                return body
+            }
+        }
+        return null
+    }
+    private var spawnForecastKept = false
+
+    /** One fixed step of [list] on [s]: contact with the rubber in substeps, the rubber itself, then knocks. */
+    private fun stepScene(list: List<Body>, s: Sheet, listener: BounceListener?) {
+        val dt = STEP / SUBSTEPS
+        for (j in list.indices) {
+            val b = list[j]
+            b.prevX = b.x; b.prevY = b.y; b.prevAngle = b.angle; b.touched = false
+            b.profiled = !shapeOffScreen(b) && j < slots
+            if (b.profiled) profileOf(b, j) else if (j < slots) pCount[j] = 0
+        }
+        repeat(SUBSTEPS) {
+            s.load.fill(false)
+            for (j in list.indices) {
+                val b = list[j]
+                if (b.profiled && contact(b, j, s)) b.touched = true
+                val speed = sqrt(b.vx * b.vx + b.vy * b.vy)
+                b.vx += -b.dragK * speed * b.vx * dt
+                b.vy += (GRAVITY - b.dragK * speed * b.vy) * dt
+                b.x += b.vx * dt
+                b.y += b.vy * dt
+                b.angle = (b.angle + b.spin * dt * 180f / PI.toFloat()) % 360f
+                // The bottom of the area is hard ground under the rubber.
+                if (!shapeOffScreen(b) && b.y + b.radius > height) {
+                    b.y = height - b.radius
+                    if (b.vy > 0f) b.vy = -b.vy * hardRestitution(b.density, b.vy)
+                }
+            }
+            sheetStep(s, dt.toDouble())
+        }
+        for (b in list) {
+            afterStep(b, listener)
+            animateLook(b, STEP)
+        }
+        collide(list)
+    }
+
+    /** The rubber over [dt]: tension (stiffening with stretch) and damping solved implicitly, heat, creep and healing. */
+    private fun sheetStep(s: Sheet, dt: Double) {
+        val n = SHEET_NODES + 1
+        val dx = nodeSpacing.toDouble()
+        var length = 0.0
+        for (i in 0 until n - 1) {
+            val d = s.u[i + 1] - s.u[i]
+            length += sqrt(dx * dx + d * d)
+        }
+        val strain = max(length / width - 1.0, 0.0)
+        val t = tension * (1.0 + STIFFENING * strain)
+        val k = t / (lineDensity * dx * dx)
+        val kdt = dt * dt * k
+        val damp = damping * dt
+        val off = -kdt
+        for (i in 1 until n - 1) {
+            val e0 = s.u[i - 1] - s.rest[i - 1]
+            val e1 = s.u[i] - s.rest[i]
+            val e2 = s.u[i + 1] - s.rest[i + 1]
+            s.rhs[i] = s.v[i] + dt * (k * (e0 - 2.0 * e1 + e2) + GRAVITY)
+        }
+        var diag = 1.0 + 2.0 * kdt + damp * (1.0 + (DAMAGE_DAMPING - 1.0) * s.damage[1])
+        s.cp[1] = off / diag
+        s.rhs[1] /= diag
+        for (i in 2 until n - 1) {
+            diag = 1.0 + 2.0 * kdt + damp * (1.0 + (DAMAGE_DAMPING - 1.0) * s.damage[i])
+            val m = diag - off * s.cp[i - 1]
+            s.cp[i] = off / m
+            s.rhs[i] = (s.rhs[i] - off * s.rhs[i - 1]) / m
+        }
+        s.v[n - 2] = s.rhs[n - 2]
+        for (i in n - 3 downTo 1) s.v[i] = s.rhs[i] - s.cp[i] * s.v[i + 1]
+        val heatPer = 1.0 / (HEAT_CAPACITY * dx)
+        val damagePer = 1.0 / (DAMAGE_ENERGY * dx)
+        for (i in 1 until n - 1) {
+            val lost = damping * (1.0 + (DAMAGE_DAMPING - 1.0) * s.damage[i]) * nodeMass * s.v[i] * s.v[i] * dt
+            s.heat[i] += lost * heatPer
+            s.damage[i] = min(1.0, s.damage[i] + lost * damagePer)
+        }
+        for (i in 1 until n - 1) {
+            s.u[i] += s.v[i] * dt
+            if (s.u[i] > floorDepth) {
+                s.u[i] = floorDepth.toDouble()
+                if (s.v[i] > 0.0) s.v[i] = 0.0
+            }
+        }
+        val spread = HEAT_SPREAD * dt / (dx * dx)
+        val cool = exp(-dt / COOLING_TIME)
+        val heal = dt / RUBBER_HEAL_TIME
+        val damageHeal = dt / DAMAGE_HEAL_TIME
+        var prev = s.heat[0]
+        for (i in 1 until n - 1) {
+            val here = s.heat[i]
+            s.heat[i] = (here + spread * (prev - 2.0 * here + s.heat[i + 1])) * cool
+            prev = here
+            val warmth = s.heat[i] / CREEP_WARMTH
+            if (s.load[i]) {
+                val creep = CREEP_RATE * (1.0 + (DAMAGE_CREEP - 1.0) * s.damage[i]) * warmth * warmth * dt
+                s.rest[i] += (s.u[i] - s.rest[i]) * min(creep, 1.0)
+            } else {
+                s.rest[i] -= s.rest[i] * heal
+            }
+            s.damage[i] -= s.damage[i] * damageHeal
+        }
+    }
+
+    /**
+     * The shape's underside over the sheet: for every node under it, the lowest point of its (morphing, turned)
+     * outline there, into slot [j]. Walks the outline's edges once; each covers a node or two.
+     */
+    private fun profileOf(b: Body, j: Int) {
+        val to = outlines[Math.floorMod(b.shapeIndex, outlines.size)]
+        val from = outlines[Math.floorMod(b.shapeIndex - 1, outlines.size)]
+        val m = b.morphProgress.coerceIn(0f, 1.2f).toDouble()
+        val rot = (drawnRotation(b) * PI / 180.0)
+        val c = cos(rot)
+        val sn = sin(rot)
+        val dx = nodeSpacing.toDouble()
+        for (k in 0 until OUTLINE_POINTS) {
+            val rr = b.radius * (from[k] + (to[k] - from[k]) * m)
+            ox[k] = (COS[k] * c - SIN[k] * sn) * rr
+            oy[k] = (COS[k] * sn + SIN[k] * c) * rr
+        }
+        var first = SHEET_NODES
+        var last = 0
+        for (k in 0 until OUTLINE_POINTS) {
+            val k2 = if (k + 1 == OUTLINE_POINTS) 0 else k + 1
+            val x1 = ox[k]
+            val y1 = oy[k]
+            val x2 = ox[k2]
+            val y2 = oy[k2]
+            if (x1 == x2) continue
+            val a = max(kotlin.math.ceil((b.x + min(x1, x2)) / dx).toInt(), 1)
+            val z = min(kotlin.math.floor((b.x + max(x1, x2)) / dx).toInt(), SHEET_NODES - 1)
+            val slope = (y2 - y1) / (x2 - x1)
+            for (i in a..z) {
+                val y = y1 + slope * (i * dx - b.x - x1)
+                if (y > low[i]) low[i] = y
+                if (i < first) first = i
+                if (i > last) last = i
+            }
+        }
+        val idx = pIdx[j]
+        val prx = pRx[j]
+        val pry = pRy[j]
+        var count = 0
+        for (i in first..last) {
+            if (low[i] > Double.NEGATIVE_INFINITY) {
+                idx[count] = i; prx[count] = i * dx - b.x; pry[count] = low[i]
+                count++
+                low[i] = Double.NEGATIVE_INFINITY
+            }
+        }
+        pCount[j] = count
+    }
+
+    /**
+     * Where [b] (profiled into slot [j]) presses into [s]: the nodes under it move with it, and every one it pushes
+     * pushes back at once (a simultaneous impulse each, sharing the body's mass), with Coulomb friction at their center.
+     * The energy the contact takes warms and wears the rubber there. True if it touches.
+     */
+    private fun contact(b: Body, j: Int, s: Sheet): Boolean {
+        val idx = pIdx[j]
+        val prx = pRx[j]
+        val pry = pRy[j]
+        val count = pCount[j]
+        var share = 0
+        for (q in 0 until count) {
+            val i = idx[q]
+            val surface = b.y + pry[q]
+            if (surface <= floor + s.u[i]) continue
+            s.load[i] = true
+            s.by[i] = b.id
+            s.u[i] = min(surface - floor, floorDepth.toDouble())
+            tIdx[share] = i; tRx[share] = prx[q]; tRy[share] = pry[q]
+            share++
+        }
+        if (share == 0) return false
+        val invMass = 1.0 / b.mass
+        val invInertia = 1.0 / b.inertia
+        for (q in 0 until share) {
+            val rx = tRx[q]
+            val rel = b.vy + b.spin * rx - s.v[tIdx[q]]
+            tRel[q] = rel
+            tJ[q] = if (rel <= 0.0) 0.0 else rel / (1.0 / nodeMass + share * (invMass + rx * rx * invInertia))
+        }
+        var total = 0.0
+        var atY = 0.0
+        val heatPer = 1.0 / (HEAT_CAPACITY * nodeSpacing)
+        val damagePer = 1.0 / (DAMAGE_ENERGY * nodeSpacing)
+        var vy = b.vy.toDouble()
+        var spin = b.spin.toDouble()
+        for (q in 0 until share) {
+            val impulse = tJ[q]
+            if (impulse == 0.0) continue
+            val i = tIdx[q]
+            s.v[i] += impulse / nodeMass
+            vy -= impulse * invMass
+            spin -= tRx[q] * impulse * invInertia
+            val lost = 0.5 * impulse * tRel[q]
+            s.heat[i] += lost * heatPer
+            s.damage[i] = min(1.0, s.damage[i] + lost * damagePer)
+            total += impulse
+            atY += impulse * tRy[q]
+        }
+        var vx = b.vx.toDouble()
+        if (total > 0.0) {
+            val ry = atY / total
+            val slip = vx - spin * ry
+            val f = (slip / (invMass + ry * ry * invInertia)).coerceIn(-SHEET_FRICTION * total, SHEET_FRICTION * total)
+            vx -= f * invMass
+            spin += ry * f * invInertia
+        }
+        b.vx = vx.toFloat(); b.vy = vy.toFloat(); b.spin = spin.toFloat()
+        return true
+    }
+
+    /** After a step: landings counted, the morph begun as it lifts off, contact time, the light inside. */
+    private fun afterStep(b: Body, listener: BounceListener?) {
+        if (b.touched && !b.inContact) {
+            b.contacts++
+            when (b.landCount) {
+                0 -> b.landX0 = b.x
+                1 -> b.landX1 = b.x
+            }
+            b.landCount++
+            if (b.bounces == 0 || b.sinceLift >= MIN_FLIGHT) {
+                b.bounces++
+                b.morphOnLift = true
+                if (b.real) {
+                    press(b)
+                    if (!shapeOffScreen(b)) listener?.onBounce(b, max(b.lastVY, b.vy))
+                }
+            }
+            b.contactTime = 0f
+        }
+        if (b.touched) {
+            b.contactTime += STEP
+            if (b.contactTime > STUCK_TIME) b.stuck = true
+        } else if (b.inContact) {
+            b.sinceLift = 0f
+            // The new shape begins as it leaves the rubber, never while the rubber holds it.
+            if (b.morphOnLift) {
+                b.morphOnLift = false
+                b.shapeIndex++
+                b.morphProgress = 0f
+            }
+        }
+        b.inContact = b.touched
+        if (!b.inContact) {
+            b.sinceLift += STEP
+            b.spin *= exp(-SPIN_AIR_DECAY * STEP)
+        }
+        b.penetration = max(b.y + b.radius - floor, 0f)
+        if (!b.entered && b.y - b.radius >= 0f) b.entered = true
+        b.age += STEP
     }
 
     /**
      * Shapes that touch bounce apart: an impulse along the line between their centers, shared by mass, and a
      * friction impulse across it that sets them spinning. Overlap is pushed out so they never sink into each other.
      */
-    private fun collide() {
-        for (i in 0 until bodies.size) {
-            for (j in i + 1 until bodies.size) {
-                val a = bodies[i]
-                val b = bodies[j]
-                // A shape on its way out is never knocked back, nor one past its planned time: knocks could keep it
-                // up for ever.
-                if (untouchable(a) || untouchable(b)) continue
+    private fun collide(list: List<Body>) {
+        for (i in list.indices) {
+            for (j in i + 1 until list.size) {
+                val a = list[i]
+                val b = list[j]
                 val dx = b.x - a.x
                 val dy = b.y - a.y
                 val minDistance = a.radius + b.radius
@@ -306,21 +896,14 @@ internal class MorphBouncePhysics(
                 val ny = dy / distance
                 val inverseA = 1f / a.mass
                 val inverseB = 1f / b.mass
-                // Push apart in proportion to how light each one is.
                 val share = (minDistance - distance) / (inverseA + inverseB)
                 a.x -= nx * share * inverseA; a.y -= ny * share * inverseA
                 b.x += nx * share * inverseB; b.y += ny * share * inverseB
-                // The push never lifts a shape that was inside the area out of it, nor one still coming in back
-                // under the card.
-                keepBelowCard(a)
-                keepBelowCard(b)
                 val approach = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny
                 if (approach >= 0f) continue
                 val impulse = -(1f + BODY_RESTITUTION) * approach / (inverseA + inverseB)
                 a.vx -= impulse * inverseA * nx; a.vy -= impulse * inverseA * ny
                 b.vx += impulse * inverseB * nx; b.vy += impulse * inverseB * ny
-                // Friction across the contact: the surfaces' relative speed there, spin included, pulled towards
-                // zero, never by more than the friction the knock allows.
                 val tx = -ny
                 val ty = nx
                 val slide = (b.vx - a.vx) * tx + (b.vy - a.vy) * ty - (a.spin * a.radius + b.spin * b.radius)
@@ -330,388 +913,95 @@ internal class MorphBouncePhysics(
                 b.vx -= friction * tx * inverseB; b.vy -= friction * ty * inverseB
                 a.spin += friction * a.radius / a.inertia
                 b.spin += friction * b.radius / b.inertia
-                capRise(a)
-                capRise(b)
             }
         }
     }
 
-    private fun keepBelowCard(body: Body) {
-        if (body.y + body.radius > height && !shapeOffScreen(body)) body.y = height - body.radius
-        if (body.entered && body.y - body.radius < 0f) body.y = body.radius
-        if (!body.entered && body.y < -body.radius) body.y = -body.radius
-    }
-
-    /**
-     * Keeps a knocked shape below the bottom card: one already fully in the area can rise only until its top edge
-     * reaches the top of the area; one still coming in from under the card can't be knocked back up.
-     */
-    private fun capRise(body: Body) {
-        val headroom = body.y - body.radius
-        if (headroom < 0f) {
-            if (body.vy < 0f) body.vy = 0f
-            return
-        }
-        val maxUp = sqrt(2f * GRAVITY * headroom)
-        if (-body.vy > maxUp) body.vy = -maxUp
-    }
-
-    private fun untouchable(body: Body): Boolean = body.exiting || body.x < 0f || body.x > width || body.age > PLAN_TIME
-
-    /**
-     * Drops come at random: after an uneven quiet gap, a burst of one (most often), two or three shapes, a random
-     * moment apart. A drop due while [maxBodies] shapes are on screen is skipped, so a burst can come up short.
-     */
-    private fun schedule(dt: Float) {
-        dropTimer -= dt
-        if (dropTimer > 0f) return
-        if (burstLeft <= 0) {
-            val roll = random.nextFloat()
-            burstLeft = if (roll < BURST_ONE) 1 else if (roll < BURST_ONE + BURST_TWO) 2 else 3
-        }
-        if (bodies.size < maxBodies) spawn()
-        burstLeft--
-        dropTimer = if (burstLeft > 0) {
-            BURST_GAP_MIN + random.nextFloat() * (BURST_GAP_MAX - BURST_GAP_MIN)
-        } else {
-            // Exponentially distributed, like independent events: mostly short, now and then long.
-            (QUIET_GAP_MIN - ln(1f - random.nextFloat() * 0.999f) * QUIET_GAP_MEAN).coerceAtMost(QUIET_GAP_MAX)
-        }
-    }
-
-    /**
-     * Drops a new shape in from just under the bottom card, at [fraction] of the width (random if null), thrown a
-     * random way: a random size, speed and spin, and a sideways speed checked by simulating its flight so it makes
-     * both landings on screen.
-     */
-    internal fun spawn(fraction: Float? = null): Body? {
-        if (bodies.size >= maxBodies || radii.isEmpty() || width <= 0f) return null
-        val radius = radii[random.nextInt(radii.size)].coerceAtMost(height * MAX_RADIUS_SHARE)
-        val body = Body(nextId++, radius, massFor(radius))
-        body.sinkShare = SINK_MIN + random.nextFloat() * (SINK_MAX - SINK_MIN)
-        body.liveliness = LIVELINESS_MIN + random.nextFloat() * (LIVELINESS_MAX - LIVELINESS_MIN)
-        body.exitBias = random.nextFloat()
-        body.x = (width * (fraction ?: random.nextFloat())).clampSafely(radius, width - radius)
-        body.y = -radius
-        body.vy = ENTRY_SPEED_MIN + random.nextFloat() * (ENTRY_SPEED_MAX - ENTRY_SPEED_MIN)
-        body.spin = (if (random.nextBoolean()) 1f else -1f) * (ENTRY_SPIN_MIN + random.nextFloat() * (ENTRY_SPIN_MAX - ENTRY_SPIN_MIN))
-        body.angle = random.nextFloat() * 360f
-        body.shapeIndex = body.id * 7
-        val maxSideways = minOf(MAX_ENTRY_SIDEWAYS, width * ENTRY_SIDEWAYS_PER_METRE)
-        var chosen = Float.NaN
-        for (attempt in 0 until PLAN_TRIES) {
-            // Smaller throws more often than larger ones, either way.
-            val candidate = (if (random.nextBoolean()) 1f else -1f) * maxSideways * random.nextFloat().pow(1.4f)
-            if (landsTwiceOnScreen(body, candidate)) {
-                chosen = candidate
-                break
-            }
-        }
-        // No throw fits (a narrow area): straight down, drifting towards the middle.
-        body.vx = if (chosen.isNaN()) (if (body.x < width / 2f) 0.05f else -0.05f) else chosen
-        // A shape heading right turns clockwise, so its quarter turn on each morph goes the way it travels.
-        body.turnDirection = if (body.vx >= 0f) 1f else -1f
-        body.prevX = body.x
-        body.prevY = body.y
-        body.prevAngle = body.angle
-        bodies += body
-        return body
-    }
-
-    /** Whether [template], thrown sideways at [vx], makes its first two landings well inside the side edges. */
-    private fun landsTwiceOnScreen(template: Body, vx: Float): Boolean {
-        val ghost = Body(-1, template.radius, template.mass).apply {
-            x = template.x; y = template.y; this.vx = vx; vy = template.vy; spin = template.spin
-            sinkShare = template.sinkShare; liveliness = template.liveliness; exitBias = template.exitBias
-            real = false
-        }
-        val margin = ghost.radius * PLAN_EDGE_MARGIN
-        var t = 0f
-        while (t < PLAN_HORIZON && ghost.bounces < 2) {
-            step(ghost, STEP, null)
-            if (ghost.x < margin || ghost.x > width - margin) return false
-            t += STEP
-        }
-        return ghost.bounces >= 2
-    }
-
-    /** The upward speed of the lowest bounce allowed: [share] of the height the shape could rise to. */
-    private fun minimumRebound(body: Body, share: Float): Float = sqrt(2f * GRAVITY * maxRise(body) * share)
-
-    /** How high a shape on the floor can rise before its top reaches the top of the area. */
-    private fun maxRise(body: Body): Float = (floor - 2f * body.radius - TOP_MARGIN).coerceAtLeast(0f)
-
-    /** One integration step: air drag and gravity, then the floor when the body reaches it. */
-    internal fun step(body: Body, dt: Float, listener: BounceListener?) {
-        body.prevX = body.x
-        body.prevY = body.y
-        body.prevAngle = body.angle
-        if (body.glow > 0f) {
-            body.glow *= exp(-dt / GLOW_TIME_CONSTANT)
-            if (body.glow < 0.01f) body.glow = 0f
-        }
-        if (!body.entered && body.y - body.radius >= 0f) body.entered = true
-        val speed = sqrt(body.vx * body.vx + body.vy * body.vy)
-        val k = body.dragK
-        val ax = -k * speed * body.vx
-        var ay = GRAVITY - k * speed * body.vy
-
-        // A shape already past the edge it leaves by falls on out of sight, untouched by the floor.
-        val gone = body.exiting && shapeOffScreen(body)
-        val penetration = if (gone) 0f else body.y + body.radius - floor
-        if (penetration > 0f && (body.inContact || body.vy > 0f)) {
-            if (!body.inContact) {
-                // A touch right after leaving the floor (a knock pushed it back down) is the same bounce, not a new
-                // one: no new shape, no tap.
-                val newBounce = body.bounces == 0 || body.sinceLift >= MIN_FLIGHT
-                val impact = body.vy
-                if (newBounce) {
-                    body.bounces++
-                    body.shapeIndex++
-                    body.morphProgress = 0f
-                    body.glow = 1f
-                    if (impact >= HAPTIC_MIN_SPEED) listener?.onBounce(body, impact)
-                }
-                if (body.bounces >= 2) {
-                    hardBounce(body, impact)
-                } else {
-                    body.inContact = true
-                    body.contactTime = 0f
-                    if (newBounce || body.membraneOmega == 0f) body.membraneOmega = membraneOmega(body, impact)
-                    if (newBounce && body.real) body.imprint = newImprint(body)
-                }
-            }
-            if (body.inContact) {
-                // The membrane: a damped spring under the shape, stiff enough to stop it [Body.sinkShare] of its
-                // height down, soft enough to let it through the floor line on the way.
-                val omega = body.membraneOmega
-                ay -= omega * omega * penetration + 2f * MEMBRANE_DAMPING * omega * body.vy
-                body.contactTime += dt
-                // The membrane never holds anything: one that lost its speed in it (a knock) is thrown out.
-                if (body.contactTime > MAX_MEMBRANE_TIME && body.vy > -minimumRebound(body, MIN_REBOUND_SHARE)) {
-                    body.vy = -minimumRebound(body, MIN_REBOUND_SHARE)
-                }
-                // Friction with the membrane it is sunk in: sideways speed and spin pull towards rolling.
-                val slip = body.vx - body.spin * body.radius
-                val grip = (MEMBRANE_GRIP * dt * (penetration / (2f * body.radius)).coerceIn(0f, 1f)).coerceAtMost(1f)
-                val slipChange = slip * grip
-                body.vx -= slipChange * INERTIA_SHARE / (1f + INERTIA_SHARE)
-                body.spin += slipChange / (1f + INERTIA_SHARE) / body.radius
-            }
-        } else {
-            if (body.inContact) {
-                body.inContact = false
-                body.sinceLift = 0f
-                if (body.vy < 0f) {
-                    // Sprung back up: never above the top of the area, never less than a real flight.
-                    val maxUp = sqrt(2f * GRAVITY * maxRise(body))
-                    val minUp = minOf(minimumRebound(body, MIN_REBOUND_SHARE), maxUp)
-                    body.vy = -(-body.vy).coerceIn(minUp, maxUp)
-                }
-                body.imprint?.let { imprint ->
-                    imprint.holding = false
-                    imprint.sinceRelease = 0f
-                }
-                body.imprint = null
-            }
-            body.penetration = 0f
-            body.contactTime = 0f
-            body.spin *= exp(-SPIN_AIR_DECAY * dt)
-        }
-
-        if (!body.inContact) body.sinceLift += dt
-        body.vx += ax * dt
-        body.vy += ay * dt
-        body.x += body.vx * dt
-        body.y += body.vy * dt
-        // Never through the bottom of the area, however hard a knock pressed it in.
-        if (!gone && body.y + body.radius > height) {
-            body.y = height - body.radius
-            if (body.vy > 0f) body.vy = 0f
-        }
-        // Until it has bounced off the hard floor, a shape rebounds off the side edges rather than leaving.
-        if (!body.exiting && body.real) {
-            if (body.x < body.radius && body.vx < 0f) {
-                body.x = body.radius
-                body.vx = -body.vx * WALL_RESTITUTION
-            } else if (body.x > width - body.radius && body.vx > 0f) {
-                body.x = width - body.radius
-                body.vx = -body.vx * WALL_RESTITUTION
-            }
-        }
-        body.angle = (body.angle + Math.toDegrees((body.spin * dt).toDouble()).toFloat()) % 360f
-        // How deep it is now, after the step.
-        body.penetration = if (body.inContact) (body.y + body.radius - floor).coerceAtLeast(0f) else 0f
-        body.imprint?.let { follow(it, body) }
-    }
-
-    /**
-     * The membrane's natural frequency that stops a shape landing at [impact] [Body.sinkShare] of its height below
-     * the floor line: a damped spring hit at speed v from rest reaches v/ω·[SINK_FACTOR], and gravity, pressing on,
-     * takes it about g/ω² further.
-     */
-    private fun membraneOmega(body: Body, impact: Float): Float {
-        val target = (body.sinkShare * 2f * body.radius).coerceAtMost(floorDepth * 0.92f).coerceAtLeast(1e-3f)
-        val v = impact.coerceAtLeast(0.1f)
-        var omega = v * SINK_FACTOR / target
-        repeat(3) {
-            val reach = (target - GRAVITY / (omega * omega)).coerceAtLeast(target * 0.5f)
-            omega = v * SINK_FACTOR / reach
-        }
-        return omega.coerceIn(MEMBRANE_OMEGA_MIN, MEMBRANE_OMEGA_MAX)
-    }
-
-    /**
-     * The hard floor: the shape bounces off it at once, keeping [Body.liveliness] of its landing speed, its spin and
-     * sideways speed traded by Coulomb friction. It leaves rising and towards the edge it is heading for (or, all but
-     * stopped, usually the nearer one), fast enough to be off the screen before it would land again; where the floor's
-     * friction alone wouldn't throw it that fast, the floor kicks it on, and it leaves rolling, spinning the way it
-     * flies. In an area too wide for one flight, it does the same on every landing until it is out.
-     */
-    private fun hardBounce(body: Body, impact: Float) {
-        body.y = floor - body.radius
-        if (body.real && !shapeOffScreen(body)) newRipple(body)
-        body.penetration = 0f
-        val landing = impact.coerceAtLeast(0f)
-        val normalImpulse = body.mass * (1f + body.liveliness) * landing
-        val slip = body.vx - body.spin * body.radius
-        val friction = (slip / (1f / body.mass + body.radius * body.radius / body.inertia))
-            .coerceIn(-FLOOR_FRICTION * normalImpulse, FLOOR_FRICTION * normalImpulse)
-        body.vx -= friction / body.mass
-        body.spin += friction * body.radius / body.inertia
-        val maxUp = sqrt(2f * GRAVITY * maxRise(body))
-        val minUp = minOf(minimumRebound(body, HARD_MIN_REBOUND_SHARE), maxUp)
-        val up = (body.liveliness * landing).coerceIn(minUp, maxUp)
-        body.vy = -up
-        if (!body.exiting) {
-            body.exitTowardsRight = if (abs(body.vx) >= MIN_TRAVEL) {
-                body.vx > 0f
-            } else if (body.exitBias < NEARER_EDGE_SHARE) {
-                body.x > width / 2f
-            } else {
-                body.x <= width / 2f
-            }
-            body.exiting = true
-        }
-        val direction = if (body.exitTowardsRight) 1f else -1f
-        val flight = (2f * up / GRAVITY).coerceAtLeast(0.05f)
-        val distance = (if (body.exitTowardsRight) width - body.x else body.x) + body.radius * EXIT_CLEARANCE
-        val needed = (distance / flight * EXIT_SPEED_MARGIN).coerceAtMost(MAX_EXIT_SPEED)
-        if (body.vx * direction < needed) {
-            body.vx = direction * needed
-            body.spin = body.vx / body.radius
-        }
-        body.squashVelocity += landing * HARD_SQUASH_KICK
-        body.inContact = false
-        body.sinceLift = 0f
-        body.contactTime = 0f
-    }
-
-    /** A silhouette for [body] to press into the floor: a free one, or else the most healed. */
-    private fun newImprint(body: Body): Imprint {
+    /** A new silhouette for [b]'s landing: a free one, or else the most healed. Older ones it covers heal on out. */
+    private fun press(b: Body) {
         var pick = imprints[0]
         for (imprint in imprints) {
-            if (!imprint.active) {
-                pick = imprint
-                break
-            }
-            if (!imprint.holding && (pick.holding || imprint.sinceRelease > pick.sinceRelease)) pick = imprint
+            if (!imprint.active) { pick = imprint; break }
+            if (!imprint.holding && (pick.holding || imprint.sincePressed > pick.sincePressed)) pick = imprint
+        }
+        for (old in imprints) {
+            if (!old.active || old.holding || old === pick) continue
+            if (abs(old.x - b.x) < old.radius + b.radius) old.onClock = true
         }
         pick.active = true
         pick.holding = true
-        pick.bodyId = body.id
-        pick.radius = body.radius
-        pick.depth = 0f
-        pick.sinceRelease = 0f
+        pick.soft = b.bounces == 1
+        pick.bodyId = b.id
+        pick.radius = b.radius
+        pick.depth = b.penetration
+        pick.x = b.x
+        pick.y = b.y
+        pick.shapeIndex = b.shapeIndex
+        pick.morphProgress = b.morphProgress
+        pick.rotationDegrees = drawnRotation(b)
         pick.sincePressed = 0f
-        pick.strength = 1f
-        pick.surface = 0f
-        pick.surfaceVelocity = 0f
-        pick.x = body.x
-        pick.y = body.y
-        pick.shapeIndex = body.shapeIndex
-        pick.morphProgress = body.morphProgress
-        pick.squash = body.squash
-        pick.rotationDegrees = drawnRotation(body)
-        return pick
+        pick.restAtRelease = 0.0
+        pick.onClock = false
+        pick.heal = 0f
+        b.imprint = pick
     }
 
-    /** While a shape is in the membrane, its silhouette takes its outline at its deepest, and the surface sags with it. */
-    private fun follow(imprint: Imprint, body: Body) {
-        if (body.penetration > imprint.depth) {
-            imprint.depth = body.penetration
-            imprint.x = body.x
-            imprint.y = body.y
-            imprint.shapeIndex = body.shapeIndex
-            imprint.morphProgress = body.morphProgress
-            imprint.squash = body.squash
-            imprint.rotationDegrees = drawnRotation(body)
+    /** The deepest dent the rubber keeps under [imprint]. */
+    private fun restUnder(imprint: Imprint): Double {
+        val a = max(1, ((imprint.x - imprint.radius * 0.9f) / nodeSpacing).toInt())
+        val z = min(SHEET_NODES - 1, kotlin.math.ceil((imprint.x + imprint.radius * 0.9f) / nodeSpacing).toInt())
+        var most = 0.0
+        for (i in a..z) if (sheet.rest[i] > most) most = sheet.rest[i]
+        return most
+    }
+
+    /**
+     * The silhouettes: one held takes its shape's outline at its deepest; released, it closes as the rubber's dent
+     * there recovers, only ever closing, and once that dent is all but gone (or a newer silhouette has covered it) it
+     * finishes on the healing's own clock, its last moment breaking into pixels.
+     */
+    private fun floorEffects(dt: Float) {
+        for (b in bodies) {
+            val imprint = b.imprint ?: continue
+            if (!imprint.holding || !b.inContact) continue
+            if (b.penetration > imprint.depth) {
+                imprint.depth = b.penetration
+                imprint.x = b.x
+                imprint.y = b.y
+                imprint.shapeIndex = b.shapeIndex
+                imprint.morphProgress = b.morphProgress
+                imprint.rotationDegrees = drawnRotation(b)
+            }
         }
-        // The surface moves with the shape, so as the shape leaves it is still moving up, and springs on past its rest.
-        imprint.surface = SURFACE_SAG * body.penetration
-        imprint.surfaceVelocity = SURFACE_SAG * body.vy
-    }
-
-    /** Released silhouettes: the surface rings back past its rest line and settles; the silhouette heals. */
-    private fun healImprints(dt: Float) {
         for (imprint in imprints) {
             if (!imprint.active) continue
             imprint.sincePressed += dt
-            if (imprint.holding) continue
-            imprint.sinceRelease += dt
-            imprint.surfaceVelocity += springAcceleration(imprint.surface, imprint.surfaceVelocity, SURFACE_STIFFNESS, SURFACE_DAMPING) * dt
-            imprint.surface += imprint.surfaceVelocity * dt
-            val healing = ((imprint.sinceRelease - HEAL_DELAY) / HEAL_TIME).coerceIn(0f, 1f)
-            imprint.strength = 1f - healing * healing * (3f - 2f * healing)
-            if (imprint.strength <= 0f && abs(imprint.surface) < 1e-4f && abs(imprint.surfaceVelocity) < 1e-3f) imprint.active = false
-        }
-    }
-
-    /** A ripple for [body] striking the hard floor: a free one, or else the oldest. Drawing only; nothing moves by it. */
-    private fun newRipple(body: Body) {
-        var pick = ripples[0]
-        for (ripple in ripples) {
-            if (!ripple.active) {
-                pick = ripple
-                break
+            if (imprint.holding) {
+                if (bodies.any { it.imprint === imprint && it.inContact }) continue
+                imprint.holding = false
+                imprint.restAtRelease = min(restUnder(imprint), imprint.depth.toDouble())
+                if (imprint.restAtRelease < 1e-4) imprint.onClock = true
             }
-            if (ripple.age > pick.age) pick = ripple
-        }
-        pick.active = true
-        pick.bodyId = body.id
-        pick.x = body.x
-        pick.radius = body.radius
-        pick.shapeIndex = body.shapeIndex
-        pick.morphProgress = body.morphProgress
-        pick.rotationDegrees = drawnRotation(body)
-        pick.age = 0f
-    }
-
-    private fun ageRipples(dt: Float) {
-        for (ripple in ripples) {
-            if (!ripple.active) continue
-            ripple.age += dt
-            if (ripple.age >= HARD_RIPPLE_TIME) ripple.active = false
+            if (!imprint.onClock) {
+                val left = (restUnder(imprint) / imprint.restAtRelease).toFloat().coerceIn(0f, 1f)
+                if (left < CLOSED_SHARE) imprint.onClock = true
+                else imprint.heal = max(imprint.heal, healForShrink(left))
+            }
+            if (imprint.onClock) imprint.heal = min(1f, imprint.heal + dt / HEAL_TIME)
+            if (imprint.heal >= 1f && imprint.sincePressed > RIPPLES_DONE) imprint.active = false
         }
     }
 
-    private fun removeGone() {
-        var i = bodies.size - 1
-        while (i >= 0) {
-            if (isGone(bodies[i])) bodies.removeAt(i)
-            i--
-        }
-    }
-
-    /** Whether the shape is fully past a side edge, however it is squashed, stretched or turned. */
+    /** Whether the shape is fully past a side edge, however it is turned. */
     internal fun shapeOffScreen(body: Body): Boolean {
         val reach = body.radius * SHAPE_REACH
         return body.x - reach > width || body.x + reach < 0f
     }
 
+    private fun gone(body: Body): Boolean = body.y - body.radius > height || shapeOffScreen(body)
+
     /** Whether nothing of the shape, nor of its shadow, is left on screen. */
     internal fun isGone(body: Body): Boolean {
-        if (!body.exiting) return false
         if (body.y - body.radius > height) return true
         if (!shapeOffScreen(body)) return false
         val shadow = shadowOf(body, scratchShadow)
@@ -726,11 +1016,12 @@ internal class MorphBouncePhysics(
         shadowFor(floor - body.y - body.radius, body.radius, body.penetration, out)
 
     /**
-     * Moves what the shape looks like on by [dt], on Material 3 Expressive springs; nothing here changes how it moves.
-     * - The morph to its new shape springs on the fast spatial spring, overshooting a touch and settling.
-     * - In the membrane it flattens a little as it sinks; off the hard floor the landing kicks the squash, which then
-     *   rings on the fast spatial spring, so the shape wobbles once, softly, and settles round.
+     * Moves what the shape looks like on by [dt]; nothing here changes how it moves.
+     * - The morph to its new shape springs on Material 3 Expressive's fast spatial spring, overshooting a touch.
      * - It scales in from nothing as it comes out from under the card, on the default spatial spring.
+     * - The light inside pools where the shape's felt gravity (gravity less its acceleration) holds it, on a soft
+     *   spring, so it sloshes as the shape falls, lands and spins; it tightens under a hard push and flashes on an
+     *   impact, and its swirl turns with the spin.
      */
     internal fun animateLook(body: Body, dt: Float) {
         if (body.morphProgress != 1f || body.morphVelocity != 0f) {
@@ -741,21 +1032,6 @@ internal class MorphBouncePhysics(
                 body.morphVelocity = 0f
             }
         }
-
-        if (body.penetration > 0f) {
-            val pressed = (body.penetration / (2f * body.radius) * SQUASH_PER_DEPTH).coerceIn(0f, MAX_SQUASH)
-            // Pressed into the membrane the shape is as flat as it is deep; the spring takes over as it lets go.
-            body.squashVelocity = (pressed - body.squash) / dt * JELLY_CARRY
-            body.squash = pressed
-        } else if (body.squash != 0f || body.squashVelocity != 0f) {
-            body.squashVelocity += springAcceleration(body.squash, body.squashVelocity, JELLY_STIFFNESS, JELLY_DAMPING) * dt
-            body.squash = (body.squash + body.squashVelocity * dt).coerceIn(-MAX_JELLY_STRETCH, MAX_SQUASH)
-            if (abs(body.squash) < 1e-3f && abs(body.squashVelocity) < 1e-2f) {
-                body.squash = 0f
-                body.squashVelocity = 0f
-            }
-        }
-
         if (body.appear < 1f || body.appearVelocity != 0f) {
             body.appearVelocity += springAcceleration(body.appear - 1f, body.appearVelocity, APPEAR_STIFFNESS, APPEAR_DAMPING) * dt
             body.appear = (body.appear + body.appearVelocity * dt).coerceAtMost(MAX_APPEAR)
@@ -764,102 +1040,120 @@ internal class MorphBouncePhysics(
                 body.appearVelocity = 0f
             }
         }
+        if (!body.real) return
+        val ax = (body.vx - body.lastVX) / dt
+        val ay = (body.vy - body.lastVY) / dt
+        body.lastVX = body.vx
+        body.lastVY = body.vy
+        val fx = -ax / GRAVITY
+        val fy = (GRAVITY - ay) / GRAVITY
+        val felt = min(hypot(fx, fy), 6f)
+        val target = 0.42f * min(felt, 1.6f) / 1.6f
+        val direction = atan2(fy, fx)
+        val tx = cos(direction) * target
+        val ty = sin(direction) * target
+        val c = 2f * LIGHT_DAMPING * sqrt(LIGHT_STIFFNESS)
+        body.lightVX += (LIGHT_STIFFNESS * (tx - body.lightX) - c * body.lightVX) * dt
+        body.lightVY += (LIGHT_STIFFNESS * (ty - body.lightY) - c * body.lightVY) * dt
+        body.lightX = (body.lightX + body.lightVX * dt).coerceIn(-0.6f, 0.6f)
+        body.lightY = (body.lightY + body.lightVY * dt).coerceIn(-0.6f, 0.6f)
+        val spreadTarget = 0.95f - 0.45f * min(felt, 1.5f) / 1.5f
+        body.lightSpread += (spreadTarget - body.lightSpread) * min(6f * dt, 1f)
+        if (felt > 1.5f) body.flash = max(body.flash, min((felt - 1.5f) / 4f, 1f))
+        body.flash *= exp(-dt / FLASH_TIME)
+        body.swirl += (0.6f + 0.075f * abs(body.spin)) * dt + body.spin * 0.4f * dt
     }
 
     companion object {
-        const val MAX_SHAPES = 3
+        const val MAX_SHAPES = 4
+        /** At most this many landings before a shape has left. */
+        const val MAX_LANDINGS = 4
         const val GRAVITY = 9.81f
         const val AIR_DENSITY = 1.2f
         const val DRAG_COEFFICIENT = 0.47f
-        /** The shapes are stone (2600 kg/m³) slabs 4 cm thick: a 20 cm one weighs 3.3 kg. */
-        const val SLAB_DENSITY = 2600f
         const val SLAB_THICKNESS = 0.04f
         /** A solid disc's moment of inertia is ½mr². */
         const val INERTIA_SHARE = 0.5f
+        /** Every shape weighs, at random, between these, whatever its size. */
+        const val MIN_POUNDS = 50f
+        const val MAX_POUNDS = 100f
+        const val POUND = 0.45359237f
 
-        /** The membrane's damping ratio: it gives back about 64% of a landing's speed, and rings as it lets go. */
-        const val MEMBRANE_DAMPING = 0.14f
-        /** How deep a shape sinks into the membrane, as a share of its height. */
-        const val SINK_MIN = 0.42f
-        const val SINK_MAX = 0.58f
+        /** The rubber: density, thickness, how much it stiffens as it stretches, and how many nodes cross the area. */
+        const val RUBBER_DENSITY = 1100.0
+        const val SHEET_THICKNESS = 0.006
+        const val STIFFENING = 6.0
+        const val SHEET_NODES = 56
+        const val SUBSTEPS = 6
         /** The floor line sits this share of the largest shape's height above the bottom of the area. */
         const val FLOOR_DEPTH_SHARE = 0.66f
-        const val MEMBRANE_OMEGA_MIN = 8f
-        const val MEMBRANE_OMEGA_MAX = 90f
-        /** The membrane's grip on the sideways motion of a shape sunk into it, per second at full depth. */
-        const val MEMBRANE_GRIP = 9f
-        /** A landing in the membrane lasts π/ω, 35 to 250 ms; past this it throws the shape out. */
-        const val MAX_MEMBRANE_TIME = 0.6f
-        /** The membrane surface around a sunk shape sags this share of the shape's depth. */
-        const val SURFACE_SAG = 0.3f
-        /** Released, the surface springs back on a lightly damped spring (5 Hz), overshooting by about half. */
-        const val SURFACE_STIFFNESS = 900f
-        const val SURFACE_DAMPING = 0.22f
-        /** A silhouette stays this long after its shape has left it, then heals over [HEAL_TIME]. */
-        const val HEAL_DELAY = 0.35f
-        const val HEAL_TIME = 1.6f
-        const val MAX_IMPRINTS = 6
-        /** A hard landing's ripple runs across the floor this long, seconds: sharp and quick. */
-        const val HARD_RIPPLE_TIME = 0.34f
+        /** The sheet is tuned so a stone shape sinks half its height and comes back at 60% of its landing speed. */
+        const val REFERENCE_DENSITY = 2600f
+        const val REFERENCE_SINK = 0.5f
+        const val REFERENCE_REBOUND = 0.6f
+        /** Heat: the rubber's heat capacity (J/kg·K, per metre of sheet here), how it spreads, and how it cools. */
+        const val HEAT_CAPACITY = 900.0
+        const val HEAT_SPREAD = 0.004
+        const val COOLING_TIME = 2.2
+        /** Warm loaded rubber creeps towards its dent at this rate (per second, at [CREEP_WARMTH] K above the room's). */
+        const val CREEP_RATE = 9.0
+        const val CREEP_WARMTH = 20.0
+        /** Unloaded, a dent heals with this time constant. */
+        const val RUBBER_HEAL_TIME = 0.9
+        /** Wear: the energy (J per metre) that wears a node out, and how much more a worn one damps and creeps. */
+        const val DAMAGE_ENERGY = 150000.0
+        const val DAMAGE_DAMPING = 12.0
+        const val DAMAGE_CREEP = 5.0
+        const val DAMAGE_HEAL_TIME = 4.0
+        /** The hard ground under the rubber: Johnson's elastic-plastic restitution, e ∝ (ρv²)^(-1/8). */
+        const val HARD_E0 = 0.8f
+        const val HARD_V0 = 6f
+        const val HARD_E_MAX = 0.9f
+        const val HARD_E_MIN = 0.25f
 
-        /** The hard floor gives back this share of a landing's speed: a lively bounce. */
-        const val LIVELINESS_MIN = 0.74f
-        const val LIVELINESS_MAX = 0.84f
-        const val FLOOR_FRICTION = 0.55f
+        const val SHEET_FRICTION = 0.15
         const val BODY_RESTITUTION = 0.55f
         const val BODY_FRICTION = 0.3f
-        const val WALL_RESTITUTION = 0.5f
         const val SPIN_AIR_DECAY = 0.08f
-        /** A shape bounced off the hard floor is thrown at most this fast sideways, m/s. */
-        const val MAX_EXIT_SPEED = 10f
-        /** It is planned to clear the edge by this many radii before it would land again, with this margin on speed. */
-        const val EXIT_CLEARANCE = 1.8f
-        const val EXIT_SPEED_MARGIN = 1.12f
-        /** Slower than this sideways, a shape bouncing off the hard floor leaves by the nearer edge this often. */
-        const val MIN_TRAVEL = 0.35f
-        const val NEARER_EDGE_SHARE = 0.7f
-        /** However squashed, stretched or turned, no part of a shape is drawn farther than this many radii out. */
+        /** However turned or morphing, no part of a shape is drawn farther than this many radii out. */
         const val SHAPE_REACH = 1.6f
-
-        /** Every bounce reaches at least this share of the height a shape could rise to; off the hard floor, more. */
-        const val MIN_REBOUND_SHARE = 0.35f
-        const val HARD_MIN_REBOUND_SHARE = 0.45f
         /** A floor touch sooner than this after leaving it belongs to the same bounce. */
         const val MIN_FLIGHT = 0.3f
-        const val TOP_MARGIN = 0.02f
+        /** In touch with the floor this long, a shape would be sitting on it: no throw may let that happen. */
+        const val STUCK_TIME = 1f
         /** No shape's radius is more than this share of the area's height. */
         const val MAX_RADIUS_SHARE = 0.3f
 
-        /** Shapes come in from under the card at 0.3 to 2.2 m/s, spinning at 0.4 to 4.5 rad/s either way. */
-        const val ENTRY_SPEED_MIN = 0.3f
-        const val ENTRY_SPEED_MAX = 2.2f
-        const val ENTRY_SPIN_MIN = 0.4f
-        const val ENTRY_SPIN_MAX = 4.5f
-        const val MAX_ENTRY_SIDEWAYS = 2.4f
-        const val ENTRY_SIDEWAYS_PER_METRE = 0.5f
+        /** Shapes come in from under the card at 0.4 to 3.5 m/s, thrown sideways at up to 6 m/s. */
+        const val DROP_MIN = 0.4f
+        const val DROP_MAX = 3.5f
+        const val MAX_THROW = 6f
         const val PLAN_TRIES = 16
-        const val PLAN_HORIZON = 12f
-        /** Both landings are planned at least this many radii inside the side edges. */
+        /** Both first landings are planned at least this many radii inside the side edges. */
         const val PLAN_EDGE_MARGIN = 1.1f
+        /** Each drop is planned this far ahead, and never less than [MIN_LEAD] ahead. */
+        const val PLAN_LEAD = 1f
+        const val MIN_LEAD = 0.25f
+        /** Planning yields every this many steps. */
+        const val PLAN_SLICE = 8
+        /** The animation gives planning this much of each frame. */
+        const val PLAN_BUDGET_NANOS = 3_000_000L
+        const val RETRY = 0.15f
 
         /** The first drop comes 0.15 to 0.8 s after the page opens. */
         const val FIRST_DROP_MIN = 0.15f
         const val FIRST_DROP_MAX = 0.8f
-        /** A burst is one shape half the time, two shapes a third of the time, otherwise three. */
-        const val BURST_ONE = 0.5f
-        const val BURST_TWO = 0.32f
+        /** A burst is one shape 45% of the time, two 30%, three 17%, otherwise four. */
+        const val BURST_ONE = 0.45f
+        const val BURST_TWO = 0.3f
+        const val BURST_THREE_BELOW = 0.92f
         const val BURST_GAP_MIN = 0.07f
         const val BURST_GAP_MAX = 0.55f
         /** Between bursts: at least 0.45 s, on average 1.7 s, at most 4.5 s. */
         const val QUIET_GAP_MIN = 0.45f
         const val QUIET_GAP_MEAN = 1.25f
         const val QUIET_GAP_MAX = 4.5f
-        /** Past this age knocks no longer reach a shape. */
-        const val PLAN_TIME = 5f
-        /**
-         * Every shape has left by this age, having made both its landings, in areas from 40 dp to 900 dp tall and
-         * 320 dp to 1280 dp wide (checked over many random runs of each in MorphBouncePhysicsTest).
-         */
+        /** Every shape has left by this age: every drop is planned to. */
         const val MAX_LIFETIME = 9f
 
         /** The simulation's fixed step: 240 Hz, two steps a frame at 120 Hz, four at 60 Hz. */
@@ -867,43 +1161,35 @@ internal class MorphBouncePhysics(
         private const val STEP_SECONDS = 1.0 / 240.0
         private const val STEP_TOLERANCE = 1e-7
         const val MAX_FRAME = 1f / 20f
+        private val LEAD_STEPS = (PLAN_LEAD / STEP).roundToInt()
+        private val MIN_LEAD_STEPS = (MIN_LEAD / STEP).roundToInt()
+        private val RETRY_STEPS = (RETRY / STEP).roundToInt()
 
-        /**
-         * The morph's spring: Material 3 Expressive's fast spatial spring (MotionScheme.expressive() fastSpatialSpec,
-         * damping ratio 0.6, stiffness 800). Its damping is that of Google's morphing LoadingIndicator (0.6, there at
-         * stiffness 200, one morph every 650 ms); here a morph should be all but formed as a shape leaves the
-         * membrane, so it is the expressive scheme's faster spring of the same feel: it overshoots by under 10% and
-         * has settled about 0.35 s after the bounce.
-         */
+        /** Silhouettes kept at once. */
+        const val MAX_IMPRINTS = 8
+        /** A released silhouette whose dent is down to this share finishes on the healing's own clock. */
+        const val CLOSED_SHARE = 0.05f
+        /** Healing on its own clock, a silhouette takes this long from fresh to gone. */
+        const val HEAL_TIME = 1.6f
+        /** A later (hard) landing's one ripple runs across the floor this long, seconds: sharp and quick. */
+        const val HARD_RIPPLE_TIME = 0.34f
+        /** A silhouette is kept at least this long, so its ripples run their course. */
+        const val RIPPLES_DONE = 1.2f
+
+        /** The morph's spring: Material 3 Expressive's fast spatial spring (damping 0.6, stiffness 800). */
         const val MORPH_DAMPING = 0.6f
         const val MORPH_STIFFNESS = 800f
-        /**
-         * The morph counts as settled, and is set to exactly 1, this close to it and this slow (Google's loading
-         * indicator likewise raises its morph spring's visibility threshold so the low-damping spring ends sooner).
-         */
         const val MORPH_SETTLE = 0.01f
         const val MORPH_SETTLE_SPEED = 0.1f
-        /** A shape in the membrane is squashed by this share of its depth there, over its height. */
-        const val SQUASH_PER_DEPTH = 0.22f
-        /** The flattest a shape gets: 20% shorter, and wider to keep its area. */
-        const val MAX_SQUASH = 0.2f
-        /** The tallest it gets in the wobble after a bounce: 10% taller, and narrower. */
-        const val MAX_JELLY_STRETCH = 0.1f
-        /** The share of its unsquashing speed a shape carries into the wobble after leaving the membrane. */
-        const val JELLY_CARRY = 0.5f
-        /** How hard a landing on the hard floor kicks the squash, per m/s of landing speed. */
-        const val HARD_SQUASH_KICK = 0.9f
-        /** The wobble's spring: the expressive fast spatial spring again, so it rings once, softly, and settles. */
-        const val JELLY_DAMPING = 0.6f
-        const val JELLY_STIFFNESS = 800f
         /** The scale-in from under the card: the expressive default spatial spring (0.8, 380), about 0.4 s. */
         const val APPEAR_DAMPING = 0.8f
         const val APPEAR_STIFFNESS = 380f
         /** The scale-in's overshoot (about 1.5% for this spring) is never more than this. */
         const val MAX_APPEAR = 1.03f
-        const val HAPTIC_MIN_SPEED = 1.0f
-        /** The brightening on a bounce fades over roughly a fifth of a second. */
-        const val GLOW_TIME_CONSTANT = 0.12f
+        /** The light's spring inside a shape, and how fast an impact's flash fades. */
+        const val LIGHT_STIFFNESS = 120f
+        const val LIGHT_DAMPING = 0.35f
+        const val FLASH_TIME = 0.18f
 
         /**
          * The light: a broad soft box above and a little to the left, so shadows fall slightly right and spread as
@@ -926,11 +1212,16 @@ internal class MorphBouncePhysics(
         /** A shadow fainter than this isn't drawn. */
         const val SHADOW_VISIBLE = 0.004f
 
-        /** How far a damped spring of [MEMBRANE_DAMPING] hit at speed v from rest reaches, times ω/v. */
-        val SINK_FACTOR: Float = run {
-            val z = MEMBRANE_DAMPING
-            val root = sqrt(1f - z * z)
-            exp(-z / root * atan(root / z))
+        const val OUTLINE_POINTS = MorphOutlines.POINTS
+        private val COS = DoubleArray(OUTLINE_POINTS) { cos(it * 2.0 * PI / OUTLINE_POINTS) }
+        private val SIN = DoubleArray(OUTLINE_POINTS) { sin(it * 2.0 * PI / OUTLINE_POINTS) }
+        private val calibrated = HashMap<String, Pair<Double, Double>>()
+
+        /** How much of its landing speed the hard ground under the rubber gives back to a shape of [density]. */
+        fun hardRestitution(density: Float, speed: Float): Float {
+            if (speed <= 1e-3f) return HARD_E_MAX
+            val e = HARD_E0 * (REFERENCE_DENSITY * HARD_V0 * HARD_V0 / (density * speed * speed)).pow(1f / 8f)
+            return e.coerceIn(HARD_E_MIN, HARD_E_MAX)
         }
 
         /**
@@ -944,7 +1235,6 @@ internal class MorphBouncePhysics(
             val h = heightAboveFloor.coerceAtLeast(0f)
             val s = h / radius
             val footprint = if (sink > 0f) {
-                // The width of a disc of [radius] where it crosses the floor line, [sink] above its lowest point.
                 val d = sink.coerceAtMost(radius)
                 2f * sqrt((2f * radius * d - d * d).coerceAtLeast(0f)).coerceAtLeast(radius * 0.35f)
             } else {
@@ -962,14 +1252,8 @@ internal class MorphBouncePhysics(
             return out
         }
 
-        /** The mass of a dense slab of [radius]: it grows with its area. */
-        fun massFor(radius: Float): Float = SLAB_DENSITY * SLAB_THICKNESS * PI.toFloat() * radius * radius
-
-        /** The angle [body] is drawn at: its roll plus a quarter turn for each morph, turned with the morph's spring. */
-        fun drawnRotation(body: Body, angle: Float = body.angle): Float {
-            val morphsDone = if (body.bounces == 0) 0f else body.bounces - 1 + body.morphProgress
-            return (angle + body.turnDirection * MORPH_TURN_DEGREES * morphsDone) % 360f
-        }
+        /** The angle [body] is drawn at, and presses the rubber at: its roll. */
+        fun drawnRotation(body: Body, angle: Float = body.angle): Float = angle % 360f
 
         /**
          * The acceleration of a spring of [stiffness] and [dampingRatio] (as Compose's `spring()` takes them, unit

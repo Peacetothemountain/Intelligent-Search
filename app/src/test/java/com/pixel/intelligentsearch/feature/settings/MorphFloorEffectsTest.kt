@@ -29,10 +29,17 @@ class MorphFloorEffectsTest {
     }
 
     @Test
-    fun healingFollowsTheSilhouettesHealTimeAndTheRimFadesLast() {
-        assertEquals(0f, healProgress(0f), 0f)
-        assertEquals(0f, healProgress(MorphBouncePhysics.HEAL_DELAY), 0f)
-        assertEquals(1f, healProgress(MorphBouncePhysics.HEAL_DELAY + MorphBouncePhysics.HEAL_TIME), 1e-5f)
+    fun healingFollowsTheHollowsSizeAndTheRimFadesLast() {
+        // A hollow closing as the rubber heals is drawn as far through its healing as its size says.
+        assertEquals(0f, healForShrink(1f), 0f)
+        assertEquals(HEAL_CLOSE, healForShrink(0f), 0f)
+        for (h in samples(100).filter { it < HEAL_CLOSE * 0.98f }) assertEquals("at $h", h, healForShrink(healShrink(h)), 2e-3f)
+        var last = 0f
+        for (k in samples(100).reversed()) {
+            val h = healForShrink(k)
+            assertTrue("heal falls back at $k", h >= last - 1e-6f)
+            last = h
+        }
         assertEquals(1f, healShade(0f), 0f)
         assertEquals(1f, healRim(0f), 0f)
         // The inside lightens first; the rim is still lit after the inside has gone, and out as the hollow closes.
@@ -101,26 +108,24 @@ class MorphFloorEffectsTest {
     }
 
     @Test
-    fun aHardLandingSendsOneRippleThatIsGoneSoonAfter() {
+    fun aFirstLandingSendsSoftRipplesAndALaterOneASharpOne() {
+        val scene = morphSceneFor(411f * 3f, 300f * 3f, 3f)!!
         val physics = MorphBouncePhysics(kotlin.random.Random(3), autoSpawn = false).apply {
-            resize(4f, 3f, listOf(0.1f, 0.12f, 0.14f, 0.16f))
+            resize(scene.widthMetres, scene.heightMetres, scene.radiiMetres)
         }
         val body = physics.spawn(0.5f)!!
-        var sawRipple = false
+        val kinds = ArrayList<Boolean>()
         var t = 0f
-        while (t < 8f && physics.ripples.none { it.active } && body.bounces < 3) {
+        while (t < 8f && body in physics.bodies) {
             physics.advance(1f / 120f)
             t += 1f / 120f
+            val pressed = physics.imprints.firstOrNull { it.active && it.holding && it.bodyId == body.id && it.sincePressed <= 1f / 120f + 1e-4f }
+            if (pressed != null) kinds += pressed.soft
         }
-        val ripple = physics.ripples.firstOrNull { it.active }
-        if (ripple != null) {
-            sawRipple = true
-            assertEquals(body.id, ripple.bodyId)
-            assertTrue(body.bounces >= 2)
-        }
-        assertTrue("no ripple off the hard floor", sawRipple)
-        assertEquals(1, physics.ripples.count { it.active })
-        repeat(60) { physics.advance(1f / 120f) }
-        assertTrue(physics.ripples.none { it.active })
+        assertTrue("landings $kinds", kinds.size >= 2)
+        // The first landing's ripples are the soft ones; every later landing sends one sharp ripple.
+        assertTrue(kinds.first())
+        assertTrue(kinds.drop(1).none { it })
+        assertEquals(0f, rippleAlpha(rippleProgress(MorphBouncePhysics.HARD_RIPPLE_TIME, 0f, MorphBouncePhysics.HARD_RIPPLE_TIME)), 0f)
     }
 }

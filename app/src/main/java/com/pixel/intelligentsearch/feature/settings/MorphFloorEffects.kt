@@ -5,8 +5,8 @@ import kotlin.math.sin
 
 /*
  * The curves behind what the Material Morph animation's floor does round a shape, as the street does under Neo in The
- * Matrix: the ripples a landing sends across it, the membrane dipping round a sunk shape, and the silhouette healing
- * after the shape has gone. All pure functions of time, so drawing a frame allocates nothing and tests can pin them.
+ * Matrix: the ripples a landing sends across it, the floor's near edge dipping round a sunk shape, and the silhouette
+ * healing after the shape has gone. All pure functions of time, so drawing a frame allocates nothing and tests can pin them.
  * None of it feeds back into the motion (see MorphBouncePhysics).
  */
 
@@ -72,10 +72,6 @@ internal fun membraneStretch(surface: Float, radius: Float): Float =
 /** The membrane is fully stretched once it sags this many radii under a shape. */
 private const val MEMBRANE_FULL_STRETCH = 0.2f
 
-/** How far a silhouette's healing has got, 0 to 1, [sinceRelease] seconds after its shape left it. */
-internal fun healProgress(sinceRelease: Float): Float =
-    ((sinceRelease - MorphBouncePhysics.HEAL_DELAY) / MorphBouncePhysics.HEAL_TIME).coerceIn(0f, 1f)
-
 /** As the floor fills back in, the hollow has closed at this share of its healing, then overfills a touch and settles. */
 internal const val HEAL_CLOSE = 0.55f
 private const val HEAL_CURVE = (1f + 2f * HEAL_CLOSE) / (HEAL_CLOSE * HEAL_CLOSE)
@@ -89,6 +85,23 @@ internal fun healShrink(heal: Float): Float {
     val h = heal.coerceIn(0f, 1f)
     val left = 1f - h
     return left * left * (1f + 2f * h - HEAL_CURVE * h * h)
+}
+
+/**
+ * How far through its healing a hollow [shrink] of its silhouette's size is: the inverse of [healShrink] while it is
+ * still closing (heal 0 to [HEAL_CLOSE]), so a silhouette that closes as the rubber's dent recovers is drawn just as one
+ * healing on its own clock.
+ */
+internal fun healForShrink(shrink: Float): Float {
+    if (shrink >= 1f) return 0f
+    if (shrink <= 0f) return HEAL_CLOSE
+    var lo = 0f
+    var hi = HEAL_CLOSE
+    repeat(20) {
+        val mid = (lo + hi) / 2f
+        if (healShrink(mid) > shrink) lo = mid else hi = mid
+    }
+    return (lo + hi) / 2f
 }
 
 /** How dark the hollow's inside still is as it heals: it lightens first, while the rim still catches the light. */

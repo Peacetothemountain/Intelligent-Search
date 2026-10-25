@@ -57,7 +57,8 @@ class SearchSourcesPermissionTest {
 
     @Before fun setUp() {
         hilt.inject()
-        prefs.edit().clear().commit()
+        // The page's Material Morph animation (on by default) never idles; this test is about the page's rows.
+        prefs.edit().clear().putBoolean(SettingsManager.MORPH_ANIMATION_ENABLED.name, false).commit()
     }
 
     private fun turnOnContactsAndDecline(androidWillAskAgain: Boolean) {

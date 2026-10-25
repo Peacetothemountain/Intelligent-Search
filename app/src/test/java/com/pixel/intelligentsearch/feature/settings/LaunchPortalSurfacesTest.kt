@@ -57,7 +57,8 @@ class LaunchPortalSurfacesTest {
 
     @Before fun setUp() {
         hilt.inject()
-        prefs.edit().clear().commit()
+        // The page's Material Morph animation (on by default) never idles; this test is about the page's rows.
+        prefs.edit().clear().putBoolean(SettingsManager.MORPH_ANIMATION_ENABLED.name, false).commit()
         ShadowSettings.setCanDrawOverlays(false)
         shadowOf(context).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
     }

@@ -30,12 +30,13 @@ class AtAGlanceSettingsBackupTest {
         SettingsManager.GLANCE_MEDIA, SettingsManager.GLANCE_BIRTHDAYS, SettingsManager.GLANCE_CLOCK
     )
 
+    /** Known booleans: the section starts on, each of its items off until chosen. */
     @Test
-    fun theSwitchesAreKnownBooleansThatStartOn() {
+    fun theSwitchesAreKnownBooleansAndOnlyTheSectionStartsOn() {
         for (key in switches) {
             assertTrue("$key is declared", key in SettingsManager.ALL)
             assertEquals("BOOLEAN", BackupPreferenceSchema.expectedType(key.name))
-            assertTrue("$key starts on", key.default)
+            assertEquals("$key's default", key == SettingsManager.GLANCE_ENABLED, key.default)
         }
         assertTrue(SettingsManager.GLANCE_CLOCK_STYLE in SettingsManager.ALL)
         assertEquals("STRING", BackupPreferenceSchema.expectedType(SettingsManager.GLANCE_CLOCK_STYLE.name))

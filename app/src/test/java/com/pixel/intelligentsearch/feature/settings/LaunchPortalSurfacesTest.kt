@@ -135,6 +135,26 @@ class LaunchPortalSurfacesTest {
         assertFalse(FloatingSearchOverlays.isButtonShowing)
     }
 
+    /** On Android 12 and 13 Settings can highlight the row, so the button opens App info at "Display over other apps". */
+    @Test
+    @Config(sdk = [33])
+    fun onAndroid13TheFloatingButtonOpensAppInfoAtTheHighlightedRow() {
+        showPortal()
+        switch("Floating Search Button").performScrollTo().performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Open Settings").performClick()
+        compose.waitForIdle()
+        val opened = shadowOf(context).nextStartedActivity
+        assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, opened?.action)
+        assertEquals("package:${context.packageName}", opened?.dataString)
+        assertEquals("system_alert_window", opened?.getStringExtra(":settings:fragment_args_key"))
+        assertEquals(
+            "system_alert_window",
+            opened?.getBundleExtra(":settings:show_fragment_args")?.getString(":settings:fragment_args_key")
+        )
+        assertFalse(prefs[SettingsManager.FLOATING_SEARCH_BUTTON])
+    }
+
     /** The Edge Swipe was removed: no switch, and none of its edge, position or height controls, even with the permission. */
     @Test
     fun theEdgeSwipeIsGone() {

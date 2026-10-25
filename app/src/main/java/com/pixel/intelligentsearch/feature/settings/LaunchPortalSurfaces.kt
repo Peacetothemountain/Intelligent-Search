@@ -4,6 +4,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import com.pixel.intelligentsearch.core.system.GoogleApps
 import androidx.compose.runtime.produceState
+import com.pixel.intelligentsearch.core.system.openOverlayPermission
 import com.pixel.intelligentsearch.core.system.openSettingsPage
 import android.Manifest
 import android.content.Intent
@@ -23,7 +24,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -159,7 +159,7 @@ fun AlwaysWithinReachSection() {
             onConfirm = {
                 showOverlayRationale = false
                 pendingOverlay = true
-                openSettingsPage(context, Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, "package:${context.packageName}".toUri()))
+                openOverlayPermission(context)
             },
             onDismiss = { showOverlayRationale = false }
         )

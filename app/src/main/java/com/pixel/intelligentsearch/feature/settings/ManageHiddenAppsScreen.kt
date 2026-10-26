@@ -9,6 +9,22 @@ import androidx.compose.runtime.getValue
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.ExperimentalAnimationApi
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -35,8 +51,6 @@ import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButtonDefaults
-import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -62,7 +76,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.data.AppItem
@@ -76,7 +89,7 @@ import kotlinx.coroutines.withContext
 private class HiddenAppRow(val app: AppItem, val icon: ImageBitmap?)
 
 /** [loadApps] lists the installed apps; tests pass their own. */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
 fun ManageHiddenAppsScreen(
     prefs: SharedPreferences,
@@ -159,124 +172,128 @@ fun ManageHiddenAppsScreen(
         if (isSearching) searchFocus.requestFocus()
     }
 
+    // Opening search and closing it (X) run one transition, the close the open played backward.
+    val searchTransition = updateTransition(isSearching, label = "search")
+
     Scaffold(containerColor = Color.Transparent, topBar = {
-        TopAppBar(
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
+        Column {
+            TopAppBar(
+                title = {},
+                navigationIcon = {
+                    IconButton(onClick = handleBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    // Nothing to search or save until the page is unlocked.
+                    if (isAuthenticated) {
+                        IconButton(onClick = {
+                            if (isSearching) {
+                                isSearching = false
+                                searchQuery = ""
+                            } else {
+                                isSearching = true
+                            }
+                        }) {
+                            // The magnifier turns into the X as the field opens, and back as it closes.
+                            searchTransition.Crossfade(animationSpec = SearchFadeIcon) { open ->
+                                Icon(if (open) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = if (open) "Close search" else "Search")
+                            }
+                        }
+                        // As on Application Search: switches edit a draft, Reset puts back the apps last saved and Save
+                        // applies the draft.
+                        SavedStateActions(
+                            onReset = { hiddenApps = savedHiddenApps },
+                            onSave = ::save,
+                            resetMessage = "Hidden apps reset to their saved state.",
+                            saveMessage = "Hidden apps saved.",
+                            saveDescription = "Save Hidden Apps"
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+            )
+            // The title on its own line, flush left under Back, with Enable All just after it: beside the bar's
+            // buttons there's no room for both at a readable size. Search opens over this line from the right. The
+            // two overlap rather than share a row, so nothing resizes (or re-fits its text) while the field moves.
+            Box(
+                contentAlignment = Alignment.CenterStart,
+                modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 16.dp)
+            ) {
+                searchTransition.AnimatedVisibility(
+                    visible = { !it },
+                    enter = fadeIn(SearchFadeIn) + slideInHorizontally(SearchSlide) { -it / 12 },
+                    exit = fadeOut(SearchFadeOut) + slideOutHorizontally(SearchSlide) { -it / 12 }
                 ) {
-                    // The search field takes the title's place while it's open: beside the bar's buttons there
-                    // is no room for both.
-                    AnimatedVisibility(
-                        visible = !isSearching,
-                        enter = fadeIn(),
-                        exit = fadeOut(),
-                        modifier = Modifier.weight(1f, fill = false)
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             "Manage Hidden Apps",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold,
+                            // Under the bar it no longer takes the bar's content color.
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)
+                            autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall),
+                            modifier = Modifier.weight(1f, fill = false)
                         )
-                    }
-
-                    AnimatedVisibility(
-                        visible = isSearching,
-                        enter = expandHorizontally(expandFrom = Alignment.End) + fadeIn(),
-                        exit = shrinkHorizontally(shrinkTowards = Alignment.End) + fadeOut(),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.fillMaxWidth().height(48.dp)
-                        ) {
-                            Box(
-                                contentAlignment = Alignment.CenterStart,
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
-                            ) {
-                                if (searchQuery.isEmpty()) {
-                                    Text(
-                                        "Search apps...", 
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                        fontSize = 14.sp
-                                    )
+                        // Enable All hides every app in the list; checked again, it shows them all.
+                        if (isAuthenticated && shownPackages.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            EnableAllToggle(
+                                checked = allShownHidden,
+                                onCheckedChange = { hide ->
+                                    hiddenApps = if (hide) hiddenApps + shownPackages else hiddenApps - shownPackages.toSet()
                                 }
-                                BasicTextField(
-                                    value = searchQuery,
-                                    onValueChange = { searchQuery = it },
-                                    singleLine = true,
-                                    textStyle = TextStyle(
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 14.sp,
-                                        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex
-                                    ),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .focusRequester(searchFocus)
-                                        .semantics { contentDescription = "Search apps" }
-                                )
-                            }
-                        }
-                    }
-                }
-            },
-            navigationIcon = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = handleBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                    // Select All hides every app the list shows (all of them, or those matching the search); checked
-                    // again, it shows them all.
-                    if (isAuthenticated && shownPackages.isNotEmpty()) {
-                        IconToggleButton(
-                            checked = allShownHidden,
-                            onCheckedChange = { hide ->
-                                hiddenApps = if (hide) hiddenApps + shownPackages else hiddenApps - shownPackages.toSet()
-                            },
-                            colors = IconButtonDefaults.iconToggleButtonColors(checkedContentColor = MaterialTheme.colorScheme.primary)
-                        ) {
-                            Icon(
-                                if (allShownHidden) Icons.Filled.CheckCircle else Icons.Outlined.Check,
-                                contentDescription = "Select All"
                             )
                         }
                     }
                 }
-            },
-            actions = {
-                // Nothing to search or save until the page is unlocked.
-                if (isAuthenticated) {
-                    IconButton(onClick = {
-                        if (isSearching) {
-                            isSearching = false
-                            searchQuery = ""
-                        } else {
-                            isSearching = true
+
+                searchTransition.AnimatedVisibility(
+                    visible = { it },
+                    enter = expandHorizontally(SearchSize, expandFrom = Alignment.End, clip = true) + fadeIn(SearchFadeIn),
+                    exit = shrinkHorizontally(SearchSize, shrinkTowards = Alignment.End, clip = true) + fadeOut(SearchFadeOut),
+                    // Held at the end, so the field is uncovered from the right edge leftward without moving.
+                    modifier = Modifier.align(Alignment.CenterEnd)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(50),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.CenterStart,
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
+                        ) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    "Search Hidden Apps",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                    fontSize = 14.sp,
+                                    maxLines = 1
+                                )
+                            }
+                            BasicTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 14.sp,
+                                    fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex
+                                ),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(searchFocus)
+                                    .semantics { contentDescription = "Search Hidden Apps" }
+                            )
                         }
-                    }) {
-                        Icon(if (isSearching) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = if (isSearching) "Close search" else "Search")
                     }
-                    // As on Application Search: switches edit a draft, Reset puts back the apps last saved and Save
-                    // applies the draft.
-                    SavedStateActions(
-                        onReset = { hiddenApps = savedHiddenApps },
-                        onSave = ::save,
-                        resetMessage = "Hidden apps reset to their saved state.",
-                        saveMessage = "Hidden apps saved.",
-                        saveDescription = "Save Hidden Apps"
-                    )
                 }
-            },
-            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
-        )
+            }
         }
-    ) { padding ->
+    }) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
         com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
             shape = RoundedCornerShape(24.dp),
@@ -358,3 +375,42 @@ fun ManageHiddenAppsScreen(
         }
     }
 }
+
+/**
+ * The check and "Enable All" beside the title: one pill-shaped tap target, the check filling in and both turning the
+ * accent color while every app is hidden.
+ */
+@Composable
+private fun EnableAllToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    val color = if (checked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(CircleShape)
+            .toggleable(value = checked, role = Role.Checkbox, onValueChange = onCheckedChange)
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 6.dp)
+    ) {
+        Icon(
+            if (checked) Icons.Filled.CheckCircle else Icons.Outlined.Check,
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text("Enable All", style = MaterialTheme.typography.labelLarge, color = color, maxLines = 1)
+    }
+}
+
+// Search's open and close. The size change uses a curve that is its own mirror image, so the close is exactly the
+// open played backward; it moves from the first frame (no slow start) and eases only gently at either end. Each fade
+// takes the 40% of it nearest the closed state (the start of the open, the end of the close), and the magnifier and X
+// trade places over the whole of it.
+private const val SEARCH_MILLIS = 200
+private const val SEARCH_FADE_MILLIS = 80
+private val SearchEasing = CubicBezierEasing(0.25f, 0.1f, 0.75f, 0.9f)
+private val SearchSize = tween<IntSize>(SEARCH_MILLIS, easing = SearchEasing)
+private val SearchSlide = tween<IntOffset>(SEARCH_MILLIS, easing = SearchEasing)
+private val SearchFadeIn = tween<Float>(SEARCH_FADE_MILLIS, easing = LinearEasing)
+private val SearchFadeOut = tween<Float>(SEARCH_FADE_MILLIS, delayMillis = SEARCH_MILLIS - SEARCH_FADE_MILLIS, easing = LinearEasing)
+private val SearchFadeIcon = tween<Float>(SEARCH_MILLIS, easing = SearchEasing)

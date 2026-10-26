@@ -13,6 +13,8 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.width
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -98,8 +100,9 @@ class ManageHiddenAppsScreenTest {
         compose.settle(steps = 5)
 
         compose.onNode(hasSetTextAction())
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Search apps")))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Search Hidden Apps")))
             .assertIsFocused()
+        compose.onNodeWithText("Search Hidden Apps").assertExists()
 
         compose.onNode(hasSetTextAction()).performTextInput("zzzz")
         compose.settle(steps = 5)
@@ -114,17 +117,18 @@ class ManageHiddenAppsScreenTest {
     }
 
     @Test
-    fun selectAllResetAndSaveSitInTheTopBarAsOnTheOtherPages() {
-        // Select All at the top left, beside Back; Reset and Save at the top right, as on Application Search.
+    fun theTitleSitsFlushLeftUnderBackWithEnableAllJustAfterIt() {
         val back = compose.onNodeWithContentDescription("Back").getBoundsInRoot()
-        val selectAll = compose.onNodeWithContentDescription("Select All").getBoundsInRoot()
+        val title = compose.onNodeWithText("Manage Hidden Apps").getBoundsInRoot()
+        val enableAll = compose.onNodeWithText("Enable All").getBoundsInRoot()
+        val search = compose.onNodeWithContentDescription("Search").getBoundsInRoot()
         val reset = compose.onNodeWithContentDescription("Reset to Saved State").getBoundsInRoot()
         val save = compose.onNodeWithContentDescription("Save Hidden Apps").getBoundsInRoot()
-        assertTrue("Select All is just right of Back", selectAll.left >= back.right && selectAll.left < reset.left)
-        assertEquals("all in the top bar", back.top, selectAll.top)
-        assertEquals(back.top, reset.top)
-        assertTrue("Save is right of Reset", save.left >= reset.right)
-        compose.onNodeWithText("Select All").assertDoesNotExist()
+        assertTrue("the title has its own line under the bar", title.top >= back.bottom)
+        assertEquals("flush left, in line with the back arrow's glyph", 16f, title.left.value, 1f)
+        assertTrue("Enable All follows the title, a little after it", enableAll.left >= title.right && enableAll.left - title.right <= 12.dp)
+        assertTrue("on the title's line", enableAll.top < title.bottom && enableAll.bottom > title.top)
+        assertTrue("search, Reset and Save stay in the bar", search.right <= reset.left && reset.right <= save.left && reset.top == back.top)
     }
 
     @Test
@@ -142,25 +146,59 @@ class ManageHiddenAppsScreenTest {
     }
 
     @Test
-    fun selectAllHidesEveryAppShownAndOnlyThoseMatchingTheSearch() {
-        compose.onNodeWithContentDescription("Select All").assertIsOff()
-        tap("Select All")
-        compose.onNodeWithContentDescription("Select All").assertIsOn()
+    fun enableAllHidesEveryAppAndCheckedAgainShowsThemAll() {
+        compose.onNodeWithText("Enable All").assertIsOff()
+        compose.onNodeWithText("Enable All").performClick()
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Enable All").assertIsOn()
         tap("Save Hidden Apps")
         assertEquals(setOf("com.example.alpha", "com.example.beta"), hidden())
 
-        // Checked again shows them all.
-        tap("Select All")
+        compose.onNodeWithText("Enable All").performClick()
+        compose.settle(steps = 5)
         tap("Save Hidden Apps")
         assertEquals(emptySet<String>(), hidden())
+    }
 
-        // While searching it acts on the matching apps only.
-        tap("Search")
-        compose.onNode(hasSetTextAction()).performTextInput("beta")
-        compose.settle(steps = 5)
-        tap("Select All")
-        tap("Save Hidden Apps")
-        assertEquals(setOf("com.example.beta"), hidden())
+    @Test
+    fun searchOpensOverTheTitleAndEnableAllAndTheXPlaysItBackward() {
+        val field = hasSetTextAction()
+        // The field's uncovered left edge each frame (its bounds are clipped to what the animation shows), until it
+        // stops changing or is gone.
+        fun frames(): List<Float> {
+            val lefts = mutableListOf<Float>()
+            repeat(60) {
+                compose.mainClock.advanceTimeByFrame()
+                val bounds = runCatching { compose.onNode(field).getBoundsInRoot() }.getOrNull()
+                lefts += if (bounds == null || bounds.width.value == 0f) Float.NaN else bounds.left.value
+            }
+            return lefts
+        }
+        fun moving(lefts: List<Float>) = lefts.zipWithNext().filter { (a, b) -> a != b && !(a.isNaN() && b.isNaN()) }.map { it.second }
+
+        compose.onNodeWithContentDescription("Search").performClick()
+        val openingFrames = frames()
+        val opening = moving(openingFrames)
+        compose.waitForIdle()
+        compose.onNodeWithText("Manage Hidden Apps").assertDoesNotExist()
+        compose.onNodeWithText("Enable All").assertDoesNotExist()
+        assertTrue("the field slides open over several frames: $opening", opening.size >= 4)
+        assertTrue("with no slow start: it shows on the transition's first frame after the tap recomposes: $openingFrames", openingFrames.take(4).any { !it.isNaN() })
+        assertTrue("from the right edge leftward: $opening", opening.filterNot { it.isNaN() }.zipWithNext().all { (a, b) -> b < a })
+
+        compose.onNodeWithContentDescription("Close search").performClick()
+        val closing = moving(frames())
+        // The X plays it backward: the edge goes back to the right over the same number of frames. (Frames land at a
+        // different point in the curve each time, so the two don't pass through exactly the same places.)
+        val forward = opening.filterNot { it.isNaN() }
+        val backward = closing.filterNot { it.isNaN() }
+        assertTrue("back to the right edge: $backward", backward.zipWithNext().all { (a, b) -> b > a })
+        assertTrue("as long as the open: $forward, $backward", kotlin.math.abs(forward.size - backward.size) <= 1)
+        val frameStep = forward.zipWithNext().maxOf { (a, b) -> a - b }
+        assertEquals("ending where the open began, give or take a frame", forward.first(), backward.last(), frameStep)
+        compose.onNode(field).assertDoesNotExist()
+        compose.onNodeWithText("Manage Hidden Apps").assertExists()
+        compose.onNodeWithText("Enable All").assertExists()
     }
 
     @Test

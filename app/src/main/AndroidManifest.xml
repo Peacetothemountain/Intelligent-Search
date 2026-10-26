@@ -156,7 +156,10 @@
         </intent>
     </queries>
 
+    <!-- CredentialDependency: passkeys (encrypted backups) are offered only on Android 14 and later, where Credential
+         Manager is part of the system, so the Play services add-on lint asks for (for Android 13 and older) is never used. -->
     <application
+        tools:ignore="CredentialDependency"
         android:name=".App"
         android:allowBackup="false"
         android:resizeableActivity="true"

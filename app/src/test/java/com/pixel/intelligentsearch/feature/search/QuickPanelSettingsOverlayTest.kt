@@ -30,6 +30,7 @@ import com.pixel.intelligentsearch.feature.settings.AppSearchScreen
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
 import com.pixel.intelligentsearch.screenshots.confinedEffects
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
+import com.pixel.intelligentsearch.screenshots.settle
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -173,13 +174,17 @@ class QuickPanelSettingsOverlayTest {
         showSettingsThenOverlay()
         compose.onNodeWithContentDescription("Max Quick Panel Apps").performScrollTo()
             .performSemanticsAction(SemanticsActions.SetProgress) { it(2f) }
-        compose.waitForIdle()
+        compose.settle(steps = 5)
+        // Two is fewer than the apps chosen under Application Search, so the card asks before removing the rest.
+        compose.onNodeWithText("Accept").performClick()
+        compose.settle(steps = 5)
         assertEquals(2, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
 
         openOverlay()
 
-        // The first two in the Quick Launch order show; the other two would fit but are left out.
+        // The first two in the Quick Launch order show; the last two were removed from the bottom up.
         assertEquals(listOf("Alfa", "Bravo"), shownPills(expected = 2))
+        assertEquals(listOf(pkg("Alfa"), pkg("Bravo")).joinToString(","), prefs[SettingsManager.SEARCH_PILLS])
     }
 
     @Test

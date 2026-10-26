@@ -287,7 +287,8 @@ internal object MaterialMorphShapes {
 
     private fun Offset.angleDegrees(): Float = atan2(y, x) * 180f / PI.toFloat()
 
-    private fun customPolygon(pnr: List<PointNRound>, reps: Int, center: Offset = Offset(0.5f, 0.5f), mirroring: Boolean = false): RoundedPolygon {
+    private fun customPolygon(pnr: List<PointNRound>, reps: Int, mirroring: Boolean = false): RoundedPolygon {
+        val center = Offset(0.5f, 0.5f)
         val actualPoints = doRepeat(pnr, reps, center, mirroring)
         return RoundedPolygon(
             vertices = FloatArray(actualPoints.size * 2) { ix -> actualPoints[ix / 2].o.let { if (ix % 2 == 0) it.x else it.y } },

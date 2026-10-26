@@ -44,10 +44,8 @@ import com.pixel.intelligentsearch.core.ui.expressive.expressivePress
  */
 @OptIn(ExperimentalFoundationApi::class)
 fun Modifier.bouncyClickable(
-    enabled: Boolean = true,
     shape: Any? = null,
     interactionSource: MutableInteractionSource? = null,
-    suppressClickHaptic: Boolean = false,
     role: Role = Role.Button,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
@@ -64,7 +62,7 @@ fun Modifier.bouncyClickable(
     val sensoryEngine = remember(context) { TactileSonicEngine.get(context) }
 
     LaunchedEffect(isPressed) {
-        if (isPressed && enabled && !suppressClickHaptic) {
+        if (isPressed) {
             sensoryEngine.tick(view)
         }
     }
@@ -72,19 +70,19 @@ fun Modifier.bouncyClickable(
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
 
-    val clickAction = remember(view, sensoryEngine, suppressClickHaptic, enabled, effectiveInteractionSource) {
+    val clickAction = remember(view, sensoryEngine, effectiveInteractionSource) {
         {
-            if (enabled && ClickDebouncer.canClick(120L, effectiveInteractionSource)) {
-                if (!suppressClickHaptic) sensoryEngine.click(view)
+            if (ClickDebouncer.canClick(120L, effectiveInteractionSource)) {
+                sensoryEngine.click(view)
                 currentOnClick()
             }
         }
     }
 
-    val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null, enabled, effectiveInteractionSource) {
+    val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null, effectiveInteractionSource) {
         if (onLongClick != null) {
             {
-                if (enabled && ClickDebouncer.canClick(120L, effectiveInteractionSource)) {
+                if (ClickDebouncer.canClick(120L, effectiveInteractionSource)) {
                     sensoryEngine.click(view)
                     currentOnLongClick?.invoke()
                 }
@@ -95,14 +93,13 @@ fun Modifier.bouncyClickable(
     val baseModifier = this
         .minimumInteractiveComponentSize()
         // Android 17's press: the control's shape morphs on the fast spatial spring instead of shrinking.
-        .expressivePress(effectiveInteractionSource, shape as? Shape, enabled)
+        .expressivePress(effectiveInteractionSource, shape as? Shape)
         // Ahead of the clickable, so the ring is drawn over the ripple's focus layer rather than under it.
         .focusRing(outlineShape) { isFocused.value }
         .combinedClickable(
             role = role,
             interactionSource = effectiveInteractionSource,
             indication = indication,
-            enabled = enabled,
             onLongClick = longClickAction,
             // longClickAction plays the long press's one haptic.
             hapticFeedbackEnabled = false,
@@ -150,12 +147,10 @@ fun Modifier.focusRing(shape: Shape = RectangleShape, visible: () -> Boolean): M
  */
 @OptIn(ExperimentalFoundationApi::class)
 fun Modifier.expressiveRowClickable(
-    enabled: Boolean = true,
-    interactionSource: MutableInteractionSource? = null,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ): Modifier = composed {
-    val effectiveInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
+    val effectiveInteractionSource = remember { MutableInteractionSource() }
     val isPressed by effectiveInteractionSource.collectIsPressedAsState()
 
     val context = LocalContext.current
@@ -163,7 +158,7 @@ fun Modifier.expressiveRowClickable(
     val sensoryEngine = remember(context) { TactileSonicEngine.get(context) }
 
     LaunchedEffect(isPressed) {
-        if (isPressed && enabled) {
+        if (isPressed) {
             sensoryEngine.tick(view)
         }
     }
@@ -171,19 +166,19 @@ fun Modifier.expressiveRowClickable(
     val currentOnClick by rememberUpdatedState(onClick)
     val currentOnLongClick by rememberUpdatedState(onLongClick)
 
-    val clickAction = remember(view, sensoryEngine, enabled, effectiveInteractionSource) {
+    val clickAction = remember(view, sensoryEngine, effectiveInteractionSource) {
         {
-            if (enabled && ClickDebouncer.canClick(180L, effectiveInteractionSource)) {
+            if (ClickDebouncer.canClick(180L, effectiveInteractionSource)) {
                 sensoryEngine.click(view)
                 currentOnClick()
             }
         }
     }
 
-    val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null, enabled, effectiveInteractionSource) {
+    val longClickAction: (() -> Unit)? = remember(view, sensoryEngine, onLongClick != null, effectiveInteractionSource) {
         if (onLongClick != null) {
             {
-                if (enabled && ClickDebouncer.canClick(180L, effectiveInteractionSource)) {
+                if (ClickDebouncer.canClick(180L, effectiveInteractionSource)) {
                     sensoryEngine.click(view)
                     currentOnLongClick?.invoke()
                 }
@@ -193,12 +188,11 @@ fun Modifier.expressiveRowClickable(
 
     this
         .minimumInteractiveComponentSize()
-        .expressivePress(effectiveInteractionSource, enabled = enabled)
+        .expressivePress(effectiveInteractionSource)
         .combinedClickable(
             role = androidx.compose.ui.semantics.Role.Button,
             interactionSource = effectiveInteractionSource,
             indication = androidx.compose.material3.ripple(),
-            enabled = enabled,
             onLongClick = longClickAction,
             onClick = clickAction
         )

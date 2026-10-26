@@ -20,8 +20,6 @@ import androidx.compose.ui.unit.IntSize
  */
 object ExpressiveMotionTokens {
     const val PRESS_SCALE_CARD = 0.96f
-    const val PRESS_SCALE_BOUNCY = 0.97f
-    const val PRESS_SCALE_ROW = 0.985f
 
     // Explicit physics constants for Spatial motion (layout bounds, translation, size)
     const val SPATIAL_DEFAULT_DAMPING = 0.8f

@@ -34,7 +34,6 @@ import androidx.activity.BackEventCompat
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -50,25 +49,19 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pixel.intelligentsearch.core.data.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.pixel.intelligentsearch.core.ui.WindowFramePacing
@@ -76,7 +69,6 @@ import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import com.pixel.intelligentsearch.core.ui.progressiveEdgeBlur
 import com.pixel.intelligentsearch.core.ui.ProgressiveBlurDirection
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.Brush
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -95,9 +87,9 @@ internal fun keyboardUpOnOpen(prefs: android.content.SharedPreferences): Boolean
 
 /** The first-run tutorial's steps on the overlay; Settings carries on from step 3. */
 internal val OverlayTutorialSteps = mapOf(
-    0 to TutorialStepInfo("Welcome!", "Hello! Thank you for installing Intelligent Search. Please follow the tutorial to show you around. [bugdroid]", Alignment.Center, showArrow = false, requireButtonPress = true),
-    1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps, contacts, and files instantly. You can also swipe away recent search cards to remove them.", Alignment.Center, showArrow = true, requireButtonPress = true),
-    2 to TutorialStepInfo("Settings", "Tap the settings icon ( [three_bars] ) to customize your search experience. Press Next below to open Settings now.", Alignment.Center, showArrow = true, requireButtonPress = true, showCircle = true)
+    0 to TutorialStepInfo("Welcome!", "Hello! Thank you for installing Intelligent Search. Please follow the tutorial to show you around. [bugdroid]", Alignment.Center, showArrow = false),
+    1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps, contacts, and files instantly. You can also swipe away recent search cards to remove them.", Alignment.Center, showArrow = true),
+    2 to TutorialStepInfo("Settings", "Tap the settings icon ( [three_bars] ) to customize your search experience. Press Next below to open Settings now.", Alignment.Center, showArrow = true, showCircle = true)
 )
 
 @Composable
@@ -160,8 +152,6 @@ fun SearchOverlayScreen(
     }
     val transitionState = remember { MutableTransitionState(false).apply { targetState = true } }
     val isOpening = transitionState.targetState
-    
-    val activity = context.findActivity()
 
     val density = LocalDensity.current
 

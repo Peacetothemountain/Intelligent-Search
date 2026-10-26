@@ -40,10 +40,10 @@ import kotlin.math.hypot
  * in the primary container colour, as the app's other small containers are), pressed with Android 17's shape morph.
  */
 @Composable
-internal fun FloatingSearchButton(interactions: InteractionSource, modifier: Modifier = Modifier) {
+internal fun FloatingSearchButton(interactions: InteractionSource) {
     val theme by rememberSetting(SettingsManager.THEME)
     IntelligentSearchTheme(darkTheme = ThemeMode.from(theme).isDark(isSystemInDarkTheme())) {
-        Box(modifier = modifier.fillMaxSize().clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.fillMaxSize().clearAndSetSemantics {}, contentAlignment = Alignment.Center) {
             MatteShell(
                 modifier = Modifier.size(FloatingSearchOverlays.BUTTON_SIZE_DP.dp).expressivePress(interactions, CircleShape),
                 shape = CircleShape,

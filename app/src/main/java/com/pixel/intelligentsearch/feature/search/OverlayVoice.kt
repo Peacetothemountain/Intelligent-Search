@@ -161,7 +161,6 @@ internal fun isPermanentDenial(askedBefore: Boolean, rationaleBefore: Boolean, r
 internal fun Modifier.listeningGlow(active: Boolean, level: () -> Float, cornerRadius: Dp): Modifier = composed {
     val scheme = MaterialTheme.colorScheme
     val colors = remember(scheme.primary, scheme.tertiary) { ramblerGlowColors(scheme.primary, scheme.tertiary) }
-    val glow = colors.body
     // How far the field has spread from the middle: 0 is nothing, 1 is the whole bar.
     val spreadState = animateFloatAsState(if (active) 1f else 0f, tween(if (active) 420 else 320), label = "listening")
     // Only the away/showing boundary recomposes; the spread itself is read in the draw phase.

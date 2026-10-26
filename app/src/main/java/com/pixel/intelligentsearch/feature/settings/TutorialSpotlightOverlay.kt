@@ -5,19 +5,14 @@ import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.SharedPreferences
-import android.os.Build
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -53,10 +48,8 @@ import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -66,22 +59,16 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.changedToDown
-import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.graphics.FilterQuality
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -106,7 +93,6 @@ import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -118,7 +104,6 @@ data class TutorialStepInfo(
     val text: String,
     val cardAlignment: Alignment = Alignment.Center,
     val showArrow: Boolean = true,
-    val requireButtonPress: Boolean = true,
     val showCircle: Boolean = false
 )
 
@@ -171,14 +156,12 @@ fun TutorialSpotlightOverlay(
         return
     }
 
-    val coroutineScope = rememberCoroutineScope()
     val localView = LocalView.current
     val hapticEngine = remember(localView.context) {
         com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(localView.context)
     }
     var isAdvancing by remember { mutableStateOf(false) }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
     // Only decode the keyed video on the step that shows it, and only where the AGSL key is supported (API 33+).
     val showsBugdroidVideo = android.os.Build.VERSION.SDK_INT >= 33 &&
         (stepInfo.text.contains("[bugdroid]") || stepInfo.text.contains(":)"))
@@ -252,7 +235,6 @@ fun TutorialSpotlightOverlay(
 
     val localTargetRectState = rememberUpdatedState(localTargetRect)
     val cardBoundsState = rememberUpdatedState(cardBounds)
-    val stepInfoState = rememberUpdatedState(stepInfo)
 
     // Edge-to-edge safe drawing insets for Android 15/16/17 (compileSdk 37)
     val safeInsets = WindowInsets.safeDrawing.asPaddingValues()
@@ -279,7 +261,6 @@ fun TutorialSpotlightOverlay(
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
-                        val activeStepInfo = stepInfoState.value
                         val currentCardBounds = cardBoundsState.value
                         val currentTargetRect = localTargetRectState.value
 
@@ -298,26 +279,6 @@ fun TutorialSpotlightOverlay(
 
                             if (!isInsideCard && !isInsideTarget) {
                                 downChange.consume()
-                            }
-                        }
-
-                        val upChange = event.changes.firstOrNull { it.changedToUp() }
-                        if (upChange != null && !activeStepInfo.requireButtonPress && !isAdvancing) {
-                            val pos = upChange.position
-                            val isInsideTarget = currentTargetRect != null && run {
-                                val targetCenter = currentTargetRect.center
-                                val dx = targetCenter.x - pos.x
-                                val dy = targetCenter.y - pos.y
-                                val distance = hypot(dx, dy)
-                                val targetRadius = maxOf(currentTargetRect.width, currentTargetRect.height) / 2f + 8.dp.toPx()
-                                distance <= targetRadius
-                            }
-                            if (isInsideTarget) {
-                                isAdvancing = true
-                                coroutineScope.launch {
-                                    delay(150)
-                                    stepForward()
-                                }
                             }
                         }
                     }
@@ -768,52 +729,30 @@ fun TutorialSpotlightOverlay(
                         }
 
                         // Primary / Advance Action Button (Guaranteed min 48x48dp touch target)
-                        if (stepInfo.requireButtonPress) {
-                            val isFinalStep = currentStep >= TutorialManager.TOTAL_STEPS - 1
-                            val buttonLabel = if (isFinalStep) "Got it" else "Next"
-                            val buttonDesc = if (isFinalStep) "Finish tutorial" else "Next tutorial step"
-                            Button(
-                                onClick = advanceToNextStep,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (isDarkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.inversePrimary,
-                                    contentColor = if (isDarkTheme) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.inverseSurface
-                                ),
-                                shape = RoundedCornerShape(percent = 50),
-                                modifier = Modifier
-                                    .defaultMinSize(minWidth = 88.dp, minHeight = 48.dp)
-                                    .minimumInteractiveComponentSize()
-                                    .semantics {
-                                        role = Role.Button
-                                        traversalIndex = 4.2f
-                                        contentDescription = buttonDesc
-                                    }
-                            ) {
-                                Text(
-                                    text = buttonLabel,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
-                                )
-                            }
-                        } else {
-                            Button(
-                                onClick = advanceToNextStep,
-                                colors = ButtonDefaults.filledTonalButtonColors(),
-                                shape = RoundedCornerShape(percent = 50),
-                                modifier = Modifier
-                                    .defaultMinSize(minWidth = 96.dp, minHeight = 48.dp)
-                                    .minimumInteractiveComponentSize()
-                                    .semantics {
-                                        role = Role.Button
-                                        traversalIndex = 4.2f
-                                        contentDescription = "Tap highlighted area or tap here to continue"
-                                    }
-                            ) {
-                                Text(
-                                    text = "Continue",
-                                    fontWeight = FontWeight.SemiBold,
-                                    fontSize = 15.sp
-                                )
-                            }
+                        val isFinalStep = currentStep >= TutorialManager.TOTAL_STEPS - 1
+                        val buttonLabel = if (isFinalStep) "Got it" else "Next"
+                        val buttonDesc = if (isFinalStep) "Finish tutorial" else "Next tutorial step"
+                        Button(
+                            onClick = advanceToNextStep,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isDarkTheme) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.inversePrimary,
+                                contentColor = if (isDarkTheme) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.inverseSurface
+                            ),
+                            shape = RoundedCornerShape(percent = 50),
+                            modifier = Modifier
+                                .defaultMinSize(minWidth = 88.dp, minHeight = 48.dp)
+                                .minimumInteractiveComponentSize()
+                                .semantics {
+                                    role = Role.Button
+                                    traversalIndex = 4.2f
+                                    contentDescription = buttonDesc
+                                }
+                        ) {
+                            Text(
+                                text = buttonLabel,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp
+                            )
                         }
                     }
                 }

@@ -170,9 +170,6 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         private const val SLOT_G_LOGO = 1
         private const val SLOT_CIRCLE = 3
         private const val SLOT_SHORTCUT_0 = 4
-        private const val SLOT_SHORTCUT_1 = 5
-        private const val SLOT_SHORTCUT_2 = 6
-        private const val SLOT_SHORTCUT_3 = 7
 
         internal fun getWidgetRequestCode(appWidgetId: Int, slot: Int): Int {
             return (appWidgetId shl 4) or (slot and 0x0F)
@@ -475,9 +472,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
          */
         internal fun buildPinPreview(
             context: Context,
-            isMaterialYou: Boolean,
-            prefs: SharedPreferences = SettingsManager.storedPrefs(context)
-        ): RemoteViews = RemoteViews(pinPreviewSizes(context, isMaterialYou, prefs))
+            isMaterialYou: Boolean
+        ): RemoteViews = RemoteViews(pinPreviewSizes(context, isMaterialYou))
 
         /** The views [buildPinPreview] shows at each width: a placed widget's, without the doodle. */
         internal fun pinPreviewSizes(

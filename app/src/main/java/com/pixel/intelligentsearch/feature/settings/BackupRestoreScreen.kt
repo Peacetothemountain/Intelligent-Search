@@ -1,7 +1,5 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.data.SettingsManager
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.getValue

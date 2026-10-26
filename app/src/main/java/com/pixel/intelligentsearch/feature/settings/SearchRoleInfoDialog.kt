@@ -1,16 +1,11 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.data.settings.put
-import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.di.appEntryPoint
 import androidx.compose.ui.draw.clip
 import android.content.Context
-import androidx.compose.ui.platform.LocalView
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import android.graphics.drawable.Icon
-import kotlinx.coroutines.launch
 import android.widget.Toast
 import android.content.pm.PackageManager
 import androidx.compose.animation.*
@@ -29,11 +24,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.semantics.*
 

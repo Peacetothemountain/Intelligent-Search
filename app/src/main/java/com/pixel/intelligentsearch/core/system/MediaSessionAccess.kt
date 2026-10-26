@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.flow
  * Notifications uses. Nothing is read from notifications themselves; only the active media sessions. Hidden apps'
  * sessions are never shown.
  *
- * One rule decides which session shows everywhere ([pick]): the first one playing, else one paused less than
+ * One rule decides which session shows everywhere ([pickIndex]): the first one playing, else one paused less than
  * [PAUSED_MEDIA_MS] ago.
  */
 object MediaSessionAccess {
@@ -104,7 +104,7 @@ object MediaSessionAccess {
             ?.trim()?.takeIf { it.isNotEmpty() }
     }
 
-    /** What [pick] looks at in a session: its title and playback state, and when its position last changed. */
+    /** What [pickIndex] looks at in a session: its title and playback state, and when its position last changed. */
     data class SessionState(val title: String?, val state: Int?, val lastUpdateElapsed: Long?)
 
     private fun stateOf(controller: MediaController): SessionState {
@@ -112,7 +112,7 @@ object MediaSessionAccess {
         return SessionState(titleOf(controller), playback?.state, playback?.lastPositionUpdateTime)
     }
 
-    /** Which of [sessions] shows ([pick]'s rule), by index; null when none does. */
+    /** Which of [sessions] shows (the first one playing, else one paused a short while ago), by index; null when none does. */
     fun pickIndex(sessions: List<SessionState>, nowElapsed: Long): Int? {
         val shown = sessions.withIndex().mapNotNull { (index, session) ->
             if (session.title == null) return@mapNotNull null
@@ -122,12 +122,8 @@ object MediaSessionAccess {
         return (shown.firstOrNull { it.second } ?: shown.firstOrNull())?.first
     }
 
-    /** The session to show out of [controllers]: the first one playing, else one paused a short while ago. */
-    fun pick(controllers: List<MediaController>, nowElapsed: Long = SystemClock.elapsedRealtime()): MediaController? =
-        pickIndex(controllers.map(::stateOf), nowElapsed)?.let(controllers::get)
-
     /**
-     * [pick]'s session out of each list [sessions] gives, picked again as a paused session's [PAUSED_MEDIA_MS] runs
+     * [pickIndex]'s session out of each list [sessions] gives, picked again as a paused session's [PAUSED_MEDIA_MS] runs
      * out, so a player left paused leaves on time even though nothing about it changes.
      */
     fun picked(sessions: Flow<List<MediaController>>, nowElapsed: () -> Long = SystemClock::elapsedRealtime): Flow<MediaController?> =

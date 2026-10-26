@@ -216,10 +216,9 @@ internal fun AnswerCard(modifier: Modifier, content: @Composable () -> Unit) {
 fun DefinitionOneBox(
     entry: DictionaryEntry,
     modifier: Modifier = Modifier,
-    initiallyExpanded: Boolean = false,
     onOpenFullDefinition: () -> Unit
 ) {
-    var expanded by rememberSaveable(entry.word) { mutableStateOf(initiallyExpanded) }
+    var expanded by rememberSaveable(entry.word) { mutableStateOf(false) }
     val locale = LocalConfiguration.current.locales[0]
     val shown = if (expanded) entry.senses else entry.senses.take(COLLAPSED_SENSES)
     AnswerCard(modifier) {

@@ -12,7 +12,6 @@ import com.pixel.intelligentsearch.feature.widget.getShortcutIconRes
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.SharedPreferences
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -20,7 +19,6 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -40,19 +38,12 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import com.pixel.intelligentsearch.core.ui.expressive.matteShell
-import com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
 import kotlinx.coroutines.launch
 
 // WIDGET SETTINGS SCREEN
@@ -733,7 +724,6 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     primaryColor = scPrimary,
                                     secondaryColor = scSecondary,
                                     tertiaryColor = scTertiary,
-                                    quaternaryColor = scQuaternary,
                                     isMaterialTheme = isMaterial,
                                     modifier = Modifier.size(24.dp),
                                     isPillLight = isPreviewPillLight

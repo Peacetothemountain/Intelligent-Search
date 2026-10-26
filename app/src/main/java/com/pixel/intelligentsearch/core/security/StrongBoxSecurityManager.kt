@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.core.security
 import android.content.Context
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.os.UserManager
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
@@ -11,7 +10,6 @@ import android.util.Base64
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.security.KeyStore
-import java.security.UnrecoverableKeyException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey

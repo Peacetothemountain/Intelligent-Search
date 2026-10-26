@@ -1,19 +1,15 @@
 package com.pixel.intelligentsearch.feature.widget
 
-import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.speech.RecognizerIntent
-import android.util.Log
 import androidx.core.net.toUri
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.answers.GoogleTranslate
 import com.pixel.intelligentsearch.core.system.GoogleApps
 import com.pixel.intelligentsearch.core.util.queryIntentActivitiesCompat
 import com.pixel.intelligentsearch.core.util.resolveActivityCompat
-
-private const val TAG = "SearchWidgetProvider"
 
 fun getVoiceSearchIntent(context: Context): Intent {
     val googleVoice = Intent(Intent.ACTION_MAIN).apply {

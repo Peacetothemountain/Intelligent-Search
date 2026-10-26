@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.feature.widget
 
-import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas

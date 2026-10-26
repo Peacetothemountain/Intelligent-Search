@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.core.ui.rememberAppIcon
 import com.pixel.intelligentsearch.core.ui.AppIconImage
-import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import com.pixel.intelligentsearch.core.data.AppItem
 import androidx.compose.animation.*

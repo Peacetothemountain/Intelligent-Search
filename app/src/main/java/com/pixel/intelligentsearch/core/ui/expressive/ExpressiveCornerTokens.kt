@@ -35,9 +35,6 @@ class SquircleShape(
         smoothing = smoothing
     )
 
-    val cornerRadius: Dp
-        get() = topStart
-
     override fun createOutline(
         size: Size,
         layoutDirection: LayoutDirection,

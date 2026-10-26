@@ -7,7 +7,6 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.util.findActivity
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.blur
-import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
 import com.pixel.intelligentsearch.feature.search.AnimatedMatrixBackground
 import com.pixel.intelligentsearch.R
 import android.app.Activity
@@ -15,7 +14,6 @@ import android.content.Context
 import android.os.Build
 import android.content.Intent
 import android.content.SharedPreferences
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.animation.*
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -31,14 +29,11 @@ import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.semantics.*
 import com.pixel.intelligentsearch.core.ui.materialYouMeshGradientBackground
@@ -315,8 +310,8 @@ fun SettingsScreensHub(
                 TutorialSpotlightOverlay(
                     prefs = prefs,
                     stepsInfo = mapOf(
-                        3 to TutorialStepInfo("Settings & Features", "Here you can personalize your experience by customizing your widget and search controls.", Alignment.Center, requireButtonPress = true, showArrow = false),
-                        4 to TutorialStepInfo("Make it Yours", "Explore all the categories below to fine-tune Intelligent Search perfectly to your workflow. You're all set!", Alignment.Center, requireButtonPress = true, showArrow = false)
+                        3 to TutorialStepInfo("Settings & Features", "Here you can personalize your experience by customizing your widget and search controls.", Alignment.Center, showArrow = false),
+                        4 to TutorialStepInfo("Make it Yours", "Explore all the categories below to fine-tune Intelligent Search perfectly to your workflow. You're all set!", Alignment.Center, showArrow = false)
                     ),
                     onComplete = { showTutorial = false }
                 )

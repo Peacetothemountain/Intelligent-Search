@@ -85,7 +85,6 @@ class SystemToggleManager @Inject constructor(
     val isFlashlightOn: StateFlow<Boolean> = _isFlashlightOn.asStateFlow()
 
     private var primaryCameraId: String? = null
-    private var maxTorchStrengthLevel: Int = 1
 
     // 2. Live Bluetooth State
     private val _isBluetoothEnabled = MutableStateFlow(checkBluetoothEnabled())
@@ -135,9 +134,6 @@ class SystemToggleManager @Inject constructor(
                     val facing = characteristics.get(CameraCharacteristics.LENS_FACING)
                     if (hasFlash && facing == CameraCharacteristics.LENS_FACING_BACK) {
                         primaryCameraId = id
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                            maxTorchStrengthLevel = characteristics.get(CameraCharacteristics.FLASH_INFO_STRENGTH_MAXIMUM_LEVEL) ?: 1
-                        }
                         break
                     }
                 }
@@ -248,7 +244,7 @@ class SystemToggleManager @Inject constructor(
     // ==========================================
     fun isTorchEnabled(): Boolean = _isFlashlightOn.value
 
-    fun toggleTorch(enabled: Boolean, strengthLevel: Int? = null) {
+    fun toggleTorch(enabled: Boolean) {
         try {
             if (primaryCameraId == null) {
                 setupCameraTorch()
@@ -257,12 +253,7 @@ class SystemToggleManager @Inject constructor(
                 safeToast("Flashlight unavailable", Toast.LENGTH_SHORT)
                 return
             }
-            if (enabled && strengthLevel != null && strengthLevel > 1 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && maxTorchStrengthLevel > 1) {
-                val clamped = strengthLevel.coerceIn(1, maxTorchStrengthLevel)
-                cameraManager?.turnOnTorchWithStrengthLevel(camId, clamped)
-            } else {
-                cameraManager?.setTorchMode(camId, enabled)
-            }
+            cameraManager?.setTorchMode(camId, enabled)
             _isFlashlightOn.value = enabled
         } catch (se: SecurityException) {
             Log.w(TAG, "Camera flashlight access restricted", se)

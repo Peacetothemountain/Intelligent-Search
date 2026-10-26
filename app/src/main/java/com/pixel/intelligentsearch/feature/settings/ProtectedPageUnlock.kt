@@ -30,9 +30,9 @@ private const val ENTER_TRANSITION_MS = 450L
 private const val RELOCK_AFTER_MS = 30_000L
 
 /**
- * Guards a settings page behind the user's fingerprint, face or screen lock. When the page opens and
- * [isProtectionNeeded] says there is something to protect, the system prompt is shown; on success this
- * returns true, on cancel or failure the page is left exactly once via [onBack]. Devices without a screen
+ * Guards a settings page behind the user's fingerprint, face or screen lock. When the page opens, the
+ * system prompt is shown; on success this returns true, on cancel or failure the page is left exactly
+ * once via [onBack]. Devices without a screen
  * lock can't prompt, so the page opens directly.
  *
  * While the page is on screen its window blocks screenshots, screen recording and the Recents thumbnail. If
@@ -45,8 +45,7 @@ private const val RELOCK_AFTER_MS = 30_000L
 fun rememberProtectedPageUnlock(
     title: String,
     subtitle: String,
-    onBack: () -> Unit,
-    isProtectionNeeded: suspend () -> Boolean = { true }
+    onBack: () -> Unit
 ): Boolean {
     val context = LocalContext.current
     val activity = context.findActivity()
@@ -102,7 +101,7 @@ fun rememberProtectedPageUnlock(
 
         val gate = context.appEntryPoint.biometricSearchGate()
         when {
-            !isProtectionNeeded() || !gate.canPrompt() -> unlocked = true
+            !gate.canPrompt() -> unlocked = true
             activity == null -> leaveOnce()
             else -> gate.authenticate(
                 activity = activity,

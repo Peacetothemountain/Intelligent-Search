@@ -77,7 +77,6 @@ import kotlinx.coroutines.delay
 internal fun ExpressiveOneBoxCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    enabled: Boolean = true,
     cornerRadius: Dp = ExpressiveCornerTokens.ExtraLarge,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
     borderColor: Color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
@@ -91,7 +90,7 @@ internal fun ExpressiveOneBoxCard(
     val view = LocalView.current
     val sensoryEngine = remember(context) { TactileSonicEngine.get(context) }
 
-    val isClickable = onClick != null && enabled
+    val isClickable = onClick != null
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
 
@@ -152,7 +151,6 @@ internal fun ExpressiveOneBoxCard(
         Modifier.clickable(
             interactionSource = interactionSource,
             indication = null,
-            enabled = enabled,
             role = Role.Button,
             onClick = {
                 if (ClickDebouncer.canClick(120L)) {

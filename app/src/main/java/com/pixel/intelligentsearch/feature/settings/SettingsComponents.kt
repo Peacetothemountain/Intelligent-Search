@@ -2,23 +2,11 @@ package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.util.clampSafely
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
-import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.geometry.Offset
-import com.pixel.intelligentsearch.App
-import android.content.Context
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.platform.LocalView
-import android.graphics.drawable.Icon
-import android.graphics.drawable.Drawable
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -35,26 +23,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.state.ToggleableState
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.*
 import androidx.compose.foundation.Image
-import androidx.core.graphics.drawable.toBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.semantics.*
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 import com.pixel.intelligentsearch.core.ui.expressive.expressivePress
@@ -62,14 +42,12 @@ import com.pixel.intelligentsearch.core.ui.expressive.expressivePress
 // REUSABLE COMPONENTS
 // -----------------------------------------------------------------------------------------
 /**
- * A group of settings rows: a flat card in [containerColor] with a faint outline-variant hairline, drawn as a matte
+ * A group of settings rows: a flat card in surfaceContainer with a faint outline-variant hairline, drawn as a matte
  * shell ([MatteShell]), so it keeps exactly that colour and only gains the matte grain on its surface.
  */
 @Composable
 fun SettingsCard(
     modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
-    shape: androidx.compose.ui.graphics.Shape = ExpressiveCornerTokens.ShapeExtraLarge,
     // A page's main cards, the ones holding its settings, have the light behind them; a card that only holds a
     // selector (a design switch, an icon picker) doesn't.
     lit: Boolean = true,
@@ -78,8 +56,8 @@ fun SettingsCard(
     com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
         // Not clipped here: the shell clips its own content, and the light behind it has to show around the edge.
         modifier = modifier,
-        shape = shape,
-        containerColor = containerColor,
+        shape = ExpressiveCornerTokens.ShapeExtraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
         border = com.pixel.intelligentsearch.core.ui.expressive.MatteShellDefaults.border(),
         lit = lit
     ) {
@@ -350,7 +328,6 @@ fun SettingsDropdownRow(
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun SettingsRowToggle(
-    onLongClick: (() -> Unit)? = null,
     title: String,
     subtitle: String,
     icon: Any? = null,
@@ -359,8 +336,6 @@ fun SettingsRowToggle(
     onCheckedChange: (Boolean) -> Unit,
     onClick: (() -> Unit)? = null,
     showDivider: Boolean = true,
-    containerColor: Color = Color.Transparent,
-    shape: androidx.compose.ui.graphics.Shape = ExpressiveCornerTokens.ShapeLarge,
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -409,39 +384,19 @@ fun SettingsRowToggle(
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .then(
-                if (containerColor != Color.Transparent) {
-                    Modifier.padding(horizontal = 16.dp, vertical = 3.dp)
-                } else Modifier
-            )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .then(
-                    if (containerColor != Color.Transparent) {
-                        Modifier.background(color = containerColor, shape = shape)
-                    } else Modifier
-                )
                 // Android 17's press: the row's shape morphs on the fast spatial spring instead of shrinking.
-                .expressivePress(interactionSource, if (containerColor != Color.Transparent) shape else null)
+                .expressivePress(interactionSource, null)
                 .then(
-                    if (onLongClick != null) {
-                        Modifier.combinedClickable(
-                            interactionSource = interactionSource,
-                            indication = androidx.compose.material3.ripple(bounded = true),
-                            role = rowRole,
-                            onLongClick = onLongClick,
-                            onClick = toggleAction
-                        )
-                    } else {
-                        Modifier.clickable(
-                            interactionSource = interactionSource,
-                            indication = androidx.compose.material3.ripple(bounded = true),
-                            role = rowRole,
-                            onClick = toggleAction
-                        )
-                    }
+                    Modifier.clickable(
+                        interactionSource = interactionSource,
+                        indication = androidx.compose.material3.ripple(bounded = true),
+                        role = rowRole,
+                        onClick = toggleAction
+                    )
                 )
                 .then(
                     if (isPlainToggle) Modifier.semantics { toggleableState = ToggleableState(isChecked) } else Modifier
@@ -509,7 +464,7 @@ fun SettingsRowToggle(
                 )
             }
         }
-        if (showDivider && containerColor == Color.Transparent) {
+        if (showDivider) {
             HorizontalDivider(
                 modifier = Modifier.padding(start = if (icon != null || customIcon != null) 56.dp else 16.dp, end = 16.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
@@ -746,7 +701,6 @@ fun Android17Slider(
     steps: Int = 0,
     showTrack: Boolean = true,
     isSquiggly: Boolean = true,
-    enableHaptics: Boolean = false,
     /** Accessible name; without it TalkBack announces an unlabeled adjustable. */
     label: String? = null,
     /** What TalkBack reads as the value ("Medium", "5 results"); without it TalkBack reads a percentage of the range. */
@@ -808,9 +762,6 @@ fun Android17Slider(
         val snapped = snapValue(rawFraction)
         if (snapped != currentValue) {
             currentOnValueChange(snapped)
-            if (enableHaptics && steps > 0) {
-                hapticEngine.performPredictiveBackHaptic(view)
-            }
         }
     }
 

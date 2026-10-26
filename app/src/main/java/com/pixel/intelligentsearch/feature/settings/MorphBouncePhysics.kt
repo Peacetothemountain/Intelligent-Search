@@ -105,8 +105,6 @@ internal class MorphBouncePhysics(
         /** Its scale-in from under the card, 0 to 1 (overshooting a touch). */
         var appear = 0f
         internal var appearVelocity = 0f
-        /** Which way it was thrown, 1 to the right, -1 to the left. */
-        var turnDirection = 1f
         /** Whether it has come fully out from under the card; from then on it never rises back above it. */
         internal var entered = false
         internal var sinceLift = 10f
@@ -139,7 +137,7 @@ internal class MorphBouncePhysics(
             bounces = o.bounces; contacts = o.contacts; landCount = o.landCount; landX0 = o.landX0; landX1 = o.landX1
             age = o.age; penetration = o.penetration; shapeIndex = o.shapeIndex; morphProgress = o.morphProgress
             morphVelocity = o.morphVelocity; morphOnLift = o.morphOnLift; appear = o.appear; appearVelocity = o.appearVelocity
-            turnDirection = o.turnDirection; entered = o.entered; sinceLift = o.sinceLift; contactTime = o.contactTime
+            entered = o.entered; sinceLift = o.sinceLift; contactTime = o.contactTime
             stuck = o.stuck; touched = o.touched; inContact = o.inContact
             lightX = o.lightX; lightY = o.lightY; lightVX = o.lightVX; lightVY = o.lightVY; lightSpread = o.lightSpread
             flash = o.flash; swirl = o.swirl; lastVX = o.lastVX; lastVY = o.lastVY
@@ -152,7 +150,7 @@ internal class MorphBouncePhysics(
     /**
      * The rubber floor: its nodes across the area, fixed at both ends. [u] is each node's depth below the
      * floor line, [rest] the dent the rubber has kept there, [heat] its warmth above the room's (kelvin) and [damage]
-     * how worn it is, 0 to 1. [by] is the body that last pressed each node, for its color.
+     * how worn it is, 0 to 1.
      */
     class Sheet internal constructor(n: Int) {
         val u = DoubleArray(n)
@@ -161,13 +159,12 @@ internal class MorphBouncePhysics(
         val heat = DoubleArray(n)
         val damage = DoubleArray(n)
         internal val load = BooleanArray(n)
-        val by = IntArray(n)
         internal val rhs = DoubleArray(n)
         internal val cp = DoubleArray(n)
 
         internal fun copyFrom(o: Sheet) {
             o.u.copyInto(u); o.v.copyInto(v); o.rest.copyInto(rest); o.heat.copyInto(heat); o.damage.copyInto(damage)
-            o.load.copyInto(load); o.by.copyInto(by)
+            o.load.copyInto(load)
         }
     }
 
@@ -645,7 +642,7 @@ internal class MorphBouncePhysics(
         val spin = vx / r * (0.75f + 0.25f * random.nextFloat())
         return Body(-1, r, template.mass).apply {
             copyFrom(template)
-            this.x = x; this.vy = vy; this.vx = vx; this.spin = spin; turnDirection = dir
+            this.x = x; this.vy = vy; this.vx = vx; this.spin = spin
             lastVX = vx; lastVY = vy; prevX = x; prevY = y; prevAngle = angle
         }
     }
@@ -879,7 +876,6 @@ internal class MorphBouncePhysics(
             val surface = b.y + pry[q]
             if (surface <= floor + s.u[i]) continue
             s.load[i] = true
-            s.by[i] = b.id
             s.u[i] = min(surface - floor, floorDepth.toDouble())
             tIdx[share] = i; tRx[share] = prx[q]; tRy[share] = pry[q]
             share++

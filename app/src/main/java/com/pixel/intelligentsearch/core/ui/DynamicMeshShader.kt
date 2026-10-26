@@ -73,9 +73,7 @@ fun Modifier.meshGradientBackground(
  */
 @Composable
 fun Modifier.materialYouMeshGradientBackground(
-    alpha: Float = 0.12f,
-    isPaused: Boolean = false,
-    isInteracting: Boolean = false
+    alpha: Float = 0.12f
 ): Modifier {
     val scheme = MaterialTheme.colorScheme
     val topTint = androidx.compose.ui.graphics.lerp(scheme.surface, scheme.primaryContainer, 0.20f)
@@ -87,9 +85,7 @@ fun Modifier.materialYouMeshGradientBackground(
         colorBL = bottomTint,
         colorBR = bottomTint,
         colorCenter = centerTint,
-        alpha = alpha,
-        isPaused = isPaused,
-        isInteracting = isInteracting
+        alpha = alpha
     )
 }
 

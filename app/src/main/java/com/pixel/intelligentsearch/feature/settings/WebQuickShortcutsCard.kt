@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.feature.settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Intent
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.testTag
@@ -40,7 +39,6 @@ import androidx.graphics.shapes.star
 import com.pixel.intelligentsearch.core.bangs.SearchBang
 import com.pixel.intelligentsearch.core.bangs.SearchBangManager
 import com.pixel.intelligentsearch.core.data.IntelligentSearchSettings
-import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 
 /**
  * The trigger (without its symbol) and search address the shortcut editor suggests for an app picked from the

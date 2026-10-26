@@ -5,12 +5,10 @@ import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Context
 import com.pixel.intelligentsearch.core.ui.uniqueItems
 import com.pixel.intelligentsearch.core.ui.getAppName
-import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.rounded.*
@@ -18,10 +16,8 @@ import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pixel.intelligentsearch.core.data.*
 
 /**

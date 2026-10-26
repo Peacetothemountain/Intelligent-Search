@@ -68,9 +68,6 @@ class NotificationIndex @Inject constructor() {
         _entries.value = emptyList()
     }
 
-    /** The notifications matching [query], best first; see [search]. */
-    fun search(query: String, limit: Int = DEFAULT_LIMIT): List<IndexedNotification> = search(_entries.value, query, limit)
-
     companion object {
         /** More than a phone shows at once; a flood from one app can't grow the index without bound. */
         const val MAX_ENTRIES = 200

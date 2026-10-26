@@ -4,7 +4,6 @@ import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.Context
-import android.content.Intent
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
@@ -170,11 +169,11 @@ class UnifiedSearchCoordinator @Inject constructor(
      * contact index to concurrent searches: the new phonetic entries are published first, the radix
      * tree is swapped atomically, and only then are entries of vanished contacts retired.
      */
-    fun replaceContacts(contacts: List<ContactItem>, lastUsedMs: Long = 0L) {
+    fun replaceContacts(contacts: List<ContactItem>) {
         val keys = ArrayList<Pair<String, SearchItem>>(contacts.size * 4)
         val fresh = identitySet(contacts.size * 2)
         for (contact in contacts) {
-            val item = newContactItem(contact, lastUsedMs)
+            val item = newContactItem(contact)
             collectContactKeys(contact, item, keys)
             fresh.add(item)
         }
@@ -235,7 +234,6 @@ class UnifiedSearchCoordinator @Inject constructor(
                     targetTitle = item.title,
                     metadata = item.metadata,
                     currentTimeMs = now,
-                    domainWeightMultiplier = 1.0f,
                     precomputedQueryMetaphone = queryMetaphone,
                     precomputedTargetMetaphone = item.precomputedMetaphone,
                     targetSubtitle = item.subtitle
@@ -344,7 +342,6 @@ class UnifiedSearchCoordinator @Inject constructor(
         targetTitle = item.title,
         metadata = metadataFor(item, shortcuts),
         currentTimeMs = now,
-        domainWeightMultiplier = 1.0f,
         precomputedQueryMetaphone = queryMetaphone,
         precomputedTargetMetaphone = item.precomputedMetaphone,
         targetSubtitle = item.subtitle
@@ -390,7 +387,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
     }
 
-    private fun newContactItem(contact: ContactItem, lastUsedMs: Long): SearchItem {
+    private fun newContactItem(contact: ContactItem): SearchItem {
         return SearchItem(
             id = "contact:${contact.lookupUri}",
             title = contact.name,
@@ -399,7 +396,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             payload = contact,
             metadata = SearchScoringEngine.ScoringMetadata(
                 launchCount = 0,
-                lastUsedTimestampMs = lastUsedMs,
+                lastUsedTimestampMs = 0L,
                 isPinned = false,
                 domain = SearchScoringEngine.EntityDomain.CONTACT
             ),

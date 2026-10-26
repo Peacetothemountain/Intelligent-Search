@@ -34,6 +34,19 @@ class SearchPillProfiles(private val prefs: SharedPreferences) {
     }
 
     /**
+     * The active profile's apps a Max Quick Panel Apps of [max] would remove: those past it, counted from the bottom of
+     * the list. None with Context Aware Quick Apps on, since the panel then shows recent apps and the max caps those.
+     */
+    fun appsRemovedByMax(max: Int): List<String> =
+        if (prefs[SettingsManager.CONTEXT_AWARE_QUICK_APPS]) emptyList() else pills().drop(max.coerceAtLeast(0))
+
+    /** Sets Max Quick Panel Apps to [max], removing the active profile's apps past it, from the bottom up. */
+    fun setMaxQuickPanelApps(max: Int) {
+        if (appsRemovedByMax(max).isNotEmpty()) setPills(pills().take(max))
+        prefs.edit { put(SettingsManager.SHORTCUT_RESULTS_COUNT, max) }
+    }
+
+    /**
      * Makes [id] the active profile, keeping the one being left so switching back restores it. Picking the active
      * profile again changes nothing: its working copy can be older than its pills (a restored backup brings only
      * the pills), and switching to it would put that older copy back.

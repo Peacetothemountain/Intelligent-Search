@@ -192,6 +192,42 @@ class AutoBackupTest {
         setup.close()
     }
 
+    /** With a backup passkey set up, automatic backup needs no passphrase, and what it writes opens with the passkey. */
+    @Test
+    fun withAPasskeyAutomaticBackupNeedsNoPassphrase() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        Robolectric.setupContentProvider(FakeBackupFolderProvider::class.java, FakeBackupFolderProvider.AUTHORITY)
+        WorkManagerTestInitHelper.initializeTestWorkManager(context)
+        context.getSharedPreferences("backup_passkey_state", Context.MODE_PRIVATE).edit().clear().commit()
+        val db = Room.inMemoryDatabaseBuilder(context, IntelligentSearchDatabase::class.java).allowMainThreadQueries().build()
+        val backupManager = BackupManager(context, SettingsManager(context), db.historyDao(), StrongBoxSecurityManager(context), WidgetUpdater { })
+        val wrapKey = KeyGenerator.getInstance("AES").apply { init(256) }.generateKey()
+        val prf = object : PasskeyPrf {
+            override suspend fun create(activity: android.app.Activity, userId: ByteArray, prfSalt: ByteArray) = PasskeyPrfResult("cred", ByteArray(32) { 5 })
+            override suspend fun evaluate(activity: android.app.Activity, credentialIds: List<String>, prfSalt: ByteArray) = PasskeyPrfResult("cred", ByteArray(32) { 5 })
+        }
+        val passkey = BackupPasskey(context, { wrapKey }, prf)
+        backupManager.backupPasskey = passkey
+        val tree = DocumentsContract.buildTreeDocumentUri(FakeBackupFolderProvider.AUTHORITY, FakeBackupFolderProvider.ROOT_ID)
+        val autoBackup = AutoBackup(context, hasPasskey = { passkey.isSetUp }) { wrapKey }
+
+        assertFalse("no passkey yet", autoBackup.enableWithPasskey(tree))
+        assertFalse(autoBackup.isEnabled)
+
+        passkey.create(Robolectric.buildActivity(android.app.Activity::class.java).get())
+        assertTrue(autoBackup.enableWithPasskey(tree))
+        assertTrue(autoBackup.isEnabled)
+        assertFalse(autoBackup.usesPassphrase)
+
+        autoBackup.runOnce(backupManager).getOrThrow()
+        val written = File(context.cacheDir, "picked-folder").listFiles().orEmpty().filter { it.length() > 0 }.maxByOrNull { it.lastModified() }
+        assertNotNull(written)
+        val envelope = backupManager.inspectBackupEnvelope(Uri.fromFile(written)).getOrThrow()
+        assertNotNull(envelope.passkeySlot)
+        assertNull(envelope.passphraseSlot)
+        db.close()
+    }
+
     /** Automatic backup switched on for a folder in [FakeBackupFolderProvider], with a software wrap key. */
     private class AutoBackupSetup {
         val context: Context = ApplicationProvider.getApplicationContext()

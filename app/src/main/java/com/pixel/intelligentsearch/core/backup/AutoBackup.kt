@@ -28,27 +28,34 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * Weekly automatic backups into a folder the user picked, encrypted with a passphrase they chose once, so a
- * backup restores on any phone (a backup tied to this phone's hardware key would be lost with the phone).
+ * Weekly automatic backups into a folder the user picked, encrypted so a backup restores on any phone (a backup tied
+ * to this phone's hardware key would be lost with the phone): with the backup passkey when one is set up
+ * ([BackupPasskey]), and with a passphrase they chose once when they gave one. Either opens the file.
  *
  * The passphrase itself is never stored. The key derived from it is kept wrapped by a non-exportable key in this
- * phone's Keystore, so the weekly job can encrypt without asking; restoring still needs the passphrase. All of
- * this lives in its own preferences file, which backups never include.
+ * phone's Keystore, so the weekly job can encrypt without asking; restoring still needs the passphrase or passkey.
+ * All of this lives in its own preferences file, which backups never include.
  */
 class AutoBackup internal constructor(
     private val context: Context,
+    /** Whether a backup passkey is set up, so backups can be made with it alone. */
+    private val hasPasskey: () -> Boolean = { BackupPasskey(context).isSetUp },
     /** The Keystore key the derived key is wrapped with; tests pass a software key. */
     private val wrapKey: () -> SecretKey
 ) {
 
     // Never replaced silently: a new key could not unwrap the stored one, and the job reports that instead.
-    constructor(context: Context) : this(context, {
+    constructor(context: Context) : this(context, wrapKey = {
         context.appEntryPoint.strongBoxSecurityManager().getOrCreateSymmetricKey(WRAP_KEY_ALIAS, purgeIfUnrecoverable = false).first
     })
 
     private val state = context.getSharedPreferences(STATE_FILE, Context.MODE_PRIVATE)
 
-    val isEnabled: Boolean get() = state.getBoolean(KEY_ENABLED, false) && folderUri != null && state.contains(KEY_WRAPPED)
+    val isEnabled: Boolean
+        get() = state.getBoolean(KEY_ENABLED, false) && folderUri != null && (state.contains(KEY_WRAPPED) || hasPasskey())
+
+    /** Whether the backups also open with the passphrase given when this was turned on. */
+    val usesPassphrase: Boolean get() = state.contains(KEY_WRAPPED)
     val folderUri: Uri? get() = state.getString(KEY_FOLDER, null)?.let(Uri::parse)
     val lastSuccessMs: Long get() = state.getLong(KEY_LAST_SUCCESS, 0L)
     /** A short reason the last run failed, or null when it succeeded (or never ran). */
@@ -104,6 +111,27 @@ class AutoBackup internal constructor(
         return true
     }
 
+    /**
+     * Turns automatic backups on with the backup passkey alone: keeps access to [folder] and schedules the weekly job.
+     * Returns false, changing nothing, when no passkey is set up.
+     */
+    fun enableWithPasskey(folder: Uri): Boolean {
+        if (!hasPasskey()) return false
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(folder, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }
+        state.edit {
+            putBoolean(KEY_ENABLED, true)
+            putString(KEY_FOLDER, folder.toString())
+            remove(KEY_SALT)
+            remove(KEY_WRAPPED)
+            remove(KEY_WRAP_IV)
+            remove(KEY_LAST_FAILURE)
+        }
+        schedule(context)
+        return true
+    }
+
     /** Turns automatic backups off and forgets the key and folder access. Backups already written stay. */
     fun disable() {
         WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
@@ -127,14 +155,15 @@ class AutoBackup internal constructor(
         val salt = state.getString(KEY_SALT, null)?.let(BackupCryptoEngine::decodeBase64)
         val wrapped = state.getString(KEY_WRAPPED, null)?.let(BackupCryptoEngine::decodeBase64)
         val iv = state.getString(KEY_WRAP_IV, null)?.let(BackupCryptoEngine::decodeBase64)
-        if (salt == null || wrapped == null || iv == null) {
+        val hasPassphraseKey = salt != null && wrapped != null && iv != null
+        if (!hasPassphraseKey && !hasPasskey()) {
             return@withContext Result.failure(IllegalStateException("Automatic backup is not set up"))
         }
 
         var unfinished: Uri? = null
         val result = try {
-            val raw = unwrap(iv, wrapped)
-            val key: SecretKey = SecretKeySpec(raw, "AES")
+            val raw = if (hasPassphraseKey) unwrap(iv!!, wrapped!!) else null
+            val passphraseKey = raw?.let { SecretKeySpec(it, "AES") to salt!! }
             val writtenId = try {
                 val treeDoc = DocumentsContract.buildDocumentUriUsingTree(folder, DocumentsContract.getTreeDocumentId(folder))
                 val name = FILE_PREFIX + SimpleDateFormat("yyyy-MM-dd-HHmm", Locale.US).format(Date()) + FILE_SUFFIX
@@ -142,11 +171,11 @@ class AutoBackup internal constructor(
                     ?: throw IllegalStateException("The backup folder can't be written to")
                 unfinished = file
                 val id = DocumentsContract.getDocumentId(file)
-                backupManager.exportWithDerivedKey(file, key, salt).getOrThrow()
+                backupManager.exportAutomatic(file, passphraseKey).getOrThrow()
                 unfinished = null
                 id
             } finally {
-                raw.fill(0)
+                raw?.fill(0)
             }
             prune(folder, writtenId)
             Result.success(Unit)

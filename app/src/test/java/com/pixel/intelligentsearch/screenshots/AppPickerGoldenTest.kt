@@ -12,6 +12,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -80,6 +83,34 @@ class AppPickerGoldenTest {
         compose.settle()
         compose.onRoot().captureRoboImage(
             filePath = "src/test/screenshots/settings/search_pills_picker_dark.png",
+            roborazziOptions = SettingsGoldenTest.GOLDEN_OPTIONS
+        )
+    }
+
+    /**
+     * A row picked in multi-select: its highlight is a pill inset inside the rounded container, not a rectangle running
+     * edge to edge.
+     */
+    @Test
+    fun pickerSelectedDark() = pickerSelected(dark = true)
+
+    @Test
+    fun pickerSelectedLight() = pickerSelected(dark = false)
+
+    private fun pickerSelected(dark: Boolean) {
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            IntelligentSearchTheme(darkTheme = dark) {
+                Box(Modifier.background(MaterialTheme.colorScheme.background)) { SearchPillsScreen(prefs, onBack = {}) }
+            }
+        }
+        compose.settle(steps = 5)
+        compose.onNodeWithContentDescription("Add Pill").performClick()
+        compose.settle()
+        compose.onNodeWithText("Bravo Maps").performTouchInput { longClick() }
+        compose.settle()
+        compose.onRoot().captureRoboImage(
+            filePath = "src/test/screenshots/settings/search_pills_picker_selected_${if (dark) "dark" else "light"}.png",
             roborazziOptions = SettingsGoldenTest.GOLDEN_OPTIONS
         )
     }

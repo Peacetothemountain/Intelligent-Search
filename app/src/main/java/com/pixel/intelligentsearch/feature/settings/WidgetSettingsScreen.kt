@@ -424,99 +424,26 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 
     if (showUnsavedChangesDialog) {
-        BasicAlertDialog(
+        WarningCard(
+            title = "Discard unsaved changes?",
+            message = "You have unsaved customizations. If you leave now, none of your changes will be applied.",
+            acceptLabel = "Save",
+            onAccept = {
+                showUnsavedChangesDialog = false
+                saveSettings()
+                onBack()
+            },
+            onDiscard = {
+                showUnsavedChangesDialog = false
+                onBack()
+            },
+            onDontShowAgain = {
+                prefs.edit().putBoolean("widget_suppress_unsaved_warning", true).apply()
+                showUnsavedChangesDialog = false
+                onBack()
+            },
             onDismissRequest = { showUnsavedChangesDialog = false }
-        ) {
-            Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                tonalElevation = 6.dp,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.WarningAmber,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.tertiary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Discard unsaved changes?",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = "You have unsaved customizations. If you leave now, none of your changes will be applied.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TextButton(
-                            onClick = {
-                                prefs.edit().putBoolean("widget_suppress_unsaved_warning", true).apply()
-                                showUnsavedChangesDialog = false
-                                onBack()
-                            },
-                            contentPadding = PaddingValues(horizontal = 6.dp)
-                        ) {
-                            Text(
-                                text = "Don't show this again",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    showUnsavedChangesDialog = false
-                                    onBack()
-                                },
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) {
-                                Text(
-                                    text = "Discard",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
-                            Button(
-                                onClick = {
-                                    showUnsavedChangesDialog = false
-                                    saveSettings()
-                                    onBack()
-                                },
-                                shape = RoundedCornerShape(20.dp),
-                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
-                                )
-                            ) {
-                                Text(
-                                    text = "Save",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        )
     }
 
     Scaffold(containerColor = Color.Transparent, topBar = {

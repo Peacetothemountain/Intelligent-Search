@@ -10,6 +10,8 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -19,6 +21,7 @@ import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.screenshots.confinedEffects
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
@@ -26,6 +29,7 @@ import com.pixel.intelligentsearch.screenshots.settle
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -99,5 +103,68 @@ class ManageHiddenAppsScreenTest {
         compose.onNode(hasSetTextAction()).performTextInput("zzzz")
         compose.settle(steps = 5)
         compose.onNodeWithText("No Apps Match").assertExists()
+    }
+
+    private fun hidden(): Set<String> = prefs[SettingsManager.HIDDEN_APPS]
+
+    @Test
+    fun switchesWaitForSaveAndResetPutsTheSavedAppsBack() {
+        compose.onNodeWithText("Save").assertIsNotEnabled()
+        compose.onNodeWithText("Reset").assertIsNotEnabled()
+
+        compose.onNodeWithText("Alpha").performClick()
+        compose.settle(steps = 5)
+        assertEquals("nothing is saved before Save", emptySet<String>(), hidden())
+        compose.onNodeWithText("Reset").assertIsEnabled()
+
+        compose.onNodeWithText("Reset").performClick()
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Save").assertIsNotEnabled()
+
+        compose.onNodeWithText("Beta").performClick()
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Save").performClick()
+        compose.settle(steps = 5)
+        assertEquals(setOf("com.example.beta"), hidden())
+        compose.onNodeWithText("Save").assertIsNotEnabled()
+    }
+
+    @Test
+    fun selectAllHidesEveryAppShownAndOnlyThoseMatchingTheSearch() {
+        compose.onNodeWithText("Select All").performClick()
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Save").performClick()
+        compose.settle(steps = 5)
+        assertEquals(setOf("com.example.alpha", "com.example.beta"), hidden())
+
+        // Off again shows them all.
+        compose.onNodeWithText("Select All").performClick()
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Save").performClick()
+        compose.settle(steps = 5)
+        assertEquals(emptySet<String>(), hidden())
+
+        // While searching it acts on the matching apps only.
+        compose.onNodeWithContentDescription("Search").performClick()
+        compose.settle(steps = 5)
+        compose.onNode(hasSetTextAction()).performTextInput("beta")
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Select All").performClick()
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Save").performClick()
+        compose.settle(steps = 5)
+        assertEquals(setOf("com.example.beta"), hidden())
+    }
+
+    @Test
+    fun leavingWithUnsavedChangesAsksFirst() {
+        compose.onNodeWithText("Alpha").performClick()
+        compose.settle(steps = 5)
+        compose.onNodeWithContentDescription("Back").performClick()
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Discard unsaved changes?").assertExists()
+        compose.onNodeWithText("Discard").performClick()
+        compose.settle(steps = 5)
+        assertEquals("Discard leaves without saving", emptySet<String>(), hidden())
     }
 }

@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.LauncherApps
-import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.ColorDrawable
@@ -52,6 +51,8 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.withSave
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -245,15 +246,15 @@ private fun DrawScope.drawSplashIcon(look: SplashLook, center: Offset, scale: Fl
     look.circle?.let { drawCircle(Color(it), radius = visibleRadius, center = center, alpha = alpha) }
     drawIntoCanvas { canvas ->
         val native = canvas.nativeCanvas
-        native.save()
-        if (look.clipToCircle) {
-            val path = android.graphics.Path().apply { addCircle(center.x, center.y, visibleRadius, android.graphics.Path.Direction.CW) }
-            native.clipPath(path)
+        native.withSave {
+            if (look.clipToCircle) {
+                val path = android.graphics.Path().apply { addCircle(center.x, center.y, visibleRadius, android.graphics.Path.Direction.CW) }
+                clipPath(path)
+            }
+            look.icon.setBounds((center.x - box / 2f).toInt(), (center.y - box / 2f).toInt(), (center.x + box / 2f).toInt(), (center.y + box / 2f).toInt())
+            look.icon.alpha = (alpha * 255).toInt().coerceIn(0, 255)
+            look.icon.draw(this)
         }
-        look.icon.setBounds((center.x - box / 2f).toInt(), (center.y - box / 2f).toInt(), (center.x + box / 2f).toInt(), (center.y + box / 2f).toInt())
-        look.icon.alpha = (alpha * 255).toInt().coerceIn(0, 255)
-        look.icon.draw(native)
-        native.restore()
     }
 }
 
@@ -338,7 +339,7 @@ internal object SplashLooks {
     private fun averageColor(drawable: Drawable?): Int? {
         drawable ?: return null
         return runCatching {
-            val bitmap = Bitmap.createBitmap(8, 8, Bitmap.Config.ARGB_8888)
+            val bitmap = createBitmap(8, 8)
             drawable.mutate().apply { setBounds(0, 0, 8, 8) }.draw(Canvas(bitmap))
             val pixels = IntArray(64).also { bitmap.getPixels(it, 0, 8, 0, 0, 8, 8) }
             bitmap.recycle()

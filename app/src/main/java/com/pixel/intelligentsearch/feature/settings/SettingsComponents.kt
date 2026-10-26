@@ -531,10 +531,10 @@ fun SettingsAppRow(
     subtitle: String,
     icon: Any?,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
     onLongClick: (() -> Unit)? = null,
     selected: Boolean = false,
-    showDivider: Boolean = true,
-    modifier: Modifier = Modifier
+    showDivider: Boolean = true
 ) {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Column(modifier = modifier.fillMaxWidth()) {

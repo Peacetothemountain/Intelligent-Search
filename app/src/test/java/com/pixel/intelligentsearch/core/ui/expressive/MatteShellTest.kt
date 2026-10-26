@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
+import com.pixel.intelligentsearch.core.theme.pageContainer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -91,7 +92,8 @@ class MatteShellTest {
                     for (dark in listOf(false, true)) {
                         MaterialTheme(colorScheme = appScheme(dark)) {
                             val page = MaterialTheme.colorScheme.background
-                            containers[dark] = MaterialTheme.colorScheme.surfaceContainer
+                            // A shell's own fill: surfaceContainer on the dark page, the brightest surface on the light one.
+                            containers[dark] = MaterialTheme.colorScheme.pageContainer
                             pages[dark] = page
                             Box(Modifier.testTag("page_$dark").background(page).padding(24.dp)) {
                                 MatteShell(Modifier.size(120.dp, 80.dp), shape = RoundedCornerShape(24.dp)) {}

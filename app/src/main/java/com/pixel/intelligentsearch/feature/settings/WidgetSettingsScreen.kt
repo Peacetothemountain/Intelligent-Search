@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.theme.isDark
+import com.pixel.intelligentsearch.core.theme.pageContainer
 import com.pixel.intelligentsearch.core.data.widget.WidgetDefaults
 import com.pixel.intelligentsearch.core.theme.pageTrack
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
@@ -494,10 +496,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Live Preview Card (Pinned at the top for real-time visual feedback), in the page's own color, so the
-            // widget sits on what a Home screen would show behind it, with only the matte grain added.
+            // Live Preview Card (Pinned at the top for real-time visual feedback), on the preview stage (the page's own
+            // color in dark, the lightest surface in light), with only the matte grain added.
             val previewShellLook = com.pixel.intelligentsearch.core.ui.expressive.rememberMatteShellLook(
-                containerColor = MaterialTheme.colorScheme.background,
+                containerColor = widgetPreviewStageColor(),
                 border = null
             )
             val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
@@ -888,4 +890,16 @@ internal fun SaveBeforePinDialog(onSaveAndAdd: () -> Unit, onDismiss: () -> Unit
         confirmButton = { TextButton(onClick = onSaveAndAdd) { Text("Save and Add") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
+}
+
+/**
+ * What a widget preview sits on. In dark, the page's own color, as a dark home screen shows. In light the page is the
+ * same tint as the System design's default bar, which would vanish into it, so the preview sits on the lightest surface
+ * (the settings cards' white), where that bar shows as the soft gray pill it is on a light wallpaper.
+ */
+@Composable
+@androidx.compose.runtime.ReadOnlyComposable
+internal fun widgetPreviewStageColor(): Color {
+    val scheme = MaterialTheme.colorScheme
+    return if (scheme.isDark) scheme.background else scheme.pageContainer
 }

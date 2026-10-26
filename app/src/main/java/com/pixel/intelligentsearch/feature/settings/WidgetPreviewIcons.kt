@@ -1,8 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.Context
-import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -21,9 +19,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
-import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import com.pixel.intelligentsearch.core.occasion.Occasion
 import com.pixel.intelligentsearch.feature.search.SearchIconPaths
@@ -183,7 +179,6 @@ fun ComposeThemedShortcutIcon(
     tertiaryColor: androidx.compose.ui.graphics.Color,
     isMaterialTheme: Boolean,
     modifier: Modifier = Modifier,
-    quaternaryColor: androidx.compose.ui.graphics.Color = primaryColor,
     isPillLight: Boolean = false
 ) {
     // The Material G style draws the search overlay's icons in the overlay's colours, from these accents.

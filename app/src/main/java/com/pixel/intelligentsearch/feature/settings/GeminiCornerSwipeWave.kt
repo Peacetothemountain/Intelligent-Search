@@ -1,27 +1,16 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.data.settings.get
-import androidx.compose.foundation.Canvas
-import android.os.Build
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.isActive
 import org.intellij.lang.annotations.Language
-import android.graphics.RuntimeShader
-import androidx.compose.runtime.withFrameNanos
-import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.animation.core.*
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material.icons.automirrored.outlined.*
-import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.semantics.*
 

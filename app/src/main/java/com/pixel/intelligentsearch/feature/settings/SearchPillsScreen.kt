@@ -7,11 +7,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import com.pixel.intelligentsearch.core.data.settings.SearchPillProfiles
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.drawable.BitmapDrawable
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -27,15 +23,12 @@ import androidx.compose.runtime.*
 import kotlinx.coroutines.flow.first
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.graphicsLayer
@@ -46,8 +39,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import com.pixel.intelligentsearch.core.navigation.Route
-import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 
 // SEARCH PILLS SCREEN
 // -----------------------------------------------------------------------------------------
@@ -97,7 +88,6 @@ fun SearchPillsScreen(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val viewModel = LocalSettingsViewModel.current
     val profiles = remember(prefs) { SearchPillProfiles(prefs) }
     var activeProfile by remember { mutableIntStateOf(profiles.activeProfile) }
     // One state object, so drag handlers never write a stale copy.

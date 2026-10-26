@@ -44,7 +44,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -121,7 +120,6 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var itemDragOffset by remember { mutableFloatStateOf(0f) }
     var autoScrollVelocity by remember { mutableFloatStateOf(0f) }
     val listState = rememberLazyListState()
-    val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(draggingPackage, autoScrollVelocity) {
         if (draggingPackage != null && autoScrollVelocity != 0f) {

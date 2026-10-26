@@ -7,7 +7,6 @@ import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Dp
@@ -20,7 +19,6 @@ import org.intellij.lang.annotations.Language
 enum class ProgressiveBlurDirection(val id: Int) {
     TopToBottom(0),
     BottomToTop(1),
-    Radial(2),
     /** The same strength everywhere (a swiped-away row dissolving as a whole). */
     Uniform(3)
 }

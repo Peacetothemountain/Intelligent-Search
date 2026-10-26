@@ -10,7 +10,6 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -64,12 +63,10 @@ fun GoogleMessagesSwitch(
     checked: Boolean,
     onCheckedChange: ((Boolean) -> Unit)?,
     modifier: Modifier = Modifier,
-    enabled: Boolean = true,
-    interactionSource: MutableInteractionSource? = null,
     /** What the switch turns on and off, for TalkBack ("Contacts, on, switch"). */
     label: String? = null
 ) {
-    val effectiveInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
+    val effectiveInteractionSource = remember { MutableInteractionSource() }
     val isPressed by effectiveInteractionSource.collectIsPressedAsState()
     val currentOnCheckedChange by rememberUpdatedState(onCheckedChange)
     val currentChecked by rememberUpdatedState(checked)
@@ -86,7 +83,7 @@ fun GoogleMessagesSwitch(
     // Each animated value is a State read only while laying out or drawing, so a toggle animates without
     // recomposing the switch on every frame.
     val animatedTrackColor = animateColorAsState(
-        targetValue = if (enabled) targetTrackColor else targetTrackColor.copy(alpha = 0.38f),
+        targetValue = targetTrackColor,
         animationSpec = spring(dampingRatio = 0.85f, stiffness = 650f),
         label = "messages_switch_track_color"
     )
@@ -101,7 +98,7 @@ fun GoogleMessagesSwitch(
 
     val targetBorderColor = if (checked) Color.Transparent else MaterialTheme.colorScheme.outline
     val animatedBorderColor = animateColorAsState(
-        targetValue = if (enabled) targetBorderColor else targetBorderColor.copy(alpha = 0.38f),
+        targetValue = targetBorderColor,
         animationSpec = spring(dampingRatio = 0.85f, stiffness = 650f),
         label = "messages_switch_border_color"
     )
@@ -132,7 +129,7 @@ fun GoogleMessagesSwitch(
         MaterialTheme.colorScheme.outline
     }
     val animatedThumbColor = animateColorAsState(
-        targetValue = if (enabled) targetThumbColor else targetThumbColor.copy(alpha = 0.38f),
+        targetValue = targetThumbColor,
         animationSpec = spring(dampingRatio = 0.85f, stiffness = 650f),
         label = "messages_switch_thumb_color"
     )
@@ -155,7 +152,7 @@ fun GoogleMessagesSwitch(
 
     val stateDesc = if (checked) "On" else "Off"
 
-    val isInteractive = enabled && onCheckedChange != null
+    val isInteractive = onCheckedChange != null
 
     val semanticsModifier = if (onCheckedChange != null) {
         Modifier.semantics {

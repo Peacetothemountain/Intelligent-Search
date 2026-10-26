@@ -4,29 +4,20 @@ import com.pixel.intelligentsearch.feature.settings.IconButton
 import com.pixel.intelligentsearch.core.ui.uniqueItems
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.core.net.toUri
 import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import com.pixel.intelligentsearch.core.data.settings.put
-import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.feature.settings.tutorialTarget
-import com.pixel.intelligentsearch.core.data.FileItem
-import com.pixel.intelligentsearch.core.data.ContactItem
-import com.pixel.intelligentsearch.core.data.AppItem
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -37,8 +28,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -52,7 +41,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.*
@@ -96,11 +84,6 @@ internal fun OverlaySearchBar(s: OverlayScope) {
     val focusRequester = s.focusRequester
     val voice = s.voice
     val calculatorKeyboard by viewModel.calculatorKeyboard.collectAsStateWithLifecycle()
-    val performAppLaunch = s.performAppLaunch
-    val closeOverlay = s.closeOverlay
-    val openWebAddress = s.openWebAddress
-    val visibleApps = s.visibleApps
-    val bestMatch = s.bestMatch
     val bestMatchText = s.bestMatchText
     var hasStartedTyping by s.ui::hasStartedTyping
     var textFieldValue by s.ui::textFieldValue
@@ -251,7 +234,6 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                                 delay(3000)
                                 showDebugPill = false
                                 onOpenSettings("debug")
-                                /* closeOverlay() */
                             }
                         } else {
                             viewModel.onQueryChanged(newQuery)

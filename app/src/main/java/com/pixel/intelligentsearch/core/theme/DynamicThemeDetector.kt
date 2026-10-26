@@ -123,11 +123,11 @@ object DynamicThemeDetector {
      * the exact dynamic color lifecycle state, utilizing a thread-safe 5-second cache to prevent
      * synchronous Binder IPC stalls during 120 FPS UI composition and rendering.
      */
-    fun getThemeState(context: Context, forceRefresh: Boolean = false): ThemeState {
+    fun getThemeState(context: Context): ThemeState {
         val now = System.currentTimeMillis()
         val fastCached = cachedThemeState
         val fastTime = lastThemeStateCheckTime
-        if (!forceRefresh && fastCached != null && (now - fastTime in 0..CACHE_TTL_MS)) {
+        if (fastCached != null && (now - fastTime in 0..CACHE_TTL_MS)) {
             return fastCached
         }
 
@@ -135,7 +135,7 @@ object DynamicThemeDetector {
             val cached = cachedThemeState
             val time = lastThemeStateCheckTime
             val current = System.currentTimeMillis()
-            if (!forceRefresh && cached != null && (current - time in 0..CACHE_TTL_MS)) {
+            if (cached != null && (current - time in 0..CACHE_TTL_MS)) {
                 return@synchronized cached
             }
 

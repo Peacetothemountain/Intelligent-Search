@@ -1,18 +1,13 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Canvas
-import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.geometry.Offset
-import com.pixel.intelligentsearch.R
 import android.content.Context
-import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import android.content.Intent
-import android.graphics.drawable.Icon
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
@@ -31,16 +26,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.*
 import androidx.compose.foundation.Image
-import androidx.core.graphics.drawable.toBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.semantics.*
 
 // -----------------------------------------------------------------------------------------

@@ -1,7 +1,5 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.data.SettingsManager
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.getValue
@@ -914,12 +912,15 @@ internal fun BackupCardTitle(text: String) {
     )
 }
 
-/** The explanation under a [BackupCardTitle]. */
+/**
+ * The explanation under a [BackupCardTitle], in the subtext's font and color. It keeps the smaller bodySmall size: the
+ * page is laid out to fit one screen with the bugdroid below its cards.
+ */
 @Composable
 internal fun BackupCardDescription(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.bodyMedium,
+        style = MaterialTheme.typography.bodySmall,
         fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)

@@ -34,7 +34,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawOutline
@@ -57,7 +56,7 @@ import kotlinx.coroutines.launch
  * The one selector every settings page uses for tabs and one-of-a-few choices: equal options in a row, the chosen
  * one on an indicator. Its colours are those of the rows it replaced: by default the chosen option sits on the
  * primary container in its content colour and the rest are in the muted on-surface-variant, straight on what is
- * behind the selector. A [containerColor] or [border] puts the options on a track of that colour and outline, in
+ * behind the selector. A [containerColor] puts the options on a track of that color, in
  * [shape], drawn as a matte shell ([MatteShell]): the same colour with only the matte grain added.
  *
  * When the choice changes, the old indicator dissolves away and a new one grows in under the new option on the
@@ -65,8 +64,8 @@ import kotlinx.coroutines.launch
  * smoothly in to exactly its own colour, with no grain or shimmer. Only the indicator is
  * redrawn while that plays; nothing recomposes per frame. With animations off it simply moves.
  *
- * [itemContent] draws an option; [LocalContentColor] is the option's colour ([selectedContentColor] when chosen,
- * [unselectedContentColor] otherwise), and the chosen option may show a filled icon and bold label. Options tap
+ * [itemContent] draws an option; [LocalContentColor] is the option's color (onPrimaryContainer when chosen,
+ * onSurfaceVariant otherwise), and the chosen option may show a filled icon and bold label. Options tap
  * through [bouncyClickable], so a tap bounces and gives the same one haptic as every other control, and each
  * announces whether it is selected. [indicatorColor] can give an option its own indicator colour (a custom colour
  * swatch); [unselectedColor] and [unselectedBorder] fill and outline the options that aren't chosen, as rows that
@@ -82,15 +81,12 @@ fun <T> ShellSelector(
     role: Role = Role.RadioButton,
     containerColor: Color = Color.Transparent,
     shape: Shape = ShellSelectorDefaults.ItemShape,
-    border: BorderStroke? = null,
     contentPadding: Dp = ShellSelectorDefaults.Padding,
     gap: Dp = ShellSelectorDefaults.Gap,
     indicatorShape: Shape = ShellSelectorDefaults.ItemShape,
     indicatorColor: (T) -> Color = ShellSelectorDefaults.NoOverride,
     unselectedColor: (T) -> Color = ShellSelectorDefaults.NoFill,
     unselectedBorder: BorderStroke? = null,
-    selectedContentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer,
-    unselectedContentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     itemContent: @Composable BoxScope.(option: T, isSelected: Boolean) -> Unit
 ) {
     val selectedIndex = options.indexOf(selected).coerceAtLeast(0)
@@ -139,7 +135,7 @@ fun <T> ShellSelector(
             options.forEachIndexed { index, option ->
                 val isSelected = index == selectedIndex
                 val contentColor by animateColorAsState(
-                    targetValue = if (isSelected) selectedContentColor else unselectedContentColor,
+                    targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
                     animationSpec = ExpressiveMotionTokens.Effects.ExpressiveDefault(),
                     label = "shell_selector_content"
                 )
@@ -161,12 +157,12 @@ fun <T> ShellSelector(
         }
     }
 
-    if (containerColor.alpha > 0f || border != null) {
+    if (containerColor.alpha > 0f) {
         MatteShell(
             modifier = modifier.fillMaxWidth(),
             shape = shape,
             containerColor = containerColor,
-            border = border,
+            border = null,
             content = row
         )
     } else {
@@ -202,18 +198,17 @@ private fun DrawScope.slotOf(layout: SelectorLayout, index: Int): Pair<Offset, S
     return Offset(layout.pad + slot * (itemW + layout.gap), layout.pad) to Size(itemW, itemH)
 }
 
-/** Fills [shape] laid out at [topLeft] in [shapeSize] with [color], or with [brush] where one is given. */
+/** Fills [shape] laid out at [topLeft] in [shapeSize] with [color]. */
 private fun DrawScope.drawShape(
     shape: Shape,
     topLeft: Offset,
     shapeSize: Size,
     color: Color,
-    brush: Brush? = null,
     alpha: Float = 1f
 ) {
     val outline = shape.createOutline(shapeSize, layoutDirection, this)
     translate(topLeft.x, topLeft.y) {
-        if (brush != null) drawOutline(outline, brush, alpha = alpha) else drawOutline(outline, color, alpha = alpha)
+        drawOutline(outline, color, alpha = alpha)
     }
 }
 

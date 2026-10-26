@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -60,11 +59,10 @@ internal fun colorOpacityTrack(color: Color): List<Color> = listOf(color.copy(al
 
 /**
  * A small grey and white checkerboard behind a track that fades out, so how see-through each point is shows on its own.
- * [cell] is the size of each square.
  */
-private fun Modifier.checkerboard(light: Color, dark: Color, cell: androidx.compose.ui.unit.Dp = 4.dp): Modifier =
+private fun Modifier.checkerboard(light: Color, dark: Color): Modifier =
     drawBehind {
-        val side = cell.toPx()
+        val side = 4.dp.toPx()
         drawRect(light)
         val columns = kotlin.math.ceil(size.width / side).toInt()
         val rows = kotlin.math.ceil(size.height / side).toInt()
@@ -116,7 +114,6 @@ internal fun GradientSliderRow(
                 )
                 Android17Slider(
                     showTrack = false,
-                    enableHaptics = false,
                     value = value,
                     onValueChange = onValueChange,
                     valueRange = valueRange,

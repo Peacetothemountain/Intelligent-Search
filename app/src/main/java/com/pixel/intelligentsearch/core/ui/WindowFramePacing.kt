@@ -129,15 +129,12 @@ object WindowFramePacing {
      * If moving: sets high refresh rate and reports velocity.
      * If idle: requests low frame rate to allow the panel to ramp down to 1Hz.
      */
-    fun setDynamicLtpoPacing(view: View?, isMoving: Boolean, velocityPxPerSec: Float = 0f) {
+    fun setDynamicLtpoPacing(view: View?, isMoving: Boolean) {
         if (view == null) return
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
             try {
                 if (isMoving) {
                     view.setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_HIGH)
-                    if (abs(velocityPxPerSec) > 0f) {
-                        view.setFrameContentVelocity(abs(velocityPxPerSec))
-                    }
                 } else {
                     view.setRequestedFrameRate(View.REQUESTED_FRAME_RATE_CATEGORY_DEFAULT)
                     view.setFrameContentVelocity(0f)

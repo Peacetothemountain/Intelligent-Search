@@ -36,7 +36,6 @@ interface AppEntryPoint {
     fun liveAnswerEngine(): com.pixel.intelligentsearch.core.answers.LiveAnswerEngine
     /** AI Answers' Keystore-encrypted API keys, for its settings page. */
     fun aiKeyVault(): com.pixel.intelligentsearch.core.security.AiKeyVault
-    fun resultShortcutStore(): com.pixel.intelligentsearch.core.data.ResultShortcutStore
 
     @ApplicationScope
     fun applicationScope(): CoroutineScope

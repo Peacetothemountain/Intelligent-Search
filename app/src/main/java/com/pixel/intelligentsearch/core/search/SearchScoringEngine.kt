@@ -15,12 +15,10 @@ import kotlin.math.pow
 object SearchScoringEngine {
 
     enum class EntityDomain(val weight: Float) {
-        DIRECT_ACTION(2.2f),
         SYSTEM_TOGGLE(2.0f),
         APPLICATION(1.8f),
         CONTACT(1.3f),
-        FILE(1.0f),
-        WEB_SUGGESTION(0.7f)
+        FILE(1.0f)
     }
 
     data class ScoringMetadata(
@@ -78,7 +76,6 @@ object SearchScoringEngine {
         targetTitle: String,
         metadata: ScoringMetadata,
         currentTimeMs: Long = System.currentTimeMillis(),
-        domainWeightMultiplier: Float = 1.0f,
         precomputedQueryMetaphone: DoubleMetaphone.MetaphoneResult? = null,
         precomputedTargetMetaphone: DoubleMetaphone.MetaphoneResult? = null,
         targetSubtitle: String? = null
@@ -88,7 +85,7 @@ object SearchScoringEngine {
         val rawTitle = targetTitle.trim()
 
         if (q.isEmpty() || (title.isEmpty() && targetSubtitle.isNullOrBlank())) {
-            return ScoreBreakdown(0f, 0f, 0f, 0f, 0f, metadata.domain.weight * domainWeightMultiplier)
+            return ScoreBreakdown(0f, 0f, 0f, 0f, 0f, metadata.domain.weight)
         }
 
         // 1. Text & Structural Match Scoring. Accent/punctuation-folded forms are scored too, so "cafe"
@@ -116,7 +113,7 @@ object SearchScoringEngine {
 
         val matchScore = maxOf(titleMatchScore, subtitleMatchScore)
         if (matchScore <= 0.0f) {
-            return ScoreBreakdown(0f, 0f, 0f, 0f, 0f, metadata.domain.weight * domainWeightMultiplier)
+            return ScoreBreakdown(0f, 0f, 0f, 0f, 0f, metadata.domain.weight)
         }
 
         // 2. Frequency Scoring (Logarithmic compression)
@@ -134,7 +131,7 @@ object SearchScoringEngine {
 
         // 5. Domain-Weighted Total
         val rawSum = matchScore + frequencyScore + recencyScore + pinScore
-        val effectiveMultiplier = metadata.domain.weight * domainWeightMultiplier
+        val effectiveMultiplier = metadata.domain.weight
         val totalScore = rawSum * effectiveMultiplier
 
         return ScoreBreakdown(

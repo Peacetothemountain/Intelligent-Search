@@ -12,7 +12,7 @@
     android:initialLayout="@layout/widget_search_colorful"
     android:previewLayout="@layout/widget_search_colorful"
     android:resizeMode="horizontal|vertical"
-    android:widgetCategory="home_screen|keyguard|searchbox"
+    android:widgetCategory="home_screen|keyguard"
     android:widgetFeatures="reconfigurable|configuration_optional"
     android:configure="com.pixel.intelligentsearch.feature.settings.SettingsActivity"
     android:description="@string/widget_system_search_bar" />

@@ -52,6 +52,7 @@ class ExportedComponentsTest {
                 "androidx.work.impl.diagnostics.DiagnosticsReceiver" to "android.permission.DUMP",
                 // The widgets: the launcher's widget broadcasts and the clock, time zone and language changes.
                 "com.pixel.intelligentsearch.feature.widget.CountdownWidgetProvider" to null,
+                "com.pixel.intelligentsearch.feature.widget.SearchBoxWidgetProvider" to null,
                 "com.pixel.intelligentsearch.feature.widget.SearchWidgetMaterialProvider" to null,
                 "com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider" to null,
             ),
@@ -62,7 +63,7 @@ class ExportedComponentsTest {
     @Test
     fun everyWidgetDrawsBeforeTheFirstUnlock() {
         val widgets = manifest.receivers.orEmpty().filter { it.name.endsWith("WidgetProvider") || it.name.endsWith("MaterialProvider") }
-        assertEquals(3, widgets.size)
+        assertEquals(4, widgets.size)
         for (widget in widgets) assertEquals(widget.name, true, widget.directBootAware)
     }
 

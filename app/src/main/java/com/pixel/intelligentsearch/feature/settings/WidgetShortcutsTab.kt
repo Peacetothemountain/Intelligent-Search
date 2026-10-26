@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import androidx.compose.animation.*
+import com.pixel.intelligentsearch.core.theme.pageTrack
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.*
@@ -183,7 +184,7 @@ internal fun WidgetShortcutsTab(
                             .fillMaxWidth()
                             .shadow(elevation, RoundedCornerShape(24.dp)),
                         shape = RoundedCornerShape(24.dp),
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                        containerColor = MaterialTheme.colorScheme.pageTrack(0.6f),
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
                             MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)

@@ -146,8 +146,10 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
         }
     }
 
-    // Smooth Material 3 Expressive color transitions
-    val targetBaseColor = if (isDark) Color(0xFFA6A3B6) else Color(0xFF1E1E24)
+    // Smooth Material 3 Expressive color transitions. In the light theme the sparkles are the palette's primary, a
+    // soft tint on the light backdrop as Gemini's light sparkles are; near-black specks read as gray dust there.
+    val lightBaseColor = MaterialTheme.colorScheme.primary
+    val targetBaseColor = if (isDark) Color(0xFFA6A3B6) else lightBaseColor
     val animatedBaseColor by animateColorAsState(
         targetValue = targetBaseColor,
         animationSpec = tween(
@@ -194,8 +196,8 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
 
         val spacing = (if (currentIsDark) darkSpacingPx else lightSpacingPx) * spacingMultiplier
         val sparkleSize = if (currentIsDark) darkSparkleSizePx else lightSparkleSizePx
-        val baseAlpha = if (currentIsDark) 0.42f else 0.45f
-        val minAlpha = if (currentIsDark) 0.11f else 0.14f
+        val baseAlpha = if (currentIsDark) 0.42f else 0.32f
+        val minAlpha = if (currentIsDark) 0.11f else 0.08f
         val offsetDivisor = if (currentIsDark) darkOffsetDivisorPx else lightOffsetDivisorPx
 
         // ----------------------------------------------------------------------------------

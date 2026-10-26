@@ -13,6 +13,7 @@ import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
+import androidx.compose.ui.graphics.toArgb
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,7 +29,8 @@ import kotlin.math.abs
  * worked out here from what the sliders mean (the custom colour is an HCT seed: hue, saturation as the share of the
  * chroma that hue reaches at the tone, and lightness as tone; the Custom subtheme's accent is the seed's hue and
  * saturation at the tone keeping 7:1 with the pill, on the side Material's foreground rule picks; Color Opacity is the
- * custom colour's opacity; Transparency the whole bar's background, except a pill locked black, which stays solid), not from the widget's code. Each part of the
+ * custom colour's opacity; Transparency the whole bar's background, except a locked pill, which stays solid; locked
+ * with no colour picked, the pill is the theme's own: #121212 in dark, the light palette's surfaceBright in light), not from the widget's code. Each part of the
  * background is checked as it shows: the pill and circle are opaque within the backdrop (the group the widget fades at
  * once), so the rim under them never shows through and nothing is painted twice.
  */
@@ -128,7 +130,8 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
     private fun expectedPillLight(s: Sliders): Boolean {
         val customIsLight = iconsGoDarkOn(s.customColor)
         return when {
-            bar.material && bar.lockBlack -> false
+            // Locked with no colour picked: the theme's own pill, dark in the dark theme and light in the light one.
+            bar.material && bar.lockBlack -> !dark
             bar.isCustom -> customIsLight
             bar.subtheme == "Light" -> true
             bar.subtheme == "Dark" -> false
@@ -138,13 +141,13 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
 
     private fun expectedPill(s: Sliders): Layer {
         val rgb = when {
-            bar.material && bar.lockBlack -> 0x121212
+            bar.material && bar.lockBlack -> themePill(context, dark)
             bar.isCustom -> s.customColor
             bar.subtheme == "Light" -> 0xF1F3F4
             bar.subtheme == "Dark" -> 0x303134
             else -> widgetColors(dark).surfaceContainer
         } and 0xFFFFFF
-        // The pill locked black stays solid whatever the Transparency; the rim around it fades.
+        // The locked pill stays solid whatever the Transparency; the rim around it fades.
         val a = when {
             bar.material && bar.lockBlack -> 255
             bar.isCustom -> alpha(s.customAlpha)
@@ -153,10 +156,13 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
         return Layer(rgb, a)
     }
 
-    /** The Material design's outer rim: the custom colour at its opacity, or the theme's at the bar's transparency. */
+    /**
+     * The Material design's outer rim: the custom colour at its opacity, or the theme's at the bar's transparency (the
+     * locked theme pill follows the app's theme, so its rim does too).
+     */
     private fun expectedRim(s: Sliders): Layer =
         if (bar.isCustom) Layer(s.customColor and 0xFFFFFF, alpha(s.customAlpha))
-        else Layer(widgetColors(dark || bar.lockBlack).primaryContainer and 0xFFFFFF, alpha(s.backgroundAlpha))
+        else Layer(widgetColors(dark).primaryContainer and 0xFFFFFF, alpha(s.backgroundAlpha))
 
     /**
      * The Accented G's colour. Custom: the seed's hue and saturation at the tone keeping 7:1 with the pill it sits on.
@@ -165,12 +171,13 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
     private fun expectedAccent(s: Sliders): Int {
         val light = expectedPillLight(s)
         if (bar.isCustom) {
-            val pillTone = Hct.fromInt(if (bar.material && bar.lockBlack) 0xFF121212.toInt() else s.customColor).tone
+            val pillTone = Hct.fromInt(if (bar.material && bar.lockBlack) themePill(context, dark) or 0xFF000000.toInt() else s.customColor).tone
             val tone = if (light) Contrast.darkerUnsafe(pillTone, 7.0) else Contrast.lighterUnsafe(pillTone, 7.0)
             return colorAtShare(s.hue.toDouble(), s.saturation / 100.0, tone)
         }
         val raw = widgetColors(!light).primary
-        return if (bar.material && !bar.lockBlack && light) MaterialYouPaletteHelper.darkenForContrast(raw, 32.0) else raw
+        // Darker on any light Material pill: the theme's, or the light theme's own locked one.
+        return if (bar.material && light) MaterialYouPaletteHelper.darkenForContrast(raw, 32.0) else raw
     }
 
     private fun assertClose(message: String, expected: Layer, actual: Layer) {
@@ -216,7 +223,7 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
             Slider.LIGHTNESS -> if (bar.isCustom) assertIncreasing("lightness", customLayers.map { luminance(it!!) })
             Slider.COLOR_OPACITY -> if (bar.isCustom) assertIncreasing("opacity", customLayers.map { it!!.alpha.toFloat() })
             Slider.TRANSPARENCY -> {
-                // The whole background fades, except a pill locked black, which stays solid.
+                // The whole background fades, except a locked pill, which stays solid.
                 if (bar.material && bar.lockBlack) {
                     assertEquals("$bar locked pill stays solid", listOf(255), rendered.map { (_, pill, _) -> pill.alpha }.distinct())
                 } else {
@@ -236,6 +243,13 @@ class WidgetColorSlidersTest(private val bar: Bar, private val slider: Slider, p
     }
 
     companion object {
+        /**
+         * The Material design's pill locked with no colour picked, without alpha: the theme's own, #121212 in the dark
+         * theme and the light palette's surfaceBright in the light theme.
+         */
+        fun themePill(context: Context, dark: Boolean): Int =
+            if (dark) 0x121212 else androidx.compose.material3.dynamicLightColorScheme(context).surfaceBright.toArgb() and 0xFFFFFF
+
         /** [hue] at [tone] with [share] of the most chroma that hue reaches there. */
         fun colorAtShare(hue: Double, share: Double, tone: Double): Int {
             val most = Hct.from(hue, 200.0, tone).chroma

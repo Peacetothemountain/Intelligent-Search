@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.feature.settings
 
 import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.data.settings.put
+import com.pixel.intelligentsearch.core.theme.pageTrack
 import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
@@ -236,7 +237,7 @@ fun ManageHiddenAppsScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
         com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
             shape = RoundedCornerShape(24.dp),
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            containerColor = MaterialTheme.colorScheme.pageTrack(0.5f),
             border = null,
             modifier = Modifier.fillMaxWidth().weight(1f)
         ) {

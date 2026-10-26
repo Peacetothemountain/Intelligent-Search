@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.core.ui
 
 import androidx.compose.runtime.setValue
+import com.pixel.intelligentsearch.core.theme.raisedContainer
 import androidx.compose.runtime.getValue
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
@@ -191,7 +192,7 @@ internal fun AnswerCard(modifier: Modifier, content: @Composable () -> Unit) {
     ExpressiveOneBoxCard(
         modifier = modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         cornerRadius = ExpressiveCornerTokens.ExtraLarge,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        containerColor = MaterialTheme.colorScheme.raisedContainer,
         borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
         idleElevation = 2.dp,
         contentPadding = PaddingValues(20.dp)

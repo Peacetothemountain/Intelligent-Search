@@ -813,7 +813,7 @@ fun SearchOverlayScreen(
     ) {
         val isShowWallpaper = settingsState.showWallpaper
         val blurAvailable by com.pixel.intelligentsearch.core.ui.rememberCrossWindowBlurEnabled()
-        val scrimColor = if (isShowWallpaper) MaterialTheme.colorScheme.scrim else MaterialTheme.colorScheme.background
+        val scrimColor = if (isShowWallpaper) overlayScrimColor(MaterialTheme.colorScheme) else MaterialTheme.colorScheme.background
         val scrimAlphaFactor = if (isShowWallpaper) {
             overlayScrimAlpha(settingsState.backgroundTransparency, settingsState.backgroundBlur, blurAvailable)
         } else 1.0f

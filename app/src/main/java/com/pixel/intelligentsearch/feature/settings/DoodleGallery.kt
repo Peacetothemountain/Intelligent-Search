@@ -1,6 +1,8 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import android.widget.Toast
+import com.pixel.intelligentsearch.core.theme.isDark
+import com.pixel.intelligentsearch.core.theme.pageContainer
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -193,7 +195,7 @@ internal fun DoodleGallery(
                         Icon(Icons.Outlined.Shuffle, contentDescription = "Pick a Random Doodle")
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+                colors = settingsTopBarColors()
             )
         }
     ) { padding ->
@@ -332,7 +334,7 @@ private fun DoodleStage(
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surfaceContainer
+        color = MaterialTheme.colorScheme.pageContainer
     ) {
         Column(Modifier.padding(16.dp)) {
             DoodleWidgetMock(occasion, scale = 2f, light = lightPill, full = true, modifier = Modifier.fillMaxWidth())
@@ -405,7 +407,8 @@ private fun DoodleCard(
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(20.dp),
-        color = if (selected) colors.secondaryContainer else colors.surfaceContainerLow,
+        // A step below the page's cards in the dark theme; on the light theme's tinted page, its near-white cards.
+        color = if (selected) colors.secondaryContainer else if (colors.isDark) colors.surfaceContainerLow else colors.pageContainer,
         border = if (selected) BorderStroke(2.dp, colors.primary) else null,
         modifier = Modifier.semantics {
             this.selected = selected
@@ -447,7 +450,9 @@ private fun DoodleCard(
 }
 
 /**
- * A mock-up of the Material design widget as it comes (accent rim, Material You G, black pill in the dark), [scale]
+ * A mock-up of the Material design widget as it comes (accent rim, Material You G, and the theme's own solid pill:
+ * black in the dark, its light twin in the light,
+ * [com.pixel.intelligentsearch.core.theme.DynamicThemeDetector.ResolvedWidgetColors.lockedPill]), [scale]
  * times the widget's size, with [occasion] playing around the G exactly where the widget plays it. With [full] it has
  * the voice search button and the round search button too; without, just the G's end of the bar.
  */
@@ -458,10 +463,12 @@ private fun DoodleWidgetMock(occasion: Occasion, scale: Float, light: Boolean, f
         if (light) androidx.compose.material3.dynamicLightColorScheme(context)
         else androidx.compose.material3.dynamicDarkColorScheme(context)
     }
-    // The design's defaults: the widget 28% see-through, and kept black in the dark.
+    // The design's defaults: the rim 28% see-through around the theme's own pill, which stays solid.
     val alpha = 0.72f
     val rim = scheme.primaryContainer.copy(alpha = alpha)
-    val pill = if (light) scheme.surfaceContainer.copy(alpha = alpha) else Color(0xFF121212)
+    val pill = remember(context, light) {
+        Color(com.pixel.intelligentsearch.core.theme.DynamicThemeDetector.resolveWidgetColors(context, isDark = !light).lockedPill)
+    }
     // The widget's Material icons are the search overlay's, worked out from the overlay's accents for the pill's shade.
     val (gPrimary, gSecondary, gTertiary) = remember(context, light) {
         val accents = com.pixel.intelligentsearch.core.theme.SearchIconColors.themeAccents(context, light)

@@ -13,10 +13,9 @@ import org.robolectric.RobolectricTestRunner
 
 /**
  * The home screen's search bar opens the overlay through [WidgetActivity], whose theme opens without the wallpaper.
- * Android counts a window showing the wallpaper as opaque, and Pixel Launcher grows an opaque app out of a widget by
- * covering it with a copy of the widget's background (the lavender bar at the top), a black fill and a dark scrim
- * (decompiled from Pixel Launcher's QuickstepTransitionManager and FloatingWidgetView); a translucent one it just grows
- * out of the widget. The overlay's other entries still open over the wallpaper.
+ * Android counts a window showing the wallpaper as opaque, so the home screen would vanish in one frame under the
+ * overlay; see-through, the overlay's blur fades in over it and MainActivity brings the wallpaper in once the blur is
+ * full. The overlay's other entries still open over the wallpaper.
  */
 @RunWith(RobolectricTestRunner::class)
 class WidgetLaunchThemeTest {
@@ -37,7 +36,7 @@ class WidgetLaunchThemeTest {
     @Test
     fun theSearchBarsEntryOpensTranslucentWithoutTheWallpaper() {
         val (translucent, wallpaper) = themeFlags(WidgetActivity::class.java)
-        assertTrue("translucent, so the launcher grows it out of the bar as a see-through window", translucent)
+        assertTrue("translucent, so the home screen stays visible behind it", translucent)
         assertFalse("no wallpaper at launch, or Android would count it as opaque", wallpaper)
     }
 

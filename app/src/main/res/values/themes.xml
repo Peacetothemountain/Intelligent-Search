@@ -38,6 +38,10 @@
     </style>
 
     <style name="Theme.IntelligentSearch.Overlay" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Recents screenshots are off, so Android draws the Recents card from these when its live preview ends;
+             Material's lavender status bar color would show as a lavender header on it. -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
         <!-- Text drawn by Android's own views in the app's windows is Google Sans Flex too, like the Compose text. -->
         <item name="android:fontFamily">@font/google_sans_flex</item>
         <item name="fontFamily">@font/google_sans_flex</item>
@@ -66,9 +70,9 @@
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/transparent_splash</item>
     </style>
 
-    <!-- Opened from the home screen's search bar (WidgetActivity): translucent to Android at launch (no wallpaper
-         yet), so Pixel Launcher grows the overlay out of the bar as a see-through window instead of covering it with a
-         copy of the bar, a black fill and its dark launch scrim. The wallpaper comes on once that animation is over. -->
+    <!-- The home screen's search bar opens the overlay see-through (no wallpaper yet): its blur fades in over the home
+         screen instead of the home screen vanishing in one frame. MainActivity brings the wallpaper in once the blur
+         is full. -->
     <style name="Theme.IntelligentSearch.Overlay.WidgetLaunch" parent="Theme.IntelligentSearch.Overlay.Widget">
         <item name="android:windowShowWallpaper">false</item>
     </style>

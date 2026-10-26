@@ -44,15 +44,17 @@ open class MainActivity : AppCompatActivity() {
     private val frameMetricsMonitor by lazy { com.pixel.intelligentsearch.core.performance.FrameMetricsMonitor(adpfThermalManager) }
 
     /**
-     * Whether this entry opens as a see-through window, without the wallpaper, until the launcher's launch animation
-     * is over. Android counts a window that shows the wallpaper as opaque, and Pixel Launcher grows an opaque app out
-     * of the home screen's search bar by covering it with a copy of the bar, a black fill and a dark scrim; a
-     * translucent one it simply grows out of the bar. The home screen's search bar opens [WidgetActivity].
+     * Whether this entry opens see-through, without the wallpaper, until the overlay's blur is full: opened over the
+     * home screen (the search bar opens [WidgetActivity]), the blur then fades in over it instead of the home screen
+     * vanishing in one frame (Android hides whatever is behind a window that shows the wallpaper at once).
      */
     protected open val translucentLaunch: Boolean get() = false
 
     /** True while a [translucentLaunch] holds the wallpaper back. */
     private var wallpaperHeld by androidx.compose.runtime.mutableStateOf(false)
+
+    /** True while the overlay has opened its own settings above it, which may come back to it (Back Swipe to Overlay). */
+    private var awayInOwnSettings = false
 
     private val dismissOverlayReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
@@ -62,17 +64,16 @@ open class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        awayInOwnSettings = false
         frameMetricsMonitor.attach(this)
         adpfThermalManager.startHeadroomMonitoring()
-        // Only this app sends DISMISS_OVERLAY (always with setPackage), so it is never exported. On
-        // API 31-32, where the flag does not exist, ContextCompat enforces the same isolation with a
-        // signature-protected permission.
-        androidx.core.content.ContextCompat.registerReceiver(
-            this,
-            dismissOverlayReceiver,
-            android.content.IntentFilter("com.pixel.intelligentsearch.DISMISS_OVERLAY"),
-            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
-        )
+    }
+
+    override fun onDestroy() {
+        try {
+            unregisterReceiver(dismissOverlayReceiver)
+        } catch (_: Exception) {}
+        super.onDestroy()
     }
 
     override fun onStop() {
@@ -80,13 +81,23 @@ open class MainActivity : AppCompatActivity() {
         // grows out of the icon that was tapped, which must still be there, and a dialog over the overlay (a
         // permission) must not wipe what was typed.
         searchViewModel.onQueryChanged("")
-        try {
-            unregisterReceiver(dismissOverlayReceiver)
-        } catch (_: Exception) {}
         frameMetricsMonitor.detach()
         adpfThermalManager.stopHeadroomMonitoring()
         super.onStop()
+        // Out of sight, the overlay closes for good, so the next search opens a fresh one. Brought back instead,
+        // Android first shows a placeholder of the old one: as the overlay keeps itself out of Recents screenshots
+        // (what was typed), that placeholder is drawn from the theme, a black screen under a lavender status bar.
+        if (!isChangingConfigurations && !isFinishing && !awayInOwnSettings) {
+            // The whole task only when this overlay is its top: another overlay entry opened over it in the same task
+            // (the singleTask entries share one affinity) must not go with it.
+            if (isTopOfTask()) finishAndRemoveTask() else finish()
+        }
     }
+
+    private fun isTopOfTask(): Boolean = runCatching {
+        getSystemService(android.app.ActivityManager::class.java).appTasks
+            .firstOrNull { it.taskInfo?.taskId == taskId }?.taskInfo?.topActivity == componentName
+    }.getOrDefault(true)
 
     // Settings snapshot taken on resume, so onPause only re-renders widgets when something actually changed.
     private var settingsFingerprintAtResume = 0
@@ -168,6 +179,15 @@ open class MainActivity : AppCompatActivity() {
     fun setBlurFraction(fraction: Float) {
         blurFraction = fraction.coerceIn(0f, 1f)
         applyWindowBlur()
+        // The blur is full: the home screen behind is hidden under it, so the wallpaper takes its place unseen.
+        if (wallpaperHeld && blurFraction >= 1f) {
+            wallpaperHeld = false
+            // The wallpaper first, so it is already behind the window when the home screen goes: switched at once,
+            // there is a frame with neither, and the blur shows black.
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+            val decor = window.decorView
+            decor.postOnAnimation { decor.postOnAnimation { if (!isFinishing) setTranslucent(false) } }
+        }
     }
 
     private fun applyWindowBlur() {
@@ -215,8 +235,25 @@ open class MainActivity : AppCompatActivity() {
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         applySoftInputMode(keyboardVisible = keyboardVisibleOnOpen(prefs))
         super.onCreate(savedInstanceState)
+        // Registered for the overlay's whole life, so Settings opened over it can still close it while it's stopped.
+        // Only this app sends DISMISS_OVERLAY (always with setPackage), so it is never exported. On API 31-32, where
+        // the flag does not exist, ContextCompat enforces the same isolation with a signature-protected permission.
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            dismissOverlayReceiver,
+            android.content.IntentFilter("com.pixel.intelligentsearch.DISMISS_OVERLAY"),
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         // What was typed stays on screen until the overlay stops, so Recents must not keep a picture of it.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) setRecentsScreenshotEnabled(false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            setRecentsScreenshotEnabled(false)
+            // Without a picture, Android draws the Recents card in the task's colors when its live preview ends (Home
+            // pressed in Recents): unset, a black card. It gets the overlay's look instead (the theme keeps the
+            // lavender status bar color off it).
+            setTaskDescription(
+                android.app.ActivityManager.TaskDescription.Builder().setBackgroundColor(recentsCardColor(initialShowWallpaper)).build()
+            )
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
@@ -258,16 +295,6 @@ open class MainActivity : AppCompatActivity() {
                     val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
                     var lastAppliedWall by remember { mutableStateOf<Boolean?>(null) }
                     var lastAppliedBlur by remember { mutableIntStateOf(-1) }
-                    // A translucent launch shows the wallpaper once the launcher's launch animation is over.
-                    if (wallpaperHeld) {
-                        LaunchedEffect(Unit) {
-                            kotlinx.coroutines.delay(TRANSLUCENT_LAUNCH_HOLD_MS)
-                            wallpaperHeld = false
-                            // Opaque again (as a window showing the wallpaper always is), so Android takes the
-                            // home screen away from behind it and only the wallpaper shows, as from anywhere else.
-                            setTranslucent(false)
-                        }
-                    }
                     DisposableEffect(settingsState.backgroundBlur, settingsState.showWallpaper, throttleLevel, wallpaperHeld) {
                         val isWall = settingsState.showWallpaper && !wallpaperHeld
                         if (lastAppliedWall != isWall) {
@@ -279,7 +306,7 @@ open class MainActivity : AppCompatActivity() {
                             lastAppliedWall = isWall
                         }
                         val blurRadius = settingsState.backgroundBlur
-                        // While the wallpaper is held back, the home screen behind is blurred the same way.
+                        // While the wallpaper is held back the home screen behind is blurred the same way.
                         val targetBlur = if (settingsState.showWallpaper) adpfThermalManager.getRecommendedBlurRadius(blurRadius.toFloat()).toInt() else 0
                         if (targetBlur != lastAppliedBlur) {
                             runCatching {
@@ -302,6 +329,7 @@ open class MainActivity : AppCompatActivity() {
                         ) {
                             SearchOverlayScreen(
                                 onOpenSettings = { route ->
+                                    awayInOwnSettings = true
                                     val intent = com.pixel.intelligentsearch.core.security.InternalLaunchToken.stamp(
                                         Intent(this@MainActivity, SettingsActivity::class.java).apply {
                                             putExtra("extra_screen", route)
@@ -316,6 +344,7 @@ open class MainActivity : AppCompatActivity() {
                                     try {
                                         startActivity(intent, options.toBundle())
                                     } catch (e: Throwable) {
+                                        awayInOwnSettings = false
                                         android.util.Log.e("MainActivity", "Failed to open settings", e)
                                     }
                                 },
@@ -346,6 +375,16 @@ open class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /**
+     * The overlay's look as one color for its Recents card: over the wallpaper, a black scrim on the blurred wallpaper,
+     * close to the system's wallpaper-tinted darkest neutral; without the wallpaper, its own background.
+     */
+    private fun recentsCardColor(showWallpaper: Boolean): Int {
+        val night = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
+        return getColor(if (showWallpaper || night) android.R.color.system_neutral1_900 else android.R.color.system_neutral1_10)
     }
 
     /**
@@ -446,9 +485,6 @@ open class MainActivity : AppCompatActivity() {
     }
 
     private companion object {
-        /** Pixel Launcher's widget launch animation lasts 500ms (QuickstepTransitionManager); a frame or two more. */
-        const val TRANSLUCENT_LAUNCH_HOLD_MS = 540L
-
         /** Every extra a query can arrive in ([SearchManager.QUERY] is also the plain "query" extra). */
         val QUERY_EXTRAS = listOf(SearchManager.QUERY, Intent.EXTRA_TEXT)
     }

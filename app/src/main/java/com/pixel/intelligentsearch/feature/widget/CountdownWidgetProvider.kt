@@ -149,16 +149,7 @@ class CountdownWidgetProvider : AppWidgetProvider() {
                 SearchWidgetProvider.mainSearchIntent(context, prefs, appWidgetId, query = event.title)
             }
             tap.identifier = "countdown_$appWidgetId"
-            views.setOnClickPendingIntent(
-                android.R.id.background,
-                PendingIntent.getActivity(
-                    context,
-                    appWidgetId,
-                    tap,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                    SearchWidgetProvider.getPendingIntentActivityOptions(context)
-                )
-            )
+            views.setOnClickPendingIntent(android.R.id.background, SearchWidgetProvider.overlayPendingIntent(context, appWidgetId, tap))
             views.setContentDescription(
                 android.R.id.background,
                 if (event == null) "$number, $caption" else context.getString(R.string.widget_talkback_countdown, number, caption, event.title)

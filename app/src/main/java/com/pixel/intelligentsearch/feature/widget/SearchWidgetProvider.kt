@@ -765,13 +765,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         identifier = "widget_${appWidgetId}_slot_$slotCode"
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
-                    val pi = PendingIntent.getActivity(
-                        context,
-                        getWidgetRequestCode(appWidgetId, slotCode),
-                        targetIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                        getPendingIntentActivityOptions(context)
-                    )
+                    val pi = overlayPendingIntent(context, getWidgetRequestCode(appWidgetId, slotCode), targetIntent)
                     views.setOnClickPendingIntent(targetViewId, pi)
                 } else {
                     views.setViewVisibility(targetViewId, View.GONE)
@@ -779,23 +773,15 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             }
 
             // Tap pill -> main search overlay
-            val mainPI = PendingIntent.getActivity(
-                context,
-                getWidgetRequestCode(appWidgetId, SLOT_PILL),
-                mainSearchIntent(context, prefs, appWidgetId),
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                getPendingIntentActivityOptions(context)
-            )
+            val mainPI = overlayPendingIntent(context, getWidgetRequestCode(appWidgetId, SLOT_PILL), mainSearchIntent(context, prefs, appWidgetId))
             views.setOnClickPendingIntent(R.id.widget_pill_container, mainPI)
             // On a doodle day, tapping the G searches for the day.
             views.setOnClickPendingIntent(
                 R.id.widget_g_logo,
-                if (doodle == null || !config.showGIcon) mainPI else PendingIntent.getActivity(
+                if (doodle == null || !config.showGIcon) mainPI else overlayPendingIntent(
                     context,
                     getWidgetRequestCode(appWidgetId, SLOT_G_LOGO),
-                    doodleSearchIntent(context, prefs, appWidgetId, doodle),
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                    getPendingIntentActivityOptions(context)
+                    doodleSearchIntent(context, prefs, appWidgetId, doodle)
                 )
             )
             views.setContentDescription(R.id.widget_pill_container, context.getString(R.string.widget_search_description))
@@ -818,13 +804,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
                 }
 
-                val circleActionPI = PendingIntent.getActivity(
-                    context,
-                    getWidgetRequestCode(appWidgetId, SLOT_CIRCLE),
-                    circleActionIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-                    getPendingIntentActivityOptions(context)
-                )
+                val circleActionPI = overlayPendingIntent(context, getWidgetRequestCode(appWidgetId, SLOT_CIRCLE), circleActionIntent)
                 views.setOnClickPendingIntent(R.id.widget_sound_search, circleActionPI)
                 views.setOnClickPendingIntent(R.id.widget_sound_icon, circleActionPI)
 
@@ -921,6 +901,23 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         /**
+         * A tap on the search bar that opens [intent]. With Pixel Launcher as the home screen it goes through
+         * [WidgetLaunchReceiver], so the launcher's widget launch animation never plays (a copy of the bar as a lavender
+         * bar, a black fill, square boxes over the rounded bar, the bar sliding back in on the way home); with any other
+         * launcher it stays an activity tap, which always opens.
+         */
+        internal fun overlayPendingIntent(context: Context, requestCode: Int, intent: Intent): PendingIntent =
+            if (WidgetLaunchReceiver.homeIsPixelLauncher(context)) {
+                WidgetLaunchReceiver.pendingIntent(context, requestCode, intent)
+            } else {
+                PendingIntent.getActivity(
+                    context, requestCode, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                    getPendingIntentActivityOptions(context)
+                )
+            }
+
+        /**
          * What tapping the search bar opens: the search overlay, or the Google app's search while the overlay is
          * off, with [query] typed in when there is one.
          */
@@ -985,6 +982,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 }
             }
             views.setImageViewResource(R.id.widget_pill_background, WidgetBarShape.background(shape.pillRadius))
+            // The bar's outer corners, told to the launcher: android:id/background clips to its outline, so the
+            // launcher draws no corners of its own and takes the widget's shape from this radius when it grows an app
+            // out of the bar or shrinks one back into it. Without it the bar counts as a sharp rectangle, and a square
+            // box appears over the rounded pill.
+            views.setViewOutlinePreferredRadius(android.R.id.background, shape.outerRadius.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
         }
 
         /**

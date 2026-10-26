@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The countdown widget one row high: a pill like the search bar's, in the same design ("9 days · Halloween"). The
+    backdrop is the bar's (the outline, the Material design's rim, around the pill, faded at once by Transparency); the
+    provider sets its colors, corners and outline from the design saved in Widget Customization
+    (CountdownWidgetProvider). The pill is at least the bar's height and grows with large text, so nothing is cut.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- The pill, centered in the cell. It clips to its own outline, so the launcher doesn't round it again. -->
+    <FrameLayout
+        android:id="@android:id/background"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:clipToOutline="true"
+        android:clickable="true"
+        android:focusable="true"
+        tools:ignore="UselessParent">
+
+        <FrameLayout
+            android:id="@+id/countdown_backdrop"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="noHideDescendants">
+
+            <ImageView
+                android:id="@+id/countdown_outline"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/bg_widget_r32"
+                android:scaleType="fitXY"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:id="@+id/countdown_surface"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_margin="8dp"
+                android:src="@drawable/bg_widget_r24"
+                android:scaleType="fitXY"
+                android:importantForAccessibility="no" />
+        </FrameLayout>
+
+        <!-- At least the bar's height: the provider sets the number's minimum height, and this padding to clear the
+             outline. The words sit on the number's baseline. -->
+        <LinearLayout
+            android:id="@+id/countdown_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="28dp"
+            android:paddingEnd="28dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:importantForAccessibility="noHideDescendants">
+
+            <!-- Shown instead of the hero until the widget is set up. -->
+            <ImageView
+                android:id="@+id/countdown_icon"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_marginEnd="12dp"
+                android:src="@drawable/ic_countdown_event"
+                android:scaleType="fitCenter"
+                android:visibility="gone"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/countdown_hero"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:gravity="center_vertical"
+                android:fontFamily="@font/google_sans_flex"
+                android:textFontWeight="600"
+                android:textSize="24sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/countdown_caption"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="@font/google_sans_flex"
+                android:textFontWeight="500"
+                android:textSize="16sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:importantForAccessibility="no" />
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

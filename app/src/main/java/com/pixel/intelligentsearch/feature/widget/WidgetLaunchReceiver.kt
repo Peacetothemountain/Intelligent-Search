@@ -66,7 +66,6 @@ class WidgetLaunchReceiver : BroadcastReceiver() {
     private fun refreshWidgets(context: Context) {
         runCatching {
             SearchWidgetProvider.updateAllWidgets(context)
-            CountdownWidgetProvider.updateAll(context)
         }.onFailure { Log.w(TAG, "Couldn't redraw the widgets for the new home app", it) }
     }
 

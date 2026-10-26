@@ -171,7 +171,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             return isMaterialStyle(widgetThemeStyle)
         }
 
-        private fun isMaterialStyle(widgetThemeStyle: String?): Boolean =
+        /** Whether [widgetThemeStyle] (the design last saved in Widget Customization) is the Material design. */
+        internal fun isMaterialStyle(widgetThemeStyle: String?): Boolean =
             widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
 
         // Slot identifiers for bit-shifted unique request codes
@@ -197,10 +198,14 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             DynamicThemeDetector.onThemeChangedCallback = { ctx ->
                 clearBitmapCache()
                 updateAllWidgets(ctx)
-                CountdownWidgetProvider.updateAll(ctx)
             }
         }
 
+        /**
+         * Redraws every widget the app has: the search bars of each design and the countdown widgets, which are drawn
+         * from the same saved design and theme, so a design saved in Widget Customization or a theme change reaches
+         * them all. Then the Android 15+ widget picker's previews.
+         */
         fun updateAllWidgets(context: Context, pendingResult: android.content.BroadcastReceiver.PendingResult? = null) {
             val appContext = context.applicationContext
             context.appEntryPoint.applicationScope().launch(Dispatchers.IO) {
@@ -231,6 +236,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         } catch (e: Throwable) {
                             Log.w(TAG, "Provider query failed for ${providerClass.simpleName}", e)
                         }
+                    }
+                    try {
+                        CountdownWidgetProvider.redrawAll(appContext, appWidgetManager)
+                    } catch (e: Throwable) {
+                        Log.w(TAG, "Couldn't redraw the countdown widgets", e)
                     }
 
                     // Android 15+ (API 35) / Android 16 / Android 17 (Canary ZP11 / API 37)
@@ -283,6 +293,21 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 } catch (e: Throwable) {
                     Log.w(TAG, "Couldn't update the ${provider.simpleName} widget picker preview", e)
                 }
+            }
+            // The countdown widget's: a sample countdown in the design it would be placed in, the search bar's.
+            val countdown = CountdownWidgetProvider::class.java
+            try {
+                val design = if (isMaterialStyle(prefs[SettingsManager.WIDGET_THEME_STYLE])) WidgetDesign.MATERIAL else WidgetDesign.SYSTEM
+                val inputs = previewInputs(context, prefs, design, isDark, widgetColors) + design
+                if (publishedPreviews[countdown.name] != inputs) {
+                    if (publish(ComponentName(context, countdown), CountdownWidgetProvider.pickerPreview(context, prefs))) {
+                        publishedPreviews[countdown.name] = inputs
+                    } else {
+                        Log.w(TAG, "The widget picker refused the countdown preview (rate limited); pushing it again next redraw")
+                    }
+                }
+            } catch (e: Throwable) {
+                Log.w(TAG, "Couldn't update the countdown widget picker preview", e)
             }
         }
 
@@ -537,6 +562,16 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val scheme = if (isDark) androidx.compose.material3.dynamicDarkColorScheme(context) else androidx.compose.material3.dynamicLightColorScheme(context)
             android.graphics.Color.valueOf(scheme.background.red, scheme.background.green, scheme.background.blue).toArgb()
         }.getOrDefault(if (isDark) 0xFF121212.toInt() else 0xFFFFFFFF.toInt())
+
+        /**
+         * Everything the search bar of the Material ([isMaterialYou]) or System design is drawn in: its colors, outline
+         * and corners from the design saved in Widget Customization, light or dark as the app's theme is now. The
+         * countdown widget is drawn in the same, so it always matches the bar.
+         */
+        internal fun resolveWidgetConfig(context: Context, prefs: SharedPreferences, isMaterialYou: Boolean): WidgetDesignConfig {
+            val isDark = ThemeMode.from(prefs[SettingsManager.THEME]).isDark(ThemeMode.systemIsDark(context.resources.configuration))
+            return resolveWidgetConfig(context, prefs, isMaterialYou, isDark, DynamicThemeDetector.resolveWidgetColors(context, isDark))
+        }
 
         private fun resolveWidgetConfig(
             context: Context,

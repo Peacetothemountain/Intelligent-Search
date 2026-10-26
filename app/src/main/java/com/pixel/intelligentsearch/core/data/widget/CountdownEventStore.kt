@@ -17,8 +17,16 @@ import java.time.ZonedDateTime
 import java.time.format.DateTimeParseException
 import java.time.temporal.ChronoUnit
 
-/** What a countdown widget counts down to: a [title] ("Halloween") on a [date], every year when [yearly]. */
-data class CountdownEvent(val title: String, val date: LocalDate, val yearly: Boolean) {
+/**
+ * What a countdown widget counts down to: a [title] ("Halloween") on a [date], every year when [yearly], drawn in
+ * [design], or in the design last saved in Widget Customization (the search bar's) when it is null.
+ */
+data class CountdownEvent(
+    val title: String,
+    val date: LocalDate,
+    val yearly: Boolean,
+    val design: WidgetDesign? = null
+) {
 
     /**
      * The day being counted down to as of [today]: the date itself, or for a yearly event the next time it comes round
@@ -47,9 +55,9 @@ data class CountdownEvent(val title: String, val date: LocalDate, val yearly: Bo
  */
 class CountdownEventStore(prefs: SharedPreferences) {
 
-    /** One event as stored, its date as ISO text ("2026-10-31"). */
+    /** One event as stored, its date as ISO text ("2026-10-31") and its design by name (none: the search bar's). */
     @Serializable
-    private data class StoredEvent(val title: String, val date: String, val yearly: Boolean = false)
+    private data class StoredEvent(val title: String, val date: String, val yearly: Boolean = false, val design: String? = null)
 
     private val events = ParsedSetting({ prefs }, SettingsManager.COUNTDOWN_EVENTS, ::decode, ::encode)
 
@@ -81,13 +89,15 @@ class CountdownEventStore(prefs: SharedPreferences) {
                 val item = runCatching { JSON.decodeFromJsonElement(StoredEvent.serializer(), element) }.getOrNull() ?: return@mapNotNull null
                 val title = item.title.takeIf { it.isNotBlank() } ?: return@mapNotNull null
                 val date = try { LocalDate.parse(item.date) } catch (_: DateTimeParseException) { return@mapNotNull null }
-                id to CountdownEvent(title.take(CountdownEvent.MAX_TITLE_LENGTH), date, item.yearly)
+                // An unknown design (from a newer version) follows the search bar's.
+                val design = WidgetDesign.entries.firstOrNull { it.name == item.design }
+                id to CountdownEvent(title.take(CountdownEvent.MAX_TITLE_LENGTH), date, item.yearly, design)
             }.toMap()
         }
 
         private fun encode(events: Map<Int, CountdownEvent>): String = JSON.encodeToString(
             MapSerializer(String.serializer(), StoredEvent.serializer()),
-            events.entries.associate { (id, event) -> id.toString() to StoredEvent(event.title, event.date.toString(), event.yearly) }
+            events.entries.associate { (id, event) -> id.toString() to StoredEvent(event.title, event.date.toString(), event.yearly, event.design?.name) }
         )
 
         /** The first moment of the day after [now]'s, where [now] is: when every countdown next changes. */

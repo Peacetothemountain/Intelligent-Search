@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!-- The countdown widget's background: the launcher's own widget corner radius; tinted to the theme when drawn. -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@android:color/white" />
-    <corners android:radius="@android:dimen/system_app_widget_background_radius" />
-</shape>

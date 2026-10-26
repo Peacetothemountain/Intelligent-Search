@@ -105,6 +105,25 @@ class CountdownEventStoreTest {
     }
 
     @Test
+    fun aDesignChosenAtSetupIsKeptAndNoneFollowsTheSearchBar() {
+        val prefs = ApplicationProvider.getApplicationContext<Context>().getSharedPreferences("countdown_test_design", Context.MODE_PRIVATE)
+        prefs.edit().clear().commit()
+        val events = CountdownEventStore(prefs)
+        events.put(1, halloween.copy(design = WidgetDesign.MATERIAL))
+        events.put(2, halloween)
+        assertEquals(WidgetDesign.MATERIAL, CountdownEventStore(prefs).get(1)?.design)
+        assertNull(CountdownEventStore(prefs).get(2)?.design)
+        // Events stored before designs could be chosen, and a design this version doesn't know, follow the bar.
+        prefs.edit().putString(
+            SettingsManager.COUNTDOWN_EVENTS.name,
+            "{\"3\":{\"title\":\"X\",\"date\":\"2026-01-01\"},\"4\":{\"title\":\"Y\",\"date\":\"2026-01-01\",\"design\":\"NEON\"}}"
+        ).commit()
+        assertNull(CountdownEventStore(prefs).get(3)?.design)
+        assertEquals("Y", CountdownEventStore(prefs).get(4)?.title)
+        assertNull(CountdownEventStore(prefs).get(4)?.design)
+    }
+
+    @Test
     fun anUnreadableSettingReadsAsNoEvents() {
         val prefs = ApplicationProvider.getApplicationContext<Context>().getSharedPreferences("countdown_test_bad", Context.MODE_PRIVATE)
         prefs.edit().putString(SettingsManager.COUNTDOWN_EVENTS.name, "{\"3\":{\"title\":\"X\",\"date\":\"not a date\"},\"x\":1, \"4\":{\"title\":\"\",\"date\":\"2026-01-01\"}}").commit()

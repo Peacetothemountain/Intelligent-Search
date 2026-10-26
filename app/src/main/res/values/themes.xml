@@ -66,6 +66,13 @@
         <item name="android:windowSplashScreenAnimatedIcon">@drawable/transparent_splash</item>
     </style>
 
+    <!-- Opened from the home screen's search bar (WidgetActivity): translucent to Android at launch (no wallpaper
+         yet), so Pixel Launcher grows the overlay out of the bar as a see-through window instead of covering it with a
+         copy of the bar, a black fill and its dark launch scrim. The wallpaper comes on once that animation is over. -->
+    <style name="Theme.IntelligentSearch.Overlay.WidgetLaunch" parent="Theme.IntelligentSearch.Overlay.Widget">
+        <item name="android:windowShowWallpaper">false</item>
+    </style>
+
     <style name="Theme.IntelligentSearch.Overlay.Launcher" parent="Theme.IntelligentSearch.Overlay">
         <item name="android:windowElevation">0dp</item>
         <item name="android:windowSplashScreenBackground">@android:color/transparent</item>

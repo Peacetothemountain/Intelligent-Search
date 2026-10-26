@@ -43,6 +43,17 @@ open class MainActivity : AppCompatActivity() {
     private val adpfThermalManager by lazy { com.pixel.intelligentsearch.core.performance.ADPFThermalManager.getInstance(this) }
     private val frameMetricsMonitor by lazy { com.pixel.intelligentsearch.core.performance.FrameMetricsMonitor(adpfThermalManager) }
 
+    /**
+     * Whether this entry opens as a see-through window, without the wallpaper, until the launcher's launch animation
+     * is over. Android counts a window that shows the wallpaper as opaque, and Pixel Launcher grows an opaque app out
+     * of the home screen's search bar by covering it with a copy of the bar, a black fill and a dark scrim; a
+     * translucent one it simply grows out of the bar. The home screen's search bar opens [WidgetActivity].
+     */
+    protected open val translucentLaunch: Boolean get() = false
+
+    /** True while a [translucentLaunch] holds the wallpaper back. */
+    private var wallpaperHeld by androidx.compose.runtime.mutableStateOf(false)
+
     private val dismissOverlayReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             finish()
@@ -181,8 +192,9 @@ open class MainActivity : AppCompatActivity() {
         val prefs = getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
         val initialShowWallpaper = prefs[SettingsManager.SHOW_WALLPAPER]
         val initialBlur = prefs[SettingsManager.BACKGROUND_BLUR]
+        wallpaperHeld = initialShowWallpaper && translucentLaunch
         if (initialShowWallpaper) {
-            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+            if (!wallpaperHeld) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
             if (initialBlur > 0) {
                 window.addFlags(android.view.WindowManager.LayoutParams.FLAG_BLUR_BEHIND)
             }
@@ -246,8 +258,18 @@ open class MainActivity : AppCompatActivity() {
                     val throttleLevel by adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
                     var lastAppliedWall by remember { mutableStateOf<Boolean?>(null) }
                     var lastAppliedBlur by remember { mutableIntStateOf(-1) }
-                    DisposableEffect(settingsState.backgroundBlur, settingsState.showWallpaper, throttleLevel) {
-                        val isWall = settingsState.showWallpaper
+                    // A translucent launch shows the wallpaper once the launcher's launch animation is over.
+                    if (wallpaperHeld) {
+                        LaunchedEffect(Unit) {
+                            kotlinx.coroutines.delay(TRANSLUCENT_LAUNCH_HOLD_MS)
+                            wallpaperHeld = false
+                            // Opaque again (as a window showing the wallpaper always is), so Android takes the
+                            // home screen away from behind it and only the wallpaper shows, as from anywhere else.
+                            setTranslucent(false)
+                        }
+                    }
+                    DisposableEffect(settingsState.backgroundBlur, settingsState.showWallpaper, throttleLevel, wallpaperHeld) {
+                        val isWall = settingsState.showWallpaper && !wallpaperHeld
                         if (lastAppliedWall != isWall) {
                             if (isWall) {
                                 window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
@@ -257,7 +279,8 @@ open class MainActivity : AppCompatActivity() {
                             lastAppliedWall = isWall
                         }
                         val blurRadius = settingsState.backgroundBlur
-                        val targetBlur = if (isWall) adpfThermalManager.getRecommendedBlurRadius(blurRadius.toFloat()).toInt() else 0
+                        // While the wallpaper is held back, the home screen behind is blurred the same way.
+                        val targetBlur = if (settingsState.showWallpaper) adpfThermalManager.getRecommendedBlurRadius(blurRadius.toFloat()).toInt() else 0
                         if (targetBlur != lastAppliedBlur) {
                             runCatching {
                                 if (targetBlur > 0) {
@@ -423,6 +446,9 @@ open class MainActivity : AppCompatActivity() {
     }
 
     private companion object {
+        /** Pixel Launcher's widget launch animation lasts 500ms (QuickstepTransitionManager); a frame or two more. */
+        const val TRANSLUCENT_LAUNCH_HOLD_MS = 540L
+
         /** Every extra a query can arrive in ([SearchManager.QUERY] is also the plain "query" extra). */
         val QUERY_EXTRAS = listOf(SearchManager.QUERY, Intent.EXTRA_TEXT)
     }

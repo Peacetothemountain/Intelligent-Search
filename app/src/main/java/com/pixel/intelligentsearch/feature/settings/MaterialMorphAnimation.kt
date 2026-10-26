@@ -64,12 +64,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.withClip
+import androidx.core.graphics.withSave
 import androidx.graphics.shapes.Morph
 import androidx.graphics.shapes.MutableCubic
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import kotlinx.coroutines.flow.collectLatest
-import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.max
@@ -448,7 +449,7 @@ private class HalftoneScratch {
  * - the floor is drawn only where a shape breaks it, as before: each shape casts a contact shadow from one light above
  *   and a little to the left, sharp and dark on the floor, wider, softer and fainter the higher it is, with a faint
  *   reflection of its color on a dark page; pressed into the rubber it sinks past the floor's near edge, under which
- *   only a ghost of it shows, the edge dipping round it and catching its color along the stretch;
+ *   only a ghost of it shows, the floor shading darker into the dip; no line is drawn along the floor;
  * - a first landing sends three thin ripples in its color across the floor, following its outline seen flat on the
  *   floor; a later one, one sharp quick ripple;
  * - the silhouette it leaves is a real hollow in the floor's perspective, lit from above: crisp at its edge in its
@@ -508,9 +509,8 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     // Shade falling off from a hollow's far wall, and darkening down the floor's slope into a dip.
     val shadeDownBrush = remember(shadowColor) { verticalFade(shadowColor, darkAtTop = true) }
     val shadeUpBrush = remember(shadowColor) { verticalFade(shadowColor, darkAtTop = false) }
-    // The light a hollow's near lip and the stretched floor catch, from each shape's own color.
+    // The light a hollow's near lip catches, from each shape's own color.
     val lipColors = remember(colors, isDark) { colors.map { if (isDark) lerp(it, Color.White, 0.3f) else it } }
-    val membraneLights = remember(colors, isDark) { colors.map { lerp(it, Color.White, if (isDark) 0.45f else 0.15f) } }
     // Everything a frame draws with is made here, once: paths, poses, the shadow, strokes.
     val builder = remember { MorphPathBuilder() }
     val bodyPaths = remember { Array(physics.maxBodies) { android.graphics.Path() } }
@@ -519,7 +519,8 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val poses = remember { Array(physics.maxBodies) { MorphPose() } }
     val sunk = remember { BooleanArray(physics.maxBodies) }
     val sags = remember { FloatArray(physics.maxBodies) }
-    val edge = remember { FloatArray(MorphBouncePhysics.SHEET_NODES + 1) }
+    // The floor's near edge, one point per rubber node (remade only if the node count changes).
+    val edgeHolder = remember { arrayOf(FloatArray(MorphBouncePhysics.MIN_SHEET_NODES + 1)) }
     val membranePath = remember { android.graphics.Path() }
     val membraneComposePath = remember(membranePath) { membranePath.asComposePath() }
     val imprintPath = remember { android.graphics.Path() }
@@ -535,10 +536,8 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val wideOcclusionStroke = remember(density) { Stroke(width = with(density) { 7.dp.toPx() }) }
     val rippleStroke = remember(density) { Stroke(width = with(density) { 1.dp.toPx() }) }
     val hardRippleStroke = remember(density) { Stroke(width = with(density) { 1.5.dp.toPx() }) }
-    val surfaceLinePx = with(density) { 1.dp.toPx() }
     val innerShadowPx = with(density) { 2.5.dp.toPx() }
     val lipPx = with(density) { 1.5.dp.toPx() }
-    val membraneBandPx = with(density) { 1.5.dp.toPx() }
     val pixelPx = with(density) { 2.dp.toPx() }
     // How strongly each part of the floor is drawn: a light page a lighter touch, a dark one deeper shade.
     val occlusionAlpha = if (isDark) 0.22f else 0.08f
@@ -551,10 +550,7 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
     val hardRippleAlpha = if (isDark) 0.6f else 0.75f
     val dipAlpha = if (isDark) 0.28f else 0.1f
     val slopeAlpha = if (isDark) 0.45f else 0.18f
-    val membraneLightAlpha = if (isDark) 0.32f else 0.45f
-    val floorLineAlpha = if (isDark) 0.5f else 0.28f
     val pixelAlphaMax = if (isDark) 0.75f else 0.6f
-    val scanlineAlphaMax = if (isDark) 0.35f else 0.28f
     // Bumped every frame; the Canvas reads it so only drawing reruns, never composition.
     val frame = remember { mutableLongStateOf(0L) }
 
@@ -631,6 +627,8 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
             val nodePx = physics.nodeSpacing * ppm
 
             // The floor's near edge: the rubber's surface seen in perspective, dipping a share of the way it does.
+            if (edgeHolder[0].size != sheet.u.size) edgeHolder[0] = FloatArray(sheet.u.size)
+            val edge = edgeHolder[0]
             for (i in edge.indices) edge[i] = floorPx + (SURFACE_SAG * (sheet.u[i] - base[i]) * ppm).toFloat()
             membranePath.rewind()
             membranePath.moveTo(-1f, -size.height)
@@ -731,8 +729,8 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                             drawPath(hollowComposePath, colors[colorIndex], alpha = edgeAlpha * rimLight, style = rimStroke)
                         }
                     }
-                    // The hollow's last moment breaks into a few tiny pixels, which dissolve.
-                    val phase = healPixelPhase(heal)
+                    // A shape's second landing, as it leaves, breaks into a few tiny pixels, which dissolve: once a shape.
+                    val phase = imprint.sparklePhase
                     if (phase > 0f && phase < 1f) {
                         val halfWidth = radiusPx * 0.8f
                         val mirror = if (imprint.bodyId % 2 == 0) 1f else -1f
@@ -744,14 +742,6 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                             val py = snapTo(centreY + HEAL_PIXEL_Y[n] * depthPx * 0.5f - pixelPx * 1.5f * local, pixelPx)
                             val side = pixelPx * (1f - 0.45f * local)
                             drawRect(pixelColor, topLeft = Offset(px - side / 2f, py - side / 2f), size = Size(side, side), alpha = a * pixelAlphaMax)
-                        }
-                        val scan = scanlineAlpha(phase)
-                        if (scan > 0f) {
-                            val half = halfWidth * (0.45f + 0.8f * k)
-                            for (line in 0..1) {
-                                val y = snapTo(centreY + (line - 0.5f) * pixelPx * 1.5f, pixelPx / 2f)
-                                drawLine(pixelColor, Offset(xPx - half, y), Offset(xPx + half, y), strokeWidth = surfaceLinePx * 0.75f, alpha = scan * scanlineAlphaMax * (1f - 0.4f * line))
-                            }
                         }
                     }
                 }
@@ -855,67 +845,20 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
                     val cy = (body.prevY + (body.y - body.prevY) * f) * ppm
                     val r = body.radius * ppm * pose.scale
                     val path = screenPaths[i]
-                    canvas.save()
-                    if (sunk[i]) canvas.clipPath(membranePath)
-                    canvas.save()
-                    canvas.clipPath(path)
-                    look.draw(canvas, body, cx, cy, r, halftone)
-                    canvas.restore()
-                    look.drawRim(canvas, path, cy, r)
-                    canvas.restore()
+                    canvas.withSave {
+                        if (sunk[i]) clipPath(membranePath)
+                        withClip(path) { look.draw(this, body, cx, cy, r, halftone) }
+                        look.drawRim(this, path, cy, r)
+                    }
                     if (sunk[i]) {
-                        canvas.save()
-                        canvas.clipOutPath(membranePath)
-                        canvas.drawPath(path, look.ghostPaint)
-                        canvas.restore()
+                        canvas.withSave {
+                            clipOutPath(membranePath)
+                            drawPath(path, look.ghostPaint)
+                        }
                     }
                 }
             }
 
-            // The floor's surface, seen only where a shape has broken it: dipping round a pressing shape and catching
-            // its light along the stretch, then springing back past its rest line and ringing out across the rubber.
-            for (i in 0 until count) {
-                if (!sunk[i]) continue
-                val body = bodies[i]
-                val sagPx = sags[i]
-                val stretch = membraneStretch(sagPx / ppm, body.radius)
-                if (stretch <= 0f) continue
-                val light = membraneLights[body.id % colors.size]
-                val xPx = (body.prevX + (body.x - body.prevX) * f) * ppm
-                val reach = body.radius * ppm * MEMBRANE_REACH
-                val a = ((xPx - reach) / nodePx).toInt().coerceIn(0, edge.lastIndex)
-                val z = ceil((xPx + reach) / nodePx).toInt().coerceIn(0, edge.lastIndex)
-                for (band in 1..3) {
-                    for (n in a until z) {
-                        val d0 = ((edge[n] - floorPx) / sagPx).coerceIn(0f, 1f)
-                        val d1 = ((edge[n + 1] - floorPx) / sagPx).coerceIn(0f, 1f)
-                        val fade = min(d0, d1)
-                        if (fade <= 0.01f) continue
-                        drawLine(
-                            light,
-                            Offset(n * nodePx, edge[n] + band * membraneBandPx * d0),
-                            Offset((n + 1) * nodePx, edge[n + 1] + band * membraneBandPx * d1),
-                            strokeWidth = membraneBandPx * 1.2f,
-                            alpha = (membraneLightAlpha * stretch / band * fade).coerceAtMost(1f)
-                        )
-                    }
-                }
-            }
-            val typicalPx = scene.radiiMetres[1] * ppm
-            for (n in 0 until edge.lastIndex) {
-                val moved = max(abs(edge[n] - floorPx), abs(edge[n + 1] - floorPx)) / (0.12f * typicalPx)
-                var fresh = 0f
-                val x = (n + 0.5f) * nodePx
-                for (imprint in physics.imprints) {
-                    if (!imprint.active) continue
-                    val strength = imprint.shrink
-                    if (strength <= 0f) continue
-                    fresh = max(fresh, strength * membraneBump((x - imprint.x * ppm) / (imprint.radius * ppm * MEMBRANE_REACH)))
-                }
-                val strength = (fresh * 0.5f + moved).coerceIn(0f, 1f)
-                if (strength < 0.02f) continue
-                drawLine(shadowColor, Offset(n * nodePx, edge[n]), Offset((n + 1) * nodePx, edge[n + 1]), strokeWidth = surfaceLinePx, alpha = floorLineAlpha * sqrt(strength))
-            }
         }
     }
 }

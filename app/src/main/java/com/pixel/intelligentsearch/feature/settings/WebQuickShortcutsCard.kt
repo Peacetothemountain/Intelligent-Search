@@ -283,7 +283,8 @@ internal fun WebQuickShortcutsCard() {
                         )
                         Text(
                             "Web Shortcuts. Swipe to Remove.",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -314,7 +315,8 @@ internal fun WebQuickShortcutsCard() {
                     ) {
                         Text(
                             text = "No Active Shortcuts. Tap Add or Restore Direct Shortcuts Below.",
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(16.dp)
                         )
@@ -801,7 +803,7 @@ internal fun WebQuickShortcutsCard() {
                                     urlTemplate = trimmedUrl,
                                     targetPackage = trimmedPackage.ifBlank { null },
                                     isBuiltIn = false,
-                                    description = "Custom shortcut for $derivedName"
+                                    description = "Custom Shortcut for $derivedName."
                                 )
 
                                 localDismissedPrefixes = localDismissedPrefixes - newBang.displayPrefix

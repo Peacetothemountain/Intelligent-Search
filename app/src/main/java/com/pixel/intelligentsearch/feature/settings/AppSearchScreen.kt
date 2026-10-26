@@ -13,7 +13,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Animation
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Spellcheck
 import androidx.compose.material.icons.outlined.ViewCarousel
@@ -85,15 +84,6 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                     icon = Icons.Outlined.Spellcheck,
                     isChecked = fuzzySearch,
                     onCheckedChange = { fuzzySearch = it },
-                    showDivider = true
-                )
-                var appAnimation by rememberSetting(SettingsManager.APP_ANIMATIONS)
-                SettingsRowToggle(
-                    title = "App Animations",
-                    subtitle = "Use Dynamic Animations When Launching Apps from Search Overlay Page.",
-                    icon = Icons.Outlined.Animation,
-                    isChecked = appAnimation,
-                    onCheckedChange = { appAnimation = it },
                     showDivider = false
                 )
             }
@@ -105,7 +95,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                 var quickAppPanel by rememberSetting(SettingsManager.QUICK_SEARCH_HORIZONTAL)
                 SettingsRowToggle(
                     title = "Quick App Panel",
-                    subtitle = "Show Your Quick Launch Apps Next to the Search Bar.",
+                    subtitle = QUICK_APP_PANEL_SUBTITLE,
                     icon = Icons.Outlined.ViewCompact,
                     isChecked = quickAppPanel,
                     onCheckedChange = { quickAppPanel = it },
@@ -170,3 +160,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
         }
     }
 }
+
+/** What the Quick App Panel switch does: its apps are the ones chosen under Application Search. */
+internal const val QUICK_APP_PANEL_SUBTITLE =
+    "Fixed Applications Sourced from Application Search Menu. Quickly Launch Your Favorite Apps Without Searching."

@@ -59,7 +59,6 @@ class BackupManager @Inject constructor(
             "showWallpaper" to SettingsManager.SHOW_WALLPAPER,
             "filesHiddenFiles" to SettingsManager.FILES_HIDDEN_FILES,
             "filesThumbnails" to SettingsManager.FILES_THUMBNAILS,
-            "appAnimations" to SettingsManager.APP_ANIMATIONS,
             "bottomSearch" to SettingsManager.BOTTOM_SEARCH,
             "bottomSearchResult" to SettingsManager.BOTTOM_SEARCH_RESULT,
             "appQuickLaunch" to SettingsManager.APP_QUICK_LAUNCH,
@@ -176,7 +175,6 @@ class BackupManager @Inject constructor(
         prefsMap["customSearchEngineUrl"] = currentSettings.customSearchEngineUrl
         prefsMap["filesHiddenFiles"] = currentSettings.filesHiddenFiles.toString()
         prefsMap["filesThumbnails"] = currentSettings.filesThumbnails.toString()
-        prefsMap["appAnimations"] = currentSettings.appAnimations.toString()
         prefsMap["bottomSearch"] = currentSettings.bottomSearch.toString()
         prefsMap["bottomSearchResult"] = currentSettings.bottomSearchResult.toString()
         prefsMap["searchPills"] = currentSettings.searchPills
@@ -587,6 +585,10 @@ class BackupManager @Inject constructor(
                     val flag = WidgetSettingsStore.hctFlagKey(design)
                     val restoresSliders = listOf("hue", "saturation", "lightness").any { spObj.has("${design.prefix}_custom_$it") }
                     if (restoresSliders && !spObj.has(flag)) editor.remove(flag)
+                    // A file from before the inner pill and circle had their own palette forces them, or not, without
+                    // a color: they take the default then, not whatever this phone had picked since.
+                    val pill = "${design.prefix}_lock_pill_color"
+                    if (spObj.has("${design.prefix}_lock_black") && !spObj.has(pill)) editor.remove(pill)
                 }
                 if (editor.commit()) {
                     restoredCount += typedRestored

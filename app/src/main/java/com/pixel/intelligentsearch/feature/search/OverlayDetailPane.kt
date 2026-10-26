@@ -202,7 +202,7 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
                 val configuration = LocalConfiguration.current
                 val splitScreen = splitScreenOffered(isInMultiWindow(context), configuration.smallestScreenWidthDp, otherProfile)
                 DetailActions {
-                    // A tap, so the app opens out of the big icon above it (App Animations).
+                    // A tap, so the app grows out of the big icon above it.
                     DetailAction("Open", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true) {
                         s.ui.highlightedKey = null
                         openResult(context, s, item, LaunchSource.tap(LaunchIconKeys.DETAIL))

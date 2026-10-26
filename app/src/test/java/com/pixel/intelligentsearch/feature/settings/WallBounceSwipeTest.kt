@@ -68,12 +68,16 @@ class WallBounceSwipeTest {
     }
 
     @Test
-    fun aLongEnoughPushPastTheWallDismissesWhicheverWayTheFingerMoves() {
+    fun aLongEnoughPushPastTheWallDismissesUnlessFlickedBack() {
         val over = WallBounce.COMMIT_FRACTION * WIDTH
+        val fast = WallBounce.FLING_DP_PER_S * DENSITY
         for (side in listOf(-1f, 1f)) {
             assertTrue(WallBounce.commits(side * (GAP + over + 1f), 0f, GAP, WIDTH, DENSITY))
-            // Even moving back from the wall as it is let go.
-            assertTrue(WallBounce.commits(side * (GAP + over + 1f), -side * 5_000f, GAP, WIDTH, DENSITY))
+            // Drifting back from the wall as it is let go, it still goes...
+            assertTrue(WallBounce.commits(side * (GAP + over + 1f), -side * (fast - 1f), GAP, WIDTH, DENSITY))
+            // ...but a quick flick back toward the middle takes it back, however far it was pushed.
+            assertFalse(WallBounce.commits(side * (GAP + over + 1f), -side * fast, GAP, WIDTH, DENSITY))
+            assertFalse(WallBounce.commits(side * (GAP + 3f * over), -side * 5_000f * DENSITY, GAP, WIDTH, DENSITY))
             assertFalse(WallBounce.commits(side * (GAP + over - 1f), 0f, GAP, WIDTH, DENSITY))
             assertFalse(WallBounce.commits(side * GAP * 0.8f, 0f, GAP, WIDTH, DENSITY))
         }
@@ -99,29 +103,6 @@ class WallBounceSwipeTest {
     @Test
     fun theExitCrossesBothGapsTheCardAndTheMargin() {
         assertEquals(2 * GAP + WIDTH + 30f, WallBounce.exitDistance(GAP, WIDTH, 30f), 0f)
-    }
-
-    @Test
-    fun exitEasingRisesFromZeroToOneLeavingAtItsStartingShare() {
-        for (share in listOf(0f, 0.15f, 0.35f, 0.6f, 1f)) {
-            val easing = WallBounce.exitEasing(share)
-            assertEquals(0f, easing.transform(0f), 1e-6f)
-            assertEquals(1f, easing.transform(1f), 1e-6f)
-            var last = 0f
-            for (i in 1..100) {
-                val f = easing.transform(i / 100f)
-                assertTrue("share $share: rises at ${i / 100f}", f > last)
-                last = f
-            }
-            // It leaves the wall at [share] of the average speed (the slope at the start).
-            val t = 1e-3f
-            assertEquals("share $share: starting speed", share, easing.transform(t) / t, 2e-3f)
-            // And speeds up after: never faster at the start than at the end.
-            assertTrue(easing.transform(t) / t <= (1f - easing.transform(1f - t)) / t + 1e-3f)
-        }
-        // A share outside 0..1 is held to it.
-        assertEquals(WallBounce.exitEasing(0f).transform(0.5f), WallBounce.exitEasing(-1f).transform(0.5f), 0f)
-        assertEquals(WallBounce.exitEasing(1f).transform(0.5f), WallBounce.exitEasing(3f).transform(0.5f), 0f)
     }
 
     @Test
@@ -183,6 +164,31 @@ class WallBounceSwipeTest {
     private fun runOut() {
         frames()
         compose.mainClock.advanceTimeBy(2_000)
+    }
+
+    /** It bounces visibly off the wall, then leaves at the Widget Shortcuts slots' pace, gone in under half a second. */
+    @Test
+    fun aDismissedCardIsGoneQuickly() {
+        show()
+        state.onDragStart()
+        state.onDrag(-(GAP + 0.3f * WIDTH))
+        frames()
+        state.onDragStop(0f)
+        // Pressed visibly further into the wall as it is let go, then a stretch as it rebounds: the bounce off it.
+        val held = WallBounce.squashFor(0.3f * WIDTH, WIDTH)
+        var deepest = 0f
+        var stretched = 0f
+        repeat(12) {
+            frames(1)
+            deepest = maxOf(deepest, state.squash.value)
+            stretched = minOf(stretched, state.squash.value)
+        }
+        assertTrue("barely pressed in: $deepest after $held", deepest > held + 0.02f)
+        assertTrue("no rebound stretch: $stretched", stretched < -0.005f)
+        compose.mainClock.advanceTimeBy(250)
+        frames()
+        assertEquals("gone in well under half a second", 1, exits)
+        assertEquals(-GAP + WallBounce.exitDistance(GAP, WIDTH, GAP), state.offset.value, 0.5f)
     }
 
     @Test

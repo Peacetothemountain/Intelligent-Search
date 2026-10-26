@@ -62,8 +62,12 @@ internal class OverlayScope(
     val performAppLaunch: (AppItem, LaunchSource) -> Unit,
     /** The app icons on screen; mark each with Modifier.launchIcon so apps opened from it open out of it. */
     val launchIcons: LaunchIcons,
-    /** How to open an app (or its shortcut) from a source, per the App Animations setting (null = system default). */
-    val appLaunch: (LaunchSource) -> AppLaunchOptions?,
+    /**
+     * Opens an app (or one of its actions) from a source: package, profile (null = personal), launcher activity if
+     * known, what it was opened from, and how to start it. The app grows out of its icon first (AppOpeningLayer), and
+     * [start] then gets the ActivityOptions and source bounds to start it with.
+     */
+    val openApp: (String, android.os.UserHandle?, String?, LaunchSource, (AppLaunchOptions) -> Unit) -> Unit,
     val closeOverlay: () -> Unit,
     val launchWebSearch: (String) -> Unit,
     val openWebAddress: (String) -> Unit,

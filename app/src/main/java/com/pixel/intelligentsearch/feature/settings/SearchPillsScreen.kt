@@ -103,6 +103,8 @@ fun SearchPillsScreen(
     // One state object, so drag handlers never write a stale copy.
     var localPillList by remember { mutableStateOf(profiles.pills()) }
     var resetCounter by remember { mutableIntStateOf(0) }
+    // Pills Reset brought back, each with how many times: a new key gives each a fresh card that slides in.
+    var revived by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
     fun persistPills(newPills: List<String>) {
         localPillList = newPills
@@ -245,11 +247,15 @@ fun SearchPillsScreen(
                         ProfileStateActions(
                             profile = activeProfile,
                             onReset = {
-                                // Reset puts back the saved list, so a pill still flying off stays.
+                                // Reset puts back the saved list, so a pill still flying off stays. Only the pills
+                                // that were missing (swiped away, or still flying off) slide back in; the rest stay put.
+                                val shown = (localPillList - leavingPills.toSet()).toSet()
                                 leavingPills.clear()
-                                resetCounter++
-                                localPillList = profiles.resetToSaved()
-                                slideIn(localPillList)
+                                val saved = profiles.resetToSaved()
+                                val missing = saved.filter { it !in shown }
+                                revived = revived + missing.associateWith { (revived[it] ?: 0) + 1 }
+                                localPillList = saved
+                                slideIn(missing)
                             },
                             // A pill flying off is already gone: it isn't part of what's saved.
                             onSave = { profiles.saveState(localPillList - leavingPills.toSet()) }
@@ -319,8 +325,16 @@ fun SearchPillsScreen(
                         CircularProgressIndicator(modifier = Modifier.testTag(com.pixel.intelligentsearch.core.ui.LOADING_INDICATOR_TAG))
                     }
                 } else {
-                    androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(filteredApps, key = { it.packageName }) { appItem ->
+                    // The same container and rows as Manage Hidden Apps, without the switch: tapping an app adds it.
+                    com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
+                        shape = RoundedCornerShape(24.dp),
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = null,
+                        modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
+                    ) {
+                    androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.fillMaxSize().padding(vertical = 8.dp)) {
+                        items(filteredApps.size, key = { filteredApps[it].packageName }) { index ->
+                            val appItem = filteredApps[index]
                             val packageName = appItem.packageName
                             val isSelected = selectedApps.contains(packageName)
                             val isAlreadyAdded = localPillList.contains(packageName)
@@ -329,49 +343,45 @@ fun SearchPillsScreen(
                                 value = withContext(Dispatchers.IO) { getNativeAppIcon(context, packageName) }
                             }
 
-                            androidx.compose.foundation.layout.Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .then(if (isSelected) Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)) else Modifier)
-                            ) {
-                                SettingsRow(
-                                    title = appItem.label,
-                                    subtitle = when {
-                                        isAlreadyAdded -> "Already in Quick Launch"
-                                        com.pixel.intelligentsearch.core.bangs.AiAssistants.forPackage(packageName) != null -> "AI Assistant. Its Pill Asks It Your Search."
-                                        else -> packageName.breakableAtDots()
-                                    },
-                                    icon = appIcon ?: Icons.Outlined.Apps,
-                                    onClick = {
-                                        if (multiSelectMode) {
-                                            selectedApps = if (isSelected) selectedApps - packageName else selectedApps + packageName
-                                            if (selectedApps.isEmpty()) multiSelectMode = false
-                                        } else {
-                                            if (!isAlreadyAdded) {
-                                                if (localPillList.size >= SearchPillProfiles.MAX_PILLS) {
-                                                    showMaxWarning = true
-                                                } else {
-                                                    val updated = localPillList + packageName
-                                                    resetCounter++
-                                                    persistPills(updated)
-                                                    slideIn(listOf(packageName))
-                                                    showAppPicker = false
-                                                }
+                            SettingsAppRow(
+                                title = appItem.label,
+                                subtitle = when {
+                                    isAlreadyAdded -> "Already in Quick Launch."
+                                    com.pixel.intelligentsearch.core.bangs.AiAssistants.forPackage(packageName) != null -> "AI Assistant. Its Pill Asks It Your Search."
+                                    else -> packageName.breakableAtDots()
+                                },
+                                icon = appIcon ?: Icons.Outlined.Apps,
+                                selected = isSelected,
+                                onClick = {
+                                    if (multiSelectMode) {
+                                        selectedApps = if (isSelected) selectedApps - packageName else selectedApps + packageName
+                                        if (selectedApps.isEmpty()) multiSelectMode = false
+                                    } else {
+                                        if (!isAlreadyAdded) {
+                                            if (localPillList.size >= SearchPillProfiles.MAX_PILLS) {
+                                                showMaxWarning = true
                                             } else {
+                                                val updated = localPillList + packageName
+                                                resetCounter++
+                                                persistPills(updated)
+                                                slideIn(listOf(packageName))
                                                 showAppPicker = false
                                             }
+                                        } else {
+                                            showAppPicker = false
                                         }
-                                    },
-                                    onLongClick = {
-                                        if (!multiSelectMode) {
-                                            multiSelectMode = true
-                                            selectedApps = setOf(packageName)
-                                        }
-                                    },
-                                    showDivider = true
-                                )
-                            }
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!multiSelectMode) {
+                                        multiSelectMode = true
+                                        selectedApps = setOf(packageName)
+                                    }
+                                },
+                                showDivider = index < filteredApps.size - 1
+                            )
                         }
+                    }
                     }
                 }
             }
@@ -410,14 +420,15 @@ fun SearchPillsScreen(
                                 modifier = Modifier.size(48.dp)
                             )
                             Text(
-                                "Profile $activeProfile is Empty",
+                                "Profile $activeProfile Is Empty",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                "Tap '+' to add applications to Profile $activeProfile. All changes auto-save in real-time.",
+                                "Tap '+' to Add Applications to Profile $activeProfile. All Changes Auto-Save in Real Time.",
                                 style = MaterialTheme.typography.bodyMedium,
+                                fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
@@ -595,7 +606,7 @@ fun SearchPillsScreen(
                             }
 
                             Box(modifier = itemModifier) {
-                                key(packageName, resetCounter) {
+                                key(packageName, resetCounter, revived[packageName] ?: 0) {
                                     // Swiped toward a wall, the card presses into it, springs off, comes back through
                                     // the middle and leaves past the other edge; after Reset or an add it slides in
                                     // from the right and settles with a small bounce.

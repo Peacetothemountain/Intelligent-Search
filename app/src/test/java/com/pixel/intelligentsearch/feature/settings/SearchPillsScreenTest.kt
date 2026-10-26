@@ -253,17 +253,18 @@ class SearchPillsScreenTest {
         pill("a.b").assertExists()
     }
 
+    /** Reset slides back in only the pills that were missing; the ones still there stay put. */
     @Test
-    fun resetSlidesThePillsInFromTheRight() {
-        prefs.edit().put(SettingsManager.SEARCH_PILLS, "a.b,c.d").commit()
+    fun resetSlidesOnlyTheMissingPillsInFromTheRight() {
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, "c.d").commit()
         SearchPillProfiles(prefs).saveState(listOf("a.b", "c.d"))
         showAnimated()
         val restingLeft = pillLeft("c.d")
 
         compose.onNodeWithContentDescription("Reset to Saved State").performClick()
         frames(4)
-        assertTrue("arriving from the right", pillLeft("a.b") > restingLeft)
-        assertTrue("arriving from the right", pillLeft("c.d") > restingLeft)
+        assertTrue("the swiped-away pill arrives from the right", pillLeft("a.b") > restingLeft)
+        assertEquals("the pill that was there stays put", restingLeft, pillLeft("c.d"), 0.5f)
 
         compose.settle(steps = 10)
         assertEquals(restingLeft, pillLeft("a.b"), 0.5f)

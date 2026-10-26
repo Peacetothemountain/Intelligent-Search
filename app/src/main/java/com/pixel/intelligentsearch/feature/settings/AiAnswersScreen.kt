@@ -90,7 +90,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                         SettingsRowToggle(
                             title = "AI Answers",
                             subtitle = block?.let(NetworkPolicy::blockSubtitle)
-                                ?: "Questions Ending in ? or Starting with Ask Show an Ask Row. Only the Question You Tap Ask On Is Sent.",
+                                ?: "Questions Ending in ? or Starting with Ask Show an Ask Row. Only the Question You Tap Ask on Is Sent.",
                             icon = Icons.Outlined.AutoAwesome,
                             isChecked = enabled && block == null,
                             onCheckedChange = { if (block == null) enabled = it },
@@ -137,7 +137,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                         // What is sent, and where: information only, so a row without a chevron.
                         SettingsInfoRow(
                             title = "Privacy",
-                            subtitle = "Only the Question You Tap Ask On Is Sent, to ${provider.host} over HTTPS. Your Key Goes Only to ${provider.host}.",
+                            subtitle = "Only the Question You Tap Ask on Is Sent, to ${provider.host} over HTTPS. Your Key Goes Only to ${provider.host}.",
                             icon = Icons.Outlined.PrivacyTip,
                             showDivider = false
                         )

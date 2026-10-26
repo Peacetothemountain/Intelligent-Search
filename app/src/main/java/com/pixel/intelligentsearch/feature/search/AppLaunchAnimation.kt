@@ -22,52 +22,37 @@ import androidx.compose.ui.platform.testTag
 import com.pixel.intelligentsearch.core.data.AppItem
 import kotlin.math.ceil
 import kotlin.math.floor
-import kotlin.math.roundToInt
 
 /**
- * How an app opened from the overlay starts: the ActivityOptions for its opening animation, and its source bounds,
- * the tapped icon's bounds on screen, which the app receives as `Intent.getSourceBounds()` just as from a launcher.
- * Null when it came from no icon on screen.
+ * How an app opened from the overlay starts: the ActivityOptions it is started with, and its source bounds, the tapped
+ * icon's bounds on screen, which the app receives as `Intent.getSourceBounds()` just as from a launcher. Null when it
+ * came from no icon on screen.
  */
 class AppLaunchOptions(val options: Bundle?, val sourceBounds: android.graphics.Rect?)
 
 /**
- * The App Animations setting for apps and shortcuts opened from the overlay. On, the app opens out of the icon that
- * was tapped, as it does from a launcher icon; off, Android's default app-open transition plays.
+ * The ActivityOptions for an app opened from the overlay, once [AppOpeningLayer] has grown the tapped icon into the
+ * app's splash screen.
  *
- * The Pixel launcher's own icon-to-window animation is a remote transition only the launcher may run (it needs a
- * system permission), so this does what an ordinary app can that comes closest, as the launcher itself does when it
- * cannot run its own: the app's window is revealed out of the icon's bounds on screen (a clip-reveal launch from the
- * icon's position and size), on the overlay's display, and the app is told the icon's bounds as its source. From
- * Android 13 its splash screen also shows the app's icon, as it does when an app is opened from the launcher, rather
- * than the plain splash Android gives apps opened from another app.
+ * Android 17 drops an ordinary app's own opening animations (clip reveal, scale up) when it opens another app's task:
+ * only the launcher, with a system permission, may move another app's window. So the overlay draws the motion itself,
+ * in its own window, and only then starts the app, on the overlay's display, with its icon on the splash screen (from
+ * Android 13), as when it is opened from the launcher, so the real splash takes over from the one drawn.
  */
 internal object AppLaunchAnimation {
 
-    /**
-     * The launch from [source] (the overlay's view) out of [icon], the tapped icon's bounds in that view's coordinates.
-     * Without an icon on screen the app opens out of [touch], the point touched (null for Enter on a keyboard), and
-     * failing that out of the overlay's middle. Null when [enabled] is off, which leaves the system default.
-     */
-    fun launch(source: View, enabled: Boolean, icon: Rect?, touch: Offset?): AppLaunchOptions? {
-        if (!enabled) return null
-        val iconBounds = icon?.takeIf { it.width > 0f && it.height > 0f }?.let {
-            // Whole pixels covering all of the icon.
-            android.graphics.Rect(floor(it.left).toInt(), floor(it.top).toInt(), ceil(it.right).toInt(), ceil(it.bottom).toInt())
-        }
-        val reveal = iconBounds ?: run {
-            val x = touch?.x?.roundToInt() ?: (source.width / 2)
-            val y = touch?.y?.roundToInt() ?: (source.height / 2)
-            android.graphics.Rect(x, y, x, y)
-        }
-        val options = ActivityOptions.makeClipRevealAnimation(source, reveal.left, reveal.top, reveal.width(), reveal.height())
+    /** The launch from [source] (the overlay's view) out of [icon], the tapped icon's bounds in that view (null: none). */
+    fun launch(source: View, icon: Rect?): AppLaunchOptions {
+        val options = ActivityOptions.makeBasic()
         source.display?.let { options.setLaunchDisplayId(it.displayId) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             options.setSplashScreenStyle(SplashScreen.SPLASH_SCREEN_STYLE_ICON)
         }
-        val sourceBounds = iconBounds?.let {
+        val sourceBounds = icon?.takeIf { it.width > 0f && it.height > 0f }?.let {
+            // Whole pixels covering all of the icon, on screen.
             val onScreen = IntArray(2).also(source::getLocationOnScreen)
-            android.graphics.Rect(it).apply { offset(onScreen[0], onScreen[1]) }
+            android.graphics.Rect(floor(it.left).toInt(), floor(it.top).toInt(), ceil(it.right).toInt(), ceil(it.bottom).toInt())
+                .apply { offset(onScreen[0], onScreen[1]) }
         }
         return AppLaunchOptions(options.toBundle(), sourceBounds)
     }

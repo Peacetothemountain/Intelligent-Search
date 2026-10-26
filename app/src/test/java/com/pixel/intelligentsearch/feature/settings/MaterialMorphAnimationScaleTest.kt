@@ -130,6 +130,8 @@ class MaterialMorphAnimationScaleTest {
         // Taps felt before this run, by shapes that have since left.
         val start = areaNode().config[MorphSceneKey]
         for (b in start.physics.bodies) seen[b.id] = b
+        // Shapes already in the air when the check begins may have had their area change under them.
+        val inTheAirAtStart = start.physics.bodies.map { it.id }.toSet()
         val feltBefore = start.bouncesFelt - seen.values.sumOf { it.bounces }
         var t = 0f
         while (t < seconds) {
@@ -178,7 +180,7 @@ class MaterialMorphAnimationScaleTest {
                 val body = seen.getValue(id)
                 run.shapesSeen++
                 // (One the area changed under, whose planned flight no longer leaves by itself, leaves with the change.)
-                if (body.age > 0.5f && (body.x < 0f || body.x > physics.width)) assertTrue("$where: shape $id left after ${body.bounces} bounces", body.bounces >= 2)
+                if (id !in inTheAirAtStart && (body.x < 0f || body.x > physics.width)) assertTrue("$where: shape $id left after ${body.bounces} bounces", body.bounces >= 2)
             }
             run.bounces = seen.values.sumOf { it.bounces }
             assertEquals("$where: bounces felt", run.bounces, info.bouncesFelt - feltBefore)

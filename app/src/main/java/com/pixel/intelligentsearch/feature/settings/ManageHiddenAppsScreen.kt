@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.runtime.setValue
@@ -101,7 +102,7 @@ fun ManageHiddenAppsScreen(
     )
 
     fun save() {
-        prefs.edit().put(SettingsManager.HIDDEN_APPS, hiddenApps).apply()
+        prefs.edit { put(SettingsManager.HIDDEN_APPS, hiddenApps) }
         savedHiddenApps = hiddenApps
     }
 
@@ -125,7 +126,7 @@ fun ManageHiddenAppsScreen(
                 onBack()
             },
             onDontShowAgain = {
-                prefs.edit().put(SettingsManager.HIDDEN_APPS_UNSAVED_WARNING_DISMISSED, true).apply()
+                prefs.edit { put(SettingsManager.HIDDEN_APPS_UNSAVED_WARNING_DISMISSED, true) }
                 showUnsavedChangesCard = false
                 onBack()
             },

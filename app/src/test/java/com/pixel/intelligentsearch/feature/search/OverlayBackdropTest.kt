@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import androidx.compose.ui.graphics.luminance
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -75,5 +76,20 @@ class OverlayBackdropTest {
         // Out-of-range settings read as the nearest end of their slider.
         assertEquals(overlayScrimAlpha(0, 100, false), overlayScrimAlpha(-50, 250, false), 0f)
         assertEquals(overlayScrimAlpha(100, 0, false), overlayScrimAlpha(250, -50, false), 0f)
+    }
+
+    /**
+     * Over the wallpaper, the dark theme's scrim dims it with the scheme's scrim, as it always has; the light theme's
+     * washes it toward its light surfaceContainer instead. A black scrim under the light panel muddied the wallpaper
+     * to gray.
+     */
+    @Test
+    fun theDarkScrimDimsAndTheLightOneWashesOutLight() {
+        val dark = androidx.compose.material3.darkColorScheme()
+        val light = androidx.compose.material3.lightColorScheme()
+        assertEquals(dark.scrim, overlayScrimColor(dark))
+        assertEquals(light.surfaceContainer, overlayScrimColor(light))
+        assertTrue(androidx.compose.ui.graphics.Color.Black != overlayScrimColor(light))
+        assertTrue(overlayScrimColor(light).luminance() > 0.5f)
     }
 }

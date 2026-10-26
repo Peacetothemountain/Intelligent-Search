@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import androidx.activity.compose.BackHandler
+import com.pixel.intelligentsearch.core.theme.pageTrack
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
@@ -191,6 +192,7 @@ fun SearchPillsScreen(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
+                colors = settingsTopBarColors(),
                 title = {
                     if (showAppPicker && multiSelectMode) {
                         Text("${selectedApps.size} Selected", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
@@ -318,7 +320,7 @@ fun SearchPillsScreen(
                     // The same container and rows as Manage Hidden Apps, without the switch: tapping an app adds it.
                     com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
                         shape = RoundedCornerShape(24.dp),
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        containerColor = MaterialTheme.colorScheme.pageTrack(0.5f),
                         border = null,
                         modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
                     ) {
@@ -395,7 +397,7 @@ fun SearchPillsScreen(
                             .fillMaxWidth()
                             .padding(16.dp),
                         shape = RoundedCornerShape(24.dp),
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        containerColor = MaterialTheme.colorScheme.pageTrack(0.4f),
                         border = null
                     ) {
                         Column(
@@ -632,7 +634,7 @@ fun SearchPillsScreen(
                                             }
                                         }
 
-                                        val containerBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                        val containerBg = MaterialTheme.colorScheme.pageTrack(0.6f)
                                             .compositeOver(MaterialTheme.colorScheme.background)
 
                                         com.pixel.intelligentsearch.core.ui.expressive.MatteShell(

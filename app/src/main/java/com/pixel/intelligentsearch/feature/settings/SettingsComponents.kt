@@ -37,13 +37,15 @@ import androidx.compose.ui.draw.*
 import androidx.compose.foundation.Image
 import androidx.compose.ui.semantics.*
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
+import com.pixel.intelligentsearch.core.theme.pageContainer
 import com.pixel.intelligentsearch.core.ui.expressive.expressivePress
 
 // REUSABLE COMPONENTS
 // -----------------------------------------------------------------------------------------
 /**
- * A group of settings rows: a flat card in surfaceContainer with a faint outline-variant hairline, drawn as a matte
- * shell ([MatteShell]), so it keeps exactly that colour and only gains the matte grain on its surface.
+ * A group of settings rows: a flat card in the page's container color ([pageContainer]: surfaceContainer in dark,
+ * the light palette's near-white on the light theme's tinted page) with a faint outline-variant hairline, drawn as a
+ * matte shell ([MatteShell]), so it keeps exactly that colour and only gains the matte grain on its surface.
  */
 @Composable
 fun SettingsCard(
@@ -57,7 +59,7 @@ fun SettingsCard(
         // Not clipped here: the shell clips its own content, and the light behind it has to show around the edge.
         modifier = modifier,
         shape = ExpressiveCornerTokens.ShapeExtraLarge,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        containerColor = MaterialTheme.colorScheme.pageContainer,
         border = com.pixel.intelligentsearch.core.ui.expressive.MatteShellDefaults.border(),
         lit = lit
     ) {
@@ -91,6 +93,15 @@ fun androidx.compose.foundation.layout.ColumnScope.AttachedRows(
         content = content
     )
 }
+
+/**
+ * A settings page's top bar colors: the page's own ([androidx.compose.material3.ColorScheme.background]), so the bar
+ * never shows as a band of another surface over the page it heads.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun settingsTopBarColors(): TopAppBarColors =
+    TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
 
 @Composable
 fun SettingsSectionHeader(text: String, modifier: Modifier = Modifier) {

@@ -71,7 +71,8 @@ class WidgetCustomIconColorsTest(private val bar: Bar, private val dark: Boolean
         get() {
             val customIsLight = WidgetColorSlidersTest.iconsGoDarkOn(WidgetColorSlidersTest.colorAtShare(200.0, 0.6, lightness.toDouble()))
             return when {
-                bar.material && bar.lockBlack -> false
+                // Locked with no colour picked: the theme's own pill, light only in the light theme.
+                bar.material && bar.lockBlack -> !dark
                 bar.isCustom -> customIsLight
                 bar.subtheme == "Light" -> true
                 bar.subtheme == "Dark" -> false
@@ -80,7 +81,7 @@ class WidgetCustomIconColorsTest(private val bar: Bar, private val dark: Boolean
         }
 
     private fun drawn(color: Int): Int =
-        if (bar.material && !bar.lockBlack && pillIsLight) MaterialYouPaletteHelper.darkenForContrast(color, 32.0) else color
+        if (bar.material && pillIsLight) MaterialYouPaletteHelper.darkenForContrast(color, 32.0) else color
 
     private fun View.tint(id: Int): Int = findViewById<ImageView>(id).imageTintList!!.defaultColor
 

@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.core.ui.rememberAppIcon
+import com.pixel.intelligentsearch.core.theme.raisedContainer
 import com.pixel.intelligentsearch.core.ui.AppIconImage
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import androidx.core.net.toUri
@@ -56,7 +57,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
             .keyboardHighlight(s, ResultListKeys.BEST_MATCH, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.raisedContainer
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
     ) {

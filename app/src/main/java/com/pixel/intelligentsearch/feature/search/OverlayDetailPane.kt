@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.core.ui.fileTypeIcon
+import com.pixel.intelligentsearch.core.theme.raisedContainer
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.runtime.getValue
 import com.pixel.intelligentsearch.core.ui.rememberAppIcon
@@ -155,7 +156,7 @@ private fun DetailCard(s: OverlayScope, target: NavTarget) {
             // Announced as the highlight moves, so a TalkBack user with a keyboard hears what Enter will open.
             .semantics { liveRegion = LiveRegionMode.Polite },
         shape = ExpressiveCornerTokens.ShapeExtraLarge,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+        containerColor = MaterialTheme.colorScheme.raisedContainer
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(24.dp),

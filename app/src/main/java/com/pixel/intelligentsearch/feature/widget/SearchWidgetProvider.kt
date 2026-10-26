@@ -534,7 +534,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
         /** The page color Widget Customization's preview stands on: the app theme's background, as the editor draws it. */
         internal fun editorPageColor(context: Context, isDark: Boolean): Int = runCatching<Int> {
-            val scheme = if (isDark) androidx.compose.material3.dynamicDarkColorScheme(context) else androidx.compose.material3.dynamicLightColorScheme(context)
+            val scheme = com.pixel.intelligentsearch.core.theme.appColorScheme(context, isDark)
             android.graphics.Color.valueOf(scheme.background.red, scheme.background.green, scheme.background.blue).toArgb()
         }.getOrDefault(if (isDark) 0xFF121212.toInt() else 0xFFFFFFFF.toInt())
 
@@ -550,7 +550,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             val settings = WidgetSettingsStore(prefs).load(design, WidgetDefaults(widgetColors.primary, widgetColors.isDynamicActive))
             val isCustom = settings.subtheme == "Custom"
             val backdrop = WidgetColorRules.backdropAlphas(settings, isMaterialYou)
-            val customBar = if (isCustom) WidgetColorRules.customBarColors(settings, isMaterialYou) else null
+            val customBar = if (isCustom) WidgetColorRules.customBarColors(settings, isMaterialYou, widgetColors) else null
             val actualCustomColor = settings.customColorInt
             val effectiveIconTheme = settings.gIconTheme
             // Keep System G is a choice within the Custom G style only, as the editor's preview shows.
@@ -595,18 +595,19 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     actionIconStr = "None",
                     allActiveItems = activeItems(context, settings, micIcon, useMaterialYouIcons),
                     isPillLight = isPillLight,
-                    customIcons = WidgetColorRules.customIconColors(settings, isMaterialDesign = false, isPillLight = isPillLight),
+                    customIcons = WidgetColorRules.customIconColors(settings, isMaterialDesign = false, isPillLight = isPillLight, theme = widgetColors),
                     customBar = customBar,
                     shape = WidgetBarShape.of(settings, isMaterialDesign = false),
                     plainIconTint = plainIconTint(context, customBar, isPillLight)
                 )
             } else {
                 // MATERIAL DESIGN BAR: Dual-layer accent rim, companion circle button
-                // Inner Pill & Circle forces the pill and circle to one color; whether it is light or dark decides the
-                // theme the rim and icons are drawn in, as the theme's own light or dark pill does.
+                // Inner Pill & Circle forces the pill and circle to one color (with none picked, the theme's own: dark
+                // in the dark theme, light in the light theme); whether it is light or dark decides the theme the rim
+                // and icons are drawn in, as the theme's own light or dark pill does.
                 val lockBlack = settings.lockBlack
-                val lockDark = WidgetColorRules.locksDark(settings)
-                val lockLight = WidgetColorRules.locksLight(settings)
+                val lockDark = WidgetColorRules.locksDark(settings, widgetColors)
+                val lockLight = WidgetColorRules.locksLight(settings, widgetColors)
                 val isDarkForWidget = if (lockBlack) lockDark else isDark
                 val effectiveWidgetColors = if (isDarkForWidget != isDark) {
                     DynamicThemeDetector.resolveWidgetColors(context, isDarkForWidget)
@@ -621,7 +622,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 }
 
                 val pillColor = if (lockBlack) {
-                    WidgetColorRules.lockedPill(settings)
+                    WidgetColorRules.lockedPill(settings, widgetColors)
                 } else {
                     if (isCustom) actualCustomColor else effectiveWidgetColors.surfaceContainer
                 }
@@ -654,7 +655,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                     actionIconStr = settings.actionIcon,
                     allActiveItems = activeItems(context, settings, R.drawable.ic_mic, useMaterialYouIcons = true),
                     isPillLight = isPillLight,
-                    customIcons = WidgetColorRules.customIconColors(settings, isMaterialDesign = true, isPillLight = isPillLight),
+                    customIcons = WidgetColorRules.customIconColors(settings, isMaterialDesign = true, isPillLight = isPillLight, theme = widgetColors),
                     customBar = customBar,
                     shape = WidgetBarShape.of(settings, isMaterialDesign = true),
                     plainIconTint = plainIconTint(context, customBar, isPillLight)

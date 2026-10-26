@@ -37,8 +37,8 @@ object HardwareSecurityDetector {
         }
     }
 
-    fun detect(context: Context, securityManager: StrongBoxSecurityManager? = null): SecurityHardwareInfo {
-        val isHardwareSupported = securityManager?.isStrongBoxSupported() ?: hasStrongBoxFeature(context)
+    fun detect(context: Context): SecurityHardwareInfo {
+        val isHardwareSupported = hasStrongBoxFeature(context)
         val level = if (isHardwareSupported) HardwareSecurityLevel.STRONGBOX else HardwareSecurityLevel.TEE
         return detectSecurityHardware(context, level)
     }

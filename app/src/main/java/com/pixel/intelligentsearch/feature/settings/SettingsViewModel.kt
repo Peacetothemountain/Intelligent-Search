@@ -43,12 +43,6 @@ class SettingsViewModel @Inject constructor(
         )
 
 
-    fun updateActiveIconPack(packageName: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            settingsManager.set(SettingsManager.ACTIVE_ICON_PACK, packageName)
-        }
-    }
-
     fun <T : Any> updateSetting(key: SettingKey<T>, value: T) {
         settingsManager.set(key, value)
         if (key == SettingsManager.SEARCH_CONTACTS && value == true) {

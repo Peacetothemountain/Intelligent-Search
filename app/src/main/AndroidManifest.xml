@@ -226,7 +226,7 @@
 
         <activity
             android:name="com.pixel.intelligentsearch.feature.widget.WidgetActivity"
-            android:theme="@style/Theme.IntelligentSearch.Overlay.Widget"
+            android:theme="@style/Theme.IntelligentSearch.Overlay.WidgetLaunch"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
@@ -292,6 +292,15 @@
         </activity>
 
         <receiver android:name="com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver" android:exported="false" />
+        <!-- The search bar's taps: open the overlay without Pixel Launcher's widget launch animation. -->
+        <receiver android:name="com.pixel.intelligentsearch.feature.widget.WidgetLaunchReceiver" android:exported="false" />
+        <activity
+            android:name="com.pixel.intelligentsearch.feature.widget.LaunchAnimationSink"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:taskAffinity="com.pixel.intelligentsearch.launchsink"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:exported="false" />
 
 
 

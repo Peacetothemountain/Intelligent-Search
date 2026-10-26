@@ -241,7 +241,7 @@ object MaterialOutlineManager {
      */
     fun isColorPicture(drawable: Drawable): Boolean = try {
         val size = 108
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val bitmap = androidx.core.graphics.createBitmap(size, size)
         val savedBounds = Rect(drawable.bounds)
         drawable.setBounds(0, 0, size, size)
         drawable.draw(Canvas(bitmap))

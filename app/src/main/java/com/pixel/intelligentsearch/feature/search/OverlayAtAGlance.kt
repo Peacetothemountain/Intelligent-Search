@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -46,7 +45,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -340,9 +338,7 @@ private fun GlanceRow(
     title: String,
     subtitle: String?,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    description: String? = null,
-    trailing: @Composable RowScope.() -> Unit = {}
+    modifier: Modifier = Modifier
 ) {
     val shape = GlanceRowShape
     Row(
@@ -350,7 +346,6 @@ private fun GlanceRow(
             .fillMaxWidth()
             .then(modifier)
             .clip(shape)
-            .then(if (description != null) Modifier.semantics(mergeDescendants = true) { contentDescription = description } else Modifier)
             .bouncyClickable(shape = shape, onClick = onClick)
             .heightIn(min = 56.dp)
             .padding(start = 10.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
@@ -377,15 +372,14 @@ private fun GlanceRow(
                 )
             }
         }
-        trailing()
     }
 }
 
 /** The round badge on a row: the item's icon on the secondary container, as the OneBox cards badge theirs. */
 @Composable
-private fun GlanceBadge(icon: ImageVector, size: Dp = 40.dp) {
+private fun GlanceBadge(icon: ImageVector) {
     Box(
-        modifier = Modifier.size(size).background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+        modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(22.dp))

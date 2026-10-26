@@ -25,12 +25,8 @@ data class AttestationResult(
     val issuerName: String,
     val verifiedBootState: String = "VERIFIED",
     val deviceLocked: Boolean = true,
-    val attestationSecurityLevel: HardwareSecurityLevel = securityLevel,
-    val keymasterSecurityLevel: HardwareSecurityLevel = securityLevel,
-    val osVersion: Int = 0,
     val osPatchLevel: Int = 0,
-    val isRootVerified: Boolean = false,
-    val rootCaSubject: String = ""
+    val isRootVerified: Boolean = false
 )
 
 /**
@@ -86,21 +82,16 @@ class KeyAttestationVerifier(private val context: Context) {
      * and returns the comprehensive hardware verification result.
      */
     @Synchronized
-    fun generateAndVerifyAttestation(
-        challenge: ByteArray? = null,
-        forceRefresh: Boolean = false
-    ): AttestationResult {
+    fun generateAndVerifyAttestation(): AttestationResult {
         val now = System.currentTimeMillis()
-        // The cache only ever holds results for a self-generated challenge. A caller-supplied challenge
-        // must always be attested (and echoed back) fresh, otherwise it would receive a stale result
-        // that was bound to a different challenge.
-        val useCache = challenge == null && !forceRefresh
+        // Every attestation uses a fresh self-generated challenge, so a result cached within the last day is
+        // returned as is.
         val cached = cachedResult
-        if (useCache && cached != null && (now - cacheTimestamp < CACHE_TTL_MS)) {
+        if (cached != null && (now - cacheTimestamp < CACHE_TTL_MS)) {
             return cached
         }
 
-        val actualChallenge = challenge ?: ByteArray(32).apply { SecureRandom().nextBytes(this) }
+        val actualChallenge = ByteArray(32).apply { SecureRandom().nextBytes(this) }
         val challengeDisplay = Base64.encodeToString(actualChallenge, Base64.NO_WRAP)
 
         return try {
@@ -168,7 +159,6 @@ class KeyAttestationVerifier(private val context: Context) {
             val rootCert = certChain.last() as? X509Certificate
             var isRootVerified = false
             var isHardwareRootVerified = false
-            var rootSubject = rootCert?.subjectX500Principal?.name ?: "Unknown"
             if (rootCert != null) {
                 try {
                     rootCert.verify(rootCert.publicKey)
@@ -212,18 +202,12 @@ class KeyAttestationVerifier(private val context: Context) {
                 issuerName = leafCert?.issuerX500Principal?.name ?: "Unknown",
                 verifiedBootState = parsedExtension?.verifiedBootState ?: "UNVERIFIED",
                 deviceLocked = parsedExtension?.deviceLocked ?: false,
-                attestationSecurityLevel = parsedExtension?.attestationSecurityLevel ?: hardwareSecurityLevel,
-                keymasterSecurityLevel = parsedExtension?.keymasterSecurityLevel ?: hardwareSecurityLevel,
-                osVersion = parsedExtension?.osVersion ?: 0,
                 osPatchLevel = parsedExtension?.osPatchLevel ?: 0,
-                isRootVerified = isRootVerified,
-                rootCaSubject = rootSubject
+                isRootVerified = isRootVerified
             )
 
-            if (challenge == null) {
-                cachedResult = result
-                cacheTimestamp = now
-            }
+            cachedResult = result
+            cacheTimestamp = now
             result
         } catch (e: Exception) {
             Log.e(TAG, "Hardware attestation failed: ${e.message}", e)

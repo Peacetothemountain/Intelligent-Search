@@ -1,16 +1,11 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.data.settings.put
-import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.di.appEntryPoint
 import androidx.compose.ui.draw.clip
 import android.content.Context
-import androidx.compose.ui.platform.LocalView
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import android.graphics.drawable.Icon
-import kotlinx.coroutines.launch
 import android.widget.Toast
 import android.content.pm.PackageManager
 import androidx.compose.animation.*
@@ -29,11 +24,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.semantics.*
 
@@ -313,18 +305,15 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                                             modifier = Modifier.padding(10.dp),
                                             verticalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
-                                            Text(
-                                                "adb shell settings put secure user_setup_search_engine com.pixel.intelligentsearch",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                            Text(
-                                                "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
+                                            // The same commands the copy button copies, one per line.
+                                            com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS.lines().forEach { command ->
+                                                Text(
+                                                    command,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
                                         }
                                     }
                                 }

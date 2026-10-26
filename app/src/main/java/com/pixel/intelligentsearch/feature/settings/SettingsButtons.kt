@@ -1,9 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.data.settings.get
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.animation.*
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.animation.core.*
 import androidx.compose.material.icons.filled.*
@@ -13,8 +10,6 @@ import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.semantics.*

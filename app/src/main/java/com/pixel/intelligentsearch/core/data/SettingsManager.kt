@@ -6,7 +6,6 @@ import com.pixel.intelligentsearch.core.data.widget.WidgetProfiles
 import com.pixel.intelligentsearch.core.util.storageContext
 import android.content.Context
 import android.content.SharedPreferences
-import android.os.UserManager
 import android.util.Log
 import androidx.core.content.edit
 import androidx.datastore.preferences.core.Preferences

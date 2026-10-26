@@ -1,8 +1,5 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import kotlin.math.PI
-import kotlin.math.sin
-
 /*
  * The curves behind what the Material Morph animation's floor does round a shape, as the street does under Neo in The
  * Matrix: the ripples a landing sends across it, the floor's near edge dipping round a sunk shape, and the silhouette

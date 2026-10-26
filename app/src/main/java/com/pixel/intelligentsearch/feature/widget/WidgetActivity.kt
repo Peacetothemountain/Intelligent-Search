@@ -14,6 +14,8 @@ import dagger.hilt.android.AndroidEntryPoint
 @AndroidEntryPoint
 class WidgetActivity : MainActivity() {
 
+    override val translucentLaunch: Boolean get() = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         applyZeroTransitions()

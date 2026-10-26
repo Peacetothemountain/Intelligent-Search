@@ -92,4 +92,26 @@ class WidgetBarShapeViewsTest {
             if (material) assertEquals("$label circle back to round", 24, radiusOf(widget.drawn(R.id.widget_sound_background)))
         }
     }
+
+    /**
+     * The launcher learns the bar's rounded shape from its background's outline: it grows an app out of the bar (and
+     * shrinks it back) from that shape, so a bar that doesn't declare its corners animates as a square box over the
+     * rounded pill.
+     */
+    @Test
+    fun theLauncherIsToldTheBarsRoundedCorners() {
+        for (material in listOf(true, false)) {
+            val pillHeight = if (material) 48 else 56
+            for ((outline, corner) in listOf(0 to 0, 0 to 12, 8 to 0, 8 to pillHeight / 2, 4 to 12)) {
+                val widget = views(material, outline, corner).apply(activity, FrameLayout(activity))
+                val background = widget.findViewById<View>(android.R.id.background)
+                val label = "material=$material outline=$outline corner=$corner"
+                val provider = background.outlineProvider as? RemoteViews.RemoteViewOutlineProvider
+                org.junit.Assert.assertNotNull("$label declares its outline", provider)
+                assertEquals("$label clips to it", true, background.clipToOutline)
+                val outer = if (corner == 0) 0 else corner + outline
+                assertEquals(label, outer * context.resources.displayMetrics.density, provider!!.radius, 0.5f)
+            }
+        }
+    }
 }

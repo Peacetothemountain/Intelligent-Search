@@ -136,22 +136,18 @@ object MaterialYouPaletteHelper {
      * @param saturation Seed saturation in percent [0f, 100f].
      * @param isDarkSurface True if rendering against a dark background/pill (uses Tone 80 tokens),
      *                      False if rendering against a light background/pill (uses Tone 40 tokens).
-     * @param paletteStyle The Material 3 expressive palette style.
-     * @param contrastLevel System or user accessibility contrast [-1.0, 1.0].
      */
     fun getMaterialYouTonalColors(
         hue: Float,
         saturation: Float,
-        isDarkSurface: Boolean,
-        paletteStyle: PaletteStyle = PaletteStyle.TONAL_SPOT,
-        contrastLevel: Double = 0.0
+        isDarkSurface: Boolean
     ): MaterialTonalRoleColors {
         val key = TonalCacheKey(
             hue10 = (hue * 10f).toInt(),
             sat10 = (saturation * 10f).toInt(),
             isDark = isDarkSurface,
-            style = paletteStyle,
-            contrast100 = (contrastLevel * 100.0).toInt()
+            style = PaletteStyle.TONAL_SPOT,
+            contrast100 = 0
         )
 
         synchronized(cacheLock) {
@@ -159,15 +155,11 @@ object MaterialYouPaletteHelper {
         }
 
         val normalizedHue = ((hue % 360f + 360f) % 360f).toDouble()
-        val chroma = if (paletteStyle == PaletteStyle.MONOCHROME) {
-            0.0
-        } else {
-            ((saturation / 100f) * 48.0).coerceIn(4.0, 64.0)
-        }
+        val chroma = ((saturation / 100f) * 48.0).coerceIn(4.0, 64.0)
 
         // Canonical M3 HCT coordinate at tone 50
         val hct = Hct.from(normalizedHue, chroma, 50.0)
-        val scheme = createDynamicScheme(hct, isDarkSurface, paletteStyle, contrastLevel)
+        val scheme = createDynamicScheme(hct, isDarkSurface, PaletteStyle.TONAL_SPOT, 0.0)
 
         // Ensure 100% opaque alpha (0xFF000000) for crisp icon rendering
         val p = scheme.primary or 0xFF000000.toInt()

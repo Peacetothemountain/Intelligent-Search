@@ -13,7 +13,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.Process
-import android.os.UserManager
 import android.provider.BaseColumns
 import android.util.Log
 import com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine
@@ -85,11 +84,6 @@ class GlobalSearchProvider : ContentProvider() {
             corpusIndexManager.initialize()
         }
         val isPrivateSpaceLocked = multiProfileManager?.isPrivateSpaceLocked() == true
-        val privateUsers = if (isPrivateSpaceLocked) {
-            multiProfileManager.profilesState.value
-                .filter { it.profileType == ProfileType.PRIVATE }
-                .mapTo(HashSet()) { it.userHandle }
-        } else emptySet()
 
         var rowId = 1L
 

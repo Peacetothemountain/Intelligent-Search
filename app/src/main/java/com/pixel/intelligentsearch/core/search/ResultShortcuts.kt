@@ -69,8 +69,6 @@ data class ResultShortcut(
     val title: String,
     val pinned: Boolean = false
 ) {
-    val kind: ResultKind? get() = ResultKeys.kindOf(key)
-
     /** Nothing set any more, so the entry can go. */
     val isEmpty: Boolean get() = !pinned
 }

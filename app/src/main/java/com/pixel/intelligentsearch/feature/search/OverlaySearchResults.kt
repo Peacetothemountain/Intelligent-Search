@@ -7,26 +7,14 @@ import com.pixel.intelligentsearch.core.search.ResultKeys
 import com.pixel.intelligentsearch.feature.widget.getLensSearchIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceActionIntent
 import com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent
-import com.pixel.intelligentsearch.core.ui.AppIconResult
-import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
-import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
-import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
-import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
 import com.pixel.intelligentsearch.core.haptics.rememberTactileSonicEngine
-import com.pixel.intelligentsearch.core.data.FileItem
-import com.pixel.intelligentsearch.core.data.ContactItem
-import com.pixel.intelligentsearch.core.data.AppItem
 import android.content.Intent
-import android.net.Uri
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -34,7 +22,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -47,16 +34,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.graphics.drawable.toBitmap
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
@@ -66,7 +49,6 @@ import com.pixel.intelligentsearch.core.ui.ConversionOneBox
 import com.pixel.intelligentsearch.core.ui.DictionaryOneBox
 import com.pixel.intelligentsearch.core.ui.UrlNavigationOneBox
 import com.pixel.intelligentsearch.core.ui.TimeWeatherOneBox
-import androidx.compose.ui.graphics.Brush
 
 /**
  * The result sections in display order: heaviest user weight first (apps, web, contacts, files on a tie), with
@@ -114,7 +96,6 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val viewModel = s.viewModel
     val uiState = s.uiState
     val settingsState = s.settingsState
-    val searchProviderName = s.searchProviderName
     val appWeight = s.appWeight
     val webWeight = s.webWeight
     val contactWeight = s.contactWeight
@@ -123,7 +104,6 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val performAppLaunch = s.performAppLaunch
     val launchIcons = s.launchIcons
     val launchWebSearch = s.launchWebSearch
-    val openWebAddress = s.openWebAddress
     val visibleApps = s.visibleApps
     val bestMatch = s.bestMatch
     val filteredContacts = s.filteredContacts
@@ -183,11 +163,6 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         reverseLayout = false,
         verticalArrangement = if (isBottomResults) Arrangement.Bottom else Arrangement.Top
     ) {
-        val showApps = true
-        val showWeb = true
-        val showPeople = true
-        val showFiles = true
-
         val renderInlineShortcuts = {
             if (settingsState.shortcutInline && uiState.query.isNotEmpty()) {
                 item(key = "inline_shortcuts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
@@ -549,7 +524,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 "apps" -> {
                     val isAppsEnabled = settingsState.searchApps
                     val displayApps = if (filteredApps.isNotEmpty()) filteredApps else visibleApps
-                    if (showApps && isAppsEnabled && displayApps.isNotEmpty()) {
+                    if (isAppsEnabled && displayApps.isNotEmpty()) {
                         item(key = "apps_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                         item(key = ResultListKeys.APPS_ROW, contentType = "apps_row") {
                             val appRowState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -604,7 +579,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     }
                 }
                 "web" -> {
-                    if (showWeb && (settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
+                    if ((settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
                         if (allDisplaySuggestions.isNotEmpty()) {
                             uniqueItems(allDisplaySuggestions, key = { suggestion -> ResultListKeys.suggestion(suggestion.query) }, contentType = { "web_suggestion" }) { suggestion ->
                                 val query = suggestion.query
@@ -650,7 +625,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 "contacts" -> {
                     val isContactsEnabled = settingsState.searchContacts
                     val displayContacts = if (filteredContacts.isNotEmpty()) filteredContacts else uiState.contacts
-                    if (showPeople && isContactsEnabled && displayContacts.isNotEmpty()) {
+                    if (isContactsEnabled && displayContacts.isNotEmpty()) {
                         item(key = "contacts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                         uniqueItems(displayContacts, key = ResultListKeys::contact, contentType = { "contact" }) { contact ->
                             val isDirectCall = settingsState.contactDirectCall
@@ -709,7 +684,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     val displayFiles = if (filteredFiles.isNotEmpty()) filteredFiles else uiState.files
                     val fileTypeFilter = uiState.fileTypeFilter
                     // A type named in the query shows its chip even before (or without) any file of that type.
-                    if (showFiles && isFilesEnabled && (displayFiles.isNotEmpty() || fileTypeFilter != null)) {
+                    if (isFilesEnabled && (displayFiles.isNotEmpty() || fileTypeFilter != null)) {
                         item(key = "files_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                         if (fileTypeFilter != null) {
                             item(key = ResultListKeys.FILE_TYPE_FILTER, contentType = "file_type_filter") {

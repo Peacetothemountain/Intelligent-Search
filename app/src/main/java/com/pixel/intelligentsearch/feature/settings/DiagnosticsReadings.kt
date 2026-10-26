@@ -31,11 +31,9 @@ internal object DiagnosticsReadings {
     data class MemInfo(
         val totalKb: Long?,
         val availableKb: Long?,
-        val freeKb: Long?,
         val buffersKb: Long?,
         val cachedKb: Long?,
         val anonPagesKb: Long?,
-        val kReclaimableKb: Long?,
         val sUnreclaimKb: Long?,
         val kernelStackKb: Long?,
         val pageTablesKb: Long?,
@@ -54,11 +52,9 @@ internal object DiagnosticsReadings {
         return MemInfo(
             totalKb = values["MemTotal"],
             availableKb = values["MemAvailable"],
-            freeKb = values["MemFree"],
             buffersKb = values["Buffers"],
             cachedKb = values["Cached"],
             anonPagesKb = values["AnonPages"],
-            kReclaimableKb = values["KReclaimable"] ?: values["SReclaimable"],
             sUnreclaimKb = values["SUnreclaim"],
             kernelStackKb = values["KernelStack"],
             pageTablesKb = values["PageTables"],

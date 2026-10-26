@@ -235,8 +235,8 @@ class Dictation(private val context: Context) {
         }
 
         /** Eases the level towards [target]: quick to rise with the voice, slower to settle. */
-        fun computeAmplitudeStep(current: Float, target: Float, attack: Float = 0.40f, decay: Float = 0.14f): Float {
-            val speed = if (target > current) attack else decay
+        fun computeAmplitudeStep(current: Float, target: Float): Float {
+            val speed = if (target > current) 0.40f else 0.14f
             return current + (target - current) * speed
         }
         const val FINISH_WAIT_MS = 1_800L

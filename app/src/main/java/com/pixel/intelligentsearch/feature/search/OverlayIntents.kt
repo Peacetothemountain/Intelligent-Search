@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.core.data.FileItem
 import android.content.Intent
 import android.net.Uri

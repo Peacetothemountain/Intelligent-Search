@@ -353,12 +353,12 @@ class SearchViewModel @Inject constructor(
                     unifiedSearchCoordinator.purgePrivateProfileItems()
                     _uiState.update { it.withoutPrivateProfile().copy(hasLockedPrivateSpace = true) }
                     if (!previousLocked) {
-                        corpusIndexManager.reindexApps(forceRefresh = true)
+                        corpusIndexManager.reindexApps()
                     }
                 } else {
                     _uiState.update { it.copy(hasLockedPrivateSpace = false) }
                     if (previousLocked) {
-                        corpusIndexManager.reindexApps(forceRefresh = true)
+                        corpusIndexManager.reindexApps()
                     }
                 }
                 previousLocked = hasLocked
@@ -709,7 +709,6 @@ class SearchViewModel @Inject constructor(
     }
 
     private fun executeLocalSearch(newQuery: String, previousQuery: String = "") {
-        val prefs = customPrefs
         val verboseLogging = debugSwitch(SettingsManager.DEBUG_VERBOSE_LOGGING)
         val forceSearchError = debugSwitch(SettingsManager.DEBUG_FORCE_SEARCH_ERROR)
         val mockLargeDataset = debugSwitch(SettingsManager.DEBUG_MOCK_LARGE_DATASET)

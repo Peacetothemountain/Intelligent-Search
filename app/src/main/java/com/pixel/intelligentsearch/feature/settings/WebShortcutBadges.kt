@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -32,12 +31,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.graphics.shapes.Morph
 import androidx.graphics.shapes.toPath
-import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 
 /** One animation frame shared by every shortcut badge. */
 class ShortcutBadgeFrame(val morph: Morph, val rotationAngle: Float, val morphProgress: Float)

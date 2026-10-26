@@ -14,18 +14,10 @@ class PrivateSpaceManager @Inject constructor(
     private val multiProfileManager: MultiProfileManager
 ) {
 
-    fun hasPrivateSpace(): Boolean = multiProfileManager.hasPrivateSpace()
-
-    fun isPrivateSpaceLocked(): Boolean = multiProfileManager.isPrivateSpaceLocked()
-
     fun requestUnlockPrivateSpace(activity: Activity) {
         val privateProfile = multiProfileManager.profilesState.value.firstOrNull { it.profileType == ProfileType.PRIVATE }
         if (privateProfile != null) {
             multiProfileManager.requestUnlockProfile(privateProfile.userHandle)
         }
-    }
-
-    suspend fun getAllProfileApps(forceRefresh: Boolean = false): List<AppItem> {
-        return multiProfileManager.getAllProfileApps(forceRefresh)
     }
 }

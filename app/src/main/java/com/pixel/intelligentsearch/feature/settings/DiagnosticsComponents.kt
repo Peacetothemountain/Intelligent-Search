@@ -97,16 +97,14 @@ internal fun DiagnosticsCard(
 }
 
 /**
- * A small rounded label in the card header, e.g. a health or pressure rating. [textModifier] goes on the text itself,
- * inside the chip's padding (the posture chip draws its count-up there).
+ * A small rounded label in the card header, e.g. a health or pressure rating.
  */
 @Composable
 internal fun DiagnosticsStatusChip(
     text: String,
     container: Color,
     content: Color,
-    modifier: Modifier = Modifier,
-    textModifier: Modifier = Modifier
+    modifier: Modifier = Modifier
 ) {
     Surface(modifier = modifier, shape = RoundedCornerShape(8.dp), color = container) {
         Text(
@@ -114,7 +112,7 @@ internal fun DiagnosticsStatusChip(
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             color = content,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).then(textModifier)
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         )
     }
 }

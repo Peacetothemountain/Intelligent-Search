@@ -18,8 +18,7 @@ class RadixTreeIndex<T> {
 
     data class FuzzyMatchResult<T>(
         val value: T,
-        val distance: Int,
-        val matchedKey: String
+        val distance: Int
     )
 
     private class RadixNode<T>(
@@ -224,7 +223,7 @@ class RadixTreeIndex<T> {
             val firstRow = IntArray(query.length + 1) { it }
             val candidateCap = maxOf(limit * 5, 200)
             for (child in root.children) {
-                searchFuzzyRecursive(child, query, firstRow, null, null, StringBuilder(), maxDistance, candidateCap, results)
+                searchFuzzyRecursive(child, query, firstRow, null, null, maxDistance, candidateCap, results)
                 if (results.size >= candidateCap) break
             }
             val best = LinkedHashMap<T, FuzzyMatchResult<T>>()
@@ -246,13 +245,11 @@ class RadixTreeIndex<T> {
         row: IntArray,
         previousRow: IntArray?,
         lastChar: Char?,
-        keyPath: StringBuilder,
         maxDistance: Int,
         candidateCap: Int,
         results: MutableList<FuzzyMatchResult<T>>
     ) {
         val m = query.length
-        val pathLengthBefore = keyPath.length
         var prevPrev = previousRow
         var prev = row
         var prevChar = lastChar
@@ -269,35 +266,31 @@ class RadixTreeIndex<T> {
                 curr[j] = d
                 if (d < minInRow) minInRow = d
             }
-            keyPath.append(c)
             prevPrev = prev
             prev = curr
             prevChar = c
             if (curr[m] <= maxDistance) {
                 // The key path so far is within reach of the whole query: everything below it matches.
-                collectFuzzyMatches(node, curr[m], keyPath.toString(), candidateCap, results)
-                keyPath.setLength(pathLengthBefore)
+                collectFuzzyMatches(node, curr[m], candidateCap, results)
                 return
             }
             if (minInRow > maxDistance) {
-                keyPath.setLength(pathLengthBefore)
                 return
             }
         }
         for (child in node.children) {
-            searchFuzzyRecursive(child, query, prev, prevPrev, prevChar, keyPath, maxDistance, candidateCap, results)
+            searchFuzzyRecursive(child, query, prev, prevPrev, prevChar, maxDistance, candidateCap, results)
             if (results.size >= candidateCap) break
         }
-        keyPath.setLength(pathLengthBefore)
     }
 
-    private fun collectFuzzyMatches(node: RadixNode<T>, distance: Int, matchedKey: String, cap: Int, results: MutableList<FuzzyMatchResult<T>>) {
+    private fun collectFuzzyMatches(node: RadixNode<T>, distance: Int, cap: Int, results: MutableList<FuzzyMatchResult<T>>) {
         for (value in node.values) {
-            results.add(FuzzyMatchResult(value, distance, matchedKey))
+            results.add(FuzzyMatchResult(value, distance))
             if (results.size >= cap) return
         }
         for (child in node.children) {
-            collectFuzzyMatches(child, distance, matchedKey, cap, results)
+            collectFuzzyMatches(child, distance, cap, results)
             if (results.size >= cap) return
         }
     }

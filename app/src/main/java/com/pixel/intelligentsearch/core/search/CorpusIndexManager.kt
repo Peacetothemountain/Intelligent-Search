@@ -3,17 +3,13 @@ package com.pixel.intelligentsearch.core.search
 import com.pixel.intelligentsearch.di.ApplicationScope
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
-import android.content.BroadcastReceiver
 import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.database.ContentObserver
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.provider.ContactsContract
 import android.util.Log
-import androidx.core.content.ContextCompat
 import com.pixel.intelligentsearch.core.data.UserGrantedFiles
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -135,9 +131,9 @@ class CorpusIndexManager @Inject constructor(
         }
     }
 
-    fun reindexApps(forceRefresh: Boolean = true) {
+    fun reindexApps() {
         scope.launch(Dispatchers.IO) {
-            reindexAppsInternal(forceRefresh)
+            reindexAppsInternal(forceRefresh = true)
         }
     }
 

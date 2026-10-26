@@ -39,9 +39,14 @@ class CountdownWidgetViewsTest {
         CountdownWidgetProvider.now = defaultNow
     }
 
-    /** The activity a tap started, wherever the launcher-side PendingIntent recorded it. */
-    private fun started(): android.content.Intent =
-        shadowOf(activity).nextStartedActivity ?: shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity
+    /**
+     * The activity a tap started (the newest), wherever the launcher-side PendingIntent recorded it. A tap that opens
+     * the overlay is a broadcast to WidgetLaunchReceiver, which starts it once the broadcast is delivered.
+     */
+    private fun started(): android.content.Intent {
+        shadowOf(android.os.Looper.getMainLooper()).idle()
+        return shadowOf(activity).nextStartedActivity ?: shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity
+    }
 
     private fun texts(event: CountdownEvent?, today: String) = CountdownWidgetProvider.texts(context, event, LocalDate.parse(today))
 

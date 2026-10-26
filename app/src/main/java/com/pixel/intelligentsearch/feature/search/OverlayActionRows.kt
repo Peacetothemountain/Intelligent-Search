@@ -6,7 +6,6 @@ import com.pixel.intelligentsearch.core.ui.AnswerChips
 import com.pixel.intelligentsearch.core.ui.AnswerChip
 import com.pixel.intelligentsearch.core.ui.AnswerCard
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row

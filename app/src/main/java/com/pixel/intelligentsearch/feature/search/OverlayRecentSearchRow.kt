@@ -19,14 +19,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
@@ -38,14 +34,9 @@ import androidx.compose.foundation.lazy.LazyItemScope
 @Composable
 internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: String) {
     val viewModel = s.viewModel
-    val uiState = s.uiState
-    val settingsState = s.settingsState
     val launchWebSearch = s.launchWebSearch
     var hasStartedTyping by s.ui::hasStartedTyping
     var textFieldValue by s.ui::textFieldValue
-    val context = LocalContext.current
-    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-    val keyboardController = LocalSoftwareKeyboardController.current
     val sensoryEngine = rememberTactileSonicEngine()
     val view = androidx.compose.ui.platform.LocalView.current
     val swipe = rememberSwipeToDismiss(sensoryEngine, view, threshold = 120f, fadeDistance = 500f, maxDragFade = 0.7f) { viewModel.removeSearchHistory(recentQuery) }

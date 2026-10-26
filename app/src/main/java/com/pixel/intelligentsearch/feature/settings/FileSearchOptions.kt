@@ -224,7 +224,7 @@ private fun OpenWithDialogRow(
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
             if (subtitle != null) {
-                Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(subtitle, style = MaterialTheme.typography.bodyMedium, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if (selected) {

@@ -122,7 +122,7 @@ fun BackupRestoreScreen(
     // same unlock as Manage Hidden Apps, even before any app is hidden or a passphrase saved.
     val isScreenUnlocked = rememberProtectedPageUnlock(
         title = "Unlock Encrypted Backup",
-        subtitle = "Verify it’s you to back up or restore your settings",
+        subtitle = "Verify It’s You to Back Up or Restore Your Settings.",
         onBack = onBack
     )
     val backupExoPlayer = rememberBugdroidPlayer(BugdroidClip.BACKUP, enabled = isScreenUnlocked)
@@ -234,7 +234,7 @@ fun BackupRestoreScreen(
                     !afterPrompt && activity != null -> context.appEntryPoint.biometricSearchGate().authenticate(
                         activity = activity,
                         title = "Verify it’s you",
-                        subtitle = "To use the passphrase saved to $keyHolder",
+                        subtitle = "To Use the Passphrase Saved to $keyHolder.",
                         onSuccess = { load(afterPrompt = true) },
                         onFailure = {
                             if (onUnavailable != null) onUnavailable() else safeShowToast("Verify it’s you to use the saved passphrase")
@@ -492,7 +492,7 @@ fun BackupRestoreScreen(
             SettingsCard(modifier = Modifier.backupCard("backup_card_passphrase")) {
                 BackupCardTitle("Encryption Passphrase")
                 BackupCardDescription(
-                    "Set a passphrase to restore your backup on any device. If left blank, the backup is encrypted with a key in this phone's $keyHolder and can only be restored on this phone."
+                    "Set a Passphrase to Restore Your Backup on Any Device. If Left Blank, the Backup Is Encrypted with a Key in This Phone's $keyHolder and Can Only Be Restored on This Phone."
                 )
                 // Autofill's highlight is drawn over the whole field, so clipping the field to its own pill shape makes
                 // the highlight a pill; the colour is a light, see-through tint of the theme instead of yellow.
@@ -559,7 +559,7 @@ fun BackupRestoreScreen(
                 // the button below stays off.
                 val passphraseLongEnough = passphrase.isNotBlank() && passphrase.length >= AutoBackup.MIN_PASSPHRASE_LENGTH
                 if (passphrase.isNotEmpty() && !passphraseLongEnough) {
-                    BackupCardDescription("Use a passphrase of at least ${AutoBackup.MIN_PASSPHRASE_LENGTH} characters")
+                    BackupCardDescription("Use a Passphrase of at Least ${AutoBackup.MIN_PASSPHRASE_LENGTH} Characters.")
                 }
 
                 Row(
@@ -598,7 +598,7 @@ fun BackupRestoreScreen(
                                                     context.appEntryPoint.biometricSearchGate().authenticate(
                                                         activity = activity,
                                                         title = "Verify it’s you",
-                                                        subtitle = "To save the passphrase to $keyHolder",
+                                                        subtitle = "To Save the Passphrase to $keyHolder.",
                                                         onSuccess = { save(afterPrompt = true) },
                                                         onFailure = {
                                                             safeShowToast("Verify it’s you to save the passphrase")
@@ -919,7 +919,8 @@ internal fun BackupCardTitle(text: String) {
 internal fun BackupCardDescription(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.bodySmall,
+        style = MaterialTheme.typography.bodyMedium,
+        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
     )

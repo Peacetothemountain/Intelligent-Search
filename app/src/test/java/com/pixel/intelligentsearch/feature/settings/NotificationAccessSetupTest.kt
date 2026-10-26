@@ -92,7 +92,7 @@ class NotificationAccessSetupTest {
     fun withoutAccessTheStepExplainsThenOpensNotificationAccess() {
         grant(false)
         showSetup()
-        compose.onNodeWithText("Search your notifications", substring = true).performScrollTo().performClick()
+        compose.onNodeWithText("Search Your Notifications", substring = true).performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Allow Notification Access?").assertExists()
         compose.onNodeWithText("not the messages or emails behind it", substring = true).assertExists()
@@ -106,7 +106,7 @@ class NotificationAccessSetupTest {
     fun notNowClosesTheExplanation() {
         grant(false)
         showSetup()
-        compose.onNodeWithText("Search your notifications", substring = true).performScrollTo().performClick()
+        compose.onNodeWithText("Search Your Notifications", substring = true).performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Not Now").performClick()
         compose.waitForIdle()

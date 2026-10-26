@@ -64,11 +64,11 @@ object BrowserHistoryResolver {
         fun privateEngine(appPackage: String?, name: String): Destination {
             val note = "$name doesn't keep a search history. Your history is in your browser."
             if (appPackage != null && isInstalled(appPackage)) {
-                return Destination.App(appPackage, "Open the $name app.", "$name doesn't keep a search history in your account.")
+                return Destination.App(appPackage, "Open the $name App.", "$name doesn't keep a search history in your account.")
             }
             val browser = defaultBrowser()
-                ?: return Destination.Unavailable("$name doesn't keep a search history.", note)
-            return Destination.App(browser.first, "Open ${browser.second}; $name keeps no history.", note)
+                ?: return Destination.Unavailable("$name Doesn't Keep a Search History.", note)
+            return Destination.App(browser.first, "Open ${browser.second}; $name Keeps No History.", note)
         }
         return when (engine) {
             Engine.GOOGLE -> Destination.WebPage(GOOGLE_HISTORY, "View Your Chrome and Google History.")
@@ -82,7 +82,7 @@ object BrowserHistoryResolver {
             Engine.OTHER -> {
                 val browser = defaultBrowser()
                     ?: return Destination.Unavailable("View Your Browser History.", "No browser is set as default.")
-                Destination.App(browser.first, "Open ${browser.second} to view your history.", null)
+                Destination.App(browser.first, "Open ${browser.second} to View Your History.", null)
             }
         }
     }

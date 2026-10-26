@@ -100,7 +100,7 @@ fun MainSettingsScreen(
                 SettingsCard {
                     SettingsRow(
                         title = "Finish Setting Up",
-                        subtitle = "$setupDone of $setupTotal done. Let search find your contacts, calendar and files.",
+                        subtitle = "$setupDone of $setupTotal Done. Let Search Find Your Contacts, Calendar and Files.",
                         icon = Icons.Outlined.Checklist,
                         onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Setup) },
                         showDivider = false

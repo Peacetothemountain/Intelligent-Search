@@ -78,7 +78,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var compactList by rememberSetting(SettingsManager.QUICK_SEARCH_HORIZONTAL)
                 SettingsRowToggle(
                     title = "Quick App Panel",
-                    subtitle = "Quickly Launch Apps Selected from Search Source Apps.",
+                    subtitle = QUICK_APP_PANEL_SUBTITLE,
                     icon = Icons.Outlined.ViewCompact,
                     isChecked = compactList,
                     onCheckedChange = { compactList = it },

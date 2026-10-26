@@ -112,7 +112,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     var vibrationEnabled by rememberSetting(SettingsManager.VIBRATION)
                     SettingsRowToggle(
                         title = "System Vibration",
-                        subtitle = "Enable Haptic Vibrations Across Intelligent Search",
+                        subtitle = "Enable Haptic Vibrations Across Intelligent Search.",
                         icon = Icons.Outlined.Vibration,
                         isChecked = vibrationEnabled,
                         // The haptic engines read this setting on every haptic, so saving it is enough.

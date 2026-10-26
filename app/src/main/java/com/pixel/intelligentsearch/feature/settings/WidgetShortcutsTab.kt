@@ -64,7 +64,7 @@ internal fun WidgetShortcutsTab(
     // TAB 2: WIDGET SHORTCUTS
     SettingsSectionHeader("Widget Shortcuts")
     // Inset like the section header above it.
-    Text("Drag Handle to Reorder, Swipe to Disable, and Tap to Customize.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), modifier = Modifier.padding(start = 16.dp, bottom = 4.dp))
+    Text("Drag Handle to Reorder, Swipe to Disable, and Tap to Customize.", style = MaterialTheme.typography.bodyMedium, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 16.dp, bottom = 4.dp))
 
     Column(
         modifier = Modifier.fillMaxWidth(),

@@ -30,7 +30,7 @@ import dagger.hilt.android.testing.UninstallModules
 import dagger.hilt.components.SingletonComponent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -42,9 +42,9 @@ import kotlin.math.ceil
 import kotlin.math.floor
 
 /**
- * Opening an app from the real overlay: with App Animations on, the app opens out of the icon that was tapped and is
- * started with that icon's bounds on screen, from the Best Match card, the app row and Enter alike; off,
- * the launch carries nothing of its own.
+ * Opening an app from the real overlay: it grows out of the icon that was tapped into its splash screen, drawn by the
+ * overlay (see AppOpeningLayer), and is then started with that icon's bounds on screen, from the Best Match card, the
+ * app row and Enter alike. With animations turned off in Android it opens at once.
  */
 @HiltAndroidTest
 @UninstallModules(DeviceSearchSourcesModule::class)
@@ -76,8 +76,7 @@ class AppLaunchAnimationOverlayTest {
         RecordingLauncherApps.starts.clear()
     }
 
-    private fun search(query: String, appAnimations: Boolean = true) {
-        prefs.edit().put(SettingsManager.APP_ANIMATIONS, appAnimations).commit()
+    private fun search(query: String) {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) {
@@ -113,16 +112,31 @@ class AppLaunchAnimationOverlayTest {
         return bounds
     }
 
-    /** The launch opens out of [icon] on screen and tells the app it came from there. */
+    /** The launch tells the app it came from [icon] on screen, with its icon on the splash screen. */
     private fun assertOpensOutOf(icon: android.graphics.Rect, launch: AppLaunchOptions?) {
-        assertNotNull("App Animations on: the launch carries its animation and source", launch)
+        assertNotNull("the launch carries its options and source", launch)
         assertEquals("the app is told the tapped icon's bounds on screen", icon, launch!!.sourceBounds)
         val options = launch.options!!
-        assertEquals(AppLaunchAnimationTest.ANIM_CLIP_REVEAL, options.getInt(AppLaunchAnimationTest.ANIM_TYPE))
-        assertEquals(icon.left, options.getInt(AppLaunchAnimationTest.START_X))
-        assertEquals(icon.top, options.getInt(AppLaunchAnimationTest.START_Y))
-        assertEquals(icon.width(), options.getInt(AppLaunchAnimationTest.WIDTH))
-        assertEquals(icon.height(), options.getInt(AppLaunchAnimationTest.HEIGHT))
+        assertEquals(AppLaunchAnimationTest.SPLASH_SCREEN_STYLE_ICON, options.getInt(AppLaunchAnimationTest.SPLASH_SCREEN_STYLE, -1))
+    }
+
+    /** Runs [block] with Android's animations on (the other tests run with them off, so apps open at once). */
+    private fun withAnimations(block: () -> Unit) {
+        val setScale = android.animation.ValueAnimator::class.java.getMethod("setDurationScale", Float::class.javaPrimitiveType)
+        val scale = android.animation.ValueAnimator.getDurationScale()
+        setScale.invoke(null, 1f)
+        try {
+            block()
+        } finally {
+            setScale.invoke(null, scale)
+        }
+    }
+
+    private fun openingLayers() = compose.onAllNodes(hasTestTag(APP_OPENING_TAG), useUnmergedTree = true).fetchSemanticsNodes().size
+
+    private fun frames(ms: Long) {
+        compose.mainClock.advanceTimeBy(ms)
+        compose.waitForIdle()
     }
 
     @Test
@@ -152,10 +166,49 @@ class AppLaunchAnimationOverlayTest {
     }
 
     @Test
-    fun withAppAnimationsOffTheSystemDefaultPlays() {
-        search("Camera", appAnimations = false)
-        tap(icon(LaunchIconKeys.BEST_MATCH))
+    fun theAppGrowsOutOfItsIconBeforeItIsStarted() = withAnimations {
+        search("Camera")
+        val bounds = onScreen(icon(LaunchIconKeys.app(camera)))
+        icon(LaunchIconKeys.app(camera)).performClick()
+        frames(16)
+        assertEquals("the overlay draws the opening over itself", 1, openingLayers())
+        assertTrue("the app waits until it has grown toward the middle", launches.isEmpty())
+        frames(800)
         assertEquals(listOf("com.example.camera"), launches.map { it.first })
-        assertNull(launches.single().second)
+        assertOpensOutOf(bounds, launches.single().second)
+    }
+
+    @Test
+    fun theDrawnSplashIsGoneWhenTheOverlayComesBack() = withAnimations {
+        search("Camera")
+        icon(LaunchIconKeys.app(camera)).performClick()
+        frames(800)
+        assertEquals(1, launches.size)
+        compose.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.CREATED)
+        // Coming back to the overlay later shows it as it was, not the splash drawn over it.
+        compose.activityRule.scenario.moveToState(androidx.lifecycle.Lifecycle.State.RESUMED)
+        frames(16)
+        assertEquals(0, openingLayers())
+    }
+
+    @Test
+    fun anAppThatNeverComesUpGivesTheOverlayBack() = withAnimations {
+        search("Camera")
+        icon(LaunchIconKeys.app(camera)).performClick()
+        frames(800)
+        assertEquals(1, launches.size)
+        // The overlay stayed in front: nothing took over from the drawn splash.
+        frames(APP_OPENING_HANDOFF_TIMEOUT_MS + 400)
+        assertEquals(0, openingLayers())
+    }
+
+    @Test
+    fun aSecondTapWhileAnAppOpensIsIgnored() = withAnimations {
+        search("Camera")
+        icon(LaunchIconKeys.app(camera)).performClick()
+        frames(16)
+        icon(LaunchIconKeys.BEST_MATCH).performClick()
+        frames(800)
+        assertEquals(listOf("com.example.camera"), launches.map { it.first })
     }
 }

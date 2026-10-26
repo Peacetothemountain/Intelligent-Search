@@ -1,14 +1,11 @@
 package com.pixel.intelligentsearch.feature.search
 
 import android.app.Activity
-import android.os.Bundle
 import android.view.View
 import android.widget.FrameLayout
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -17,8 +14,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
 /**
- * The App Animations setting: on, an app opened from the overlay opens out of the icon that was tapped, the way an app
- * opens from a launcher icon, and is told where on screen it came from; off, the system default plays.
+ * How an app opened from the overlay is started, once the overlay has grown it out of the tapped icon (see
+ * AppOpeningLayer): told where on screen it came from, as from a launcher icon, on the overlay's display, with its
+ * icon on the splash screen. It asks for no opening animation of its own: Android 17 drops those for anything but the
+ * launcher, which is why the overlay draws the motion itself.
  */
 @RunWith(RobolectricTestRunner::class)
 class AppLaunchAnimationTest {
@@ -41,99 +40,64 @@ class AppLaunchAnimationTest {
     private val icon = Rect(100f, 900f, 148f, 948f)
 
     @Test
-    fun offLeavesTheLaunchToTheSystemDefault() {
-        assertNull(AppLaunchAnimation.launch(overlay, enabled = false, icon = icon, touch = Offset(120f, 900f)))
-        assertNull(AppLaunchAnimation.launch(overlay, enabled = false, icon = null, touch = null))
-    }
-
-    @Test
-    fun onOpensTheAppOutOfTheTappedIconOnScreen() {
+    fun theAppIsToldTheTappedIconsBoundsOnScreen() {
         val (x, y) = onScreen
         assertNotEquals("the overlay must sit away from the screen's corner for this test", 0, x + y)
-        val launch = AppLaunchAnimation.launch(overlay, enabled = true, icon = icon, touch = Offset(120f, 910f))!!
-        val options = assertClipReveal(launch.options)
-        // The window grows out of the icon's own bounds (position and size), not out of a point.
-        assertEquals(100 + x, options.getInt(START_X))
-        assertEquals(900 + y, options.getInt(START_Y))
-        assertEquals(48, options.getInt(WIDTH))
-        assertEquals(48, options.getInt(HEIGHT))
-        // The launched app is told the same bounds on screen, as a launcher tells it (Intent.getSourceBounds).
+        val launch = AppLaunchAnimation.launch(overlay, icon)
+        // As a launcher tells it (Intent.getSourceBounds).
         assertEquals(android.graphics.Rect(100 + x, 900 + y, 148 + x, 948 + y), launch.sourceBounds)
     }
 
     @Test
     fun iconBoundsBetweenPixelsCoverTheWholeIcon() {
         val (x, y) = onScreen
-        val launch = AppLaunchAnimation.launch(overlay, enabled = true, icon = Rect(100.4f, 900.6f, 148.2f, 948.5f), touch = null)!!
+        val launch = AppLaunchAnimation.launch(overlay, Rect(100.4f, 900.6f, 148.2f, 948.5f))
         assertEquals(android.graphics.Rect(100 + x, 900 + y, 149 + x, 949 + y), launch.sourceBounds)
     }
 
     @Test
-    fun withoutAnIconTheAppOpensOutOfTheTouch() {
-        val (x, y) = onScreen
-        val launch = AppLaunchAnimation.launch(overlay, enabled = true, icon = null, touch = Offset(120f, 910f))!!
-        val options = assertClipReveal(launch.options)
-        assertEquals(120 + x, options.getInt(START_X))
-        assertEquals(910 + y, options.getInt(START_Y))
-        assertEquals(0, options.getInt(WIDTH))
-        assertEquals(0, options.getInt(HEIGHT))
-        assertNull("no icon, so no source bounds to hand the app", launch.sourceBounds)
-    }
-
-    @Test
-    fun aLaunchWithNeitherIconNorTouchOpensOutOfTheMiddleOfTheOverlay() {
-        val (x, y) = onScreen
-        val launch = AppLaunchAnimation.launch(overlay, enabled = true, icon = null, touch = null)!!
-        val options = assertClipReveal(launch.options)
-        assertEquals(500 + x, options.getInt(START_X))
-        assertEquals(1000 + y, options.getInt(START_Y))
-        assertNull(launch.sourceBounds)
+    fun withoutAnIconThereAreNoSourceBounds() {
+        assertNull(AppLaunchAnimation.launch(overlay, null).sourceBounds)
     }
 
     @Test
     fun anIconScrolledOutOfSightCountsAsNoIcon() {
-        val launch = AppLaunchAnimation.launch(overlay, enabled = true, icon = Rect(100f, 900f, 100f, 900f), touch = null)!!
-        assertNull(launch.sourceBounds)
+        assertNull(AppLaunchAnimation.launch(overlay, Rect(100f, 900f, 100f, 900f)).sourceBounds)
+    }
+
+    @Test
+    fun theLaunchAsksForNoOpeningAnimationOfItsOwn() {
+        val options = AppLaunchAnimation.launch(overlay, icon).options!!
+        assertNotEquals(ANIM_CLIP_REVEAL, options.getInt(ANIM_TYPE, 0))
+        assertNotEquals(ANIM_SCALE_UP, options.getInt(ANIM_TYPE, 0))
     }
 
     @Test
     fun theAppOpensOnTheOverlaysDisplay() {
-        val options = AppLaunchAnimation.launch(overlay, enabled = true, icon = icon, touch = null)!!.options!!
+        val options = AppLaunchAnimation.launch(overlay, icon).options!!
         assertEquals(overlay.display.displayId, options.getInt(LAUNCH_DISPLAY_ID, -1))
     }
 
     @Test
     fun fromAndroid13TheAppsSplashScreenShowsItsIconAsFromTheLauncher() {
-        val options = AppLaunchAnimation.launch(overlay, enabled = true, icon = icon, touch = null)!!.options!!
+        val options = AppLaunchAnimation.launch(overlay, icon).options!!
         assertEquals(SPLASH_SCREEN_STYLE_ICON, options.getInt(SPLASH_SCREEN_STYLE, -1))
     }
 
     @Test
     @Config(sdk = [32])
-    fun onAndroid12TheAppStillOpensOutOfTheIconWithItsOwnSplashScreen() {
+    fun onAndroid12TheAppKeepsItsOwnSplashScreen() {
         val (x, y) = onScreen
-        val launch = AppLaunchAnimation.launch(overlay, enabled = true, icon = icon, touch = null)!!
-        val options = assertClipReveal(launch.options)
-        assertEquals(100 + x, options.getInt(START_X))
-        assertEquals(48, options.getInt(WIDTH))
+        val launch = AppLaunchAnimation.launch(overlay, icon)
         assertEquals(android.graphics.Rect(100 + x, 900 + y, 148 + x, 948 + y), launch.sourceBounds)
         // The splash screen style option arrived in Android 13; Android 12 isn't asked for it.
-        assertNotEquals(SPLASH_SCREEN_STYLE_ICON, options.getInt(SPLASH_SCREEN_STYLE, -1))
-    }
-
-    private fun assertClipReveal(options: Bundle?): Bundle {
-        assertNotNull("App Animations on must give the launch its own animation", options)
-        assertEquals(ANIM_CLIP_REVEAL, options!!.getInt(ANIM_TYPE))
-        return options
+        assertNotEquals(SPLASH_SCREEN_STYLE_ICON, launch.options!!.getInt(SPLASH_SCREEN_STYLE, -1))
     }
 
     companion object {
-        // ActivityOptions' bundle keys and its clip-reveal animation type (hidden API constants).
+        // ActivityOptions' bundle keys and its animation types (hidden API constants).
         const val ANIM_TYPE = "android:activity.animType"
-        const val START_X = "android:activity.animStartX"
-        const val START_Y = "android:activity.animStartY"
-        const val WIDTH = "android:activity.animWidth"
-        const val HEIGHT = "android:activity.animHeight"
+        const val ANIM_SCALE_UP = 2
         const val ANIM_CLIP_REVEAL = 11
         const val LAUNCH_DISPLAY_ID = "android.activity.launchDisplayId"
         const val SPLASH_SCREEN_STYLE = "android.activity.splashScreenStyle"

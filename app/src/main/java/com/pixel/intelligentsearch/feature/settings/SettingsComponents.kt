@@ -519,6 +519,85 @@ fun SettingsRowToggle(
     }
 }
 
+/**
+ * An app in a list of apps (Application Search's picker): drawn as Manage Hidden Apps draws its rows ([SettingsRowToggle]:
+ * the app's icon, its name and a line under it, the same press and hairline), with no switch, since tapping the row is
+ * the action. [selected] tints it while it is picked in multi-select.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun SettingsAppRow(
+    title: String,
+    subtitle: String,
+    icon: Any?,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
+    selected: Boolean = false,
+    showDivider: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    Column(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(if (selected) Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)) else Modifier)
+                .expressivePress(interactionSource, null)
+                .combinedClickable(
+                    interactionSource = interactionSource,
+                    indication = androidx.compose.material3.ripple(bounded = true),
+                    role = Role.Button,
+                    onLongClick = onLongClick,
+                    onClick = onClick
+                )
+                .semantics { this.selected = selected }
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            when (icon) {
+                is ImageVector -> Icon(
+                    imageVector = icon,
+                    contentDescription = null, // decorative: the title is right beside it
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(24.dp)
+                )
+                is androidx.compose.ui.graphics.ImageBitmap -> Image(
+                    bitmap = icon,
+                    contentDescription = null, // decorative: the title is right beside it
+                    modifier = Modifier.size(24.dp)
+                )
+                else -> Spacer(modifier = Modifier.size(24.dp))
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (subtitle.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        if (showDivider) {
+            HorizontalDivider(
+                modifier = Modifier.padding(start = 56.dp, end = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
+                thickness = 0.8.dp
+            )
+        }
+    }
+}
+
 @OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SettingsSliderRow(

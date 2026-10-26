@@ -60,7 +60,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             var forceTutorial by rememberSetting(SettingsManager.FORCE_TUTORIAL)
             SettingsRowToggle(
                 title = "Force Tutorial Mode",
-                subtitle = "When checked, the tutorial will play every time the app opens",
+                subtitle = "When Checked, the Tutorial Will Play Every Time the App Opens.",
                 icon = Icons.Outlined.Warning,
                 isChecked = forceTutorial,
                 onCheckedChange = { forceTutorial = it }
@@ -68,7 +68,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             
             SettingsRow(
                 title = "Reset Tutorial Progress",
-                subtitle = "Mark tutorial as incomplete and restart step guide",
+                subtitle = "Mark Tutorial as Incomplete and Restart Step Guide.",
                 icon = Icons.Outlined.Refresh,
                 onClick = {
                     prefs.edit()
@@ -85,7 +85,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
 
             SettingsRow(
                 title = "Clear Search History Cache",
-                subtitle = "Reset and clear all saved recent queries",
+                subtitle = "Reset and Clear All Saved Recent Queries.",
                 icon = Icons.Outlined.Delete,
                 onClick = {
                     settingsViewModel?.clearSearchHistory()

@@ -33,7 +33,7 @@ import javax.inject.Singleton
 
 /**
  * What was typed stays on screen while the overlay is only paused, as it is the moment an app starts opening out of
- * a result (App Animations: the app grows out of the tapped icon, which must still be there) or a dialog comes over
+ * a result (it grows out of the tapped icon, which must still be there) or a dialog comes over
  * it, and is cleared once the overlay is out of sight.
  */
 @HiltAndroidTest

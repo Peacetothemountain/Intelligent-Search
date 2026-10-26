@@ -59,7 +59,6 @@ class BackupManager @Inject constructor(
             "showWallpaper" to SettingsManager.SHOW_WALLPAPER,
             "filesHiddenFiles" to SettingsManager.FILES_HIDDEN_FILES,
             "filesThumbnails" to SettingsManager.FILES_THUMBNAILS,
-            "appAnimations" to SettingsManager.APP_ANIMATIONS,
             "bottomSearch" to SettingsManager.BOTTOM_SEARCH,
             "bottomSearchResult" to SettingsManager.BOTTOM_SEARCH_RESULT,
             "appQuickLaunch" to SettingsManager.APP_QUICK_LAUNCH,
@@ -176,7 +175,6 @@ class BackupManager @Inject constructor(
         prefsMap["customSearchEngineUrl"] = currentSettings.customSearchEngineUrl
         prefsMap["filesHiddenFiles"] = currentSettings.filesHiddenFiles.toString()
         prefsMap["filesThumbnails"] = currentSettings.filesThumbnails.toString()
-        prefsMap["appAnimations"] = currentSettings.appAnimations.toString()
         prefsMap["bottomSearch"] = currentSettings.bottomSearch.toString()
         prefsMap["bottomSearchResult"] = currentSettings.bottomSearchResult.toString()
         prefsMap["searchPills"] = currentSettings.searchPills

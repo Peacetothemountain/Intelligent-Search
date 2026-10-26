@@ -325,8 +325,16 @@ fun SearchPillsScreen(
                         CircularProgressIndicator(modifier = Modifier.testTag(com.pixel.intelligentsearch.core.ui.LOADING_INDICATOR_TAG))
                     }
                 } else {
-                    androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.fillMaxSize()) {
-                        items(filteredApps, key = { it.packageName }) { appItem ->
+                    // The same container and rows as Manage Hidden Apps, without the switch: tapping an app adds it.
+                    com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
+                        shape = RoundedCornerShape(24.dp),
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        border = null,
+                        modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
+                    ) {
+                    androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.fillMaxSize().padding(vertical = 8.dp)) {
+                        items(filteredApps.size, key = { filteredApps[it].packageName }) { index ->
+                            val appItem = filteredApps[index]
                             val packageName = appItem.packageName
                             val isSelected = selectedApps.contains(packageName)
                             val isAlreadyAdded = localPillList.contains(packageName)
@@ -335,49 +343,45 @@ fun SearchPillsScreen(
                                 value = withContext(Dispatchers.IO) { getNativeAppIcon(context, packageName) }
                             }
 
-                            androidx.compose.foundation.layout.Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .then(if (isSelected) Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)) else Modifier)
-                            ) {
-                                SettingsRow(
-                                    title = appItem.label,
-                                    subtitle = when {
-                                        isAlreadyAdded -> "Already in Quick Launch"
-                                        com.pixel.intelligentsearch.core.bangs.AiAssistants.forPackage(packageName) != null -> "AI Assistant. Its Pill Asks It Your Search."
-                                        else -> packageName.breakableAtDots()
-                                    },
-                                    icon = appIcon ?: Icons.Outlined.Apps,
-                                    onClick = {
-                                        if (multiSelectMode) {
-                                            selectedApps = if (isSelected) selectedApps - packageName else selectedApps + packageName
-                                            if (selectedApps.isEmpty()) multiSelectMode = false
-                                        } else {
-                                            if (!isAlreadyAdded) {
-                                                if (localPillList.size >= SearchPillProfiles.MAX_PILLS) {
-                                                    showMaxWarning = true
-                                                } else {
-                                                    val updated = localPillList + packageName
-                                                    resetCounter++
-                                                    persistPills(updated)
-                                                    slideIn(listOf(packageName))
-                                                    showAppPicker = false
-                                                }
+                            SettingsAppRow(
+                                title = appItem.label,
+                                subtitle = when {
+                                    isAlreadyAdded -> "Already in Quick Launch."
+                                    com.pixel.intelligentsearch.core.bangs.AiAssistants.forPackage(packageName) != null -> "AI Assistant. Its Pill Asks It Your Search."
+                                    else -> packageName.breakableAtDots()
+                                },
+                                icon = appIcon ?: Icons.Outlined.Apps,
+                                selected = isSelected,
+                                onClick = {
+                                    if (multiSelectMode) {
+                                        selectedApps = if (isSelected) selectedApps - packageName else selectedApps + packageName
+                                        if (selectedApps.isEmpty()) multiSelectMode = false
+                                    } else {
+                                        if (!isAlreadyAdded) {
+                                            if (localPillList.size >= SearchPillProfiles.MAX_PILLS) {
+                                                showMaxWarning = true
                                             } else {
+                                                val updated = localPillList + packageName
+                                                resetCounter++
+                                                persistPills(updated)
+                                                slideIn(listOf(packageName))
                                                 showAppPicker = false
                                             }
+                                        } else {
+                                            showAppPicker = false
                                         }
-                                    },
-                                    onLongClick = {
-                                        if (!multiSelectMode) {
-                                            multiSelectMode = true
-                                            selectedApps = setOf(packageName)
-                                        }
-                                    },
-                                    showDivider = true
-                                )
-                            }
+                                    }
+                                },
+                                onLongClick = {
+                                    if (!multiSelectMode) {
+                                        multiSelectMode = true
+                                        selectedApps = setOf(packageName)
+                                    }
+                                },
+                                showDivider = index < filteredApps.size - 1
+                            )
                         }
+                    }
                     }
                 }
             }
@@ -416,14 +420,15 @@ fun SearchPillsScreen(
                                 modifier = Modifier.size(48.dp)
                             )
                             Text(
-                                "Profile $activeProfile is Empty",
+                                "Profile $activeProfile Is Empty",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                "Tap '+' to add applications to Profile $activeProfile. All changes auto-save in real-time.",
+                                "Tap '+' to Add Applications to Profile $activeProfile. All Changes Auto-Save in Real Time.",
                                 style = MaterialTheme.typography.bodyMedium,
+                                fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )

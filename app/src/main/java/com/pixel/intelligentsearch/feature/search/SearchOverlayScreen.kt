@@ -208,26 +208,47 @@ fun SearchOverlayScreen(
         }
     }
 
-    // App Animations: apps opened here open out of the icon they were opened from, as from the launcher.
+    // Apps opened here grow out of the icon they were opened from into their splash screen, as from the launcher
+    // (see AppOpeningLayer); with animations turned off in Android they simply open.
     val launchOrigin = remember { LaunchOrigin() }
     val launchIcons = remember { LaunchIcons() }
-    val appAnimations = settingsState.appAnimations
-    val appLaunch: (LaunchSource) -> AppLaunchOptions? = remember(view, appAnimations) {
-        { from ->
-            AppLaunchAnimation.launch(view, appAnimations, launchIcons.bounds(from.iconKeys), launchOrigin.point.takeIf { from.byTouch })
-        }
-    }
-    val performLaunch: (String, android.os.UserHandle?, String?, LaunchSource) -> Unit = remember(sensoryEngine, view, onLaunchApp, keyboardController, focusManager, appLaunch, appAnimations) {
-        { packageName, user, activityName, from ->
-            hasStartedTyping = false
-            // With App Animations the app opens out of the icon, so the overlay must not move under it: hiding the
-            // keyboard first resizes the window mid-launch. Android hides it anyway as the app takes focus.
-            if (!appAnimations) {
-                focusManager.clearFocus(force = true)
-                keyboardController?.hide()
+    val appOpenings = remember { AppOpenings() }
+    val animationsEnabled by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
+    val iconTint = MaterialTheme.colorScheme.onSurfaceVariant
+    val iconPack = settingsState.activeIconPack
+    val openApp: (String, android.os.UserHandle?, String?, LaunchSource, (AppLaunchOptions) -> Unit) -> Unit =
+        remember(sensoryEngine, view, keyboardController, focusManager, animationsEnabled, iconTint, iconPack) {
+            { packageName, user, activityName, from, start ->
+                val icon = launchIcons.bounds(from.iconKeys)
+                val launch = AppLaunchAnimation.launch(view, icon)
+                val grows = animationsEnabled && view.width > 0 && view.height > 0
+                val opening = if (grows) {
+                    // Out of the icon, else out of the touch, else out of the middle of the overlay.
+                    val size = 48f * view.resources.displayMetrics.density
+                    val point = launchOrigin.point.takeIf { from.byTouch } ?: androidx.compose.ui.geometry.Offset(view.width / 2f, view.height / 2f)
+                    val startIcon = com.pixel.intelligentsearch.core.ui.peekThemedAppIcon(packageName, iconPack)
+                    AppOpening(
+                        packageName, user, activityName,
+                        from = icon ?: androidx.compose.ui.geometry.Rect(point, size / 2f),
+                        startIcon = startIcon?.bitmap,
+                        startIconMonochrome = startIcon?.isMonochrome == true,
+                        startTint = iconTint,
+                        start = { start(launch) }
+                    )
+                } else null
+                if (opening == null || appOpenings.begin(opening)) {
+                    hasStartedTyping = false
+                    // The keyboard slides away as the app grows over the overlay.
+                    focusManager.clearFocus(force = true)
+                    keyboardController?.hide()
+                    sensoryEngine.appLaunch(view)
+                    if (opening == null) start(launch)
+                }
             }
-            sensoryEngine.appLaunch(view)
-            onLaunchApp(packageName, user, activityName, appLaunch(from))
+        }
+    val performLaunch: (String, android.os.UserHandle?, String?, LaunchSource) -> Unit = remember(openApp, onLaunchApp) {
+        { packageName, user, activityName, from ->
+            openApp(packageName, user, activityName, from) { launch -> onLaunchApp(packageName, user, activityName, launch) }
         }
     }
     // Work and Private Space copies of an app share its package name, so launches carry the profile too.
@@ -694,7 +715,7 @@ fun SearchOverlayScreen(
         performLaunch = performLaunch,
         performAppLaunch = performAppLaunch,
         launchIcons = launchIcons,
-        appLaunch = appLaunch,
+        openApp = openApp,
         closeOverlay = closeOverlay,
         launchWebSearch = launchWebSearch,
         openWebAddress = openWebAddress,
@@ -719,9 +740,18 @@ fun SearchOverlayScreen(
 
     val maxDragDistance = with(density) { 400.dp.toPx() } // Approx swipe distance
 
+    // The overlay blurs and dims behind an app growing out of its icon, as the home screen does behind a launch.
+    val openingBlurPx = with(density) { 28.dp.toPx() }
+    Box(modifier = Modifier.fillMaxSize()) {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .graphicsLayer {
+                val opening = appOpenings.progress
+                renderEffect = if (opening > 0.01f) {
+                    androidx.compose.ui.graphics.BlurEffect(openingBlurPx * opening, openingBlurPx * opening, androidx.compose.ui.graphics.TileMode.Decal)
+                } else null
+            }
             .recordLaunchOrigin(launchOrigin)
             .pointerInput(Unit) {
                 var dragJob: kotlinx.coroutines.Job? = null
@@ -1082,6 +1112,9 @@ fun SearchOverlayScreen(
                 onDismiss = { showTorInstallPopup = false }
             )
         }
+
+    }
+    // Over everything: the app being opened, growing out of its icon.
+    AppOpeningLayer(appOpenings)
     }
 }
-

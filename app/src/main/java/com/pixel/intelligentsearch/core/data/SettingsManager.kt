@@ -52,7 +52,6 @@ data class IntelligentSearchSettings(
     val customSearchEngineUrl: String = SettingsManager.CUSTOM_SEARCH_ENGINE_URL.default,
     val filesHiddenFiles: Boolean = SettingsManager.FILES_HIDDEN_FILES.default,
     val filesThumbnails: Boolean = SettingsManager.FILES_THUMBNAILS.default,
-    val appAnimations: Boolean = SettingsManager.APP_ANIMATIONS.default,
     val bottomSearch: Boolean = SettingsManager.BOTTOM_SEARCH.default,
     val bottomSearchResult: Boolean = SettingsManager.BOTTOM_SEARCH_RESULT.default,
     val tutorialCompleted: Boolean = SettingsManager.TUTORIAL_COMPLETED.default,
@@ -148,7 +147,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val FILES_OPEN_WITH: Map<FileTypeGroup, StringSetting> = FileTypeGroup.entries.associateWith { group ->
             StringSetting("search.files.open_with.${group.id}", OpenWithChoice.DEFAULT_STORED)
         }
-        val APP_ANIMATIONS = BooleanSetting("app_animations", true, "app.animation")
         val MORPH_ANIMATION_ENABLED = BooleanSetting("morph_animation_enabled", true)
         val BOTTOM_SEARCH = BooleanSetting("settings.bottom.search", true, "bottom_search")
         val BOTTOM_SEARCH_RESULT = BooleanSetting("settings.bottom.search.result", true, "bottom_search_result")
@@ -284,7 +282,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             THEME, SEARCH_APPS, SEARCH_CONTACTS, SEARCH_FILES, SEARCH_WEB, SEARCH_WEB_SUGGESTIONS,
             SEARCH_PREVIOUS_SEARCHES, SEARCH_CALCULATOR, LIVE_CURRENCY_RATES, SEARCH_SHORTCUTS, BACKGROUND_BLUR,
             SHOW_WALLPAPER, BACKGROUND_TRANSPARENCY, PILL_OPACITY, SEARCH_ENGINE, CUSTOM_SEARCH_ENGINE_URL,
-            CUSTOM_SEARCH_ENGINE_NAME, FILES_HIDDEN_FILES, FILES_THUMBNAILS, APP_ANIMATIONS, MORPH_ANIMATION_ENABLED,
+            CUSTOM_SEARCH_ENGINE_NAME, FILES_HIDDEN_FILES, FILES_THUMBNAILS, MORPH_ANIMATION_ENABLED,
             BOTTOM_SEARCH, BOTTOM_SEARCH_RESULT, TUTORIAL_COMPLETED, FORCE_TUTORIAL, TUTORIAL_STEP, G_ICON_ENABLED,
             WIDGET_SHOW_VOICE, WIDGET_SHOW_GEMINI, QUICK_SEARCH_YOUTUBE, QUICK_SEARCH_WIKIPEDIA,
             QUICK_SEARCH_PLAY_STORE, QUICK_SEARCH_MAPS, SEARCH_PILLS, WIDGET_THEME_STYLE, HIDDEN_APPS,
@@ -353,7 +351,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             "enter_key_action",
             // The Calendar, Notifications and Android Settings switches: each source follows Android's own permission
             // now (the calendar, notification access) or is always on (Android Settings pages).
-            "search.calendar", "search_calendar", "search.notifications", "search.android.settings"
+            "search.calendar", "search_calendar", "search.notifications", "search.android.settings",
+            // App Animations, removed: apps opened from search always grow out of their icon.
+            "app_animations", "app.animation"
         )
 
         /**
@@ -451,7 +451,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         customSearchEngineUrl = sp[CUSTOM_SEARCH_ENGINE_URL],
         filesHiddenFiles = sp[FILES_HIDDEN_FILES],
         filesThumbnails = sp[FILES_THUMBNAILS],
-        appAnimations = sp[APP_ANIMATIONS],
         bottomSearch = sp[BOTTOM_SEARCH],
         bottomSearchResult = sp[BOTTOM_SEARCH_RESULT],
         tutorialCompleted = sp[TUTORIAL_COMPLETED],

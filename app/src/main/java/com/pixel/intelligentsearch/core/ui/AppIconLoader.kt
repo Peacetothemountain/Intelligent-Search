@@ -112,9 +112,18 @@ fun getThemedAppIcon(context: Context, packageName: String, activePackOverride: 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 val monochrome = icon.monochrome
                 if (monochrome != null) {
-                    val res = AppIconResult(drawableToBitmap(monochrome).asImageBitmap(), isMonochrome = true)
-                    themedIconCache.put(cacheKey, res)
-                    return res
+                    // An app that declared its full-color picture as its monochrome layer gets the logo cut out of it;
+                    // tinted as it is, it would be a blank plate.
+                    val bitmap = if (MaterialOutlineManager.isColorPicture(monochrome)) {
+                        MaterialOutlineManager.extractMonochromeSilhouette(monochrome)
+                    } else {
+                        drawableToBitmap(monochrome)
+                    }
+                    if (bitmap != null) {
+                        val res = AppIconResult(bitmap.asImageBitmap(), isMonochrome = true)
+                        themedIconCache.put(cacheKey, res)
+                        return res
+                    }
                 }
             }
         }

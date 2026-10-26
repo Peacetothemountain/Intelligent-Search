@@ -35,7 +35,7 @@ internal object BackupPreferenceSchema {
         fun typed(type: String, vararg keys: String) { for (key in keys) put(key, type) }
         typed(
             "BOOLEAN",
-            "app.fuzzy.search", "app_animations", "app_fuzzy_search", "app_quick_launch", "bottom_search",
+            "app.fuzzy.search", "app_fuzzy_search", "app_quick_launch", "bottom_search",
             "bottom_search_result", "contact.direct.call", "contact_direct_call", "context_aware_quick_apps",
             "diagnostics_overlay_enabled", "dynamic_icon_masking", "force_tutorial", "g_icon_enabled", "live_currency_rates",
             "matrix_animation_enabled", "never_show_icon_pack_warning", "quick.search.horizontal",

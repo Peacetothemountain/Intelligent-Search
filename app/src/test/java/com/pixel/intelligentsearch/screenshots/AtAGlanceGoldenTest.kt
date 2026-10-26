@@ -67,6 +67,10 @@ class AtAGlanceGoldenTest(private val state: String, private val dark: Boolean) 
         // com.example.mail one), so the rows show their own fallback as the goldens were drawn.
         com.pixel.intelligentsearch.core.ui.clearThemedIconCache()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        // The card with everything on, its corner clock included (the items are off by default).
+        androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+            .getSharedPreferences(com.pixel.intelligentsearch.core.data.SettingsManager.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+            .edit().putBoolean(com.pixel.intelligentsearch.core.data.SettingsManager.GLANCE_CLOCK.name, true).commit()
     }
 
     @After fun tearDown() = TimeZone.setDefault(zone)

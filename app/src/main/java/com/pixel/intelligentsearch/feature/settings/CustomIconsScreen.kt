@@ -350,10 +350,10 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = if (packageName == "system_default") "Default Monet dynamic icons" else packageName,
-                                                style = MaterialTheme.typography.bodySmall,
+                                                text = if (packageName == "system_default") "Default Monet Dynamic Icons." else packageName,
+                                                style = MaterialTheme.typography.bodyMedium,
                                                 fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                     }

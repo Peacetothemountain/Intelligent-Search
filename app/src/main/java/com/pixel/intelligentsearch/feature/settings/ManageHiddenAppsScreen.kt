@@ -86,7 +86,7 @@ fun ManageHiddenAppsScreen(
 
     val isAuthenticated = rememberProtectedPageUnlock(
         title = "Unlock Private Search",
-        subtitle = "Verify identity to view hidden items",
+        subtitle = "Verify Identity to View Hidden Items.",
         onBack = onBack
     )
 
@@ -216,8 +216,9 @@ fun ManageHiddenAppsScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Use Fingerprint, Face Unlock or your screen lock to view and manage hidden applications.",
+                        "Use Fingerprint, Face Unlock or Your Screen Lock to View and Manage Hidden Applications.",
                         style = MaterialTheme.typography.bodyMedium,
+                        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center
                     )

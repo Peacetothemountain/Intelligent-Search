@@ -29,7 +29,6 @@ import dagger.hilt.android.testing.UninstallModules
 import dagger.hilt.components.SingletonComponent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -40,8 +39,8 @@ import org.robolectric.annotation.Config
 import javax.inject.Singleton
 
 /**
- * The Best Match card's quick actions ("Record Video" under Camera) follow App Animations as the app itself does:
- * the action opens out of the app's icon, and with the setting off it carries nothing of its own.
+ * The Best Match card's quick actions ("Record Video" under Camera) open as the app itself does: out of the app's
+ * icon, which the action is told as its source, with the app's icon on its splash screen.
  */
 @HiltAndroidTest
 @UninstallModules(DeviceSearchSourcesModule::class)
@@ -72,8 +71,7 @@ class BestMatchChipLaunchTest {
         prefs.edit().put(SettingsManager.SEARCH_WEB_SUGGESTIONS, false).commit()
     }
 
-    private fun tapRecordVideo(appAnimations: Boolean): android.os.Bundle? {
-        prefs.edit().put(SettingsManager.APP_ANIMATIONS, appAnimations).commit()
+    private fun tapRecordVideo(): android.content.Intent? {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) {
@@ -87,18 +85,14 @@ class BestMatchChipLaunchTest {
         compose.settle(steps = 3)
         val started = shadowOf(compose.activity).nextStartedActivityForResult
         assertEquals("android.media.action.VIDEO_CAPTURE", started?.intent?.action)
-        return started.options
+        val options = started.options
+        assertNotNull("the action carries its launch options", options)
+        assertEquals(AppLaunchAnimationTest.SPLASH_SCREEN_STYLE_ICON, options!!.getInt(AppLaunchAnimationTest.SPLASH_SCREEN_STYLE, -1))
+        return started.intent
     }
 
     @Test
     fun aQuickActionOpensOutOfTheAppsIcon() {
-        val options = tapRecordVideo(appAnimations = true)
-        assertNotNull("App Animations on: the action carries the launch animation", options)
-        assertEquals(AppLaunchAnimationTest.ANIM_CLIP_REVEAL, options!!.getInt(AppLaunchAnimationTest.ANIM_TYPE))
-    }
-
-    @Test
-    fun withAppAnimationsOffTheActionOpensAsAndroidDefaults() {
-        assertNull(tapRecordVideo(appAnimations = false))
+        assertNotNull("the action is told the app icon it came from", tapRecordVideo()?.sourceBounds)
     }
 }

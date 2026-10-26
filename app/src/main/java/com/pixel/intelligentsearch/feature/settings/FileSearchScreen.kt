@@ -13,6 +13,11 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +29,7 @@ import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOff
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,9 +48,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -178,19 +186,14 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             SettingsCard {
-                Text(
-                    text = "Intelligent Search only searches the folders and photos you choose here. Nothing else on your storage is read, so no storage permission is needed. Start a search with a file type, like \"pdf invoice\", to search only that type.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-                )
+                FileSearchScopeNote()
                 folderUris.sortedBy { folderNames[it] ?: it }.forEach { uri ->
                     SettingsRow(
                         title = folderNames[uri] ?: "Folder",
                         subtitle = if (folderAccessLost[uri] == true) {
-                            "Access was removed. Tap to remove, then add it again."
+                            "Access Was Removed. Tap to Remove, Then Add It Again."
                         } else {
-                            "Searching this folder. Tap to remove."
+                            "Searching This Folder. Tap to Remove."
                         },
                         icon = Icons.Outlined.Folder,
                         onClick = { folderPendingRemoval = uri },
@@ -208,7 +211,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 }
                 SettingsRow(
                     title = "Add Folder",
-                    subtitle = "Pick a folder such as Documents. Android doesn't allow the Download folder itself, but folders inside it work.",
+                    subtitle = "Pick a Folder Such as Documents. Android Doesn't Allow the Download Folder Itself, but Folders Inside It Work.",
                     icon = Icons.Outlined.CreateNewFolder,
                     onClick = { folderPicker.launch(null) },
                     showDivider = true
@@ -227,7 +230,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 }
                 SettingsRow(
                     title = "Choose Photos & Videos",
-                    subtitle = if (mediaCount > 0) "$mediaCount chosen. Tap to add more." else "Pick photos and videos with the Android photo picker.",
+                    subtitle = if (mediaCount > 0) "$mediaCount Chosen. Tap to Add More." else "Pick Photos and Videos with the Android Photo Picker.",
                     icon = Icons.Outlined.Image,
                     onClick = {
                         photoPickerLauncher.launch(
@@ -239,7 +242,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 if (mediaCount > 0) {
                     SettingsRow(
                         title = "Clear Chosen Photos & Videos",
-                        subtitle = "Stop searching the $mediaCount photos and videos chosen above.",
+                        subtitle = "Stop Searching the $mediaCount Photos and Videos Chosen Above.",
                         icon = Icons.Outlined.DeleteSweep,
                         onClick = { confirmClearMedia = true },
                         showDivider = true
@@ -274,3 +277,33 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         }
     }
 }
+
+/** The note atop File Search: an info icon, then what it searches, in the subtext style every settings row uses. */
+@Composable
+private fun FileSearchScopeNote() {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Info,
+            contentDescription = null, // decorative: the note beside it says it all
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp).testTag(FILE_SEARCH_NOTE_ICON_TAG)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(
+            text = FILE_SEARCH_SCOPE_NOTE,
+            style = MaterialTheme.typography.bodyMedium,
+            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+internal const val FILE_SEARCH_NOTE_ICON_TAG = "file_search_note_icon"
+
+internal const val FILE_SEARCH_SCOPE_NOTE =
+    "Intelligent Search Only Searches the Folders and Photos You Choose Here. Nothing Else on Your Storage Is Read, " +
+        "so No Storage Permission Is Needed. Start a Search with a File Type, like \"pdf invoice\", to Search Only That Type."

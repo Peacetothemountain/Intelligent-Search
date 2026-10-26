@@ -88,6 +88,19 @@ class WidgetColorBackupTest {
         assertEquals(cream, prefs.getInt("widget_material_lock_pill_color", 0))
     }
 
+    /** A backup from before the palette forces the pill without a color: restored, it takes the default again. */
+    @Test
+    fun anOlderBackupWithoutThePillColorRestoresTheDefault() = runBlocking {
+        prefs.edit().putBoolean("widget_material_lock_black", true).remove("widget_material_lock_pill_color").commit()
+        backup.exportToFile(uri, PASSPHRASE).getOrThrow()
+
+        prefs.edit().putInt("widget_material_lock_pill_color", 0xFFB3261E.toInt()).commit()
+        backup.importFromFile(uri, PASSPHRASE).getOrThrow()
+
+        assertFalse(prefs.contains("widget_material_lock_pill_color"))
+        assertTrue(prefs.getBoolean("widget_material_lock_black", false))
+    }
+
     private companion object {
         const val PASSPHRASE = "correct horse battery"
     }

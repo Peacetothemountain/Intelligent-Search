@@ -231,16 +231,16 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                 match.actions.forEach { action ->
                                     AssistChip(
                                         onClick = {
-                                            hasStartedTyping = false
                                             val intent = Intent(action.action)
                                             if (action.dataUri != null) intent.data = action.dataUri.toUri()
                                             intent.setPackage(match.packageName)
-                                            // Opens out of the app's icon, as the app itself does (App Animations).
-                                            val launch = s.appLaunch(LaunchSource.tap(LaunchIconKeys.BEST_MATCH))
-                                            intent.sourceBounds = launch?.sourceBounds
-                                            if (!launchSafeIntent(context, intent, launch?.options)) {
-                                                intent.setPackage(null)
-                                                launchSafeIntent(context, intent, launch?.options)
+                                            // Grows out of the app's icon, as the app itself does.
+                                            s.openApp(match.packageName, null, null, LaunchSource.tap(LaunchIconKeys.BEST_MATCH)) { launch ->
+                                                intent.sourceBounds = launch.sourceBounds
+                                                if (!launchSafeIntent(context, intent, launch.options)) {
+                                                    intent.setPackage(null)
+                                                    launchSafeIntent(context, intent, launch.options)
+                                                }
                                             }
                                         },
                                         label = { Text(action.title, color = MaterialTheme.colorScheme.onPrimaryContainer, fontFamily = GoogleSansFlex) },

@@ -110,9 +110,6 @@ internal fun healShade(heal: Float): Float = 1f - smoothStep(0.05f, 0.45f, heal)
 /** How bright the rim still is as the hollow heals: it fades last, gone just as the hollow closes. */
 internal fun healRim(heal: Float): Float = 1f - smoothStep(0.3f, HEAL_CLOSE, heal)
 
-/** As the hollow closes, its last moment breaks into a few tiny pixels: how far that has got, 0 to 1, at [heal]. */
-internal fun healPixelPhase(heal: Float): Float = ((heal - 0.32f) / 0.4f).coerceIn(0f, 1f)
-
 /** Each pixel lives this share of the pixel phase; started at most [MAX_PIXEL_DELAY] in, every one is gone by its end. */
 internal const val PIXEL_LIFE = 0.6f
 internal const val MAX_PIXEL_DELAY = 1f - PIXEL_LIFE
@@ -123,10 +120,6 @@ internal fun pixelAlpha(phase: Float, delay: Float): Float {
     if (local <= 0f || local >= 1f) return 0f
     return 4f * local * (1f - local)
 }
-
-/** The faint scanlines across the closing hollow: their opacity, 0 to 1, at [phase] of the pixel phase. */
-internal fun scanlineAlpha(phase: Float): Float =
-    if (phase <= 0f || phase >= 0.5f) 0f else sin(PI.toFloat() * phase / 0.5f)
 
 private fun smoothStep(from: Float, to: Float, x: Float): Float {
     val t = ((x - from) / (to - from)).coerceIn(0f, 1f)

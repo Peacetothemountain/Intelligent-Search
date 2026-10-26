@@ -59,7 +59,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var shareWithAssistants by rememberSetting(SettingsManager.APP_FUNCTIONS_SHARE_CONTACTS)
                 SettingsRowToggle(
                     title = "Share with Assistants",
-                    subtitle = "Let on-device assistants search your contacts through Intelligent Search.",
+                    subtitle = "Let On-Device Assistants Search Your Contacts Through Intelligent Search.",
                     icon = Icons.Outlined.Assistant,
                     isChecked = shareWithAssistants,
                     onCheckedChange = { shareWithAssistants = it },

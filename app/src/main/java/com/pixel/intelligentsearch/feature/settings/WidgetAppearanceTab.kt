@@ -311,8 +311,9 @@ internal fun WidgetAppearanceTab(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Default Google Color Palette", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                         Text(
-                            "Preserve multi-colored Google logo while customizing shortcuts and action button",
-                            fontSize = 13.sp,
+                            "Preserve Multi-Colored Google Logo While Customizing Shortcuts and Action Button.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -335,8 +336,9 @@ internal fun WidgetAppearanceTab(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Sync All Colors", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                         Text(
-                            if (localKeepSystemG) "Set shortcuts and action icon to the same color" else "Set G icon, shortcuts, and action icon to the same color",
-                            fontSize = 13.sp,
+                            if (localKeepSystemG) "Set Shortcuts and Action Icon to the Same Color." else "Set G Icon, Shortcuts, and Action Icon to the Same Color.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }

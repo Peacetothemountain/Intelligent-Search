@@ -50,20 +50,13 @@ class MorphFloorEffectsTest {
     }
 
     @Test
-    fun theClosingPixelsAppearAroundTheCloseAndAreAllGoneByTheEnd() {
-        assertEquals(0f, healPixelPhase(0f), 0f)
-        assertEquals(1f, healPixelPhase(1f), 0f)
-        // The pixels' moment straddles the hollow closing.
-        assertTrue(healPixelPhase(HEAL_CLOSE) in 0.2f..0.8f)
+    fun eachPixelComesAndIsGoneWithinTheSparkle() {
         for (delay in listOf(0f, 0.2f, MAX_PIXEL_DELAY)) {
             assertEquals(0f, pixelAlpha(0f, delay), 0f)
             assertEquals(0f, pixelAlpha(1f, delay), 0f)
             val peak = samples().maxOf { pixelAlpha(it, delay) }
             assertTrue("delay $delay: peak $peak", peak in 0.95f..1f)
         }
-        assertEquals(0f, scanlineAlpha(0f), 0f)
-        assertEquals(0f, scanlineAlpha(0.5f), 0f)
-        assertTrue(samples().all { scanlineAlpha(it) in 0f..1f })
     }
 
     @Test
@@ -113,7 +106,7 @@ class MorphFloorEffectsTest {
         val physics = MorphBouncePhysics(kotlin.random.Random(3), autoSpawn = false).apply {
             resize(scene.widthMetres, scene.heightMetres, scene.radiiMetres)
         }
-        val body = physics.spawn(0.5f)!!
+        val body = physics.spawn()!!
         val kinds = ArrayList<Boolean>()
         var t = 0f
         while (t < 8f && body in physics.bodies) {

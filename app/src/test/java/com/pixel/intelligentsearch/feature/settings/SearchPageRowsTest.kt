@@ -42,10 +42,11 @@ class SearchPageRowsTest {
     }
 
     @Test
-    fun appSearchKeepsAppAnimationsAndDropsRecentShortcuts() {
+    fun appSearchHasNoAppAnimationsOrRecentShortcutsSwitch() {
         compose.setContent { IntelligentSearchTheme(darkTheme = false) { AppSearchScreen(prefs, {}, {}) } }
         compose.waitForIdle()
-        compose.onNodeWithText("App Animations").assertExists()
+        // Apps always grow out of their icon now: the App Animations switch is gone.
+        compose.onAllNodesWithText("App Animations").assertCountEquals(0)
         compose.onAllNodesWithText("Include Recent Shortcuts").assertCountEquals(0)
     }
 

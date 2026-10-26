@@ -31,7 +31,7 @@ private fun SettingsRowLabel(title: String, subtitle: String?, icon: ImageVector
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(text = title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
             if (subtitle != null) {
-                Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(text = subtitle, style = MaterialTheme.typography.bodyMedium, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

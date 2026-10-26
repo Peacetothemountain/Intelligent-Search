@@ -93,7 +93,7 @@ internal fun AutoBackupCard(obtainPassphrase: (onReady: (String?) -> Unit) -> Un
     SettingsCard(modifier = Modifier.backupCard("backup_card_auto")) {
         BackupCardTitle("Automatic Backup")
         BackupCardDescription(
-            "Weekly to a folder you choose, encrypted with your passphrase above. Keeps the latest ${AutoBackup.KEEP}."
+            "Weekly to a Folder You Choose, Encrypted with Your Passphrase Above. Keeps the Latest ${AutoBackup.KEEP}."
         )
         Spacer(modifier = Modifier.height(4.dp))
         if (!enabled) {

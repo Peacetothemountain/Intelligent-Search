@@ -191,8 +191,9 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text(
-                "${done.values.count { it }} of ${steps.size} done. Each one is optional, and everything Intelligent Search reads stays on this phone.",
+                "${done.values.count { it }} of ${steps.size} Done. Each One Is Optional, and Everything Intelligent Search Reads Stays on This Phone.",
                 style = MaterialTheme.typography.bodyMedium,
+                fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
@@ -200,15 +201,15 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                 steps.forEachIndexed { index, step ->
                     val isDone = done[step] == true
                     val (title, why, icon) = when (step) {
-                        SetupStep.CONTACTS -> Triple("Contacts", "Find people as you type, then call or message them.", Icons.Outlined.Contacts)
-                        SetupStep.CALENDAR -> Triple("Calendar", "See upcoming events and search them.", Icons.Outlined.Event)
-                        SetupStep.NOTIFICATIONS -> Triple("Notifications", "Search your notifications and see timers and what's playing.", Icons.Outlined.Notifications)
-                        SetupStep.FILES -> Triple("Files", "Choose the folders to search. Nothing else is read.", Icons.Outlined.Folder)
-                        SetupStep.SEARCH_BAR -> Triple("Home Screen Search Bar", "Power the Pixel search bar on your home screen.", Icons.Outlined.Search)
+                        SetupStep.CONTACTS -> Triple("Contacts", "Find People as You Type, Then Call or Message Them.", Icons.Outlined.Contacts)
+                        SetupStep.CALENDAR -> Triple("Calendar", "See Upcoming Events and Search Them.", Icons.Outlined.Event)
+                        SetupStep.NOTIFICATIONS -> Triple("Notifications", "Search Your Notifications and See Timers and What's Playing.", Icons.Outlined.Notifications)
+                        SetupStep.FILES -> Triple("Files", "Choose the Folders to Search. Nothing Else Is Read.", Icons.Outlined.Folder)
+                        SetupStep.SEARCH_BAR -> Triple("Home Screen Search Bar", "Power the Pixel Search Bar on Your Home Screen.", Icons.Outlined.Search)
                     }
                     SettingsRow(
                         title = title,
-                        subtitle = if (isDone) "Done" else why,
+                        subtitle = if (isDone) "Done." else why,
                         icon = if (isDone) Icons.Outlined.CheckCircle else icon,
                         onClick = {
                             when (step) {

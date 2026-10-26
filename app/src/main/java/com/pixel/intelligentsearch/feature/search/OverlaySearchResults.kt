@@ -122,7 +122,6 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val suggestionsEnabled = s.suggestionsEnabled
     val performAppLaunch = s.performAppLaunch
     val launchIcons = s.launchIcons
-    val appLaunch = s.appLaunch
     val launchWebSearch = s.launchWebSearch
     val openWebAddress = s.openWebAddress
     val visibleApps = s.visibleApps

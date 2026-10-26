@@ -47,7 +47,10 @@ class NotificationAccessSharedFlowTest {
 
     @Before fun setUp() {
         hilt.inject()
-        prefs.edit().clear().put(SettingsManager.GLANCE_ENABLED, true).commit()
+        // The items it reads notifications for switched on (they are off by default).
+        prefs.edit().clear().put(SettingsManager.GLANCE_ENABLED, true)
+            .put(SettingsManager.GLANCE_TIMERS, true).put(SettingsManager.GLANCE_MEDIA, true)
+            .put(SettingsManager.GLANCE_CLOCK, true).commit()
     }
 
     @Test

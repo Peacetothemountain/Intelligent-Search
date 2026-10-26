@@ -11,6 +11,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTextClearance
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.HiltTestActivity
@@ -80,5 +81,18 @@ class WebSearchCustomEngineTest {
         val urlField = compose.onNode(hasSetTextAction() and hasText("Custom Search URL (use %s for query)"))
             .fetchSemanticsNode()
         assertEquals("", urlField.config[SemanticsProperties.EditableText].text)
+    }
+
+    @Test
+    fun clearingTheAddressClearsItSoSearchesGoBackToGoogle() {
+        prefs.edit().putString(SettingsManager.SEARCH_ENGINE.name, "Custom")
+            .putString(SettingsManager.CUSTOM_SEARCH_ENGINE_URL.name, "https://search.example.org/?q=%s").commit()
+        show()
+        val urlField = compose.onNode(hasSetTextAction() and hasText("Custom Search URL (use %s for query)"))
+        urlField.performScrollTo().performTextClearance()
+        compose.waitForIdle()
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals("", prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL])
     }
 }

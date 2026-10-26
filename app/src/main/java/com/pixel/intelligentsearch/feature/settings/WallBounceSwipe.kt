@@ -1,8 +1,8 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.Orientation
@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -28,6 +29,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.exp
@@ -50,8 +52,26 @@ internal object WallBounce {
     /** A flick toward a wall at least this fast (dp per second) dismisses, however short the drag. */
     const val FLING_DP_PER_S = 900f
 
-    /** How long the card takes from leaving the wall to being clear of the far edge. */
+    /**
+     * The hit on the wall before the card flies off: the squash is kicked (in widths per second, at least
+     * [MIN_HIT_KICK] however gently it arrives) and springs back on a bouncy spring, so the card visibly presses into
+     * the wall, rebounds with a stretch and is off.
+     */
+    const val HIT_DAMPING = 0.35f
+    const val HIT_STIFFNESS = 500f
+    const val MIN_HIT_KICK = 1.6f
+    const val MAX_HIT_KICK = 2.4f
+
+    /** The pace the rebound off the wall is measured against: the exit's distance over this long. */
     const val EXIT_MILLIS = 420
+
+    /**
+     * The flight off the wall, back through the middle and out: the Widget Shortcuts slots' own spring (Material's
+     * medium-bouncy, low-stiffness spring), so a card leaves at the pace a shortcut slot springs back. Its overshoot
+     * falls past the far edge, out of sight; the flight ends as the card is clear of it.
+     */
+    const val LEAVE_DAMPING = Spring.DampingRatioMediumBouncy
+    const val LEAVE_STIFFNESS = Spring.StiffnessLow
 
     /** How long the card takes to arrive from off the right edge, at most, before it settles. */
     const val ENTER_STAGGER_MILLIS = 40L
@@ -84,6 +104,9 @@ internal object WallBounce {
     fun commits(position: Float, velocity: Float, gap: Float, width: Float, density: Float): Boolean {
         if (width <= 0f) return false
         val over = abs(position) - gap
+        // A quick flick back toward the middle takes the card back, however far it was pushed.
+        val backOut = position != 0f && sign(velocity) == -sign(position) && abs(velocity) >= FLING_DP_PER_S * density
+        if (backOut) return false
         if (over > COMMIT_FRACTION * width) return true
         val towardWall = position != 0f && sign(velocity) == sign(position)
         return towardWall && abs(velocity) >= FLING_DP_PER_S * density && abs(position) >= gap * 0.5f
@@ -91,17 +114,6 @@ internal object WallBounce {
 
     /** How far the card travels from the wall it bounced off until it is clear of the far edge. */
     fun exitDistance(gap: Float, width: Float, margin: Float): Float = 2f * gap + width + margin
-
-    /**
-     * The exit's easing: the card leaves the wall at [startShare] of the average speed and is pushed on at a constant
-     * rate, so it slows least where it is slowest (just off the wall, back through the middle) and is fastest leaving
-     * the screen. Position under constant acceleration is s = v0 t + a t² / 2; normalised, that is
-     * f(t) = k t + (1 - k) t² with k the starting share, which keeps f(0) = 0, f(1) = 1 and f rising throughout.
-     */
-    fun exitEasing(startShare: Float): Easing {
-        val k = startShare.coerceIn(0f, 1f)
-        return Easing { t -> k * t + (1f - k) * t * t }
-    }
 
     /** How fast the card leaves the wall, as a share of the exit's average speed, for a hit at [impactSpeed] px/s. */
     fun reboundShare(impactSpeed: Float, distance: Float): Float {
@@ -336,20 +348,29 @@ internal class WallBounceState(
                 var leaving: Job? = null
                 fun leave() {
                     if (leaving != null) return
-                    // 3. Off the wall, back through the middle and out past the far edge, pushed at a constant rate.
+                    // 3. Off the wall, back through the middle and out past the far edge, on the shortcut slots' spring,
+                    // leaving the wall with the share of its hit the rebound gives back.
                     leaving = launch {
-                        offset.animateTo(
-                            target,
-                            tween(WallBounce.EXIT_MILLIS, easing = WallBounce.exitEasing(WallBounce.reboundShare(speed, distance)))
-                        )
+                        val rebound = WallBounce.reboundShare(speed, distance) * distance / (WallBounce.EXIT_MILLIS / 1000f)
+                        val flight = launch {
+                            offset.animateTo(
+                                target,
+                                spring(dampingRatio = WallBounce.LEAVE_DAMPING, stiffness = WallBounce.LEAVE_STIFFNESS),
+                                initialVelocity = -side * rebound
+                            )
+                        }
+                        // Clear of the far edge it is gone: the spring's swing past it is never seen.
+                        snapshotFlow { offset.value }.first { (it - target) * -side >= -0.5f }
+                        flight.cancel()
+                        offset.snapTo(target)
                     }
                 }
-                // 2. The hit: it presses in a little more for the speed it arrives with, springs back out and leaves
-                // as it comes clear of the wall; the spring's small overshoot is the stretch of the rebound.
+                // 2. The hit: it presses well into the wall (harder the faster it arrives, and always visibly), springs
+                // back out and leaves as it comes clear of the wall; the spring's overshoot is the stretch of the rebound.
                 squash.animateTo(
                     targetValue = 0f,
-                    animationSpec = spring(dampingRatio = 0.45f, stiffness = 700f),
-                    initialVelocity = (speed / width).coerceAtMost(0.6f)
+                    animationSpec = spring(dampingRatio = WallBounce.HIT_DAMPING, stiffness = WallBounce.HIT_STIFFNESS),
+                    initialVelocity = (speed / width).coerceIn(WallBounce.MIN_HIT_KICK, WallBounce.MAX_HIT_KICK)
                 ) { if (value <= 0f) leave() }
                 leave()
             }

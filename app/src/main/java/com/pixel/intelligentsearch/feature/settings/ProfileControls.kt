@@ -71,17 +71,35 @@ internal fun ProfileSelector(count: Int, selected: Int, onSelect: (Int) -> Unit,
  */
 @Composable
 internal fun ProfileStateActions(profile: Int, onReset: () -> Unit, onSave: () -> Unit) {
+    SavedStateActions(
+        onReset = onReset,
+        onSave = onSave,
+        resetMessage = "Profile $profile reset to its saved state.",
+        saveMessage = "Profile $profile saved.",
+        saveDescription = "Save Profile State"
+    )
+}
+
+/** The top bar's Reset to Saved State and Save buttons any page with a saved state uses, each toasting its message. */
+@Composable
+internal fun SavedStateActions(
+    onReset: () -> Unit,
+    onSave: () -> Unit,
+    resetMessage: String,
+    saveMessage: String,
+    saveDescription: String
+) {
     val context = LocalContext.current
     IconButton(onClick = {
         onReset()
-        Toast.makeText(context, "Profile $profile reset to its saved state.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, resetMessage, Toast.LENGTH_SHORT).show()
     }) {
         Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset to Saved State")
     }
     IconButton(onClick = {
         onSave()
-        Toast.makeText(context, "Profile $profile saved.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, saveMessage, Toast.LENGTH_SHORT).show()
     }) {
-        Icon(Icons.Outlined.Save, contentDescription = "Save Profile State")
+        Icon(Icons.Outlined.Save, contentDescription = saveDescription)
     }
 }

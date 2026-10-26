@@ -10,8 +10,9 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsOff
+import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -107,52 +108,58 @@ class ManageHiddenAppsScreenTest {
 
     private fun hidden(): Set<String> = prefs[SettingsManager.HIDDEN_APPS]
 
+    private fun tap(description: String) {
+        compose.onNodeWithContentDescription(description).performClick()
+        compose.settle(steps = 5)
+    }
+
+    @Test
+    fun selectAllResetAndSaveSitInTheTopBarAsOnTheOtherPages() {
+        // Select All at the top left, beside Back; Reset and Save at the top right, as on Application Search.
+        val back = compose.onNodeWithContentDescription("Back").getBoundsInRoot()
+        val selectAll = compose.onNodeWithContentDescription("Select All").getBoundsInRoot()
+        val reset = compose.onNodeWithContentDescription("Reset to Saved State").getBoundsInRoot()
+        val save = compose.onNodeWithContentDescription("Save Hidden Apps").getBoundsInRoot()
+        assertTrue("Select All is just right of Back", selectAll.left >= back.right && selectAll.left < reset.left)
+        assertEquals("all in the top bar", back.top, selectAll.top)
+        assertEquals(back.top, reset.top)
+        assertTrue("Save is right of Reset", save.left >= reset.right)
+        compose.onNodeWithText("Select All").assertDoesNotExist()
+    }
+
     @Test
     fun switchesWaitForSaveAndResetPutsTheSavedAppsBack() {
-        compose.onNodeWithText("Save").assertIsNotEnabled()
-        compose.onNodeWithText("Reset").assertIsNotEnabled()
-
         compose.onNodeWithText("Alpha").performClick()
         compose.settle(steps = 5)
         assertEquals("nothing is saved before Save", emptySet<String>(), hidden())
-        compose.onNodeWithText("Reset").assertIsEnabled()
 
-        compose.onNodeWithText("Reset").performClick()
-        compose.settle(steps = 5)
-        compose.onNodeWithText("Save").assertIsNotEnabled()
+        tap("Reset to Saved State")
 
         compose.onNodeWithText("Beta").performClick()
         compose.settle(steps = 5)
-        compose.onNodeWithText("Save").performClick()
-        compose.settle(steps = 5)
-        assertEquals(setOf("com.example.beta"), hidden())
-        compose.onNodeWithText("Save").assertIsNotEnabled()
+        tap("Save Hidden Apps")
+        assertEquals("Reset dropped Alpha; Save kept Beta", setOf("com.example.beta"), hidden())
     }
 
     @Test
     fun selectAllHidesEveryAppShownAndOnlyThoseMatchingTheSearch() {
-        compose.onNodeWithText("Select All").performClick()
-        compose.settle(steps = 5)
-        compose.onNodeWithText("Save").performClick()
-        compose.settle(steps = 5)
+        compose.onNodeWithContentDescription("Select All").assertIsOff()
+        tap("Select All")
+        compose.onNodeWithContentDescription("Select All").assertIsOn()
+        tap("Save Hidden Apps")
         assertEquals(setOf("com.example.alpha", "com.example.beta"), hidden())
 
-        // Off again shows them all.
-        compose.onNodeWithText("Select All").performClick()
-        compose.settle(steps = 5)
-        compose.onNodeWithText("Save").performClick()
-        compose.settle(steps = 5)
+        // Checked again shows them all.
+        tap("Select All")
+        tap("Save Hidden Apps")
         assertEquals(emptySet<String>(), hidden())
 
         // While searching it acts on the matching apps only.
-        compose.onNodeWithContentDescription("Search").performClick()
-        compose.settle(steps = 5)
+        tap("Search")
         compose.onNode(hasSetTextAction()).performTextInput("beta")
         compose.settle(steps = 5)
-        compose.onNodeWithText("Select All").performClick()
-        compose.settle(steps = 5)
-        compose.onNodeWithText("Save").performClick()
-        compose.settle(steps = 5)
+        tap("Select All")
+        tap("Save Hidden Apps")
         assertEquals(setOf("com.example.beta"), hidden())
     }
 

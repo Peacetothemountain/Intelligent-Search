@@ -32,7 +32,7 @@ import org.robolectric.annotation.GraphicsMode
 import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowBiometricManager
 
-/** Manage Hidden Apps once unlocked, with a change not yet saved: Select All on top, Reset and Save below the list. */
+/** Manage Hidden Apps once unlocked, with a change not yet saved: Select All beside Back, Reset and Save at the top right. */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)

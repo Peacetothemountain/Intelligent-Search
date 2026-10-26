@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The home screen's own search bar: the only widget in the searchbox category, and hidden from the widget picker,
+     so the launcher hosts this one in its search bar slot whatever its order (Pixel Launcher takes the first
+     searchbox widget that isn't hidden, else the first hidden one, and tells the widget nothing about where it sits).
+     No configure activity: AOSP's launcher skips searchbox widgets that have one. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="56dp"
+    android:minResizeWidth="130dp"
+    android:minResizeHeight="48dp"
+    android:maxResizeWidth="1024dp"
+    android:maxResizeHeight="120dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_search_colorful"
+    android:previewLayout="@layout/widget_search_colorful"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="searchbox"
+    android:widgetFeatures="hide_from_picker"
+    android:description="@string/widget_home_search_bar" />

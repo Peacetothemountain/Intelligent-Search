@@ -141,6 +141,12 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 return true
             }
 
+            // The launcher's own search bar follows the design saved in Widget Customization. Pixel Launcher binds
+            // it with no options, so it is known only by its provider (see SearchBoxWidgetProvider).
+            if (providerClassName == SearchBoxWidgetProvider::class.java.name) {
+                return isMaterialStyle(widgetThemeStyle)
+            }
+
             // 2. Identify if this widget is the dedicated SearchBox (Default search engine / ADB bar)
             val widgetOpts = options ?: try {
                 appWidgetManager?.getAppWidgetOptions(appWidgetId)
@@ -153,7 +159,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             if (isSearchBox) {
                 // The search bar set on Pixel via ADB or Default search provider
                 // dynamically follows the user's choice in Widget Customization!
-                return widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
+                return isMaterialStyle(widgetThemeStyle)
             }
 
             // 3. Regular home screen widget from Android Widget Selector (SearchWidgetProvider):
@@ -162,8 +168,11 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             }
 
             // 4. Fallback when neither provider info nor host category is available (e.g. unit tests):
-            return widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
+            return isMaterialStyle(widgetThemeStyle)
         }
+
+        private fun isMaterialStyle(widgetThemeStyle: String?): Boolean =
+            widgetThemeStyle == "Material You (Minimal)" || widgetThemeStyle == "Material Design"
 
         // Slot identifiers for bit-shifted unique request codes
         private const val SLOT_PILL = 0
@@ -204,7 +213,8 @@ open class SearchWidgetProvider : AppWidgetProvider() {
 
                     val providers = listOf(
                         SearchWidgetProvider::class.java,
-                        SearchWidgetMaterialProvider::class.java
+                        SearchWidgetMaterialProvider::class.java,
+                        SearchBoxWidgetProvider::class.java
                     )
 
                     for (providerClass in providers) {

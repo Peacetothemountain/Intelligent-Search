@@ -60,6 +60,9 @@ class HomeSearchBarDesignTest {
         }
         val searchbox = AppWidgetProviderInfo.WIDGET_CATEGORY_SEARCHBOX
         assertEquals(searchbox, flags(R.xml.search_widget_searchbox_info, "widgetCategory") and searchbox)
+        // The launcher lists widgets with getInstalledProvidersForPackage, which returns only home_screen ones.
+        val home = AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN
+        assertEquals(home, flags(R.xml.search_widget_searchbox_info, "widgetCategory") and home)
         val hidden = AppWidgetProviderInfo.WIDGET_FEATURE_HIDE_FROM_PICKER
         assertEquals(hidden, flags(R.xml.search_widget_searchbox_info, "widgetFeatures") and hidden)
         assertEquals(0, flags(R.xml.search_widget_system_info, "widgetCategory") and searchbox)

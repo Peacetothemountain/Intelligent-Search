@@ -126,4 +126,32 @@ class SearchPillProfilesTest {
         assertEquals(4, profiles.activeProfile)
         assertEquals(listOf("r1", "r2"), profiles.pills())
     }
+
+    /** A lower Max Quick Panel Apps removes the apps past it from the bottom of the list, and only those. */
+    @Test
+    fun aLowerMaxRemovesTheLastAppsFromTheBottomUp() {
+        profiles.setPills(listOf("a", "b", "c", "d"))
+        assertEquals(listOf("c", "d"), profiles.appsRemovedByMax(2))
+        assertEquals(emptyList<String>(), profiles.appsRemovedByMax(4))
+
+        profiles.setMaxQuickPanelApps(2)
+        assertEquals(listOf("a", "b"), profiles.pills())
+        assertEquals(2, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
+
+        // Raising it again brings nothing back and removes nothing.
+        profiles.setMaxQuickPanelApps(5)
+        assertEquals(listOf("a", "b"), profiles.pills())
+        assertEquals(5, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
+    }
+
+    /** With Context Aware Quick Apps on the max caps recent apps, so the chosen apps are left alone. */
+    @Test
+    fun contextAwareQuickAppsKeepsTheChosenApps() {
+        profiles.setPills(listOf("a", "b", "c"))
+        prefs.edit().put(SettingsManager.CONTEXT_AWARE_QUICK_APPS, true).commit()
+        assertEquals(emptyList<String>(), profiles.appsRemovedByMax(1))
+        profiles.setMaxQuickPanelApps(1)
+        assertEquals(listOf("a", "b", "c"), profiles.pills())
+        assertEquals(1, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
+    }
 }

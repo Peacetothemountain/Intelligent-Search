@@ -198,6 +198,10 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val DYNAMIC_ICON_MASKING = BooleanSetting("dynamic_icon_masking", true)
         val DIAGNOSTICS_OVERLAY_ENABLED = BooleanSetting("diagnostics_overlay_enabled", false)
         val MATRIX_ANIMATION_ENABLED = BooleanSetting("matrix_animation_enabled", true)
+        /** "Don't show again" on the card warning that a lower Max Quick Panel Apps removes chosen apps. */
+        val QUICK_PANEL_TRIM_WARNING_DISMISSED = BooleanSetting("quick_panel_trim_warning_dismissed", false)
+        /** "Don't show again" on Manage Hidden Apps' unsaved-changes card. */
+        val HIDDEN_APPS_UNSAVED_WARNING_DISMISSED = BooleanSetting("hidden_apps_unsaved_warning_dismissed", false)
         val BACK_TO_SEARCH_OVERLAY = BooleanSetting("settings_back_to_search_overlay", true)
         val DISABLED_WEB_SHORTCUTS = StringSetSetting("disabled_web_shortcuts", emptySet())
         val VIBRATION = BooleanSetting("vibration_enabled", true)
@@ -293,6 +297,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             SEARCH_OVERLAY_ENABLED, CUSTOM_ICON_PILLS, NEVER_SHOW_ICON_PACK_WARNING, CUSTOM_BANGS_JSON,
             WEB_SHORTCUT_TRIGGER_SYMBOL, SEARCH_QUICK_SHORTCUTS, SHOW_AVAILABLE_DIRECT_SHORTCUTS,
             ADAPTIVE_ICON_SHAPE, DYNAMIC_ICON_MASKING, DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
+            QUICK_PANEL_TRIM_WARNING_DISMISSED, HIDDEN_APPS_UNSAVED_WARNING_DISMISSED,
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, OVERLAY_SHOW_MIC, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
             SHOW_KEYBOARD_ON_OPEN,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,

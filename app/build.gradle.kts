@@ -168,6 +168,8 @@ dependencies {
   baselineProfile(project(":baselineprofile"))
   // Weekly automatic encrypted backups.
   implementation(libs.androidx.work.runtime)
+  // Passkeys for encrypted backups (Android 14+ uses the system Credential Manager, so no Play services library).
+  implementation(libs.androidx.credentials)
   implementation(platform(libs.androidx.compose.bom))
 
   // Compose

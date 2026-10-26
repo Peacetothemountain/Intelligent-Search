@@ -104,6 +104,20 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /** Restores a passkey backup with the key its passkey gave. */
+    fun importBackupWithPasskeyKey(
+        uri: Uri,
+        key: javax.crypto.SecretKey,
+        onSuccess: (Int) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            backupManager.importWithPasskeyKey(uri, key)
+                .onSuccess(onSuccess)
+                .onFailure { onError(it.localizedMessage ?: "Failed to restore backup") }
+        }
+    }
+
     fun inspectBackupEnvelope(uri: Uri): Result<com.pixel.intelligentsearch.core.backup.EncryptedBackupEnvelope> {
         return backupManager.inspectBackupEnvelope(uri)
     }

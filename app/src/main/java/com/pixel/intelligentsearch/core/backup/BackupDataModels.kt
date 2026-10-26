@@ -32,8 +32,19 @@ data class EncryptedBackupEnvelope(
     val kdf: KdfMetadata? = null,
     val cipher: CipherMetadata,
     val encryptedPayloadBase64: String,
-    val payloadSha256: String
-)
+    val payloadSha256: String,
+    /** Schema 2: the ways to open this backup, each wrapping its random content key. Empty in schema 1 files. */
+    val keySlots: List<KeySlot> = emptyList()
+) {
+    /** A schema 2 backup that opens with a passkey. */
+    val passkeySlot: KeySlot? get() = keySlots.firstOrNull { it.type == KeySlot.TYPE_PASSKEY }
+
+    /** A schema 2 backup that opens with a passphrase. */
+    val passphraseSlot: KeySlot? get() = keySlots.firstOrNull { it.type == KeySlot.TYPE_PASSPHRASE }
+
+    /** Whether typing a passphrase can open this backup. */
+    val opensWithPassphrase: Boolean get() = kdf != null || passphraseSlot != null
+}
 
 @Immutable
 @Serializable

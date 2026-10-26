@@ -77,6 +77,7 @@ internal fun OverlayQuickAppPanel(s: OverlayScope) {
                                     // The app opens on the query out of its pill's icon, as when it is just opened.
                                     openApp(packageName, null, null, LaunchSource.tap(iconKey)) { launch ->
                                         launch.sourceBounds?.let { intent.sourceBounds = it }
+                                        intent.addFlags(launch.intentFlags)
                                         launchSafeIntent(context, intent, launch.options)
                                     }
                                 }

@@ -270,7 +270,8 @@ class MultiProfileManager @Inject constructor(
         activityName: String? = null,
         sourceBounds: Rect? = null,
         opts: Bundle? = null,
-        activity: Activity? = null
+        activity: Activity? = null,
+        intentFlags: Int = 0
     ): Boolean {
         val targetUser = userHandle ?: Process.myUserHandle()
         val isCurrentUser = targetUser == Process.myUserHandle()
@@ -300,7 +301,7 @@ class MultiProfileManager @Inject constructor(
         val pm = appContext.packageManager
         val launchIntent = (activityName?.let { Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setClassName(packageName, it) }
             ?: pm.getLaunchIntentForPackage(packageName))?.apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or intentFlags)
             sourceBounds?.let { bounds -> this.sourceBounds = bounds }
         }
         if (launchIntent != null) {
@@ -333,7 +334,7 @@ class MultiProfileManager @Inject constructor(
                 val explicitIntent = Intent(Intent.ACTION_MAIN).apply {
                     addCategory(Intent.CATEGORY_LAUNCHER)
                     component = ComponentName(packageName, targetClass)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or intentFlags)
                     sourceBounds?.let { bounds -> this.sourceBounds = bounds }
                 }
                 if (activity != null) {

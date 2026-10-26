@@ -1,14 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
 
-import android.content.Context
-import android.content.Intent
-import android.content.pm.ActivityInfo
-import android.content.pm.LauncherApps
-import android.graphics.Canvas
-import android.graphics.drawable.AdaptiveIconDrawable
-import android.graphics.drawable.ColorDrawable
-import android.graphics.drawable.Drawable
-import android.os.Process
 import android.os.UserHandle
 import android.view.RoundedCorner
 import androidx.compose.animation.animateColorAsState
@@ -51,8 +42,6 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
-import androidx.core.graphics.createBitmap
-import androidx.core.graphics.withSave
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -61,8 +50,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.math.abs
-import kotlin.math.max
+import kotlin.math.floor
 import kotlin.math.min
 
 /** The test tag on the app-opening layer while an app grows out of its icon. */
@@ -109,7 +97,7 @@ internal class AppOpenings {
 }
 
 /** How far the motion has come (0 at the icon, 1 filling the screen) when the app itself is started. */
-internal const val APP_OPENING_START_AT = 0.85f
+internal const val APP_OPENING_START_AT = 0.995f
 
 /** How long the drawn splash waits for the app to take over before it gives the overlay back. */
 internal const val APP_OPENING_HANDOFF_TIMEOUT_MS = 1500L
@@ -140,7 +128,7 @@ private fun AppOpeningSurface(opening: AppOpening, onProgress: (Float) -> Unit, 
             runCatching { SplashLooks.resolve(context, opening.packageName, opening.user, opening.activityName) }.getOrNull()
         }
     }
-    val background by animateColorAsState(look?.background?.let(::Color) ?: surfaceColor, tween(120), label = "splash")
+    val background by animateColorAsState(look?.let { Color(it.background) } ?: surfaceColor, tween(120), label = "splash")
     val progress = remember(opening) { Animatable(0f) }
     val fade = remember(opening) { Animatable(1f) }
     val screenCorner = remember(view) {
@@ -149,7 +137,8 @@ private fun AppOpeningSurface(opening: AppOpening, onProgress: (Float) -> Unit, 
 
     LaunchedEffect(opening) {
         launch { snapshotFlow { progress.value.coerceIn(0f, 1f) * fade.value }.collect(onProgress) }
-        launch { progress.animateTo(1f, spring(dampingRatio = 0.92f, stiffness = 420f)) }
+        // Critically damped: it comes to rest without overshooting, so it is still when the real splash takes over.
+        launch { progress.animateTo(1f, spring(dampingRatio = 1f, stiffness = 500f)) }
         snapshotFlow { progress.value }.first { it >= APP_OPENING_START_AT }
         opening.start()
         // The app covers the overlay (which then stops) or it never came up: then the overlay comes back.
@@ -216,13 +205,12 @@ private fun AppOpeningSurface(opening: AppOpening, onProgress: (Float) -> Unit, 
         val splashAlpha = ((p - 0.05f) / 0.35f).coerceIn(0f, 1f) * alpha
         val currentLook = look
         if (currentLook != null && splashAlpha > 0f) {
-            val visible = currentLook.visibleDp * density
-            val scale = lerp(startSize / visible, 1f, p.coerceIn(0f, 1f))
-            drawSplashIcon(currentLook, center, scale, splashAlpha, density)
+            val scale = lerp(startSize / currentLook.visiblePx, 1f, p.coerceIn(0f, 1f))
+            drawSplashIcon(currentLook, center, scale, splashAlpha)
         }
         val startIcon = opening.startIcon
         if (startIcon != null && startAlpha > 0f) {
-            val visible = (currentLook?.visibleDp ?: 160f) * density
+            val visible = currentLook?.visiblePx ?: (160f * density)
             val iconSize = lerp(startSize, visible, p.coerceIn(0f, 1f))
             drawImage(
                 image = startIcon,
@@ -240,121 +228,18 @@ private fun lerpRect(a: Rect, b: Rect, t: Float) = Rect(
 )
 
 /** Draws [look]'s splash icon centered on [center] at [scale] of its splash-screen size. */
-private fun DrawScope.drawSplashIcon(look: SplashLook, center: Offset, scale: Float, alpha: Float, density: Float) {
-    val box = look.boxDp * density * scale
-    val visibleRadius = look.visibleDp * density * scale / 2f
-    look.circle?.let { drawCircle(Color(it), radius = visibleRadius, center = center, alpha = alpha) }
+/**
+ * Draws [look]'s splash icon centered on [center] at [scale] of its splash size. At full size it lands on the pixel
+ * Android's splash icon view does: its square centered in the window, rounded down.
+ */
+private fun DrawScope.drawSplashIcon(look: SplashLook, center: Offset, scale: Float, alpha: Float) {
+    val size = look.iconSizePx * scale
     drawIntoCanvas { canvas ->
         val native = canvas.nativeCanvas
-        native.withSave {
-            if (look.clipToCircle) {
-                val path = android.graphics.Path().apply { addCircle(center.x, center.y, visibleRadius, android.graphics.Path.Direction.CW) }
-                clipPath(path)
-            }
-            look.icon.setBounds((center.x - box / 2f).toInt(), (center.y - box / 2f).toInt(), (center.x + box / 2f).toInt(), (center.y + box / 2f).toInt())
-            look.icon.alpha = (alpha * 255).toInt().coerceIn(0, 255)
-            look.icon.draw(this)
-        }
-    }
-}
-
-/**
- * What an app's splash screen shows, worked out from its theme as Android does: the [background] color (null: not a
- * plain color, so the overlay's surface stands in), and the [icon], drawn in a [boxDp] square of which the middle
- * [visibleDp] circle shows, on a [circle] of color when it has one, clipped to that circle when [clipToCircle].
- */
-internal class SplashLook(
-    val background: Int?,
-    val icon: Drawable,
-    val boxDp: Float,
-    val visibleDp: Float,
-    val circle: Int?,
-    val clipToCircle: Boolean
-)
-
-internal object SplashLooks {
-    // Android's splash icon sizes: an icon on a circle fills 240dp and shows within 160dp; one without fills 288dp and
-    // shows within 192dp. A whole adaptive icon is masked to 160dp.
-    private const val WITH_CIRCLE_BOX = 240f
-    private const val WITH_CIRCLE_VISIBLE = 160f
-    private const val NO_CIRCLE_BOX = 288f
-    private const val NO_CIRCLE_VISIBLE = 192f
-
-    fun resolve(context: Context, packageName: String, user: UserHandle?, activityName: String?): SplashLook? {
-        val (info, appIcon) = launchActivity(context, packageName, user, activityName) ?: return null
-        val packageContext = runCatching { context.createPackageContext(packageName, 0) }.getOrNull()
-        val theme = packageContext?.resources?.newTheme()?.apply { applyStyle(info.themeResource, true) }
-        fun color(attr: Int): Int? = theme?.obtainStyledAttributes(intArrayOf(attr))?.let { ta ->
-            try { if (ta.hasValue(0)) ta.getColor(0, 0) else null } catch (_: Exception) { null } finally { ta.recycle() }
-        }
-        fun drawable(attr: Int): Drawable? = theme?.obtainStyledAttributes(intArrayOf(attr))?.let { ta ->
-            try { ta.getDrawable(0) } catch (_: Exception) { null } finally { ta.recycle() }
-        }
-        // Only an opaque color can stand for the splash: some apps' window backgrounds are transparent.
-        fun Int.opaque() = takeIf { android.graphics.Color.alpha(it) == 255 }
-        val background = color(android.R.attr.windowSplashScreenBackground)?.opaque()
-            ?: (drawable(android.R.attr.windowBackground) as? ColorDrawable)?.color?.opaque()
-            ?: color(android.R.attr.colorBackground)?.opaque()
-        val iconBackground = color(android.R.attr.windowSplashScreenIconBackgroundColor)
-        val custom = drawable(android.R.attr.windowSplashScreenAnimatedIcon)?.takeUnless { it is AdaptiveIconDrawable }
-        val icon = (custom ?: drawable(android.R.attr.windowSplashScreenAnimatedIcon) ?: appIcon ?: return null).mutate()
-
-        return when {
-            custom != null && iconBackground != null ->
-                SplashLook(background, icon, WITH_CIRCLE_BOX, WITH_CIRCLE_VISIBLE, iconBackground, clipToCircle = true)
-            custom != null -> SplashLook(background, icon, NO_CIRCLE_BOX, NO_CIRCLE_VISIBLE, null, clipToCircle = false)
-            icon is AdaptiveIconDrawable && icon.foreground != null -> {
-                val foreground = icon.foreground.mutate()
-                when {
-                    iconBackground != null ->
-                        SplashLook(background, foreground, WITH_CIRCLE_BOX, WITH_CIRCLE_VISIBLE, iconBackground, clipToCircle = true)
-                    // An icon whose own background matches the splash shows just its foreground, as Android draws it.
-                    background != null && similar(averageColor(icon.background), background) ->
-                        SplashLook(background, foreground, NO_CIRCLE_BOX, NO_CIRCLE_VISIBLE, null, clipToCircle = false)
-                    // Otherwise the whole icon, masked to its shape.
-                    else -> SplashLook(background, icon, WITH_CIRCLE_VISIBLE, WITH_CIRCLE_VISIBLE, null, clipToCircle = false)
-                }
-            }
-            else -> SplashLook(background, icon, WITH_CIRCLE_VISIBLE, WITH_CIRCLE_VISIBLE, null, clipToCircle = false)
-        }
-    }
-
-    /** The activity that opens and its own (unbadged) icon. */
-    private fun launchActivity(context: Context, packageName: String, user: UserHandle?, activityName: String?): Pair<ActivityInfo, Drawable?>? {
-        if (user != null && user != Process.myUserHandle()) {
-            val apps = context.getSystemService(LauncherApps::class.java) ?: return null
-            val activity = runCatching { apps.getActivityList(packageName, user) }.getOrNull()
-                ?.let { list -> list.firstOrNull { it.componentName.className == activityName } ?: list.firstOrNull() }
-                ?: return null
-            return activity.activityInfo to runCatching { activity.getIcon(0) }.getOrNull()
-        }
-        val pm = context.packageManager
-        val intent = activityName?.let { Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setClassName(packageName, it) }
-            ?: runCatching { pm.getLaunchIntentForPackage(packageName) }.getOrNull()
-            ?: return null
-        val info = runCatching { pm.resolveActivity(intent, 0)?.activityInfo }.getOrNull() ?: return null
-        return info to runCatching { info.loadUnbadgedIcon(pm) }.getOrNull()
-    }
-
-    private fun averageColor(drawable: Drawable?): Int? {
-        drawable ?: return null
-        return runCatching {
-            val bitmap = createBitmap(8, 8)
-            drawable.mutate().apply { setBounds(0, 0, 8, 8) }.draw(Canvas(bitmap))
-            val pixels = IntArray(64).also { bitmap.getPixels(it, 0, 8, 0, 0, 8, 8) }
-            bitmap.recycle()
-            val r = pixels.sumOf { (it shr 16) and 0xFF } / 64
-            val g = pixels.sumOf { (it shr 8) and 0xFF } / 64
-            val b = pixels.sumOf { it and 0xFF } / 64
-            android.graphics.Color.rgb(r, g, b)
-        }.getOrNull()
-    }
-
-    private fun similar(a: Int?, b: Int): Boolean {
-        a ?: return false
-        val dr = abs(android.graphics.Color.red(a) - android.graphics.Color.red(b))
-        val dg = abs(android.graphics.Color.green(a) - android.graphics.Color.green(b))
-        val db = abs(android.graphics.Color.blue(a) - android.graphics.Color.blue(b))
-        return max(dr, max(dg, db)) <= 24
+        val layer = native.saveLayerAlpha(null, (alpha * 255).toInt().coerceIn(0, 255))
+        native.translate(floor(center.x - size / 2f), floor(center.y - size / 2f))
+        native.scale(scale, scale)
+        look.paint(native)
+        native.restoreToCount(layer)
     }
 }

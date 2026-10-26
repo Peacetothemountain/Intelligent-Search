@@ -220,8 +220,8 @@ fun SearchOverlayScreen(
         remember(sensoryEngine, view, keyboardController, focusManager, animationsEnabled, iconTint, iconPack) {
             { packageName, user, activityName, from, start ->
                 val icon = launchIcons.bounds(from.iconKeys)
-                val launch = AppLaunchAnimation.launch(view, icon)
                 val grows = animationsEnabled && view.width > 0 && view.height > 0
+                val launch = AppLaunchAnimation.launch(view, icon, drawnSplash = grows)
                 val opening = if (grows) {
                     // Out of the icon, else out of the touch, else out of the middle of the overlay.
                     val size = 48f * view.resources.displayMetrics.density

@@ -307,6 +307,7 @@ open class MainActivity : AppCompatActivity() {
                                             activityName = activityName,
                                             sourceBounds = launch?.sourceBounds,
                                             opts = launch?.options,
+                                            intentFlags = launch?.intentFlags ?: 0,
                                             activity = this@MainActivity
                                         )
                                     } catch (e: Throwable) {

@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.search
 
 import android.app.ActivityOptions
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.View
@@ -28,7 +29,7 @@ import kotlin.math.floor
  * icon's bounds on screen, which the app receives as `Intent.getSourceBounds()` just as from a launcher. Null when it
  * came from no icon on screen.
  */
-class AppLaunchOptions(val options: Bundle?, val sourceBounds: android.graphics.Rect?)
+class AppLaunchOptions(val options: Bundle?, val sourceBounds: android.graphics.Rect?, val intentFlags: Int = 0)
 
 /**
  * The ActivityOptions for an app opened from the overlay, once [AppOpeningLayer] has grown the tapped icon into the
@@ -41,8 +42,12 @@ class AppLaunchOptions(val options: Bundle?, val sourceBounds: android.graphics.
  */
 internal object AppLaunchAnimation {
 
-    /** The launch from [source] (the overlay's view) out of [icon], the tapped icon's bounds in that view (null: none). */
-    fun launch(source: View, icon: Rect?): AppLaunchOptions {
+    /**
+     * The launch from [source] (the overlay's view) out of [icon], the tapped icon's bounds in that view (null: none).
+     * When the overlay has [drawnSplash], the app's window comes up without Android's own opening motion, so its real
+     * splash screen replaces the drawn one exactly, with nothing moving.
+     */
+    fun launch(source: View, icon: Rect?, drawnSplash: Boolean = false): AppLaunchOptions {
         val options = ActivityOptions.makeBasic()
         source.display?.let { options.setLaunchDisplayId(it.displayId) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -54,7 +59,7 @@ internal object AppLaunchAnimation {
             android.graphics.Rect(floor(it.left).toInt(), floor(it.top).toInt(), ceil(it.right).toInt(), ceil(it.bottom).toInt())
                 .apply { offset(onScreen[0], onScreen[1]) }
         }
-        return AppLaunchOptions(options.toBundle(), sourceBounds)
+        return AppLaunchOptions(options.toBundle(), sourceBounds, if (drawnSplash) Intent.FLAG_ACTIVITY_NO_ANIMATION else 0)
     }
 }
 

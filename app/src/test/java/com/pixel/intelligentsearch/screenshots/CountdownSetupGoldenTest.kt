@@ -10,6 +10,8 @@ import com.github.takahirom.roborazzi.captureRoboImage
 import com.pixel.intelligentsearch.core.data.widget.CountdownEvent
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.widget.CountdownSetupScreen
+import com.pixel.intelligentsearch.feature.widget.CountdownWidgetProvider
+import org.junit.After
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -22,7 +24,10 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.time.LocalDate
 
-/** Goldens of the countdown widget's setup screen, light and dark, set to Halloween. See [SettingsGoldenTest] for recording. */
+/**
+ * Goldens of the countdown widget's setup screen, light and dark, set to Halloween, with the widget itself previewed
+ * at the top in the search bar's design. See [SettingsGoldenTest] for recording.
+ */
 @HiltAndroidTest
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -37,8 +42,18 @@ class CountdownSetupGoldenTest(private val dark: Boolean) {
         disableHandRolledAnimations()
     }
 
+    private val defaultNow = CountdownWidgetProvider.now
+
+    @After fun restoreClock() {
+        CountdownWidgetProvider.now = defaultNow
+    }
+
     @Test
     fun setup() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val prefs = context.getSharedPreferences(com.pixel.intelligentsearch.core.data.SettingsManager.PREFS_NAME, android.content.Context.MODE_PRIVATE)
+        prefs.edit().putString(com.pixel.intelligentsearch.core.data.SettingsManager.THEME.name, if (dark) "Material Dark" else "Material Light").commit()
+        CountdownWidgetProvider.now = { java.time.ZonedDateTime.parse("2026-10-22T09:00-04:00[America/New_York]") }
         compose.mainClock.autoAdvance = false
         compose.setContent {
             IntelligentSearchTheme(darkTheme = dark) {
@@ -46,6 +61,8 @@ class CountdownSetupGoldenTest(private val dark: Boolean) {
                     CountdownSetupScreen(
                         initial = CountdownEvent("Halloween", LocalDate.of(2026, 10, 31), yearly = true),
                         today = LocalDate.of(2026, 10, 22),
+                        // The widget's own views, as the screen shows them.
+                        previewViews = { draft -> CountdownWidgetProvider.buildSizes(context, 1, draft, prefs) },
                         onSave = {},
                         onBack = {}
                     )

@@ -83,12 +83,17 @@ object SearchRoleManager {
     const val ACTION_UPDATE_DSE = "com.google.android.finsky.intent.action.UPDATE_DSE"
 
     /**
-     * The one-time ADB step, one command per line: the first puts the app on the search engine list, the second
-     * selects it. Both are needed, so every place that offers to copy the step copies both.
+     * The one-time ADB step, one command per line: switch the search engine role on (Android leaves it off unless
+     * search_engine_role_available is set), put the app on the search engine list and select it, let it keep those
+     * settings itself, and make it the role holder. All are needed, so every place that offers the step shows and
+     * copies them all.
      */
     const val ADB_ACTIVATION_COMMANDS =
-        "adb shell settings put secure $SECURE_USER_SETUP_SEARCH_ENGINE com.pixel.intelligentsearch\n" +
-            "adb shell settings put secure $SECURE_SELECTED_SEARCH_ENGINE com.pixel.intelligentsearch"
+        "adb shell settings put secure search_engine_role_available 1\n" +
+            "adb shell settings put secure $SECURE_USER_SETUP_SEARCH_ENGINE com.pixel.intelligentsearch\n" +
+            "adb shell settings put secure $SECURE_SELECTED_SEARCH_ENGINE com.pixel.intelligentsearch\n" +
+            "adb shell pm grant com.pixel.intelligentsearch android.permission.WRITE_SECURE_SETTINGS\n" +
+            "adb shell cmd role add-role-holder android.app.role.SEARCH_ENGINE com.pixel.intelligentsearch"
 
     /**
      * Whether this app is on the device's search engine list as far as the picker is concerned: the

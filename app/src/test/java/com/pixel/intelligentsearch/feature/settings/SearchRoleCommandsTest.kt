@@ -15,7 +15,6 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -76,15 +75,21 @@ class SearchRoleCommandsTest {
     }
 
     @Test
-    fun theSharedCommandsListAndSelectTheApp() {
-        val commands = SearchRoleManager.ADB_ACTIVATION_COMMANDS.lines()
-        assertEquals(2, commands.size)
-        assertTrue(commands[0], commands[0].contains("user_setup_search_engine"))
-        assertTrue(commands[1], commands[1].contains("selected_search_engine"))
+    fun theSharedCommandsSwitchTheRoleOnListSelectGrantAndHoldIt() {
+        assertEquals(
+            listOf(
+                "adb shell settings put secure search_engine_role_available 1",
+                "adb shell settings put secure user_setup_search_engine com.pixel.intelligentsearch",
+                "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch",
+                "adb shell pm grant com.pixel.intelligentsearch android.permission.WRITE_SECURE_SETTINGS",
+                "adb shell cmd role add-role-holder android.app.role.SEARCH_ENGINE com.pixel.intelligentsearch"
+            ),
+            SearchRoleManager.ADB_ACTIVATION_COMMANDS.lines()
+        )
     }
 
     @Test
-    fun theDeveloperNoteCopiesBothCommands() {
+    fun theDeveloperNoteShowsAndCopiesEveryCommand() {
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) { SearchRoleInfoDialog(LocalContext.current) {} }
         }
@@ -94,7 +99,7 @@ class SearchRoleCommandsTest {
 
         val clipboard = ApplicationProvider.getApplicationContext<Context>().getSystemService(ClipboardManager::class.java)
         val copied = clipboard.primaryClip?.getItemAt(0)?.text.toString()
-        assertTrue(copied, "user_setup_search_engine" in copied)
-        assertTrue(copied, "selected_search_engine" in copied)
+        assertEquals(SearchRoleManager.ADB_ACTIVATION_COMMANDS, copied)
+        for (command in SearchRoleManager.ADB_ACTIVATION_COMMANDS.lines()) compose.onNodeWithText(command).assertExists()
     }
 }

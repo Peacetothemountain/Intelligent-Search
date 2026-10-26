@@ -313,18 +313,15 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                                             modifier = Modifier.padding(10.dp),
                                             verticalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
-                                            Text(
-                                                "adb shell settings put secure user_setup_search_engine com.pixel.intelligentsearch",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                            Text(
-                                                "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
+                                            // The same commands the copy button copies, one per line.
+                                            com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS.lines().forEach { command ->
+                                                Text(
+                                                    command,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                                    color = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
                                         }
                                     }
                                 }

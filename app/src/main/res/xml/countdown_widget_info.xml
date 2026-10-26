@@ -1,18 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Redrawn just after each local midnight by WorkManager (CountdownWidgetProvider), so no update period is needed.
-     Set up through SettingsActivity, which hands it on to CountdownConfigActivity. -->
+     Responsive: a pill like the search bar one row high, a tile two rows or more (the launcher picks the layout for
+     the size it is given). Set up through SettingsActivity, which hands it on to CountdownConfigActivity. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:minWidth="110dp"
-    android:minHeight="56dp"
-    android:minResizeWidth="80dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
     android:minResizeHeight="48dp"
-    android:maxResizeWidth="400dp"
-    android:maxResizeHeight="400dp"
+    android:maxResizeWidth="1024dp"
+    android:maxResizeHeight="1024dp"
     android:targetCellWidth="2"
     android:targetCellHeight="2"
     android:updatePeriodMillis="0"
-    android:initialLayout="@layout/widget_countdown"
-    android:previewLayout="@layout/widget_countdown"
+    android:initialLayout="@layout/widget_countdown_preview"
+    android:previewLayout="@layout/widget_countdown_preview"
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen|keyguard"
     android:widgetFeatures="reconfigurable"

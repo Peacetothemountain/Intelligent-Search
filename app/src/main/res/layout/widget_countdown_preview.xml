@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The countdown widget as the widget picker shows it, and its first frame before it is drawn: the 2 x 2 tile of the
+    System design, as placed by default, counting down to a sample event in the system's own colors. On Android 15 and
+    later the picker gets a preview drawn in the saved design instead (CountdownWidgetProvider.pickerPreview).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/bg_countdown_preview"
+        android:scaleType="fitXY"
+        android:importantForAccessibility="no" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_countdown_preview_title"
+            android:textColor="@color/widget_countdown_preview_text"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="500"
+            android:textSize="16sp"
+            android:includeFontPadding="false"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="start|bottom"
+            android:text="@string/widget_countdown_preview_days"
+            android:textColor="@color/widget_countdown_preview_hero"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="500"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="16sp"
+            android:autoSizeMaxTextSize="160sp"
+            android:autoSizeStepGranularity="2sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_countdown_preview_unit"
+            android:textColor="@color/widget_countdown_preview_text"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="500"
+            android:textSize="14sp"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end" />
+    </LinearLayout>
+</FrameLayout>

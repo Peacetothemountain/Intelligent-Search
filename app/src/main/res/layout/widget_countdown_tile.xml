@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The countdown widget two rows high or more: the event's name at the top and the days left as the hero at the
+    bottom, the number filling the room it has (auto-size), over "days". The larger size adds the date under the name.
+    The backdrop is the search bar's (the outline, the Material design's rim, around the surface, faded at once by
+    Transparency); the provider sets its colors, corners and outline from the design saved in Widget Customization
+    (CountdownWidgetProvider), and the content's padding to clear the outline.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToOutline="true"
+    android:clickable="true"
+    android:focusable="true">
+
+    <FrameLayout
+        android:id="@+id/countdown_backdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="noHideDescendants">
+
+        <ImageView
+            android:id="@+id/countdown_outline"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:src="@drawable/bg_widget_r32"
+            android:scaleType="fitXY"
+            android:importantForAccessibility="no" />
+
+        <ImageView
+            android:id="@+id/countdown_surface"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="8dp"
+            android:src="@drawable/bg_widget_r24"
+            android:scaleType="fitXY"
+            android:importantForAccessibility="no" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/countdown_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:importantForAccessibility="noHideDescendants">
+
+        <TextView
+            android:id="@+id/countdown_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="500"
+            android:textSize="16sp"
+            android:includeFontPadding="false"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/countdown_date"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="400"
+            android:textSize="14sp"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
+        <!-- The hero: the days left, as large as the room left for it allows. -->
+        <TextView
+            android:id="@+id/countdown_hero"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="start|bottom"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="500"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="16sp"
+            android:autoSizeMaxTextSize="160sp"
+            android:autoSizeStepGranularity="2sp"
+            android:importantForAccessibility="no" />
+
+        <!-- Shown instead of the hero until the widget is set up. -->
+        <ImageView
+            android:id="@+id/countdown_icon"
+            android:layout_width="40dp"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginBottom="8dp"
+            android:src="@drawable/ic_countdown_event"
+            android:scaleType="fitEnd"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
+        <TextView
+            android:id="@+id/countdown_unit"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="500"
+            android:textSize="14sp"
+            android:includeFontPadding="false"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:importantForAccessibility="no" />
+    </LinearLayout>
+</FrameLayout>

@@ -351,8 +351,9 @@
                 android:resource="@xml/search_widget_searchbox_info" />
         </receiver>
 
-        <!-- The countdown widget, redrawn after each local midnight and when the clock or time zone changes. Direct
-             boot aware like the search bar widgets, so a restart before unlock still draws it. -->
+        <!-- The countdown widget, redrawn after each local midnight and when the clock, time zone or language (its
+             words and date) changes. Direct boot aware like the search bar widgets, so a restart before unlock still
+             draws it. -->
         <receiver
             android:name="com.pixel.intelligentsearch.feature.widget.CountdownWidgetProvider"
             android:label="@string/widget_countdown_label"
@@ -363,6 +364,7 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

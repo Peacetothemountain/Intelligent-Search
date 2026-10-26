@@ -3,4 +3,8 @@
     <color name="widget_icon_primary">@android:color/system_accent1_200</color>
     <color name="widget_icon_secondary">@android:color/system_accent2_200</color>
     <color name="widget_icon_tertiary">@android:color/system_accent3_200</color>
+    <!-- The countdown widget's picker preview and first frame, before it is drawn in the saved design. -->
+    <color name="widget_countdown_preview_surface">@android:color/system_neutral1_900</color>
+    <color name="widget_countdown_preview_hero">@android:color/system_accent1_200</color>
+    <color name="widget_countdown_preview_text">@android:color/system_neutral1_50</color>
 </resources>

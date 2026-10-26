@@ -42,12 +42,25 @@ class BackupManager @Inject constructor(
         widgetUpdater: WidgetUpdater
     ) : this(context, settingsManager, historyDao, strongBoxSecurityManager, widgetUpdater, CurrencyRateRepository(context, settingsManager))
 
+    /**
+     * The backup passkey kept on this phone; backups made while it is set up open with it (schema 2). Tests set one
+     * with a software key, since Robolectric has no Keystore.
+     */
+    internal var backupPasskey: BackupPasskey
+        get() = passkey ?: BackupPasskey(context).also { passkey = it }
+        set(value) { passkey = value }
+    private var passkey: BackupPasskey? = null
+
     companion object {
+        /** Authenticates a schema 2 payload as part of a key-slot backup. */
+        private val KEY_SLOT_PAYLOAD_AAD = "INTELLIGENT_SEARCH_ENCRYPTED_BACKUP|${BackupKeySlots.SCHEMA_VERSION}".toByteArray(Charsets.UTF_8)
         private const val HARWARE_BACKUP_KEY_ALIAS = "com.pixel.intelligentsearch.hardware_backup_kek"
         private const val HISTORY_LIMIT = 25
 
         // Real backups are a few KB of settings text; anything near this is not one of ours.
         private const val MAX_BACKUP_BYTES = 4 * 1024 * 1024
+        /** A real backup has at most a passkey and a passphrase slot; more is not one of ours. */
+        private const val MAX_KEY_SLOTS = 8
 
         /** Backup preferencesMap names mapped to the DataStore keys they restore. */
         private val BOOLEAN_SETTING_KEYS = mapOf(
@@ -256,7 +269,19 @@ class BackupManager @Inject constructor(
 
             val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
 
-            val envelope = if (!passphrase.isNullOrBlank()) {
+            val envelope = if (backupPasskey.isSetUp) {
+                // With a passkey set up, the backup opens with it, and with the passphrase too when one is given.
+                keySlotEnvelope(plainJson, hwInfo, passphrase?.takeIf { it.isNotBlank() }?.let { pass ->
+                    val salt = BackupCryptoEngine.generateRandomSalt()
+                    val passChars = pass.toCharArray()
+                    val key = try {
+                        BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt)
+                    } finally {
+                        com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
+                    }
+                    key to salt
+                })
+            } else if (!passphrase.isNullOrBlank()) {
                 // Passphrase backups are encrypted in software from the passphrase so they restore on
                 // any phone; the device Keystore is not involved, so they are not hardware backed.
                 val salt = BackupCryptoEngine.generateRandomSalt()
@@ -306,11 +331,63 @@ class BackupManager @Inject constructor(
      * Writes an automatic backup to [uri], encrypted with a key already derived from the user's passphrase with
      * [salt]. The file is the same as a passphrase export, so it restores on any phone with that passphrase.
      */
-    suspend fun exportWithDerivedKey(uri: Uri, key: javax.crypto.SecretKey, salt: ByteArray): Result<Unit> = withContext(Dispatchers.IO) {
-        backupResult("exportWithDerivedKey") {
+    suspend fun exportWithDerivedKey(uri: Uri, key: javax.crypto.SecretKey, salt: ByteArray): Result<Unit> =
+        exportAutomatic(uri, key to salt)
+
+    /**
+     * Writes an automatic backup to [uri]: with the backup passkey when one is set up (plus the passphrase key
+     * [passphraseKey] when given), otherwise with [passphraseKey] alone, as a passphrase export would.
+     */
+    suspend fun exportAutomatic(uri: Uri, passphraseKey: Pair<javax.crypto.SecretKey, ByteArray>?): Result<Unit> = withContext(Dispatchers.IO) {
+        backupResult("exportAutomatic") {
             val plainJson = serializePayload(createBackupPayload())
             val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
-            writeEnvelope(uri, passphraseEnvelope(plainJson, key, salt, hwInfo))
+            val envelope = when {
+                backupPasskey.isSetUp -> keySlotEnvelope(plainJson, hwInfo, passphraseKey)
+                passphraseKey != null -> passphraseEnvelope(plainJson, passphraseKey.first, passphraseKey.second, hwInfo)
+                else -> throw IllegalStateException("Automatic backup has no passkey or passphrase to encrypt with")
+            }
+            writeEnvelope(uri, envelope)
+        }
+    }
+
+    /**
+     * A schema 2 backup of [plainJson]: encrypted once with a random content key, which a passkey slot and, given
+     * [passphraseKey] (a key derived from the passphrase, and its salt), a passphrase slot each wrap.
+     */
+    private fun keySlotEnvelope(
+        plainJson: String,
+        hwInfo: com.pixel.intelligentsearch.core.security.SecurityHardwareInfo,
+        passphraseKey: Pair<javax.crypto.SecretKey, ByteArray>?
+    ): EncryptedBackupEnvelope {
+        val contentKey = BackupKeySlots.newContentKey()
+        try {
+            val passkeySlot = backupPasskey.slotFor(contentKey)
+                ?: throw SecurityException("This phone can't read its backup passkey's key. Set up the passkey again.")
+            val passphraseSlot = passphraseKey?.let { (key, salt) ->
+                val (iv, wrapped) = BackupKeySlots.wrap(contentKey, key, KeySlot.TYPE_PASSPHRASE)
+                KeySlot(
+                    type = KeySlot.TYPE_PASSPHRASE,
+                    wrapIvBase64 = BackupCryptoEngine.encodeBase64(iv),
+                    wrappedKeyBase64 = BackupCryptoEngine.encodeBase64(wrapped),
+                    kdf = KdfMetadata(iterations = BackupCryptoEngine.PBKDF2_ITERATIONS, saltBase64 = BackupCryptoEngine.encodeBase64(salt))
+                )
+            }
+            val iv = BackupCryptoEngine.generateRandomIv()
+            val cipherBytes = BackupCryptoEngine.encryptPayload(plainJson, javax.crypto.spec.SecretKeySpec(contentKey, "AES"), iv, KEY_SLOT_PAYLOAD_AAD)
+            return EncryptedBackupEnvelope(
+                schemaVersion = BackupKeySlots.SCHEMA_VERSION,
+                isHardwareBacked = false,
+                hardwareChip = hwInfo.keyHolderName,
+                deviceModel = hwInfo.deviceDisplayName,
+                kdf = null,
+                cipher = CipherMetadata(ivBase64 = BackupCryptoEngine.encodeBase64(iv)),
+                encryptedPayloadBase64 = BackupCryptoEngine.encodeBase64(cipherBytes),
+                payloadSha256 = BackupCryptoEngine.calculateSha256(cipherBytes),
+                keySlots = listOfNotNull(passkeySlot, passphraseSlot)
+            )
+        } finally {
+            contentKey.fill(0)
         }
     }
 
@@ -410,36 +487,89 @@ class BackupManager @Inject constructor(
         }
     }
 
+    /** A backup file read, checked against its SHA-256, and ready to decrypt. */
+    private class VerifiedBackup(val envelope: EncryptedBackupEnvelope, val cipherBytes: ByteArray, val iv: ByteArray)
+
+    private fun readVerified(uri: Uri): VerifiedBackup {
+        val envelopeJson = readBackupText(uri)
+            ?: throw IllegalArgumentException("Could not read backup file")
+
+        if (envelopeJson.isBlank()) {
+            throw IllegalArgumentException("Selected backup file is empty (0 bytes). Please create a fresh backup.")
+        }
+
+        val envelope = parseEnvelope(envelopeJson)
+        require(envelope.format == "INTELLIGENT_SEARCH_ENCRYPTED_BACKUP") {
+            "Unsupported backup format: ${envelope.format}"
+        }
+        require(envelope.cipher.tagLengthBits == 128) {
+            "Unsupported GCM authentication tag length: ${envelope.cipher.tagLengthBits}"
+        }
+
+        // Verify integrity
+        val cipherBytes = BackupCryptoEngine.decodeBase64(envelope.encryptedPayloadBase64)
+        val calculatedSha = BackupCryptoEngine.calculateSha256(cipherBytes)
+        if (calculatedSha != envelope.payloadSha256) {
+            throw SecurityException("Backup integrity verification failed (SHA-256 checksum mismatch). File may be corrupted.")
+        }
+
+        val iv = BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64)
+        require(iv.size == 12) { "Invalid backup IV length: ${iv.size}" }
+        return VerifiedBackup(envelope, cipherBytes, iv)
+    }
+
+    /** The settings in a schema 2 backup, with the content key unwrapped from [slot] by [kek]. */
+    private fun decryptKeySlot(backup: VerifiedBackup, slot: KeySlot, kek: javax.crypto.SecretKey, wrongKey: String): String {
+        val contentKey = try {
+            BackupKeySlots.unwrap(slot, kek)
+        } catch (e: javax.crypto.AEADBadTagException) {
+            throw SecurityException(wrongKey, e)
+        }
+        return try {
+            BackupCryptoEngine.decryptPayload(backup.cipherBytes, javax.crypto.spec.SecretKeySpec(contentKey, "AES"), backup.iv, KEY_SLOT_PAYLOAD_AAD)
+        } catch (e: Throwable) {
+            throw SecurityException("This backup could not be decrypted. It may be corrupt.", e)
+        } finally {
+            contentKey.fill(0)
+        }
+    }
+
+    /** Restores the schema 2 backup at [uri] with the key its passkey gave ([kek]). */
+    suspend fun importWithPasskeyKey(uri: Uri, kek: javax.crypto.SecretKey): Result<Int> = withContext(Dispatchers.IO) {
+        backupResult("importWithPasskeyKey") {
+            val backup = readVerified(uri)
+            val slot = backup.envelope.passkeySlot ?: throw IllegalArgumentException("This backup wasn't made with a passkey.")
+            restorePayload(parsePayload(decryptKeySlot(backup, slot, kek, "That passkey doesn't open this backup.")))
+        }
+    }
+
     /** Decrypts the backup at [uri], restores it, and returns how many items were restored. */
     /** Restores [uri]: a passphrase backup, or one locked to this phone's Keystore. */
     suspend fun importFromFile(uri: Uri, passphrase: String?): Result<Int> = withContext(Dispatchers.IO) {
         backupResult("importFromFile") {
-            val envelopeJson = readBackupText(uri)
-                ?: throw IllegalArgumentException("Could not read backup file")
+            val backup = readVerified(uri)
+            val envelope = backup.envelope
+            val cipherBytes = backup.cipherBytes
+            val iv = backup.iv
 
-            if (envelopeJson.isBlank()) {
-                throw IllegalArgumentException("Selected backup file is empty (0 bytes). Please create a fresh backup.")
-            }
-
-            val envelope = parseEnvelope(envelopeJson)
-            require(envelope.format == "INTELLIGENT_SEARCH_ENCRYPTED_BACKUP") {
-                "Unsupported backup format: ${envelope.format}"
-            }
-            require(envelope.cipher.tagLengthBits == 128) {
-                "Unsupported GCM authentication tag length: ${envelope.cipher.tagLengthBits}"
-            }
-
-            // Verify integrity
-            val cipherBytes = BackupCryptoEngine.decodeBase64(envelope.encryptedPayloadBase64)
-            val calculatedSha = BackupCryptoEngine.calculateSha256(cipherBytes)
-            if (calculatedSha != envelope.payloadSha256) {
-                throw SecurityException("Backup integrity verification failed (SHA-256 checksum mismatch). File may be corrupted.")
-            }
-
-            val iv = BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64)
-            require(iv.size == 12) { "Invalid backup IV length: ${iv.size}" }
-
-            val decryptedJson: String = if (envelope.kdf != null) {
+            val decryptedJson: String = if (envelope.keySlots.isNotEmpty()) {
+                val slot = envelope.passphraseSlot
+                    ?: throw IllegalArgumentException("This backup opens with its passkey. Choose it when Android asks.")
+                val kdf = slot.kdf ?: throw IllegalArgumentException("This backup's passphrase details are missing.")
+                if (passphrase.isNullOrBlank()) {
+                    throw IllegalArgumentException("Passphrase required to decrypt this backup")
+                }
+                val salt = BackupCryptoEngine.decodeBase64(kdf.saltBase64)
+                require(salt.size >= 16) { "Backup KDF salt is too short (${salt.size} bytes)" }
+                require(kdf.iterations in 10_000..5_000_000) { "Backup KDF iteration count out of bounds: ${kdf.iterations}" }
+                val passChars = passphrase.toCharArray()
+                val key = try {
+                    BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt, kdf.iterations)
+                } finally {
+                    com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
+                }
+                decryptKeySlot(backup, slot, key, "Incorrect passphrase. Authentication tag mismatch.")
+            } else if (envelope.kdf != null) {
                 if (passphrase.isNullOrBlank()) {
                     throw IllegalArgumentException("Passphrase required to decrypt this backup")
                 }
@@ -756,6 +886,28 @@ class BackupManager @Inject constructor(
         root.put("cipher", cipherObj)
         root.put("encryptedPayloadBase64", envelope.encryptedPayloadBase64)
         root.put("payloadSha256", envelope.payloadSha256)
+        if (envelope.keySlots.isNotEmpty()) {
+            root.put("keySlots", JSONArray().apply {
+                envelope.keySlots.forEach { slot ->
+                    put(JSONObject().apply {
+                        put("type", slot.type)
+                        put("wrapIvBase64", slot.wrapIvBase64)
+                        put("wrappedKeyBase64", slot.wrappedKeyBase64)
+                        slot.credentialId?.let { put("credentialId", it) }
+                        slot.rpId?.let { put("rpId", it) }
+                        slot.prfSaltBase64?.let { put("prfSaltBase64", it) }
+                        slot.kdf?.let { kdf ->
+                            put("kdf", JSONObject().apply {
+                                put("algorithm", kdf.algorithm)
+                                put("iterations", kdf.iterations)
+                                put("saltBase64", kdf.saltBase64)
+                                put("keyLengthBits", kdf.keyLengthBits)
+                            })
+                        }
+                    })
+                }
+            })
+        }
 
         return root.toString(2)
     }
@@ -792,7 +944,35 @@ class BackupManager @Inject constructor(
             kdf = kdf,
             cipher = cipher,
             encryptedPayloadBase64 = root.getString("encryptedPayloadBase64"),
-            payloadSha256 = root.getString("payloadSha256")
+            payloadSha256 = root.getString("payloadSha256"),
+            keySlots = parseKeySlots(root.optJSONArray("keySlots"))
         )
+    }
+
+    /** A schema 2 file's slots; one of a type this version doesn't know is left out. */
+    private fun parseKeySlots(array: JSONArray?): List<KeySlot> {
+        if (array == null) return emptyList()
+        return (0 until minOf(array.length(), MAX_KEY_SLOTS)).mapNotNull { i ->
+            val obj = array.optJSONObject(i) ?: return@mapNotNull null
+            val type = obj.optString("type")
+            if (type != KeySlot.TYPE_PASSKEY && type != KeySlot.TYPE_PASSPHRASE) return@mapNotNull null
+            val kdf = obj.optJSONObject("kdf")?.let { k ->
+                KdfMetadata(
+                    algorithm = k.optString("algorithm", "PBKDF2WithHmacSHA256"),
+                    iterations = k.optInt("iterations", BackupCryptoEngine.PBKDF2_ITERATIONS),
+                    saltBase64 = k.getString("saltBase64"),
+                    keyLengthBits = k.optInt("keyLengthBits", 256)
+                )
+            }
+            KeySlot(
+                type = type,
+                wrapIvBase64 = obj.getString("wrapIvBase64"),
+                wrappedKeyBase64 = obj.getString("wrappedKeyBase64"),
+                credentialId = obj.optString("credentialId").takeIf { it.isNotBlank() },
+                rpId = obj.optString("rpId").takeIf { it.isNotBlank() },
+                prfSaltBase64 = obj.optString("prfSaltBase64").takeIf { it.isNotBlank() },
+                kdf = kdf
+            )
+        }
     }
 }

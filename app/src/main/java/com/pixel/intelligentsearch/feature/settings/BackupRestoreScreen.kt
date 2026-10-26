@@ -108,6 +108,10 @@ fun BackupRestoreScreen(
     // Where this page's keys are kept: the security chip on phones with StrongBox, otherwise the processor's secure area.
     val keyHolder = hardwareInfo.keyHolderShortName
     var showNoPassphraseWarningDialog by remember { mutableStateOf(false) }
+    // The backup passkey: when set up, every backup opens with it (and with the passphrase too, when one is given).
+    val backupPasskey = remember(context) { com.pixel.intelligentsearch.core.backup.BackupPasskey(context.applicationContext) }
+    var passkeySetUp by remember { mutableStateOf(backupPasskey.isSetUp) }
+    val passkeySupported = com.pixel.intelligentsearch.core.backup.CredentialManagerPasskeyPrf.isSupported
     var showRestorePassphraseDialog by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var pendingEnvelope by remember { mutableStateOf<EncryptedBackupEnvelope?>(null) }
@@ -194,6 +198,8 @@ fun BackupRestoreScreen(
                     android.util.Log.d("BackupRestoreScreen", "exportBackup onSuccess callback")
                     safeShowToast(
                         when {
+                            passkeySetUp && !usedPassphrase.isNullOrBlank() -> "Backup exported. It opens with your passkey or passphrase."
+                            passkeySetUp -> "Backup exported. It opens with your passkey."
                             !usedPassphrase.isNullOrBlank() -> "Encrypted backup exported successfully!"
                             else -> "Backup exported. Without a passphrase it can only be restored on this phone."
                         }
@@ -263,14 +269,39 @@ fun BackupRestoreScreen(
 
                 val envelope = inspectResult.getOrNull()
                 pendingEnvelope = envelope
-                val needsPass = envelope?.kdf != null
-                if (needsPass) {
-                    val askForPassphrase = {
-                        pendingRestoreUri = uri
-                        dialogPassphrase = ""
-                        dialogErrorMessage = null
-                        showRestorePassphraseDialog = true
+                val needsPass = envelope?.opensWithPassphrase == true
+                val askForPassphrase = {
+                    pendingRestoreUri = uri
+                    dialogPassphrase = ""
+                    dialogErrorMessage = null
+                    showRestorePassphraseDialog = true
+                }
+                val passkeySlot = envelope?.passkeySlot
+                if (passkeySlot != null && passkeySupported) {
+                    // Android's passkey sheet, then the screen lock; the passphrase is the way in when that doesn't work.
+                    restoring = true
+                    try {
+                        val key = backupPasskey.unlock(activity, passkeySlot)
+                        viewModel?.importBackupWithPasskeyKey(
+                            uri = uri,
+                            key = key,
+                            onSuccess = {
+                                restoring = false
+                                safeShowToast("Intelligent Search Settings Restored")
+                            },
+                            onError = { err ->
+                                restoring = false
+                                safeShowToast("Restore error: $err")
+                            }
+                        ) ?: run { restoring = false }
+                    } catch (e: com.pixel.intelligentsearch.core.backup.PasskeyException) {
+                        restoring = false
+                        if (!e.cancelled) safeShowToast(e.message ?: "Couldn't use the passkey")
+                        if (needsPass) askForPassphrase()
                     }
+                } else if (passkeySlot != null && !needsPass) {
+                    safeShowToast("This backup opens with a passkey, which needs Android 14 or later.")
+                } else if (needsPass) {
                     // The typed or saved passphrase, as for an export; if the saved one can't be had, the user types it.
                     withPassphrase(onUnavailable = askForPassphrase) { chosen ->
                         if (chosen != null) performRestore(uri, chosen) else askForPassphrase()
@@ -488,9 +519,14 @@ fun BackupRestoreScreen(
             bugdroid = if (isBugdroidVideoSupported) { { BackupBugdroid(backupExoPlayer) } } else null
         ) {
             SettingsCard(modifier = Modifier.backupCard("backup_card_passphrase")) {
-                BackupCardTitle("Encryption Passphrase")
-                BackupCardDescription(
-                    "Set a Passphrase to Restore Your Backup on Any Device. If Left Blank, the Backup Is Encrypted with a Key in This Phone's $keyHolder and Can Only Be Restored on This Phone."
+                BackupCardTitle("Encryption")
+                BackupCardDescription(encryptionCardDescription(passkeySupported, passkeySetUp, keyHolder))
+                // A passkey first, the passphrase as the other way in (or the only one, below Android 14).
+                PasskeyRow(
+                    passkey = backupPasskey,
+                    passkeySetUp = passkeySetUp,
+                    supported = passkeySupported,
+                    onChanged = { passkeySetUp = it }
                 )
                 // Autofill's highlight is drawn over the whole field, so clipping the field to its own pill shape makes
                 // the highlight a pill; the colour is a light, see-through tint of the theme instead of yellow.
@@ -684,7 +720,12 @@ fun BackupRestoreScreen(
                 Button(
                     onClick = {
                         withPassphrase(forBackup = true) { chosen ->
-                            if (chosen == null) {
+                            if (chosen == null && passkeySetUp) {
+                                // The passkey alone opens it on any phone signed in to the password manager.
+                                exportPassphrase = null
+                                exportWantsPassphrase = false
+                                exportLauncher.launch("intelligent_search_backup_${System.currentTimeMillis()}.json")
+                            } else if (chosen == null) {
                                 showNoPassphraseWarningDialog = true
                             } else if (chosen.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
                                 // A portable backup can be attacked offline, so its passphrase needs some length.
@@ -727,7 +768,10 @@ fun BackupRestoreScreen(
                 }
             }
 
-            AutoBackupCard(obtainPassphrase = { onReady -> withPassphrase(forBackup = true, onReady = onReady) })
+            AutoBackupCard(
+                passkeySetUp = passkeySetUp,
+                obtainPassphrase = { onReady -> withPassphrase(forBackup = true, onReady = onReady) }
+            )
         }
     }
 }
@@ -897,8 +941,15 @@ private const val FEET_GROUND_Y = 928f
  * opened by typing one; an older file's error also mentions a passphrase, and asking for it there would loop.
  */
 internal fun shouldAskForPassphrase(envelope: EncryptedBackupEnvelope?, error: String): Boolean =
-    envelope?.kdf != null &&
+    envelope?.opensWithPassphrase == true &&
         (error.contains("passphrase", ignoreCase = true) || error.contains("tag mismatch", ignoreCase = true))
+
+/** What the Encryption card says: how backups made now can be restored. */
+internal fun encryptionCardDescription(passkeySupported: Boolean, passkeySetUp: Boolean, keyHolder: String): String = when {
+    passkeySetUp -> "Backups Open with Your Passkey on Any Phone Signed In to Your Password Manager. A Passphrase Adds a Second Way In."
+    passkeySupported -> "Restore on Any Phone with a Passkey or Passphrase. Without Either, Backups Open Only on This Phone."
+    else -> "Set a Passphrase to Restore Your Backup on Any Device. If Left Blank, the Backup Is Encrypted with a Key in This Phone's $keyHolder and Can Only Be Restored on This Phone."
+}
 
 /** The title of a card on this page, in the same style as the passphrase card's. */
 @Composable

@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -28,6 +30,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.RestartAlt
+import androidx.compose.material.icons.outlined.Save
+import androidx.compose.material.icons.outlined.SelectAll
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -37,6 +42,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
@@ -77,7 +83,11 @@ fun ManageHiddenAppsScreen(
     loadApps: suspend (Context) -> List<AppItem> = { SystemDataProvider.getAllApps(it) }
 ) {
     val context = LocalContext.current
-    var hiddenApps by remember { mutableStateOf(prefs[SettingsManager.HIDDEN_APPS]) }
+    // Switches edit a draft: Save writes it, Reset puts back the apps last saved.
+    var savedHiddenApps by remember { mutableStateOf(prefs[SettingsManager.HIDDEN_APPS]) }
+    var hiddenApps by remember { mutableStateOf(savedHiddenApps) }
+    val hasUnsavedChanges = hiddenApps != savedHiddenApps
+    var showUnsavedChangesCard by remember { mutableStateOf(false) }
     var installedApps by remember { mutableStateOf<List<HiddenAppRow>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -89,6 +99,39 @@ fun ManageHiddenAppsScreen(
         subtitle = "Verify Identity to View Hidden Items.",
         onBack = onBack
     )
+
+    fun save() {
+        prefs.edit().put(SettingsManager.HIDDEN_APPS, hiddenApps).apply()
+        savedHiddenApps = hiddenApps
+    }
+
+    // Leaving with unsaved changes asks first, as Widget Customization does, unless the user said not to.
+    val asksBeforeLeaving = isAuthenticated && hasUnsavedChanges && !prefs[SettingsManager.HIDDEN_APPS_UNSAVED_WARNING_DISMISSED]
+    val handleBack = { if (asksBeforeLeaving) showUnsavedChangesCard = true else onBack() }
+    BackHandler(enabled = asksBeforeLeaving) { showUnsavedChangesCard = true }
+
+    if (showUnsavedChangesCard) {
+        WarningCard(
+            title = "Discard unsaved changes?",
+            message = "You changed which apps are hidden. If you leave now, none of your changes will be applied.",
+            acceptLabel = "Save",
+            onAccept = {
+                showUnsavedChangesCard = false
+                save()
+                onBack()
+            },
+            onDiscard = {
+                showUnsavedChangesCard = false
+                onBack()
+            },
+            onDontShowAgain = {
+                prefs.edit().put(SettingsManager.HIDDEN_APPS_UNSAVED_WARNING_DISMISSED, true).apply()
+                showUnsavedChangesCard = false
+                onBack()
+            },
+            onDismissRequest = { showUnsavedChangesCard = false }
+        )
+    }
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
@@ -166,7 +209,7 @@ fun ManageHiddenAppsScreen(
                 }
             },
             navigationIcon = {
-                IconButton(onClick = onBack) {
+                IconButton(onClick = handleBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                 }
             },
@@ -189,11 +232,12 @@ fun ManageHiddenAppsScreen(
         )
         }
     ) { padding ->
+        Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
         com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
             shape = RoundedCornerShape(24.dp),
             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
             border = null,
-            modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)
+            modifier = Modifier.fillMaxWidth().weight(1f)
         ) {
             if (!isAuthenticated) {
                 Column(
@@ -233,6 +277,23 @@ fun ManageHiddenAppsScreen(
                         installedApps.filter { it.app.name.contains(searchQuery, ignoreCase = true) || it.app.packageName.contains(searchQuery, ignoreCase = true) }
                     }
 
+                    // Select All hides every app the list shows (all of them, or those matching the search); off, it
+                    // shows them all again.
+                    if (filteredApps.isNotEmpty()) {
+                        item(key = SELECT_ALL_KEY) {
+                            val shownPackages = filteredApps.map { it.app.packageName }
+                            SettingsRowToggle(
+                                title = "Select All",
+                                subtitle = if (searchQuery.isBlank()) "Hide Every App in This List." else "Hide Every App Matching Your Search.",
+                                icon = Icons.Outlined.SelectAll,
+                                isChecked = hiddenApps.containsAll(shownPackages),
+                                onCheckedChange = { hide ->
+                                    hiddenApps = if (hide) hiddenApps + shownPackages else hiddenApps - shownPackages.toSet()
+                                },
+                                showDivider = true
+                            )
+                        }
+                    }
                     items(
                         count = filteredApps.size,
                         key = { index -> filteredApps[index].app.packageName }
@@ -247,10 +308,7 @@ fun ManageHiddenAppsScreen(
                             icon = row.icon,
                             isChecked = isHidden,
                             onCheckedChange = { hide ->
-                                val newSet = hiddenApps.toMutableSet()
-                                if (hide) newSet.add(app.packageName) else newSet.remove(app.packageName)
-                                hiddenApps = newSet
-                                prefs.edit().put(SettingsManager.HIDDEN_APPS, newSet).apply()
+                                hiddenApps = if (hide) hiddenApps + app.packageName else hiddenApps - app.packageName
                             },
                             showDivider = index < filteredApps.size - 1
                         )
@@ -275,5 +333,39 @@ fun ManageHiddenAppsScreen(
                 }
             }
         }
+        // Reset and Save, under the list once it is unlocked; both wait until a switch has changed.
+        if (isAuthenticated) {
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = { hiddenApps = savedHiddenApps },
+                    enabled = hasUnsavedChanges,
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                ) {
+                    Icon(Icons.Outlined.RestartAlt, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Reset", style = MaterialTheme.typography.labelLarge)
+                }
+                Button(
+                    onClick = {
+                        save()
+                        android.widget.Toast.makeText(context, "Hidden apps saved.", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    enabled = hasUnsavedChanges,
+                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                ) {
+                    Icon(Icons.Outlined.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Save", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+        }
     }
 }
+
+/** The Select All row's list key; no package is named this. */
+private const val SELECT_ALL_KEY = "select_all"

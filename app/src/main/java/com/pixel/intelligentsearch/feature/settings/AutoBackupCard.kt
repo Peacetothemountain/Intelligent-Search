@@ -38,11 +38,12 @@ import com.pixel.intelligentsearch.di.appEntryPoint
 import kotlinx.coroutines.launch
 
 /**
- * The Automatic Backup card of the Encrypted Backup page. Turning it on asks for a folder and uses the
- * passphrase typed above, so the weekly backups restore on any phone with that passphrase.
+ * The Automatic Backup card of the Encrypted Backup page. Turning it on asks for a folder and uses the backup passkey
+ * when one is set up ([passkeySetUp]) and the passphrase typed above when there is one, so the weekly backups restore on
+ * any phone with either.
  */
 @Composable
-internal fun AutoBackupCard(obtainPassphrase: (onReady: (String?) -> Unit) -> Unit) {
+internal fun AutoBackupCard(passkeySetUp: Boolean = false, obtainPassphrase: (onReady: (String?) -> Unit) -> Unit) {
     val context = LocalContext.current
     val autoBackup = remember(context) { AutoBackup(context.applicationContext) }
     val scope = rememberCoroutineScope()
@@ -55,7 +56,7 @@ internal fun AutoBackupCard(obtainPassphrase: (onReady: (String?) -> Unit) -> Un
         onPauseOrDispose { }
     }
     var isRunning by remember { mutableStateOf(false) }
-    val enabled = remember(revision) { autoBackup.isEnabled }
+    val enabled = remember(revision, passkeySetUp) { autoBackup.isEnabled }
     // A DocumentsProvider query (possibly a slow cloud provider), so it runs off the main thread.
     val folderName by produceState<String?>(initialValue = null, revision) {
         value = withContext(Dispatchers.IO) { autoBackup.folderName() }
@@ -69,6 +70,13 @@ internal fun AutoBackupCard(obtainPassphrase: (onReady: (String?) -> Unit) -> Un
         val passphrase = pendingPassphrase.orEmpty()
         pendingPassphrase = null
         if (folder == null) return@rememberLauncherForActivityResult
+        // With a passkey and no passphrase, the passkey alone protects the backups.
+        if (passphrase.isEmpty() && passkeySetUp) {
+            val turnedOn = autoBackup.enableWithPasskey(folder)
+            Toast.makeText(context, if (turnedOn) "Automatic backup is on" else "Set up the passkey again first", Toast.LENGTH_SHORT).show()
+            revision++
+            return@rememberLauncherForActivityResult
+        }
         // The passphrase isn't kept in saved state, so if Android recreated the page while the picker was open it is
         // empty now; ask again rather than turn on backups nobody can restore.
         if (passphrase.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
@@ -93,14 +101,21 @@ internal fun AutoBackupCard(obtainPassphrase: (onReady: (String?) -> Unit) -> Un
     SettingsCard(modifier = Modifier.backupCard("backup_card_auto")) {
         BackupCardTitle("Automatic Backup")
         BackupCardDescription(
-            "Weekly to a Folder You Choose, Encrypted with Your Passphrase Above. Keeps the Latest ${AutoBackup.KEEP}."
+            if (passkeySetUp) {
+                "Weekly to a Folder You Choose, Encrypted with Your Passkey (and Passphrase, If Given). Keeps the Latest ${AutoBackup.KEEP}."
+            } else {
+                "Weekly to a Folder You Choose, Encrypted with Your Passphrase Above. Keeps the Latest ${AutoBackup.KEEP}."
+            }
         )
         Spacer(modifier = Modifier.height(4.dp))
         if (!enabled) {
             Button(
                 onClick = {
                     obtainPassphrase { chosen ->
-                        if (chosen == null || chosen.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
+                        if (chosen == null && passkeySetUp) {
+                            pendingPassphrase = ""
+                            folderPicker.launch(null)
+                        } else if (chosen == null || chosen.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
                             Toast.makeText(
                                 context,
                                 "Enter a passphrase of at least ${AutoBackup.MIN_PASSPHRASE_LENGTH} characters above first.",

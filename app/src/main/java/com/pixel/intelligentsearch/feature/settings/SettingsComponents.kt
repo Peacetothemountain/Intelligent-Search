@@ -474,6 +474,12 @@ fun SettingsRowToggle(
     }
 }
 
+/** How far a [SettingsAppRow]'s pill highlight sits in from its container's sides. */
+private val APP_ROW_HIGHLIGHT_INSET = 8.dp
+
+/** The shape of a [SettingsAppRow]'s selection highlight and press ripple: a pill. */
+internal val AppRowHighlightShape = RoundedCornerShape(percent = 50)
+
 /**
  * An app in a list of apps (Application Search's picker): drawn as Manage Hidden Apps draws its rows ([SettingsRowToggle]:
  * the app's icon, its name and a line under it, the same press and hairline), with no switch, since tapping the row is
@@ -493,11 +499,13 @@ fun SettingsAppRow(
 ) {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Column(modifier = modifier.fillMaxWidth()) {
+        // The highlight and ripple are a pill inset from the rounded container's edges, never a full-bleed rectangle.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .padding(horizontal = APP_ROW_HIGHLIGHT_INSET)
+                .expressivePress(interactionSource, AppRowHighlightShape)
                 .then(if (selected) Modifier.background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)) else Modifier)
-                .expressivePress(interactionSource, null)
                 .combinedClickable(
                     interactionSource = interactionSource,
                     indication = androidx.compose.material3.ripple(bounded = true),
@@ -506,7 +514,7 @@ fun SettingsAppRow(
                     onClick = onClick
                 )
                 .semantics { this.selected = selected }
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 16.dp - APP_ROW_HIGHLIGHT_INSET, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             when (icon) {
@@ -704,7 +712,9 @@ fun Android17Slider(
     /** Accessible name; without it TalkBack announces an unlabeled adjustable. */
     label: String? = null,
     /** What TalkBack reads as the value ("Medium", "5 results"); without it TalkBack reads a percentage of the range. */
-    valueDescription: String? = null
+    valueDescription: String? = null,
+    /** Called once a tap, a drag or an accessibility adjustment has finished setting the value. */
+    onValueChangeFinished: (() -> Unit)? = null
 ) {
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
     
@@ -742,6 +752,7 @@ fun Android17Slider(
     }
 
     val currentOnValueChange by rememberUpdatedState(onValueChange)
+    val currentOnValueChangeFinished by rememberUpdatedState(onValueChangeFinished)
     val currentValue by rememberUpdatedState(value)
 
     fun snapValue(rawFraction: Float): Float {
@@ -790,6 +801,7 @@ fun Android17Slider(
                     val snapped = snapValue(((targetValue - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f))
                     if (snapped != currentValue) {
                         currentOnValueChange(snapped)
+                        currentOnValueChangeFinished?.invoke()
                         true
                     } else false
                 }
@@ -797,7 +809,10 @@ fun Android17Slider(
             // A tap or a sideways drag sets the value. The down event is left unconsumed until the drag passes the
             // horizontal touch slop, so a vertical swipe that starts on the slider still scrolls the page.
             .pointerInput(steps, valueRange) {
-                detectTapGestures(onTap = { processChange(fractionAt(it.x)) })
+                detectTapGestures(onTap = {
+                    processChange(fractionAt(it.x))
+                    currentOnValueChangeFinished?.invoke()
+                })
             }
             .pointerInput(steps, valueRange) {
                 detectHorizontalDragGestures(
@@ -806,7 +821,9 @@ fun Android17Slider(
                         change.consume()
                         dragPhaseOffset.floatValue += dragAmount * 0.04f
                         processChange(fractionAt(change.position.x))
-                    }
+                    },
+                    onDragEnd = { currentOnValueChangeFinished?.invoke() },
+                    onDragCancel = { currentOnValueChangeFinished?.invoke() }
                 )
             },
         contentAlignment = Alignment.CenterStart

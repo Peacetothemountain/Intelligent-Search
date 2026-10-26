@@ -120,7 +120,7 @@ Built with Jetpack Compose, Material 3 Expressive, Material You dynamic color an
         <li>All matching and ranking happens on the device.</li>
         <li>Contacts, calendar and files are off until you allow them.</li>
         <li>Hidden apps can be locked behind your fingerprint or face.</li>
-        <li>Nothing goes to Google's cloud backup; your own backups are encrypted with a passphrase.</li>
+        <li>Nothing goes to Google's cloud backup; your own backups are encrypted with a passkey or a passphrase.</li>
       </ul>
     </td>
     <td width="50%" valign="top">

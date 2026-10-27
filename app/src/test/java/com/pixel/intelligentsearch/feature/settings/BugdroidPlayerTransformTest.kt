@@ -98,4 +98,38 @@ class BugdroidPlayerTransformTest {
         // The welcome card on a 527 dp wide phone at 2.55x: 1140 x 701 px with the clip at 0.95.
         assertEquals(0.95f, BugdroidClip.WELCOME.fittedScale(1140f, 701f, 0.95f), 0.0001f)
     }
+
+    /** The poster stands in for the video until it draws, so it must cover exactly the video's place. */
+    @Test
+    fun thePosterIsDrawnWhereTheVideoIs() {
+        for (clip in BugdroidClip.entries) for ((w, h) in listOf(1440 to 1190, 560 to 700, 760 to 240)) {
+            val view = TextureView(ApplicationProvider.getApplicationContext())
+            view.layout(0, 0, w, h)
+            applyClipTransform(view, clip, 0.95f)
+            val corners = floatArrayOf(0f, 0f, w.toFloat(), h.toFloat())
+            view.getTransform(null).mapPoints(corners)
+            val rect = clip.videoRectInView(w.toFloat(), h.toFloat(), 0.95f)
+            val where = "$clip $w x $h"
+            assertEquals(where, corners[0], rect.left, 0.5f)
+            assertEquals(where, corners[1], rect.top, 0.5f)
+            assertEquals(where, corners[2], rect.right, 0.5f)
+            assertEquals(where, corners[3], rect.bottom, 0.5f)
+        }
+    }
+
+    /** The shadows are cast onto the floor the feet stand on: just above the lowest point the character reaches. */
+    @Test
+    fun theGroundIsWhereTheFeetAre() {
+        for (clip in BugdroidClip.entries) {
+            assertTrue("$clip", clip.groundY <= clip.characterBottom)
+            assertTrue("$clip", clip.groundY >= clip.characterBottom - 40)
+        }
+    }
+
+    /** Android turns a blur radius into a sigma of 0.57735 * radius + 0.5; the shadows are specified as sigmas. */
+    @Test
+    fun blurRadiiGiveTheShadowsTheirSigma() {
+        for (sigma in listOf(0.5f, 4f, 10f, 42f)) assertEquals(sigma, 0.57735f * blurRadiusForSigma(sigma) + 0.5f, 0.001f)
+        assertEquals(0f, blurRadiusForSigma(0.2f), 0f)
+    }
 }

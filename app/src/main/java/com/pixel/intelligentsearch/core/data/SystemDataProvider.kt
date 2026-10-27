@@ -518,6 +518,25 @@ object SystemDataProvider {
         return contacts.mapIndexed { i, contact -> emails[contactIds[i]]?.let { contact.copy(email = it) } ?: contact }
     }
 
+    /**
+     * The ids of contacts starred in the Contacts app, read on their own so a provider that can't answer only loses
+     * the stars, never the contacts. Empty when they can't be read.
+     */
+    private fun starredContactIds(context: Context): Set<Long> = try {
+        context.contentResolver.query(
+            ContactsContract.Contacts.CONTENT_URI,
+            arrayOf(ContactsContract.Contacts._ID),
+            "${ContactsContract.Contacts.STARRED} = 1",
+            null,
+            null
+        )?.use { cursor ->
+            buildSet { while (cursor.moveToNext()) add(cursor.getLong(0)) }
+        }.orEmpty()
+    } catch (e: Exception) {
+        android.util.Log.w("IntelligentSearch", "Starred contacts unreadable", e)
+        emptySet()
+    }
+
     suspend fun getAllContacts(context: Context): List<ContactItem> = withContext(Dispatchers.IO) {
         val contacts = mutableListOf<ContactItem>()
         val contactIds = mutableListOf<Long>()
@@ -531,9 +550,9 @@ object SystemDataProvider {
             ContactsContract.CommonDataKinds.Phone.NUMBER,
             ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
             ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY,
-            ContactsContract.CommonDataKinds.Phone.STARRED,
             *ChatNumbers.COLUMNS
         )
+        val starredIds = starredContactIds(context)
 
         try {
             context.contentResolver.query(
@@ -547,7 +566,6 @@ object SystemDataProvider {
                 val numberIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
                 val lookupKeyIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
                 val idIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
-                val starredIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.STARRED)
                 val chatColumns = ChatNumbers.columnsOf(cursor)
 
                 while (cursor.moveToNext()) {
@@ -557,8 +575,7 @@ object SystemDataProvider {
                     val id = cursor.getLong(idIndex)
 
                     val lookupUri = ContactsContract.Contacts.getLookupUri(id, lookupKey)?.toString() ?: ""
-                    val starred = starredIndex >= 0 && cursor.getInt(starredIndex) != 0
-                    contacts.add(ContactItem(name, number, lookupUri, starred = starred))
+                    contacts.add(ContactItem(name, number, lookupUri, starred = id in starredIds))
                     contactIds.add(id)
                     chatNumbers.offer(cursor, chatColumns, id, number)
                 }

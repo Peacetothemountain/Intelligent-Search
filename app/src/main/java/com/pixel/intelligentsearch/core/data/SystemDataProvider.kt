@@ -91,7 +91,9 @@ data class ContactItem(
      * The number the chat buttons use: the contact's default number, else a mobile one, else [phoneNumber]. Blank
      * means [phoneNumber]. [phoneNumber] itself stays the one search found, so matching and ranking don't change.
      */
-    val chatNumber: String = ""
+    val chatNumber: String = "",
+    /** Starred (a favorite) in the Contacts app, which lifts it in search. */
+    val starred: Boolean = false
 )
 
 @Immutable
@@ -529,6 +531,7 @@ object SystemDataProvider {
             ContactsContract.CommonDataKinds.Phone.NUMBER,
             ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
             ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY,
+            ContactsContract.CommonDataKinds.Phone.STARRED,
             *ChatNumbers.COLUMNS
         )
 
@@ -544,6 +547,7 @@ object SystemDataProvider {
                 val numberIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.NUMBER)
                 val lookupKeyIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
                 val idIndex = cursor.getColumnIndexOrThrow(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+                val starredIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.STARRED)
                 val chatColumns = ChatNumbers.columnsOf(cursor)
 
                 while (cursor.moveToNext()) {
@@ -553,7 +557,8 @@ object SystemDataProvider {
                     val id = cursor.getLong(idIndex)
 
                     val lookupUri = ContactsContract.Contacts.getLookupUri(id, lookupKey)?.toString() ?: ""
-                    contacts.add(ContactItem(name, number, lookupUri))
+                    val starred = starredIndex >= 0 && cursor.getInt(starredIndex) != 0
+                    contacts.add(ContactItem(name, number, lookupUri, starred = starred))
                     contactIds.add(id)
                     chatNumbers.offer(cursor, chatColumns, id, number)
                 }

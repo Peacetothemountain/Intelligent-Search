@@ -54,8 +54,14 @@ internal fun openResult(context: Context, s: OverlayScope, result: Any, from: La
     s.ui.hasStartedTyping = false
     when (result) {
         is AppItem -> s.performAppLaunch(result, from)
-        is ContactItem -> launchSafeIntent(context, ContactActions.openIntent(result, s.settingsState.contactDirectCall))
-        is FileItem -> openFileResult(context, s.prefs, result)
+        is ContactItem -> {
+            s.viewModel.recordOpened(result)
+            launchSafeIntent(context, ContactActions.openIntent(result, s.settingsState.contactDirectCall))
+        }
+        is FileItem -> {
+            s.viewModel.recordOpened(result)
+            openFileResult(context, s.prefs, result)
+        }
         is AndroidSettingResult -> openAndroidSetting(context, result)
     }
 }

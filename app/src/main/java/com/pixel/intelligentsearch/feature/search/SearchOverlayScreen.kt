@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
+import com.pixel.intelligentsearch.core.search.ResultKeys
 import com.pixel.intelligentsearch.feature.settings.TextButton
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -242,8 +243,11 @@ fun SearchOverlayScreen(
         }
     }
     // Work and Private Space copies of an app share its package name, so launches carry the profile too.
-    val performAppLaunch: (AppItem, LaunchSource) -> Unit = remember(performLaunch) {
-        { app, from -> performLaunch(app.packageName, app.userHandle, app.activityName, from) }
+    val performAppLaunch: (AppItem, LaunchSource) -> Unit = remember(performLaunch, viewModel) {
+        { app, from ->
+            viewModel.recordOpened(app)
+            performLaunch(app.packageName, app.userHandle, app.activityName, from)
+        }
     }
 
     LaunchedEffect(uiState.mathResult) {
@@ -575,10 +579,11 @@ fun SearchOverlayScreen(
             BestMatch.find(
                 uiState.query,
                 listOf(
-                    BestMatch.Domain(appWeight, settingsState.searchApps, visibleApps) { it.name },
-                    BestMatch.Domain(contactWeight, settingsState.searchContacts, uiState.contacts) { it.name },
-                    BestMatch.Domain(fileWeight, settingsState.searchFiles, uiState.files) { it.name }
-                )
+                    BestMatch.Domain(appWeight, settingsState.searchApps, visibleApps, ResultKeys::app) { it.name },
+                    BestMatch.Domain(contactWeight, settingsState.searchContacts, uiState.contacts, ResultKeys::contact) { it.name },
+                    BestMatch.Domain(fileWeight, settingsState.searchFiles, uiState.files, ResultKeys::file) { it.name }
+                ),
+                learnedPick = uiState.learnedPick
             )
         }
     }
@@ -650,11 +655,15 @@ fun SearchOverlayScreen(
         viewModel.addSearchHistory(submittedQuery)
         when (val match = bestMatch) {
             is ContactItem -> {
+                viewModel.recordOpened(match)
                 // A spoken name can be misheard, so voice opens the contact rather than dialling straight away.
                 launchSafeIntent(context, ContactActions.openIntent(match, directCall = settingsState.contactDirectCall && !fromVoice))
             }
             is AppItem -> performAppLaunch(match, LaunchSource.keyboard(LaunchIconKeys.BEST_MATCH, LaunchIconKeys.app(match)))
-            is FileItem -> openFileResult(context, prefs, match)
+            is FileItem -> {
+                viewModel.recordOpened(match)
+                openFileResult(context, prefs, match)
+            }
             else -> when {
                 uiState.instantAnswer?.iconType == "url" -> uiState.instantAnswer?.let { answer -> openWebAddress(answer.title) }
                 settingsState.appQuickLaunch && visibleApps.isNotEmpty() -> visibleApps.first().let { app -> performAppLaunch(app, LaunchSource.keyboard(LaunchIconKeys.app(app))) }

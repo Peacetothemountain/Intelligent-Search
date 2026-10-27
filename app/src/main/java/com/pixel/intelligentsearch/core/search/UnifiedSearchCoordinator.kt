@@ -40,20 +40,23 @@ class UnifiedSearchCoordinator @Inject constructor(
     settingsManager: SettingsManager,
     private val currencyRates: CurrencyRateRepository,
     /** Pins, applied to ranking at search time. */
-    private val resultShortcuts: ResultShortcutStore
+    private val resultShortcuts: ResultShortcutStore,
+    /** What the user opened and picked for what they typed, applied to ranking at search time. */
+    private val selectionMemory: SelectionMemory
 ) {
     /**
-     * Outside Hilt (tests): currency answers use the saved or built-in rates from a repository of its own, and pins are
-     * read from [settingsManager] through a store of its own.
+     * Outside Hilt (tests): currency answers use the saved or built-in rates from a repository of its own, pins are
+     * read from [settingsManager] through a store of its own, and picks are remembered in this app's own file.
      */
     constructor(
         context: Context,
         systemActionRouter: SystemActionRouter,
         multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager,
-        settingsManager: SettingsManager
+        settingsManager: SettingsManager,
+        selectionMemory: SelectionMemory = SelectionMemory(context)
     ) : this(
         context, systemActionRouter, multiProfileManager, settingsManager,
-        CurrencyRateRepository(context, settingsManager), ResultShortcutStore(settingsManager)
+        CurrencyRateRepository(context, settingsManager), ResultShortcutStore(settingsManager), selectionMemory
     )
 
     private val dateMath = DateMathEngine()
@@ -321,26 +324,58 @@ class UnifiedSearchCoordinator @Inject constructor(
         appUsage = usage
     }
 
-    /** [item]'s scoring metadata with current app usage (apps only) and whether the user pinned it applied. */
-    private fun metadataFor(item: SearchItem, shortcuts: ResultShortcuts): SearchScoringEngine.ScoringMetadata {
+    /**
+     * [item]'s scoring metadata for [learnedQuery] ([SelectionMemory.normalizeQuery]'s form) with usage, picks and
+     * whether the user pinned it applied. Apps take their usage from Android's usage stats; contacts and files, which
+     * have none, from how often and how lately they were opened from search, a file counting as used when it was
+     * changed or opened, whichever is later.
+     */
+    private fun metadataFor(item: SearchItem, shortcuts: ResultShortcuts, learnedQuery: String, now: Long): SearchScoringEngine.ScoringMetadata {
         var metadata = item.metadata
-        val usage = (item.payload as? AppItem)?.let { appUsage[it.packageName] }
-        if (usage != null) metadata = metadata.copy(launchCount = usage.daysUsed, lastUsedTimestampMs = usage.lastUsedMs)
+        val appUsageNow = (item.payload as? AppItem)?.let { appUsage[it.packageName] }
+        if (appUsageNow != null) {
+            metadata = metadata.copy(launchCount = appUsageNow.daysUsed, lastUsedTimestampMs = appUsageNow.lastUsedMs)
+        } else if (item.domain != SearchScoringEngine.EntityDomain.APPLICATION) {
+            selectionMemory.usage(item.shortcutKey, now)?.let { opened ->
+                metadata = metadata.copy(
+                    launchCount = kotlin.math.round(opened.opens).toInt(),
+                    lastUsedTimestampMs = maxOf(metadata.lastUsedTimestampMs, opened.lastMs)
+                )
+            }
+        }
+        val learned = selectionMemory.learnedWeight(item.shortcutKey, learnedQuery, now)
+        if (learned > 0f) metadata = metadata.copy(learnedWeight = learned)
         if (shortcuts.isPinned(item.shortcutKey)) metadata = metadata.copy(isPinned = true)
         return metadata
     }
 
-    /** Scores [item] for [query] with its usage and pin, as every search pipeline here does. */
+    /** Adds to [candidates] the indexed results [SelectionMemory.candidateKeys] names, of [domain] when one is given. */
+    private fun addRemembered(
+        candidates: MutableSet<SearchItem>,
+        learnedQuery: String,
+        domain: SearchScoringEngine.EntityDomain? = null
+    ) {
+        val keys = selectionMemory.candidateKeys(learnedQuery)
+        if (keys.isEmpty()) return
+        val indexed = itemsByShortcutKey
+        for (key in keys) {
+            val item = indexed[key] ?: continue
+            if (domain == null || item.domain == domain) candidates.add(item)
+        }
+    }
+
+    /** Scores [item] for [query] with its usage, picks and pin, as every search pipeline here does. */
     private fun scoreItem(
         query: String,
         item: SearchItem,
         shortcuts: ResultShortcuts,
         now: Long,
-        queryMetaphone: DoubleMetaphone.MetaphoneResult
+        queryMetaphone: DoubleMetaphone.MetaphoneResult,
+        learnedQuery: String = SelectionMemory.normalizeQuery(query)
     ): SearchScoringEngine.ScoreBreakdown = SearchScoringEngine.evaluateScore(
         query = query,
         targetTitle = item.title,
-        metadata = metadataFor(item, shortcuts),
+        metadata = metadataFor(item, shortcuts, learnedQuery, now),
         currentTimeMs = now,
         precomputedQueryMetaphone = queryMetaphone,
         precomputedTargetMetaphone = item.precomputedMetaphone,
@@ -398,7 +433,8 @@ class UnifiedSearchCoordinator @Inject constructor(
                 launchCount = 0,
                 lastUsedTimestampMs = 0L,
                 isPinned = false,
-                domain = SearchScoringEngine.EntityDomain.CONTACT
+                domain = SearchScoringEngine.EntityDomain.CONTACT,
+                isFavorite = contact.starred
             ),
             precomputedMetaphone = DoubleMetaphone.encode(contact.name),
             shortcutKey = ResultKeys.contact(contact)
@@ -624,6 +660,8 @@ class UnifiedSearchCoordinator @Inject constructor(
             contactRadixTree.searchPrefix(normalized, limit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
         }
 
+        addRemembered(candidates, SelectionMemory.normalizeQuery(q), SearchScoringEngine.EntityDomain.CONTACT)
+
         val queryMetaphone = DoubleMetaphone.encode(q)
         if (queryMetaphone.primary.isNotEmpty()) {
             phoneticIndex[queryMetaphone.primary]?.filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
@@ -744,6 +782,17 @@ class UnifiedSearchCoordinator @Inject constructor(
             }
         }
 
+        // Results the user opens often or picked for this text: the prefix lookups above stop at the first 20
+        // contacts and files, which a much-used one can fall behind ("j" with fifty Js). Added after the fuzzy step,
+        // whose trigger counts the apps the lookups found, and held to every word of a multi-word query like the rest.
+        val learnedQuery = SelectionMemory.normalizeQuery(query)
+        val remembered = mutableSetOf<SearchItem>()
+        addRemembered(remembered, learnedQuery)
+        if (tokens.size > 1) {
+            remembered.retainAll { item -> QueryNormalizer.containsAllTokens("${item.title} ${item.subtitle.orEmpty()}", tokens) }
+        }
+        candidates.addAll(remembered)
+
         // 7. Multi-Factor Relevance Scoring Matrix
         cancellationCheck?.invoke()
         val now = System.currentTimeMillis()
@@ -756,7 +805,7 @@ class UnifiedSearchCoordinator @Inject constructor(
                 cancellationCheck?.invoke()
             }
             if (isPrivateSpaceItemBlocked(item, isPrivateLocked)) continue
-            val scoreBreakdown = scoreItem(query, item, shortcuts, now, queryMetaphone)
+            val scoreBreakdown = scoreItem(query, item, shortcuts, now, queryMetaphone, learnedQuery)
             if (scoreBreakdown.totalScore > 0f) {
                 rankedResults.add(RankedSearchResult(item, scoreBreakdown))
             }

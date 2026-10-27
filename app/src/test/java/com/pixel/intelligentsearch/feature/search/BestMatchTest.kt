@@ -50,6 +50,26 @@ class BestMatchTest {
     }
 
     @Test
+    fun theResultPickedForThisTextBeatsAWholeName() {
+        val d = listOf(
+            BestMatch.Domain(50, true, listOf(Item("app", "Maps"), Item("app", "Maps Go")), { "key:${it.name}" }) { it.name },
+            BestMatch.Domain(50, true, listOf(Item("contact", "Maps")), { "key:contact" }) { it.name }
+        )
+        assertEquals(Item("app", "Maps Go"), BestMatch.find("maps", d, learnedPick = "key:Maps Go"))
+    }
+
+    @Test
+    fun aPickThatIsNotAmongTheResultsIsIgnored() {
+        val d = listOf(
+            BestMatch.Domain(50, true, listOf(Item("app", "Maps")), { "key:${it.name}" }) { it.name },
+            BestMatch.Domain(50, false, listOf(Item("contact", "Maps Person")), { "key:${it.name}" }) { it.name }
+        )
+        assertEquals(Item("app", "Maps"), BestMatch.find("maps", d, learnedPick = "key:Gone"))
+        // Nor is one in a type the user doesn't search.
+        assertEquals(Item("app", "Maps"), BestMatch.find("maps", d, learnedPick = "key:Maps Person"))
+    }
+
+    @Test
     fun disabledDomainsAreSkipped() {
         val d = domains(listOf("Maps"), listOf("Maps"), emptyList(), enabled = Triple(false, true, true))
         assertEquals(Item("contact", "Maps"), BestMatch.find("maps", d))

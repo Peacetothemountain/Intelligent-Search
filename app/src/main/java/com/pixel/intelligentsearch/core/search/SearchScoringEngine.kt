@@ -9,7 +9,9 @@ import kotlin.math.pow
  * - Match Precision: Exact, Prefix, Word-Boundary, Acronym, Substring, Phonetic, Fuzzy
  * - Usage Frequency: Sub-linear logarithmic scaling
  * - Recency Decay: Exponential half-life decay function
- * - Pin/Favorite Weight: a pinned result that matches at all outranks every unpinned one in its domain
+ * - Learned Picks: what the user opened after typing this text before ([SelectionMemory])
+ * - Pin/Favorite Weight: a pinned result that matches at all outranks every unpinned one in its domain; a starred
+ *   contact gets a small lift
  * - Domain Weight: Intent priority weighting across entity domains
  */
 object SearchScoringEngine {
@@ -25,7 +27,11 @@ object SearchScoringEngine {
         val launchCount: Int = 0,
         val lastUsedTimestampMs: Long = 0L,
         val isPinned: Boolean = false,
-        val domain: EntityDomain = EntityDomain.APPLICATION
+        val domain: EntityDomain = EntityDomain.APPLICATION,
+        /** How strongly the user picked this result for the query being scored ([SelectionMemory.learnedWeight]). */
+        val learnedWeight: Float = 0f,
+        /** A contact starred in the Contacts app. */
+        val isFavorite: Boolean = false
     )
 
     data class ScoreBreakdown(
@@ -34,7 +40,9 @@ object SearchScoringEngine {
         val frequencyScore: Float,
         val recencyScore: Float,
         val pinScore: Float,
-        val domainMultiplier: Float
+        val domainMultiplier: Float,
+        val learnedScore: Float = 0f,
+        val favoriteScore: Float = 0f
     )
 
     // Constants for Match Scoring
@@ -50,10 +58,19 @@ object SearchScoringEngine {
     private const val FREQUENCY_WEIGHT = 120.0f
     private const val RECENCY_MAX_BONUS = 350.0f
     /**
-     * More than any unpinned result can reach (an exact match, 1000, plus the most frequency and recency add, about
-     * 680), so a pinned result that matches the query at all ranks first in its domain, as Pin to Top promises.
+     * What one pick for exactly the query adds is LEARNED_WEIGHT * ln 2 (about 280, less than an exact name's lead over
+     * a short prefix, so one stray tap reorders little); repeated picks add less each, up to [LEARNED_MAX].
      */
-    private const val PIN_BONUS = 2000.0f
+    private const val LEARNED_WEIGHT = 400.0f
+    private const val LEARNED_MAX = 900.0f
+    private const val FAVORITE_BONUS = 150.0f
+
+    /**
+     * More than any unpinned result can reach (an exact match, 1000, plus frequency and recency, about 900, the most
+     * learned picks add, 900, and a star, 150), so a pinned result that matches the query at all ranks first in its
+     * domain, as Pin to Top promises.
+     */
+    private const val PIN_BONUS = 4000.0f
 
     // Half-life durations in milliseconds
     private const val HALF_LIFE_APP_MS = 48.0 * 60 * 60 * 1000 // 48 hours
@@ -126,11 +143,19 @@ object SearchScoringEngine {
         // 3. Recency Scoring (Exponential Half-Life Decay)
         val recencyScore = computeRecencyScore(metadata.lastUsedTimestampMs, currentTimeMs, metadata.domain)
 
-        // 4. Pin Bonus
+        // 4. Learned picks: sub-linear, so a habit counts and a long one doesn't grow without end.
+        val learnedScore = if (metadata.learnedWeight > 0f) {
+            (LEARNED_WEIGHT * ln(1.0 + metadata.learnedWeight.toDouble())).toFloat().coerceAtMost(LEARNED_MAX)
+        } else {
+            0.0f
+        }
+        val favoriteScore = if (metadata.isFavorite) FAVORITE_BONUS else 0.0f
+
+        // 5. Pin Bonus
         val pinScore = if (metadata.isPinned) PIN_BONUS else 0.0f
 
-        // 5. Domain-Weighted Total
-        val rawSum = matchScore + frequencyScore + recencyScore + pinScore
+        // 6. Domain-Weighted Total
+        val rawSum = matchScore + frequencyScore + recencyScore + learnedScore + favoriteScore + pinScore
         val effectiveMultiplier = metadata.domain.weight
         val totalScore = rawSum * effectiveMultiplier
 
@@ -140,7 +165,9 @@ object SearchScoringEngine {
             frequencyScore = frequencyScore,
             recencyScore = recencyScore,
             pinScore = pinScore,
-            domainMultiplier = effectiveMultiplier
+            domainMultiplier = effectiveMultiplier,
+            learnedScore = learnedScore,
+            favoriteScore = favoriteScore
         )
     }
 

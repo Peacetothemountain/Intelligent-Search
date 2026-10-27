@@ -226,12 +226,16 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
                 DetailActions {
                     DetailAction("Open Contact", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true) {
                         s.ui.hasStartedTyping = false
+                        s.viewModel.recordOpened(item)
                         launchSafeIntent(context, ContactActions.openIntent(item, directCall = false))
                     }
                 }
                 if (actions.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(8.dp))
-                    ContactActionChips(actions, s.settingsState.activeIconPack) { s.ui.hasStartedTyping = false }
+                    ContactActionChips(actions, s.settingsState.activeIconPack) {
+                        s.ui.hasStartedTyping = false
+                        s.viewModel.recordOpened(item)
+                    }
                 }
             }
             is FileItem -> {

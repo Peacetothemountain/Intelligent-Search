@@ -17,18 +17,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.imageResource
@@ -186,35 +184,30 @@ fun BugdroidPlayer(
 ) {
     val dark = MaterialTheme.colorScheme.isDark
     val edgeFade = with(LocalDensity.current) { SHADOW_EDGE_FADE.toPx() }
-    var viewSize by remember { mutableStateOf(IntSize.Zero) }
-    val effect = remember(viewSize, clip, scaleFactor, dark, edgeFade) {
-        bugdroidEffect(clip, viewSize.width.toFloat(), viewSize.height.toFloat(), scaleFactor, dark, edgeFade)?.asComposeRenderEffect()
-    }
+    // Built from the layer's own size as it is laid out, so a resize doesn't recompose the player.
+    val effects = remember(clip, scaleFactor, dark, edgeFade) { BugdroidEffects(clip, scaleFactor, dark, edgeFade) }
 
     // The poster stays until the video has drawn a frame of its own: ExoPlayer reports the frame as it hands it to
-    // the TextureView, which shows it on its next draw, so the poster goes two frames later.
-    var firstFrameRendered by remember(player) { mutableStateOf(false) }
+    // the TextureView, which shows it on its next draw, so the poster goes the frame after that.
     var videoShowing by remember(player) { mutableStateOf(false) }
+    val textureView = remember { arrayOfNulls<TextureView>(1) }
     DisposableEffect(player) {
         val listener = object : Player.Listener {
-            override fun onRenderedFirstFrame() { firstFrameRendered = true }
+            override fun onRenderedFirstFrame() {
+                val view = textureView[0] ?: return run { videoShowing = true }
+                view.postOnAnimation { view.postOnAnimation { videoShowing = true } }
+            }
         }
         player?.addListener(listener)
         onDispose { player?.removeListener(listener) }
     }
-    LaunchedEffect(firstFrameRendered) {
-        if (firstFrameRendered) {
-            withFrameNanos { }
-            withFrameNanos { }
-            videoShowing = true
-        }
-    }
 
-    Box(modifier = modifier.onSizeChanged { viewSize = it }.graphicsLayer { renderEffect = effect }) {
+    Box(modifier = modifier.graphicsLayer { renderEffect = effects.forSize(size) }) {
         AndroidView(
             factory = { ctx ->
                 TextureView(ctx).apply {
                     isOpaque = false
+                    textureView[0] = this
                     addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
                         applyClipTransform(view as TextureView, clip, scaleFactor)
                     }
@@ -236,7 +229,7 @@ fun BugdroidPlayer(
             modifier = Modifier.fillMaxSize()
         )
         // Drawn over the video, unkeyed like it, so the key turns both into the same bugdroid.
-        if (player != null && effect != null && !videoShowing) {
+        if (player != null && bugdroidShaders != null && !videoShowing) {
             val poster = ImageBitmap.imageResource(clip.posterRes)
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val rect = clip.videoRectInView(size.width, size.height, scaleFactor)
@@ -416,6 +409,25 @@ private fun bugdroidEffect(clip: BugdroidClip, vw: Float, vh: Float, scaleFactor
         val faded = RenderEffect.createChainEffect(RenderEffect.createRuntimeShaderEffect(shaders.edgeFade, "content"), shadows)
         RenderEffect.createBlendModeEffect(faded, key, BlendMode.SRC_OVER)
     }.getOrNull()
+}
+
+/** The effect for the last size asked for, rebuilt only when the size changes. */
+private class BugdroidEffects(
+    private val clip: BugdroidClip,
+    private val scaleFactor: Float,
+    private val dark: Boolean,
+    private val edgeFade: Float
+) {
+    private var size = Size.Unspecified
+    private var effect: androidx.compose.ui.graphics.RenderEffect? = null
+
+    fun forSize(size: Size): androidx.compose.ui.graphics.RenderEffect? {
+        if (size != this.size) {
+            this.size = size
+            effect = bugdroidEffect(clip, size.width, size.height, scaleFactor, dark, edgeFade)?.asComposeRenderEffect()
+        }
+        return effect
+    }
 }
 
 /** RenderEffect blurs take a radius, which Android turns into a sigma of 0.57735 * radius + 0.5. */

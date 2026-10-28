@@ -173,6 +173,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.IntelligentSearch">
 
+        <!-- AppFunctions: how assistants are told what this app's functions are for -->
+        <property
+            android:name="android.app.appfunctions.app_metadata"
+            android:resource="@xml/app_functions_app_metadata" />
+
         <!-- Declare default searchable activity for system search integration -->
         <meta-data
             android:name="android.app.default_searchable"

@@ -95,13 +95,13 @@ fun androidx.compose.foundation.layout.ColumnScope.AttachedRows(
 }
 
 /**
- * A settings page's top bar colors: the page's own ([androidx.compose.material3.ColorScheme.background]), so the bar
- * never shows as a band of another surface over the page it heads.
+ * A settings page's top bar colors: none of its own, so the page and its glow run unbroken from the top of the screen
+ * down, and the bar never shows as a band cut off from the page it heads.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun settingsTopBarColors(): TopAppBarColors =
-    TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+    TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent)
 
 @Composable
 fun SettingsSectionHeader(text: String, modifier: Modifier = Modifier) {

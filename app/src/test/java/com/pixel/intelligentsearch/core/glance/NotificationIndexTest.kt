@@ -249,7 +249,7 @@ class NotificationIndexTest {
     fun secretNotificationsAreNeverIndexed() {
         fun code(visibility: Int) = Notification.Builder(context, "c")
             .setContentTitle("Your bank")
-            .setContentText("Code 482913")
+            .setContentText("Your statement is ready")
             .setVisibility(visibility)
             .build()
         assertNull(NotificationExtractor.fromNotification("s", "com.example.bank", "Bank", 0L, code(Notification.VISIBILITY_SECRET), emptySet()))
@@ -261,14 +261,45 @@ class NotificationIndexTest {
             )
         )
         // Private is every notification's default; it only hides the content on a lock screen set to.
-        assertEquals("Code 482913", NotificationExtractor.fromNotification("p", "com.example.bank", "Bank", 0L, code(Notification.VISIBILITY_PRIVATE), emptySet())?.text)
+        assertEquals("Your statement is ready", NotificationExtractor.fromNotification("p", "com.example.bank", "Bank", 0L, code(Notification.VISIBILITY_PRIVATE), emptySet())?.text)
         assertEquals(
-            "Code 482913",
+            "Your statement is ready",
             NotificationExtractor.fromNotification(
                 "o", "com.example.bank", "Bank", 0L, code(Notification.VISIBILITY_PRIVATE), emptySet(),
                 lockscreenVisibilityOverride = NotificationListenerService.Ranking.VISIBILITY_NO_OVERRIDE
             )?.text
         )
+    }
+
+    @Test
+    fun aOneTimeCodeIsNeverIndexedEvenWhenOnlyPrivate() {
+        fun posted(title: String, text: String) = NotificationExtractor.fromNotification(
+            "k", "com.example.bank", "Bank", 0L,
+            Notification.Builder(context, "c").setContentTitle(title).setContentText(text)
+                .setVisibility(Notification.VISIBILITY_PRIVATE).build(),
+            emptySet()
+        )
+        // Posted as private, the default, these were indexed and found by searching the code or the bank.
+        for ((title, text) in listOf(
+            "Your bank" to "Code 482913",
+            "Messages" to "Your verification code is 482913. Don't share it.",
+            "Acme" to "482913 is your Acme security code",
+            "Sign in" to "Use 482 913 as your one-time passcode",
+            "Login" to "OTP: 4829-1300",
+            "Google" to "G-482913 is your Google verification code.",
+            "Your login code" to "4829",
+            "2FA" to "Enter 48291300 to sign in"
+        )) {
+            assertNull("$title: $text", posted(title, text))
+        }
+        // A number with no word saying it's a code, or one far from such a word, is still found.
+        for ((title, text) in listOf(
+            "Shop" to "Your order 123456 has shipped",
+            "Bank" to "You paid 1250 to Sam",
+            "Delivery" to "Parcel 123456 arrives today. Questions about the delivery or how to return it? Enter your code online."
+        )) {
+            assertEquals(text, posted(title, text)?.text)
+        }
     }
 
     @Test

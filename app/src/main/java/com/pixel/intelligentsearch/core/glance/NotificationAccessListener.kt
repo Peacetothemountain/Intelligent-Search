@@ -187,9 +187,9 @@ internal class NotificationExtractor(
         /**
          * The index entry for [notification], or null for what search leaves out: secret notifications (one-time
          * codes, banking: their app or channel keeps them off the lock screen altogether), group summaries (their
-         * children are indexed), media players (Media Controls show those) and notifications with no words or timer.
-         * Private notifications (every notification's default) are indexed: that only hides their content on a lock
-         * screen set to hide it.
+         * children are indexed), media players (Media Controls show those), one-time sign-in codes whatever their
+         * visibility ([looksLikeOneTimeCode]) and notifications with no words or timer. Other private notifications
+         * (every notification's default) are indexed: that only hides their content on a lock screen set to hide it.
          */
         fun fromNotification(
             key: String,
@@ -217,6 +217,8 @@ internal class NotificationExtractor(
                 lines.isNotBlank() -> lines
                 else -> body
             }.trim().take(MAX_TEXT)
+            // Codes are often posted only as private, which hides them on the lock screen but not from search.
+            if (looksLikeOneTimeCode("$title\n$text")) return null
             val chronometer = chronometerOf(notification, packageName, clockPackages)
             if (title.isEmpty() && text.isEmpty() && chronometer == null) return null
             return IndexedNotification(
@@ -230,6 +232,34 @@ internal class NotificationExtractor(
                 contentIntent = notification.contentIntent,
                 chronometer = chronometer
             )
+        }
+
+        /** A code: 4 to 8 digits, 3-3 or 4-4 grouped, or Google's "G-123456"; not part of a longer number. */
+        private val CODE = Regex("(?<![\\p{N}-])(?:G-\\d{5,8}|\\d{3}[ -]\\d{3}|\\d{4}[ -]\\d{4}|\\d{4,8})(?![\\p{N}])")
+        private val GOOGLE_CODE = Regex("(?<![\\p{L}\\p{N}])G-\\d{5,8}(?![\\p{N}])")
+        private val CODE_WORD = Regex(
+            "\\b(?:codes?|otp|passcode|verification|verify|one[- ]?time|2fa|two[- ]factor|pin)\\b",
+            RegexOption.IGNORE_CASE
+        )
+        /** How far apart a code and its word may be and still be one sign-in code. */
+        private const val CODE_WORD_REACH = 40
+
+        /**
+         * Whether [text] holds a one-time sign-in code: a code ("482913", "482 913", "G-482913") within
+         * [CODE_WORD_REACH] characters of a word saying so (code, OTP, passcode, verification, one-time, 2FA, PIN).
+         * Kept narrow so "Your order 123456 has shipped" is still found.
+         */
+        internal fun looksLikeOneTimeCode(text: String): Boolean {
+            if (text.isEmpty()) return false
+            if (GOOGLE_CODE.containsMatchIn(text)) return true
+            val words = CODE_WORD.findAll(text).map { it.range }.toList()
+            if (words.isEmpty()) return false
+            return CODE.findAll(text).any { code ->
+                words.any { word ->
+                    val gap = if (word.first > code.range.last) word.first - code.range.last else code.range.first - word.last
+                    gap <= CODE_WORD_REACH
+                }
+            }
         }
 
         /** The last few messages of a conversation, "Sender: text" where the sender is named. */

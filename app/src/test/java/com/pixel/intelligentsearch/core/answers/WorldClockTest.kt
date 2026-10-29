@@ -41,6 +41,41 @@ class WorldClockTest {
     }
 
     @Test
+    fun countriesAndBigCitiesTheZoneDatabaseDoesntNameHaveTheirZone() {
+        // The zone database names them only in old one-word ids ("Israel", "Japan") or not at all.
+        val zones = mapOf(
+            "israel" to "Asia/Jerusalem", "turkey" to "Europe/Istanbul", "egypt" to "Africa/Cairo",
+            "iceland" to "Atlantic/Reykjavik", "japan" to "Asia/Tokyo", "singapore" to "Asia/Singapore",
+            "hong kong" to "Asia/Hong_Kong", "brazil" to "America/Sao_Paulo", "australia" to "Australia/Sydney",
+            "south africa" to "Africa/Johannesburg", "mexico" to "America/Mexico_City", "canada" to "America/Toronto",
+            "argentina" to "America/Argentina/Buenos_Aires", "barcelona" to "Europe/Madrid",
+            "washington dc" to "America/New_York", "munich" to "Europe/Berlin", "shenzhen" to "Asia/Shanghai",
+            "osaka" to "Asia/Tokyo", "rio" to "America/Sao_Paulo", "são paulo" to "America/Sao_Paulo",
+            "bogotá" to "America/Bogota", "mexico city" to "America/Mexico_City", "seoul" to "Asia/Seoul",
+            "buenos aires" to "America/Argentina/Buenos_Aires", "toronto" to "America/Toronto"
+        )
+        for ((place, zone) in zones) {
+            val expected = time(zone)
+            assertEquals(place, expected, answer("time in $place")?.title)
+        }
+        assertEquals("Current time in Washington DC", answer("what time is it in washington d.c.")?.subtitle?.substringBefore(" •"))
+    }
+
+    @Test
+    fun oldZoneAliasesDontMakeOrdinaryWordsPlaces() {
+        // "Mexico/General", "Brazil/East" and "Australia/North" made these ordinary words zones.
+        for (query in listOf("time in general", "east time", "time in north", "time in act")) {
+            assertNull(query, answer(query))
+        }
+        assertEquals(time("America/Los_Angeles"), answer("pacific time")?.title)
+    }
+
+    private fun time(zone: String): String {
+        val there = Instant.parse("2026-10-20T22:30:00Z").atZone(ZoneId.of(zone))
+        return com.pixel.intelligentsearch.core.util.Durations.timeOfDay(there.hour, there.minute, false, Locale.US)
+    }
+
+    @Test
     fun theTimeInAZoneAbbreviation() {
         assertEquals(WorldClock.TimeAnswer("2:30 PM", "Current time in PST"), answer("time in PST"))
         assertEquals(WorldClock.TimeAnswer("3:30 PM", "Current time in PDT"), answer("pdt time"))

@@ -109,12 +109,22 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
         ABBREVIATIONS[name]?.let { return Place(it, name.uppercase(Locale.ROOT)) }
         val zoneId = ALIASES[name]
             ?: ZoneId.getAvailableZoneIds().firstOrNull { id ->
-                id.contains('/') && id.substringAfterLast('/').replace('_', ' ').lowercase(Locale.ROOT) == name
+                isCityZone(id) && id.substringAfterLast('/').replace('_', ' ').lowercase(Locale.ROOT) == name
             }
             ?: return null
-        val label = name.split(' ').joinToString(" ") { word -> word.replaceFirstChar { it.titlecase(Locale.ROOT) } }
+        val label = name.split(' ').joinToString(" ") { word ->
+            if (word in ACRONYMS) word.uppercase(Locale.ROOT) else word.replaceFirstChar { it.titlecase(Locale.ROOT) }
+        }
         return Place(ZoneId.of(zoneId), label)
     }
+
+    /**
+     * Whether [id] is a place's own zone, "Area/City": the old aliases outside those areas ("US/Pacific",
+     * "Mexico/General", "Brazil/East") and Australia's state-letter ones ("Australia/North") would let ordinary words
+     * such as "general" or "east" name a zone.
+     */
+    private fun isCityZone(id: String): Boolean =
+        id.substringBefore('/', "") in ZONE_AREAS && id !in LEGACY_AREA_ZONES
 
     private fun time(time: LocalTime, is24Hour: Boolean): String =
         Durations.timeOfDay(time.hour, time.minute, is24Hour, locale ?: Locale.getDefault())
@@ -124,13 +134,30 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
     private fun normalize(raw: String): String? {
         val text = raw.trim().trimEnd('?', '.', '!').trim()
         if (text.isEmpty() || text.length > MAX_QUERY_LENGTH) return null
-        return text.lowercase(Locale.ROOT).replace('’', '\'').replace(WHITESPACE, " ")
+        // Accents are dropped, so "são paulo" and "bogotá" are the zone database's "sao paulo" and "bogota".
+        val plain = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD).replace(MARKS, "")
+        return plain.lowercase(Locale.ROOT).replace('’', '\'').replace(WHITESPACE, " ")
     }
 
     private companion object {
         const val MAX_QUERY_LENGTH = 80
         val WHITESPACE = Regex("\\s+")
         val NOT_LETTERS = Regex("[^a-z ]")
+        val MARKS = Regex("\\p{M}+")
+
+        /** The zone database's areas, whose "Area/City" ids name places. */
+        val ZONE_AREAS = setOf(
+            "Africa", "America", "Antarctica", "Arctic", "Asia", "Atlantic", "Australia", "Europe", "Indian", "Pacific"
+        )
+
+        /** Old aliases inside those areas whose last part isn't a place's name ("north", "act") or is the wrong one. */
+        val LEGACY_AREA_ZONES = setOf(
+            "Australia/ACT", "Australia/LHI", "Australia/NSW", "Australia/North", "Australia/South", "Australia/West",
+            "Australia/Yancowinna", "America/Knox_IN", "Pacific/Samoa"
+        )
+
+        /** Words of a place's name written in capitals. */
+        val ACRONYMS = setOf("uk", "uae", "usa", "nyc", "la", "dc")
 
         val LOCAL_PHRASES = setOf(
             "time", "the time", "time now", "current time", "local time", "what time is it", "what time is it now",
@@ -166,8 +193,46 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
             put("ct", ZoneId.of("America/Chicago")); put("et", ZoneId.of("America/New_York"))
         }
 
-        /** Places the zone database doesn't name by their own city ("india" is Asia/Kolkata's). */
+        /**
+         * Places the zone database doesn't name by their own city ("india" is Asia/Kolkata's): countries, by their
+         * capital's or largest city's zone, and big cities that share another city's zone.
+         */
         val ALIASES = mapOf(
+            // Countries
+            "israel" to "Asia/Jerusalem", "turkey" to "Europe/Istanbul", "turkiye" to "Europe/Istanbul",
+            "egypt" to "Africa/Cairo", "iceland" to "Atlantic/Reykjavik", "brazil" to "America/Sao_Paulo",
+            "australia" to "Australia/Sydney", "south africa" to "Africa/Johannesburg", "nigeria" to "Africa/Lagos",
+            "kenya" to "Africa/Nairobi", "mexico" to "America/Mexico_City", "canada" to "America/Toronto",
+            "argentina" to "America/Argentina/Buenos_Aires", "ireland" to "Europe/Dublin", "scotland" to "Europe/London",
+            "wales" to "Europe/London", "britain" to "Europe/London", "great britain" to "Europe/London",
+            "united kingdom" to "Europe/London", "netherlands" to "Europe/Amsterdam", "holland" to "Europe/Amsterdam",
+            "belgium" to "Europe/Brussels", "switzerland" to "Europe/Zurich", "austria" to "Europe/Vienna",
+            "portugal" to "Europe/Lisbon", "greece" to "Europe/Athens", "sweden" to "Europe/Stockholm",
+            "norway" to "Europe/Oslo", "denmark" to "Europe/Copenhagen", "finland" to "Europe/Helsinki",
+            "poland" to "Europe/Warsaw", "czechia" to "Europe/Prague", "czech republic" to "Europe/Prague",
+            "hungary" to "Europe/Budapest", "romania" to "Europe/Bucharest", "ukraine" to "Europe/Kiev",
+            "russia" to "Europe/Moscow", "saudi arabia" to "Asia/Riyadh", "qatar" to "Asia/Qatar", "iran" to "Asia/Tehran",
+            "iraq" to "Asia/Baghdad", "pakistan" to "Asia/Karachi", "bangladesh" to "Asia/Dhaka",
+            "nepal" to "Asia/Kathmandu", "sri lanka" to "Asia/Colombo", "thailand" to "Asia/Bangkok",
+            "indonesia" to "Asia/Jakarta", "philippines" to "Asia/Manila", "malaysia" to "Asia/Kuala_Lumpur",
+            "taiwan" to "Asia/Taipei", "colombia" to "America/Bogota", "peru" to "America/Lima",
+            "chile" to "America/Santiago", "venezuela" to "America/Caracas", "cuba" to "America/Havana",
+            "morocco" to "Africa/Casablanca", "ethiopia" to "Africa/Addis_Ababa", "ghana" to "Africa/Accra",
+            "samoa" to "Pacific/Apia",
+            // Cities sharing another city's zone
+            "barcelona" to "Europe/Madrid", "washington dc" to "America/New_York", "new york city" to "America/New_York",
+            "orlando" to "America/New_York", "ottawa" to "America/Toronto", "quebec" to "America/Toronto",
+            "calgary" to "America/Edmonton", "san diego" to "America/Los_Angeles", "new orleans" to "America/Chicago",
+            "minneapolis" to "America/Chicago", "munich" to "Europe/Berlin", "frankfurt" to "Europe/Berlin",
+            "hamburg" to "Europe/Berlin", "milan" to "Europe/Rome", "florence" to "Europe/Rome", "venice" to "Europe/Rome",
+            "naples" to "Europe/Rome", "geneva" to "Europe/Zurich", "manchester" to "Europe/London",
+            "edinburgh" to "Europe/London", "osaka" to "Asia/Tokyo", "kyoto" to "Asia/Tokyo",
+            "shenzhen" to "Asia/Shanghai", "guangzhou" to "Asia/Shanghai", "chennai" to "Asia/Kolkata",
+            "hyderabad" to "Asia/Kolkata", "doha" to "Asia/Qatar", "tel aviv" to "Asia/Jerusalem",
+            "cape town" to "Africa/Johannesburg", "rio" to "America/Sao_Paulo", "rio de janeiro" to "America/Sao_Paulo",
+            "brasilia" to "America/Sao_Paulo",
+            // US zones and states, and more countries and cities
+
             "pacific" to "America/Los_Angeles", "mountain" to "America/Denver", "central" to "America/Chicago",
             "eastern" to "America/New_York",
             "san francisco" to "America/Los_Angeles", "seattle" to "America/Los_Angeles", "la" to "America/Los_Angeles",

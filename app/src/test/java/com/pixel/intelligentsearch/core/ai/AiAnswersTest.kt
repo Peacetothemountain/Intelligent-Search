@@ -210,4 +210,14 @@ class AiAnswersTest {
             job.join()
         }
     }
+
+    @Test
+    fun aProblemNamesThePageItsFixChipOpens() {
+        // The chip says "Open AI Answers", so the message points there too, not at Settings in general.
+        for (problem in AiProblem.entries.filter { it.settingsPage == "ai_answers" && it != AiProblem.OFF }) {
+            assertTrue(problem.message, problem.message.contains("in AI Answers"))
+            assertFalse(problem.message, problem.message.contains("Settings"))
+        }
+        assertEquals("Add your API key in AI Answers to ask.", AiProblem.NO_KEY.message)
+    }
 }

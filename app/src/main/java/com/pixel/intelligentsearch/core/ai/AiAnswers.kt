@@ -27,12 +27,12 @@ enum class AiProblem(val message: String, val settingsPage: String? = null, val 
     OFF("AI Answers is off.", settingsPage = "ai_answers"),
     TOR("AI Answers is off while Tor is your search engine.", settingsPage = "web_search"),
     WEB_OFF("AI Answers needs Web on in Search Sources.", settingsPage = "search_sources"),
-    NO_KEY("Add your API key in Settings to ask.", settingsPage = "ai_answers"),
-    BAD_KEY("The API key was refused. Check it in Settings.", settingsPage = "ai_answers"),
+    NO_KEY("Add your API key in AI Answers to ask.", settingsPage = "ai_answers"),
+    BAD_KEY("The API key was refused. Check it in AI Answers.", settingsPage = "ai_answers"),
     QUOTA("Your key's rate limit or quota is used up. Try again later."),
     OFFLINE("No connection. Check your internet and try again.", retryable = true),
     TIMEOUT("The answer took too long. Try again.", retryable = true),
-    MODEL("This model isn't available to your key. Pick another in Settings.", settingsPage = "ai_answers"),
+    MODEL("This model isn't available to your key. Pick another in AI Answers.",settingsPage = "ai_answers"),
     REFUSED("The provider declined to answer this."),
     PROVIDER("The provider couldn't answer right now. Try again later.", retryable = true)
 }

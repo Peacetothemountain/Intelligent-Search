@@ -34,7 +34,7 @@ import androidx.compose.ui.draw.*
 import androidx.compose.ui.semantics.*
 
 /**
- * The "Developer Note" dialog of the main settings page: how the Android 17 QPR2 search engine role works, the
+ * The "Developer Note" dialog of the main settings page: how the search engine role works, the
  * device's current state, and the one-time ADB steps that put this app on the device's search engine list.
  */
 @Composable
@@ -231,7 +231,7 @@ internal fun DeveloperNotePage(context: Context) {
     ) {
         DiagnosticsCard(icon = Icons.Outlined.TravelExplore, title = "Default Search Engine", accent = scheme.primary) {
             Text(
-                text = "On Android 17 QPR2 and newer, the Android \"Search engine app\" setting decides which app powers your home screen search bar. Its picker only lists apps on your device's search engine list, so Intelligent Search has to be added to that list once (see Search Engine List below) before it can be selected.",
+                text = "The Android \"Search engine app\" setting decides which app powers your home screen search bar. Its picker only lists apps on your device's search engine list, so Intelligent Search has to be added to that list once (see Search Engine List below) before it can be selected.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = scheme.onSurfaceVariant
             )
@@ -306,7 +306,7 @@ internal fun DeveloperNotePage(context: Context) {
                 }
             ) {
                 Text(
-                    text = "The Intelligent Search widget is always there for you to use. To have Intelligent Search replace the Pixel Launcher's own search bar instead, turn on USB debugging, connect your phone to a computer with ADB and run these commands once (Android 17 QPR2 or newer):",
+                    text = "The Intelligent Search widget is always there for you to use. To have Intelligent Search replace the Pixel Launcher's own search bar instead, turn on USB debugging, connect your phone to a computer with ADB and run these commands once:",
                     style = MaterialTheme.typography.bodyMedium,
                     color = scheme.onSurface
                 )

@@ -1,22 +1,27 @@
 package com.pixel.intelligentsearch.core.data
 
 import android.util.LruCache
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.job
+import com.pixel.intelligentsearch.core.net.HttpsCall
+import com.pixel.intelligentsearch.core.net.HttpsClient
+import com.pixel.intelligentsearch.core.net.HttpsGet
+import com.pixel.intelligentsearch.core.net.withHttpsCall
 import java.net.HttpURLConnection
+import java.net.URL
 import java.net.URLEncoder
 import java.util.Locale
-import java.util.concurrent.atomic.AtomicReference
 
 object WebSearchProvider {
     private val suggestionCache = LruCache<String, List<WebSuggestion>>(128)
 
-    /** Where tests send suggestion requests instead of the engine (the query is appended); null in the app. */
+    /** The longest suggestion answer read; real ones are a few KB. */
+    private const val MAX_RESPONSE_BYTES = 64 * 1024
+
+    /**
+     * Opens the connection for each request in tests (a local server), in place of the engine's address; null in the
+     * app. The request still goes through the app's [HttpsClient].
+     */
     @androidx.annotation.VisibleForTesting
-    internal var endpointForTests: String? = null
+    internal var openForTests: ((URL) -> HttpURLConnection?)? = null
 
     /** Drops every cached suggestion, so a test starts from an empty cache. */
     @androidx.annotation.VisibleForTesting
@@ -47,14 +52,16 @@ object WebSearchProvider {
     }
 
     /**
-     * Fetches suggestions for [query], blocking. [onConnection] is handed the connection before it connects, so a
-     * caller on another thread can disconnect it to abandon the request.
+     * Fetches suggestions for [query], blocking, over the app's [HttpsClient]: https only, redirects refused, nothing
+     * cached, the answer capped at [MAX_RESPONSE_BYTES], and the same User-Agent from every phone. Each connect or
+     * read may take [timeoutMs], the whole request three times that. Cancelling [call] from another thread ends it at
+     * once.
      */
     fun getWebSuggestionsSync(
         query: String,
         engine: String = "Google",
         timeoutMs: Int = 600,
-        onConnection: (HttpURLConnection) -> Unit = {}
+        call: HttpsCall = HttpsCall()
     ): List<WebSuggestion> {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return emptyList()
@@ -66,29 +73,9 @@ object WebSearchProvider {
             if (cached != null) return cached
         }
 
-        var suggestions = emptyList<WebSuggestion>()
         val encodedQuery = URLEncoder.encode(trimmed, "UTF-8")
-        val primaryUrl = endpointForTests?.let { it + encodedQuery } ?: suggestUrl(engine, encodedQuery)
-
-        var connection: HttpURLConnection? = null
-        try {
-            connection = java.net.URI.create(primaryUrl).toURL().openConnection() as HttpURLConnection
-            onConnection(connection)
-            connection.requestMethod = "GET"
-            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile)")
-            connection.connectTimeout = timeoutMs
-            connection.readTimeout = timeoutMs
-
-            if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                // Reading the body to the end and closing it returns the socket to the keep-alive pool.
-                val response = connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() }
-                suggestions = WebSuggestionParser.parse(response)
-            } else {
-                connection.disconnect()
-            }
-        } catch (_: Exception) {
-            connection?.disconnect()
-        }
+        val body = http(timeoutMs).get(suggestUrl(engine, encodedQuery), MAX_RESPONSE_BYTES, call)
+        val suggestions = body?.let { runCatching { WebSuggestionParser.parse(it.toString(Charsets.UTF_8)) }.getOrNull() }.orEmpty()
 
         if (suggestions.isNotEmpty()) {
             synchronized(suggestionCache) {
@@ -98,29 +85,18 @@ object WebSearchProvider {
         return suggestions
     }
 
+    private fun http(timeoutMs: Int): HttpsGet {
+        val totalTimeoutMs = timeoutMs * 3L
+        val open = openForTests ?: return HttpsClient(timeoutMs, totalTimeoutMs, HttpsClient.ACCEPT_JSON)
+        return HttpsClient(timeoutMs, totalTimeoutMs, open, System::nanoTime, HttpsClient.ACCEPT_JSON)
+    }
+
     suspend fun getWebSuggestions(query: String, engine: String = "Google", timeoutMs: Int = 800): List<WebSuggestion> {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return emptyList()
         // A blocking socket read ignores thread interrupts, so cancelling (the next query replaces this one) closes the
-        // connection instead; otherwise the stale request would hold on until its timeout, and the next query's
-        // suggestions would wait behind it. Only a cancelled request is closed: a finished one returns its socket to
-        // the keep-alive pool.
-        val connection = AtomicReference<HttpURLConnection?>()
-        return coroutineScope {
-            val request = async(Dispatchers.IO) {
-                val job = coroutineContext.job
-                getWebSuggestionsSync(trimmed, engine, timeoutMs) { opened ->
-                    connection.set(opened)
-                    // Cancelled before there was a connection to close: don't start it (the throw is caught there).
-                    if (!job.isActive) throw CancellationException("Suggestion request cancelled")
-                }
-            }
-            try {
-                request.await()
-            } catch (e: CancellationException) {
-                connection.get()?.disconnect()
-                throw e
-            }
-        }
+        // connection instead ([withHttpsCall]); otherwise the stale request would hold on until its timeout, and the
+        // next query's suggestions would wait behind it.
+        return withHttpsCall { call -> getWebSuggestionsSync(trimmed, engine, timeoutMs, call) }
     }
 }

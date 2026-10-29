@@ -8,9 +8,13 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import com.pixel.intelligentsearch.core.net.HttpsClient
+import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.ServerSocket
+import java.net.URL
 import java.util.Locale
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 
@@ -23,6 +27,12 @@ import kotlin.concurrent.thread
 class WebSearchProviderEntityTest {
 
     private val requests = AtomicInteger()
+    /** The header lines of every request the server was sent. */
+    private val headers = CopyOnWriteArrayList<String>()
+    /** The addresses the requests were for, before the test sends them to its server. */
+    private val asked = CopyOnWriteArrayList<String>()
+    /** The server's answer's status line and extra headers, when not the recorded 200. */
+    @Volatile private var status: String? = null
     private lateinit var server: ServerSocket
 
     @Before fun serveTheRecordedAnswer() {
@@ -35,20 +45,28 @@ class WebSearchProviderEntityTest {
                     server.accept().use { socket ->
                         requests.incrementAndGet()
                         val reader = socket.getInputStream().bufferedReader()
-                        while (reader.readLine()?.isNotEmpty() == true) Unit
+                        while (true) {
+                            val line = reader.readLine()
+                            if (line.isNullOrEmpty()) break
+                            headers += line
+                        }
                         val out = socket.getOutputStream()
-                        out.write("HTTP/1.1 200 OK\r\nContent-Type: text/javascript; charset=UTF-8\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
+                        val head = status ?: "HTTP/1.1 200 OK\r\nContent-Type: text/javascript; charset=UTF-8"
+                        out.write("$head\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
                         out.write(body)
                         out.flush()
                     }
                 }
             }
         }
-        WebSearchProvider.endpointForTests = "http://127.0.0.1:${server.localPort}/complete/search?client=mobile-gws-wiz-hp&xssi=t&q="
+        WebSearchProvider.openForTests = { url ->
+            asked += url.toString()
+            URL("http://127.0.0.1:${server.localPort}/complete/search?client=mobile-gws-wiz-hp&xssi=t&q=obama").openConnection() as HttpURLConnection
+        }
     }
 
     @After fun useTheEngineAgain() {
-        WebSearchProvider.endpointForTests = null
+        WebSearchProvider.openForTests = null
         WebSearchProvider.clearCacheForTests()
         server.close()
     }
@@ -88,5 +106,20 @@ class WebSearchProviderEntityTest {
         assertTrue(WebSearchProvider.getWebSuggestions("obama", engine = "Tor Browser").isEmpty())
         assertTrue(WebSearchProvider.getWebSuggestions("obama", engine = "Custom").isEmpty())
         assertEquals(0, requests.get())
+    }
+
+    @Test
+    fun theRequestGoesThroughTheAppsHttpsClient() = runBlocking {
+        WebSearchProvider.getWebSuggestions("obama", timeoutMs = 5_000)
+        assertTrue(asked.single(), asked.single().startsWith("https://suggestqueries.google.com/complete/search?"))
+        // The same User-Agent from every phone, not one naming the browser or phone.
+        assertTrue("$headers", "User-Agent: ${HttpsClient.USER_AGENT}" in headers)
+    }
+
+    @Test
+    fun aRedirectIsRefusedNotFollowed() = runBlocking {
+        status = "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:${server.localPort}/elsewhere"
+        assertTrue(WebSearchProvider.getWebSuggestions("obama", timeoutMs = 5_000).isEmpty())
+        assertEquals(1, requests.get())
     }
 }

@@ -10,9 +10,11 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.net.HttpURLConnection
 import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.URL
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.concurrent.thread
 import kotlin.system.measureTimeMillis
@@ -25,7 +27,7 @@ import kotlin.system.measureTimeMillis
 class WebSearchProviderCancellationTest {
 
     @After fun useTheEngineAgain() {
-        WebSearchProvider.endpointForTests = null
+        WebSearchProvider.openForTests = null
     }
 
     @Test
@@ -34,7 +36,8 @@ class WebSearchProviderCancellationTest {
             // A server that takes the connection and never answers.
             val held = CopyOnWriteArrayList<Socket>()
             thread(isDaemon = true) { runCatching { while (true) held += server.accept() } }
-            WebSearchProvider.endpointForTests = "http://127.0.0.1:${server.localPort}/complete?q="
+            // Every request goes to the stalled server, through the app's HTTPS client.
+            WebSearchProvider.openForTests = { URL("http://127.0.0.1:${server.localPort}/complete").openConnection() as HttpURLConnection }
 
             val request = launch(Dispatchers.IO) { WebSearchProvider.getWebSuggestions("stalled ${System.nanoTime()}", timeoutMs = 5_000) }
             delay(100)

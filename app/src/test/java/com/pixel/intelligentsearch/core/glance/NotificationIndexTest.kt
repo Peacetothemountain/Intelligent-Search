@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Bundle
+import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -242,6 +243,32 @@ class NotificationIndexTest {
         assertNull(NotificationExtractor.fromNotification("m", "p", "App", 0L, player, emptySet()))
         val empty = Notification.Builder(context, "c").build().apply { extras = Bundle() }
         assertNull(NotificationExtractor.fromNotification("e", "p", "App", 0L, empty, emptySet()))
+    }
+
+    @Test
+    fun secretNotificationsAreNeverIndexed() {
+        fun code(visibility: Int) = Notification.Builder(context, "c")
+            .setContentTitle("Your bank")
+            .setContentText("Code 482913")
+            .setVisibility(visibility)
+            .build()
+        assertNull(NotificationExtractor.fromNotification("s", "com.example.bank", "Bank", 0L, code(Notification.VISIBILITY_SECRET), emptySet()))
+        // Kept off the lock screen by its channel or the user rather than by the app.
+        assertNull(
+            NotificationExtractor.fromNotification(
+                "c", "com.example.bank", "Bank", 0L, code(Notification.VISIBILITY_PUBLIC), emptySet(),
+                lockscreenVisibilityOverride = Notification.VISIBILITY_SECRET
+            )
+        )
+        // Private is every notification's default; it only hides the content on a lock screen set to.
+        assertEquals("Code 482913", NotificationExtractor.fromNotification("p", "com.example.bank", "Bank", 0L, code(Notification.VISIBILITY_PRIVATE), emptySet())?.text)
+        assertEquals(
+            "Code 482913",
+            NotificationExtractor.fromNotification(
+                "o", "com.example.bank", "Bank", 0L, code(Notification.VISIBILITY_PRIVATE), emptySet(),
+                lockscreenVisibilityOverride = NotificationListenerService.Ranking.VISIBILITY_NO_OVERRIDE
+            )?.text
+        )
     }
 
     @Test

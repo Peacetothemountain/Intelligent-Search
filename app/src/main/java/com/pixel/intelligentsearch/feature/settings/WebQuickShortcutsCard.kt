@@ -203,9 +203,11 @@ internal fun WebQuickShortcutsCard() {
             }
 
             val infiniteTransition = rememberInfiniteTransition(label = "morphingShortcutsSync")
+            // With animations turned off the badges hold their first shape, unturned.
+            val animationsEnabled by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
             // Kept as State and read only in the badges' draw phase (see ShortcutBadgeFrame); reading
             // them here recomposed this whole card on every animation frame.
-            val totalCycleProgress = infiniteTransition.animateFloat(
+            val totalCycleProgress: State<Float> = if (!animationsEnabled) remember { mutableFloatStateOf(0f) } else infiniteTransition.animateFloat(
                 initialValue = 0f,
                 targetValue = morphSequence.size.toFloat(),
                 animationSpec = infiniteRepeatable(
@@ -215,7 +217,7 @@ internal fun WebQuickShortcutsCard() {
                 label = "shortcutBadgeMorphCycle"
             )
 
-            val rotationAngle = infiniteTransition.animateFloat(
+            val rotationAngle: State<Float> = if (!animationsEnabled) remember { mutableFloatStateOf(0f) } else infiniteTransition.animateFloat(
                 initialValue = 0f,
                 targetValue = 360f,
                 animationSpec = infiniteRepeatable(
@@ -471,87 +473,87 @@ internal fun WebQuickShortcutsCard() {
                         }
                     }
                 }
+            }
 
-                // Available Direct Shortcuts section
-                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            // Available Direct Shortcuts: outside the padded column above, so its row lines up with the card's others.
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
 
-                var showAvailableDirectShortcuts by rememberSetting(SettingsManager.SHOW_AVAILABLE_DIRECT_SHORTCUTS)
-                SettingsRowToggle(
-                    title = "Available Direct Shortcuts",
-                    subtitle = "Tap Add to Restore Any Direct Shortcut.",
-                    icon = Icons.Outlined.BookmarkBorder,
-                    isChecked = showAvailableDirectShortcuts,
-                    onCheckedChange = { showAvailableDirectShortcuts = it },
-                    showDivider = showAvailableDirectShortcuts && availableDirectBangs.isNotEmpty()
-                )
+            var showAvailableDirectShortcuts by rememberSetting(SettingsManager.SHOW_AVAILABLE_DIRECT_SHORTCUTS)
+            SettingsRowToggle(
+                title = "Available Direct Shortcuts",
+                subtitle = "Tap Add to Restore Any Direct Shortcut.",
+                icon = Icons.Outlined.BookmarkBorder,
+                isChecked = showAvailableDirectShortcuts,
+                onCheckedChange = { showAvailableDirectShortcuts = it },
+                showDivider = showAvailableDirectShortcuts && availableDirectBangs.isNotEmpty()
+            )
 
-                if (showAvailableDirectShortcuts && availableDirectBangs.isNotEmpty()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        availableDirectBangs.forEach { bang ->
-                            key("avail_${bang.displayPrefix}") {
-                                com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(24.dp),
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f))
+            if (showAvailableDirectShortcuts && availableDirectBangs.isNotEmpty()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    availableDirectBangs.forEach { bang ->
+                        key("avail_${bang.displayPrefix}") {
+                            com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(24.dp),
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.20f))
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        modifier = Modifier.weight(1f)
                                     ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            val directBadge = remember(bang.prefix, shortcutTriggerSymbol) {
-                                                val bare = bang.prefix.trimStart { !it.isLetterOrDigit() }
-                                                "$shortcutTriggerSymbol$bare"
-                                            }
-                                            SynchronizedMorphingShortcutBadge(
-                                                shortcut = directBadge,
-                                                frame = badgeFrame
-                                            )
-                                            Spacer(modifier = Modifier.width(14.dp))
-                                            Column {
-                                                Text(
-                                                    text = bang.name,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = FontWeight.SemiBold,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                Text(
-                                                    text = bang.description,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                    maxLines = 1,
-                                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                                )
-                                            }
+                                        val directBadge = remember(bang.prefix, shortcutTriggerSymbol) {
+                                            val bare = bang.prefix.trimStart { !it.isLetterOrDigit() }
+                                            "$shortcutTriggerSymbol$bare"
                                         }
+                                        SynchronizedMorphingShortcutBadge(
+                                            shortcut = directBadge,
+                                            frame = badgeFrame
+                                        )
+                                        Spacer(modifier = Modifier.width(14.dp))
+                                        Column {
+                                            Text(
+                                                text = bang.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Text(
+                                                text = bang.description,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
 
-                                        OutlinedButton(
-                                            onClick = {
-                                                hapticEngine.performPredictiveBackHaptic(view)
-                                                // It may have been removed under another trigger symbol; drop every form.
-                                                val canonical = SearchBangManager.canonicalBuiltInPrefix(bang.displayPrefix)
-                                                localDismissedPrefixes = localDismissedPrefixes
-                                                    .filterNot { SearchBangManager.canonicalBuiltInPrefix(it) == canonical }.toSet()
-                                                viewModel?.restoreBuiltInBang(bang.displayPrefix)
-                                            },
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                            shape = RoundedCornerShape(16.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Add,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                                        }
+                                    OutlinedButton(
+                                        onClick = {
+                                            hapticEngine.performPredictiveBackHaptic(view)
+                                            // It may have been removed under another trigger symbol; drop every form.
+                                            val canonical = SearchBangManager.canonicalBuiltInPrefix(bang.displayPrefix)
+                                            localDismissedPrefixes = localDismissedPrefixes
+                                                .filterNot { SearchBangManager.canonicalBuiltInPrefix(it) == canonical }.toSet()
+                                            viewModel?.restoreBuiltInBang(bang.displayPrefix)
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                        shape = RoundedCornerShape(16.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Add,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("Add", fontSize = 12.sp, fontWeight = FontWeight.Medium)
                                     }
                                 }
                             }

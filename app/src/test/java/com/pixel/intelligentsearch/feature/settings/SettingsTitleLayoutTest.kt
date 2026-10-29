@@ -4,7 +4,9 @@ import android.content.Context
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onLast
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
@@ -58,6 +60,19 @@ class SettingsTitleLayoutTest {
         assertEquals(1, layouts.single().lineCount)
         // The title leaves room for its reset button instead of pushing it out of the row.
         compose.onAllNodesWithContentDescription("Reset", substring = true).onLast().assertWidthIsAtLeast(32.dp)
+    }
+
+    /** Values sit at the title's end, as every SettingsSliderRow shows them, not in the title ("Results: 5"). */
+    @Test
+    fun sliderValuesSitApartFromTheirTitles() {
+        compose.setContent { IntelligentSearchTheme(darkTheme = false) { ContactSearchScreen(prefs) {} } }
+        compose.waitForIdle()
+        compose.onNodeWithText("Contact Results", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("5", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("Contact Priority Weight", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("Medium", useUnmergedTree = true).assertExists()
+        compose.onAllNodesWithText("Results:", substring = true, useUnmergedTree = true).assertCountEquals(0)
+        compose.onAllNodesWithText("Weight:", substring = true, useUnmergedTree = true).assertCountEquals(0)
     }
 
     @Test

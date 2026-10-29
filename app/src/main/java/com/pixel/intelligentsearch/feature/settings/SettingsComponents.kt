@@ -675,41 +675,44 @@ fun SettingsSliderRow(
 }
 
 /**
- * The "<label> Results: N" block shared by the Contact, File and Web search screens: title with a reset button
- * (back to [defaultCount]) and a 1 to 20 slider. The title uses the settings row title style, like
- * [PrioritySetting] below it.
+ * The "<label> Results" block shared by the Contact, File and Web search screens: title with the count and a reset
+ * button (back to [defaultCount]) at its end, as [SettingsSliderRow] shows its value, and a 1 to 20 slider. The title
+ * uses the settings row title style, like [PrioritySetting] below it.
  */
 @Composable
 fun ResultsCountSetting(key: com.pixel.intelligentsearch.core.data.settings.SettingKey<Int>, label: String, defaultCount: Int) {
     val context = LocalContext.current
     var count by com.pixel.intelligentsearch.core.data.settings.rememberSetting(key)
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        TitleWithTrailing {
             Text(
-                text = "$label Results: $count",
+                text = "$label Results",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
+                color = MaterialTheme.colorScheme.onSurface
             )
-            // Material's own IconButton: the click haptic below is this button's one haptic.
-            androidx.compose.material3.IconButton(
-                onClick = {
-                    performClickHaptic(context)
-                    count = defaultCount
-                },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.RestartAlt,
-                    contentDescription = "Reset $label Results",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "$count",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
+                // Material's own IconButton: the click haptic below is this button's one haptic.
+                androidx.compose.material3.IconButton(
+                    onClick = {
+                        performClickHaptic(context)
+                        count = defaultCount
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.RestartAlt,
+                        contentDescription = "Reset $label Results",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
         Android17Slider(
@@ -744,9 +747,11 @@ fun Android17Slider(
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
     
     val infiniteTransition = rememberInfiniteTransition(label = "squiggle")
+    // With animations turned off the wave is drawn still, and dragging doesn't roll it either.
+    val animationsEnabled by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
     // Kept as State and read only inside the Canvas below: reading it here recomposed the slider (and its
     // semantics and gesture setup) on every frame for as long as the screen was open.
-    val phase: State<Float> = if (isSquiggly && showTrack) {
+    val phase: State<Float> = if (isSquiggly && showTrack && animationsEnabled) {
         infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 2f * Math.PI.toFloat(),
@@ -763,7 +768,8 @@ fun Android17Slider(
     val dragPhaseOffset = remember { mutableFloatStateOf(0f) }
 
     val activeColor = MaterialTheme.colorScheme.primary
-    val inactiveColor = MaterialTheme.colorScheme.surfaceVariant
+    // Outline, slightly softened: at least 3:1 against the card in both themes, where surfaceVariant all but vanished.
+    val inactiveColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.85f)
     val thumbColor = MaterialTheme.colorScheme.primary
 
     val view = androidx.compose.ui.platform.LocalView.current
@@ -844,7 +850,7 @@ fun Android17Slider(
                     onDragStart = { processChange(fractionAt(it.x)) },
                     onHorizontalDrag = { change, dragAmount ->
                         change.consume()
-                        dragPhaseOffset.floatValue += dragAmount * 0.04f
+                        if (animationsEnabled) dragPhaseOffset.floatValue += dragAmount * 0.04f
                         processChange(fractionAt(change.position.x))
                     },
                     onDragEnd = { currentOnValueChangeFinished?.invoke() },
@@ -982,7 +988,7 @@ fun oneLineAutoSize(style: androidx.compose.ui.text.TextStyle): androidx.compose
  * part is always measured against the whole row, never squeezed into what's left beside the title.
  */
 @Composable
-private fun TitleWithTrailing(content: @Composable () -> Unit) {
+internal fun TitleWithTrailing(content: @Composable () -> Unit) {
     androidx.compose.ui.layout.Layout(content = content, modifier = Modifier.fillMaxWidth()) { measurables, constraints ->
         val loose = constraints.copy(minWidth = 0, minHeight = 0)
         // Measured once, at the row's full width: never squeezed into the space beside the title.

@@ -1055,14 +1055,15 @@ fun SearchOverlayScreen(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    // At least 56dp, taller when large text wraps the message onto a second line.
+                    .heightIn(min = 56.dp)
                     // Announced when it appears, so TalkBack users learn the history went and that Undo is there.
                     .semantics { liveRegion = LiveRegionMode.Polite }
             ) {
                 Row(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp),
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -1070,7 +1071,8 @@ fun SearchOverlayScreen(
                         text = "Search History Cleared",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)
                     )
                     TextButton(
                         onClick = {

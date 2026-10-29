@@ -34,7 +34,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 colors = settingsTopBarColors(),
-                title = { Text("Contact Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
+                title = { SettingsPageTitle("Contact Search") },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }

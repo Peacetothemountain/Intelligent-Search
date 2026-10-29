@@ -80,7 +80,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
             topBar = {
                 TopAppBar(
                     colors = settingsTopBarColors(),
-                    title = { Text("AI Answers", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
+                    title = { SettingsPageTitle("AI Answers") },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") } }
                 )
             }

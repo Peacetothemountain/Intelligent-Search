@@ -178,7 +178,7 @@ internal fun DoodleGallery(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
-                title = { Text("Doodle Gallery") },
+                title = { SettingsPageTitle("Doodle Gallery", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Normal) },
                 navigationIcon = {
                     IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, contentDescription = "Close") }
                 },

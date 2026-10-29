@@ -47,6 +47,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -199,8 +200,11 @@ private const val WHOLE_WORD_MIN_SCALE = 0.6f
  */
 @Composable
 internal fun WholeWordText(text: String, style: TextStyle, modifier: Modifier = Modifier) {
-    var scale by remember(text) { mutableFloatStateOf(1f) }
-    var settled by remember(text) { mutableStateOf(false) }
+    var scale by remember(text, style) { mutableFloatStateOf(1f) }
+    var settled by remember(text, style) { mutableStateOf(false) }
+    // The width the current scale was found for: more room (a rotation, a wider split-screen window) starts over
+    // from full size, so a label never stays shrunk where it would now fit.
+    var fittedWidth by remember(text, style) { mutableIntStateOf(-1) }
     val base = style.wholeWords()
     val scaled = if (scale == 1f) base else base.copy(
         fontSize = base.fontSize * scale,
@@ -212,7 +216,13 @@ internal fun WholeWordText(text: String, style: TextStyle, modifier: Modifier = 
         // Drawn once the size is settled, so a shrinking label never shows its broken first try.
         modifier = modifier.drawWithContent { if (settled) drawContent() },
         onTextLayout = { layout ->
-            if (splitsAWord(text, layout) && scale > WHOLE_WORD_MIN_SCALE) {
+            val width = layout.layoutInput.constraints.maxWidth
+            if (scale < 1f && width > fittedWidth) {
+                fittedWidth = width
+                scale = 1f
+                settled = false
+            } else if (splitsAWord(text, layout) && scale > WHOLE_WORD_MIN_SCALE) {
+                fittedWidth = width
                 scale = (scale * 0.9f).coerceAtLeast(WHOLE_WORD_MIN_SCALE)
             } else {
                 settled = true

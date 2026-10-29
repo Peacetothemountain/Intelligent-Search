@@ -90,6 +90,26 @@ class WorldClockTest {
     }
 
     @Test
+    fun anAmbiguousPlaceAskedForIsTheOnePeopleMean() {
+        // The zone database's Petersburg is in Indiana, its Jersey the Channel Island and its Cordoba in Argentina.
+        assertEquals(WorldClock.TimeAnswer(time("Europe/Moscow"), "Current time in St Petersburg • Tomorrow"), answer("time in petersburg"))
+        assertEquals(time("America/New_York"), answer("time in jersey")?.title)
+        assertEquals(time("Europe/Madrid"), answer("time in cordoba")?.title)
+    }
+
+    @Test
+    fun usStatesHaveTheirZoneAndArizonaItsOwn() {
+        assertEquals(time("America/Phoenix"), answer("arizona time")?.title)
+        assertEquals(time("America/Phoenix"), answer("time in arizona")?.title)
+        assertEquals(time("America/Chicago"), answer("time in texas")?.title)
+        assertEquals(time("America/New_York"), answer("florida time")?.title)
+        assertEquals(time("America/New_York"), answer("new jersey time")?.title)
+        assertEquals(time("America/Denver"), answer("time in colorado")?.title)
+        // Georgia is a country as well as a state, so it isn't guessed.
+        assertNull(answer("georgia time"))
+    }
+
+    @Test
     fun countriesSpanningZonesNameTheCityWhoseTimeIsShown() {
         val unitedStates = WorldClock.TimeAnswer(time("America/New_York"), "Current time in United States (New York)")
         for (query in listOf("time in usa", "time in the us", "time in united states", "time in america", "us time", "time in the USA")) {

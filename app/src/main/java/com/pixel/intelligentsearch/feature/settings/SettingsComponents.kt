@@ -103,6 +103,30 @@ fun androidx.compose.foundation.layout.ColumnScope.AttachedRows(
 fun settingsTopBarColors(): TopAppBarColors =
     TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent)
 
+/**
+ * A settings page's title in its top bar: one line, shrinking to fit, and both the page's heading and its pane title,
+ * so TalkBack names the page as it opens (the pages share one window, which alone announces nothing) and a heading
+ * jump lands on it.
+ */
+@Composable
+fun SettingsPageTitle(
+    text: String,
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.headlineSmall,
+    fontWeight: FontWeight = FontWeight.Bold
+) {
+    Text(
+        text,
+        style = style,
+        fontWeight = fontWeight,
+        maxLines = 1,
+        autoSize = oneLineAutoSize(style),
+        modifier = Modifier.semantics {
+            heading()
+            paneTitle = text
+        }
+    )
+}
+
 @Composable
 fun SettingsSectionHeader(text: String, modifier: Modifier = Modifier) {
     Text(

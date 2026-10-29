@@ -493,7 +493,7 @@ fun BackupRestoreScreen(
         topBar = {
             TopAppBar(
                 colors = settingsTopBarColors(),
-                title = { Text("Encrypted Backup", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
+                title = { SettingsPageTitle("Encrypted Backup") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")

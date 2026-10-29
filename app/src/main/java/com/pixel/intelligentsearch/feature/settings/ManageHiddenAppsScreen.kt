@@ -14,6 +14,9 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -191,7 +194,11 @@ fun ManageHiddenAppsScreen(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall),
-                    modifier = Modifier.weight(1f, fill = false)
+                    // The page's heading and pane title, as SettingsPageTitle makes the other pages'.
+                    modifier = Modifier.weight(1f, fill = false).semantics {
+                        heading()
+                        paneTitle = "Manage Hidden Apps"
+                    }
                 )
                 // Enable All hides every app in the list; checked again, it shows them all.
                 if (isAuthenticated && shownPackages.isNotEmpty()) {

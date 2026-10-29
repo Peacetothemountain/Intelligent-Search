@@ -458,7 +458,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
-                title = { Text("Widget Customization", style = MaterialTheme.typography.titleLarge, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.titleLarge)) },
+                title = { SettingsPageTitle("Widget Customization", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Normal) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = handleBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }

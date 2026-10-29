@@ -209,11 +209,11 @@ fun SearchPillsScreen(
                 colors = settingsTopBarColors(),
                 title = {
                     if (showAppPicker && multiSelectMode) {
-                        Text("${selectedApps.size} Selected", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
+                        SettingsPageTitle("${selectedApps.size} Selected")
                     } else if (showAppPicker) {
-                        Text("Add Applications", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
+                        SettingsPageTitle("Add Applications")
                     } else {
-                        Text("Application Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
+                        SettingsPageTitle("Application Search")
                     }
                 },
                 navigationIcon = {

@@ -115,7 +115,9 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
         ABBREVIATIONS[name]?.let { return Place(it, name.uppercase(Locale.ROOT)) }
         // A country spanning zones is answered for one city's, and the label names that city.
         MULTI_ZONE_COUNTRIES[name]?.let { (zone, label) -> return Place(ZoneId.of(zone), label) }
-        val zoneId = ALIASES[name]
+        // Asked as a place, a name the zone database gives to a lesser-known town means the famous one.
+        if (explicit) BETTER_KNOWN[name]?.let { (zone, label) -> return Place(ZoneId.of(zone), label) }
+        val zoneId = ALIASES[name] ?: US_STATES[name]
             ?: name.takeIf { explicit || it !in EVERYDAY_ZONE_WORDS }?.let { city ->
                 ZoneId.getAvailableZoneIds().firstOrNull { id ->
                     isCityZone(id) && id.substringAfterLast('/').replace('_', ' ').lowercase(Locale.ROOT) == city
@@ -201,6 +203,43 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
             "tell city", "vevay", "monticello", "stanley", "jersey", "victoria", "reunion", "resolute", "virgin", "oral",
             "norfolk", "canary", "dawson", "creston", "currie", "wallis", "yap", "truk", "cordoba", "lindeman"
         )
+
+        /**
+         * Places the zone database names for a lesser-known town ("Petersburg" is in Indiana, "Jersey" the Channel
+         * Island, "Cordoba" in Argentina), answered for the place people mean when they ask "time in petersburg":
+         * name to zone and label.
+         */
+        val BETTER_KNOWN: Map<String, Pair<String, String>> = mapOf(
+            "petersburg" to ("Europe/Moscow" to "St Petersburg"),
+            "jersey" to ("America/New_York" to "New Jersey"),
+            "cordoba" to ("Europe/Madrid" to "Córdoba, Spain")
+        )
+
+        /**
+         * US states, each answered for the zone most of it keeps; Arizona's own, which skips daylight saving. Georgia
+         * is left out: it is a country too.
+         */
+        val US_STATES: Map<String, String> = buildMap {
+            val eastern = "America/New_York"
+            val central = "America/Chicago"
+            val mountain = "America/Denver"
+            val pacific = "America/Los_Angeles"
+            for (state in listOf(
+                "connecticut", "delaware", "florida", "kentucky", "maine", "maryland", "massachusetts", "new hampshire",
+                "new jersey", "north carolina", "ohio", "pennsylvania", "rhode island", "south carolina", "vermont",
+                "virginia", "west virginia"
+            )) put(state, eastern)
+            for (state in listOf(
+                "alabama", "arkansas", "illinois", "iowa", "kansas", "louisiana", "minnesota", "mississippi", "missouri",
+                "nebraska", "north dakota", "oklahoma", "south dakota", "tennessee", "texas", "wisconsin"
+            )) put(state, central)
+            for (state in listOf("colorado", "montana", "new mexico", "utah", "wyoming")) put(state, mountain)
+            for (state in listOf("nevada", "oregon", "washington state")) put(state, pacific)
+            put("arizona", "America/Phoenix")
+            put("idaho", "America/Boise")
+            put("indiana", "America/Indiana/Indianapolis")
+            put("michigan", "America/Detroit")
+        }
 
         /**
          * Countries spanning several zones, answered for their capital's or largest city's zone, with that city in the

@@ -2,6 +2,9 @@ package com.pixel.intelligentsearch.core.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.getOrNull
@@ -57,5 +60,20 @@ class WholeWordTextTest {
         val layout = layoutOf("Open Digital Wellbeing")
         assertEquals(16f, layout.layoutInput.style.fontSize.value, 0.01f)
         assertFalse(splitsAWord("Open Digital Wellbeing", layout))
+    }
+
+    @Test
+    fun moreRoomBringsAShrunkLabelBackToFullSize() {
+        var width by mutableStateOf(110.dp)
+        compose.setContent {
+            Box(Modifier.width(width)) { WholeWordText("More Definitions", TextStyle(fontSize = 32.sp)) }
+        }
+        compose.waitForIdle()
+        assertTrue(layoutOf("More Definitions").layoutInput.style.fontSize.value < 32f)
+
+        // A rotation or a wider split-screen window.
+        width = 600.dp
+        compose.waitForIdle()
+        assertEquals(32f, layoutOf("More Definitions").layoutInput.style.fontSize.value, 0.01f)
     }
 }

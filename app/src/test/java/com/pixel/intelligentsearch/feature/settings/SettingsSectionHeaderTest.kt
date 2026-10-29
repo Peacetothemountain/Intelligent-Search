@@ -3,6 +3,9 @@ package com.pixel.intelligentsearch.feature.settings
 import android.content.Context
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
@@ -20,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.screenshots.confinedEffects
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
@@ -116,6 +120,30 @@ class SettingsSectionHeaderTest {
     fun webSearchHeaderUsesTheSharedStyle() {
         show { WebSearchScreen(prefs, onBack = {}) }
         assertSectionHeader("Quick Web Shortcuts")
+    }
+
+    /** Pages whose later groups are titled title their first one too, as Appearance does. */
+    @Test
+    fun firstGroupsAreTitledToo() {
+        prefs.edit().put(SettingsManager.MORPH_ANIMATION_ENABLED, false).commit()
+        var page by mutableIntStateOf(0)
+        show {
+            when (page) {
+                0 -> SearchBehaviorScreen(prefs) {}
+                1 -> LaunchPortalScreen(prefs) {}
+                else -> AiAnswersScreen {}
+            }
+        }
+        assertSectionHeader("Layout and Suggestions")
+        assertSectionHeader("Keyboard")
+        page = 1
+        compose.settle()
+        assertSectionHeader("Add to Your Phone")
+        assertSectionHeader("Always Within Reach")
+        page = 2
+        compose.settle()
+        assertSectionHeader("Answers in Search")
+        assertSectionHeader("Provider and Key")
     }
 
     @Test

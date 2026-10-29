@@ -56,8 +56,9 @@ object PriorityWeightHelper {
 
 /**
  * The "<label> Priority Weight" block shared by the App, Contact, File and Web search screens: title with the
- * current level and a reset button, a one-line explanation, and a four-step slider. The title uses the settings
- * row title style and wraps beside the reset button rather than pushing it out of the row.
+ * current level and a reset button at its end (as [SettingsSliderRow] shows its value), a one-line explanation, and
+ * a four-step slider. The title uses the settings row title style; the level and reset move under it when they
+ * don't fit beside it, rather than being pushed out of the row.
  */
 @Composable
 fun PrioritySetting(key: SettingKey<Int>, label: String) {
@@ -66,32 +67,35 @@ fun PrioritySetting(key: SettingKey<Int>, label: String) {
     val levelIndex = remember(weight) { PriorityWeightHelper.weightToLevelIndex(weight) }
     val levelLabel = PriorityWeightHelper.levelLabel(levelIndex)
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        TitleWithTrailing {
             Text(
-                text = "$label Priority Weight: $levelLabel",
+                text = "$label Priority Weight",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
+                color = MaterialTheme.colorScheme.onSurface
             )
-            // Material's own IconButton: the click haptic below is this button's one haptic.
-            androidx.compose.material3.IconButton(
-                onClick = {
-                    performClickHaptic(context)
-                    weight = PriorityWeightHelper.DEFAULT_WEIGHT
-                },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.RestartAlt,
-                    contentDescription = "Reset $label Priority Weight",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = levelLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
+                // Material's own IconButton: the click haptic below is this button's one haptic.
+                androidx.compose.material3.IconButton(
+                    onClick = {
+                        performClickHaptic(context)
+                        weight = PriorityWeightHelper.DEFAULT_WEIGHT
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.RestartAlt,
+                        contentDescription = "Reset $label Priority Weight",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
         Text(

@@ -87,6 +87,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
         ) { padding ->
             CardsAboveMorphAnimation(morphAnimationEnabled = morphAnimationEnabled, modifier = Modifier.fillMaxSize().padding(padding)) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    SettingsSectionHeader("Answers in Search")
                     SettingsCard {
                         SettingsRowToggle(
                             title = "AI Answers",

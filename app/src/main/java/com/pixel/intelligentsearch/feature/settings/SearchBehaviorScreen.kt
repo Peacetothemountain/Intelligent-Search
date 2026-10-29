@@ -11,7 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.AlignVerticalBottom
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.VerticalAlignBottom
@@ -57,6 +57,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            SettingsSectionHeader("Layout and Suggestions")
             SettingsCard {
                 var bottomSearch by rememberSetting(SettingsManager.BOTTOM_SEARCH)
                 SettingsRowToggle(
@@ -89,7 +90,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Context Aware Quick Apps",
                     subtitle = "Dynamically Chosen Apps Based on User's App Opening Cycles.",
-                    icon = Icons.Outlined.AccessTime,
+                    icon = Icons.Outlined.Insights,
                     isChecked = contextAwareApps,
                     onCheckedChange = { contextAwareApps = it },
                     showDivider = true

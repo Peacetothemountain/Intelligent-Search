@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -159,6 +160,15 @@ class SearchPillsScreenTest {
         show()
         openPicker()
         compose.onNodeWithText("Alpha Notes").assertExists()
+    }
+
+    @Test
+    fun anUnlabeledPillShowsItsPackageNameOnce() {
+        // Neither app is installed, so each pill is titled by its package name, with no copy of it underneath.
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, "a.b,c.d").commit()
+        show()
+        val texts = compose.onNode(hasText("a.​b")).fetchSemanticsNode().config[SemanticsProperties.Text]
+        assertEquals(listOf("a.​b"), texts.map { it.text })
     }
 
     @Test

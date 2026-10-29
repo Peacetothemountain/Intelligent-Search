@@ -117,6 +117,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    SettingsSectionHeader("Add to Your Phone")
                     SettingsCard {
                         SettingsRow(
                             title = "Search Tile",

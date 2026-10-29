@@ -311,7 +311,12 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         if (aiAnswer != null) {
             item(key = ResultListKeys.AI_ANSWER, contentType = "ai_answer") {
                 HighlightedCard(s, ResultListKeys.AI_ANSWER) {
-                    AiAnswerCard(aiAnswer, model = aiAnswer.provider.model(aiModel)) {
+                    AiAnswerCard(
+                        aiAnswer,
+                        model = aiAnswer.provider.model(aiModel),
+                        onOpenSettings = { page -> onOpenSettings(page) },
+                        onRetry = { viewModel.askAi() }
+                    ) {
                         hasStartedTyping = false
                         launchSafeIntent(context, com.pixel.intelligentsearch.core.bangs.AiAssistants.launchIntent(context, aiAnswer.provider.assistant, aiAnswer.question))
                     }
@@ -572,7 +577,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     hasStartedTyping = false
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
-                                    openAndroidSetting(context, setting)
+                                    // The app's own pages open in its settings, with the overlay's own transition.
+                                    setting.appRoute?.let(onOpenSettings) ?: openAndroidSetting(context, setting)
                                 }
                             }
                         }

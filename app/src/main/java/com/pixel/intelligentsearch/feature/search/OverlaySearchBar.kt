@@ -266,7 +266,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (uiState.query.isEmpty()) {
-                                Text(if (voice.active) "Listening..." else if (calculatorKeyboard) "Calculate..." else "Search...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex)
+                                Text(if (voice.active) "Listening…" else if (calculatorKeyboard) "Calculate…" else "Search…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex)
                             } else if (ghostTextAnnotated != null) {
                                 Text(
                                     text = ghostTextAnnotated,

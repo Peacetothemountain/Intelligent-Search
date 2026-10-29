@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import kotlin.math.roundToInt
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.core.data.settings.get
@@ -70,6 +71,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
+                // Three sections, like Search Behavior's: the app as a whole, the search overlay, and what's behind it.
+                SettingsSectionHeader("App")
                 SettingsCard {
                     var rawThemeMode by rememberSetting(SettingsManager.THEME)
                     val themeMode = ThemeMode.from(rawThemeMode).storedValue
@@ -121,16 +124,6 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         showDivider = true
                     )
 
-                    var overlayShowMic by rememberSetting(SettingsManager.OVERLAY_SHOW_MIC)
-                    SettingsRowToggle(
-                        title = "Show Microphone in Search Bar",
-                        subtitle = "Show Voice Search Button on Search Overlay Page.",
-                        icon = Icons.Outlined.Mic,
-                        isChecked = overlayShowMic,
-                        onCheckedChange = { overlayShowMic = it },
-                        showDivider = true
-                    )
-
                     var settingsBackToSearchOverlay by rememberSetting(SettingsManager.BACK_TO_SEARCH_OVERLAY) {}
                     SettingsRowToggle(
                         title = "Back Swipe to Enter Search Overlay Page",
@@ -138,9 +131,12 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         icon = Icons.AutoMirrored.Outlined.ArrowBack,
                         isChecked = settingsBackToSearchOverlay,
                         onCheckedChange = { settingsBackToSearchOverlay = it },
-                        showDivider = true
+                        showDivider = false
                     )
+                }
 
+                SettingsSectionHeader("Search Overlay")
+                SettingsCard {
                     var enableSearchOverlay by rememberSetting(SettingsManager.SEARCH_OVERLAY_ENABLED) {
                         updateWidgets(context)
                         if (!prefs[SettingsManager.SEARCH_OVERLAY_ENABLED]) {
@@ -153,6 +149,16 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         icon = Icons.Outlined.Layers,
                         isChecked = enableSearchOverlay,
                         onCheckedChange = { enableSearchOverlay = it },
+                        showDivider = true
+                    )
+
+                    var overlayShowMic by rememberSetting(SettingsManager.OVERLAY_SHOW_MIC)
+                    SettingsRowToggle(
+                        title = "Show Microphone in Search Bar",
+                        subtitle = "Show Voice Search Button on Search Overlay Page.",
+                        icon = Icons.Outlined.Mic,
+                        isChecked = overlayShowMic,
+                        onCheckedChange = { overlayShowMic = it },
                         showDivider = true
                     )
 
@@ -173,8 +179,12 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         icon = Icons.Outlined.Animation,
                         isChecked = morphAnimationEnabled,
                         onCheckedChange = { morphAnimationEnabled = it },
-                        showDivider = true
+                        showDivider = false
                     )
+                }
+
+                SettingsSectionHeader("Background")
+                SettingsCard {
 
                     // Wallpaper, blur, transparency and pill opacity only style the search overlay, never the
                     // home-screen widgets, so changing them doesn't redraw the widgets.
@@ -203,7 +213,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                                 icon = Icons.Outlined.BlurOn,
                                 showDivider = true,
                                 steps = 9,
-                                onReset = { blur = 50 }
+                                onReset = { blur = 50 },
+                                valueText = ::percent
                             )
 
                             SettingsSliderRow(
@@ -214,7 +225,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                                 icon = Icons.Outlined.Opacity,
                                 showDivider = true,
                                 steps = 9,
-                                onReset = { transparency = 50 }
+                                onReset = { transparency = 50 },
+                                valueText = ::percent
                             )
                         }
                     }
@@ -227,10 +239,14 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         icon = Icons.Outlined.BrightnessMedium,
                         showDivider = false,
                         steps = 9,
-                        onReset = { pillOpacity = SettingsManager.PILL_OPACITY.default }
+                        onReset = { pillOpacity = SettingsManager.PILL_OPACITY.default },
+                        valueText = ::percent
                     )
                 }
             }
         }
     }
 }
+
+/** A 0–100 slider's value as it reads beside its title. */
+private fun percent(value: Float): String = "${value.roundToInt()}%"

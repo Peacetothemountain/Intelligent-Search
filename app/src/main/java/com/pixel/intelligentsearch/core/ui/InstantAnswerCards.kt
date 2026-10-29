@@ -54,6 +54,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
@@ -348,8 +351,11 @@ fun WeatherOneBox(
         if (report.hours.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
             // Scrolls sideways when six hours don't fit (narrow screens, large text) rather than squeezing them.
+            // The cut edge fades out while there's more to scroll to, so the hours read as a row that continues
+            // rather than as text clipped mid-number.
+            val hoursScroll = rememberScrollState()
             Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().scrollFadeEdges(hoursScroll).horizontalScroll(hoursScroll),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 report.hours.forEach { hour ->
@@ -561,3 +567,29 @@ private fun ScreenTimeAppIcon(packageName: String, label: String) {
         }
     }
 }
+
+/** How wide [scrollFadeEdges]' fades are. */
+private val SCROLL_FADE = 28.dp
+
+/** Fades a sideways-scrolling row's start and end out wherever [scroll] has more to show past them. */
+private fun Modifier.scrollFadeEdges(scroll: androidx.compose.foundation.ScrollState): Modifier = this
+    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val fade = SCROLL_FADE.toPx().coerceAtMost(size.width / 4f)
+        val rtl = layoutDirection == androidx.compose.ui.unit.LayoutDirection.Rtl
+        val more = scroll.value < scroll.maxValue
+        val back = scroll.value > 0
+        val (left, right) = if (rtl) more to back else back to more
+        if (left) drawRect(
+            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = fade),
+            size = androidx.compose.ui.geometry.Size(fade, size.height),
+            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+        )
+        if (right) drawRect(
+            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width),
+            topLeft = androidx.compose.ui.geometry.Offset(size.width - fade, 0f),
+            size = androidx.compose.ui.geometry.Size(fade, size.height),
+            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
+        )
+    }

@@ -267,21 +267,9 @@ fun ManageHiddenAppsScreen(
                         )
                     }
                     if (installedApps.isEmpty()) {
-                        item {
-                            Text(
-                                "Loading apps...",
-                                modifier = Modifier.padding(16.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        item(key = "loading") { AppsLoading() }
                     } else if (filteredApps.isEmpty()) {
-                        item {
-                            Text(
-                                "No Apps Match",
-                                modifier = Modifier.padding(16.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        item(key = "no_match") { NoAppsMatch(searchQuery) }
                     }
                 }
             }

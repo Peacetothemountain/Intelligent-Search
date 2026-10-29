@@ -99,11 +99,12 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
                 )
                 IconButton(
                     onClick = { viewModel.removeSearchHistory(recentQuery) },
-                    modifier = Modifier.size(32.dp)
+                    // 40dp like the web suggestions' buttons, so the two side by side don't share their touch area.
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Remove",
+                        contentDescription = "Remove $recentQuery from history",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         modifier = Modifier.size(16.dp)
                     )
@@ -117,11 +118,11 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
                         )
                         viewModel.onQueryChanged(recentQuery)
                     },
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.NorthWest,
-                        contentDescription = "Insert query",
+                        contentDescription = "Edit search $recentQuery",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )

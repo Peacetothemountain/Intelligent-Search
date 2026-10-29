@@ -149,7 +149,7 @@ class SettingsSectionHeaderTest {
         show { WidgetSettingsScreen(prefs) {} }
         tap("Color Studio")
         assertSectionHeader("Search Bar Color Palette")
-        tap("Widget Shortcuts")
+        tap("Shortcuts")
         assertSectionHeader("Widget Shortcuts")
     }
 }

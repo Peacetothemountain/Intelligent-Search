@@ -9,6 +9,7 @@ import android.provider.Settings
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.core.profile.MultiProfileManager
 import com.pixel.intelligentsearch.core.system.SystemToggleManager
 import com.pixel.intelligentsearch.feature.search.resultSectionOrder
@@ -445,5 +446,45 @@ class AndroidSettingsSearchTest {
         // "pay" and "phone" alone still don't reach for them.
         assertEquals(emptyList<String>(), titles(search, "pay"))
         assertTrue("Contactless Payments" !in titles(search, "phone"))
+    }
+
+    @Test
+    fun theAppsOwnSettingsPagesAreFoundAndOpenInTheApp() {
+        val search = everyPageResolves()
+        for ((query, title) in mapOf(
+            "hidden apps" to "Manage Hidden Apps", "icon pack" to "Custom Icons", "api key" to "AI Answers",
+            "appearance" to "Appearance", "widget customization" to "Widget Customization", "backup" to "Encrypted Backup"
+        )) {
+            val result = search.search(query).firstOrNull { it.title == title }
+            requireNotNull(result) { "\"$query\" didn't offer $title" }
+            assertEquals("Intelligent Search Settings", result.subtitle)
+            assertTrue("$title opens in the app", result.appRoute != null)
+            assertEquals(title, Route.fromKey(result.appRoute).let { titleOf(it) })
+        }
+    }
+
+    @Test
+    fun anOwnPageNamedOutrightIsAStrongMatch() {
+        val search = everyPageResolves()
+        assertTrue(search.search("manage hidden apps").first { it.appRoute != null }.isStrongMatch)
+    }
+
+    @Test
+    fun aPinnedOwnPageComesBackById() {
+        val search = everyPageResolves()
+        val page = search.page(AppSettingsCatalog.ID_PREFIX + "appearance")
+        assertEquals("Appearance", page?.title)
+        assertEquals("appearance", page?.appRoute)
+    }
+
+    /** The page title each route's screen shows. */
+    private fun titleOf(route: Route): String = when (route) {
+        Route.ManageHiddenApps -> "Manage Hidden Apps"
+        Route.CustomIcons -> "Custom Icons"
+        Route.AiAnswers -> "AI Answers"
+        Route.Appearance -> "Appearance"
+        Route.WidgetCustomization -> "Widget Customization"
+        Route.BackupRestore -> "Encrypted Backup"
+        else -> route.toString()
     }
 }

@@ -22,6 +22,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,7 +37,9 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -128,10 +132,17 @@ internal fun AskAiRow(provider: AiProvider, question: String, modifier: Modifier
 /**
  * The AI answer in the same card as the other instant answers ([AnswerCard], [AnswerHeader], [AnswerChip]): the
  * provider and model over the question, the answer as it streams (with **bold**, `code` and bullet points drawn),
- * then Copy and "Continue in" the assistant's app or site. A failure says what went wrong in plain words.
+ * then Copy and "Continue in" the assistant's app or site. A failure says what went wrong in plain words, with the way
+ * forward beside it: the settings page that fixes it ([onOpenSettings] gets its route key), or Try Again ([onRetry]).
  */
 @Composable
-internal fun AiAnswerCard(state: AiAnswerState, model: String, onContinue: () -> Unit) {
+internal fun AiAnswerCard(
+    state: AiAnswerState,
+    model: String,
+    onOpenSettings: (String) -> Unit = {},
+    onRetry: (() -> Unit)? = null,
+    onContinue: () -> Unit
+) {
     AnswerCard(Modifier) {
         AnswerHeader(
             icon = Icons.Filled.AutoAwesome,
@@ -179,10 +190,23 @@ internal fun AiAnswerCard(state: AiAnswerState, model: String, onContinue: () ->
             if (state is AiAnswerState.Answer && state.done) {
                 AnimatedCopyChip(textToCopy = state.text, clipLabel = "${state.provider.displayName} Answer")
             }
-            AnswerChip("Continue in ${state.provider.displayName}", Icons.AutoMirrored.Filled.OpenInNew, emphasized = true, onClick = onContinue)
+            if (state is AiAnswerState.Failed) {
+                val page = state.problem.settingsPage
+                if (page != null) {
+                    AnswerChip(settingsPageName(page), Icons.Outlined.Settings, emphasized = true) { onOpenSettings(page) }
+                } else if (state.problem.retryable && onRetry != null) {
+                    AnswerChip("Try Again", Icons.Filled.Refresh, emphasized = true, onClick = onRetry)
+                }
+            }
+            val failedWithFix = state is AiAnswerState.Failed &&
+                (state.problem.settingsPage != null || (state.problem.retryable && onRetry != null))
+            AnswerChip("Continue in ${state.provider.displayName}", Icons.AutoMirrored.Filled.OpenInNew, emphasized = !failedWithFix, onClick = onContinue)
         }
     }
 }
+
+/** How far a bullet's wrapped lines hang in: the width of "•  " in the answer's text. */
+private val BULLET_HANG = 12.sp
 
 /**
  * The little Markdown answers use, drawn rather than shown as symbols: **bold**, `code`, "#" headings (bold) and
@@ -193,14 +217,20 @@ internal fun markdownLite(text: String, codeBackground: androidx.compose.ui.grap
     lines.forEachIndexed { index, rawLine ->
         var line = rawLine
         var heading = false
+        var bullet = false
         val trimmed = line.trimStart()
         when {
             trimmed.startsWith("#") -> {
                 heading = true
                 line = trimmed.trimStart('#').trimStart()
             }
-            trimmed.startsWith("- ") || trimmed.startsWith("* ") -> line = "•  " + trimmed.substring(2)
+            isBullet(trimmed) -> {
+                bullet = true
+                line = "•  " + trimmed.substring(2)
+            }
         }
+        // A bullet's wrapped lines hang under its text, not under the bullet.
+        if (bullet) pushStyle(ParagraphStyle(textIndent = TextIndent(restLine = BULLET_HANG)))
         if (heading) pushStyle(SpanStyle(fontWeight = FontWeight.Bold))
         var i = 0
         var bold = false
@@ -226,6 +256,19 @@ internal fun markdownLite(text: String, codeBackground: androidx.compose.ui.grap
         }
         if (bold) pop()
         if (heading) pop()
-        if (index < lines.lastIndex) append('\n')
+        if (bullet) pop()
+        // A bullet is a paragraph of its own, which already starts and ends a line: a line break beside one would
+        // add a blank line.
+        if (index < lines.lastIndex && !bullet && !isBullet(lines[index + 1])) append('\n')
     }
+}
+
+private fun isBullet(line: String): Boolean = line.trimStart().let { it.startsWith("- ") || it.startsWith("* ") }
+
+/** The name a fix-it chip gives the settings page [page] (a route key). */
+private fun settingsPageName(page: String): String = when (page) {
+    "ai_answers" -> "Open AI Answers"
+    "search_sources" -> "Open Search Sources"
+    "web_search" -> "Open Web Search"
+    else -> "Open Settings"
 }

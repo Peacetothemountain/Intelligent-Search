@@ -135,7 +135,8 @@ internal fun OverlayWebSuggestionRow(
             IconButton(onClick = onRemove, modifier = Modifier.size(40.dp)) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Remove",
+                    // Named for its row: TalkBack reaches the button on its own, where "Remove" alone says nothing.
+                    contentDescription = "Remove ${suggestion.query} from history",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                     modifier = Modifier.size(18.dp)
                 )
@@ -144,7 +145,7 @@ internal fun OverlayWebSuggestionRow(
         IconButton(onClick = onFill, modifier = Modifier.size(40.dp)) {
             Icon(
                 imageVector = Icons.Default.NorthWest,
-                contentDescription = "Insert query",
+                contentDescription = "Edit search ${suggestion.query}",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
             )

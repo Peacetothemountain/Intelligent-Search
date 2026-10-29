@@ -21,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalDensity
@@ -224,47 +225,59 @@ fun MainSettingsScreen(
                 val playerWidth = remainingForPlayer.coerceIn(80.dp, 160.dp)
                 val playerHeight = playerWidth * (200f / 160f)
 
-                val baseScale = (containerWidth / 390.dp).coerceIn(0.82f, 1.0f) / fontScale.coerceAtLeast(1.0f)
+                // Sized for the width only: sp already follows the user's text size, so large text grows here like anywhere else
+                // and wraps rather than being scaled back down.
+                val baseScale = (containerWidth / 390.dp).coerceIn(0.82f, 1.0f)
                 val titleFontSize = (18.8f * baseScale).coerceIn(15.0f, 18.8f).sp
                 val titleLineHeight = (titleFontSize.value * 1.28f).sp
                 val subtextFontSize = (13.5f * baseScale).coerceIn(11.0f, 13.5f).sp
                 val subtextLineHeight = (subtextFontSize.value * 1.36f).sp
 
+                // Without a player (below Android 13, or when the video can't be keyed) there is no bugdroid to stand
+                // beside, so the thank-you centers on its own instead of leaving the bugdroid's room empty.
+                val hasBugdroid = exoPlayer != null
+                val footerAlign = if (hasBugdroid) TextAlign.Start else TextAlign.Center
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = if (hasBugdroid) Arrangement.Start else Arrangement.Center
                 ) {
-                    BugdroidPlayer(
-                        player = exoPlayer,
-                        clip = BugdroidClip.SETTINGS,
-                        modifier = Modifier
-                            .width(playerWidth)
-                            .height(playerHeight),
-                        scaleFactor = 0.69f
-                    )
-                    
-                    Spacer(modifier = Modifier.width(12.dp))
-                    
+                    if (hasBugdroid) {
+                        BugdroidPlayer(
+                            player = exoPlayer,
+                            clip = BugdroidClip.SETTINGS,
+                            modifier = Modifier
+                                .width(playerWidth)
+                                .height(playerHeight),
+                            scaleFactor = 0.69f
+                        )
+
+                        Spacer(modifier = Modifier.width(12.dp))
+                    }
+
                     Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.Center
+                        modifier = if (hasBugdroid) Modifier.weight(1f) else Modifier.widthIn(max = textTargetWidth + 40.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = if (hasBugdroid) Alignment.Start else Alignment.CenterHorizontally
                     ) {
                         Text(
                             text = "Thank you for using\nIntelligent\u00A0Search.",
                             fontSize = titleFontSize,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,
-                            lineHeight = titleLineHeight
+                            lineHeight = titleLineHeight,
+                            textAlign = footerAlign
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
                         // No line limit: large text wraps instead of hiding the address. Zero-width spaces let the
                         // address break after "support." and "@" on narrow screens rather than mid-word.
                         Text(
-                            text = "If you need support please email me at:\nsupport.\u200Bngdesigns@\u200Bgmail.com",
+                            text = "If you need support, please email me at:\nsupport.\u200Bngdesigns@\u200Bgmail.com",
                             fontSize = subtextFontSize,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             lineHeight = subtextLineHeight,
+                            textAlign = footerAlign,
                             modifier = Modifier.bouncyClickable {
                                 try {
                                     uriHandler.openUri("mailto:support.ngdesigns@gmail.com")

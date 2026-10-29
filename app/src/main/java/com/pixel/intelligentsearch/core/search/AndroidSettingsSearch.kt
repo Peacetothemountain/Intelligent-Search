@@ -29,14 +29,16 @@ class AndroidSettingResult(
     val iconType: String,
     val intent: Intent,
     val app: AppItem? = null,
-    val isStrongMatch: Boolean = false
+    val isStrongMatch: Boolean = false,
+    /** For one of Intelligent Search's own pages ([AppSettingsCatalog]), its route key: it opens there, not in Settings. */
+    val appRoute: String? = null
 ) {
     /** What TalkBack reads for the row, e.g. "Battery settings" or "App info for Chrome". */
     val spokenLabel: String get() = if (app != null) "App info for ${app.name}" else "$title settings"
 
     override fun equals(other: Any?): Boolean =
         other is AndroidSettingResult && id == other.id && title == other.title && subtitle == other.subtitle &&
-            iconType == other.iconType && app == other.app && isStrongMatch == other.isStrongMatch
+            iconType == other.iconType && app == other.app && isStrongMatch == other.isStrongMatch && appRoute == other.appRoute
 
     override fun hashCode(): Int = id.hashCode()
 
@@ -61,7 +63,7 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
 
     private class IndexedPage(val page: AndroidSettingsCatalog.Page, val terms: List<Term>)
 
-    private val index: List<IndexedPage> = AndroidSettingsCatalog.pages.map { page ->
+    private val index: List<IndexedPage> = (AndroidSettingsCatalog.pages + AppSettingsCatalog.pages).map { page ->
         val texts = (listOf(page.title) + page.keywords).map(QueryNormalizer::normalize).filter { it.isNotEmpty() }
         IndexedPage(page, texts.distinct().map { Term(it, isTitle = it == QueryNormalizer.normalize(page.title)) })
     }
@@ -111,8 +113,8 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
     /** Catalogue page [id] as a result, if it opens on this phone: for pinned pages. */
     fun page(id: String): AndroidSettingResult? {
         val page = index.firstOrNull { it.page.id == id }?.page ?: return null
-        if (!isAvailable(page.id) { Intent(page.action) }) return null
-        return AndroidSettingResult(page.id, page.title, SUBTITLE, page.iconType, Intent(page.action))
+        if (!isAvailable(page)) return null
+        return resultFor(page, isStrongMatch = false)
     }
 
     private fun pageResults(query: String): List<AndroidSettingResult> {
@@ -124,21 +126,26 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
             .sortedByDescending { it.second }
             .asSequence()
             .map { it.first }
-            .filter { isAvailable(it.page.id) { Intent(it.page.action) } }
+            .filter { isAvailable(it.page) }
             .take(MAX_PAGES)
-            .map { indexed ->
-                val page = indexed.page
-                AndroidSettingResult(
-                    id = page.id,
-                    title = page.title,
-                    subtitle = SUBTITLE,
-                    iconType = page.iconType,
-                    intent = Intent(page.action),
-                    isStrongMatch = indexed.terms.any { namesOutright(query, it) }
-                )
-            }
+            .map { indexed -> resultFor(indexed.page, isStrongMatch = indexed.terms.any { namesOutright(query, it) }) }
             .toList()
     }
+
+    /** [page] as a result row: one of the phone's Settings pages, or one of the app's own ([AppSettingsCatalog]). */
+    private fun resultFor(page: AndroidSettingsCatalog.Page, isStrongMatch: Boolean) = AndroidSettingResult(
+        id = page.id,
+        title = page.title,
+        subtitle = if (page.appRoute != null) APP_PAGE_SUBTITLE else SUBTITLE,
+        iconType = page.iconType,
+        intent = Intent(page.action),
+        isStrongMatch = isStrongMatch,
+        appRoute = page.appRoute
+    )
+
+    /** Whether [page] opens here: the app's own pages always do; a Settings page if its action resolves. */
+    private fun isAvailable(page: AndroidSettingsCatalog.Page): Boolean =
+        page.appRoute != null || isAvailable(page.id) { Intent(page.action) }
 
     /**
      * Whether [query] names the page of [term] outright: it is the page's title, a keyword of several words ("dark
@@ -263,6 +270,7 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
         private const val KEYWORD_WEIGHT = 0.9f
         private const val SUBTITLE = "Settings"
         private const val APP_INFO_SUBTITLE = "Settings › Apps"
+        private const val APP_PAGE_SUBTITLE = "Intelligent Search Settings"
         internal const val APP_INFO_ID = "app_info"
 
         private val SETTINGS_WORDS = setOf("settings", "setting")

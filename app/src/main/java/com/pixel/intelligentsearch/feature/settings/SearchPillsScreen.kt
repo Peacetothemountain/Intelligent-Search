@@ -374,8 +374,13 @@ fun SearchPillsScreen(
                                         selectedApps = setOf(packageName)
                                     }
                                 },
-                                showDivider = index < filteredApps.size - 1
+                                // Nor over the selected row below it.
+                                showDivider = index < filteredApps.size - 1 &&
+                                    filteredApps[index + 1].packageName !in selectedApps
                             )
+                        }
+                        if (filteredApps.isEmpty() && appSearchQuery.isNotBlank()) {
+                            item(key = "no_match") { NoAppsMatch(appSearchQuery) }
                         }
                     }
                     }

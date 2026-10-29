@@ -62,7 +62,7 @@ internal fun openResult(context: Context, s: OverlayScope, result: Any, from: La
             s.viewModel.recordOpened(result)
             openFileResult(context, s.prefs, result)
         }
-        is AndroidSettingResult -> openAndroidSetting(context, result)
+        is AndroidSettingResult -> result.appRoute?.let(s.onOpenSettings) ?: openAndroidSetting(context, result)
     }
 }
 

@@ -60,7 +60,7 @@ Built with Jetpack Compose, Material 3 Expressive, Material You dynamic color an
     <td width="50%" valign="top">
       <h3>🔍 Search everything</h3>
       <ul>
-        <li>Apps across your personal, work and private space profiles, plus their app shortcuts.</li>
+        <li>Apps across your personal, work and private space profiles, plus Android's settings pages and Intelligent Search's own.</li>
         <li>Contacts, calendar events and files you choose through the system picker.</li>
         <li>Live web suggestions and your previous searches, each of which can be turned off.</li>
         <li>Quick web shortcuts such as <code>!yt</code>, <code>!w</code> or <code>!gh</code>, plus your own custom search engines.</li>
@@ -69,7 +69,7 @@ Built with Jetpack Compose, Material 3 Expressive, Material You dynamic color an
     <td width="50%" valign="top">
       <h3>⚡ Instant answers and actions</h3>
       <ul>
-        <li>A full calculator: functions, percentages, bitwise maths and number bases.</li>
+        <li>A full calculator: functions, percentages ("15% of 80", "20% off 59.99"), bitwise math and number bases, in your locale's number format.</li>
         <li>Unit conversion and the time in other places.</li>
         <li>Plain sentences become actions: timers, alarms, reminders, calendar events, messages, calls and directions.</li>
         <li>Toggle Wi-Fi, Bluetooth, the flashlight or airplane mode, and set the volume, right from the results.</li>

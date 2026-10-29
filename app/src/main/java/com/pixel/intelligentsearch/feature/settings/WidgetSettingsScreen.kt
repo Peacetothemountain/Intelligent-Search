@@ -747,7 +747,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 listOfNotNull(
                     Triple("Appearance", Icons.Outlined.Palette, Icons.Filled.Palette),
                     if (hasColorStudio) Triple("Color Studio", Icons.Outlined.Tune, Icons.Filled.Tune) else null,
-                    Triple("Widget Shortcuts", Icons.Outlined.Widgets, Icons.Filled.Widgets)
+                    Triple("Shortcuts", Icons.Outlined.Widgets, Icons.Filled.Widgets)
                 )
             }
 
@@ -822,7 +822,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         )
                     }
 
-                    "Widget Shortcuts" -> WidgetShortcutsTab(fields = fields, ui = ui, view = view, hapticEngine = hapticEngine, coroutineScope = coroutineScope, density = density, shortcutOptions = shortcutOptions, themeStyle = themeStyleState)
+                    "Shortcuts" -> WidgetShortcutsTab(fields = fields, ui = ui, view = view, hapticEngine = hapticEngine, coroutineScope = coroutineScope, density = density, shortcutOptions = shortcutOptions, themeStyle = themeStyleState)
                 }
             }
         }

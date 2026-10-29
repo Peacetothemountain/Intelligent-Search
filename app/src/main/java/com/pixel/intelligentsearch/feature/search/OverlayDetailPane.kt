@@ -11,6 +11,7 @@ import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -32,6 +33,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.automirrored.outlined.ManageSearch
 import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.FilterListOff
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Person
@@ -126,11 +128,18 @@ internal fun OverlayDetailPane(s: OverlayScope, modifier: Modifier = Modifier) {
                 stop == null -> DetailEmpty()
                 // The answer's own card, across the whole pane.
                 stop.target is NavTarget.Answer -> when (stop.listKey) {
-                    ResultListKeys.MATH -> MathResultOneBox(
-                        expression = s.uiState.query,
-                        result = s.uiState.mathResult.orEmpty(),
-                        onOpenCalculator = { openNavTarget(context, s, stop.target) }
-                    )
+                    // The list already shows the answer's card, so the pane adds what the card can't: the number
+                    // written the other ways (bases, grouping, fraction), each copied with a tap.
+                    ResultListKeys.MATH -> {
+                        val result = s.uiState.mathResult.orEmpty()
+                        val forms = remember(result) { numberForms(result) }
+                        MathResultOneBox(
+                            expression = s.uiState.query,
+                            result = result,
+                            onOpenCalculator = { openNavTarget(context, s, stop.target) }
+                        )
+                        if (forms.isNotEmpty()) NumberFormsCard(forms)
+                    }
                     ResultListKeys.LIVE_ANSWER -> s.uiState.liveAnswer?.let { OverlayLiveAnswer(s, it) }
                     ResultListKeys.INSTANT_ANSWER -> s.uiState.instantAnswer?.let { OverlayInstantAnswer(s, it) }
                     ResultListKeys.AI_ANSWER -> s.uiState.aiAnswer?.let { answer ->
@@ -394,3 +403,63 @@ internal fun shareFileIntent(file: FileItem): Intent {
 
 /** Whether this window shares the screen with another app. */
 private fun isInMultiWindow(context: Context): Boolean = context.findActivity()?.isInMultiWindowMode == true
+
+/** The calculator answer's [forms] in the pane's matte card, one row each; tapping a row copies its value. */
+@Composable
+private fun NumberFormsCard(forms: List<NumberForm>) {
+    val context = LocalContext.current
+    MatteShell(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
+        shape = ExpressiveCornerTokens.ShapeExtraLarge,
+        containerColor = MaterialTheme.colorScheme.raisedContainer
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
+            Text(
+                text = "Other Forms",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp).semantics { heading() }
+            )
+            forms.forEach { form ->
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClickLabel = "Copy ${form.label}") {
+                            val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+                            clipboard?.setPrimaryClip(android.content.ClipData.newPlainText(form.label, form.value))
+                            // Android 13 and up confirm a copy themselves.
+                            if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
+                                android.widget.Toast.makeText(context, "${form.label} Copied", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = form.label,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = form.value,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                        // Figures of one width, so the digits of each form line up like a column.
+                        fontFeatureSettings = "tnum",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.End
+                    )
+                    Spacer(modifier = Modifier.size(12.dp))
+                    Icon(
+                        imageVector = Icons.Outlined.ContentCopy,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}

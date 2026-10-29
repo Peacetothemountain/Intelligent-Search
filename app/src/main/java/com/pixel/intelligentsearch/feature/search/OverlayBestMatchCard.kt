@@ -166,7 +166,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                             val isDirectCall = settingsState.contactDirectCall
                             Icon(
                                 imageVector = if (isDirectCall) Icons.Default.Call else Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = if (isDirectCall) "Call" else "Open",
+                                contentDescription = if (isDirectCall) "Call ${match.name}" else "Open ${match.name}",
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -219,7 +219,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                 }
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = "Open",
+                                    contentDescription = "Open ${match.name}",
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -306,7 +306,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                         }
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = "Open",
+                            contentDescription = "Open ${match.name}",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )

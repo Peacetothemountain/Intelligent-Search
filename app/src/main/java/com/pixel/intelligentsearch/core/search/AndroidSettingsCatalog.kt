@@ -13,13 +13,17 @@ import android.provider.Settings
  */
 object AndroidSettingsCatalog {
 
-    /** One Settings page: [action] opens it, [keywords] are matched besides the [title]. */
+    /**
+     * One Settings page: [action] opens it, [keywords] are matched besides the [title]. A page of the app's own settings
+     * ([AppSettingsCatalog]) has no action but its [appRoute] key instead.
+     */
     class Page(
         val id: String,
         val title: String,
         val action: String,
         val iconType: String,
-        val keywords: List<String>
+        val keywords: List<String>,
+        val appRoute: String? = null
     )
 
     /**

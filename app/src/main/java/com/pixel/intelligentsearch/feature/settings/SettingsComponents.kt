@@ -561,8 +561,22 @@ fun SettingsAppRow(
                     )
                 }
             }
+            // Selection shows as a check too, not by the tint alone, which some people can't tell apart.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = selected,
+                enter = androidx.compose.animation.scaleIn(initialScale = 0.6f) + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.scaleOut(targetScale = 0.6f) + androidx.compose.animation.fadeOut()
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = null, // the row says it's selected
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 12.dp).size(24.dp)
+                )
+            }
         }
-        if (showDivider) {
+        // The highlight is its own pill: a divider under a selected row would cut across it.
+        if (showDivider && !selected) {
             HorizontalDivider(
                 modifier = Modifier.padding(start = 56.dp, end = 16.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),

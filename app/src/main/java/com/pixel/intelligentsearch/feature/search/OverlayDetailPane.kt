@@ -444,10 +444,8 @@ private fun NumberFormsCard(forms: List<NumberForm>) {
                     )
                     Text(
                         text = form.value,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                         // Figures of one width, so the digits of each form line up like a column.
-                        fontFeatureSettings = "tnum",
+                        style = MaterialTheme.typography.titleMedium.copy(fontFeatureSettings = "tnum"),
                         color = MaterialTheme.colorScheme.onSurface,
                         textAlign = TextAlign.End
                     )

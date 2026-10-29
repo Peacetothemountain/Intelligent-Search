@@ -265,7 +265,7 @@ private fun Modifier.manifestingPill(
     light: Color
 ): Modifier = drawWithCache {
     val shader = bottomSearchShader
-    val brush = shader?.let { ShaderBrush(it) }
+    val brush = if (shader != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ShaderBrush(shader) else null
     val pad = PILL_GLOW_PAD.toPx()
     val corner = CornerRadius(size.height / 2f)
     onDrawBehind {

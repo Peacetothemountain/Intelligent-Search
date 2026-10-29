@@ -1,10 +1,12 @@
 package com.pixel.intelligentsearch.core.search
 
 import com.pixel.intelligentsearch.core.util.Durations
+import android.app.SearchManager
 import android.content.Intent
 import android.net.Uri
 import android.provider.AlarmClock
 import android.provider.CalendarContract
+import android.provider.MediaStore
 import java.util.Calendar
 import java.util.Locale
 
@@ -18,6 +20,7 @@ import java.util.Locale
  * - Direct Messaging ("text Sarah: I will be late", "message Dave on WhatsApp saying hi")
  * - Phone Calls ("call Mom", "dial 555-0199")
  * - Navigation ("directions to Central Park", "navigate to work", "directions home")
+ * - Media ("play lo-fi beats", "play Taylor Swift on Spotify", "play jazz on YouTube Music")
  */
 object NaturalLanguageIntentParser {
 
@@ -115,7 +118,33 @@ object NaturalLanguageIntentParser {
             val intent: Intent,
             val fallbackIntent: Intent? = null
         ) : ParsedIntent()
+
+        /**
+         * Plays [query] from a search in a media app: [appName]'s when one was named ([intent] is then sent to that
+         * app, and [fallbackIntent], to any player, when it isn't installed), else whichever player answers.
+         */
+        data class MediaPlay(
+            val query: String,
+            val appName: String?,
+            val intent: Intent,
+            val fallbackIntent: Intent? = null
+        ) : ParsedIntent()
     }
+
+    /** Media apps "play ... on <app>" can name, as typed, with their shown name and package. */
+    private val MEDIA_APPS = mapOf(
+        "spotify" to ("Spotify" to "com.spotify.music"),
+        "youtube music" to ("YouTube Music" to "com.google.android.apps.youtube.music"),
+        "yt music" to ("YouTube Music" to "com.google.android.apps.youtube.music")
+    )
+    private val PLAY_ON_APP_REGEX = Regex(
+        "^play (.+?) (?:on|in|with|using|via) (spotify|youtube music|yt music|youtube)$",
+        RegexOption.IGNORE_CASE
+    )
+    /** "play store", "play games", "play books": searches for Google Play's apps, not for something to play. */
+    private val NOT_MEDIA_FIRST_WORDS = setOf(
+        "store", "games", "game", "console", "books", "movies", "services", "protect", "points", "pass", "billing"
+    )
 
     /** [contactLookup] resolves a name in "call ..." and "text ..." to a contact; without it only numbers resolve. */
     fun parse(
@@ -147,6 +176,9 @@ object NaturalLanguageIntentParser {
 
         // 7. Direct Navigation Intent ("directions to ...", "navigate to ...")
         parseNavigation(lower, query)?.let { return it }
+
+        // 8. Media Intent ("play ...", "play ... on spotify")
+        parseMediaPlay(query)?.let { return it }
 
         return null
     }
@@ -424,6 +456,42 @@ object NaturalLanguageIntentParser {
             // Any maps app answers a geo: search for the place when Google Maps isn't there.
             fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:0,0?q=" + Uri.encode(dest)))
         )
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // MEDIA PARSER
+    // ---------------------------------------------------------------------------------------------
+
+    private fun parseMediaPlay(original: String): ParsedIntent.MediaPlay? {
+        val collapsed = original.trim().replace(WHITESPACE_REGEX, " ")
+        if (!collapsed.startsWith(PLAY, ignoreCase = true)) return null
+        val named = PLAY_ON_APP_REGEX.matchEntire(collapsed)
+        val what: String
+        var app: Pair<String, String>? = null
+        if (named != null) {
+            // "play x on youtube" means a video, which YouTube's own search finds better than a music player.
+            app = MEDIA_APPS[named.groupValues[2].lowercase(Locale.ROOT)] ?: return null
+            what = named.groupValues[1].trim()
+        } else {
+            what = collapsed.substring(PLAY.length).trim()
+            if (what.substringBefore(' ').lowercase(Locale.ROOT) in NOT_MEDIA_FIRST_WORDS) return null
+        }
+        if (what.none { it.isLetterOrDigit() }) return null
+        val anyPlayer = mediaPlayIntent(what)
+        return if (app != null) {
+            ParsedIntent.MediaPlay(what, app.first, mediaPlayIntent(what).setPackage(app.second), fallbackIntent = anyPlayer)
+        } else {
+            ParsedIntent.MediaPlay(what, null, anyPlayer)
+        }
+    }
+
+    private const val PLAY = "play "
+
+    /** Asks a media app to search for [query] and play the best match, as "play ..." said to the Assistant does. */
+    internal fun mediaPlayIntent(query: String): Intent = Intent(MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH).apply {
+        putExtra(SearchManager.QUERY, query)
+        // Any kind of media: the app decides whether the words name an artist, an album, a song or a playlist.
+        putExtra(MediaStore.EXTRA_MEDIA_FOCUS, "vnd.android.cursor.item/*")
     }
 
     // ---------------------------------------------------------------------------------------------

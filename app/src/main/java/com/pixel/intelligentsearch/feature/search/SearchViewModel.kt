@@ -33,26 +33,6 @@ private fun looksLikeWebAddress(text: String): Boolean {
     return '.' in host && host.substringAfterLast('.').lowercase() !in FILE_EXTENSIONS
 }
 
-/** Common places whose time zone is not named after them in the tz database (e.g. Asia/Kolkata). */
-private val TIME_ZONE_ALIASES = mapOf(
-    "utc" to "UTC", "gmt" to "GMT",
-    "san francisco" to "America/Los_Angeles", "seattle" to "America/Los_Angeles", "la" to "America/Los_Angeles",
-    "california" to "America/Los_Angeles", "las vegas" to "America/Los_Angeles", "portland" to "America/Los_Angeles",
-    "boston" to "America/New_York", "miami" to "America/New_York", "washington" to "America/New_York",
-    "atlanta" to "America/New_York", "philadelphia" to "America/New_York", "nyc" to "America/New_York",
-    "dallas" to "America/Chicago", "houston" to "America/Chicago", "austin" to "America/Chicago",
-    "salt lake city" to "America/Denver", "montreal" to "America/Toronto",
-    "beijing" to "Asia/Shanghai", "china" to "Asia/Shanghai", "japan" to "Asia/Tokyo",
-    "india" to "Asia/Kolkata", "delhi" to "Asia/Kolkata", "new delhi" to "Asia/Kolkata",
-    "mumbai" to "Asia/Kolkata", "bangalore" to "Asia/Kolkata", "bengaluru" to "Asia/Kolkata",
-    "uk" to "Europe/London", "england" to "Europe/London", "france" to "Europe/Paris",
-    "germany" to "Europe/Berlin", "spain" to "Europe/Madrid", "italy" to "Europe/Rome",
-    "korea" to "Asia/Seoul", "south korea" to "Asia/Seoul", "vietnam" to "Asia/Ho_Chi_Minh",
-    "hanoi" to "Asia/Bangkok", "uae" to "Asia/Dubai", "abu dhabi" to "Asia/Dubai",
-    "melbourne" to "Australia/Melbourne", "canberra" to "Australia/Sydney", "new zealand" to "Pacific/Auckland",
-    "hawaii" to "Pacific/Honolulu", "alaska" to "America/Anchorage"
-)
-
 @androidx.compose.runtime.Immutable
 data class DirectAction(
     val title: String,
@@ -846,6 +826,9 @@ class SearchViewModel @Inject constructor(
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Navigation -> {
                         directActions.add(DirectAction("Navigate to ${intent.destination}", intent.destination, "navigation", intent.intent, intent.fallbackIntent))
                     }
+                    is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.MediaPlay -> {
+                        directActions.add(DirectAction("Play ${intent.query}", intent.appName ?: "Media app", "media", intent.intent, intent.fallbackIntent))
+                    }
                 }
             }
 
@@ -950,8 +933,12 @@ class SearchViewModel @Inject constructor(
                 else InstantAnswer(unitConv.formatted, "Unit Conversion", "conversion")
             } else if (dateAnswer != null) {
                 InstantAnswer(dateAnswer.title, dateAnswer.subtitle, "date")
-            } else if (q == "time" || q.startsWith("time in ")) {
-                buildTimeAnswer(q.removePrefix("time").removePrefix(" in ").trim())
+            } else if (unifiedResults.timeAnswer != null) {
+                // "time", "tokyo time", "time in PST", "3pm PST in IST": unknown places get no answer, not the local time.
+                unifiedResults.timeAnswer.let { InstantAnswer(it.title, it.subtitle, "time") }
+            } else if (unifiedResults.randomAnswer != null && settings.searchCalculator) {
+                // A coin, dice or a random number: drawn like a calculation, so it follows the Calculator switch too.
+                unifiedResults.randomAnswer.let { InstantAnswer(it.title, it.subtitle, "random") }
             } else if (question is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Weather) {
                 // The tap-through stands until (or unless) a live forecast replaces it: Web Suggestions off, Tor, offline.
                 val title = question.place?.let { "Weather in ${it.toDisplayPlaceName()}" } ?: "Weather"
@@ -1057,31 +1044,8 @@ class SearchViewModel @Inject constructor(
         is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> null
     }
 
-    /**
-     * Answers "time" with the local time and "time in <place>" with that place's time when the place maps
-     * to a known time zone; unknown places return null so the query falls through to web search instead
-     * of mislabelling the local time.
-     */
-    private fun buildTimeAnswer(place: String): InstantAnswer? {
-        val zone = if (place.isEmpty()) java.util.TimeZone.getDefault() else resolveTimeZone(place) ?: return null
-        val format = android.text.format.DateFormat.getTimeFormat(context).apply { timeZone = zone }
-        val label = if (place.isEmpty()) "your location" else place.toDisplayPlaceName()
-        return InstantAnswer(format.format(java.util.Date()), "Current time in $label", "time")
-    }
-
     private fun String.toDisplayPlaceName(): String =
         split(' ').filter { it.isNotEmpty() }.joinToString(" ") { word -> word.replaceFirstChar { it.titlecase() } }
-
-    private fun resolveTimeZone(place: String): java.util.TimeZone? {
-        val normalized = place.lowercase().replace(Regex("[^a-z ]"), "").trim().replace(Regex("\\s+"), " ")
-        if (normalized.isEmpty()) return null
-        val zoneId = TIME_ZONE_ALIASES[normalized]
-            ?: java.time.ZoneId.getAvailableZoneIds().firstOrNull { id ->
-                id.contains('/') && id.substringAfterLast('/').replace('_', ' ').lowercase() == normalized
-            }
-            ?: return null
-        return java.util.TimeZone.getTimeZone(zoneId)
-    }
 
     private suspend fun fetchRemoteWebSuggestions(query: String) {
         if (query.isBlank()) return

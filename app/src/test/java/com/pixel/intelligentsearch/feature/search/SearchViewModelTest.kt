@@ -317,6 +317,44 @@ class SearchViewModelTest {
     private fun uniqueWork(name: String) = WorkManager.getInstance(ApplicationProvider.getApplicationContext()).getWorkInfosForUniqueWork(name).get()
 
     @Test
+    fun aTimeInAnotherZoneIsAnsweredOnTheClockCard() {
+        start()
+        viewModel.onQueryChanged("time in jst")
+        val answer = await("time answer") { it.instantAnswer != null }.instantAnswer!!
+        assertEquals("time", answer.iconType)
+        assertTrue(answer.subtitle, answer.subtitle.startsWith("Current time in JST"))
+    }
+
+    @Test
+    fun aCoinFlipIsAnsweredInline() {
+        start()
+        viewModel.onQueryChanged("flip a coin")
+        val answer = await("coin answer") { it.instantAnswer != null }.instantAnswer!!
+        assertEquals("random", answer.iconType)
+        assertTrue(answer.title, answer.title == "Heads" || answer.title == "Tails")
+    }
+
+    @Test
+    fun chanceAnswersFollowTheCalculatorSwitch() {
+        prefs.edit().put(SettingsManager.SEARCH_CALCULATOR, false).commit()
+        start()
+        viewModel.onQueryChanged("roll a die")
+        assertNull(awaitLocalResults().instantAnswer)
+    }
+
+    @Test
+    fun playOffersAMediaAction() {
+        start()
+        viewModel.onQueryChanged("play jazz on spotify")
+        val action = await("media action") { state -> state.directActions.any { it.iconType == "media" } }
+            .directActions.first { it.iconType == "media" }
+        assertEquals("Play jazz", action.title)
+        assertEquals("Spotify", action.subtitle)
+        assertEquals("com.spotify.music", action.intent?.`package`)
+        assertNull(action.fallbackIntent?.`package`)
+    }
+
+    @Test
     fun dateAnswersFollowTheCalculatorSwitch() {
         prefs.edit().put(SettingsManager.SEARCH_CALCULATOR, false).commit()
         start()

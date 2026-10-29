@@ -24,7 +24,7 @@ import kotlin.math.abs
  * The bar's background is drawn as one backdrop, the way a launcher draws the widget: the outline (the Material
  * design's rim), and the pill and circle over it, are one group faded once by Transparency, with the pill and circle
  * opaque within it, so where they sit over the rim they are painted once and never take on its colour (at Transparency
- * 50 the pill was 75% opaque, the rim showing through it, while the rim around it was 50%). A pill locked black stays
+ * 50 the pill was 75% opaque, the rim showing through it, while the rim around it was 50%). A locked pill stays
  * solid and only the rim fades. The icons sit above the backdrop, fully opaque, and the backdrop's pill and circle lie
  * exactly under the buttons they back.
  */
@@ -36,10 +36,17 @@ class WidgetBackdropTest {
     private val prefs by lazy { context.getSharedPreferences("widget_backdrop_test", Context.MODE_PRIVATE) }
     private val activity by lazy { Robolectric.buildActivity(Activity::class.java).setup().get() }
 
-    private fun views(bar: Bar, transparency: Int, opacity: Int, outline: Int = 8, actionIcon: String = "Search"): RemoteViews {
+    private fun views(
+        bar: Bar,
+        transparency: Int,
+        opacity: Int,
+        outline: Int = 8,
+        actionIcon: String = "Search",
+        dark: Boolean = false
+    ): RemoteViews {
         val p = if (bar.material) "widget_material" else "widget_system"
         prefs.edit().clear()
-            .putString(SettingsManager.THEME.name, "Material Light")
+            .putString(SettingsManager.THEME.name, if (dark) "Material Dark" else "Material Light")
             .putBoolean("${p}_design_saved", true)
             .putString("${p}_subtheme", bar.subtheme)
             .putString("${p}_material_g_icon", "Accented G Icon")
@@ -142,21 +149,27 @@ class WidgetBackdropTest {
     }
 
     /**
-     * Locked black, the Material design's pill and circle are solid #121212 whatever the Transparency, and the rim alone
-     * fades: the default Material bar (Transparency 28, locked) looks as it always has.
+     * Locked, the Material design's pill and circle are solid whatever the Transparency, and the rim alone fades: the
+     * default Material bar (Transparency 28, locked) looks as it always has in the dark theme, solid #121212, and in
+     * the light theme is the light theme's own pill, just as solid.
      */
     @Test
-    fun theLockedBlackPillStaysSolidWhileTheRimFades() {
-        for (bar in listOf(Bar.MATERIAL_LOCKED, Bar.MATERIAL_CUSTOM_LOCKED)) {
-            val widget = views(bar, transparency = 28, opacity = 100).apply(activity, FrameLayout(activity))
+    fun theLockedPillStaysSolidWhileTheRimFades() {
+        for (dark in listOf(true, false)) for (bar in listOf(Bar.MATERIAL_LOCKED, Bar.MATERIAL_CUSTOM_LOCKED)) {
+            val label = "$bar ${if (dark) "dark" else "light"}"
+            val widget = views(bar, transparency = 28, opacity = 100, dark = dark).apply(activity, FrameLayout(activity))
             val backdrop = widget.findViewById<View>(R.id.widget_backdrop).alpha
-            assertEquals("$bar backdrop", 1f, backdrop)
+            assertEquals("$label backdrop", 1f, backdrop)
             for (id in listOf(R.id.widget_pill_background, R.id.widget_sound_background)) {
                 val name = context.resources.getResourceEntryName(id)
-                assertEquals("$bar $name is solid", 255, widget.ownAlpha(id))
-                assertEquals("$bar $name is black", 0x121212, widget.findViewById<ImageView>(id).imageTintList!!.defaultColor and 0xFFFFFF)
+                assertEquals("$label $name is solid", 255, widget.ownAlpha(id))
+                assertEquals(
+                    "$label $name is the theme's own pill",
+                    WidgetColorSlidersTest.themePill(context, dark),
+                    widget.findViewById<ImageView>(id).imageTintList!!.defaultColor and 0xFFFFFF
+                )
             }
-            assertAlpha("$bar rim at Transparency 28", (0.72f * 255).toInt(), widget.ownAlpha(R.id.widget_outer_background))
+            assertAlpha("$label rim at Transparency 28", (0.72f * 255).toInt(), widget.ownAlpha(R.id.widget_outer_background))
         }
     }
 

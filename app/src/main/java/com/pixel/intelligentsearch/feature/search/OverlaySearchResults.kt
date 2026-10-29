@@ -638,6 +638,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         .moreOptions(openMenu)
                                         .expressiveRowClickable(onLongClick = openMenu) {
                                             hasStartedTyping = false
+                                            viewModel.recordOpened(contact)
                                             launchSafeIntent(context, ContactActions.openIntent(contact, isDirectCall))
                                         }
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -660,6 +661,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                             // Pulled back by the touch target's margin so the first circle lines up with the name.
                                             ContactActionButtons(contactActions, settingsState.activeIconPack, Modifier.offset(x = (-4).dp)) {
                                                 hasStartedTyping = false
+                                                viewModel.recordOpened(contact)
                                             }
                                         }
                                     }
@@ -668,6 +670,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         onClick = {
                                             if (contact.phoneNumber.isNotBlank()) {
                                                 hasStartedTyping = false
+                                                viewModel.recordOpened(contact)
                                                 launchSafeIntent(context, ContactActions.callIntent(contact.phoneNumber))
                                             }
                                         }
@@ -704,6 +707,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         .moreOptions(openMenu)
                                         .expressiveRowClickable(onLongClick = openMenu) {
                                             hasStartedTyping = false
+                                            viewModel.recordOpened(file)
                                             openFileResult(context, s.prefs, file)
                                         }
                                         .padding(horizontal = 16.dp, vertical = 14.dp),

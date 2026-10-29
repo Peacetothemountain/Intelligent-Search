@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import android.content.SharedPreferences
 import androidx.compose.foundation.layout.Arrangement
@@ -49,6 +50,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
     val context = LocalContext.current
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
+                colors = settingsTopBarColors(),
                 title = { Text("App & Shortcut Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
@@ -135,7 +137,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                             sliderMax = maxQuickPanelApps
                         },
                         onDontShowAgain = {
-                            prefs.edit().put(SettingsManager.QUICK_PANEL_TRIM_WARNING_DISMISSED, true).apply()
+                            prefs.edit { put(SettingsManager.QUICK_PANEL_TRIM_WARNING_DISMISSED, true) }
                             pendingMax = null
                             pillProfiles.setMaxQuickPanelApps(newMax)
                         },

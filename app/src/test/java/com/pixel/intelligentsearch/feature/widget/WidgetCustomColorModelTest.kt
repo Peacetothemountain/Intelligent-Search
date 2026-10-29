@@ -80,7 +80,7 @@ class WidgetCustomColorModelTest(private val bar: Bar, private val slider: Slide
         assertEquals("$label shortcut takes the accent", accent, accented.tint(R.id.widget_lens_search))
         if (bar.material) assertEquals("$label circle icon takes the accent", accent, accented.tint(R.id.widget_sound_icon))
         val pill = accented.tint(R.id.widget_pill_background)
-        // The custom colour fills the pill (the rim when the pill is locked black); see-through as Color Opacity and
+        // The custom colour fills the pill (the rim when the pill is locked); see-through as Color Opacity and
         // Transparency say, applied once.
         val backgroundId = if (locked) R.id.widget_outer_background else R.id.widget_pill_background
         val background = accented.image(backgroundId)
@@ -95,7 +95,8 @@ class WidgetCustomColorModelTest(private val bar: Bar, private val slider: Slide
             assertEquals("$label circle shares the pill", pill, accented.tint(R.id.widget_sound_background))
             assertEquals("$label rim is the seed", seed(s), accented.tint(R.id.widget_outer_background))
         }
-        if (locked) assertEquals("$label locked pill stays black", 0xFF121212.toInt(), pill)
+        // Locked with no colour picked: the theme's own pill (#121212 in dark, its light twin in light).
+        if (locked) assertEquals("$label locked pill is the theme's", WidgetColorSlidersTest.themePill(context, dark) or OPAQUE, pill)
 
         val plain = render(s, "System G Icon")
         val plainIcon = plain.tint(R.id.widget_voice_search)

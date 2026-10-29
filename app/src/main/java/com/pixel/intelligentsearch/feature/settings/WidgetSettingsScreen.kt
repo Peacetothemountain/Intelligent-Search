@@ -1,6 +1,9 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.theme.isDark
+import com.pixel.intelligentsearch.core.theme.pageContainer
 import com.pixel.intelligentsearch.core.data.widget.WidgetDefaults
+import com.pixel.intelligentsearch.core.theme.pageTrack
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesignSettings
 import com.pixel.intelligentsearch.core.data.widget.WidgetElementColors
@@ -69,16 +72,21 @@ internal fun previewPill(
     lockBlack: Boolean,
     accentColor: Color,
     isDynamicColorActive: Boolean
-): PreviewPill = previewPill(
-    isMaterialDesign, subtheme, lockBlack, accentColor, isDynamicColorActive,
-    themedSurface = MaterialTheme.colorScheme.surfaceContainer,
-    appDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-)
+): PreviewPill {
+    val appDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    return previewPill(
+        isMaterialDesign, subtheme, lockBlack, accentColor, isDynamicColorActive,
+        themedSurface = MaterialTheme.colorScheme.surfaceContainer,
+        appDark = appDark,
+        lockedPill = Color(DynamicThemeDetector.resolveWidgetColors(LocalContext.current, appDark).lockedPill)
+    )
+}
 
 /**
- * [previewPill] with the screen's theme passed in: [themedSurface] fills a theme-colored pill. The fixed light and
- * dark pills of the System subtheme without dynamic color follow the app's theme ([appDark]), as the widget does: it
- * draws in the app's theme, which the system's dark theme only decides while the app follows the system.
+ * [previewPill] with the screen's theme passed in: [themedSurface] fills a theme-colored pill, and [lockedPill] the
+ * Material design's locked one ([WidgetColorRules.lockedPill]). The fixed light and dark pills of the System subtheme
+ * without dynamic color follow the app's theme ([appDark]), as the widget does: it draws in the app's theme, which the
+ * system's dark theme only decides while the app follows the system.
  */
 internal fun previewPill(
     isMaterialDesign: Boolean,
@@ -164,8 +172,10 @@ internal fun widgetPreviewColors(
 ): WidgetPreviewColors {
     val isCustomTheme = draft.subtheme == "Custom"
     val lockBlack = draft.lockBlack
+    // The widget colors of the app's theme, which the locked pill with no color picked follows.
+    val themeColors = widgetColors(theme.appDark)
     // Locked to a dark color, the bar draws as it always did locked black; to a light one, as a light pill.
-    val lockDark = isMaterialDesign && WidgetColorRules.locksDark(draft)
+    val lockDark = isMaterialDesign && WidgetColorRules.locksDark(draft, themeColors)
     val alphas = WidgetColorRules.backdropAlphas(draft, isMaterialDesign)
     // The outline's alpha as the widget's view takes it (whole steps of 1/255), so the preview is exactly as see-through.
     val rimAlpha = WidgetColorRules.alphaInt(alphas.rim) / 255f
@@ -174,7 +184,7 @@ internal fun widgetPreviewColors(
     val materialRim = if (isMaterialDesign) {
         // Locked, the widget rims its pill in the colors of the theme that suits it (dark for a dark pill, light
         // for a light one), whatever the app's theme.
-        val lockedDarkTheme = WidgetColorRules.locksDark(draft)
+        val lockedDarkTheme = WidgetColorRules.locksDark(draft, themeColors)
         val (rimPrimary, rimContainer) = if (lockBlack && lockedDarkTheme != theme.appDark) {
             widgetColors(lockedDarkTheme).let { Color(it.primary) to Color(it.primaryContainer) }
         } else {
@@ -195,14 +205,14 @@ internal fun widgetPreviewColors(
         isDynamicColorActive = isDynamicColorActive,
         themedSurface = theme.surfaceContainer,
         appDark = theme.appDark,
-        lockedPill = Color(WidgetColorRules.lockedPill(draft))
+        lockedPill = Color(WidgetColorRules.lockedPill(draft, themeColors))
     )
     val isPillLight = pill.isLight
 
     val isDarkSurface = if (isMaterialDesign) lockDark || !isPillLight else !isPillLight
     val surfaceColors = widgetColors(isDarkSurface)
     // The Custom subtheme's accent and plain icons come from its seed, already in contrast with the pill.
-    val customBar = if (isCustomTheme) WidgetColorRules.customBarColors(draft, isMaterialDesign) else null
+    val customBar = if (isCustomTheme) WidgetColorRules.customBarColors(draft, isMaterialDesign, themeColors) else null
 
     val accentPrimary = customBar?.let { Color(it.accent) }
         ?: Color(WidgetColorRules.iconColor(surfaceColors.primary, isMaterialDesign, lockDark, isPillLight, 32.0))
@@ -221,7 +231,7 @@ internal fun widgetPreviewColors(
         accentPrimary = accentPrimary,
         materialIconAccents = WidgetColorRules.materialIconAccents(draft, isPillLight, iconAccents),
         systemIconTint = systemIconTint,
-        customIcons = WidgetColorRules.customIconColors(draft, isMaterialDesign, isPillLight),
+        customIcons = WidgetColorRules.customIconColors(draft, isMaterialDesign, isPillLight, themeColors),
         usesMaterialYouIcons = WidgetColorRules.usesMaterialYouIcons(isMaterialDesign, draft.gIconTheme, isPillLight, draft.subtheme)
     )
 }
@@ -486,10 +496,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Live Preview Card (Pinned at the top for real-time visual feedback), in the page's own color, so the
-            // widget sits on what a Home screen would show behind it, with only the matte grain added.
+            // Live Preview Card (Pinned at the top for real-time visual feedback), on the preview stage (the page's own
+            // color in dark, the lightest surface in light), with only the matte grain added.
             val previewShellLook = com.pixel.intelligentsearch.core.ui.expressive.rememberMatteShellLook(
-                containerColor = MaterialTheme.colorScheme.background,
+                containerColor = widgetPreviewStageColor(),
                 border = null
             )
             val previewIsMaterialYou = localThemeStyle == "Material You (Minimal)" || localThemeStyle == "Material Design"
@@ -757,7 +767,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 itemHeight = 44.dp,
                 role = androidx.compose.ui.semantics.Role.Tab,
                 // The tab bar's own track, with the matte grain added.
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                containerColor = MaterialTheme.colorScheme.pageTrack(0.5f),
                 shape = RoundedCornerShape(28.dp),
                 indicatorShape = RoundedCornerShape(24.dp)
             ) { tab, isSel ->
@@ -880,4 +890,16 @@ internal fun SaveBeforePinDialog(onSaveAndAdd: () -> Unit, onDismiss: () -> Unit
         confirmButton = { TextButton(onClick = onSaveAndAdd) { Text("Save and Add") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
+}
+
+/**
+ * What a widget preview sits on. In dark, the page's own color, as a dark home screen shows. In light the page is the
+ * same tint as the System design's default bar, which would vanish into it, so the preview sits on the lightest surface
+ * (the settings cards' white), where that bar shows as the soft gray pill it is on a light wallpaper.
+ */
+@Composable
+@androidx.compose.runtime.ReadOnlyComposable
+internal fun widgetPreviewStageColor(): Color {
+    val scheme = MaterialTheme.colorScheme
+    return if (scheme.isDark) scheme.background else scheme.pageContainer
 }

@@ -265,7 +265,7 @@ object OccasionCalendar {
     }
 
     /** The [n]th [day] of [month] in [year], e.g. the fourth Thursday of November. */
-    private fun nth(year: Int, month: Int, day: DayOfWeek, n: Int): LocalDate =
+    internal fun nth(year: Int, month: Int, day: DayOfWeek, n: Int): LocalDate =
         LocalDate.of(year, month, 1).with(TemporalAdjusters.dayOfWeekInMonth(n, day))
 
     /** Western Easter Sunday: the anonymous Gregorian computus (Meeus, Astronomical Algorithms, chapter 8). */

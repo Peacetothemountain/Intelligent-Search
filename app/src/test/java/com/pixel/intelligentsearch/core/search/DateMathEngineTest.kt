@@ -241,6 +241,72 @@ class DateMathEngineTest {
     }
 
     @Test
+    fun daysUntilAWeekdayIsTheNextOneAfterToday() {
+        // October 20, 2026 is a Tuesday.
+        assertEquals("3 days until Friday, October 23, 2026", text("days until friday"))
+        assertEquals("3 days until Friday, October 23, 2026", text("How many days until Friday?"))
+        assertEquals("7 days until Tuesday, October 27, 2026", text("days until tuesday"))
+        assertEquals("1 day until Wednesday, October 21, 2026", text("days until wednesday"))
+        assertEquals("4 days since Friday, October 16, 2026", text("days since friday"))
+        assertEquals("7 days since Tuesday, October 13, 2026", text("days since tuesday"))
+    }
+
+    @Test
+    fun daysUntilAMovableHoliday() {
+        // US Thanksgiving is the fourth Thursday of November; Easter follows the Gregorian computus.
+        assertEquals("37 days until Thursday, November 26, 2026", text("days until thanksgiving"))
+        assertEquals("159 days until Sunday, March 28, 2027", text("days until easter"))
+        assertEquals("159 days until Sunday, March 28, 2027", text("how many days until Easter Sunday?"))
+        assertEquals("327 days since Thursday, November 27, 2025", text("days since thanksgiving"))
+        assertEquals("198 days since Sunday, April 5, 2026", text("days since easter"))
+        // On the day itself, and the day after, when the next one is a year away.
+        assertEquals("Thursday, November 26, 2026 is today", text("days until thanksgiving", today = "2026-11-26"))
+        assertEquals("363 days until Thursday, November 25, 2027", text("days until thanksgiving", today = "2026-11-27"))
+        assertEquals("2 weeks before Thursday, November 26, 2026 is Thursday, November 12, 2026", text("2 weeks before thanksgiving"))
+        assertEquals("29 days between Thursday, November 26, 2026 and Friday, December 25, 2026", text("days between thanksgiving and christmas"))
+    }
+
+    @Test
+    fun whatDayADateFallsOn() {
+        val answer = on().evaluate("what day is 2027-03-14")!!
+        assertEquals("Sunday", answer.title)
+        assertEquals("Sunday, March 14, 2027", answer.subtitle)
+        assertEquals("Sunday, March 14, 2027 is a Sunday", answer.text)
+
+        assertEquals("Friday, December 25, 2026 is a Friday", text("what day of the week is christmas?"))
+        assertEquals("Friday, December 25, 2026 is a Friday", text("what day does christmas fall on"))
+        assertEquals("Thursday, November 26, 2026 is a Thursday", text("what day will thanksgiving be on"))
+        assertEquals("Saturday, January 1, 2000 was a Saturday", text("what day was jan 1 2000"))
+        // Asked in the past tense, a date without a year is the last one.
+        assertEquals("Thursday, December 25, 2025 was a Thursday", text("what day was christmas"))
+        assertEquals("Today is Tuesday, October 20, 2026", text("what day is it"))
+        assertEquals("Tuesday", on().evaluate("what day is today")?.title)
+        assertEquals("Wednesday", on().evaluate("which day is tomorrow")?.title)
+        assertNull(on().evaluate("what day is best for laundry"))
+        assertNull(on().evaluate("what day is 2027-02-30"))
+    }
+
+    @Test
+    fun theIsoWeekNumber() {
+        // October 20, 2026 is in ISO week 43, which starts on Monday, October 19.
+        val answer = on().evaluate("week number")!!
+        assertEquals("Week 43", answer.title)
+        assertEquals("Starting Monday, October 19, 2026", answer.subtitle)
+        assertEquals("Tuesday, October 20, 2026 is in week 43", answer.text)
+        for (query in listOf("what week is it", "What week is it?", "current week", "what week of the year is it", "what's the week number")) {
+            assertEquals(query, answer, on().evaluate(query))
+        }
+        assertEquals("Week 10", on().evaluate("week number of 2027-03-14")?.title)
+        assertEquals("Week 10", on().evaluate("what week is mar 14 2027")?.title)
+        // 2026 starts on a Thursday, so it has a week 53, which January 1, 2027 belongs to.
+        val newYear = on().evaluate("week number for 2027-01-01")!!
+        assertEquals("Week 53 of 2026", newYear.title)
+        assertEquals("Starting Monday, December 28, 2026", newYear.subtitle)
+        assertEquals("Week 1", on("2027-01-04").evaluate("what week is it")?.title)
+        assertNull(on().evaluate("week number of the beast"))
+    }
+
+    @Test
     fun ordinarySearchesAreLeftAlone() {
         for (query in listOf(
             "28 days later", "500 days of summer", "days of our lives", "days until dawn", "days since the war",

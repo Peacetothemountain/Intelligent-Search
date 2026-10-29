@@ -84,6 +84,7 @@ internal fun directActionIcon(type: String): androidx.compose.ui.graphics.vector
     "timer" -> Icons.Default.Timer
     "alarm" -> Icons.Default.Alarm
     "navigation" -> Icons.Default.Directions
+    "media" -> Icons.Default.PlayArrow
     "private_space" -> Icons.Default.Lock
     ClipboardLens.ICON_TYPE -> Icons.Default.ImageSearch
     else -> Icons.Default.ContentPaste

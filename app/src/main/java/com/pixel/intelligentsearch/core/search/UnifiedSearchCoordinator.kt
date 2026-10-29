@@ -60,6 +60,8 @@ class UnifiedSearchCoordinator @Inject constructor(
     )
 
     private val dateMath = DateMathEngine()
+    private val worldClock = com.pixel.intelligentsearch.core.answers.WorldClock()
+    private val randomAnswers = com.pixel.intelligentsearch.core.answers.RandomAnswers()
 
     data class RankedSearchResult(
         val item: SearchItem,
@@ -104,6 +106,10 @@ class UnifiedSearchCoordinator @Inject constructor(
         /** "15 min", "7:30am", "laundry in 2 hrs": the short phrasing's action, when nothing else reads the query. */
         val shortAction: ShortActionPhrasing.Suggestion? = null,
         val dateAnswer: DateMathEngine.DateAnswer? = null,
+        /** "time in tokyo", "3pm PST in IST": the clock answer, when the calculator and date maths don't answer. */
+        val timeAnswer: com.pixel.intelligentsearch.core.answers.WorldClock.TimeAnswer? = null,
+        /** "flip a coin", "roll 2d6", "random 1 to 10": the chance answer, when nothing above answers. */
+        val randomAnswer: com.pixel.intelligentsearch.core.answers.RandomAnswers.RandomAnswer? = null,
         val systemAction: SystemActionRouter.ActionResult? = null,
         val apps: List<AppItem> = emptyList(),
         val contacts: List<ContactItem> = emptyList(),
@@ -706,6 +712,9 @@ class UnifiedSearchCoordinator @Inject constructor(
         // 2. Instant Math, Scientific, & Unit Evaluator
         val mathResult = evaluateMath(query)
         val dateAnswer = dateMath.evaluate(query)
+        val is24Hour = android.text.format.DateFormat.is24HourFormat(context)
+        val timeAnswer = if (mathResult == null && dateAnswer == null) worldClock.evaluate(query, is24Hour) else null
+        val randomAnswer = if (mathResult == null && dateAnswer == null && timeAnswer == null) randomAnswers.evaluate(query) else null
 
         // 3. Natural Language Intent Parser
         // "Call X" / "Message X" only resolve names from contacts when contact search is turned on.
@@ -713,10 +722,10 @@ class UnifiedSearchCoordinator @Inject constructor(
             { target -> searchContacts(target, limit = 5).firstOrNull { it.phoneNumber.isNotBlank() } }
         } else null
         val parsedIntent = NaturalLanguageIntentParser.parse(query, contactLookup = contactLookup)
-        // Only what the full phrasings, the calculator, the converters and date maths leave: "15 min in seconds" and
-        // "15 min + 5" stay theirs.
-        val shortAction = if (parsedIntent == null && mathResult == null && dateAnswer == null) {
-            ShortActionPhrasing.parse(query, is24Hour = android.text.format.DateFormat.is24HourFormat(context))
+        // Only what the full phrasings, the calculator, the converters, date maths and the clock and chance answers
+        // leave: "15 min in seconds", "15 min + 5" and "random 1 to 10" stay theirs.
+        val shortAction = if (parsedIntent == null && mathResult == null && dateAnswer == null && timeAnswer == null && randomAnswer == null) {
+            ShortActionPhrasing.parse(query, is24Hour = is24Hour)
         } else null
 
         cancellationCheck?.invoke()
@@ -839,6 +848,8 @@ class UnifiedSearchCoordinator @Inject constructor(
             parsedIntent = parsedIntent,
             shortAction = shortAction,
             dateAnswer = dateAnswer,
+            timeAnswer = timeAnswer,
+            randomAnswer = randomAnswer,
             systemAction = systemAction,
             apps = matchedApps,
             contacts = matchedContacts,

@@ -244,4 +244,22 @@ class ShortActionPhrasingTest {
         assertTrue(full.parsedIntent is NaturalLanguageIntentParser.ParsedIntent.Timer)
         assertNull(full.shortAction)
     }
+
+    @Test
+    fun clockAndChanceAnswersKeepTheirQueries() {
+        val search = coordinator()
+        // "random 1 to 10" also reads as a reminder called "random 1 to" at 10.
+        val random = search.executeSearchSync("random 1 to 10")
+        assertNotNull(random.randomAnswer)
+        assertNull(random.shortAction)
+        val conversion = search.executeSearchSync("3pm PST in IST")
+        assertNotNull(conversion.timeAnswer)
+        assertNull(conversion.shortAction)
+        assertNull(conversion.randomAnswer)
+        // Date maths answers first.
+        val days = search.executeSearchSync("days until friday")
+        assertNotNull(days.dateAnswer)
+        assertNull(days.timeAnswer)
+        assertNull(days.randomAnswer)
+    }
 }

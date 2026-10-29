@@ -46,12 +46,14 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -72,6 +74,7 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.isSpecified
 import com.pixel.intelligentsearch.core.answers.DictionaryEntry
 import com.pixel.intelligentsearch.core.answers.ForecastDay
 import com.pixel.intelligentsearch.core.answers.LiveAnswer
@@ -125,11 +128,9 @@ internal fun AnswerHeader(icon: ImageVector, label: String, title: String, subti
                 letterSpacing = 0.8.sp
             )
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
+            WholeWordText(
                 text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = scheme.onSurface,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = scheme.onSurface),
                 modifier = Modifier.semantics { heading() }
             )
             if (subtitle != null) {
@@ -167,7 +168,7 @@ internal fun AnswerChip(label: String, icon: ImageVector, emphasized: Boolean = 
         onClick = onClick,
         // The padding keeps a label that wraps (large text, narrow screen) off the chip's edges; one line stays 32dp.
         label = {
-            Text(label, style = LocalTextStyle.current.wholeWords(), fontWeight = FontWeight.Medium, modifier = Modifier.padding(vertical = 6.dp))
+            WholeWordText(label, style = LocalTextStyle.current.copy(fontWeight = FontWeight.Medium), modifier = Modifier.padding(vertical = 6.dp))
         },
         leadingIcon = { Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp)) },
         // The same pill as the other cards' chips at one line; a chip grown taller keeps rounded corners rather
@@ -187,6 +188,45 @@ internal fun AnswerChip(label: String, icon: ImageVector, emphasized: Boolean = 
  * Wellbeing", an app's name) doesn't come out as "Wellbe-ing" at large text sizes, where the theme hyphenates.
  */
 internal fun TextStyle.wholeWords(): TextStyle = copy(hyphens = Hyphens.None, lineBreak = LineBreak.Simple)
+
+/** The smallest share of its size [WholeWordText] shrinks to before it lets a word break after all. */
+private const val WHOLE_WORD_MIN_SCALE = 0.6f
+
+/**
+ * [text] in [style] wrapping only between words ([wholeWords]); a single word too wide for its room even on a line
+ * of its own ("Definitions" in a chip at the largest text size on a narrow phone) shrinks the text step by step
+ * until it fits, rather than splitting mid-word. Measured from its own layout, so it works wherever [Text] does.
+ */
+@Composable
+internal fun WholeWordText(text: String, style: TextStyle, modifier: Modifier = Modifier) {
+    var scale by remember(text) { mutableFloatStateOf(1f) }
+    var settled by remember(text) { mutableStateOf(false) }
+    val base = style.wholeWords()
+    val scaled = if (scale == 1f) base else base.copy(
+        fontSize = base.fontSize * scale,
+        lineHeight = if (base.lineHeight.isSpecified) base.lineHeight * scale else base.lineHeight
+    )
+    Text(
+        text = text,
+        style = scaled,
+        // Drawn once the size is settled, so a shrinking label never shows its broken first try.
+        modifier = modifier.drawWithContent { if (settled) drawContent() },
+        onTextLayout = { layout ->
+            if (splitsAWord(text, layout) && scale > WHOLE_WORD_MIN_SCALE) {
+                scale = (scale * 0.9f).coerceAtLeast(WHOLE_WORD_MIN_SCALE)
+            } else {
+                settled = true
+            }
+        }
+    )
+}
+
+/** Whether [layout] breaks a line inside a word of [text] rather than at a space. */
+internal fun splitsAWord(text: String, layout: androidx.compose.ui.text.TextLayoutResult): Boolean =
+    (0 until layout.lineCount - 1).any { line ->
+        val end = layout.getLineEnd(line)
+        end in 1 until text.length && !text[end - 1].isWhitespace() && !text[end].isWhitespace()
+    }
 
 /** A row of chips that flows onto a second line on narrow screens and at large text sizes. */
 @Composable
@@ -511,10 +551,9 @@ fun ScreenTimeOneBox(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         itemVerticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
+                        WholeWordText(
                             text = app.label,
-                            style = MaterialTheme.typography.bodyLarge.wholeWords(),
-                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                             modifier = Modifier.padding(end = 8.dp)
                         )
                         Text(text = duration, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)

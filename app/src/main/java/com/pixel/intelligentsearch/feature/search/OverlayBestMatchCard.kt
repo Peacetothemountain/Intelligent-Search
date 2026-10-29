@@ -104,7 +104,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "Press ↵ to open",
+                        text = "Press Enter to Open",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,

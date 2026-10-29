@@ -2,9 +2,9 @@ package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import android.app.PendingIntent
 import android.app.StatusBarManager
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.ShortcutInfo
@@ -61,6 +61,30 @@ internal fun tileRequestMessage(result: Int): String? = when (result) {
     StatusBarManager.TILE_ADD_REQUEST_ERROR_NO_STATUS_BAR_SERVICE ->
         "This device can't add tiles for apps. $ADD_TILE_YOURSELF"
     else -> "Android couldn't add the tile. $ADD_TILE_YOURSELF"
+}
+
+/**
+ * Asks the launcher to pin the Search shortcut to the home screen; false when it can't pin shortcuts. The launcher
+ * shows its own dialog, so no result is asked for: a result broadcast nothing receives would only reach other apps.
+ */
+internal fun requestSearchShortcut(context: Context): Boolean {
+    val shortcutManager = context.getSystemService(ShortcutManager::class.java)
+    if (shortcutManager == null || !shortcutManager.isRequestPinShortcutSupported) return false
+    try {
+        val pinShortcutInfo = ShortcutInfo.Builder(context, "intelligent_search_main")
+            .setShortLabel("Search")
+            .setIcon(Icon.createWithResource(context, R.mipmap.ic_launcher))
+            .setIntent(
+                Intent(context, MainActivity::class.java).apply {
+                    action = Intent.ACTION_MAIN
+                }
+            )
+            .build()
+        shortcutManager.requestPinShortcut(pinShortcutInfo, null)
+    } catch (e: Exception) {
+        Log.w("IntelligentSearch", "Unexpected error", e)
+    }
+    return true
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -129,29 +153,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                             subtitle = "Add App Icon to Home Screen.",
                             icon = Icons.Outlined.AddHome,
                             onClick = {
-                                val shortcutManager = context.getSystemService(ShortcutManager::class.java)
-                                if (shortcutManager != null && shortcutManager.isRequestPinShortcutSupported) {
-                                    try {
-                                        val pinShortcutInfo = ShortcutInfo.Builder(context, "intelligent_search_main")
-                                            .setShortLabel("Search")
-                                            .setIcon(Icon.createWithResource(context, R.mipmap.ic_launcher))
-                                            .setIntent(
-                                                Intent(context, MainActivity::class.java).apply {
-                                                    action = Intent.ACTION_MAIN
-                                                }
-                                            )
-                                            .build()
-                                        val pinnedShortcutCallbackIntent = shortcutManager.createShortcutResultIntent(pinShortcutInfo)
-                                        val successCallback = PendingIntent.getBroadcast(
-                                            context, 0,
-                                            pinnedShortcutCallbackIntent,
-                                            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-                                        )
-                                        shortcutManager.requestPinShortcut(pinShortcutInfo, successCallback.intentSender)
-                                    } catch (e: Exception) {
-                                        Log.w("IntelligentSearch", "Unexpected error", e)
-                                    }
-                                } else {
+                                if (!requestSearchShortcut(context)) {
                                     Toast.makeText(context, "Pinning shortcuts not supported on this device.", Toast.LENGTH_SHORT).show()
                                 }
                             },

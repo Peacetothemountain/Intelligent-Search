@@ -85,6 +85,23 @@ class SelectedTextOverlayTest {
     }
 
     @Test
+    fun selectedTextWaitsForTheUserBeforeAnythingLeavesThePhone() {
+        val selection = Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain").putExtra(Intent.EXTRA_PROCESS_TEXT, "private note")
+        val overlay = Robolectric.buildActivity(WidgetActivity::class.java, forwarded(selection)).create()
+        val viewModel = ViewModelProvider(overlay.get())[SearchViewModel::class.java]
+        assertEquals("private note", viewModel.uiState.value.query)
+        assertEquals(false, viewModel.queryConfirmed.value)
+
+        // A query typed by the user is theirs; one shared into the open overlay waits again.
+        viewModel.onQueryChanged("private notes")
+        assertEquals(true, viewModel.queryConfirmed.value)
+        val shared = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, "Louvre")
+        overlay.newIntent(forwarded(shared))
+        assertEquals("Louvre", viewModel.uiState.value.query)
+        assertEquals(false, viewModel.queryConfirmed.value)
+    }
+
+    @Test
     fun withTheOverlayOffOnlyOrdinaryOpensFallBackToAWebSearch() {
         context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putBoolean(SettingsManager.SEARCH_OVERLAY_ENABLED.name, false).commit()

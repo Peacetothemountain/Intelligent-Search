@@ -48,7 +48,7 @@ class NotificationAccessListener : NotificationListenerService() {
             index = index,
             // The grant is the opt-in: connected but no longer granted (revoked mid-connect), read nothing.
             isOptedIn = { NotificationAccess.isGranted(applicationContext) },
-            extract = NotificationExtractor(applicationContext)::extract,
+            extract = NotificationExtractor(applicationContext, ::lockscreenVisibilityOverride)::extract,
             unbind = { runCatching { requestUnbind() } }
         )
     }
@@ -78,6 +78,12 @@ class NotificationAccessListener : NotificationListenerService() {
         scope.cancel()
         super.onDestroy()
     }
+
+    /** The lock screen visibility the notification's channel (or the user) sets for notification [key], if any. */
+    private fun lockscreenVisibilityOverride(key: String): Int = runCatching {
+        val ranking = Ranking()
+        if (currentRanking?.getRanking(key, ranking) == true) ranking.lockscreenVisibilityOverride else null
+    }.getOrNull() ?: NotificationListenerService.Ranking.VISIBILITY_NO_OVERRIDE
 
     companion object {
         fun component(context: Context) = ComponentName(context, NotificationAccessListener::class.java)
@@ -128,8 +134,15 @@ internal class NotificationIndexer(
     }
 }
 
-/** Turns a notification into what the index keeps, or null for one it leaves out. */
-internal class NotificationExtractor(private val context: Context) {
+/**
+ * Turns a notification into what the index keeps, or null for one it leaves out. [lockscreenVisibilityOverride] is
+ * the lock screen visibility a notification's channel or the user sets for it, by key
+ * ([NotificationListenerService.Ranking.VISIBILITY_NO_OVERRIDE] for none).
+ */
+internal class NotificationExtractor(
+    private val context: Context,
+    private val lockscreenVisibilityOverride: (String) -> Int = { NotificationListenerService.Ranking.VISIBILITY_NO_OVERRIDE }
+) {
 
     private val labels = HashMap<String, String>()
 
@@ -150,7 +163,8 @@ internal class NotificationExtractor(private val context: Context) {
             appLabel = label(sbn.packageName),
             postedAt = sbn.postTime,
             notification = sbn.notification ?: return null,
-            clockPackages = clockPackages
+            clockPackages = clockPackages,
+            lockscreenVisibilityOverride = lockscreenVisibilityOverride(sbn.key)
         )
     }
 
@@ -171,8 +185,11 @@ internal class NotificationExtractor(private val context: Context) {
         private const val MESSAGES_KEPT = 3
 
         /**
-         * The index entry for [notification], or null for what search leaves out: group summaries (their children
-         * are indexed), media players (Media Controls show those) and notifications with no words or timer.
+         * The index entry for [notification], or null for what search leaves out: secret notifications (one-time
+         * codes, banking: their app or channel keeps them off the lock screen altogether), group summaries (their
+         * children are indexed), media players (Media Controls show those) and notifications with no words or timer.
+         * Private notifications (every notification's default) are indexed: that only hides their content on a lock
+         * screen set to hide it.
          */
         fun fromNotification(
             key: String,
@@ -180,8 +197,11 @@ internal class NotificationExtractor(private val context: Context) {
             appLabel: String,
             postedAt: Long,
             notification: Notification,
-            clockPackages: Set<String>
+            clockPackages: Set<String>,
+            lockscreenVisibilityOverride: Int = NotificationListenerService.Ranking.VISIBILITY_NO_OVERRIDE
         ): IndexedNotification? {
+            if (notification.visibility == Notification.VISIBILITY_SECRET) return null
+            if (lockscreenVisibilityOverride == Notification.VISIBILITY_SECRET) return null
             if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return null
             val extras = notification.extras ?: Bundle.EMPTY
             if (extras.containsKey(Notification.EXTRA_MEDIA_SESSION)) return null

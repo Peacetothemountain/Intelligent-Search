@@ -165,6 +165,14 @@ internal fun suggestRequestDelay(sinceLastRequestMs: Long): Long =
 /** The debug menu's Simulate Web Latency delay before web suggestions are fetched. */
 private const val SIMULATED_LATENCY_MS = 2_000L
 
+/** The longest clipboard text read for its suggestion, as for every other way text reaches the search. */
+internal const val MAX_CLIP_CHARS = 512
+
+/** Whether answering [question] asks a server (definitions, forecasts); the rest are worked out on the phone. */
+private fun asksServer(question: com.pixel.intelligentsearch.core.answers.LiveAnswerQuery): Boolean =
+    question is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Define ||
+        question is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Weather
+
 /** A load of quick apps and events younger than this counts as fresh when the overlay comes back into view. */
 private const val RELOAD_GRACE_MS = 1_000L
 
@@ -225,6 +233,14 @@ class SearchViewModel @Inject constructor(
     }
 
     private val _remoteSearchQueryFlow = MutableStateFlow("")
+
+    private val _queryConfirmed = MutableStateFlow(true)
+    /**
+     * Whether the query is the user's own. False while it is text another app handed in ([seedQuery]: selected or
+     * shared text, another app's search), which is searched on the phone only: web suggestions and the instant answers
+     * that ask a server wait until the user edits it or presses Enter ([confirmQuery]).
+     */
+    val queryConfirmed: StateFlow<Boolean> = _queryConfirmed.asStateFlow()
 
     /** A query's instant-answer question; [attempt] changes to ask again (after a permission grant). */
     private data class LiveAnswerRequest(
@@ -583,11 +599,16 @@ class SearchViewModel @Inject constructor(
                 return clipboardActions
             }
             if (!isSensitive && clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
-                val item = clipboard.primaryClip?.getItemAt(0)
-                val text = item?.text?.toString() ?: item?.coerceToText(context)?.toString()
-                if (!text.isNullOrBlank()) {
+                // Only the text the clip itself carries. Another app's content: URI would be read with this app's
+                // permissions (a contact's card) or could stream without end; a long clip is cut like any query.
+                val clip: CharSequence = clipboard.primaryClip?.getItemAt(0)?.text ?: ""
+                var end = minOf(clip.length, MAX_CLIP_CHARS)
+                if (end < clip.length && Character.isHighSurrogate(clip[end - 1])) end--
+                val text = clip.subSequence(0, end).toString()
+                if (text.isNotBlank()) {
                     val trimmed = text.trim()
-                    if (android.util.Patterns.WEB_URL.matcher(trimmed).matches()) {
+                    // A link cut short would open some other page.
+                    if (end == clip.length && android.util.Patterns.WEB_URL.matcher(trimmed).matches()) {
                         // Same rules as a typed address: http(s) only, browsable apps only, Tor Browser under Tor.
                         val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.forAddress(context, trimmed, engine)
                         if (launch is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open) {
@@ -609,7 +630,38 @@ class SearchViewModel @Inject constructor(
         return clipboardActions
     }
 
+    /** The user typed or picked [newQuery]. An edit makes the query theirs; the same text again (a cursor move) doesn't. */
     fun onQueryChanged(newQuery: String) {
+        if (newQuery != _uiState.value.query || newQuery.isBlank()) _queryConfirmed.value = true
+        updateQuery(newQuery)
+    }
+
+    /**
+     * Types in [query] handed in from outside the overlay (selected or shared text, another app's search, a widget),
+     * unconfirmed: it is searched on the phone only until the user edits it or presses Enter ([queryConfirmed]).
+     */
+    fun seedQuery(query: String) {
+        _queryConfirmed.value = query.isBlank()
+        updateQuery(query)
+    }
+
+    /** The user accepts the query as it stands (Enter): what waited for [queryConfirmed] goes out now. */
+    fun confirmQuery() {
+        if (_queryConfirmed.value) return
+        _queryConfirmed.value = true
+        val query = _uiState.value.query
+        if (query.isBlank()) return
+        liveAnswerRequests.value = liveAnswerRequestFor(query)
+        if (settingsState.value.searchWeb) _remoteSearchQueryFlow.value = query
+    }
+
+    /** [query]'s instant-answer question; one that asks a server only once the query is the user's own. */
+    private fun liveAnswerRequestFor(query: String): LiveAnswerRequest? =
+        com.pixel.intelligentsearch.core.answers.LiveAnswerParser.parse(query)
+            ?.takeIf { _queryConfirmed.value || !asksServer(it) }
+            ?.let { LiveAnswerRequest(query, it) }
+
+    private fun updateQuery(newQuery: String) {
         val previousQuery = _uiState.value.query
         // Suggestions fetched for another query no longer count as this one's answer.
         if (newQuery != previousQuery) {
@@ -623,9 +675,8 @@ class SearchViewModel @Inject constructor(
             if (newQuery != previousQuery) it.copy(query = newQuery, liveAnswer = liveAnswer, aiAnswer = null)
             else it.copy(query = newQuery, liveAnswer = liveAnswer)
         }
-        liveAnswerRequests.value = com.pixel.intelligentsearch.core.answers.LiveAnswerParser.parse(newQuery)
-            ?.let { LiveAnswerRequest(newQuery, it) }
-        
+        liveAnswerRequests.value = liveAnswerRequestFor(newQuery)
+
         if (newQuery.isBlank()) {
             _remoteSearchQueryFlow.value = ""
             liveAnswerRequests.value = null
@@ -690,8 +741,8 @@ class SearchViewModel @Inject constructor(
         // TIER 1: ZERO-DEBOUNCE (0ms) Immediate Local Execution across all corpuses
         executeLocalSearch(newQuery, previousQuery)
 
-        // TIER 2: Web suggestions, paced in init
-        if (settingsState.value.searchWeb) {
+        // TIER 2: Web suggestions, paced in init. A query handed in waits for the user (confirmQuery).
+        if (settingsState.value.searchWeb && _queryConfirmed.value) {
             _remoteSearchQueryFlow.value = newQuery
         } else {
             _remoteSearchQueryFlow.value = ""

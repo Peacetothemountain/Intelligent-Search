@@ -50,7 +50,8 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
     private fun placeTime(query: String, is24Hour: Boolean, localZone: ZoneId): TimeAnswer? {
         val placeText = (PLACE_FIRST_REGEX.matchEntire(query) ?: PLACE_LAST_REGEX.matchEntire(query))?.groupValues?.get(1)
             ?: return null
-        val place = resolve(placeText) ?: return null
+        // "time in davis" asks for a place; "davis time" may not, so there everyday words aren't zones.
+        val place = resolve(placeText, explicit = PLACE_FIRST_REGEX.matches(query)) ?: return null
         val now = now()
         val there = now.atZone(place.zone)
         val here = now.atZone(localZone)
@@ -66,8 +67,8 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
     private fun conversion(query: String, is24Hour: Boolean): TimeAnswer? {
         val match = CONVERSION_REGEX.matchEntire(query) ?: return null
         val timeOfDay = clockTime(match.groupValues[1]) ?: return null
-        val from = resolve(match.groupValues[2]) ?: return null
-        val to = resolve(match.groupValues[3]) ?: return null
+        val from = resolve(match.groupValues[2], explicit = false) ?: return null
+        val to = resolve(match.groupValues[3], explicit = false) ?: return null
         val fromDate = now().atZone(from.zone).toLocalDate()
         val start = ZonedDateTime.of(fromDate, timeOfDay, from.zone)
         val end = start.withZoneSameInstant(to.zone)
@@ -102,14 +103,23 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
         return LocalTime.of(hour, minute)
     }
 
-    /** The zone [text] names, or null. A trailing "time" ("tokyo time", "pacific time") is part of how it's said. */
-    private fun resolve(text: String): Place? {
-        val name = text.removeSuffix(" time").removeSuffix(" local").replace(NOT_LETTERS, "").trim().replace(WHITESPACE, " ")
+    /**
+     * The zone [text] names, or null. A trailing "time" ("tokyo time", "pacific time") is part of how it's said, and a
+     * leading "the" ("the us") too. Unless the query was [explicit] ("time in davis"), a zone city that is also an
+     * everyday word or name ([EVERYDAY_ZONE_WORDS]: "wake", "center", "davis") isn't taken for the place.
+     */
+    private fun resolve(text: String, explicit: Boolean): Place? {
+        val name = text.removeSuffix(" time").removeSuffix(" local").replace(NOT_LETTERS, "").trim()
+            .replace(WHITESPACE, " ").removePrefix("the ")
         if (name.isEmpty() || name in NOT_PLACES) return null
         ABBREVIATIONS[name]?.let { return Place(it, name.uppercase(Locale.ROOT)) }
+        // A country spanning zones is answered for one city's, and the label names that city.
+        MULTI_ZONE_COUNTRIES[name]?.let { (zone, label) -> return Place(ZoneId.of(zone), label) }
         val zoneId = ALIASES[name]
-            ?: ZoneId.getAvailableZoneIds().firstOrNull { id ->
-                isCityZone(id) && id.substringAfterLast('/').replace('_', ' ').lowercase(Locale.ROOT) == name
+            ?: name.takeIf { explicit || it !in EVERYDAY_ZONE_WORDS }?.let { city ->
+                ZoneId.getAvailableZoneIds().firstOrNull { id ->
+                    isCityZone(id) && id.substringAfterLast('/').replace('_', ' ').lowercase(Locale.ROOT) == city
+                }
             }
             ?: return null
         val label = name.split(' ').joinToString(" ") { word ->
@@ -178,7 +188,35 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
         )
 
         /** Zone names typed for a place, not timekeeping: Christmas Island's zone is only "christmas" in the database. */
-        val NOT_PLACES = setOf("christmas", "easter", "troll")
+        val NOT_PLACES = setOf("christmas", "easter")
+
+        /**
+         * Zone cities whose name is also an everyday word, a person's name or a better-known place ("wake", "center",
+         * "davis", "jersey", "petersburg"): "wake time" is about waking, so these are places only when asked as one,
+         * "time in wake".
+         */
+        val EVERYDAY_ZONE_WORDS = setOf(
+            "wake", "midway", "center", "davis", "casey", "mawson", "vostok", "troll", "palmer", "rothera", "macquarie",
+            "chatham", "johnston", "knox", "beulah", "new salem", "marengo", "vincennes", "winamac", "petersburg",
+            "tell city", "vevay", "monticello", "stanley", "jersey", "victoria", "reunion", "resolute", "virgin", "oral",
+            "norfolk", "canary", "dawson", "creston", "currie", "wallis", "yap", "truk", "cordoba", "lindeman"
+        )
+
+        /**
+         * Countries spanning several zones, answered for their capital's or largest city's zone, with that city in the
+         * label so the time isn't read as all of the country's: name to zone and label.
+         */
+        val MULTI_ZONE_COUNTRIES: Map<String, Pair<String, String>> = buildMap {
+            val unitedStates = "America/New_York" to "United States (New York)"
+            for (name in listOf("us", "usa", "united states", "united states of america", "america")) put(name, unitedStates)
+            put("canada", "America/Toronto" to "Canada (Toronto)")
+            put("australia", "Australia/Sydney" to "Australia (Sydney)")
+            put("brazil", "America/Sao_Paulo" to "Brazil (São Paulo)")
+            put("russia", "Europe/Moscow" to "Russia (Moscow)")
+            put("mexico", "America/Mexico_City" to "Mexico (Mexico City)")
+            put("indonesia", "Asia/Jakarta" to "Indonesia (Jakarta)")
+            put("kazakhstan", "Asia/Almaty" to "Kazakhstan (Almaty)")
+        }
 
         /** Zone abbreviations, each its fixed offset; the bare PT, ET, CT and MT follow daylight saving. IST is India's. */
         val ABBREVIATIONS: Map<String, ZoneId> = buildMap {
@@ -200,9 +238,8 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
         val ALIASES = mapOf(
             // Countries
             "israel" to "Asia/Jerusalem", "turkey" to "Europe/Istanbul", "turkiye" to "Europe/Istanbul",
-            "egypt" to "Africa/Cairo", "iceland" to "Atlantic/Reykjavik", "brazil" to "America/Sao_Paulo",
-            "australia" to "Australia/Sydney", "south africa" to "Africa/Johannesburg", "nigeria" to "Africa/Lagos",
-            "kenya" to "Africa/Nairobi", "mexico" to "America/Mexico_City", "canada" to "America/Toronto",
+            "egypt" to "Africa/Cairo", "iceland" to "Atlantic/Reykjavik", "south africa" to "Africa/Johannesburg",
+            "nigeria" to "Africa/Lagos", "kenya" to "Africa/Nairobi",
             "argentina" to "America/Argentina/Buenos_Aires", "ireland" to "Europe/Dublin", "scotland" to "Europe/London",
             "wales" to "Europe/London", "britain" to "Europe/London", "great britain" to "Europe/London",
             "united kingdom" to "Europe/London", "netherlands" to "Europe/Amsterdam", "holland" to "Europe/Amsterdam",
@@ -211,14 +248,15 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
             "norway" to "Europe/Oslo", "denmark" to "Europe/Copenhagen", "finland" to "Europe/Helsinki",
             "poland" to "Europe/Warsaw", "czechia" to "Europe/Prague", "czech republic" to "Europe/Prague",
             "hungary" to "Europe/Budapest", "romania" to "Europe/Bucharest", "ukraine" to "Europe/Kiev",
-            "russia" to "Europe/Moscow", "saudi arabia" to "Asia/Riyadh", "qatar" to "Asia/Qatar", "iran" to "Asia/Tehran",
+            "saudi arabia" to "Asia/Riyadh", "qatar" to "Asia/Qatar", "iran" to "Asia/Tehran",
             "iraq" to "Asia/Baghdad", "pakistan" to "Asia/Karachi", "bangladesh" to "Asia/Dhaka",
             "nepal" to "Asia/Kathmandu", "sri lanka" to "Asia/Colombo", "thailand" to "Asia/Bangkok",
-            "indonesia" to "Asia/Jakarta", "philippines" to "Asia/Manila", "malaysia" to "Asia/Kuala_Lumpur",
+            "philippines" to "Asia/Manila", "malaysia" to "Asia/Kuala_Lumpur",
             "taiwan" to "Asia/Taipei", "colombia" to "America/Bogota", "peru" to "America/Lima",
             "chile" to "America/Santiago", "venezuela" to "America/Caracas", "cuba" to "America/Havana",
             "morocco" to "Africa/Casablanca", "ethiopia" to "Africa/Addis_Ababa", "ghana" to "Africa/Accra",
-            "samoa" to "Pacific/Apia",
+            "samoa" to "Pacific/Apia", "st petersburg" to "Europe/Moscow", "saint petersburg" to "Europe/Moscow",
+            "san juan" to "America/Puerto_Rico",
             // Cities sharing another city's zone
             "barcelona" to "Europe/Madrid", "washington dc" to "America/New_York", "new york city" to "America/New_York",
             "orlando" to "America/New_York", "ottawa" to "America/Toronto", "quebec" to "America/Toronto",

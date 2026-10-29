@@ -90,12 +90,19 @@ internal const val KEYBOARD_WAIT_MS = 220L
 private const val FLASH_MILLIS = 450
 private val FlashDecay = Easing { t -> ((1f - exp(-t * 4.1f)) / (1f - exp(-4.1f))) }
 
-/** The pill: 48dp tall, 16dp from the page's sides, 12dp above the keyboard (or the navigation bar). */
-private val PILL_HEIGHT = 48.dp
+/**
+ * The pill is the search overlay's own bar in size: 72dp tall (its 48dp buttons and 12dp above and below them), 14dp
+ * from the screen's sides (the overlay panel's 4dp and the bar's 10dp), with the bar's 24dp inside and 20sp text. It
+ * sits 12dp above the keyboard (or the navigation bar).
+ */
+private val PILL_HEIGHT = 72.dp
+private val PILL_SIDE = 14.dp
+private val PILL_INSIDE = 24.dp
+private val PILL_TEXT = 20.sp
 private val PILL_MARGIN = 12.dp
 
 /** How much of the list's bottom edge dissolves into the pill while search is open, and how strongly. */
-internal val PILL_BLUR_EDGE = 96.dp
+internal val PILL_BLUR_EDGE = 120.dp
 internal val PILL_BLUR_MAX = 16.dp
 
 /** Room a list needs at its bottom so its last row can scroll clear of the pill. */
@@ -194,7 +201,7 @@ internal fun BottomSearchPill(
         contentAlignment = Alignment.CenterStart,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = PILL_SIDE)
             .height(PILL_HEIGHT)
             .offset { IntOffset(0, -(lift + margin)) }
             .manifestingPill({ reveal.value }, { fade.value }, { flash.value }, body, light)
@@ -203,19 +210,19 @@ internal fun BottomSearchPill(
             contentAlignment = Alignment.CenterStart,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = PILL_INSIDE)
                 // The text shows only once the pill has formed.
                 .graphicsLayer { alpha = fade.value * smoothStep(0.82f, 1f, reveal.value) }
         ) {
             val onPill = MaterialTheme.colorScheme.onSurfaceVariant
             if (query.isEmpty()) {
-                Text(placeholder, color = onPill.copy(alpha = 0.6f), fontSize = 14.sp, maxLines = 1)
+                Text(placeholder, color = onPill.copy(alpha = 0.6f), fontSize = PILL_TEXT, fontFamily = GoogleSansFlex, maxLines = 1)
             }
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
                 singleLine = true,
-                textStyle = TextStyle(color = onPill, fontSize = 14.sp, fontFamily = GoogleSansFlex),
+                textStyle = TextStyle(color = onPill, fontSize = PILL_TEXT, fontFamily = GoogleSansFlex),
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focus)

@@ -344,6 +344,8 @@ fun SearchPillsScreen(
                                 subtitle = when {
                                     isAlreadyAdded -> "Already in Quick Launch."
                                     com.pixel.intelligentsearch.core.bangs.AiAssistants.forPackage(packageName) != null -> "AI Assistant. Its Pill Asks It Your Search."
+                                    // An app without a label of its own is already titled by its package name.
+                                    appItem.label == packageName -> ""
                                     else -> packageName.breakableAtDots()
                                 },
                                 icon = appIcon ?: Icons.Outlined.Apps,
@@ -697,12 +699,16 @@ fun SearchPillsScreen(
                                                             fontWeight = FontWeight.Medium,
                                                             color = MaterialTheme.colorScheme.onSurface
                                                         )
-                                                        Text(
-                                                            text = packageName.breakableAtDots(),
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                                        )
+                                                        // Without a label (the app's gone) the title is already the
+                                                        // package name, so it isn't repeated under it.
+                                                        if (appName != packageName) {
+                                                            Text(
+                                                                text = packageName.breakableAtDots(),
+                                                                style = MaterialTheme.typography.bodySmall,
+                                                                fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                            )
+                                                        }
                                                     }
                                                 }
 

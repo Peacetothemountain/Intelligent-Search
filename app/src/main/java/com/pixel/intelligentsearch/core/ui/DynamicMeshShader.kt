@@ -2,10 +2,6 @@ package com.pixel.intelligentsearch.core.ui
 
 import android.graphics.RuntimeShader
 import android.os.Build
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,156 +29,87 @@ import kotlinx.coroutines.isActive
 import org.intellij.lang.annotations.Language
 
 /**
- * Slowly flowing mesh-gradient background between five colours (four corners and the centre), animated to
- * each new colour over 600 ms. Draws a static gradient under severe thermal throttling.
+ * The settings pages' glow: a smooth light drifting slowly behind the title, strongest at the top and gone about two
+ * fifths of the way down. Its colours are the theme's deep tones: the primary hue and the hues 20° either side of it,
+ * each richer and much darker, as the morph's plates take theirs ([pageGlowTones]). So it follows each device's
+ * wallpaper palette, and on a light page it sits at about half the strength, a soft tint rather than a stain. It's
+ * drawn on the page background only, behind every container. [strength] fades it (0 hides it and stops its clock).
+ * It stands still with animations removed, under severe thermal throttling and in the background ([rememberMeshClock]).
  */
 @Composable
-fun Modifier.meshGradientBackground(
-    colorTL: Color,
-    colorTR: Color,
-    colorBL: Color,
-    colorBR: Color,
-    colorCenter: Color,
-    alpha: Float = 0.18f,
-    isPaused: Boolean = false,
-    isInteracting: Boolean = false
-): Modifier {
-    val animSpec = tween<Color>(600, easing = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f))
-    val animTL = animateColorAsState(targetValue = colorTL, animationSpec = animSpec, label = "mesh_tl")
-    val animTR = animateColorAsState(targetValue = colorTR, animationSpec = animSpec, label = "mesh_tr")
-    val animBL = animateColorAsState(targetValue = colorBL, animationSpec = animSpec, label = "mesh_bl")
-    val animBR = animateColorAsState(targetValue = colorBR, animationSpec = animSpec, label = "mesh_br")
-    val animCenter = animateColorAsState(targetValue = colorCenter, animationSpec = animSpec, label = "mesh_center")
-
-    return this.meshGradientBackground(
-        colorTLProducer = { animTL.value },
-        colorTRProducer = { animTR.value },
-        colorBLProducer = { animBL.value },
-        colorBRProducer = { animBR.value },
-        colorCenterProducer = { animCenter.value },
-        alpha = alpha,
-        isPaused = isPaused,
-        isInteracting = isInteracting
-    )
-}
-
-/**
- * Convenience modifier automatically deriving an Android 18 mesh gradient from Material You colorScheme.
- * Features symmetrical horizontal lighting to eliminate harsh left-to-right color splits,
- * smoothly transitioning from an ambient top dynamic tint to the deep background surface.
- */
-@Composable
-fun Modifier.materialYouMeshGradientBackground(
-    alpha: Float = 0.12f
-): Modifier {
+fun Modifier.pageGlow(strength: () -> Float = { 1f }): Modifier {
     val scheme = MaterialTheme.colorScheme
-    val topTint = androidx.compose.ui.graphics.lerp(scheme.surface, scheme.primaryContainer, 0.20f)
-    val bottomTint = scheme.background
-    val centerTint = androidx.compose.ui.graphics.lerp(scheme.surface, scheme.secondaryContainer, 0.10f)
-    return this.meshGradientBackground(
-        colorTL = topTint,
-        colorTR = topTint,
-        colorBL = bottomTint,
-        colorBR = bottomTint,
-        colorCenter = centerTint,
-        alpha = alpha
-    )
-}
-
-/**
- * Android 18 mesh gradient vertex layout (3x3 vertices / 2x2 patches) for [MeshGradientPainter].
- *
- * Corners carry the four Material You accent roles, edge midpoints blend their neighbours, and the
- * centre vertex carries the surface role. Edge midpoints slide along their edge and the centre
- * orbits slowly, so the colour field flows organically while still covering the full bounds.
- */
-private fun androidx.compose.ui.graphics.MeshGradientScope.configureMaterialMesh(
-    t: Float,
-    tl: Color,
-    tr: Color,
-    bl: Color,
-    br: Color,
-    center: Color
-) {
-    val topMidX = 0.5f + 0.16f * kotlin.math.sin(t * 0.13f)
-    val bottomMidX = 0.5f + 0.16f * kotlin.math.cos(t * 0.11f)
-    val leftMidY = 0.5f + 0.13f * kotlin.math.sin(t * 0.15f)
-    val rightMidY = 0.5f + 0.13f * kotlin.math.cos(t * 0.19f)
-    val centerX = 0.5f + 0.12f * kotlin.math.sin(t * 0.21f)
-    val centerY = 0.5f + 0.10f * kotlin.math.cos(t * 0.17f)
-
-    setVertex(0, 0, androidx.compose.ui.geometry.Offset(0f, 0f), tl)
-    setVertex(0, 1, androidx.compose.ui.geometry.Offset(topMidX, 0f), androidx.compose.ui.graphics.lerp(tl, tr, 0.5f))
-    setVertex(0, 2, androidx.compose.ui.geometry.Offset(1f, 0f), tr)
-
-    setVertex(1, 0, androidx.compose.ui.geometry.Offset(0f, leftMidY), androidx.compose.ui.graphics.lerp(tl, bl, 0.5f))
-    setVertex(1, 1, androidx.compose.ui.geometry.Offset(centerX, centerY), center)
-    setVertex(1, 2, androidx.compose.ui.geometry.Offset(1f, rightMidY), androidx.compose.ui.graphics.lerp(tr, br, 0.5f))
-
-    setVertex(2, 0, androidx.compose.ui.geometry.Offset(0f, 1f), bl)
-    setVertex(2, 1, androidx.compose.ui.geometry.Offset(bottomMidX, 1f), androidx.compose.ui.graphics.lerp(bl, br, 0.5f))
-    setVertex(2, 2, androidx.compose.ui.geometry.Offset(1f, 1f), br)
-}
-
-/**
- * Zero-recomposition overload of [meshGradientBackground] deferring state reads to the draw phase.
- *
- * Renders with Jetpack Compose's official [androidx.compose.ui.graphics.MeshGradientPainter]
- * (hardware-accelerated `Canvas.drawVertices`), the mesh gradient API surfaced for Android 18.
- */
-@Composable
-fun Modifier.meshGradientBackground(
-    colorTLProducer: () -> Color,
-    colorTRProducer: () -> Color,
-    colorBLProducer: () -> Color,
-    colorBRProducer: () -> Color,
-    colorCenterProducer: () -> Color,
-    alpha: Float = 0.18f,
-    isPaused: Boolean = false,
-    isInteracting: Boolean = false
-): Modifier {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val adpfThermalManager = remember(context) { ADPFThermalManager.getInstance(context) }
-    val throttleLevelState = adpfThermalManager.thermalThrottleLevel.collectAsStateWithLifecycle()
-    // Stands still while paused, interacting, throttled, in the background or with animations removed.
-    val timeState = rememberMeshClock(isPaused, extraPause = isInteracting)
-
-    val currentTL by androidx.compose.runtime.rememberUpdatedState(colorTLProducer)
-    val currentTR by androidx.compose.runtime.rememberUpdatedState(colorTRProducer)
-    val currentBL by androidx.compose.runtime.rememberUpdatedState(colorBLProducer)
-    val currentBR by androidx.compose.runtime.rememberUpdatedState(colorBRProducer)
-    val currentCenter by androidx.compose.runtime.rememberUpdatedState(colorCenterProducer)
-
-    // The configuration block runs in the draw phase, so time/colour reads only invalidate drawing.
-    val meshPainter = remember {
+    val dark = scheme.background.luminance() < 0.5f
+    val tones = remember(scheme.primary) { pageGlowTones(scheme.primary) }
+    val peak = if (dark) PAGE_GLOW_PEAK_DARK else PAGE_GLOW_PEAK_LIGHT
+    val currentStrength by androidx.compose.runtime.rememberUpdatedState(strength)
+    val time = rememberMeshClock(isPaused = strength() <= 0f)
+    // The configuration block runs in the draw phase, so the clock only invalidates drawing.
+    val painter = remember(tones, peak) {
         androidx.compose.ui.graphics.MeshGradientPainter(rows = 2, columns = 2, hasBicubicColor = true) {
-            configureMaterialMesh(
-                t = timeState.value,
-                tl = currentTL(),
-                tr = currentTR(),
-                bl = currentBL(),
-                br = currentBR(),
-                center = currentCenter()
-            )
+            configurePageGlow(time.value * PAGE_GLOW_PACE, tones, peak)
         }
     }
+    return drawBehind {
+        val s = currentStrength().coerceIn(0f, 1f)
+        if (s <= 0f) return@drawBehind
+        with(painter) { draw(androidx.compose.ui.geometry.Size(size.width, size.height * PAGE_GLOW_DEPTH), alpha = s) }
+    }
+}
 
-    return this.drawBehind {
-        if (throttleLevelState.value >= ADPFThermalManager.ThermalThrottleLevel.SEVERE) {
-            // ADPF severe thermal fallback: cheap static linear gradient
-            drawRect(
-                brush = Brush.linearGradient(
-                    listOf(
-                        currentTL().copy(alpha = alpha),
-                        currentCenter().copy(alpha = alpha * 0.7f),
-                        currentTR().copy(alpha = alpha * 0.4f)
-                    )
-                )
-            )
-        } else {
-            with(meshPainter) { draw(size, alpha = alpha.coerceIn(0f, 1f)) }
-        }
-    }
+/** How strong the glow is at its brightest, over a dark page and over a light one. */
+internal const val PAGE_GLOW_PEAK_DARK = 0.5f
+internal const val PAGE_GLOW_PEAK_LIGHT = 0.24f
+
+/** How far down the page the glow reaches, as a fraction of its height. */
+private const val PAGE_GLOW_DEPTH = 0.42f
+
+/** How fast it drifts: its slowest motion takes about 22 s, its quickest about 14 s. */
+private const val PAGE_GLOW_PACE = 2.2f
+
+/**
+ * The glow's three tones from the theme's [primary]: its hue 20° one way, its own hue, and 20° the other way, each
+ * at the morph's deep tone, much darker and richer than the role itself. Their richness follows the primary's own,
+ * so a muted or monochrome theme gets a muted or grey glow.
+ */
+internal fun pageGlowTones(primary: Color): List<Color> {
+    val r = primary.red
+    val g = primary.green
+    val b = primary.blue
+    val max = maxOf(r, g, b)
+    val min = minOf(r, g, b)
+    val delta = max - min
+    val hue = when {
+        delta == 0f -> 0f
+        max == r -> 60f * (((g - b) / delta) % 6f)
+        max == g -> 60f * (((b - r) / delta) + 2f)
+        else -> 60f * (((r - g) / delta) + 4f)
+    }.let { if (it < 0f) it + 360f else it }
+    val saturation = if (max == 0f) 0f else delta / max
+    val deepSaturation = (saturation * 2.1f).coerceIn(0f, 0.58f)
+    return listOf(-20f, 0f, 20f).map { Color.hsv((hue + it + 360f) % 360f, deepSaturation, 0.46f) }
+}
+
+/**
+ * The glow's 3 × 3 vertices over its own area: the top row at full strength (the first tone at the left, the second
+ * drifting along the top, the third at the right), the middle row at about a third, its centre orbiting slowly, and
+ * the bottom row clear, so it fades out into the page.
+ */
+private fun androidx.compose.ui.graphics.MeshGradientScope.configurePageGlow(t: Float, tones: List<Color>, peak: Float) {
+    val (left, middle, right) = tones
+    fun Color.at(strength: Float) = copy(alpha = peak * strength)
+    val o = { x: Float, y: Float -> androidx.compose.ui.geometry.Offset(x, y) }
+    setVertex(0, 0, o(0f, 0f), left.at(1f))
+    setVertex(0, 1, o(0.5f + 0.18f * kotlin.math.sin(t * 0.13f), 0f), middle.at(0.85f))
+    setVertex(0, 2, o(1f, 0f), right.at(0.9f))
+
+    setVertex(1, 0, o(0f, 0.43f + 0.095f * kotlin.math.sin(t * 0.15f)), left.at(0.35f))
+    setVertex(1, 1, o(0.5f + 0.16f * kotlin.math.sin(t * 0.21f), 0.38f + 0.12f * kotlin.math.cos(t * 0.17f)), middle.at(0.45f))
+    setVertex(1, 2, o(1f, 0.43f + 0.095f * kotlin.math.cos(t * 0.19f)), right.at(0.32f))
+
+    setVertex(2, 0, o(0f, 1f), left.at(0f))
+    setVertex(2, 1, o(0.5f, 1f), middle.at(0f))
+    setVertex(2, 2, o(1f, 1f), right.at(0f))
 }
 
 /**

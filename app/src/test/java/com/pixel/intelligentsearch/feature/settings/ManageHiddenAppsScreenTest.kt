@@ -6,6 +6,8 @@ import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.hardware.biometrics.BiometricManager
 import android.os.Looper
+import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
@@ -69,6 +71,8 @@ class ManageHiddenAppsScreenTest {
     }
 
     private val icon = RecordingIcon()
+    private var backCalls = 0
+    private lateinit var dispatcher: OnBackPressedDispatcher
 
     @Before fun setUp() {
         hilt.inject()
@@ -78,8 +82,9 @@ class ManageHiddenAppsScreenTest {
         disableHandRolledAnimations()
         compose.mainClock.autoAdvance = false
         compose.setContent {
+            dispatcher = LocalOnBackPressedDispatcherOwner.current!!.onBackPressedDispatcher
             IntelligentSearchTheme(darkTheme = false) {
-                ManageHiddenAppsScreen(prefs, onBack = {}, loadApps = {
+                ManageHiddenAppsScreen(prefs, onBack = { backCalls++ }, loadApps = {
                     listOf(AppItem("Alpha", "com.example.alpha", icon), AppItem("Beta", "com.example.beta", icon))
                 })
             }
@@ -160,45 +165,42 @@ class ManageHiddenAppsScreenTest {
         assertEquals(emptySet<String>(), hidden())
     }
 
+    /**
+     * Search opens in a pill at the bottom of the page, so the title and Enable All stay where they are, and the X
+     * closes it again. (The pill's slide out of the halftone is drawn by a shader; its timing is in BottomSearchTest.)
+     */
     @Test
-    fun searchOpensOverTheTitleAndEnableAllAndTheXPlaysItBackward() {
-        val field = hasSetTextAction()
-        // The field's uncovered left edge each frame (its bounds are clipped to what the animation shows), until it
-        // stops changing or is gone.
-        fun frames(): List<Float> {
-            val lefts = mutableListOf<Float>()
-            repeat(60) {
-                compose.mainClock.advanceTimeByFrame()
-                val bounds = runCatching { compose.onNode(field).getBoundsInRoot() }.getOrNull()
-                lefts += if (bounds == null || bounds.width.value == 0f) Float.NaN else bounds.left.value
-            }
-            return lefts
-        }
-        fun moving(lefts: List<Float>) = lefts.zipWithNext().filter { (a, b) -> a != b && !(a.isNaN() && b.isNaN()) }.map { it.second }
+    fun searchOpensAtTheBottomLeavingTheTitleAndTheXClosesIt() {
+        val title = compose.onNodeWithText("Manage Hidden Apps").getBoundsInRoot()
+        compose.onNode(hasSetTextAction()).assertDoesNotExist()
 
         compose.onNodeWithContentDescription("Search").performClick()
-        val openingFrames = frames()
-        val opening = moving(openingFrames)
-        compose.waitForIdle()
-        compose.onNodeWithText("Manage Hidden Apps").assertDoesNotExist()
-        compose.onNodeWithText("Enable All").assertDoesNotExist()
-        assertTrue("the field slides open over several frames: $opening", opening.size >= 4)
-        assertTrue("with no slow start: it shows on the transition's first frame after the tap recomposes: $openingFrames", openingFrames.take(4).any { !it.isNaN() })
-        assertTrue("from the right edge leftward: $opening", opening.filterNot { it.isNaN() }.zipWithNext().all { (a, b) -> b < a })
-
-        compose.onNodeWithContentDescription("Close search").performClick()
-        val closing = moving(frames())
-        // The X plays it backward: the edge goes back to the right over the same number of frames. (Frames land at a
-        // different point in the curve each time, so the two don't pass through exactly the same places.)
-        val forward = opening.filterNot { it.isNaN() }
-        val backward = closing.filterNot { it.isNaN() }
-        assertTrue("back to the right edge: $backward", backward.zipWithNext().all { (a, b) -> b > a })
-        assertTrue("as long as the open: $forward, $backward", kotlin.math.abs(forward.size - backward.size) <= 1)
-        val frameStep = forward.zipWithNext().maxOf { (a, b) -> a - b }
-        assertEquals("ending where the open began, give or take a frame", forward.first(), backward.last(), frameStep)
-        compose.onNode(field).assertDoesNotExist()
+        compose.settle(steps = 5)
         compose.onNodeWithText("Manage Hidden Apps").assertExists()
         compose.onNodeWithText("Enable All").assertExists()
+        assertEquals("the title doesn't move", title, compose.onNodeWithText("Manage Hidden Apps").getBoundsInRoot())
+        val field = compose.onNode(hasSetTextAction()).getBoundsInRoot()
+        assertTrue("the pill is at the bottom of the page, far below the title", field.top > title.bottom + 1000.dp)
+
+        compose.onNodeWithContentDescription("Close search").performClick()
+        compose.settle(steps = 5)
+        compose.onNode(hasSetTextAction()).assertDoesNotExist()
+        compose.onNodeWithText("Manage Hidden Apps").assertExists()
+    }
+
+    @Test
+    fun backClosesSearchBeforeLeaving() {
+        compose.onNodeWithContentDescription("Search").performClick()
+        compose.settle(steps = 5)
+        compose.onNode(hasSetTextAction()).performTextInput("alp")
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Beta").assertDoesNotExist()
+
+        compose.runOnUiThread { dispatcher.onBackPressed() }
+        compose.settle(steps = 5)
+        compose.onNode(hasSetTextAction()).assertDoesNotExist()
+        compose.onNodeWithText("Beta").assertExists()
+        assertEquals("still on the page", 0, backCalls)
     }
 
     @Test

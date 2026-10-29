@@ -16,6 +16,7 @@ import android.content.Intent
 import android.content.SharedPreferences
 import androidx.compose.animation.*
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -36,7 +37,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.semantics.*
-import com.pixel.intelligentsearch.core.ui.materialYouMeshGradientBackground
+import com.pixel.intelligentsearch.core.ui.pageGlow
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.compositionLocalOf
@@ -126,6 +127,12 @@ fun SettingsScreensHub(
         // Reading the current entry makes the shell recompose on every navigation, so the exit gesture below is
         // switched on and off as the user moves between Main and the sub-pages.
         val hasSubScreensInNavHost = currentBackStackEntry.let { navController.previousBackStackEntry != null }
+        val onWidgetPage = currentBackStackEntry?.destination?.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization>() == true
+        val pageGlowStrength = androidx.compose.animation.core.animateFloatAsState(
+            targetValue = if (onWidgetPage) 0f else 1f,
+            animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing),
+            label = "page_glow"
+        )
 
         val onBack: () -> Unit = onBack@{
             // A quick double tap would pop the sub-page, then see the root and exit Settings entirely.
@@ -172,7 +179,9 @@ fun SettingsScreensHub(
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background)
-                .materialYouMeshGradientBackground(alpha = 0.08f)
+                // Every page but Widget Customization (whose previews carry their own colours) has the glow behind
+                // its title; it fades out as that page comes in and back as it leaves.
+                .pageGlow { pageGlowStrength.value }
                 .graphicsLayer {
                     val p = exitBackProgress.value
                     if (p > 0f) {

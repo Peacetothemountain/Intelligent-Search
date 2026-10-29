@@ -1,5 +1,10 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.hasSetTextAction
 import android.animation.ValueAnimator
 import android.content.Context
 import android.content.Intent
@@ -115,6 +120,35 @@ class SearchPillsScreenTest {
 
         systemBack()
         compose.onNodeWithText("Add Applications").assertExists()
+        assertEquals(0, backCalls)
+    }
+
+    /**
+     * The picker's search waits behind the magnifier, as Manage Hidden Apps' does, and opens in a pill at the bottom:
+     * typing narrows the list, and system back closes the search before it leaves the picker.
+     */
+    @Test
+    fun thePickersSearchOpensAtTheBottomAndBackClosesItFirst() {
+        installLauncherApp("Alpha Notes", "com.example.alpha")
+        installLauncherApp("Bravo Maps", "com.example.bravo")
+        show()
+        openPicker()
+        compose.onNode(hasSetTextAction()).assertDoesNotExist()
+
+        compose.onNodeWithContentDescription("Search").performClick()
+        compose.settle(steps = 5)
+        val title = compose.onNodeWithText("Add Applications").getBoundsInRoot()
+        val field = compose.onNode(hasSetTextAction()).assertIsFocused().getBoundsInRoot()
+        assertTrue("the pill is at the bottom of the page, far below the title", field.top > title.bottom + 1000.dp)
+        compose.onNode(hasSetTextAction()).performTextInput("brav")
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Bravo Maps").assertExists()
+        compose.onNodeWithText("Alpha Notes").assertDoesNotExist()
+
+        systemBack()
+        compose.onNodeWithText("Add Applications").assertExists()
+        compose.onNodeWithText("Alpha Notes").assertExists()
+        compose.onNode(hasSetTextAction()).assertDoesNotExist()
         assertEquals(0, backCalls)
     }
 

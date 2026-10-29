@@ -70,6 +70,44 @@ class WorldClockTest {
         assertEquals(time("America/Los_Angeles"), answer("pacific time")?.title)
     }
 
+    @Test
+    fun everydayWordsAreZonesOnlyWhenAskedAsAPlace() {
+        // Pacific/Wake, America/North_Dakota/Center, Pacific/Midway, Antarctica/Davis and the like.
+        for (query in listOf(
+            "wake time", "center time", "midway time", "davis time", "casey time", "palmer time", "troll time",
+            "jersey time", "petersburg time", "stanley time", "victoria time", "reunion time", "knox time",
+            "3pm wake time to london"
+        )) {
+            assertNull("\"$query\" should not be a time answer", answer(query))
+        }
+        assertEquals(WorldClock.TimeAnswer(time("Pacific/Wake"), "Current time in Wake • Tomorrow"), answer("time in wake"))
+        assertEquals(time("America/North_Dakota/Center"), answer("what time is it in center")?.title)
+        assertEquals(time("Antarctica/Davis"), answer("time in davis")?.title)
+        // Other zone cities and the places named in the alias table still answer on their own.
+        assertEquals(time("America/Phoenix"), answer("phoenix time")?.title)
+        assertEquals(time("Europe/Moscow"), answer("st. petersburg time")?.title)
+        assertEquals(time("America/Puerto_Rico"), answer("time in san juan")?.title)
+    }
+
+    @Test
+    fun countriesSpanningZonesNameTheCityWhoseTimeIsShown() {
+        val unitedStates = WorldClock.TimeAnswer(time("America/New_York"), "Current time in United States (New York)")
+        for (query in listOf("time in usa", "time in the us", "time in united states", "time in america", "us time", "time in the USA")) {
+            assertEquals(query, unitedStates, answer(query))
+        }
+        val cities = mapOf(
+            "canada" to "Canada (Toronto)", "australia" to "Australia (Sydney) • Tomorrow", "brazil" to "Brazil (São Paulo)",
+            "russia" to "Russia (Moscow) • Tomorrow", "mexico" to "Mexico (Mexico City)",
+            "indonesia" to "Indonesia (Jakarta) • Tomorrow", "kazakhstan" to "Kazakhstan (Almaty) • Tomorrow"
+        )
+        for ((country, label) in cities) {
+            assertEquals(country, "Current time in $label", answer("time in $country")?.subtitle)
+        }
+        assertEquals(time("Asia/Almaty"), answer("kazakhstan time")?.title)
+        // A single-zone country keeps its plain name.
+        assertEquals("Current time in Japan • Tomorrow", answer("time in japan")?.subtitle)
+    }
+
     private fun time(zone: String): String {
         val there = Instant.parse("2026-10-20T22:30:00Z").atZone(ZoneId.of(zone))
         return com.pixel.intelligentsearch.core.util.Durations.timeOfDay(there.hour, there.minute, false, Locale.US)

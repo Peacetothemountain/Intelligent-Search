@@ -193,7 +193,7 @@ class WidgetEditorDialogsTest {
         }
         openEditor()
         tap("Shortcuts")
-        tap("Shortcut Slot: 1")
+        tap("Slot 1 · Google Lens")
         tap("Weather")
         tap("Custom App (APK)")
 

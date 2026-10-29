@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The floating search button's accessibility actions: moving it without a drag. -->
+    <item name="floating_button_move_left" type="id" />
+    <item name="floating_button_move_right" type="id" />
+    <item name="floating_button_move_up" type="id" />
+    <item name="floating_button_move_down" type="id" />
+</resources>

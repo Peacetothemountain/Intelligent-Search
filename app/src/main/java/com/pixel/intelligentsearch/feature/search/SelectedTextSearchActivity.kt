@@ -22,7 +22,9 @@ import com.pixel.intelligentsearch.core.util.resolveActivityCompat
  * passed on, no result is returned (the selected text is never replaced), and the activity shows no window and
  * finishes at once, leaving no task behind.
  *
- * Selected or shared text is never searched without the user confirming it. With the search overlay turned off it goes
+ * Selected or shared text is never searched without the user confirming it: the overlay searches it on the phone only,
+ * and asks no server about it (web suggestions, definitions, forecasts) until the user edits it or presses Enter
+ * ([SearchViewModel.seedQuery]). With the search overlay turned off it goes
  * to the Google app's search, which only types it in; without that app nothing opens and a toast explains why (the
  * overlay's own fallback, a web search, would run the search at once).
  */

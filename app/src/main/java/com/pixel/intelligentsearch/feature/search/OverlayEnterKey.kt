@@ -56,6 +56,8 @@ internal fun OverlayScope.onEnter(context: Context, highlighted: NavTarget?) {
     // The collected uiState can lag a keystroke behind; read the live value so Enter never acts on a query missing
     // its last character.
     val query = viewModel.uiState.value.query
+    // Enter accepts text another app handed in as the user's own search.
+    viewModel.confirmQuery()
     when (val outcome = OverlayEnterKey.decide(query, highlighted, phrasingAction = null, isBang = false)) {
         is EnterOutcome.OpenHighlighted -> openNavTarget(context, this, outcome.target)
         EnterOutcome.NothingTyped -> Unit

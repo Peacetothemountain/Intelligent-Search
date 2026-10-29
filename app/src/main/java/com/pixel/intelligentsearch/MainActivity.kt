@@ -128,7 +128,7 @@ open class MainActivity : AppCompatActivity() {
         val queryExtra = (intent.getStringExtra("query") ?: intent.getStringExtra(SearchManager.QUERY) ?: intent.getStringExtra(Intent.EXTRA_TEXT))?.take(512)
         clearConsumedQuery()
         if (!queryExtra.isNullOrBlank()) {
-            searchViewModel.onQueryChanged(queryExtra)
+            searchViewModel.seedQuery(queryExtra)
         } else {
             searchViewModel.onQueryChanged("")
         }
@@ -272,8 +272,9 @@ open class MainActivity : AppCompatActivity() {
         val queryExtra = (intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: intent?.getStringExtra(Intent.EXTRA_TEXT))?.take(512)
         clearConsumedQuery()
         // Only a fresh open: a restored activity still carries its launch query, which was already used and cleared.
+        // Any app can hand one in, so it is searched on the phone only until the user confirms it (seedQuery).
         if (savedInstanceState == null && !queryExtra.isNullOrBlank()) {
-            searchViewModel.onQueryChanged(queryExtra)
+            searchViewModel.seedQuery(queryExtra)
         }
         // Only a fresh open starts voice: a recreated activity (rotation) still carries the extra but must not restart it.
         if (savedInstanceState == null) requestVoiceIfAsked(intent)

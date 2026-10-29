@@ -185,7 +185,9 @@ internal fun AnswerChips(content: @Composable () -> Unit) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        // A chip's touch area is already 48dp around its 32dp pill, so wrapped rows need no gap of their own: they
+        // sit 16dp apart, as far as the chips are from the text above.
+        verticalArrangement = Arrangement.Top,
         itemVerticalAlignment = Alignment.CenterVertically
     ) { content() }
 }

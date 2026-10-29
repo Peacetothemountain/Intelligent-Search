@@ -44,6 +44,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.ai.AiAnswerState
 import com.pixel.intelligentsearch.core.ai.AiProvider
@@ -205,8 +206,8 @@ internal fun AiAnswerCard(
     }
 }
 
-/** How far a bullet's wrapped lines hang in: the width of "•  " in the answer's text. */
-private val BULLET_HANG = 12.sp
+/** How far a bullet's wrapped lines hang in: the width of "•  " in the answer's text, so they line up under its words. */
+private val BULLET_HANG = 0.94.em
 
 /**
  * The little Markdown answers use, drawn rather than shown as symbols: **bold**, `code`, "#" headings (bold) and

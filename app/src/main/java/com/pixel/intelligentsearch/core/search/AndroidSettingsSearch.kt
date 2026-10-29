@@ -161,7 +161,7 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
         for (term in indexed.terms) {
             // Under three letters only a whole keyword counts ("bt", "dnd" is three): "b" alone would list half the catalogue.
             if (query.length < MIN_PARTIAL_QUERY && term.text != query) continue
-            if (!isPlausible(query, queryWords, term)) continue
+            if (!isPlausible(query, queryWords, term, slips = indexed.page.appRoute == null)) continue
             val match = SearchScoringEngine.evaluateScore(
                 query = query,
                 targetTitle = term.text,
@@ -185,15 +185,20 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
      * - a keyword's initials must be typed whole;
      * - a multi-word query must match the term word for word, so "system update" isn't "system language" for
      *   sharing its first word, and a slip or sound-alike counts only within its own word;
-     * - a single word gets typos and sound-alikes against titles from five letters, but against keywords, which are
+     * - the app's own pages get no typos or sound-alikes at all;
+ * - a single word gets typos and sound-alikes against titles from five letters, but against keywords, which are
      *   often everyday words, only one slip in seven letters or more ("hotpsot"), or in five for a settings word
      *   nobody types for anything else ("wifii"), and no sound-alikes.
      */
-    private fun isPlausible(query: String, queryWords: List<String>, term: Term): Boolean {
+    private fun isPlausible(query: String, queryWords: List<String>, term: Term, slips: Boolean = true): Boolean {
         if (term.text == query) return true
         if (term.text.startsWith(query) && (term.isTitle || query.length >= MIN_WORD_PREFIX)) return true
         if (query.length >= MIN_WORD_PREFIX && term.words.any { it.startsWith(query) }) return true
         if (term.words.size > 1 && (if (term.isTitle) term.initials.startsWith(query) else term.initials == query)) return true
+        // The app's own pages are found by what they're called, never by a slip or a sound-alike: "contacts" is the
+        // Contacts app's, not Contact Search's.
+        if (!slips) return queryWords.size > 1 && term.words.size >= queryWords.size &&
+            queryWords.indices.all { i -> term.words[i] == queryWords[i] || (i == queryWords.lastIndex && term.words[i].startsWith(queryWords[i])) }
         if (queryWords.size > 1) {
             if (queryWords.size != term.words.size) return false
             return queryWords.indices.all { i ->

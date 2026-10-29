@@ -4,7 +4,6 @@ import com.pixel.intelligentsearch.core.util.Durations
 import android.app.SearchManager
 import android.content.Intent
 import android.net.Uri
-import androidx.core.net.toUri
 import android.provider.AlarmClock
 import android.provider.CalendarContract
 import android.provider.MediaStore
@@ -455,7 +454,7 @@ object NaturalLanguageIntentParser {
             destination = dest,
             intent = intent,
             // Any maps app answers a geo: search for the place when Google Maps isn't there.
-            fallbackIntent = Intent(Intent.ACTION_VIEW, ("geo:0,0?q=" + Uri.encode(dest)).toUri())
+            fallbackIntent = runCatching { Intent.parseUri("geo:0,0?q=" + Uri.encode(dest), 0) }.getOrNull()
         )
     }
 

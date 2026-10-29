@@ -294,19 +294,6 @@ class ResponsiveLayoutAuditTest(private val screen: String, private val device: 
                 LayoutAudit.Kind.SMALL_TOUCH_TARGET, Regex("field \".*\""), screens = Regex("overlay_.*"),
                 reason = "The search field is one 20sp line tall, but the whole search-bar pill around it (at least 48dp " +
                     "tall) is a clickable that focuses the field, so a tap anywhere on the bar reaches it"
-            ),
-            Accepted(
-                LayoutAudit.Kind.SMALL_TOUCH_TARGET, Regex("\\(Copy (Hexadecimal|Binary|Octal)\\)"), screens = Regex("overlay_math"),
-                reason = "The tablet detail pane's Other Forms rows (OverlayDetailPane.NumberFormsCard) are 40dp tall and " +
-                    "stacked edge to edge; making them 48dp grows the card and changes the approved overlay_tablet/math " +
-                    "goldens, so it needs the owner's decision"
-            ),
-            Accepted(
-                LayoutAudit.Kind.MID_WORD_BREAK, Regex("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+"), screens = Regex("hidden_apps"),
-                reason = "A package name under an app in Manage Hidden Apps has no break opportunity, so on a 320dp phone " +
-                    "a long one splits inside a word. The fix (packageName.breakableAtDots(), as Search Pills does) shifts " +
-                    "its glyphs by a sub-pixel and fails the approved hidden_apps_unlocked goldens, so it waits for the " +
-                    "owner's OK to re-record them"
             )
         )
 

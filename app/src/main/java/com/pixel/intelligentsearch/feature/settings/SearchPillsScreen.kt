@@ -890,4 +890,4 @@ fun SearchPillsScreen(
 }
 
 /** A package name that may wrap after any dot (zero-width spaces), so narrow screens never split it mid-word. */
-private fun String.breakableAtDots(): String = replace(".", ".\u200B")
+internal fun String.breakableAtDots(): String = replace(".", ".\u200B")

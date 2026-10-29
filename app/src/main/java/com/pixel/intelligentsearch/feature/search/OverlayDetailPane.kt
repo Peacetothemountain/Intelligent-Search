@@ -442,6 +442,8 @@ private fun NumberFormsCard(forms: List<NumberForm>) {
                                 android.widget.Toast.makeText(context, "${form.label} Copied", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         }
+                        // A full 48dp touch target each, as the rows sit edge to edge.
+                        .heightIn(min = 48.dp)
                         .padding(horizontal = 20.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {

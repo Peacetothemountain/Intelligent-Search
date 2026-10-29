@@ -257,7 +257,8 @@ fun ManageHiddenAppsScreen(
 
                         SettingsRowToggle(
                             title = app.name,
-                            subtitle = app.packageName,
+                            // Breakable after each dot, so a long package name wraps there instead of mid-word.
+                            subtitle = app.packageName.breakableAtDots(),
                             icon = row.icon,
                             isChecked = isHidden,
                             onCheckedChange = { hide ->

@@ -237,8 +237,23 @@ internal class NotificationExtractor(
         /** A code: 4 to 8 digits, 3-3 or 4-4 grouped, or Google's "G-123456"; not part of a longer number. */
         private val CODE = Regex("(?<![\\p{N}-])(?:G-\\d{5,8}|\\d{3}[ -]\\d{3}|\\d{4}[ -]\\d{4}|\\d{4,8})(?![\\p{N}])")
         private val GOOGLE_CODE = Regex("(?<![\\p{L}\\p{N}])G-\\d{5,8}(?![\\p{N}])")
+        /**
+         * A word saying a number is a code, in the languages most phones use. A word may end in code ("Codes",
+         * German "Bestätigungscode", Dutch "verificatiecode", Turkish "kodu", Spanish "código"); Chinese, Japanese and
+         * Korean words have no spaces around them, so they're found anywhere.
+         */
         private val CODE_WORD = Regex(
-            "\\b(?:codes?|otp|passcode|verification|verify|one[- ]?time|2fa|two[- ]factor|pin)\\b",
+            "(?<![\\p{L}\\p{M}\\p{N}])(?:" +
+                "otp|passcode|verification|verify|one[- ]?time|2fa|two[- ]factor|pin|clave|" +
+                "mot de passe [àa] usage unique|do[ğg]rulama|(?:ال)?رمز(?:ك|كم)?|كود|कोड|ओटीपी|код(?:а|у|ом|ы)?|" +
+                "\\p{L}*(?:codes?|kod(?:u|y|e|em|un|um|unuz)?|codic[ei]|c[oó]digos?)" +
+                ")(?![\\p{L}\\p{M}\\p{N}])" +
+                "|验证码|驗證碼|校验码|校驗碼|动态码|動態碼|認証コード|確認コード|認証番号|確認番号|인증\\s?(?:번호|코드)",
+            RegexOption.IGNORE_CASE
+        )
+        /** Words ending in code that aren't a sign-in code: "barcode", "postcode", "unicode". */
+        private val NOT_SIGN_IN_CODE_WORD = Regex(
+            "(?:bar|post|zip|promo|qr|uni|en|de|area|dress|country|source)codes?",
             RegexOption.IGNORE_CASE
         )
         /** How far apart a code and its word may be and still be one sign-in code. */
@@ -246,13 +261,13 @@ internal class NotificationExtractor(
 
         /**
          * Whether [text] holds a one-time sign-in code: a code ("482913", "482 913", "G-482913") within
-         * [CODE_WORD_REACH] characters of a word saying so (code, OTP, passcode, verification, one-time, 2FA, PIN).
+         * [CODE_WORD_REACH] characters of a word saying so ([CODE_WORD]: code, OTP, verification, código, код, 验证码...).
          * Kept narrow so "Your order 123456 has shipped" is still found.
          */
         internal fun looksLikeOneTimeCode(text: String): Boolean {
             if (text.isEmpty()) return false
             if (GOOGLE_CODE.containsMatchIn(text)) return true
-            val words = CODE_WORD.findAll(text).map { it.range }.toList()
+            val words = CODE_WORD.findAll(text).filterNot { NOT_SIGN_IN_CODE_WORD.matches(it.value) }.map { it.range }.toList()
             if (words.isEmpty()) return false
             return CODE.findAll(text).any { code ->
                 words.any { word ->

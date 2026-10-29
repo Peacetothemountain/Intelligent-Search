@@ -303,6 +303,53 @@ class NotificationIndexTest {
     }
 
     @Test
+    fun aOneTimeCodeIsKnownInOtherLanguages() {
+        // Only English whole words were known, so these were indexed and found by searching the code.
+        for (text in listOf(
+            "Tu código de verificación es 482913",
+            "Tu clave de acceso: 482913",
+            "Seu código é 482913",
+            "Ihr Bestätigungscode lautet 482913",
+            "Sicherheitscode: 482913",
+            "Votre code est 482913",
+            "482913 est votre mot de passe à usage unique",
+            "Il tuo codice è 482913",
+            "Uw verificatiecode is 482913",
+            "Ваш код подтверждения: 482913",
+            "Ваш код: 482913",
+            "Twój kod weryfikacyjny to 482913",
+            "Doğrulama kodunuz 482913",
+            "Kode verifikasi Anda 482913",
+            "Kod pengesahan anda ialah 482913",
+            "您的验证码是482913",
+            "您的驗證碼為482913",
+            "校验码：482913",
+            "認証コードは482913です",
+            "確認コード：482913",
+            "인증번호 [482913]",
+            "인증 코드는 482913입니다",
+            "رمز التحقق الخاص بك هو 482913",
+            "आपका कोड 482913 है",
+            "ओटीपी 482913"
+        )) {
+            assertTrue(text, NotificationExtractor.looksLikeOneTimeCode(text))
+        }
+        for (text in listOf(
+            "Your order 123456 has shipped",
+            "Su pedido 123456 ha sido enviado",
+            "Ihre Bestellung 123456 wurde versandt",
+            "Votre commande 123456 a été expédiée",
+            "您的订单123456已发货",
+            "Scan the barcode 12345678 at the till",
+            "Postcode 10115, Berlin",
+            "Episode 1234 is out now",
+            "Kodak 2024 calendar"
+        )) {
+            assertFalse(text, NotificationExtractor.looksLikeOneTimeCode(text))
+        }
+    }
+
+    @Test
     fun onlyAClockAppsChronometerIsATimer() {
         val timer = Notification.Builder(context, "c")
             .setContentTitle("5 min timer")

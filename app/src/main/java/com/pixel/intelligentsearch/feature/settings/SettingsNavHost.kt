@@ -38,6 +38,12 @@ import androidx.navigation.compose.composable
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.semantics.*
 import com.pixel.intelligentsearch.core.ui.pageGlow
+import com.pixel.intelligentsearch.core.ui.backFrame
+import com.pixel.intelligentsearch.core.ui.backScrim
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.graphics.layer.drawLayer
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.compositionLocalOf
@@ -76,9 +82,23 @@ fun SettingsScreensHub(
         // it only while it is the resumed page.
         val exoPlayer = rememberBugdroidPlayer(BugdroidClip.SETTINGS, autoPlay = false)
 
+        // Android's own back animation between pages: each page is remembered as it was last seen when another opens
+        // over it, so a back swipe can show it underneath as the system shows the activity underneath.
+        val nativeBack = remember { com.pixel.intelligentsearch.core.ui.NativeBackState() }
+        val pageSnapshots = remember { mutableStateMapOf<String, androidx.compose.ui.graphics.ImageBitmap>() }
+        val livePage = androidx.compose.ui.graphics.rememberGraphicsLayer()
+        val navScope = rememberCoroutineScope()
+        // Set while a page leaves at the end of the back animation, which has already moved it: no transition then.
+        var instantPop by remember { mutableStateOf(false) }
+
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
-            navController.navigate(route) {
-                launchSingleTop = true
+            navScope.launch {
+                val leaving = navController.currentBackStackEntry
+                val snapshot = runCatching { livePage.toImageBitmap() }.getOrNull()
+                if (leaving != null && snapshot != null) pageSnapshots[leaving.id] = snapshot
+                navController.navigate(route) {
+                    launchSingleTop = true
+                }
             }
         }
 
@@ -124,6 +144,10 @@ fun SettingsScreensHub(
         }
 
         val currentBackStackEntry by navController.currentBackStackEntryAsState()
+        // A page back on top is shown live again: its picture is taken anew when another page next opens over it.
+        LaunchedEffect(currentBackStackEntry) {
+            currentBackStackEntry?.id?.let { pageSnapshots.remove(it) }
+        }
         // Reading the current entry makes the shell recompose on every navigation, so the exit gesture below is
         // switched on and off as the user moves between Main and the sub-pages.
         val hasSubScreensInNavHost = currentBackStackEntry.let { navController.previousBackStackEntry != null }
@@ -175,9 +199,49 @@ fun SettingsScreensHub(
             }
         }
 
+        val view = androidx.compose.ui.platform.LocalView.current
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val darkPage = MaterialTheme.colorScheme.background.luminance() < 0.5f
+        val animationsOn by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
+        var screenCorner by remember { mutableFloatStateOf(0f) }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .onSizeChanged {
+                    nativeBack.size = it
+                    nativeBack.marginPx = with(density) { com.pixel.intelligentsearch.core.ui.NativeBackMotion.MARGIN_DP.dp.toPx() }
+                    nativeBack.offsetPx = with(density) { com.pixel.intelligentsearch.core.ui.NativeBackMotion.ENTERING_OFFSET_DP.dp.toPx() }
+                }
+        ) {
+        if (nativeBack.active) {
+            // The page underneath, as it was last seen, under the scrim.
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .backFrame(frame = { nativeBack.enteringFrame() }, cornerPx = { screenCorner })
+                    .drawBehind {
+                        nativeBack.entering?.let {
+                            drawImage(it, dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()))
+                        }
+                    }
+            )
+            Box(Modifier.fillMaxSize().drawBehind { drawRect(backScrim(darkPage, nativeBack.scrimFraction())) })
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .backFrame(
+                    frame = { if (nativeBack.active) nativeBack.closingFrame() else null },
+                    cornerPx = { screenCorner },
+                    alpha = { nativeBack.closingAlpha() }
+                )
+                // The page as drawn, kept so it can be shown underneath once another page opens over it.
+                .drawWithContent {
+                    livePage.record { this@drawWithContent.drawContent() }
+                    drawLayer(livePage)
+                }
                 .background(MaterialTheme.colorScheme.background)
                 // Every page but Widget Customization (whose previews carry their own colours) has the glow behind
                 // its title; it fades out as that page comes in and back as it leaves.
@@ -251,7 +315,7 @@ fun SettingsScreensHub(
                         )
                     },
                     popEnterTransition = {
-                        slideInHorizontally(
+                        if (instantPop) androidx.compose.animation.EnterTransition.None else slideInHorizontally(
                             initialOffsetX = { -(it * 0.10f).toInt() },
                             animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
                         ) + fadeIn(
@@ -259,7 +323,7 @@ fun SettingsScreensHub(
                         )
                     },
                     popExitTransition = {
-                        slideOutHorizontally(
+                        if (instantPop) androidx.compose.animation.ExitTransition.None else slideOutHorizontally(
                             targetOffsetX = { (it * 0.25f).toInt() },
                             animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing)
                         ) + fadeOut(
@@ -325,6 +389,46 @@ fun SettingsScreensHub(
                     onComplete = { showTutorial = false }
                 )
             }
+        }
+
+        // Back between pages, with Android's own animation. Registered after the NavHost's own handler, so it takes
+        // the gesture first; with animations removed the NavHost's handler plays its plain transition instead.
+        androidx.activity.compose.PredictiveBackHandler(enabled = hasSubScreensInNavHost && animationsOn) { events ->
+            val previous = navController.previousBackStackEntry ?: return@PredictiveBackHandler
+            val act = context.findActivity()
+            com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(act)
+            try {
+                var started = false
+                events.collect { event ->
+                    if (!started) {
+                        screenCorner = com.pixel.intelligentsearch.core.ui.screenCornerRadius(view)
+                        nativeBack.begin(event, pageSnapshots[previous.id])
+                        started = true
+                    } else {
+                        nativeBack.track(event)
+                    }
+                }
+                if (started) nativeBack.commit()
+                instantPop = started
+                navController.popBackStack()
+                if (started) {
+                    // Keep the picture until the real page has taken its place, then hand over.
+                    snapshotFlow { navController.currentBackStackEntry?.id }.first { it == previous.id }
+                    withFrameNanos { }
+                    withFrameNanos { }
+                    nativeBack.end()
+                }
+                instantPop = false
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    if (nativeBack.active) nativeBack.cancel()
+                    instantPop = false
+                }
+                throw e
+            } finally {
+                com.pixel.intelligentsearch.core.ui.WindowFramePacing.restoreDefaultRefreshRate(act)
+            }
+        }
         }
     }
 }

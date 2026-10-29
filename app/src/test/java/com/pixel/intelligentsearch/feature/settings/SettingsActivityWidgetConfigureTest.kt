@@ -96,13 +96,28 @@ class SettingsActivityWidgetConfigureTest {
 
     @Test
     fun onlyTheConfigureActionCarriesAWidgetId() {
-        assertEquals(SEARCH, SettingsActivity.configuredWidgetId(intent(SEARCH, configure = true)))
-        assertEquals(AppWidgetManager.INVALID_APPWIDGET_ID, SettingsActivity.configuredWidgetId(intent(SEARCH, configure = false)))
-        assertEquals(AppWidgetManager.INVALID_APPWIDGET_ID, SettingsActivity.configuredWidgetId(null))
+        assertEquals(SEARCH, SettingsActivity.configuredWidgetId(context, intent(SEARCH, configure = true)))
+        assertEquals(AppWidgetManager.INVALID_APPWIDGET_ID, SettingsActivity.configuredWidgetId(context, intent(SEARCH, configure = false)))
+        assertEquals(AppWidgetManager.INVALID_APPWIDGET_ID, SettingsActivity.configuredWidgetId(context, null))
+    }
+
+    @Test
+    fun theConfigureActionCountsOnlyForThisAppsBoundWidget() {
+        // With the action, any id was taken: another app's widget, or one never bound, answered as configured.
+        val foreign = AppWidgetProviderInfo().apply { provider = ComponentName("com.example.other", "com.example.other.Widget") }
+        shadowOf(AppWidgetManager.getInstance(context)).addBoundWidget(FOREIGN, foreign)
+        for (id in listOf(FOREIGN, UNBOUND)) {
+            assertEquals("$id", AppWidgetManager.INVALID_APPWIDGET_ID, SettingsActivity.configuredWidgetId(context, intent(id, configure = true)))
+            val settings = created(intent(id, configure = true))
+            assertNotEquals("$id", Activity.RESULT_OK, shadowOf(settings).resultCode)
+            assertFalse("$id", settings.isFinishing)
+        }
     }
 
     private companion object {
         const val COUNTDOWN = 11
         const val SEARCH = 12
+        const val FOREIGN = 13
+        const val UNBOUND = 14
     }
 }

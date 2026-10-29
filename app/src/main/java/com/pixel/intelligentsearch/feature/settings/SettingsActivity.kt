@@ -64,7 +64,7 @@ class SettingsActivity : AppCompatActivity() {
         }
         
         val isWidgetConfigure = intent.action == android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE
-        val appWidgetId = configuredWidgetId(intent)
+        val appWidgetId = configuredWidgetId(this, intent)
         // A countdown widget is set up on its own screen, which answers the launcher in this activity's place.
         if (isWidgetConfigure && com.pixel.intelligentsearch.feature.widget.CountdownConfigActivity.isCountdownWidget(this, appWidgetId)) {
             startActivity(com.pixel.intelligentsearch.feature.widget.CountdownConfigActivity.setupIntent(this, appWidgetId))
@@ -176,12 +176,19 @@ class SettingsActivity : AppCompatActivity() {
         /**
          * The widget [intent] asks to set up, or [android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID]. This
          * activity is exported, so a widget id counts only on the launcher's configure action: any app could otherwise
-         * send one to reach a widget's setup and have this activity answer it as configured.
+         * send one to reach a widget's setup and have this activity answer it as configured. The id must also be one of
+         * this app's bound widgets, as the launcher's always is, so the action alone can't name another app's widget or
+         * an unbound id.
          */
-        internal fun configuredWidgetId(intent: Intent?): Int {
+        internal fun configuredWidgetId(context: Context, intent: Intent?): Int {
             val invalid = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
             if (intent?.action != android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE) return invalid
-            return intent.getIntExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, invalid)
+            val id = intent.getIntExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, invalid)
+            if (id == invalid) return invalid
+            val provider = runCatching {
+                android.appwidget.AppWidgetManager.getInstance(context).getAppWidgetInfo(id)?.provider
+            }.getOrNull()
+            return if (provider?.packageName == context.packageName) id else invalid
         }
     }
 }

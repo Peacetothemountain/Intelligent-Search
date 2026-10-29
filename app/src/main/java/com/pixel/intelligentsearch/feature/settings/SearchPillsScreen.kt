@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import androidx.activity.compose.BackHandler
+import com.pixel.intelligentsearch.core.theme.pageTrack
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
@@ -147,6 +148,15 @@ fun SearchPillsScreen(
     var multiSelectMode by remember { mutableStateOf(false) }
     var selectedApps by remember { mutableStateOf(setOf<String>()) }
     var showMaxWarning by remember { mutableStateOf(false) }
+    // The picker's search, opened from the magnifier into a pill at the bottom; leaving the picker closes and clears it.
+    var pickerSearching by remember { mutableStateOf(false) }
+    var appSearchQuery by remember { mutableStateOf("") }
+    LaunchedEffect(showAppPicker) {
+        if (!showAppPicker) {
+            pickerSearching = false
+            appSearchQuery = ""
+        }
+    }
 
     LaunchedEffect(showAppPicker) {
         if (showAppPicker && installedApps.isEmpty()) {
@@ -186,11 +196,17 @@ fun SearchPillsScreen(
             showAppPicker = false
         }
     }
+    // Back closes the picker's search first.
+    BackHandler(enabled = showAppPicker && pickerSearching) {
+        pickerSearching = false
+        appSearchQuery = ""
+    }
 
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
             TopAppBar(
+                colors = settingsTopBarColors(),
                 title = {
                     if (showAppPicker && multiSelectMode) {
                         Text("${selectedApps.size} Selected", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
@@ -233,7 +249,12 @@ fun SearchPillsScreen(
                         }) {
                             Icon(Icons.Outlined.Check, contentDescription = "Add Selected")
                         }
-                    } else if (!showAppPicker) {
+                    } else if (showAppPicker) {
+                        SearchToggleButton(open = pickerSearching, onToggle = {
+                            if (pickerSearching) appSearchQuery = ""
+                            pickerSearching = !pickerSearching
+                        })
+                    } else {
                         ProfileStateActions(
                             profile = activeProfile,
                             onReset = {
@@ -278,7 +299,6 @@ fun SearchPillsScreen(
         }
 
         if (showAppPicker) {
-            var appSearchQuery by remember { mutableStateOf("") }
             val filteredApps = remember(installedApps, appSearchQuery) {
                 if (appSearchQuery.isBlank()) installedApps
                 else installedApps.filter {
@@ -287,29 +307,12 @@ fun SearchPillsScreen(
                 }
             }
 
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                androidx.compose.foundation.layout.Box(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    androidx.compose.material3.OutlinedTextField(
-                        value = appSearchQuery,
-                        onValueChange = { appSearchQuery = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Search apps...") },
-                        singleLine = true,
-                        leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = "Search") },
-                        shape = RoundedCornerShape(24.dp),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
-                        )
-                    )
-                }
-
+            Column(modifier = Modifier.fillMaxSize()) {
                 if (isAppsLoading) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(modifier = Modifier.testTag(com.pixel.intelligentsearch.core.ui.LOADING_INDICATOR_TAG))
@@ -318,11 +321,14 @@ fun SearchPillsScreen(
                     // The same container and rows as Manage Hidden Apps, without the switch: tapping an app adds it.
                     com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
                         shape = RoundedCornerShape(24.dp),
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        containerColor = MaterialTheme.colorScheme.pageTrack(0.5f),
                         border = null,
                         modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp)
                     ) {
-                    androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.fillMaxSize().padding(vertical = 8.dp)) {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier.fillMaxSize().padding(vertical = 8.dp).underBottomSearch(pickerSearching),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = if (pickerSearching) PILL_CLEARANCE else 0.dp)
+                    ) {
                         items(filteredApps.size, key = { filteredApps[it].packageName }) { index ->
                             val appItem = filteredApps[index]
                             val packageName = appItem.packageName
@@ -375,6 +381,14 @@ fun SearchPillsScreen(
                     }
                 }
             }
+            BottomSearchPill(
+                open = pickerSearching,
+                query = appSearchQuery,
+                onQueryChange = { appSearchQuery = it },
+                placeholder = "Search Apps",
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+            }
         } else {
             Column(
                 modifier = Modifier
@@ -395,7 +409,7 @@ fun SearchPillsScreen(
                             .fillMaxWidth()
                             .padding(16.dp),
                         shape = RoundedCornerShape(24.dp),
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        containerColor = MaterialTheme.colorScheme.pageTrack(0.4f),
                         border = null
                     ) {
                         Column(
@@ -632,7 +646,7 @@ fun SearchPillsScreen(
                                             }
                                         }
 
-                                        val containerBg = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                        val containerBg = MaterialTheme.colorScheme.pageTrack(0.6f)
                                             .compositeOver(MaterialTheme.colorScheme.background)
 
                                         com.pixel.intelligentsearch.core.ui.expressive.MatteShell(

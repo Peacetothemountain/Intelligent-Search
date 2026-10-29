@@ -350,8 +350,8 @@ internal fun CountdownSetupScreen(
 
 /**
  * The widget one row high and as a 2 x 2 tile, drawn from the views the widget itself shows ([previewViews]), on the
- * page's own color as Widget Customization's preview is, so it is exactly what the home screen will show. Taps go
- * nowhere, and TalkBack reads it as one preview.
+ * same stage as Widget Customization's preview (widgetPreviewStageColor), so it is exactly what the home screen will
+ * show. Taps go nowhere, and TalkBack reads it as one preview.
  */
 @Composable
 private fun CountdownPreview(
@@ -360,7 +360,7 @@ private fun CountdownPreview(
     modifier: Modifier = Modifier
 ) {
     val views by produceState<Map<SizeF, RemoteViews>?>(null, draft) { value = previewViews(draft) }
-    val look = rememberMatteShellLook(containerColor = MaterialTheme.colorScheme.background, border = null)
+    val look = rememberMatteShellLook(containerColor = com.pixel.intelligentsearch.feature.settings.widgetPreviewStageColor(), border = null)
     Column(
         modifier = modifier
             .fillMaxWidth()

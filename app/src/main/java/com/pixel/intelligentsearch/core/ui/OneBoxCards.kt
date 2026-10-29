@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.core.ui
 
 import android.content.ClipData
+import com.pixel.intelligentsearch.core.theme.raisedContainer
 import android.content.ClipboardManager
 import android.content.Context
 import android.os.Build
@@ -78,7 +79,7 @@ internal fun ExpressiveOneBoxCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     cornerRadius: Dp = ExpressiveCornerTokens.ExtraLarge,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    containerColor: Color = MaterialTheme.colorScheme.raisedContainer,
     borderColor: Color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
     pressedBorderColor: Color? = null,
     idleElevation: Dp = 2.dp,
@@ -324,7 +325,7 @@ fun MathResultOneBox(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         cornerRadius = ExpressiveCornerTokens.ExtraLarge,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        containerColor = MaterialTheme.colorScheme.raisedContainer,
         borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
         idleElevation = 2.dp,
         contentPadding = PaddingValues(20.dp)
@@ -441,7 +442,7 @@ fun ConversionOneBox(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         cornerRadius = ExpressiveCornerTokens.ExtraLarge,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        containerColor = MaterialTheme.colorScheme.raisedContainer,
         borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
         idleElevation = 2.dp,
         contentPadding = PaddingValues(20.dp)
@@ -529,7 +530,7 @@ fun DictionaryOneBox(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         cornerRadius = ExpressiveCornerTokens.ExtraLarge,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        containerColor = MaterialTheme.colorScheme.raisedContainer,
         borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
         pressedBorderColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.55f),
         idleElevation = 2.dp,
@@ -615,7 +616,7 @@ fun UrlNavigationOneBox(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         cornerRadius = ExpressiveCornerTokens.ExtraLarge,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        containerColor = MaterialTheme.colorScheme.raisedContainer,
         borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
         pressedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
         idleElevation = 2.dp,
@@ -756,7 +757,7 @@ fun TimeWeatherOneBox(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         cornerRadius = ExpressiveCornerTokens.ExtraLarge,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        containerColor = MaterialTheme.colorScheme.raisedContainer,
         borderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
         pressedBorderColor = categoryColor.copy(alpha = 0.55f),
         idleElevation = 2.dp,

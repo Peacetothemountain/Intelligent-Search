@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.feature.widget
 import com.google.android.material.color.utilities.Hct
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesignSettings
 import com.pixel.intelligentsearch.core.data.widget.WidgetElementColors
+import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import kotlin.math.roundToInt
@@ -14,21 +15,34 @@ import kotlin.math.roundToInt
 @Suppress("RestrictedApi")
 internal object WidgetColorRules {
 
-    /** The Material design's pill and circle when Inner Pill & Circle is on and no color has been picked. */
+    /**
+     * The color stored for the Material design's Inner Pill & Circle while no color has been picked for it: the theme's
+     * own pill ([DynamicThemeDetector.ResolvedWidgetColors.lockedPill]), #121212 in the dark theme.
+     */
     const val LOCKED_PILL = com.pixel.intelligentsearch.core.data.widget.DEFAULT_LOCKED_PILL_COLOR
 
-    /** The color [settings]' Inner Pill & Circle forces the Material design's pill and circle to, opaque. */
-    fun lockedPill(settings: WidgetDesignSettings): Int = settings.lockedPillColor or 0xFF000000.toInt()
+    /**
+     * The color [settings]' Inner Pill & Circle forces the Material design's pill and circle to, opaque, in [theme]
+     * (the widget colors of the theme the bar is drawn in): a color picked in Color Studio exactly as picked, in either
+     * theme; with none picked, the theme's own pill, #121212 in the dark theme and its light twin in the light theme.
+     */
+    fun lockedPill(settings: WidgetDesignSettings, theme: DynamicThemeDetector.ResolvedWidgetColors): Int {
+        val stored = settings.lockedPillColor or 0xFF000000.toInt()
+        return if (stored == LOCKED_PILL) theme.lockedPill or 0xFF000000.toInt() else stored
+    }
 
     /**
-     * Whether [settings] force the Material design's pill and circle to a dark color (the default #121212, or any
-     * color light icons stand on): the bar then draws as it always did locked black. A light color picked for them
-     * makes it a light pill instead, with icons darkened for contrast.
+     * Whether [settings] force the Material design's pill and circle to a dark color in [theme] (the dark theme's own
+     * pill, or any color light icons stand on): the bar then draws as it always did locked black. A light pill (the
+     * light theme's own, or a light color picked for it) makes it a light pill instead, with icons darkened for
+     * contrast. Either way the pill stays solid ([backdropAlphas]).
      */
-    fun locksDark(settings: WidgetDesignSettings): Boolean = settings.lockBlack && !iconsGoDark(lockedPill(settings))
+    fun locksDark(settings: WidgetDesignSettings, theme: DynamicThemeDetector.ResolvedWidgetColors): Boolean =
+        settings.lockBlack && !iconsGoDark(lockedPill(settings, theme))
 
-    /** Whether [settings] force the Material design's pill and circle to a light color, so it is a light pill. */
-    fun locksLight(settings: WidgetDesignSettings): Boolean = settings.lockBlack && iconsGoDark(lockedPill(settings))
+    /** Whether [settings] force the Material design's pill and circle to a light color in [theme], so it is a light pill. */
+    fun locksLight(settings: WidgetDesignSettings, theme: DynamicThemeDetector.ResolvedWidgetColors): Boolean =
+        settings.lockBlack && iconsGoDark(lockedPill(settings, theme))
 
     /** The contrast the Custom subtheme's accent keeps with the bar: Material's high-contrast level for primary. */
     private const val ACCENT_CONTRAST = 7.0
@@ -49,7 +63,7 @@ internal object WidgetColorRules {
     data class CustomBarColors(
         /** The seed, opaque: the pill, the circle and the Material design's rim. */
         val seed: Int,
-        /** What the icons sit on: the seed, or the Material design's pill locked black. */
+        /** What the icons sit on: the seed, or the Material design's locked pill ([lockedPill]). */
         val background: Int,
         /** Whether the icons are darker than [background] (it counts as a light pill). */
         val darkIcons: Boolean,
@@ -69,13 +83,17 @@ internal object WidgetColorRules {
     }
 
     /**
-     * [settings]' Custom subtheme colors on the Material ([isMaterialDesign]) or System design. The accent keeps 7:1
-     * with the pill and the plain icons 11:1 (Material's high-contrast levels for primary and on-surface; a mid-tone
-     * pill that can't reach them gets the better of white and black).
+     * [settings]' Custom subtheme colors on the Material ([isMaterialDesign]) or System design, in [theme]. The accent
+     * keeps 7:1 with the pill and the plain icons 11:1 (Material's high-contrast levels for primary and on-surface; a
+     * mid-tone pill that can't reach them gets the better of white and black).
      */
-    fun customBarColors(settings: WidgetDesignSettings, isMaterialDesign: Boolean): CustomBarColors {
+    fun customBarColors(
+        settings: WidgetDesignSettings,
+        isMaterialDesign: Boolean,
+        theme: DynamicThemeDetector.ResolvedWidgetColors
+    ): CustomBarColors {
         val seed = settings.customColorInt or 0xFF000000.toInt()
-        val background = if (isMaterialDesign && settings.lockBlack) lockedPill(settings) else seed
+        val background = if (isMaterialDesign && settings.lockBlack) lockedPill(settings, theme) else seed
         val backgroundTone = Hct.fromInt(background).tone
         // Material's rule picks the side; every tone below stays on it.
         val darkIcons = iconsGoDark(background)
@@ -126,13 +144,13 @@ internal object WidgetColorRules {
      * circle sit over the outline (a filled shape the size of the whole bar), so they're opaque within the backdrop:
      * the outline never shows through them, and they aren't painted twice where they overlap it. Transparency then
      * fades the whole bar's background at once, so every part of it is exactly as see-through as the slider says,
-     * except a pill locked black ([LOCKED_PILL]), which stays solid.
+     * except a locked pill ([lockedPill], dark or light), which stays solid.
      *
      * Color Opacity is the custom color's own opacity. When the whole backdrop is the custom color (the Custom
      * subtheme's pill, circle and rim, or on the System design its pill and the outline that is as see-through as it)
      * it fades the backdrop with Transparency, for the same reason.
      *
-     * The Material design's Inner Pill & Circle State locks the pill and circle to a solid black: the backdrop stays
+     * The Material design's Inner Pill & Circle State locks the pill and circle to one solid color ([lockedPill]): the backdrop stays
      * fully opaque, and the rim alone takes Transparency (with Color Opacity when it's the custom color). The opaque
      * pill and circle cover the rim beneath them, so nothing is painted twice there either.
      */
@@ -161,7 +179,7 @@ internal object WidgetColorRules {
     /** [alpha] as the 0..255 the widget's views take. */
     fun alphaInt(alpha: Float): Int = (alpha * 255).toInt().coerceIn(0, 255)
 
-    /** Whether the icons on the bar are drawn darker for contrast: on a light Material pill that isn't locked black. */
+    /** Whether the icons on the bar are drawn darker for contrast: on a light Material pill that isn't locked dark. */
     fun darkensIcons(isMaterialDesign: Boolean, lockBlack: Boolean, isPillLight: Boolean): Boolean =
         isMaterialDesign && !lockBlack && isPillLight
 
@@ -173,12 +191,17 @@ internal object WidgetColorRules {
         if (darkensIcons(isMaterialDesign, lockBlack, isPillLight)) MaterialYouPaletteHelper.darkenForContrast(color, targetTone) else color
 
     /**
-     * The Custom G style's colors for each element as the bar draws them: with Sync All Colors every icon takes the
-     * G's color, and on a light Material pill that isn't locked black each is darkened for contrast ([iconColor]).
+     * The Custom G style's colors for each element as the bar draws them in [theme]: with Sync All Colors every icon
+     * takes the G's color, and on a light Material pill that isn't locked dark each is darkened for contrast ([iconColor]).
      */
-    fun customIconColors(settings: WidgetDesignSettings, isMaterialDesign: Boolean, isPillLight: Boolean): WidgetElementColors {
+    fun customIconColors(
+        settings: WidgetDesignSettings,
+        isMaterialDesign: Boolean,
+        isPillLight: Boolean,
+        theme: DynamicThemeDetector.ResolvedWidgetColors
+    ): WidgetElementColors {
         val c = settings.elementColors
-        fun drawn(color: Int) = iconColor(color, isMaterialDesign, locksDark(settings), isPillLight)
+        fun drawn(color: Int) = iconColor(color, isMaterialDesign, locksDark(settings, theme), isPillLight)
         fun slot(color: Int) = drawn(if (settings.syncColors) c.gIcon else color)
         return WidgetElementColors(
             gIcon = drawn(c.gIcon),

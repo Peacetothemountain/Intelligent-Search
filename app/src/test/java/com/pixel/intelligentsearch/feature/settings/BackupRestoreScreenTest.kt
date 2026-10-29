@@ -6,12 +6,14 @@ import android.net.Uri
 import android.os.Build
 import android.os.Looper
 import android.view.View
+import android.view.ViewGroup
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.node.RootForTest
 import androidx.compose.ui.test.assertAll
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsEnabled
@@ -151,6 +153,9 @@ class BackupRestoreScreenTest {
      * Moves the page on while a dialog may open. A dialog's window attaches on its first frame, which Robolectric
      * runs only once the looper's clock moves; [settle] checks for idle before moving it, and would wait forever
      * on a dialog composed in its last step. So here the Compose clock moves first and the looper follows.
+     * Robolectric never draws a dialog's window either, and drawing is where Compose finishes a layout its window's
+     * own pass left pending (typing into the dialog leaves one), so each step ends by laying out every window as a
+     * frame would.
      */
     private fun advance(steps: Int = 10) = repeat(steps) {
         // Background work (reading the file header) runs in real time.
@@ -158,6 +163,20 @@ class BackupRestoreScreenTest {
         Snapshot.sendApplyNotifications()
         compose.mainClock.advanceTimeBy(100)
         shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(100))
+        composeWindows().forEach { it.measureAndLayoutForTest() }
+    }
+
+    /** The Compose content of every window on screen: the page and any dialog over it. */
+    private fun composeWindows(): List<RootForTest> {
+        val windows = Class.forName("android.view.WindowManagerGlobal").getMethod("getInstance").invoke(null)
+        val views = windows.javaClass.getDeclaredField("mViews").apply { isAccessible = true }.get(windows) as List<*>
+        return buildList {
+            fun visit(view: View) {
+                if (view is RootForTest) add(view)
+                if (view is ViewGroup) for (i in 0 until view.childCount) visit(view.getChildAt(i))
+            }
+            views.filterIsInstance<View>().forEach(::visit)
+        }
     }
 
     @Test

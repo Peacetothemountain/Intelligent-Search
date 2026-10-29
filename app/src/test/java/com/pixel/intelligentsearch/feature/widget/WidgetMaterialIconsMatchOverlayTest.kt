@@ -78,7 +78,8 @@ class WidgetMaterialIconsMatchOverlayTest(private val bar: Bar, private val dark
 
     /** Whether the pill counts as light, which picks the overlay's light or dark colours. */
     private fun pillIsLight(s: Sliders): Boolean = when {
-        bar.material && bar.lockBlack -> false
+        // Locked with no colour picked: the theme's own pill, light only in the light theme.
+        bar.material && bar.lockBlack -> !dark
         bar.isCustom -> WidgetColorSlidersTest.iconsGoDarkOn(s.customColor)
         bar.subtheme == "Light" -> true
         bar.subtheme == "Dark" -> false

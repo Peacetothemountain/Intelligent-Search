@@ -3,6 +3,8 @@ package com.pixel.intelligentsearch.feature.widget
 import com.google.android.material.color.utilities.Hct
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesignSettings
 import com.pixel.intelligentsearch.core.data.widget.WidgetElementColors
+import androidx.test.core.app.ApplicationProvider
+import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -31,12 +33,14 @@ class WidgetCustomBarContrastTest {
     @Test
     fun everyIconKeepsItsContrastOnThePill() {
         var checked = 0
-        for (material in listOf(false, true)) for (lockBlack in listOf(false, true)) {
+        for (dark in listOf(true, false)) for (material in listOf(false, true)) for (lockBlack in listOf(false, true)) {
             if (lockBlack && !material) continue
+            val theme = DynamicThemeDetector.resolveWidgetColors(ApplicationProvider.getApplicationContext(), dark)
             for (hue in 0..330 step 30) for (saturation in 0..100 step 25) for (lightness in 0..100 step 5) {
-                val bar = WidgetColorRules.customBarColors(settings(hue, saturation, lightness, lockBlack), material)
-                val label = "material=$material locked=$lockBlack hue=$hue saturation=$saturation lightness=$lightness"
-                val pill = if (material && lockBlack) WidgetColorRules.LOCKED_PILL else bar.seed
+                val bar = WidgetColorRules.customBarColors(settings(hue, saturation, lightness, lockBlack), material, theme)
+                val label = "dark=$dark material=$material locked=$lockBlack hue=$hue saturation=$saturation lightness=$lightness"
+                // Locked with no color picked: the theme's own pill (#121212 in dark, its light twin in light).
+                val pill = if (material && lockBlack) theme.lockedPill or 0xFF000000.toInt() else bar.seed
                 assertEquals("$label background", pill, bar.background)
                 val icons = mapOf(
                     "accent" to bar.accent,
@@ -56,10 +60,12 @@ class WidgetCustomBarContrastTest {
         assertTrue(checked > 0)
     }
 
+    private val darkTheme get() = DynamicThemeDetector.resolveWidgetColors(ApplicationProvider.getApplicationContext(), true)
+
     @Test
     fun iconsFlipFromLightToDarkOnceAsThePillLightens() {
         for (hue in 0..330 step 30) for (saturation in listOf(0, 50, 100)) {
-            val dark = (0..100).map { WidgetColorRules.customBarColors(settings(hue, saturation, it, lockBlack = false), false).darkIcons }
+            val dark = (0..100).map { WidgetColorRules.customBarColors(settings(hue, saturation, it, lockBlack = false), false, darkTheme).darkIcons }
             val flip = dark.indexOf(true)
             assertTrue("hue=$hue saturation=$saturation flips near the middle at $flip", flip in 45..55)
             assertTrue("hue=$hue saturation=$saturation flips once: $dark", dark.drop(flip).all { it })

@@ -3,7 +3,9 @@ package com.pixel.intelligentsearch.feature.settings
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import android.content.SharedPreferences
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.ui.ProgressiveBlurDirection
 import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
+import com.pixel.intelligentsearch.core.ui.progressiveEdgeBlur
 import com.pixel.intelligentsearch.di.appEntryPoint
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -37,6 +39,7 @@ fun WebSearchScreen(
         contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.ime),
         topBar = {
             TopAppBar(
+                colors = settingsTopBarColors(),
                 title = { Text("Web Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
@@ -44,8 +47,20 @@ fun WebSearchScreen(
             )
         }
     ) { padding ->
+        val scroll = rememberScrollState()
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                // The page (Quick Web Shortcuts at its foot) dissolves into the bottom edge as it scrolls, rather
+                // than being cut off there; with nothing more below, the edge is sharp.
+                .then(
+                    if (scroll.canScrollForward) {
+                        Modifier.progressiveEdgeBlur(edge = ProgressiveBlurDirection.BottomToTop, edgeHeight = 112.dp, maxBlur = 16.dp)
+                    } else Modifier
+                )
+                .verticalScroll(scroll)
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             SettingsCard {

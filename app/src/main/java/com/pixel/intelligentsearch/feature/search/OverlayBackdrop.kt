@@ -1,5 +1,9 @@
 package com.pixel.intelligentsearch.feature.search
 
+import androidx.compose.material3.ColorScheme
+import androidx.compose.ui.graphics.Color
+import com.pixel.intelligentsearch.core.theme.isDark
+
 /** The most the overlay dims the wallpaper behind it: at Background Transparency 0. */
 internal const val MAX_OVERLAY_SCRIM = 0.7f
 
@@ -21,3 +25,11 @@ internal fun overlayScrimAlpha(transparency: Int, blur: Int, blurAvailable: Bool
     if (blurAvailable) return base
     return base + (1f - base) * BLUR_FALLBACK_DIM * (blur.coerceIn(0, 100) / 100f)
 }
+
+/**
+ * The color the overlay's scrim lays over the wallpaper ([overlayScrimAlpha] says how strongly): in the dark theme the
+ * scheme's scrim, which dims it; in the light theme the light palette's surfaceContainer, which washes it out toward
+ * the light surfaces the overlay's panel and results are drawn in, as Pixel Launcher's light search does. A black
+ * scrim under the light panel turned the wallpaper a muddy gray.
+ */
+internal fun overlayScrimColor(scheme: ColorScheme): Color = if (scheme.isDark) scheme.scrim else scheme.surfaceContainer

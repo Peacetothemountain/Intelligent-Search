@@ -13,6 +13,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.ui.graphics.toArgb
 import com.google.android.material.color.DynamicColors
+import com.pixel.intelligentsearch.core.data.widget.DEFAULT_LOCKED_PILL_COLOR
 
 /**
  * Universal Android Dynamic Color (Material You / Monet) Engine.
@@ -240,7 +241,12 @@ object DynamicThemeDetector {
         val isDynamicActive: Boolean,
         @get:ColorInt val onPrimary: Int = 0,
         @get:ColorInt val onSurface: Int = 0,
-        @get:ColorInt val outline: Int = 0
+        @get:ColorInt val outline: Int = 0,
+        /**
+         * The theme's own pill for the Material design's locked Inner Pill & Circle (no color picked for it in Color
+         * Studio): #121212 in the dark theme, and in the light theme its twin, the light palette's surfaceBright.
+         */
+        @get:ColorInt val lockedPill: Int = DEFAULT_LOCKED_PILL_COLOR
     )
 
     /**
@@ -322,6 +328,10 @@ object DynamicThemeDetector {
             val onSurf = dynamicScheme?.onSurface?.toArgb() ?: (if (isDark) GoogleDarkOnSurface.toArgb() else GoogleLightOnSurface.toArgb())
             val outline = dynamicScheme?.outline?.toArgb() ?: (if (isDark) GoogleDarkOutline.toArgb() else GoogleLightOutline.toArgb())
 
+            val lockedPill = if (isDark) DEFAULT_LOCKED_PILL_COLOR else dynamicScheme?.surfaceBright?.toArgb() ?: (
+                try { context.getColor(android.R.color.system_neutral1_10) } catch (_: Throwable) { 0xFFFFFFFF.toInt() }
+            )
+
             val resolved = ResolvedWidgetColors(
                 primary = p,
                 secondary = s,
@@ -331,7 +341,8 @@ object DynamicThemeDetector {
                 isDynamicActive = isDynamicActive,
                 onPrimary = onP,
                 onSurface = onSurf,
-                outline = outline
+                outline = outline,
+                lockedPill = lockedPill
             )
 
             if (isDark) {

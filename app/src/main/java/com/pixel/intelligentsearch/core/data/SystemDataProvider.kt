@@ -91,7 +91,9 @@ data class ContactItem(
      * The number the chat buttons use: the contact's default number, else a mobile one, else [phoneNumber]. Blank
      * means [phoneNumber]. [phoneNumber] itself stays the one search found, so matching and ranking don't change.
      */
-    val chatNumber: String = ""
+    val chatNumber: String = "",
+    /** Starred (a favorite) in the Contacts app, which lifts it in search. */
+    val starred: Boolean = false
 )
 
 @Immutable
@@ -516,6 +518,25 @@ object SystemDataProvider {
         return contacts.mapIndexed { i, contact -> emails[contactIds[i]]?.let { contact.copy(email = it) } ?: contact }
     }
 
+    /**
+     * The ids of contacts starred in the Contacts app, read on their own so a provider that can't answer only loses
+     * the stars, never the contacts. Empty when they can't be read.
+     */
+    private fun starredContactIds(context: Context): Set<Long> = try {
+        context.contentResolver.query(
+            ContactsContract.Contacts.CONTENT_URI,
+            arrayOf(ContactsContract.Contacts._ID),
+            "${ContactsContract.Contacts.STARRED} = 1",
+            null,
+            null
+        )?.use { cursor ->
+            buildSet { while (cursor.moveToNext()) add(cursor.getLong(0)) }
+        }.orEmpty()
+    } catch (e: Exception) {
+        android.util.Log.w("IntelligentSearch", "Starred contacts unreadable", e)
+        emptySet()
+    }
+
     suspend fun getAllContacts(context: Context): List<ContactItem> = withContext(Dispatchers.IO) {
         val contacts = mutableListOf<ContactItem>()
         val contactIds = mutableListOf<Long>()
@@ -531,6 +552,7 @@ object SystemDataProvider {
             ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY,
             *ChatNumbers.COLUMNS
         )
+        val starredIds = starredContactIds(context)
 
         try {
             context.contentResolver.query(
@@ -553,7 +575,7 @@ object SystemDataProvider {
                     val id = cursor.getLong(idIndex)
 
                     val lookupUri = ContactsContract.Contacts.getLookupUri(id, lookupKey)?.toString() ?: ""
-                    contacts.add(ContactItem(name, number, lookupUri))
+                    contacts.add(ContactItem(name, number, lookupUri, starred = id in starredIds))
                     contactIds.add(id)
                     chatNumbers.offer(cursor, chatColumns, id, number)
                 }

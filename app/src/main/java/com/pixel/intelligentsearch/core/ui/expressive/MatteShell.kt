@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import com.pixel.intelligentsearch.core.theme.pageContainer
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -60,7 +61,7 @@ class MatteShellLook(
 /** The [MatteShellLook] for a container filled with [containerColor] and outlined with [border] in the current theme. */
 @Composable
 fun rememberMatteShellLook(
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    containerColor: Color = MaterialTheme.colorScheme.pageContainer,
     border: BorderStroke? = MatteShellDefaults.border(),
     lit: Boolean = false
 ): MatteShellLook {
@@ -182,7 +183,7 @@ fun Modifier.shellShadow(shape: Shape, radius: Dp, color: Color, offset: DpOffse
 fun MatteShell(
     modifier: Modifier = Modifier,
     shape: Shape = ExpressiveCornerTokens.ShapeExtraLarge,
-    containerColor: Color = MaterialTheme.colorScheme.surfaceContainer,
+    containerColor: Color = MaterialTheme.colorScheme.pageContainer,
     border: BorderStroke? = MatteShellDefaults.border(),
     lit: Boolean = false,
     content: @Composable ColumnScope.() -> Unit

@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.core.ui.rememberAppIcon
+import com.pixel.intelligentsearch.core.theme.raisedContainer
 import com.pixel.intelligentsearch.core.ui.AppIconImage
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import androidx.core.net.toUri
@@ -56,7 +57,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
             .keyboardHighlight(s, ResultListKeys.BEST_MATCH, RoundedCornerShape(24.dp)),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            containerColor = MaterialTheme.colorScheme.raisedContainer
         ),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
     ) {
@@ -125,6 +126,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                     hasStartedTyping = false
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
+                                    s.viewModel.recordOpened(match)
                                     launchSafeIntent(context, ContactActions.openIntent(match, settingsState.contactDirectCall))
                                 }
                                 .padding(vertical = 4.dp),
@@ -175,7 +177,10 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                     }
                     if (contactActions.isNotEmpty()) {
                         Spacer(modifier = Modifier.height(10.dp))
-                        ContactActionChips(contactActions, settingsState.activeIconPack) { hasStartedTyping = false }
+                        ContactActionChips(contactActions, settingsState.activeIconPack) {
+                            hasStartedTyping = false
+                            s.viewModel.recordOpened(match)
+                        }
                     }
                 }
                 is AppItem -> {
@@ -259,6 +264,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                             .moreOptions(openMenu)
                             .bouncyClickable(onLongClick = openMenu) {
                                 hasStartedTyping = false
+                                s.viewModel.recordOpened(match)
                                 openFileResult(context, s.prefs, match)
                             }
                             .padding(vertical = 4.dp),

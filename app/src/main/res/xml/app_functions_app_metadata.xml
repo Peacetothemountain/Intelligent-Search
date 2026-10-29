@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What assistants are told about Intelligent Search's AppFunctions (linked from the manifest's application). -->
+<AppFunctionAppMetadata xmlns:app="http://schemas.android.com/apk/res-auto"
+    app:displayDescription="@string/app_functions_display_description"
+    app:instructions="Intelligent Search searches this phone offline. Use searchApps to find an installed app by name and get its package name to open it, searchContacts to find a contact's phone number by name or number, and calculate for math, number base and unit conversions such as 100 km to miles. Nothing leaves the device; hidden apps are never returned, and contacts are returned only if the user allowed sharing them with assistants." />

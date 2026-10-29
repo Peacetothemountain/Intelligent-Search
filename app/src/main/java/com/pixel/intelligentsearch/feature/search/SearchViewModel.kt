@@ -114,7 +114,12 @@ data class SearchUiState(
     /** The provider the "Ask" row offers for a question; null when there is no row (see AiAnswers.offerFor). */
     val aiOffer: com.pixel.intelligentsearch.core.ai.AiProvider? = null,
     /** The answer to the question the user tapped Ask on, for this query only. */
-    val aiAnswer: com.pixel.intelligentsearch.core.ai.AiAnswerState? = null
+    val aiAnswer: com.pixel.intelligentsearch.core.ai.AiAnswerState? = null,
+    /**
+     * The [com.pixel.intelligentsearch.core.search.ResultKeys] key of the result the user keeps picking for exactly
+     * this query, which the Best Match puts first while it is among the results; null when there is none.
+     */
+    val learnedPick: String? = null
 ) {
     /**
      * The provider the Ask row shows for, or null when there is no row: besides [aiOffer], the query must not already
@@ -179,7 +184,8 @@ class SearchViewModel @Inject constructor(
     private val androidSettingsSearch: com.pixel.intelligentsearch.core.search.AndroidSettingsSearch,
     private val resultShortcutStore: com.pixel.intelligentsearch.core.data.ResultShortcutStore,
     private val instantAnswers: com.pixel.intelligentsearch.core.answers.LiveAnswerEngine,
-    private val aiAnswers: com.pixel.intelligentsearch.core.ai.AiAnswers
+    private val aiAnswers: com.pixel.intelligentsearch.core.ai.AiAnswers,
+    private val selectionMemory: com.pixel.intelligentsearch.core.search.SelectionMemory
 ) : ViewModel() {
     
     private val settingsState = settingsManager.settingsFlow
@@ -638,7 +644,8 @@ class SearchViewModel @Inject constructor(
                 detectedBangQuery = null,
                 spellingSuggestion = null,
                 liveAnswer = null,
-                aiOffer = null
+                aiOffer = null,
+                learnedPick = null
             ) }
             return
         }
@@ -731,6 +738,7 @@ class SearchViewModel @Inject constructor(
 
             // 1. In-Memory Unified Search (< 2ms)
             val unifiedResults = unifiedSearchCoordinator.executeSearch(newQuery)
+            val learnedPick = selectionMemory.topPick(newQuery)
 
             // 2. Direct Actions (parsedIntent + clipboard/quick templates)
             val directActions = mutableListOf<DirectAction>()
@@ -942,7 +950,8 @@ class SearchViewModel @Inject constructor(
                     volumeSlider = unifiedResults.systemAction as? com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider,
                     directActions = directActions,
                     enterAction = enterAction,
-                    lastQueryLatency = elapsed
+                    lastQueryLatency = elapsed,
+                    learnedPick = learnedPick
                 )
             }
             ready.complete(Unit)
@@ -1073,6 +1082,8 @@ class SearchViewModel @Inject constructor(
 
     @Volatile
     private var lastClearedHistory: List<HistoryEntity> = emptyList()
+    /** What was typed for each result before the history was cleared, for Undo. */
+    @Volatile private var lastClearedPicks: Map<String, com.pixel.intelligentsearch.core.search.SelectionMemory.Entry> = emptyMap()
     private var historyClearJob: Job? = null
 
     /**
@@ -1104,6 +1115,7 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             if (directBootManager.isUserUnlocked.value) {
                 historyDao.deleteByQuery(trimmed)
+                selectionMemory.forgetQuery(trimmed)
             }
         }
     }
@@ -1121,6 +1133,8 @@ class SearchViewModel @Inject constructor(
                     val dbHistory = historyDao.getSearchHistory()
                     if (dbHistory.isNotEmpty()) lastClearedHistory = dbHistory
                     historyDao.clearHistory()
+                    // What was typed before each pick is search history too; how often results were opened stays.
+                    lastClearedPicks = selectionMemory.clearPicks()
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -1141,6 +1155,8 @@ class SearchViewModel @Inject constructor(
                 pendingClear?.join()
                 if (directBootManager.isUserUnlocked.value) {
                     historyDao.insertSearches(toRestore)
+                    selectionMemory.restore(lastClearedPicks)
+                    lastClearedPicks = emptyMap()
                 }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
@@ -1243,6 +1259,25 @@ class SearchViewModel @Inject constructor(
     /** The web address a bang would open (never an app), or null if [query] isn't a bang. */
     fun resolveBangWebAddress(query: String): String? =
         bangManager.parseBangQuery(query)?.let(bangManager::bangWebUri)?.toString()
+
+    /**
+     * Remembers that [result] (an [AppItem], [ContactItem] or [FileItem]) was opened from search, and what was typed
+     * for it, so ranking learns from it. What was typed is kept only while searches are remembered (Previous Searches
+     * on, and not with Tor as the engine); Private Space apps leave no trace.
+     */
+    fun recordOpened(result: Any) {
+        val key = when (result) {
+            is AppItem -> if (result.isPrivateProfile || result.profileType == ProfileType.PRIVATE) null else com.pixel.intelligentsearch.core.search.ResultKeys.app(result)
+            is ContactItem -> com.pixel.intelligentsearch.core.search.ResultKeys.contact(result)
+            is FileItem -> com.pixel.intelligentsearch.core.search.ResultKeys.file(result)
+            else -> null
+        } ?: return
+        val settings = settingsState.value
+        val keepsSearches = settings.searchPreviousSearches &&
+            !com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(settings.searchEngine)
+        val query = _uiState.value.query.takeIf { keepsSearches }
+        viewModelScope.launch(Dispatchers.IO) { selectionMemory.record(key, query) }
+    }
 
     fun notifyAppLaunch(packageName: String) {
         nativeAppPredictionProvider.notifyAppLaunch(packageName)

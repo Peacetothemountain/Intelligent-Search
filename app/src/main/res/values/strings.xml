@@ -8,6 +8,8 @@
     <string name="widget_system_search_bar">System search bar</string>
     <string name="widget_material_search_bar">Material Design search bar</string>
     <string name="widget_home_search_bar">Home screen search bar</string>
+    <!-- Shown by assistants that list what Intelligent Search can do for them. -->
+    <string name="app_functions_display_description">Find apps and contacts and do quick math, all on this phone</string>
 
     <!-- App Widget Dynamic TalkBack Accessibility Descriptions -->
     <string name="widget_talkback_voice_search">Voice search</string>

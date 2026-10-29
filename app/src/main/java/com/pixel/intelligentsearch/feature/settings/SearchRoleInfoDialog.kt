@@ -1,6 +1,8 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.di.appEntryPoint
+import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
+import com.pixel.intelligentsearch.core.ui.expressive.matteShell
 import androidx.compose.ui.draw.clip
 import android.content.Context
 import kotlinx.coroutines.launch
@@ -10,6 +12,8 @@ import android.widget.Toast
 import android.content.pm.PackageManager
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -72,8 +76,16 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
     }
     val view = androidx.compose.ui.platform.LocalView.current
 
+    // The app's own container rather than the stock dialog's: a settings card's colour, hairline and matte surface,
+    // with the light behind it.
+    val shellShape = com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens.ShapeExtraLarge
+    val shellLook = com.pixel.intelligentsearch.core.ui.expressive.rememberMatteShellLook(lit = true)
     AlertDialog(
         onDismissRequest = { onDismiss() },
+        modifier = Modifier.matteShell(shellLook, shellShape),
+        shape = shellShape,
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        tonalElevation = 0.dp,
         icon = { Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
         title = {
             Row(
@@ -122,243 +134,7 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                     .height(pagerHeight)
             ) { page ->
                 when (page) {
-                    0 -> {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .verticalScroll(rememberScrollState()),
-                            verticalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.TravelExplore,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp)
-                                        )
-                                        Text(
-                                            text = "Default Search Engine",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                    Text(
-                                        text = "On Android 17 QPR2 and newer, the Android \"Search engine app\" setting decides which app powers your home screen search bar. Its picker only lists apps on your device's search engine list, so Intelligent Search has to be added to that list once (see Manual ADB Activation below) before it can be selected.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-
-                            if (com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)) {
-                                Surface(
-                                    onClick = {
-                                        com.pixel.intelligentsearch.core.system.SearchRoleManager.openDefaultSearchEngineSettings(context)
-                                    },
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(14.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(26.dp)
-                                        )
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = "Intelligent Search is your active Default Search Engine.",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                                            )
-                                            Text(
-                                                text = "Natively active as your home search bar. Tap to manage in system settings.",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                                            )
-                                        }
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
-                                            contentDescription = "Open Settings",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-                            } else {
-                                val isListed = remember { com.pixel.intelligentsearch.core.system.SearchRoleManager.isListedAsSearchEngine(context) }
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Column(
-                                        modifier = Modifier.padding(14.dp),
-                                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        Text(
-                                            text = if (isListed) {
-                                                "Intelligent Search is on this device's search engine list. Select it in Android settings to activate it on your home screen:"
-                                            } else {
-                                                "Intelligent Search isn't on this device's search engine list yet, so it won't appear in the Android picker. Run the Manual ADB Activation commands below once, then select it here:"
-                                            },
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Button(
-                                            onClick = {
-                                                com.pixel.intelligentsearch.core.system.SearchRoleManager.syncAllSearchEngineSettings(context)
-                                                com.pixel.intelligentsearch.core.system.SearchRoleManager.openDefaultSearchEngineSettings(context)
-                                            },
-                                            shape = RoundedCornerShape(12.dp),
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.CheckCircle,
-                                                contentDescription = null,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text(if (isListed) "Set as Default Search Engine" else "Open Search Engine Settings")
-                                        }
-                                    }
-                                }
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.Terminal,
-                                                contentDescription = null,
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                            Text(
-                                                text = "Manual ADB Activation",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                        }
-                                        IconButton(
-                                            onClick = {
-                                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                                                clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS))
-                                                Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
-                                            },
-                                            modifier = Modifier.size(32.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Outlined.ContentCopy,
-                                                contentDescription = "Copy ADB Commands",
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(18.dp)
-                                            )
-                                        }
-                                    }
-                                    Text(
-                                        text = "Adds Intelligent Search to this device's search engine list and selects it, so it appears in the Android \"Search engine app\" picker and powers the home screen search bar. Needs Android 17 QPR2 or newer, USB debugging and a computer with ADB; run once:",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Surface(
-                                        shape = RoundedCornerShape(10.dp),
-                                        color = MaterialTheme.colorScheme.surfaceContainerLowest,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(10.dp),
-                                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                                        ) {
-                                            // The same commands the copy button copies, one per line.
-                                            com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS.lines().forEach { command ->
-                                                Text(
-                                                    command,
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                                                    color = MaterialTheme.colorScheme.primary
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerLow,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(14.dp),
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Outlined.Info,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Text(
-                                            text = "Compatibility & Integration Notes",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                    Text(
-                                        text = "• Search engine list: Android treats the app named in Settings.Secure.user_setup_search_engine as a listed search engine, so Intelligent Search stays selectable until that setting is cleared (for example by a factory reset), after which the ADB step is needed again.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Text(
-                                        text = "• At a Glance: Configuring the default search engine on Android 17 QPR2 and newer will not affect At a Glance sports and finance integrations; however, configuring via ADB command will still bypass these integrations.",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    0 -> DeveloperNotePage(context)
                     1 -> {
                         BatteryAndMemoryDiagnosticsPage(context = context)
                     }
@@ -431,4 +207,172 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
             else -> null
         }
     )
+}
+
+/** The Developer Note dialog's cards: the Diagnostics and Hardware & Security pages' own, matte with a hairline. */
+private val NoteCardShape = RoundedCornerShape(16.dp)
+
+@Composable
+private fun noteCardBorder() = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+
+/**
+ * The Developer Note page: how the search engine role works, whether this app holds it (and the way to it when it
+ * doesn't), the ADB commands that list it, and notes on what it affects. Its cards are matte shells like the
+ * dialog's other two pages ([DiagnosticsCard]) and every container in the app.
+ */
+@Composable
+internal fun DeveloperNotePage(context: Context) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(DiagnosticsCardSpacing)
+    ) {
+        DiagnosticsCard(icon = Icons.Outlined.TravelExplore, title = "Default Search Engine", accent = scheme.primary) {
+            Text(
+                text = "On Android 17 QPR2 and newer, the Android \"Search engine app\" setting decides which app powers your home screen search bar. Its picker only lists apps on your device's search engine list, so Intelligent Search has to be added to that list once (see Manual ADB Activation below) before it can be selected.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onSurfaceVariant
+            )
+        }
+
+        if (com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)) {
+            MatteShell(
+                modifier = Modifier.fillMaxWidth(),
+                shape = NoteCardShape,
+                containerColor = scheme.primaryContainer,
+                border = noteCardBorder()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(role = Role.Button) {
+                            com.pixel.intelligentsearch.core.system.SearchRoleManager.openDefaultSearchEngineSettings(context)
+                        }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = scheme.primary,
+                        modifier = Modifier.size(26.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Intelligent Search is your active Default Search Engine.",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = scheme.onPrimaryContainer
+                        )
+                        Text(
+                            text = "Natively active as your home search bar. Tap to manage in system settings.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = scheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+                        contentDescription = "Open Settings",
+                        tint = scheme.primary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+            }
+        } else {
+            val isListed = remember { com.pixel.intelligentsearch.core.system.SearchRoleManager.isListedAsSearchEngine(context) }
+            DiagnosticsCard(icon = Icons.Outlined.CheckCircle, title = "Search Engine List", accent = scheme.primary) {
+                Text(
+                    text = if (isListed) {
+                        "Intelligent Search is on this device's search engine list. Select it in Android settings to activate it on your home screen:"
+                    } else {
+                        "Intelligent Search isn't on this device's search engine list yet, so it won't appear in the Android picker. Run the Manual ADB Activation commands below once, then select it here:"
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurface
+                )
+                Button(
+                    onClick = {
+                        com.pixel.intelligentsearch.core.system.SearchRoleManager.syncAllSearchEngineSettings(context)
+                        com.pixel.intelligentsearch.core.system.SearchRoleManager.openDefaultSearchEngineSettings(context)
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (isListed) "Set as Default Search Engine" else "Open Search Engine Settings")
+                }
+            }
+        }
+
+        DiagnosticsCard(
+            icon = Icons.Outlined.Terminal,
+            title = "Manual ADB Activation",
+            accent = scheme.primary,
+            trailing = {
+                IconButton(
+                    onClick = {
+                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                        clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS))
+                        Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ContentCopy,
+                        contentDescription = "Copy ADB Commands",
+                        tint = scheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        ) {
+            Text(
+                text = "Adds Intelligent Search to this device's search engine list and selects it, so it appears in the Android \"Search engine app\" picker and powers the home screen search bar. Needs Android 17 QPR2 or newer, USB debugging and a computer with ADB; run once:",
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant
+            )
+            MatteShell(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(10.dp),
+                containerColor = scheme.surfaceContainerLowest,
+                border = null
+            ) {
+                Column(
+                    modifier = Modifier.padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // The same commands the copy button copies, one per line.
+                    com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS.lines().forEach { command ->
+                        Text(
+                            command,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            color = scheme.primary
+                        )
+                    }
+                }
+            }
+        }
+
+        DiagnosticsCard(icon = Icons.Outlined.Info, title = "Compatibility & Integration Notes", accent = scheme.primary) {
+            Text(
+                text = "• Search engine list: Android treats the app named in Settings.Secure.user_setup_search_engine as a listed search engine, so Intelligent Search stays selectable until that setting is cleared (for example by a factory reset), after which the ADB step is needed again.",
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant
+            )
+            Text(
+                text = "• At a Glance: Configuring the default search engine on Android 17 QPR2 and newer will not affect At a Glance sports and finance integrations; however, configuring via ADB command will still bypass these integrations.",
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant
+            )
+        }
+    }
 }

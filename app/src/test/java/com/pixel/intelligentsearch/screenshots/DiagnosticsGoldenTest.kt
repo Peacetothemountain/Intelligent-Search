@@ -28,6 +28,7 @@ import com.pixel.intelligentsearch.feature.settings.BatteryTelemetrySnapshot
 import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import com.pixel.intelligentsearch.feature.settings.DiagnosticsSample
 import com.pixel.intelligentsearch.feature.settings.DiagnosticsSampler
+import com.pixel.intelligentsearch.feature.settings.DeveloperNotePage
 import com.pixel.intelligentsearch.feature.settings.HardwareSecurityPage
 import com.pixel.intelligentsearch.feature.settings.MemorySnapshot
 import com.pixel.intelligentsearch.feature.settings.ProcessRamEntry
@@ -45,7 +46,7 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
 /**
- * Golden images of the Developer Note's Battery & System and Hardware & Security pages with fixed readings, at the
+ * Golden images of the Developer Note's three pages (the note itself, Battery & System, Hardware & Security) with fixed readings, at the
  * default text size, at 2x text and in a narrow (zoomed) window, so the roomier cards, the wrapping chip grid and the
  * security posture chart's two label layouts are all pinned.
  *
@@ -94,6 +95,7 @@ class DiagnosticsGoldenTest(
                                 powerEvents = { emptyFlow() }
                             )
                             "security" -> HardwareSecurityPage(HARDWARE, ATTESTATION, POSTURE)
+                            "note" -> DeveloperNotePage(ApplicationProvider.getApplicationContext())
                             else -> error("unknown page $page")
                         }
                     }
@@ -161,7 +163,9 @@ class DiagnosticsGoldenTest(
             arrayOf("security", false, 1f, DIALOG_WIDTH, 740),
             arrayOf("security", true, 1f, DIALOG_WIDTH, 740),
             arrayOf("security", false, 2f, DIALOG_WIDTH, 1880),
-            arrayOf("security", false, 1f, 240, 960)
+            arrayOf("security", false, 1f, 240, 960),
+            arrayOf("note", false, 1f, DIALOG_WIDTH, 1240),
+            arrayOf("note", true, 1f, DIALOG_WIDTH, 1240)
         )
     }
 }

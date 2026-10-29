@@ -63,6 +63,19 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val worldClock = com.pixel.intelligentsearch.core.answers.WorldClock()
     private val randomAnswers = com.pixel.intelligentsearch.core.answers.RandomAnswers()
 
+    /**
+     * The last chance answer drawn and the query it was drawn for. The same query runs again when the cursor moves, a
+     * pin changes or the index finishes, and the coin or die must not land again each time: it is redrawn only once
+     * the query's text has changed.
+     */
+    @Volatile
+    private var lastRandomAnswer: Pair<String, com.pixel.intelligentsearch.core.answers.RandomAnswers.RandomAnswer?>? = null
+
+    private fun randomAnswer(query: String): com.pixel.intelligentsearch.core.answers.RandomAnswers.RandomAnswer? {
+        lastRandomAnswer?.let { (drawnFor, answer) -> if (drawnFor == query) return answer }
+        return randomAnswers.evaluate(query).also { lastRandomAnswer = query to it }
+    }
+
     data class RankedSearchResult(
         val item: SearchItem,
         val scoreBreakdown: SearchScoringEngine.ScoreBreakdown
@@ -714,7 +727,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         val dateAnswer = dateMath.evaluate(query)
         val is24Hour = android.text.format.DateFormat.is24HourFormat(context)
         val timeAnswer = if (mathResult == null && dateAnswer == null) worldClock.evaluate(query, is24Hour) else null
-        val randomAnswer = if (mathResult == null && dateAnswer == null && timeAnswer == null) randomAnswers.evaluate(query) else null
+        val randomAnswer = if (mathResult == null && dateAnswer == null && timeAnswer == null) randomAnswer(query) else null
 
         // 3. Natural Language Intent Parser
         // "Call X" / "Message X" only resolve names from contacts when contact search is turned on.

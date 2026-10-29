@@ -10,6 +10,8 @@ import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.profile.MultiProfileManager
 import com.pixel.intelligentsearch.core.system.SystemToggleManager
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -51,6 +53,24 @@ class UnifiedSearchCoordinatorTest {
         val sam = ContactItem("Sam", "07700 900123", "content://contacts/sam")
         val coordinator = coordinator().apply { replaceContacts(listOf(sam)) }
         assertEquals(listOf(sam), coordinator.executeSearchSync("+447700900123").contacts)
+    }
+
+    @Test
+    fun aChanceAnswerIsKeptUntilTheQueryChanges() {
+        // Moving the cursor, a pin change or the index finishing runs the same query again; the draw used to change.
+        val coordinator = coordinator()
+        val query = "random 1 to 999999999999"
+        val drawn = coordinator.executeSearchSync(query).randomAnswer
+        assertNotNull(drawn)
+        repeat(5) { assertEquals(drawn, coordinator.executeSearchSync(query).randomAnswer) }
+        assertEquals(drawn, coordinator.executeSearchSync("$query ").randomAnswer)
+
+        // Changing the text draws again: typing it anew is a new draw.
+        val redrawn = (1..3).map {
+            coordinator.executeSearchSync("random 1 to 10000000000").randomAnswer
+            coordinator.executeSearchSync(query).randomAnswer
+        }
+        assertTrue("a changed query draws again", redrawn.any { it != drawn })
     }
 
     @Test

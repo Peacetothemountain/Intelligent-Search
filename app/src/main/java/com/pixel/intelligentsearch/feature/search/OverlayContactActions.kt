@@ -17,10 +17,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
@@ -98,7 +98,10 @@ internal fun ContactActionChips(actions: List<ContactAction>, activeIconPack: St
     }
 }
 
-/** A contact row's buttons: round icon buttons under the name, in the row's own avatar colours. */
+/**
+ * A contact row's buttons: round 40dp icon buttons under the name, in the row's own avatar colors, each in its own 48dp
+ * touch area so neighbors don't share one.
+ */
 @Composable
 internal fun ContactActionButtons(actions: List<ContactAction>, activeIconPack: String, modifier: Modifier = Modifier, onLaunched: () -> Unit) {
     val context = LocalContext.current
@@ -111,17 +114,24 @@ internal fun ContactActionButtons(actions: List<ContactAction>, activeIconPack: 
                         launchSafeIntent(context, Intent(action.intent))
                     }
                     .semantics { contentDescription = action.contentDescription }
-                    .size(40.dp)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
+                    .size(48.dp),
                 contentAlignment = Alignment.Center
             ) {
-                ContactActionIcon(action, activeIconPack, MaterialTheme.colorScheme.onSurfaceVariant, 20.dp)
+                Box(
+                    modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    ContactActionIcon(action, activeIconPack, MaterialTheme.colorScheme.onSurfaceVariant, 20.dp)
+                }
             }
         }
     }
 }
 
-/** The system actions' Material icon, or a chat app's own (themed) icon. */
+/**
+ * The system actions' Material icon, or a chat app's own (themed) icon. Until that loads (or without one) a chat app
+ * shows two bubbles, so it isn't taken for Message's single one.
+ */
 @Composable
 internal fun ContactActionIcon(action: ContactAction, activeIconPack: String, tint: Color, size: Dp) {
     val iconPackage = action.iconPackage
@@ -135,6 +145,6 @@ internal fun ContactActionIcon(action: ContactAction, activeIconPack: String, ti
         return
     }
     AppIconImage(rememberAppIcon(iconPackage, activeIconPack), Modifier.size(size), tint = tint) {
-        Icon(imageVector = Icons.AutoMirrored.Filled.Chat, contentDescription = null, tint = tint, modifier = Modifier.size(size))
+        Icon(imageVector = Icons.Default.Forum, contentDescription = null, tint = tint, modifier = Modifier.size(size))
     }
 }

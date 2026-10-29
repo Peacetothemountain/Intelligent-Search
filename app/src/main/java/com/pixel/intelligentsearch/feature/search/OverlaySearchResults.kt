@@ -664,7 +664,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
                                         Text(contact.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
                                         if (contactActions.isNotEmpty()) {
-                                            Spacer(modifier = Modifier.height(4.dp))
+                                            // The buttons' 48dp touch areas keep the circles 4dp under the number.
                                             // Pulled back by the touch target's margin so the first circle lines up with the name.
                                             ContactActionButtons(contactActions, settingsState.activeIconPack, Modifier.offset(x = (-4).dp)) {
                                                 hasStartedTyping = false

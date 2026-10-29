@@ -51,9 +51,12 @@ object NaturalLanguageIntentParser {
         RegexOption.IGNORE_CASE
     )
     // A time from now that can't be read ("in two hours", "in 30 seconds", "in 3 months"): the phrase is then not
-    // taken as an event or reminder at all rather than one set for now.
+    // taken as an event or reminder at all rather than one set for now. "In" must be followed by an amount (a number
+    // or a number word), so words that merely sit in the task, "fill in hours tomorrow at 9", are left to be read.
     private val UNREAD_RELATIVE_TIME_REGEX = Regex(
-        "\\bin\\s+(?:[\\p{L}\\p{N}.,-]+\\s+){0,3}?(?:\\d+(?:[.,]\\d+)?\\s*)?" +
+        "\\bin\\s+(?:(?:\\d+(?:[.,]\\d+)?|(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|" +
+            "thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|" +
+            "eighty|ninety|hundred|half|couple|few|several|and|of)\\b)[\\s-]*){1,4}" +
             "(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?|wks?|fortnights?|months?|years?|yrs?)\\b",
         RegexOption.IGNORE_CASE
     )
@@ -453,9 +456,21 @@ object NaturalLanguageIntentParser {
         return ParsedIntent.Navigation(
             destination = dest,
             intent = intent,
-            // Any maps app answers a geo: search for the place when Google Maps isn't there.
-            fallbackIntent = runCatching { Intent.parseUri("geo:0,0?q=" + Uri.encode(dest), 0) }.getOrNull()
+            // Any maps app answers a geo: search for the place when Google Maps isn't there. Built as a plain view of
+            // a geo: address, never parsed from text, so nothing typed can make it another kind of intent.
+            fallbackIntent = Intent(Intent.ACTION_VIEW, geoSearchUri(dest))
         )
+    }
+
+    /**
+     * "geo:0,0?q=<place>", the place encoded. Built step by step and typed nullable: in plain JVM tests the stubbed
+     * builder returns null from each call.
+     */
+    private fun geoSearchUri(place: String): Uri? {
+        val builder = Uri.Builder()
+        builder.scheme("geo")
+        builder.encodedOpaquePart("0,0?q=" + Uri.encode(place))
+        return builder.build()
     }
 
     // ---------------------------------------------------------------------------------------------

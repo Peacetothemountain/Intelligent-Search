@@ -239,6 +239,23 @@ class NaturalLanguageIntentParserTest {
     }
 
     @Test
+    fun aTimeWordInsideTheTaskIsNotAnUnreadTimeFromNow() {
+        // "in hours" sits in the task; it used to read as a time from now that couldn't be read, so no reminder.
+        val hours = NaturalLanguageIntentParser.parse("remind me to fill in hours tomorrow at 9", currentTimeMs = at(12))
+            as NaturalLanguageIntentParser.ParsedIntent.Reminder
+        assertTrue(hours.task, hours.task.contains("fill in hours"))
+        assertEquals(9, hourOf(hours.triggerMillis))
+        assertNotNull(NaturalLanguageIntentParser.parse("remind me to log in days off on friday at 5pm", currentTimeMs = at(12)))
+        // An amount after "in" is still a time from now that can't be read.
+        for (query in listOf(
+            "remind me to call mom in a couple of hours", "remind me to stretch in thirty seconds",
+            "remind me to renew in a year", "remind me to call mom in twenty-five minutes"
+        )) {
+            assertNull(query, NaturalLanguageIntentParser.parse(query, currentTimeMs = at(12)))
+        }
+    }
+
+    @Test
     fun aDotSeparatesHoursFromMinutes() {
         val alarm = NaturalLanguageIntentParser.parse("alarm 6.30") as NaturalLanguageIntentParser.ParsedIntent.Alarm
         assertEquals(6, alarm.hour)

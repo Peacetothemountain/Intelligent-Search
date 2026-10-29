@@ -52,6 +52,18 @@ class DirectActionFallbackTest {
     }
 
     @Test
+    fun aPlaceWrittenAsAnIntentStaysAPlaceToSearch() {
+        val typed = "x#Intent;component=org.example.evil/.Steal;S.token=1;end"
+        val fallback = (NaturalLanguageIntentParser.parse("directions to $typed") as ParsedIntent.Navigation).fallbackIntent!!
+        assertEquals(Intent.ACTION_VIEW, fallback.action)
+        assertNull(fallback.component)
+        assertNull(fallback.extras)
+        assertNull(fallback.selector)
+        assertEquals("geo", fallback.data?.scheme)
+        assertEquals("geo:0,0?q=" + android.net.Uri.encode(typed), fallback.dataString)
+    }
+
+    @Test
     fun aWhatsAppMessageWithoutWhatsAppIsSentAsAText() {
         val message = NaturalLanguageIntentParser.parse("message Dave on whatsapp saying hi") as ParsedIntent.DirectMessage
         assertEquals("com.whatsapp", message.intent.`package`)

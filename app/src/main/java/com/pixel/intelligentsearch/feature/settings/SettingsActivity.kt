@@ -63,15 +63,8 @@ class SettingsActivity : AppCompatActivity() {
             )
         }
         
-        var appWidgetId = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
-        intent.extras?.let { extras ->
-            appWidgetId = extras.getInt(
-                android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID,
-                android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
-            )
-        }
-        val isWidgetConfigure = intent.action == android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE ||
-                appWidgetId != android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
+        val isWidgetConfigure = intent.action == android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE
+        val appWidgetId = configuredWidgetId(intent)
         // A countdown widget is set up on its own screen, which answers the launcher in this activity's place.
         if (isWidgetConfigure && com.pixel.intelligentsearch.feature.widget.CountdownConfigActivity.isCountdownWidget(this, appWidgetId)) {
             startActivity(com.pixel.intelligentsearch.feature.widget.CountdownConfigActivity.setupIntent(this, appWidgetId))
@@ -176,6 +169,19 @@ class SettingsActivity : AppCompatActivity() {
                 com.pixel.intelligentsearch.R.anim.slide_in_left,
                 com.pixel.intelligentsearch.R.anim.slide_out_right
             )
+        }
+    }
+
+    companion object {
+        /**
+         * The widget [intent] asks to set up, or [android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID]. This
+         * activity is exported, so a widget id counts only on the launcher's configure action: any app could otherwise
+         * send one to reach a widget's setup and have this activity answer it as configured.
+         */
+        internal fun configuredWidgetId(intent: Intent?): Int {
+            val invalid = android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID
+            if (intent?.action != android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE) return invalid
+            return intent.getIntExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, invalid)
         }
     }
 }

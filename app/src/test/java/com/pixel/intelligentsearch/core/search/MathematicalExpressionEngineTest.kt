@@ -196,6 +196,101 @@ class MathematicalExpressionEngineTest {
         assertNull(MathematicalExpressionEngine.evaluate("1 << 64"))
     }
 
+    private fun converted(query: String): MathematicalExpressionEngine.MathEvaluationResult.UnitConversion? =
+        MathematicalExpressionEngine.evaluate(query) as? MathematicalExpressionEngine.MathEvaluationResult.UnitConversion
+
+    private fun <T> inLocale(locale: java.util.Locale, block: () -> T): T {
+        val saved = java.util.Locale.getDefault()
+        java.util.Locale.setDefault(locale)
+        try {
+            return block()
+        } finally {
+            java.util.Locale.setDefault(saved)
+        }
+    }
+
+    @Test
+    fun percentagesAreHundredthsAndAddOrTakeOfTheLeft() {
+        // "%" was only modulo: "50%" had no answer and "80 + 15%" was 95.
+        assertEquals("0.5", computed("50%"))
+        assertEquals("12", computed("15% of 80"))
+        assertEquals("92", computed("80 + 15%"))
+        assertEquals("68", computed("80 - 15%"))
+        assertEquals("47.992", computed("20% off 59.99"))
+        assertEquals("30", computed("200 * 15%"))
+        // Between two numbers it is still modulo.
+        assertEquals("1", computed("10 % 3"))
+        assertEquals("1", computed("10%3"))
+    }
+
+    @Test
+    fun aDotGroupsThousandsWhereTheCommaIsTheDecimalPoint() {
+        inLocale(java.util.Locale.GERMANY) {
+            // "1.000" was read as 1.0, so "1.000 + 1" gave 2.
+            assertEquals("1001", computed("1.000 + 1"))
+            assertEquals("1234567.5", computed("1.234.567,5 * 1"))
+            assertEquals("2.5", computed("1,5 + 1"))
+            assertEquals("2.5", computed("1.5 + 1"))
+            assertEquals("0.25", computed("0.125 * 2"))
+            assertEquals(1500.0, converted("1,5 km in m")!!.toValue, 1e-9)
+            assertEquals(1_000_000.0, converted("1.000 km in m")!!.toValue, 1e-9)
+        }
+        inLocale(java.util.Locale.US) {
+            assertEquals("2.5", computed("1.5 + 1"))
+            assertEquals("1001", computed("1,000 + 1"))
+            assertEquals(1500.0, converted("1.5 km in m")!!.toValue, 1e-9)
+            assertEquals(1_000_000.0, converted("1,000 km in m")!!.toValue, 1e-9)
+        }
+    }
+
+    @Test
+    fun andOrWordsAreBitwiseOnlyBesidePrefixedNumbers() {
+        // "10 or 12" showed 14 and "1 and 2" showed 0.
+        assertNull(MathematicalExpressionEngine.evaluate("10 or 12"))
+        assertNull(MathematicalExpressionEngine.evaluate("1 and 2"))
+        val and = MathematicalExpressionEngine.evaluate("0xFF and 15") as MathematicalExpressionEngine.MathEvaluationResult.Bitwise
+        assertEquals(15L, and.decimalValue)
+        val or = MathematicalExpressionEngine.evaluate("10 | 12") as MathematicalExpressionEngine.MathEvaluationResult.Bitwise
+        assertEquals(14L, or.decimalValue)
+        val ampersand = MathematicalExpressionEngine.evaluate("12 & 10") as MathematicalExpressionEngine.MathEvaluationResult.Bitwise
+        assertEquals(8L, ampersand.decimalValue)
+    }
+
+    @Test
+    fun aTonIsTheShortTonInTheUsAndATonneElsewhere() {
+        inLocale(java.util.Locale.US) {
+            assertEquals(2000.0, converted("1 ton in lbs")!!.toValue, 1e-6)
+            assertEquals(2204.6226, converted("1 tonne in lbs")!!.toValue, 1e-3)
+            assertEquals(1000.0, converted("1 metric ton in kg")!!.toValue, 1e-9)
+        }
+        inLocale(java.util.Locale.UK) {
+            assertEquals(2204.6226, converted("1 ton in lbs")!!.toValue, 1e-3)
+            assertEquals(2000.0, converted("1 short ton in lbs")!!.toValue, 1e-6)
+        }
+    }
+
+    @Test
+    fun fluidOuncesSquareUnitsAndKitchenMeasures() {
+        val floz = converted("8 fl oz to ml")!!
+        assertEquals(236.588, floz.toValue, 1e-3)
+        assertEquals("8 fl oz = 236.588 ml", floz.formatted)
+        // An ounce converted to a volume can only be a fluid ounce.
+        assertEquals(236.588, converted("8 oz to ml")!!.toValue, 1e-3)
+        assertEquals(0.236588, converted("8 oz to l")!!.toValue, 1e-6)
+        assertEquals(226.796, converted("8 oz to g")!!.toValue, 1e-3)
+        assertEquals(9.2903, converted("100 sq ft in sq m")!!.toValue, 1e-3)
+        assertEquals(3.0, converted("1 tbsp to tsp")!!.toValue, 1e-3)
+        assertEquals(16.0, converted("1 cup to tbsp")!!.toValue, 1e-2)
+    }
+
+    @Test
+    fun pressureAndEnergyConvert() {
+        assertEquals(14.5038, converted("1 bar to psi")!!.toValue, 1e-3)
+        assertEquals(100.0, converted("1 bar to kpa")!!.toValue, 1e-9)
+        assertEquals(4.184, converted("1 kcal to kj")!!.toValue, 1e-9)
+        assertEquals(3600.0, converted("1 kwh to kj")!!.toValue, 1e-9)
+    }
+
     @Test
     fun megabitsAndMegabytesAreDistinguished() {
         val bits = MathematicalExpressionEngine.evaluate("100 Mb to MB") as MathematicalExpressionEngine.MathEvaluationResult.UnitConversion

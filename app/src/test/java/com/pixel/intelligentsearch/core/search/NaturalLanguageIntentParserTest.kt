@@ -190,6 +190,66 @@ class NaturalLanguageIntentParserTest {
         assertEquals(13, dayOf(earlyFriday.startMillis))
     }
 
+    private fun minuteOf(millis: Long) = Calendar.getInstance().apply { timeInMillis = millis }.get(Calendar.MINUTE)
+
+    @Test
+    fun timerReadsDecimalAmountsAsTheirFractionOfTheUnit() {
+        // The decimal point used to split the amount: "1.5 hours" was a 5 hour timer, "2.5 min" a 5 minute one.
+        val hourAndHalf = NaturalLanguageIntentParser.parse("timer 1.5 hours") as NaturalLanguageIntentParser.ParsedIntent.Timer
+        assertEquals(5_400, hourAndHalf.durationSeconds)
+        assertEquals("Timer 1 hr 30 min", hourAndHalf.label)
+        val twoAndHalf = NaturalLanguageIntentParser.parse("timer 2.5 min") as NaturalLanguageIntentParser.ParsedIntent.Timer
+        assertEquals(150, twoAndHalf.durationSeconds)
+        val comma = NaturalLanguageIntentParser.parse("set a timer for 1,5 h") as NaturalLanguageIntentParser.ParsedIntent.Timer
+        assertEquals(5_400, comma.durationSeconds)
+    }
+
+    @Test
+    fun relativeTimesInDaysAndDecimalsAreThatFarAhead() {
+        // Days weren't read at all, so "in 2 days" made a reminder for now.
+        val rent = NaturalLanguageIntentParser.parse("remind me to pay rent in 2 days", currentTimeMs = at(12)) as NaturalLanguageIntentParser.ParsedIntent.Reminder
+        assertEquals("pay rent", rent.task)
+        assertEquals(12, dayOf(rent.triggerMillis))
+        assertEquals(12, hourOf(rent.triggerMillis))
+
+        val stretch = NaturalLanguageIntentParser.parse("remind me to stretch in 1.5 hours", currentTimeMs = at(12)) as NaturalLanguageIntentParser.ParsedIntent.Reminder
+        assertEquals(13, hourOf(stretch.triggerMillis))
+        assertEquals(30, minuteOf(stretch.triggerMillis))
+
+        val hour = NaturalLanguageIntentParser.parse("remind me to call mom in an hour", currentTimeMs = at(12)) as NaturalLanguageIntentParser.ParsedIntent.Reminder
+        assertEquals("call mom", hour.task)
+        assertEquals(13, hourOf(hour.triggerMillis))
+
+        // "in 5 minutes" matched as "in 5 min" and left "utes" in the task.
+        val minutes = NaturalLanguageIntentParser.parse("remind me to call mom in 5 minutes", currentTimeMs = at(12)) as NaturalLanguageIntentParser.ParsedIntent.Reminder
+        assertEquals("call mom", minutes.task)
+        assertEquals(5, minuteOf(minutes.triggerMillis))
+    }
+
+    @Test
+    fun aTimeFromNowThatCantBeReadIsNeverNow() {
+        assertNull(NaturalLanguageIntentParser.parse("remind me to call mom in two hours", currentTimeMs = at(12)))
+        assertNull(NaturalLanguageIntentParser.parse("meeting with Sam in 3 months", currentTimeMs = at(12)))
+        // "alarm in 5 seconds" was a 5 o'clock alarm; an alarm days ahead can't be set as an hour and minute.
+        assertNull(NaturalLanguageIntentParser.parse("alarm in 5 seconds", currentTimeMs = at(12)))
+        assertNull(NaturalLanguageIntentParser.parse("alarm in 2 days", currentTimeMs = at(12)))
+        val soon = NaturalLanguageIntentParser.parse("alarm in 1.5 hours", currentTimeMs = at(12)) as NaturalLanguageIntentParser.ParsedIntent.Alarm
+        assertEquals(13, soon.hour)
+        assertEquals(30, soon.minute)
+    }
+
+    @Test
+    fun aDotSeparatesHoursFromMinutes() {
+        val alarm = NaturalLanguageIntentParser.parse("alarm 6.30") as NaturalLanguageIntentParser.ParsedIntent.Alarm
+        assertEquals(6, alarm.hour)
+        assertEquals(30, alarm.minute)
+
+        val meeting = NaturalLanguageIntentParser.parse("meeting with Sam at 6.30pm", currentTimeMs = at(10)) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        assertEquals(18, hourOf(meeting.startMillis))
+        assertEquals(30, minuteOf(meeting.startMillis))
+        assertEquals("with Sam", meeting.title)
+    }
+
     @Test
     fun messagesAcceptColonAndCommaRightAfterTheName() {
         val colon = NaturalLanguageIntentParser.parse("text Sarah: running late") as NaturalLanguageIntentParser.ParsedIntent.DirectMessage

@@ -62,7 +62,12 @@ object MathematicalExpressionEngine {
     private val REGEX_BASE_CONVERSION = Regex("^([0-9a-fA-FxXbBoO]+)\\s+(?:to|in)\\s+(hex|dec|bin|oct)$", RegexOption.IGNORE_CASE)
     private val REGEX_BITWISE = Regex("^([0-9a-fA-FxXbB]+)\\s+(AND|OR|XOR|SHL|SHR|USHR|<<|>>|>>>|&|\\|)\\s+([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
     private val REGEX_BITWISE_NOT = Regex("^(?:NOT|~)\\s*([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
-    private val REGEX_UNIT_CONVERSION = Regex("^([-+]?[0-9.]+(?:[eE][-+]?[0-9]+)?)\\s*([a-zA-Z/_°]+)\\s*(?:to|in)\\s*([a-zA-Z/_°]+)$", RegexOption.IGNORE_CASE)
+    private val REGEX_UNIT_CONVERSION = Regex("^([-+]?[0-9.,]+(?:[eE][-+]?[0-9]+)?)\\s*([a-zA-Z/_°]+)\\s*(?:to|in)\\s*([a-zA-Z/_°]+)$", RegexOption.IGNORE_CASE)
+    // Units written in two words, joined into their table names: "fl oz", "sq ft", "metric ton".
+    private val REGEX_FLUID_OUNCE = Regex("\\b(?:fl\\.?\\s*oz|fluid\\s+ounces?)\\b", RegexOption.IGNORE_CASE)
+    private val REGEX_SQUARE_UNIT = Regex("\\bsq\\.?\\s+(km|mi|ft|m)\\b", RegexOption.IGNORE_CASE)
+    private val REGEX_METRIC_TON = Regex("\\bmetric\\s+tons?\\b", RegexOption.IGNORE_CASE)
+    private val REGEX_SHORT_OR_LONG_TON = Regex("\\b(short|long)\\s+tons?\\b", RegexOption.IGNORE_CASE)
     /** Two currency codes with no amount, "usd to inr", which asks what one unit is worth. */
     private val REGEX_BARE_CURRENCY_CONVERSION = Regex("^([a-zA-Z]{3})\\s+(?:to|in)\\s+([a-zA-Z]{3})$")
     private val REGEX_SCIENTIFIC_NUMBER = Regex("^[+-]?[0-9]+(?:\\.[0-9]+)?[eE][+-]?[0-9]+$")
@@ -84,7 +89,12 @@ object MathematicalExpressionEngine {
     )
     // Thousands separators ("1,000") between digits, removed only from purely numeric expressions.
     private val REGEX_THOUSANDS_SEPARATOR = Regex("(?<=\\d),(?=\\d{3}(?!\\d))")
-    private val REGEX_CURRENCY_PREFIX = Regex("([$€£¥₹])\\s*([0-9.]+)")
+    // Where the decimal point is ",", "." groups thousands: "1.000" and "12.345.678", never "0.125" or "1.5".
+    private val REGEX_DOT_GROUPED_NUMBER = Regex("(?<![\\d.,])[1-9]\\d{0,2}(?:\\.\\d{3})+(?![\\d.])")
+    // "15% of 80" is 15% times 80; "20% off 59.99" is 59.99 less 20%.
+    private val REGEX_PERCENT_OF = Regex("%\\s*of\\s+", RegexOption.IGNORE_CASE)
+    private val REGEX_PERCENT_OFF = Regex("^(.+?)%\\s*off\\s+(.+)$", RegexOption.IGNORE_CASE)
+    private val REGEX_CURRENCY_PREFIX = Regex("([$€£¥₹])\\s*([0-9.,]+)")
     private val REGEX_WHITESPACE = Regex("\\s+")
     private val REGEX_FUNC_NO_PAREN = Regex("^(sqrt|cbrt|sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|ln|log|log10|log2|abs|round|floor|ceil|rad|deg)\\s+([+-]?[0-9.]+(?:[eE][-+]?[0-9]+)?)$", RegexOption.IGNORE_CASE)
 
@@ -102,18 +112,13 @@ object MathematicalExpressionEngine {
             .replace("÷", "/")
             .replace(REGEX_MULTIPLICATION_X, "*")
             .replace("π", "pi")
+            .replace(REGEX_PERCENT_OFF, "($2)-($1)%")
+            .replace(REGEX_PERCENT_OF, "%*")
 
         if (REGEX_SPACE_SEPARATED_NUMBERS.containsMatchIn(withNormalizedOperators)) return null
 
         val compact = withNormalizedOperators.replace(" ", "")
-        // A comma is a thousands separator where the decimal point is "." ("1,000") and the decimal point where it
-        // is "," ("1,25"), as the user's locale writes numbers.
-        val commaIsDecimal = java.text.DecimalFormatSymbols.getInstance().decimalSeparator == ','
-        val expr = when {
-            compact.any { it.isLetter() } -> compact
-            commaIsDecimal -> compact.replace(',', '.')
-            else -> compact.replace(REGEX_THOUSANDS_SEPARATOR, "")
-        }
+        val expr = if (compact.any { it.isLetter() }) compact else localNumbers(compact)
 
         if (!isLikelyMathExpression(expr)) return null
 
@@ -132,6 +137,17 @@ object MathematicalExpressionEngine {
             null
         }
     }
+
+    /**
+     * [text]'s numbers with "." as the decimal point and no separators. A comma is a thousands separator where the
+     * decimal point is "." ("1,000") and the decimal point where it is "," ("1,25"), where "1.000" is a thousand.
+     */
+    private fun localNumbers(text: String): String =
+        if (java.text.DecimalFormatSymbols.getInstance().decimalSeparator == ',') {
+            text.replace(REGEX_DOT_GROUPED_NUMBER) { it.value.replace(".", "") }.replace(',', '.')
+        } else {
+            text.replace(REGEX_THOUSANDS_SEPARATOR, "")
+        }
 
     private fun isLikelyMathExpression(expr: String): Boolean {
         if (expr.isEmpty()) return false
@@ -153,6 +169,9 @@ object MathematicalExpressionEngine {
         private var pos = -1
         private var ch = 0
         private var depth = 0
+        /** Whether the factor or term just parsed was a bare percentage ("15%"), which "+" and "-" take of the left. */
+        private var factorIsPercent = false
+        private var termIsPercent = false
 
         private fun nextChar() {
             ch = if (++pos < str.length) str[pos].code else -1
@@ -174,15 +193,15 @@ object MathematicalExpressionEngine {
             return x
         }
 
-        // Expression = Term (+ or - Term)*
+        // Expression = Term (+ or - Term)*. Adding or taking a percentage is of what is on its left: 80 + 15% = 92.
         private fun parseExpression(): Double {
             if (++depth > 40) throw IllegalArgumentException("Expression recursion limit exceeded")
             try {
                 var x = parseTerm()
                 while (true) {
                     when {
-                        eat('+'.code) -> x += parseTerm()
-                        eat('-'.code) -> x -= parseTerm()
+                        eat('+'.code) -> { val t = parseTerm(); x += if (termIsPercent) x * t else t }
+                        eat('-'.code) -> { val t = parseTerm(); x -= if (termIsPercent) x * t else t }
                         else -> return x
                     }
                 }
@@ -191,9 +210,10 @@ object MathematicalExpressionEngine {
             }
         }
 
-        // Term = Factor (*, /, % Factor)*
+        // Term = Factor (*, /, % Factor)*. "%" between two numbers is modulo ("10 % 3" = 1).
         private fun parseTerm(): Double {
             var x = parseFactor()
+            var percent = factorIsPercent
             while (true) {
                 when {
                     eat('*'.code) -> x *= parseFactor()
@@ -207,9 +227,21 @@ object MathematicalExpressionEngine {
                         if (mod == 0.0 || mod == -0.0) throw ArithmeticException("Modulo by zero")
                         x %= mod
                     }
-                    else -> return x
+                    else -> {
+                        termIsPercent = percent
+                        return x
+                    }
                 }
+                percent = false
             }
+        }
+
+        /** Whether the "%" at [pos] ends its number ("50%", "15%*80", "(80+15%)") rather than starting a modulo. */
+        private fun isPercentSign(): Boolean {
+            if (ch != '%'.code) return false
+            var next = pos + 1
+            while (next < str.length && str[next] == ' ') next++
+            return next >= str.length || str[next] in ")+-*/^"
         }
 
         // Factor = Unary (+, -)* Primary (!)* (^ Factor)?
@@ -303,11 +335,21 @@ object MathematicalExpressionEngine {
                     x = fact.toDouble()
                 }
 
+                // A percentage: "50%" is 0.5.
+                var percent = false
+                if (isPercentSign()) {
+                    nextChar()
+                    x /= 100.0
+                    percent = true
+                }
+
                 // Exponentiation
                 if (eat('^'.code)) {
                     x = x.pow(parseFactor())
+                    percent = false
                 }
 
+                factorIsPercent = percent
                 return sign * x
             } finally {
                 depth--
@@ -363,8 +405,10 @@ object MathematicalExpressionEngine {
 
         val match = REGEX_BITWISE.find(query.trim()) ?: return null
 
+        val op = match.groupValues[2].uppercase(Locale.ROOT)
+        // "10 or 12" and "1 and 2" are words, not bit operations; the words count only beside a 0x, 0b or 0o number.
+        if ((op == "AND" || op == "OR") && !hasRadixPrefix(match.groupValues[1]) && !hasRadixPrefix(match.groupValues[3])) return null
         val left = parseAnyRadix(match.groupValues[1]) ?: return null
-        val op = match.groupValues[2].uppercase()
         val right = parseAnyRadix(match.groupValues[3]) ?: return null
 
         val resultVal = when (op) {
@@ -386,6 +430,9 @@ object MathematicalExpressionEngine {
             binaryValue = "0b" + java.lang.Long.toBinaryString(resultVal)
         )
     }
+
+    private fun hasRadixPrefix(str: String): Boolean =
+        str.length > 2 && str[0] == '0' && str[1].lowercaseChar() in "xbo"
 
     private fun parseAnyRadix(str: String): Long? {
         val trimmed = str.trim()
@@ -428,9 +475,14 @@ object MathematicalExpressionEngine {
         "mg" to 1e-6, "milligram" to 1e-6,
         "lb" to 0.45359237, "lbs" to 0.45359237, "pound" to 0.45359237, "pounds" to 0.45359237,
         "oz" to 0.028349523, "ounce" to 0.028349523, "ounces" to 0.028349523,
-        "ton" to 1000.0, "tons" to 1000.0, "t" to 1000.0,
+        "tonne" to 1000.0, "tonnes" to 1000.0, "t" to 1000.0,
+        "short_ton" to 907.18474, "long_ton" to 1016.0469088,
         "st" to 6.35029, "stone" to 6.35029
     )
+
+    // A "ton" is the 2,000 lb short ton in the US and the metric tonne elsewhere.
+    private val massUnitsMetricTon = massUnits + mapOf("ton" to 1000.0, "tons" to 1000.0)
+    private val massUnitsShortTon = massUnits + mapOf("ton" to 907.18474, "tons" to 907.18474)
 
     private val speedUnits = mapOf(
         "m/s" to 1.0, "mps" to 1.0,
@@ -462,7 +514,30 @@ object MathematicalExpressionEngine {
         "pt" to 0.473176, "pint" to 0.473176, "pints" to 0.473176,
         "cup" to 0.236588, "cups" to 0.236588,
         "fl_oz" to 0.0295735, "floz" to 0.0295735,
+        "tbsp" to 0.0147868, "tablespoon" to 0.0147868, "tablespoons" to 0.0147868,
+        "tsp" to 0.00492892, "teaspoon" to 0.00492892, "teaspoons" to 0.00492892,
         "m3" to 1000.0
+    )
+
+    /** Ounces, which mean fluid ounces when converted to or from a volume ("8 oz to ml"). */
+    private val ounceUnits = setOf("oz", "ounce", "ounces")
+
+    private val pressureUnits = mapOf(
+        "pa" to 1.0, "pascal" to 1.0, "pascals" to 1.0,
+        "hpa" to 100.0, "kpa" to 1000.0, "mpa" to 1e6,
+        "bar" to 1e5, "bars" to 1e5, "mbar" to 100.0,
+        "psi" to 6894.757293168,
+        "atm" to 101325.0,
+        "mmhg" to 133.322387415, "inhg" to 3386.389
+    )
+
+    private val energyUnits = mapOf(
+        "j" to 1.0, "joule" to 1.0, "joules" to 1.0,
+        "kj" to 1000.0, "kilojoule" to 1000.0, "kilojoules" to 1000.0,
+        "cal" to 4.184, "calorie" to 4.184, "calories" to 4.184,
+        "kcal" to 4184.0, "kilocalorie" to 4184.0, "kilocalories" to 4184.0,
+        "wh" to 3600.0, "kwh" to 3.6e6,
+        "btu" to 1055.05585
     )
 
     private val areaUnits = mapOf(
@@ -508,6 +583,10 @@ object MathematicalExpressionEngine {
             .replace("¥", " jpy ")
             .replace("₹", " inr ")
             .replace(REGEX_WHITESPACE, " ")
+            .replace(REGEX_FLUID_OUNCE, "fl_oz")
+            .replace(REGEX_SQUARE_UNIT, "sq_$1")
+            .replace(REGEX_METRIC_TON, "tonne")
+            .replace(REGEX_SHORT_OR_LONG_TON, "$1_ton")
             .trim()
 
         val match = REGEX_UNIT_CONVERSION.find(normalizedQuery)
@@ -516,12 +595,14 @@ object MathematicalExpressionEngine {
                 convertCurrency(1.0, from.lowercase(Locale.ROOT), to.lowercase(Locale.ROOT), currencyRates)
             }
 
-        val value = match.groupValues[1].toDoubleOrNull() ?: return null
+        val value = localNumbers(match.groupValues[1]).toDoubleOrNull() ?: return null
         if (!value.isFinite()) return null
         val fromRaw = match.groupValues[2]
         val toRaw = match.groupValues[3]
-        val fromUnit = canonicalUnit(fromRaw)
-        val toUnit = canonicalUnit(toRaw)
+        var fromUnit = canonicalUnit(fromRaw)
+        var toUnit = canonicalUnit(toRaw)
+        if (fromUnit in ounceUnits && toUnit in volumeUnits) fromUnit = "fl_oz"
+        if (toUnit in ounceUnits && fromUnit in volumeUnits) toUnit = "fl_oz"
 
         // 1. Temperature Check
         if (isTemperature(fromUnit) && isTemperature(toUnit)) {
@@ -537,18 +618,22 @@ object MathematicalExpressionEngine {
         }
 
         // 2. Standard Unit Tables
-        val unitTables = listOf(lengthUnits, massUnits, speedUnits, digitalUnits, volumeUnits, areaUnits, timeUnits)
+        val massTable = if (Locale.getDefault().country == "US") massUnitsShortTon else massUnitsMetricTon
+        val unitTables = listOf(lengthUnits, massTable, speedUnits, digitalUnits, volumeUnits, areaUnits, timeUnits, pressureUnits, energyUnits)
         for (table in unitTables) {
             if (table.containsKey(fromUnit) && table.containsKey(toUnit)) {
                 val base = value * table[fromUnit]!!
                 val result = base / table[toUnit]!!
                 if (!result.isFinite()) return null
+                // Joined names read as written: "fl oz", "sq ft".
+                val fromLabel = fromUnit.replace('_', ' ')
+                val toLabel = toUnit.replace('_', ' ')
                 return MathEvaluationResult.UnitConversion(
                     fromValue = value,
-                    fromUnit = fromUnit,
+                    fromUnit = fromLabel,
                     toValue = result,
-                    toUnit = toUnit,
-                    formatted = "${formatNumber(value)} $fromUnit = ${formatNumber(result)} $toUnit"
+                    toUnit = toLabel,
+                    formatted = "${formatNumber(value)} $fromLabel = ${formatNumber(result)} $toLabel"
                 )
             }
         }

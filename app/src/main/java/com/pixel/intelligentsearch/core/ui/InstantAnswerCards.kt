@@ -46,15 +46,12 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -196,39 +193,39 @@ private const val WHOLE_WORD_MIN_SCALE = 0.6f
 /**
  * [text] in [style] wrapping only between words ([wholeWords]); a single word too wide for its room even on a line
  * of its own ("Definitions" in a chip at the largest text size on a narrow phone) shrinks the text step by step
- * until it fits, rather than splitting mid-word. Measured from its own layout, so it works wherever [Text] does.
+ * until it fits, rather than splitting mid-word. The size is chosen while measuring, for the room actually given
+ * ([WholeWordAutoSize]), so it follows every width it's laid out at (a rotation, a resized window).
  */
 @Composable
 internal fun WholeWordText(text: String, style: TextStyle, modifier: Modifier = Modifier) {
-    var scale by remember(text, style) { mutableFloatStateOf(1f) }
-    var settled by remember(text, style) { mutableStateOf(false) }
-    // The width the current scale was found for: more room (a rotation, a wider split-screen window) starts over
-    // from full size, so a label never stays shrunk where it would now fit.
-    var fittedWidth by remember(text, style) { mutableIntStateOf(-1) }
     val base = style.wholeWords()
-    val scaled = if (scale == 1f) base else base.copy(
-        fontSize = base.fontSize * scale,
-        lineHeight = if (base.lineHeight.isSpecified) base.lineHeight * scale else base.lineHeight
-    )
     Text(
         text = text,
-        style = scaled,
-        // Drawn once the size is settled, so a shrinking label never shows its broken first try.
-        modifier = modifier.drawWithContent { if (settled) drawContent() },
-        onTextLayout = { layout ->
-            val width = layout.layoutInput.constraints.maxWidth
-            if (scale < 1f && width > fittedWidth) {
-                fittedWidth = width
-                scale = 1f
-                settled = false
-            } else if (splitsAWord(text, layout) && scale > WHOLE_WORD_MIN_SCALE) {
-                fittedWidth = width
-                scale = (scale * 0.9f).coerceAtLeast(WHOLE_WORD_MIN_SCALE)
-            } else {
-                settled = true
-            }
-        }
+        style = base,
+        modifier = modifier,
+        autoSize = if (base.fontSize.isSpecified) remember(base.fontSize) { WholeWordAutoSize(base.fontSize) } else null
     )
+}
+
+/**
+ * [full] size, or 10% steps smaller (down to [WHOLE_WORD_MIN_SCALE] of it) until no line breaks inside a word.
+ */
+private class WholeWordAutoSize(private val full: androidx.compose.ui.unit.TextUnit) : androidx.compose.foundation.text.TextAutoSize {
+    override fun androidx.compose.foundation.text.modifiers.TextAutoSizeLayoutScope.getFontSize(
+        constraints: Constraints,
+        text: androidx.compose.ui.text.AnnotatedString
+    ): androidx.compose.ui.unit.TextUnit {
+        var scale = 1f
+        while (scale > WHOLE_WORD_MIN_SCALE) {
+            if (!splitsAWord(text.text, performLayout(constraints, text, full * scale))) return full * scale
+            scale = (scale * 0.9f).coerceAtLeast(WHOLE_WORD_MIN_SCALE)
+        }
+        return full * WHOLE_WORD_MIN_SCALE
+    }
+
+    override fun equals(other: Any?): Boolean = other is WholeWordAutoSize && other.full == full
+
+    override fun hashCode(): Int = full.hashCode()
 }
 
 /** Whether [layout] breaks a line inside a word of [text] rather than at a space. */

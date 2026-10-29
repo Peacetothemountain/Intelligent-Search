@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.core.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -40,26 +41,35 @@ class WholeWordTextTest {
         return results.single()
     }
 
+    /** How tall [layout]'s first line is: it follows the size the text was drawn at. */
+    private fun lineHeight(layout: TextLayoutResult) = layout.getLineBottom(0) - layout.getLineTop(0)
+
     @Test
     fun aWordTooWideForItsRoomShrinksInsteadOfSplitting() {
         compose.setContent {
-            Box(Modifier.width(110.dp)) { WholeWordText("More Definitions", TextStyle(fontSize = 32.sp)) }
+            Column {
+                Box(Modifier.width(110.dp)) { WholeWordText("More Definitions", TextStyle(fontSize = 32.sp)) }
+                Box(Modifier.width(600.dp)) { WholeWordText("Full Definitions", TextStyle(fontSize = 32.sp)) }
+            }
         }
         compose.waitForIdle()
-        val layout = layoutOf("More Definitions")
-        assertFalse("a word was split", splitsAWord("More Definitions", layout))
-        assertTrue("it shrank to fit", layout.layoutInput.style.fontSize.value < 32f)
+        val narrow = layoutOf("More Definitions")
+        assertFalse("a word was split", splitsAWord("More Definitions", narrow))
+        assertTrue("it shrank to fit", lineHeight(narrow) < lineHeight(layoutOf("Full Definitions")))
     }
 
     @Test
     fun wordsThatFitKeepTheirSizeAndWrapBetweenWords() {
         compose.setContent {
-            Box(Modifier.width(160.dp)) { WholeWordText("Open Digital Wellbeing", TextStyle(fontSize = 16.sp)) }
+            Column {
+                Box(Modifier.width(160.dp)) { WholeWordText("Open Digital Wellbeing", TextStyle(fontSize = 16.sp)) }
+                Box(Modifier.width(600.dp)) { WholeWordText("Open Wellbeing", TextStyle(fontSize = 16.sp)) }
+            }
         }
         compose.waitForIdle()
-        val layout = layoutOf("Open Digital Wellbeing")
-        assertEquals(16f, layout.layoutInput.style.fontSize.value, 0.01f)
-        assertFalse(splitsAWord("Open Digital Wellbeing", layout))
+        val wrapped = layoutOf("Open Digital Wellbeing")
+        assertFalse(splitsAWord("Open Digital Wellbeing", wrapped))
+        assertEquals(lineHeight(layoutOf("Open Wellbeing")), lineHeight(wrapped), 0.5f)
     }
 
     @Test
@@ -69,11 +79,11 @@ class WholeWordTextTest {
             Box(Modifier.width(width)) { WholeWordText("More Definitions", TextStyle(fontSize = 32.sp)) }
         }
         compose.waitForIdle()
-        assertTrue(layoutOf("More Definitions").layoutInput.style.fontSize.value < 32f)
+        val shrunk = lineHeight(layoutOf("More Definitions"))
 
         // A rotation or a wider split-screen window.
         width = 600.dp
         compose.waitForIdle()
-        assertEquals(32f, layoutOf("More Definitions").layoutInput.style.fontSize.value, 0.01f)
+        assertTrue("it grew back", lineHeight(layoutOf("More Definitions")) > shrunk)
     }
 }

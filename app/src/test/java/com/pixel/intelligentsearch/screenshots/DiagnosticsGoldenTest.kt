@@ -164,8 +164,8 @@ class DiagnosticsGoldenTest(
             arrayOf("security", true, 1f, DIALOG_WIDTH, 740),
             arrayOf("security", false, 2f, DIALOG_WIDTH, 1880),
             arrayOf("security", false, 1f, 240, 960),
-            arrayOf("note", false, 1f, DIALOG_WIDTH, 1240),
-            arrayOf("note", true, 1f, DIALOG_WIDTH, 1240)
+            arrayOf("note", false, 1f, DIALOG_WIDTH, 900),
+            arrayOf("note", true, 1f, DIALOG_WIDTH, 900)
         )
     }
 }

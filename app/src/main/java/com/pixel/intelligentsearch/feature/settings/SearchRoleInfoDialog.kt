@@ -231,7 +231,7 @@ internal fun DeveloperNotePage(context: Context) {
     ) {
         DiagnosticsCard(icon = Icons.Outlined.TravelExplore, title = "Default Search Engine", accent = scheme.primary) {
             Text(
-                text = "On Android 17 QPR2 and newer, the Android \"Search engine app\" setting decides which app powers your home screen search bar. Its picker only lists apps on your device's search engine list, so Intelligent Search has to be added to that list once (see Manual ADB Activation below) before it can be selected.",
+                text = "On Android 17 QPR2 and newer, the Android \"Search engine app\" setting decides which app powers your home screen search bar. Its picker only lists apps on your device's search engine list, so Intelligent Search has to be added to that list once (see Search Engine List below) before it can be selected.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = scheme.onSurfaceVariant
             )
@@ -283,93 +283,79 @@ internal fun DeveloperNotePage(context: Context) {
             }
         } else {
             val isListed = remember { com.pixel.intelligentsearch.core.system.SearchRoleManager.isListedAsSearchEngine(context) }
-            DiagnosticsCard(icon = Icons.Outlined.CheckCircle, title = "Search Engine List", accent = scheme.primary) {
+            DiagnosticsCard(
+                icon = Icons.Outlined.CheckCircle,
+                title = "Search Engine List",
+                accent = scheme.primary,
+                trailing = {
+                    IconButton(
+                        onClick = {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                            clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS))
+                            Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.ContentCopy,
+                            contentDescription = "Copy ADB Commands",
+                            tint = scheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+            ) {
                 Text(
-                    text = if (isListed) {
-                        "Intelligent Search is on this device's search engine list. Select it in Android settings to activate it on your home screen:"
-                    } else {
-                        "Intelligent Search isn't on this device's search engine list yet, so it won't appear in the Android picker. Run the Manual ADB Activation commands below once, then select it here:"
-                    },
+                    text = "The Intelligent Search widget is always there for you to use. To have Intelligent Search replace the Pixel Launcher's own search bar instead, turn on USB debugging, connect your phone to a computer with ADB and run these commands once (Android 17 QPR2 or newer):",
                     style = MaterialTheme.typography.bodyMedium,
                     color = scheme.onSurface
                 )
-                Button(
-                    onClick = {
-                        com.pixel.intelligentsearch.core.system.SearchRoleManager.syncAllSearchEngineSettings(context)
-                        com.pixel.intelligentsearch.core.system.SearchRoleManager.openDefaultSearchEngineSettings(context)
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
+                MatteShell(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    containerColor = scheme.surfaceContainerLowest,
+                    border = null
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.CheckCircle,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(if (isListed) "Set as Default Search Engine" else "Open Search Engine Settings")
+                    Column(
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        // The same commands the copy button copies, one per line.
+                        com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS.lines().forEach { command ->
+                            Text(
+                                command,
+                                style = MaterialTheme.typography.bodySmall,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                color = scheme.primary
+                            )
+                        }
+                    }
                 }
-            }
-        }
-
-        DiagnosticsCard(
-            icon = Icons.Outlined.Terminal,
-            title = "Manual ADB Activation",
-            accent = scheme.primary,
-            trailing = {
-                IconButton(
-                    onClick = {
-                        val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                        clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS))
-                        Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Outlined.ContentCopy,
-                        contentDescription = "Copy ADB Commands",
-                        tint = scheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-        ) {
-            Text(
-                text = "Adds Intelligent Search to this device's search engine list and selects it, so it appears in the Android \"Search engine app\" picker and powers the home screen search bar. Needs Android 17 QPR2 or newer, USB debugging and a computer with ADB; run once:",
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant
-            )
-            MatteShell(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                containerColor = scheme.surfaceContainerLowest,
-                border = null
-            ) {
-                Column(
-                    modifier = Modifier.padding(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    // The same commands the copy button copies, one per line.
-                    com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS.lines().forEach { command ->
-                        Text(
-                            command,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            color = scheme.primary
+                // Already listed (the commands were run before): picking it in Android's settings is all that's left.
+                if (isListed) {
+                    Button(
+                        onClick = {
+                            com.pixel.intelligentsearch.core.system.SearchRoleManager.syncAllSearchEngineSettings(context)
+                            com.pixel.intelligentsearch.core.system.SearchRoleManager.openDefaultSearchEngineSettings(context)
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Set as Default Search Engine")
                     }
                 }
             }
         }
 
-        DiagnosticsCard(icon = Icons.Outlined.Info, title = "Compatibility & Integration Notes", accent = scheme.primary) {
+        DiagnosticsCard(icon = Icons.Outlined.Info, title = "Compatibility Note", accent = scheme.primary) {
             Text(
-                text = "• Search engine list: Android treats the app named in Settings.Secure.user_setup_search_engine as a listed search engine, so Intelligent Search stays selectable until that setting is cleared (for example by a factory reset), after which the ADB step is needed again.",
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant
-            )
-            Text(
-                text = "• At a Glance: Configuring the default search engine on Android 17 QPR2 and newer will not affect At a Glance sports and finance integrations; however, configuring via ADB command will still bypass these integrations.",
+                text = "On Pixel phones, making Intelligent Search the Pixel Launcher's search bar removes the Sports and Finance cards from Google's At a Glance.",
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant
             )

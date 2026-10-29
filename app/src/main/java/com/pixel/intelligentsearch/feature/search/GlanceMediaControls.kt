@@ -130,7 +130,8 @@ internal fun GlanceMediaControls(media: GlanceMedia, modifier: Modifier = Modifi
                 modifier = Modifier.padding(horizontal = 10.dp)
             )
         }
-        TransportPill(media, Modifier.padding(top = 2.dp, bottom = 6.dp))
+        // 8dp clear of the seek bar's times above it; without a seek bar it sits close under the title row.
+        TransportPill(media, Modifier.padding(top = if (media.progress != null) 8.dp else 2.dp, bottom = 6.dp))
     }
 }
 

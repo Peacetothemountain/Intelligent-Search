@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.feature.search
 
 import android.Manifest
 import com.pixel.intelligentsearch.core.util.findActivity
+import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.edit
@@ -21,6 +22,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
@@ -171,11 +173,17 @@ internal fun Modifier.listeningGlow(active: Boolean, level: () -> Float, cornerR
     }
     // Nothing runs while the field is away: no clock, no drawing.
     if (!showing) return@composed this
-    // The clock behind the waves. Their speeds are whole multiples of this loop, so it repeats without a jump.
-    val clock = rememberInfiniteTransition(label = "listening-field").animateFloat(
-        initialValue = 0f, targetValue = LOOP_SECONDS,
-        animationSpec = infiniteRepeatable(tween((LOOP_SECONDS * 1000).toInt(), easing = LinearEasing)), label = "time",
-    )
+    // The clock behind the waves. Their speeds are whole multiples of this loop, so it repeats without a jump. With
+    // animations off it stays at the loop's start: the field rests still, rising only with the voice.
+    val loopsOn by rememberAnimationsEnabled()
+    val clock = if (loopsOn) {
+        rememberInfiniteTransition(label = "listening-field").animateFloat(
+            initialValue = 0f, targetValue = LOOP_SECONDS,
+            animationSpec = infiniteRepeatable(tween((LOOP_SECONDS * 1000).toInt(), easing = LinearEasing)), label = "time",
+        )
+    } else {
+        remember { mutableFloatStateOf(0f) }
+    }
     drawWithCache {
         val w = size.width
         val h = size.height

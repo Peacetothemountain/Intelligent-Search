@@ -94,9 +94,10 @@ internal fun OverlayWebSuggestionRow(
             .focusRing(pill, highlighted)
             .moreOptions(onLongClick)
             .expressiveRowClickable(onLongClick = onLongClick, onClick = onSearch)
-            // The leading slot sits as far in from the start as from the top and bottom of a two-line row, so a
-            // picture follows the pill's rounded end.
-            .padding(start = 10.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+            // The leading slot sits as far in from the start as from the top and bottom of a two-line row (6dp plus
+            // the 48dp buttons' 4dp around its 40dp), so a picture follows the pill's rounded end. The end's 4dp keeps
+            // the arrow where it sat with 40dp buttons.
+            .padding(start = 10.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         val icon = @Composable {
@@ -132,7 +133,7 @@ internal fun OverlayWebSuggestionRow(
             }
         }
         if (isRecent) {
-            IconButton(onClick = onRemove, modifier = Modifier.size(40.dp)) {
+            IconButton(onClick = onRemove) {
                 Icon(
                     imageVector = Icons.Default.Close,
                     // Named for its row: TalkBack reaches the button on its own, where "Remove" alone says nothing.
@@ -142,7 +143,7 @@ internal fun OverlayWebSuggestionRow(
                 )
             }
         }
-        IconButton(onClick = onFill, modifier = Modifier.size(40.dp)) {
+        IconButton(onClick = onFill) {
             Icon(
                 imageVector = Icons.Default.NorthWest,
                 contentDescription = "Edit search ${suggestion.query}",

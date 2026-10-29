@@ -77,7 +77,9 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
                     .keyboardHighlight(s, ResultListKeys.recent(recentQuery), pillShape)
                     .moreOptions(openMenu)
                     .bouncyClickable(onLongClick = openMenu) { launchWebSearch(recentQuery) }
-                    .padding(horizontal = 16.dp, vertical = 11.dp),
+                    // The buttons' 48dp touch areas set the height: 7dp above and below keeps the pill 62dp, and
+                    // the end's 12dp keeps the last icon where it sat.
+                    .padding(start = 16.dp, end = 12.dp, top = 7.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -97,11 +99,8 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                IconButton(
-                    onClick = { viewModel.removeSearchHistory(recentQuery) },
-                    // 40dp like the web suggestions' buttons, so the two side by side don't share their touch area.
-                    modifier = Modifier.size(40.dp)
-                ) {
+                // M3's own 48dp touch area each, side by side without sharing one, as the web suggestions' buttons.
+                IconButton(onClick = { viewModel.removeSearchHistory(recentQuery) }) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Remove $recentQuery from history",
@@ -117,8 +116,7 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
                             selection = androidx.compose.ui.text.TextRange(recentQuery.length)
                         )
                         viewModel.onQueryChanged(recentQuery)
-                    },
-                    modifier = Modifier.size(40.dp)
+                    }
                 ) {
                     Icon(
                         imageVector = Icons.Default.NorthWest,

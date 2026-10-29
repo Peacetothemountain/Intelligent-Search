@@ -128,23 +128,32 @@ internal fun OverlayDetailPane(s: OverlayScope, modifier: Modifier = Modifier) {
                 stop == null -> DetailEmpty()
                 // The answer's own card, across the whole pane.
                 stop.target is NavTarget.Answer -> when (stop.listKey) {
-                    // The list already shows the answer's card, so the pane adds what the card can't: the number
-                    // written the other ways (bases, grouping, fraction), each copied with a tap.
+                    // The list already shows the answer's card, so the pane shows only what the card can't: the
+                    // number written the other ways (bases, grouping, fraction), each copied with a tap. With no
+                    // other forms it falls back to the card so the pane isn't empty.
                     ResultListKeys.MATH -> {
                         val result = s.uiState.mathResult.orEmpty()
                         val forms = remember(result) { numberForms(result) }
-                        MathResultOneBox(
-                            expression = s.uiState.query,
-                            result = result,
-                            onOpenCalculator = { openNavTarget(context, s, stop.target) }
-                        )
-                        if (forms.isNotEmpty()) NumberFormsCard(forms)
+                        if (forms.isNotEmpty()) {
+                            NumberFormsCard(forms)
+                        } else {
+                            MathResultOneBox(
+                                expression = s.uiState.query,
+                                result = result,
+                                onOpenCalculator = { openNavTarget(context, s, stop.target) }
+                            )
+                        }
                     }
                     ResultListKeys.LIVE_ANSWER -> s.uiState.liveAnswer?.let { OverlayLiveAnswer(s, it) }
                     ResultListKeys.INSTANT_ANSWER -> s.uiState.instantAnswer?.let { OverlayInstantAnswer(s, it) }
                     ResultListKeys.AI_ANSWER -> s.uiState.aiAnswer?.let { answer ->
                         val aiModel by rememberSetting(SettingsManager.AI_MODEL)
-                        AiAnswerCard(answer, model = answer.provider.model(aiModel)) { openNavTarget(context, s, stop.target) }
+                        AiAnswerCard(
+                            answer,
+                            model = answer.provider.model(aiModel),
+                            onOpenSettings = { page -> s.onOpenSettings(page) },
+                            onRetry = { s.viewModel.askAi() }
+                        ) { openNavTarget(context, s, stop.target) }
                     }
                 }
                 // The highlighted item in the At a Glance card, the card across the pane as the answers are.

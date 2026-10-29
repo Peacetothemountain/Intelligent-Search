@@ -7,7 +7,6 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,8 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -45,6 +42,7 @@ import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,9 +52,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
@@ -67,7 +63,13 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.answers.DictionaryEntry
@@ -164,7 +166,9 @@ internal fun AnswerChip(label: String, icon: ImageVector, emphasized: Boolean = 
     AssistChip(
         onClick = onClick,
         // The padding keeps a label that wraps (large text, narrow screen) off the chip's edges; one line stays 32dp.
-        label = { Text(label, fontWeight = FontWeight.Medium, modifier = Modifier.padding(vertical = 6.dp)) },
+        label = {
+            Text(label, style = LocalTextStyle.current.wholeWords(), fontWeight = FontWeight.Medium, modifier = Modifier.padding(vertical = 6.dp))
+        },
         leadingIcon = { Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp)) },
         // The same pill as the other cards' chips at one line; a chip grown taller keeps rounded corners rather
         // than becoming a circle that cuts its label off.
@@ -177,6 +181,12 @@ internal fun AnswerChip(label: String, icon: ImageVector, emphasized: Boolean = 
         border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.35f))
     )
 }
+
+/**
+ * [this] breaking lines only between words, with no hyphen and no rebalancing, so a short label ("Open Digital
+ * Wellbeing", an app's name) doesn't come out as "Wellbe-ing" at large text sizes, where the theme hyphenates.
+ */
+internal fun TextStyle.wholeWords(): TextStyle = copy(hyphens = Hyphens.None, lineBreak = LineBreak.Simple)
 
 /** A row of chips that flows onto a second line on narrow screens and at large text sizes. */
 @Composable
@@ -352,26 +362,21 @@ fun WeatherOneBox(
         }
         if (report.hours.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
-            // Scrolls sideways when six hours don't fit (narrow screens, large text) rather than squeezing them.
-            // The cut edge fades out while there's more to scroll to, so the hours read as a row that continues
-            // rather than as text clipped mid-number.
-            val hoursScroll = rememberScrollState()
-            Row(
-                modifier = Modifier.fillMaxWidth().scrollFadeEdges(hoursScroll).horizontalScroll(hoursScroll),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            // Six hours in a row, each 56dp wide where there's room; when they don't fit even at their own width
+            // (large text) they wrap into even rows of three or two, so every hour shows whole rather than cut off at
+            // the card's edge.
+            EvenRows(modifier = Modifier.fillMaxWidth(), minSlot = 56.dp, rowGap = 8.dp) {
                 report.hours.forEach { hour ->
                     val time = hour.time.format(hourFormat)
                     Column(
                         modifier = Modifier
-                            .widthIn(min = 52.dp)
                             .padding(horizontal = 2.dp)
                             .semantics(mergeDescendants = true) {
                                 contentDescription = "$time, ${degrees(hour.temperature)}, ${WeatherCodes.describe(hour.code)}"
                             },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(text = time, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        Text(text = time, style = MaterialTheme.typography.labelMedium.wholeWords(), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                         Spacer(modifier = Modifier.height(4.dp))
                         Icon(
                             imageVector = weatherIcon(hour.code, hour.isDay),
@@ -508,7 +513,7 @@ fun ScreenTimeOneBox(
                     ) {
                         Text(
                             text = app.label,
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyLarge.wholeWords(),
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(end = 8.dp)
                         )
@@ -570,28 +575,33 @@ private fun ScreenTimeAppIcon(packageName: String, label: String) {
     }
 }
 
-/** How wide [scrollFadeEdges]' fades are. */
-private val SCROLL_FADE = 28.dp
-
-/** Fades a sideways-scrolling row's start and end out wherever [scroll] has more to show past them. */
-private fun Modifier.scrollFadeEdges(scroll: androidx.compose.foundation.ScrollState): Modifier = this
-    .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        val fade = SCROLL_FADE.toPx().coerceAtMost(size.width / 4f)
-        val rtl = layoutDirection == androidx.compose.ui.unit.LayoutDirection.Rtl
-        val more = scroll.value < scroll.maxValue
-        val back = scroll.value > 0
-        val (left, right) = if (rtl) more to back else back to more
-        if (left) drawRect(
-            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = fade),
-            size = androidx.compose.ui.geometry.Size(fade, size.height),
-            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
-        )
-        if (right) drawRect(
-            brush = androidx.compose.ui.graphics.Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width),
-            topLeft = androidx.compose.ui.geometry.Offset(size.width - fade, 0f),
-            size = androidx.compose.ui.geometry.Size(fade, size.height),
-            blendMode = androidx.compose.ui.graphics.BlendMode.DstIn
-        )
+/**
+ * [content]'s items side by side in slots as wide as the widest (and [minSlot] while all of them fit at that), spread
+ * across the width like [Arrangement.SpaceBetween]. When they don't all fit they wrap into rows of an even count (six
+ * as three and three, or as pairs), so the columns line up and no row is left with one stray item. Rows are [rowGap]
+ * apart.
+ */
+@Composable
+private fun EvenRows(modifier: Modifier = Modifier, minSlot: Dp, rowGap: Dp, content: @Composable () -> Unit) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        if (measurables.isEmpty()) return@Layout layout(constraints.minWidth, 0) {}
+        val widths = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity) }
+        val total = if (constraints.hasBoundedWidth) constraints.maxWidth else widths.sum()
+        val roomy = minOf(minSlot.roundToPx(), total / measurables.size)
+        val slot = maxOf(widths.max(), roomy).coerceIn(1, total.coerceAtLeast(1))
+        val fits = (total / slot).coerceIn(1, measurables.size)
+        val rows = (measurables.size + fits - 1) / fits
+        val perRow = (measurables.size + rows - 1) / rows
+        val placeables = measurables.map { it.measure(Constraints.fixedWidth(slot)) }.chunked(perRow)
+        val gap = if (perRow > 1) (total - perRow * slot) / (perRow - 1) else 0
+        val rowHeights = placeables.map { row -> row.maxOf { it.height } }
+        val gapPx = rowGap.roundToPx()
+        layout(total, rowHeights.sum() + gapPx * (rowHeights.size - 1)) {
+            var y = 0
+            placeables.forEachIndexed { r, row ->
+                row.forEachIndexed { i, placeable -> placeable.placeRelative(i * (slot + gap), y) }
+                y += rowHeights[r] + gapPx
+            }
+        }
     }
+}

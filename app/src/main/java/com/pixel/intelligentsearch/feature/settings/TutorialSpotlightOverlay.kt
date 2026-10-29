@@ -47,7 +47,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -92,6 +94,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
+import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import kotlinx.coroutines.delay
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -203,26 +206,35 @@ fun TutorialSpotlightOverlay(
         )
     }
 
-    // Draw-phase infinite transitions: state reads are scoped strictly to onDraw/graphicsLayer
-    val infiniteTransition = rememberInfiniteTransition(label = "tutorial_transition")
-    val slitherPhase = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = (Math.PI * 2).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "slither"
-    )
-    val colorPhase = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "color"
-    )
+    // Draw-phase infinite transitions: state reads are scoped strictly to onDraw/graphicsLayer. With animations
+    // off the arrow rests still at the loops' start.
+    val loopsOn by rememberAnimationsEnabled()
+    val slitherPhase: State<Float>
+    val colorPhase: State<Float>
+    if (loopsOn) {
+        val infiniteTransition = rememberInfiniteTransition(label = "tutorial_transition")
+        slitherPhase = infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = (Math.PI * 2).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "slither"
+        )
+        colorPhase = infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2400, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "color"
+        )
+    } else {
+        slitherPhase = remember { mutableFloatStateOf(0f) }
+        colorPhase = slitherPhase
+    }
 
     val rawTargetRect = TutorialManager.getTargetState(currentStep).rect
     val localTargetRect = remember(rawTargetRect, overlayRootOffset) {

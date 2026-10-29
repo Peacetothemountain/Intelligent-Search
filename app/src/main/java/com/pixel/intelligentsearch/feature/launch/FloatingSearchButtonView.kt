@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.feature.launch
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.os.Bundle
 import android.view.MotionEvent
 import android.view.ViewConfiguration
 import android.view.accessibility.AccessibilityNodeInfo
@@ -34,6 +35,7 @@ import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
 import com.pixel.intelligentsearch.core.ui.expressive.expressivePress
 import kotlin.math.hypot
+import kotlin.math.roundToInt
 
 /**
  * The floating search button's window content: the app's search glyph on a Material You circle (a plain matte shell
@@ -65,7 +67,9 @@ internal fun FloatingSearchButton(interactions: InteractionSource) {
 /**
  * The floating button's window: drags with the finger (in screen coordinates, since the window moves under it),
  * opens search on a tap and hides until the next unlock on a long press. To TalkBack it is one button, "Search",
- * whose long-press action hides it. Taps and the long press play the app's one haptic.
+ * whose long-press action hides it and whose Move actions do what a drag does without one: to either edge, or up and
+ * down by two buttons' heights, settling and remembered as a released drag is. Taps and the long press play the app's
+ * one haptic.
  */
 @SuppressLint("ViewConstructor")
 internal class FloatingSearchButtonView(context: Context, private val host: Host) : FrameLayout(context) {
@@ -118,9 +122,31 @@ internal class FloatingSearchButtonView(context: Context, private val host: Host
         super.onInitializeAccessibilityNodeInfo(info)
         info.addAction(AccessibilityNodeInfo.AccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, "Open search"))
         info.addAction(AccessibilityNodeInfo.AccessibilityAction(AccessibilityNodeInfo.ACTION_LONG_CLICK, "Hide until you unlock"))
+        info.addAction(AccessibilityNodeInfo.AccessibilityAction(R.id.floating_button_move_left, "Move to left edge"))
+        info.addAction(AccessibilityNodeInfo.AccessibilityAction(R.id.floating_button_move_right, "Move to right edge"))
+        info.addAction(AccessibilityNodeInfo.AccessibilityAction(R.id.floating_button_move_up, "Move up"))
+        info.addAction(AccessibilityNodeInfo.AccessibilityAction(R.id.floating_button_move_down, "Move down"))
     }
 
-    @SuppressLint("ClickableViewAccessibility") // Taps go through performClick; drags have no accessibility equivalent.
+    /** How far Move Up and Move Down go: two buttons' heights. */
+    private val moveStep = (FloatingSearchOverlays.BUTTON_SIZE_DP * 2 * resources.displayMetrics.density).roundToInt()
+
+    override fun performAccessibilityAction(action: Int, arguments: Bundle?): Boolean {
+        val (x, y) = host.position()
+        // A drag to there and its release: clamped onto the screen, settled against the nearer edge and remembered.
+        val (toX, toY) = when (action) {
+            R.id.floating_button_move_left -> Int.MIN_VALUE to y
+            R.id.floating_button_move_right -> Int.MAX_VALUE to y
+            R.id.floating_button_move_up -> x to y - moveStep
+            R.id.floating_button_move_down -> x to y + moveStep
+            else -> return super.performAccessibilityAction(action, arguments)
+        }
+        host.dragTo(toX, toY)
+        host.release()
+        return true
+    }
+
+    @SuppressLint("ClickableViewAccessibility") // Taps go through performClick; drags have accessibility Move actions.
     override fun onTouchEvent(event: MotionEvent): Boolean {
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {

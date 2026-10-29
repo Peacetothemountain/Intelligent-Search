@@ -3,12 +3,15 @@ package com.pixel.intelligentsearch.feature.launch
 import android.app.Application
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -19,7 +22,10 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowSettings
 
-/** The floating button draws nothing without "Display over other apps", whatever its switch says. */
+/**
+ * The floating button draws nothing without "Display over other apps", whatever its switch says, and TalkBack can
+ * move it as a drag does.
+ */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
 @Config(application = HiltTestApplication::class)
@@ -58,6 +64,32 @@ class FloatingSearchOverlaysTest {
         prefs.edit().put(SettingsManager.FLOATING_SEARCH_BUTTON, false).commit()
         FloatingSearchOverlays.sync(context)
         assertFalse(FloatingSearchOverlays.isButtonShowing)
+    }
+
+    @Test
+    fun talkBackMovesTheButtonWithoutADragAndItIsRemembered() {
+        ShadowSettings.setCanDrawOverlays(true)
+        prefs.edit().put(SettingsManager.FLOATING_SEARCH_BUTTON, true).commit()
+        FloatingSearchOverlays.sync(context)
+        val view = FloatingSearchOverlays.buttonView!!
+        val labels = view.createAccessibilityNodeInfo().actionList.mapNotNull { it.label?.toString() }
+        assertTrue("actions $labels", labels.containsAll(listOf("Move to left edge", "Move to right edge", "Move up", "Move down")))
+        val stored = SettingsManager.storedPrefs(context)
+
+        assertTrue(view.performAccessibilityAction(R.id.floating_button_move_left, null))
+        assertEquals("left", stored[SettingsManager.FLOATING_BUTTON_EDGE])
+
+        val start = stored[SettingsManager.FLOATING_BUTTON_POSITION]
+        view.performAccessibilityAction(R.id.floating_button_move_up, null)
+        val raised = stored[SettingsManager.FLOATING_BUTTON_POSITION]
+        assertTrue("$raised < $start", raised < start)
+        assertEquals("left", stored[SettingsManager.FLOATING_BUTTON_EDGE])
+
+        view.performAccessibilityAction(R.id.floating_button_move_down, null)
+        assertTrue(stored[SettingsManager.FLOATING_BUTTON_POSITION] > raised)
+
+        view.performAccessibilityAction(R.id.floating_button_move_right, null)
+        assertEquals("right", stored[SettingsManager.FLOATING_BUTTON_EDGE])
     }
 
     @Test

@@ -268,9 +268,11 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                             if (uiState.query.isEmpty()) {
                                 Text(if (voice.active) "Listening…" else if (calculatorKeyboard) "Calculate…" else "Search…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex)
                             } else if (ghostTextAnnotated != null) {
+                                // The suggested ending in full onSurfaceVariant, readable at 4.5:1, and set apart
+                                // from the typed text's onSurface by its color, as the "Search…" hint is.
                                 Text(
                                     text = ghostTextAnnotated,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.50f),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 20.sp,
                                     fontFamily = GoogleSansFlex,
                                     maxLines = 1,

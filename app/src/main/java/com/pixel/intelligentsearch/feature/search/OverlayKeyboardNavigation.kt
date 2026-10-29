@@ -391,8 +391,14 @@ internal fun runDirectAction(context: Context, viewModel: SearchViewModel, actio
     when (action.iconType) {
         "private_space" -> context.findActivity()?.let { viewModel.unlockPrivateSpace(it) }
         ClipboardLens.ICON_TYPE -> ClipboardLens.searchClipboardImage(context)
-        else -> action.intent?.let { launchSafeIntent(context, it) }
+        else -> launchDirectActionIntent(context, action)
     }
+}
+
+/** Opens [action]'s intent, else its fallback (another maps app, a text); false when neither opened. */
+internal fun launchDirectActionIntent(context: Context, action: DirectAction): Boolean {
+    val intent = action.intent ?: return false
+    return launchSafeIntent(context, intent) || action.fallbackIntent?.let { launchSafeIntent(context, it) } == true
 }
 
 /** Opens [target] as tapping its row (or its card's main button) would. */

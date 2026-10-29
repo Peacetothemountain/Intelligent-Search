@@ -58,7 +58,9 @@ data class DirectAction(
     val title: String,
     val subtitle: String,
     val iconType: String,
-    val intent: android.content.Intent?
+    val intent: android.content.Intent?,
+    /** Opened instead when no app takes [intent]: any maps app when Google Maps is missing, a text without WhatsApp. */
+    val fallbackIntent: android.content.Intent? = null
 )
 
 @androidx.compose.runtime.Immutable
@@ -760,7 +762,7 @@ class SearchViewModel @Inject constructor(
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.DirectMessage -> {
                         val app = if (intent.isWhatsApp) "WhatsApp" else "SMS"
-                        directActions.add(DirectAction("Message ${intent.recipientName} ($app)", intent.body, "message", intent.intent))
+                        directActions.add(DirectAction("Message ${intent.recipientName} ($app)", intent.body, "message", intent.intent, intent.fallbackIntent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.PhoneCall -> {
                         var callIntent = intent.intent
@@ -791,7 +793,7 @@ class SearchViewModel @Inject constructor(
                         directActions.add(DirectAction("Call $displayName", displaySubtitle, "phone", callIntent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Navigation -> {
-                        directActions.add(DirectAction("Navigate to ${intent.destination}", intent.destination, "navigation", intent.intent))
+                        directActions.add(DirectAction("Navigate to ${intent.destination}", intent.destination, "navigation", intent.intent, intent.fallbackIntent))
                     }
                 }
             }

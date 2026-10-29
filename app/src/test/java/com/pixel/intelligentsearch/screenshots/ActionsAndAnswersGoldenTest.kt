@@ -10,6 +10,7 @@ import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
@@ -33,6 +34,23 @@ import org.junit.runner.RunWith
 import org.robolectric.ParameterizedRobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+
+/** AI answer cards as the overlay shows them: a stand-in finished answer, and a failure from a bad key. */
+internal object AiAnswerSamples {
+    @Composable
+    fun Cards() {
+        AiAnswerCard(
+            AiAnswerState.Answer(
+                AiProvider.ANTHROPIC,
+                "how tall is everest?",
+                "Mount Everest is **8,849 m** (29,032 ft) tall.\n\n- Measured by China and Nepal in 2020\n- Its summit is the highest point above sea level",
+                done = true
+            ),
+            model = "claude-sonnet-5-5"
+        ) {}
+        AiAnswerCard(AiAnswerState.Failed(AiProvider.OPENAI, "why is the sky blue?", AiProblem.BAD_KEY), model = "gpt-5.1") {}
+    }
+}
 
 /**
  * Golden images, light and dark, of the short-phrasing action suggestions with the Ask row, of an AI answer card (a
@@ -82,16 +100,7 @@ class ActionsAndAnswersGoldenTest(private val dark: Boolean) {
         compose.setContent {
             IntelligentSearchTheme(darkTheme = dark) {
                 Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(vertical = 12.dp)) {
-                    AiAnswerCard(
-                        AiAnswerState.Answer(
-                            AiProvider.ANTHROPIC,
-                            "how tall is everest?",
-                            "Mount Everest is **8,849 m** (29,032 ft) tall.\n\n- Measured by China and Nepal in 2020\n- Its summit is the highest point above sea level",
-                            done = true
-                        ),
-                        model = "claude-sonnet-5-5"
-                    ) {}
-                    AiAnswerCard(AiAnswerState.Failed(AiProvider.OPENAI, "why is the sky blue?", AiProblem.BAD_KEY), model = "gpt-5.1") {}
+                    AiAnswerSamples.Cards()
                 }
             }
         }

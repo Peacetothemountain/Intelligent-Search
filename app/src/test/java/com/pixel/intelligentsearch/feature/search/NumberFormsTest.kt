@@ -49,6 +49,37 @@ class NumberFormsTest {
     }
 
     @Test
+    fun aFractionMustBeExactToTheShownPrecision() {
+        // The tolerance used to grow with the number, so these four-decimal answers were offered rough fractions.
+        assertTrue("Fraction" !in forms("12345.6789"))
+        assertTrue("Fraction" !in forms("1234.5678"))
+        assertEquals("1234 3/5", forms("1234.6")["Fraction"])
+        // A tiny answer rounded to no fraction, never "0/2".
+        assertTrue("Fraction" !in forms("0.0003333"))
+        assertTrue("Fraction" !in forms("0.00001"))
+        assertEquals("1/100", forms("0.01")["Fraction"])
+        assertEquals("-3/8", forms("-0.375")["Fraction"])
+    }
+
+    @Test
+    fun anAnswerTheCalculatorAlreadyRoundedIsOnlyWrittenInScientificNotation() {
+        // 2^53 is shown as 9.0072e+15; grouped or in hex it looked exact (9,007,200,000,000,000).
+        assertEquals(mapOf("Scientific" to "9.0072 × 10¹⁵"), forms("9.0072e+15"))
+        assertEquals(mapOf("Scientific" to "1.5 × 10⁻⁵"), forms("1.5000e-05"))
+        assertEquals(listOf("Scientific"), forms("1000000000000000").keys.toList())
+    }
+
+    @Test
+    fun binaryIsShownInNibblesButCopiedAsOneLiteral() {
+        val binary = numberForms("55", Locale.US).single { it.label == "Binary" }
+        assertEquals("0b11 0111", binary.value)
+        assertEquals("0b110111", binary.copyValue)
+        assertEquals("-0b110111", numberForms("-55", Locale.US).single { it.label == "Binary" }.copyValue)
+        // The other forms copy what they show.
+        assertTrue(numberForms("1234567", Locale.US).filter { it.label != "Binary" }.all { it.copyValue == it.value })
+    }
+
+    @Test
     fun anAnswerThatIsntANumberHasNoOtherForms() {
         assertTrue(numberForms("1500 m").isEmpty())
         assertTrue(numberForms("Tuesday").isEmpty())

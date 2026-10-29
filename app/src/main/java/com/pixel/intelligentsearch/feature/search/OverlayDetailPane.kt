@@ -427,7 +427,7 @@ private fun NumberFormsCard(forms: List<NumberForm>) {
                         .fillMaxWidth()
                         .clickable(onClickLabel = "Copy ${form.label}") {
                             val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
-                            clipboard?.setPrimaryClip(android.content.ClipData.newPlainText(form.label, form.value))
+                            clipboard?.setPrimaryClip(android.content.ClipData.newPlainText(form.label, form.copyValue))
                             // Android 13 and up confirm a copy themselves.
                             if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
                                 android.widget.Toast.makeText(context, "${form.label} Copied", android.widget.Toast.LENGTH_SHORT).show()

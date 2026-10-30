@@ -135,37 +135,82 @@ class WorldClockTest {
 
     @Test
     fun theTimeInAZoneAbbreviation() {
-        assertEquals(WorldClock.TimeAnswer("2:30 PM", "Current time in PST"), answer("time in PST"))
+        // A zone abbreviation is its region's clock, daylight saving and all, labeled with the name of the time kept
+        // there now. Each used to be a fixed offset, so in October "PST" was 2:30 PM while Los Angeles read 3:30 PM.
+        assertEquals(WorldClock.TimeAnswer("3:30 PM", "Current time in PDT"), answer("time in PST"))
         assertEquals(WorldClock.TimeAnswer("3:30 PM", "Current time in PDT"), answer("pdt time"))
-        assertEquals("5:30 PM", answer("time in est")?.title)
+        assertEquals("6:30 PM", answer("time in est")?.title)
         assertEquals("6:30 PM", answer("time in edt")?.title)
-        assertEquals("4:30 PM", answer("time in cst")?.title)
-        assertEquals("3:30 PM", answer("time in mst")?.title)
+        assertEquals("5:30 PM", answer("time in cst")?.title)
+        assertEquals("4:30 PM", answer("time in mst")?.title)
         assertEquals("10:30 PM", answer("time in gmt")?.title)
         assertEquals("10:30 PM", answer("utc time")?.title)
-        assertEquals("11:30 PM", answer("time in cet")?.title)
+        assertEquals(WorldClock.TimeAnswer("12:30 AM", "Current time in CEST • Tomorrow"), answer("time in cet"))
         assertEquals("12:30 AM", answer("time in cest")?.title)
         assertEquals("11:30 PM", answer("time in bst")?.title)
         // IST is India's.
         assertEquals(WorldClock.TimeAnswer("4:00 AM", "Current time in IST • Tomorrow"), answer("time in ist"))
         assertEquals("7:30 AM", answer("jst time")?.title)
-        assertEquals("8:30 AM", answer("time in aest")?.title)
+        // Sydney is on summer time from October.
+        assertEquals(WorldClock.TimeAnswer("9:30 AM", "Current time in AEDT • Tomorrow"), answer("time in aest"))
         assertEquals("9:30 AM", answer("time in aedt")?.title)
-        // The bare PT follows daylight saving: Los Angeles is on PDT in October.
+        // The bare PT is shown as typed.
         assertEquals(WorldClock.TimeAnswer("3:30 PM", "Current time in PT"), answer("time in pt"))
         assertEquals("3:30 PM", answer("pacific time")?.title)
     }
 
     @Test
+    fun aZoneAbbreviationFollowsItsRegionThroughTheYear() {
+        // Wednesday, January 14, 2026, 12:00 UTC: winter in the north, summer in Australia.
+        val january = WorldClock(Clock.fixed(Instant.parse("2026-01-14T12:00:00Z"), ZoneOffset.UTC), Locale.US)
+        fun winter(query: String) = january.evaluate(query, false, ZoneOffset.UTC)
+        assertEquals(WorldClock.TimeAnswer("4:00 AM", "Current time in PST"), winter("time in pst"))
+        assertEquals(WorldClock.TimeAnswer("4:00 AM", "Current time in PST"), winter("time in pdt"))
+        assertEquals("7:00 AM", winter("time in est")?.title)
+        assertEquals(WorldClock.TimeAnswer("1:00 PM", "Current time in CET"), winter("time in cet"))
+        assertEquals(WorldClock.TimeAnswer("12:00 PM", "Current time in GMT"), winter("time in bst"))
+        // AEST in January is Sydney's summer clock, UTC+11, not UTC+10.
+        assertEquals(WorldClock.TimeAnswer("11:00 PM", "Current time in AEDT"), winter("time in aest"))
+        // 3pm in Los Angeles in winter is UTC-8.
+        assertEquals(WorldClock.TimeAnswer("4:30 AM", "In IST, next day • 3:00 PM PST"), winter("3pm pst in ist"))
+    }
+
+    @Test
     fun aTimeMovedToAnotherZone() {
-        // 3pm PST (23:00 UTC) is 4:30am the next day in India.
-        assertEquals(WorldClock.TimeAnswer("4:30 AM", "In IST, next day • 3:00 PM PST"), answer("3pm PST in IST"))
+        // 3pm in Los Angeles, on PDT in October (22:00 UTC), is 3:30am the next day in India. With PST as a fixed
+        // UTC-8 it was 4:30am, an hour off.
+        assertEquals(WorldClock.TimeAnswer("3:30 AM", "In IST, next day • 3:00 PM PDT"), answer("3pm PST in IST"))
         assertEquals(answer("3pm PST in IST"), answer("3 p.m. pst to ist"))
-        assertEquals(WorldClock.TimeAnswer("10:00 AM", "In EST • 3:00 PM UTC"), answer("15:00 utc to est"))
-        assertEquals(WorldClock.TimeAnswer("5:00 PM", "In PST, previous day • 1:00 AM UTC"), answer("1am utc to pst"))
+        assertEquals(WorldClock.TimeAnswer("11:00 AM", "In EDT • 3:00 PM UTC"), answer("15:00 utc to est"))
+        assertEquals(WorldClock.TimeAnswer("6:00 PM", "In PDT, previous day • 1:00 AM UTC"), answer("1am utc to pst"))
         assertEquals(WorldClock.TimeAnswer("1:30 AM", "In London • 9:30 AM Tokyo"), answer("9:30 am tokyo time to london"))
-        assertEquals(WorldClock.TimeAnswer("21:00", "In CET • 12:00 PST"), answer("noon pst in cet", is24Hour = true))
+        assertEquals(WorldClock.TimeAnswer("21:00", "In CEST • 12:00 PDT"), answer("noon pst in cet", is24Hour = true))
         assertEquals("12:00 AM", answer("midnight utc in utc")?.title)
+    }
+
+    @Test
+    fun moreCountriesAndPlacesHaveTheirZone() {
+        // Each had no answer.
+        val zones = mapOf(
+            "bali" to "Asia/Makassar", "sf" to "America/Los_Angeles", "croatia" to "Europe/Zagreb",
+            "serbia" to "Europe/Belgrade", "jordan" to "Asia/Amman", "dominican republic" to "America/Santo_Domingo",
+            "san jose" to "America/Los_Angeles", "lebanon" to "Asia/Beirut", "uruguay" to "America/Montevideo",
+            "tanzania" to "Africa/Dar_es_Salaam", "st. louis" to "America/Chicago"
+        )
+        for ((place, zone) in zones) {
+            assertEquals(place, time(zone), answer("time in $place")?.title)
+        }
+        assertEquals("Current time in SF", answer("sf time")?.subtitle)
+        // Georgia is still a country as well as a state.
+        assertNull(answer("time in georgia"))
+    }
+
+    @Test
+    fun zoneAbbreviationsAreKnownToTheSpellChecker() {
+        for (word in listOf("pst", "PST", "ist", "cest", "aedt", "pt")) {
+            assertEquals(word, true, WorldClock.isZoneAbbreviation(word))
+        }
+        assertEquals(false, WorldClock.isZoneAbbreviation("post"))
     }
 
     @Test

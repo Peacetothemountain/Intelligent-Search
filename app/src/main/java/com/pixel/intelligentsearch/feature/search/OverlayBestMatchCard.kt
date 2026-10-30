@@ -157,13 +157,14 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                     fontFamily = GoogleSansFlex
                                 )
                                 Text(
-                                    match.phoneNumber,
+                                    match.detail,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp,
                                     fontFamily = GoogleSansFlex
                                 )
                             }
-                            val isDirectCall = settingsState.contactDirectCall
+                            // A contact with only an email address opens its card, Direct Call or not.
+                            val isDirectCall = settingsState.contactDirectCall && match.phoneNumber.isNotBlank()
                             Icon(
                                 imageVector = if (isDirectCall) Icons.Default.Call else Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = if (isDirectCall) "Call ${match.name}" else "Open ${match.name}",

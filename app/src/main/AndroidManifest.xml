@@ -235,6 +235,13 @@
                 <action android:name="com.android.launcher3.action.SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+            <!-- An app row in Android's own search (GlobalSearchProvider) opens that app through here. It only ever opens
+                 the app's launcher screen, which any app may open. -->
+            <intent-filter>
+                <action android:name="com.pixel.intelligentsearch.action.OPEN_APP" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="package" />
+            </intent-filter>
             <meta-data
                 android:name="android.app.searchable"
                 android:resource="@xml/searchable" />

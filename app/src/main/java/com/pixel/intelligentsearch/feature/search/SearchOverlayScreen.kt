@@ -392,15 +392,14 @@ fun SearchOverlayScreen(
         if (intent == null) return@launchWebSearch
         viewModel.addSearchHistory(searchQuery)
         viewModel.onQueryChanged("")
-        if (!launchSafeIntent(context, intent)) {
-            // A failed Tor launch must not fall back to a normal browser search.
-            if (com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(engine)) {
-                showTorInstallPopup = true
-                return@launchWebSearch
-            }
-            if (!launchSafeIntent(context, systemWebSearchIntent(searchQuery))) {
-                Toast.makeText(context, "No app available to search the web.", Toast.LENGTH_SHORT).show()
-            }
+        // A failed Tor launch must not fall back to a normal browser search.
+        if (com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(engine)) {
+            if (!launchSafeIntent(context, intent)) showTorInstallPopup = true
+            return@launchWebSearch
+        }
+        // With no Google app and no browser, the system web search came back to this app, reopening the search.
+        if (!launchWebSearch(context, intent, searchQuery)) {
+            Toast.makeText(context, "No app available to search the web.", Toast.LENGTH_SHORT).show()
         }
     }
 

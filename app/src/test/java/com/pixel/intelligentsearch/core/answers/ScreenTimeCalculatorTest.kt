@@ -35,6 +35,20 @@ class ScreenTimeCalculatorTest {
     }
 
     @Test
+    fun readFromBeforeMidnightAPauseWithNoResumeIsNothing() {
+        val events = listOf(
+            Event("reader", RESUMED, start - 20 * minute, "Book"), Event("reader", PAUSED, 15 * minute, "Book"),
+            // An app's first screen pausing just before its next one resumes.
+            Event("browser", PAUSED, 300 * minute, "FirstRun"), Event("browser", RESUMED, 300 * minute, "Main"),
+            Event("browser", PAUSED, 302 * minute, "Main")
+        )
+        assertEquals(
+            mapOf("reader" to 15 * minute, "browser" to 2 * minute),
+            ScreenTimeCalculator.perApp(events, start, end, eventsFromMs = start - 24 * 60 * minute)
+        )
+    }
+
+    @Test
     fun theScreenGoingOffEndsWhatWasShowing() {
         val events = listOf(
             Event("video", RESUMED, 100 * minute),

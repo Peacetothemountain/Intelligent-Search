@@ -85,7 +85,8 @@ open class MainActivity : AppCompatActivity() {
         // Out of sight, the overlay closes for good, so the next search opens a fresh one. Brought back instead,
         // Android first shows a placeholder of the old one: as the overlay keeps itself out of Recents screenshots
         // (what was typed), that placeholder is drawn from the theme, a black screen under a lavender status bar.
-        if (!isChangingConfigurations && !isFinishing && !awayInOwnSettings) {
+        // A speech recognizer over it is waiting to hand its words back here.
+        if (!isChangingConfigurations && !isFinishing && !awayInOwnSettings && !awaitingSpeech) {
             // The whole task only when this overlay is its top: another overlay entry opened over it in the same task
             // (the singleTask entries share one affinity) must not go with it.
             if (isTopOfTask()) finishAndRemoveTask() else finish()
@@ -265,7 +266,7 @@ open class MainActivity : AppCompatActivity() {
         targetBlurRadius = if (initialShowWallpaper && initialBlur > 0) initialBlur else 0
         applyWindowBlur()
 
-        if (handleIntent(intent)) return
+        if (handleIntent(intent, fresh = savedInstanceState == null)) return
         // A recreated activity gets its launch query back, though the first instance already used it.
         if (savedInstanceState != null) clearConsumedQuery()
         if (checkAndForwardIfSearchOverlayDisabled()) return
@@ -426,10 +427,16 @@ open class MainActivity : AppCompatActivity() {
         super.onWindowFocusChanged(hasFocus)
     }
 
-    /** Handles intents that hand off to another surface (Gemini overlay, Lens, voice) and close this activity. */
-    private fun handleIntent(intent: Intent?): Boolean {
-        if (intent == null || this is com.pixel.intelligentsearch.feature.search.SearchActivity) return false
+    /**
+     * Handles intents that hand off to another surface (Gemini overlay, Lens, voice, an app picked in Android's own
+     * search) and close this activity. A plain speech recognizer is started from the open search instead, which
+     * stays to search the words it gives back; only on a [fresh] open, so turning the phone doesn't ask again.
+     */
+    private fun handleIntent(intent: Intent?, fresh: Boolean = true): Boolean {
+        if (intent == null) return false
         when {
+            intent.action == com.pixel.intelligentsearch.core.data.GlobalSearchProvider.ACTION_OPEN_APP -> openAppFromSearch(intent)
+            this is com.pixel.intelligentsearch.feature.search.SearchActivity -> return false
             intent.action == "com.pixel.intelligentsearch.LAUNCH_GEMINI_OVERLAY" ||
                 intent.getBooleanExtra("launch_gemini_overlay", false) -> launchGeminiCornerOverlay(this)
             intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS" -> launchLens(translate = false)
@@ -437,10 +444,16 @@ open class MainActivity : AppCompatActivity() {
             // The launcher's "Voice search" shortcut. With no recognizer installed, the overlay opens instead.
             intent.getBooleanExtra("auto_voice", false) -> {
                 val voice = com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent(this)
-                if (voice.component?.packageName == packageName) return false
+                if (voice.component?.packageName == packageName) {
+                    if (fresh) recognizeSpeechIfAsked(voice)
+                    return false
+                }
                 try { startActivity(voice) } catch (e: Exception) { return false }
             }
-            else -> return false
+            else -> {
+                if (fresh) recognizeSpeechIfAsked(intent)
+                return false
+            }
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
@@ -452,10 +465,48 @@ open class MainActivity : AppCompatActivity() {
         return true
     }
 
-    /** Opens Google Lens: the standalone app if installed, otherwise the Google app's Lens. */
+    /**
+     * Opens Google Lens: the standalone app if installed, otherwise the Google app's Lens. With neither, says what
+     * to install, rather than the tap doing nothing.
+     */
     private fun launchLens(translate: Boolean) {
-        com.pixel.intelligentsearch.core.system.GoogleApps.lensIntent(this, translate)
-            ?.let { com.pixel.intelligentsearch.core.system.launchSafeIntent(this, it) }
+        val lens = com.pixel.intelligentsearch.core.system.GoogleApps.lensIntent(this, translate)
+        if (lens != null && com.pixel.intelligentsearch.core.system.launchSafeIntent(this, lens)) return
+        val message = if (translate) "To translate with your camera, install Google Lens or the Google app."
+        else "To search with your camera, install Google Lens or the Google app."
+        android.widget.Toast.makeText(applicationContext, message, android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    /**
+     * Opens the app an app row in Android's own search stands for ([GlobalSearchProvider.ACTION_OPEN_APP], its
+     * package in the data). Only the app's own launcher screen, which any app may open, so the open intent filter
+     * gives nothing away.
+     */
+    private fun openAppFromSearch(intent: Intent) {
+        val app = intent.data?.takeIf { it.scheme == "package" }?.schemeSpecificPart ?: return
+        com.pixel.intelligentsearch.core.system.launchApp(this, app)
+    }
+
+    /** True from starting a speech recognizer until its words come back, so the search stays open meanwhile. */
+    private var awaitingSpeech = false
+
+    /**
+     * A plain speech recognizer gives the words back only to whoever started it, so it's started here, for a
+     * result, and what was said is searched. Started with startActivity, as before, the words were lost.
+     */
+    private val speechRecognizer = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        awaitingSpeech = false
+        val words = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
+        if (result.resultCode == RESULT_OK && !words.isNullOrEmpty()) searchViewModel.onQueryChanged(words.take(512))
+    }
+
+    /** Starts the speech recognizer when [intent] asks for it ([com.pixel.intelligentsearch.feature.widget.EXTRA_RECOGNIZE_SPEECH]). */
+    private fun recognizeSpeechIfAsked(intent: Intent) {
+        if (!intent.getBooleanExtra(com.pixel.intelligentsearch.feature.widget.EXTRA_RECOGNIZE_SPEECH, false)) return
+        val speech = com.pixel.intelligentsearch.feature.widget.speechRecognizerIntent(this) ?: return
+        awaitingSpeech = runCatching { speechRecognizer.launch(speech) }.isSuccess
     }
 
     override fun onPause() {

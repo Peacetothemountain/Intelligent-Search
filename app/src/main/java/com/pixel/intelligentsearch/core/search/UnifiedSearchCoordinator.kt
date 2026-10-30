@@ -453,7 +453,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         return SearchItem(
             id = "contact:${contact.lookupUri}",
             title = contact.name,
-            subtitle = contact.phoneNumber,
+            subtitle = contact.detail,
             domain = SearchScoringEngine.EntityDomain.CONTACT,
             payload = contact,
             metadata = SearchScoringEngine.ScoringMetadata(
@@ -479,7 +479,8 @@ class UnifiedSearchCoordinator @Inject constructor(
             out.add(normalizedContact to item)
         }
         val digits = contact.phoneNumber.filter { it.isDigit() }
-        out.add(digits to item)
+        // A contact saved with only an email address has no number to find it by.
+        if (digits.isNotEmpty()) out.add(digits to item)
         // Lookup is prefix-only, so also index the number without its country / trunk code: "415555"
         // must find a contact saved as +1 415-555-1234.
         for (localLength in intArrayOf(10, 7)) {

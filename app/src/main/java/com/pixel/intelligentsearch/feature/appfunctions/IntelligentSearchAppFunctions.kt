@@ -55,6 +55,7 @@ data class CalculationResult(
 )
 abstract class IntelligentSearchAppFunctions : AppFunctionService() {
 
+    /** The user's settings; null when they can't be read, so each function fails closed instead of exposing hidden apps. */
     private suspend fun currentSettings(): IntelligentSearchSettings? = try {
         applicationContext.appEntryPoint.settingsManager()
             .settingsFlow
@@ -65,11 +66,10 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
         null
     }
 
-    /** Null when settings can't be read, so callers can fail closed instead of exposing hidden apps. */
-    private suspend fun hiddenApps(): Set<String>? = currentSettings()?.hiddenApps
-
     /**
      * Searches the apps installed on this device by name.
+     *
+     * Returns an empty list if app search is turned off in Intelligent Search.
      *
      * @param query Part of the app name to look for, for example "maps" or "cam".
      * @param limit The maximum number of apps to return, between 1 and 20.
@@ -78,23 +78,7 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
     @AppFunctionDeclaration(isDescribedByKDoc = true)
     suspend fun searchApps(query: String, limit: Int): List<AppSearchResult> {
         if (!androidx.core.os.UserManagerCompat.isUserUnlocked(applicationContext)) return emptyList()
-        val needle = query.trim().take(128)
-        if (needle.isEmpty()) return emptyList()
-        val hidden = hiddenApps() ?: return emptyList()
-        val max = limit.coerceIn(1, 20)
-        return SystemDataProvider.getAllApps(applicationContext)
-            .asSequence()
-            .filter { it.packageName !in hidden && !it.isPrivateProfile }
-            .filter { it.name.contains(needle, ignoreCase = true) }
-            .distinctBy { it.packageName }
-            .sortedWith(
-                compareByDescending<com.pixel.intelligentsearch.core.data.AppItem> {
-                    it.name.startsWith(needle, ignoreCase = true)
-                }.thenBy { it.name.lowercase() }
-            )
-            .take(max)
-            .map { AppSearchResult(name = it.name, packageName = it.packageName) }
-            .toList()
+        return appSearchResults(currentSettings(), query, limit) { SystemDataProvider.getAllApps(applicationContext) }
     }
 
     /**
@@ -128,19 +112,58 @@ abstract class IntelligentSearchAppFunctions : AppFunctionService() {
     /**
      * Evaluates a math expression, base conversion or unit conversion offline.
      *
+     * Returns null if the calculator is turned off in Intelligent Search.
+     *
      * @param expression For example "sqrt(144) + 3", "255 to hex" or "100 km to miles".
      * @return The answer, or null if the expression can't be evaluated.
      */
     @AppFunctionDeclaration(isDescribedByKDoc = true)
-    fun calculate(expression: String): CalculationResult? {
-        val input = expression.trim().take(256)
-        val text = when (val result = MathematicalExpressionEngine.evaluate(input) ?: return null) {
-            is MathematicalExpressionEngine.MathEvaluationResult.Computation -> result.formattedResult
-            is MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> result.formatted
-            is MathematicalExpressionEngine.MathEvaluationResult.Bitwise -> result.expression.substringAfterLast(" = ")
-        }
-        return CalculationResult(expression = input, result = text)
+    suspend fun calculate(expression: String): CalculationResult? = calculation(currentSettings(), expression)
+}
+
+/**
+ * What [IntelligentSearchAppFunctions.searchApps] returns for [query]: the apps from [allApps] whose name holds it,
+ * names starting with it first. Nothing while the user has app search off, as in the app itself, nor when [settings]
+ * can't be read (null), so hidden apps never show by mistake.
+ */
+internal suspend fun appSearchResults(
+    settings: IntelligentSearchSettings?,
+    query: String,
+    limit: Int,
+    allApps: suspend () -> List<com.pixel.intelligentsearch.core.data.AppItem>
+): List<AppSearchResult> {
+    val needle = query.trim().take(128)
+    if (needle.isEmpty()) return emptyList()
+    if (settings == null || !settings.searchApps) return emptyList()
+    val hidden = settings.hiddenApps
+    return allApps()
+        .asSequence()
+        .filter { it.packageName !in hidden && !it.isPrivateProfile }
+        .filter { it.name.contains(needle, ignoreCase = true) }
+        .distinctBy { it.packageName }
+        .sortedWith(
+            compareByDescending<com.pixel.intelligentsearch.core.data.AppItem> {
+                it.name.startsWith(needle, ignoreCase = true)
+            }.thenBy { it.name.lowercase() }
+        )
+        .take(limit.coerceIn(1, 20))
+        .map { AppSearchResult(name = it.name, packageName = it.packageName) }
+        .toList()
+}
+
+/**
+ * What [IntelligentSearchAppFunctions.calculate] returns for [expression]: null while the user has the calculator
+ * off, as in the app itself (or [settings] can't be read), or when it can't be worked out.
+ */
+internal fun calculation(settings: IntelligentSearchSettings?, expression: String): CalculationResult? {
+    if (settings?.searchCalculator != true) return null
+    val input = expression.trim().take(256)
+    val text = when (val result = MathematicalExpressionEngine.evaluate(input) ?: return null) {
+        is MathematicalExpressionEngine.MathEvaluationResult.Computation -> result.formattedResult
+        is MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> result.formatted
+        is MathematicalExpressionEngine.MathEvaluationResult.Bitwise -> result.expression.substringAfterLast(" = ")
     }
+    return CalculationResult(expression = input, result = text)
 }
 
 /**

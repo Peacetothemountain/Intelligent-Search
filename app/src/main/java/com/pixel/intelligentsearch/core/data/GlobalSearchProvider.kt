@@ -25,6 +25,15 @@ class GlobalSearchProvider : ContentProvider() {
         const val AUTHORITY = "com.pixel.intelligentsearch.globalsearch"
         val CONTENT_URI: Uri = Uri.parse("content://$AUTHORITY/search")
         private const val SEARCH_PATH = "search"
+
+        /**
+         * An app row's intent action, with the app's package as `package:` data: Android's search builds the row's
+         * intent from just an action and data, which can't name another app's screen, so the search opens it.
+         */
+        const val ACTION_OPEN_APP = "com.pixel.intelligentsearch.action.OPEN_APP"
+
+        /** The intent action and data of the app row for [packageName] (see [ACTION_OPEN_APP]). */
+        fun appRowIntent(packageName: String): Pair<String, String> = ACTION_OPEN_APP to "package:$packageName"
     }
 
     override fun onCreate(): Boolean = true
@@ -152,19 +161,16 @@ class GlobalSearchProvider : ContentProvider() {
                     if (app.userHandle != null && app.userHandle != me) continue
                     if (app.packageName in hiddenApps) continue
                     if ((app.isPrivateProfile || app.profileType == ProfileType.PRIVATE) && isPrivateSpaceLocked) continue
-                    val launchIntentUri = if (app.activityName != null) {
-                        "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;component=${app.packageName}/${app.activityName};end"
-                    } else {
-                        "intent:#Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;package=${app.packageName};end"
-                    }
+                    // An "intent:" link as VIEW data opened nothing: no app views such a link.
+                    val (openAction, openData) = appRowIntent(app.packageName)
 
                     cursor.addRow(arrayOf<Any?>(
                         rowId++,
                         app.name,
                         "Application",
                         "android.resource://${safeCtx?.packageName}/drawable/ic_search_lens_expressive",
-                        Intent.ACTION_VIEW,
-                        launchIntentUri,
+                        openAction,
+                        openData,
                         app.name,
                         "app:${app.packageName}"
                     ))
@@ -199,7 +205,7 @@ class GlobalSearchProvider : ContentProvider() {
                         cursor.addRow(arrayOf<Any?>(
                             rowId++,
                             contact.name,
-                            contact.phoneNumber.ifBlank { "Contact" },
+                            contact.detail.ifBlank { "Contact" },
                             "android.resource://${safeCtx?.packageName}/drawable/ic_search_lens_expressive",
                             Intent.ACTION_VIEW,
                             // The system parses this as a link: an encoded number keeps a '#' and what follows it.

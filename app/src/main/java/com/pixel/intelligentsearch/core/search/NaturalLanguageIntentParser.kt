@@ -28,6 +28,24 @@ import java.util.Locale
  * When an event, reminder or alarm is set for is read by [readDay]'s closed grammar, which lists every date and time
  * expression it reads. Any other word of when ("around 7", "every monday", "a week from today") makes the phrase no
  * action rather than one set for now or a guessed day.
+ *
+ * THE WHOLE-PHRASE RULE. Enter must never do the wrong thing, so an event, reminder or alarm is made only when every
+ * word of the phrase is accounted for. Each word must be one of three things:
+ * - the words that ask for it ("remind me to", "set an alarm for", "meeting", "schedule");
+ * - a date or time [readDay] and the clock-time reader read;
+ * - a plain word of the task ([isPlainTask]).
+ * A plain word is letters only: no digits, '@', '#' or currency sign. It is also no word of when: no day, month or
+ * weekday name, no "tonight" or "tmrw", no "am" or "night", no time zone. And it is not a misspelling of one
+ * ("tomorrrow", "firday", "mornign"). Anything else left over means the reader only partly understood the phrase, so
+ * there is no action and the query stays a search: "call mom @ 5" now reads "@" as "at", but "call mom 5", "meeting
+ * at 3pm est", "dentist 15.11 at 3pm" and "call mom tomorrrow at 5" give none.
+ *
+ * A timer works the same way: it is set only when the whole length is read ("an hour and 15 minutes", "1 1/2 hours"),
+ * and an amount or unit left over gives no timer ([parseTimer]).
+ *
+ * A bare hour (no am/pm, no leading zero) in an event or reminder follows one rule, shared with
+ * [ShortActionPhrasing], on 12- and 24-hour phones alike ([bareHour]): 1 to 7 is the afternoon or evening, 12 is noon,
+ * and 8 to 11 is the morning on a named day, or the next one still ahead today.
  */
 object NaturalLanguageIntentParser {
 
@@ -42,22 +60,35 @@ object NaturalLanguageIntentParser {
         "alarm for ", "alarm at ", "alarm ", "wake me up at ", "wake me up ", "wake me "
     )
     private val HOME_NAVIGATION_PHRASES =setOf("directions home", "navigate home", "take me home", "route home")
-    // Amounts may have a decimal point or comma ("1.5 hours", "2,5 min"); the guard keeps "1.5 hours" from also
-    // reading as 5 hours. The unit must end there: "10ms" is no 10 minutes.
-    private const val TIMER_AMOUNT = "(?<![\\d.,])(\\d+(?:[.,]\\d+)?)"
-    private val TIMER_HOURS_REGEX = Regex("$TIMER_AMOUNT\\s*(?:h|hrs?|hours?)(?!\\p{L})")
-    private val TIMER_MINUTES_REGEX = Regex("$TIMER_AMOUNT\\s*(?:m|min|mins|minutes?)(?!\\p{L})")
-    private val TIMER_SECONDS_REGEX = Regex("$TIMER_AMOUNT\\s*(?:s|sec|secs|seconds?)(?!\\p{L})")
+    // One part of a timer's length: an amount and its unit, which must end there ("10ms" is no 10 minutes). The amount
+    // is a number with a decimal point or comma ("1.5 hours", "2,5 min"), a half or a quarter written as a fraction,
+    // with a whole number before it or not ("1/2 hour", "1 1/2 hours", "3/4 of an hour"), or words ("an hour", "one
+    // minute", "half an hour", "a half hour", "a quarter of an hour"). Nothing may come right before it that would
+    // make it part of a longer number ("1/2 hour" was read as "2 hour") or word; a unit may ("1h30m").
+    private val TIMER_PART_REGEX = Regex(
+        "(?:(?<![\\p{N}.,/])(?:(?:(\\d+)\\s+)?([13])/([24])(?:\\s+of)?(?:\\s+an?)?\\s*|(\\d+(?:[.,]\\d+)?)\\s*)|" +
+            "(?<![\\p{L}\\p{N}])(half\\s+an?|an?\\s+half|an?\\s+quarter(?:\\s+of\\s+an?)?|quarter\\s+of\\s+an?|an?|one)\\s+)" +
+            "(h|hrs?|hours?|m|mins?|minutes?|s|secs?|seconds?)(?!\\p{L})"
+    )
+    // What may join two parts: "1h30m", "1 hour 30 minutes", "1 hour, 30 minutes", "an hour and 15 minutes".
+    private val TIMER_JOIN_REGEX = Regex("\\s*(?:,\\s*)?(?:(?:and|&)\\s*)?")
     private val TIMER_CLOCK_REGEX = Regex("(\\d{1,2}):(\\d{2})(?::(\\d{2}))?")
-    // A bare number after the last unit: "2 hours 30" is 2 h 30 min, "1 m 30" is 1 min 30 s.
-    private val TIMER_TRAILING_AMOUNT_REGEX = Regex("(?<![\\d.,])(\\d+)$")
-    private val TIMER_AND_A_HALF_REGEX = Regex("\\s*and\\s+a\\s+half\\s*")
+    // A bare number at the end, after the last unit: "2 hours 30" is 2 h 30 min, "1 m 30" is 1 min 30 s.
+    private val TIMER_TRAILING_AMOUNT_REGEX = Regex("^\\s*(\\d+)\\s*$")
+    private val TIMER_AND_A_HALF_REGEX = Regex("^\\s*and\\s+a\\s+half(?!\\p{L})")
     // "2 and a half minutes" is 2.5 minutes.
     private val TIMER_NUMBER_AND_A_HALF_REGEX = Regex(
         "(?<![\\d.,])(\\d+)\\s+and\\s+a\\s+half\\s+(?=(?:h|hrs?|hours?|m|min|mins|minutes?|s|sec|secs|seconds?)(?!\\p{L}))"
     )
-    // The amount in words: "half an hour", "a half hour", "an hour", "one minute".
-    private val TIMER_WORD_AMOUNT_REGEX = Regex("^(?:(half)\\s+(?:an?\\s+)?|an?\\s+(half\\s+)?|one\\s+)(hour|minute)$")
+    /** Words left beside a timer's length that are part of a length the reader didn't read: "twenty minutes". */
+    private val TIMER_LENGTH_WORDS = setOf(
+        "h", "hr", "hrs", "hour", "hours", "m", "min", "mins", "minute", "minutes", "s", "sec", "secs", "second", "seconds",
+        "half", "halves", "quarter", "quarters"
+    )
+    /** Words after a number that make it part of a length, not a count of things ("3 to 4 minutes", "45 min then 10"). */
+    private val NOT_COUNTED_AFTER = setOf(
+        "to", "or", "and", "then", "plus", "minus", "times", "x", "of", "for", "at", "in", "on", "by", "with", "from", "more", "less"
+    )
     // A timer can't run backward: "timer -5 minutes" is no timer rather than a 5 minute one.
     private val NEGATIVE_AMOUNT_REGEX = Regex("-\\s*\\d")
 
@@ -96,14 +127,31 @@ object NaturalLanguageIntentParser {
 
     /**
      * Whether [typed] names the contact called [contactName]: every typed word is a whole word of the name, accents
-     * aside ("tom" and "tom baker" are Tom Baker, "jose" is José). The contacts search matches the start of any name,
-     * so "to" finds Tom and "art" Arthur; a message only goes to someone named outright.
+     * aside ("tom" and "tom baker" are Tom Baker, "jose" is José), or a lone letter that starts another of its words
+     * ("sarah c" is Sarah Connor, not Sarah Lee). At least one word must be whole. The contacts search matches the
+     * start of any name, so "to" finds Tom and "art" Arthur; a message only goes to someone named outright.
      */
     internal fun namesContact(typed: String, contactName: String): Boolean {
-        val typedWords = nameTokens(typed)
-        val nameWords = nameTokens(contactName).toSet()
-        return typedWords.isNotEmpty() && nameWords.containsAll(typedWords)
+        val nameWords = nameTokens(contactName)
+        val left = nameWords.toMutableList()
+        val initials = ArrayList<String>()
+        for (word in typed.trim().split(WHITESPACE_REGEX)) {
+            val tokens = nameTokens(word)
+            if (tokens.isEmpty()) return false
+            if (INITIAL_REGEX.matches(word)) {
+                initials += tokens.single()
+                continue
+            }
+            for (token in tokens) if (!left.remove(token) && token !in nameWords) return false
+        }
+        if (left.size == nameWords.size) return false
+        return initials.all { initial -> left.firstOrNull { it.startsWith(initial) }?.let(left::remove) == true }
     }
+
+    // A lone letter, maybe with a dot: an initial ("sarah c", "john f.").
+    private val INITIAL_REGEX = Regex("\\p{L}\\.?")
+    // A word that owns the next ("smith's", "james'"): "text will smith's wife" is no message to Will Smith.
+    private val POSSESSIVE_REGEX = Regex("^([\\p{L}\\p{M}]+)['’]s?$")
 
     // Letters with no accent to take off ("ø", "ß") are written as people type them without the key, as the search
     // does, so "bjorn" names Bjørn and "strasse" Straße.
@@ -168,7 +216,7 @@ object NaturalLanguageIntentParser {
     private val LEFTOVER_TIME_REGEX = Regex("\\bat\\s+\\d|\\b\\d{1,2}(?:[:.]\\d{2})?$MERIDIEM|\\b\\d{1,2}:\\d{2}\\b", RegexOption.IGNORE_CASE)
     private val MINUTES_AFTER_REGEX = Regex("^\\s+\\d{2}\\b")
     // An alarm is only a time of day, so a space can part the hour from the minutes too: "alarm 6 30".
-    private val CLOCK_TIME_REGEX = Regex("\\b(\\d{1,2})(?:[:.\\s](\\d{2}))?(?:$MERIDIEM|\\b)", RegexOption.IGNORE_CASE)
+    private val CLOCK_TIME_REGEX = Regex("\\b(\\d{1,2})(?:[:.\\s](\\d{2}))?(?:$MERIDIEM|\\s*o['’]?clock\\b|\\b)", RegexOption.IGNORE_CASE)
     private val NOON_OR_MIDNIGHT_REGEX = Regex("\\b(noon|midday|midnight)\\b", RegexOption.IGNORE_CASE)
     // Whole words only, so "read todays report" keeps its "todays" and "today's report" its "'s". Quick notes write
     // tomorrow "tmrw", "tmr" or "tmw".
@@ -177,10 +225,11 @@ object NaturalLanguageIntentParser {
     private val TODAY_REGEX = Regex("\\btoday\\b(?!['’]\\w)", RegexOption.IGNORE_CASE)
     // "at noon", "at 12 noon", "midnight".
     private val NOON_OR_MIDNIGHT_TIME_REGEX = Regex("\\b(?:at\\s+)?(?:12\\s+)?(noon|midday|midnight)\\b", RegexOption.IGNORE_CASE)
-    // "this evening", "in the morning", "tomorrow night", "friday afternoon": the part of a day, which a day word may
-    // come before ("today", "tomorrow" and every weekday end in "day").
+    // "this evening", "in the morning", "tomorrow night", "friday afternoon", "thanksgiving morning": the part of a
+    // day, which a day word may come before ("today", "tomorrow" and every weekday end in "day").
     private val PART_OF_DAY_REGEX = Regex(
-        "(?:\\b(this|in\\s+the)\\s+|(?<=(?:tomorrow|tmrw|tmr|tmw|day)\\s))(morning|afternoon|evening|night)\\b",
+        "(?:\\b(this|in\\s+the)\\s+|(?<=(?:tomorrow|tmrw|tmr|tmw|day|eve|christmas|xmas|halloween|thanksgiving|easter)\\s))" +
+            "(morning|afternoon|evening|night)\\b",
         RegexOption.IGNORE_CASE
     )
     /** The hour a part of the day starts at when no time is given: "this evening" is 6 PM, "tomorrow night" 8 PM. */
@@ -297,9 +346,9 @@ object NaturalLanguageIntentParser {
     private val LEADING_TO_REGEX = Regex("^to\\s+", RegexOption.IGNORE_CASE)
     // What a title is left with when the time words came out from between commas: "meeting on friday, dec 4 at 3pm".
     private val STRAY_PUNCTUATION = charArrayOf(',', ';', ':', '-', ' ')
-    // "meeting with john" names the meeting by who it's with, "meeting on the 3rd floor" by where; the title says so,
-    // "Meeting with john" and "Meeting on the 3rd floor", not "with john" and "on the 3rd floor".
-    private val MEETING_PREPOSITION_REGEX = Regex("^(?:with|about|re|for|on|at|in)\\s", RegexOption.IGNORE_CASE)
+    // "meeting with john" names the meeting by who it's with, "meeting at the office" by where; the title says so,
+    // "Meeting with john" and "Meeting w/ bob", not "with john" and "w/ bob".
+    private val MEETING_PREPOSITION_REGEX = Regex("^(?:with|w/|about|re|for|on|at|in)\\s", RegexOption.IGNORE_CASE)
     private val WEEKDAYS = listOf("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
     /** Weekdays as quick notes shorten them ("fri", "tues"), by the full name. */
     private val SHORT_WEEKDAYS = mapOf(
@@ -385,19 +434,6 @@ object NaturalLanguageIntentParser {
             "(?:early|late|mid)[\\s-]+(?:morning|afternoon|evening|night)|mid(?:morning|afternoon|evening))\\b",
         RegexOption.IGNORE_CASE
     )
-    // What [hasUnreadDayLeft] looks for in the words the reader left. Digits that may be a date ("11/15", "12-1",
-    // "15/11/26", "2026-11-15"), not after a price or inside a time ("$10-15", "10:30-11").
-    private val DATE_SHAPED_REGEX = Regex(
-        "(?<![\\d.,:/$€£¥])\\b(\\d{1,2})([/-])(\\d{1,2})(?:[/-](?:\\d{4}|\\d{2}))?(?![\\d/])|\\b\\d{4}-\\d{1,2}-\\d{1,2}\\b"
-    )
-    // A range of hours, read with the clock time: "2-3pm", "10-11:30", "at 10-11", "from 2-3".
-    private val RANGE_END_TIME_REGEX = Regex("^\\s*(?:[ap]\\.?\\s?m\\b|[:.]\\d)", RegexOption.IGNORE_CASE)
-    private val RANGE_STARTS = setOf("at", "from", "@")
-    // "on the 15", "the 1": a day of the month with no suffix. "On the 3 pm" is a time, "the 15th" was read already.
-    private val BARE_DAY_NUMBER_REGEX = Regex(
-        "\\b(?:on|the)\\s+(?:the\\s+)?\\d{1,2}(?![\\d:./,]|\\s*(?:[ap]\\.?\\s?m\\b|o['’]?clock\\b|st\\b|nd\\b|rd\\b|th\\b))",
-        RegexOption.IGNORE_CASE
-    )
     // A month beside a day ("december first", "the fifth of december"), "on december", or "of" any month. A clock
     // time after it is no day: "call june 5pm".
     private val MONTH_LEFT_REGEX = Regex(
@@ -405,7 +441,6 @@ object NaturalLanguageIntentParser {
             "\\bof\\s+$MONTHS|\\bon\\s+(?:$FULL_MONTHS)\\b",
         RegexOption.IGNORE_CASE
     )
-    private val FULL_WEEKDAY_LEFT_REGEX = Regex("(?<!['’])\\b(?:${WEEKDAYS.joinToString("|")})\\b", RegexOption.IGNORE_CASE)
     private val SHORT_WEEKDAY_LEFT_REGEX = Regex("(?<!['’])\\b(?:${SHORT_WEEKDAYS.keys.joinToString("|")})\\b", RegexOption.IGNORE_CASE)
     // "on election day", "for veterans day", "by payday": a day named for something, which the reader has no date for
     // unless it is one of [OCCASIONS]'s. "For the day" and "on a day" name none.
@@ -414,14 +449,73 @@ object NaturalLanguageIntentParser {
             "((?:(?!(?:the|a|an|this|that|each|every|one|per)\\s)\\p{L}+['’]?s?\\s+){1,3}day|\\p{L}+day)\\b",
         RegexOption.IGNORE_CASE
     )
-    // "in 5", "in 45": minutes or hours, the unit unsaid.
-    private val IN_BARE_NUMBER_REGEX = Regex("\\bin\\s+\\d", RegexOption.IGNORE_CASE)
-    // "the 7.30 train": a time written with a dot, which the clock-time reader takes only with "at" or am/pm.
-    private val TIME_LEFT_REGEX = Regex("\\bthe\\s+(?:[1-9]|1\\d|2[0-3])\\.[0-5]\\d\\b", RegexOption.IGNORE_CASE)
     // A misspelled weekday ("wensday", "thrusday", "fryday"): a day that can't be read.
     private val UNKNOWN_WEEKDAY_REGEX = Regex("\\b(?:mo|tu|we|th|fr|sa|su)\\p{L}{0,7}day\\b", RegexOption.IGNORE_CASE)
     /** Words [UNKNOWN_WEEKDAY_REGEX] finds that are no misspelling. */
     private val KNOWN_DAY_WORDS = WEEKDAYS.toSet() + "weekday"
+
+    // "@ 5" is "at 5", and "6 in the am" is "6 am": the same clock time, written the quick-note or spoken way. An "@"
+    // inside a word, as in an email address, is left alone.
+    private val AT_SIGN_REGEX = Regex("(?<![\\p{L}\\p{N}])@\\s*(?=\\d)")
+    private val AT_WORD_REGEX = Regex("\\bat\\b", RegexOption.IGNORE_CASE)
+    private val IN_THE_MERIDIEM_REGEX = Regex("(?<=\\d)\\s+in\\s+the\\s+([ap])\\.?\\s?m\\b\\.?", RegexOption.IGNORE_CASE)
+    // A time zone said after a clock time: "at 5pm eastern", "3pm my time", "9am london time". Zone abbreviations
+    // ("est", "cet") are [WHEN_WORDS] wherever they are.
+    private val ZONE_AFTER_TIME_REGEX = Regex(
+        "(?:\\d|(?<!\\p{L})[ap]\\.?m\\b\\.?)\\s*(?:(?:eastern|pacific|central|mountain|atlantic|alaska|hawaii)\\b|" +
+            "(?!(?:minutes?|mins?|hours?|hrs?|days?|weeks?|wks?|months?|years?)['’]?\\s)\\p{L}+\\s+time\\b)|" +
+            "\\b(?:eastern|pacific|central|mountain|atlantic|alaska|hawaii)\\s+(?:standard\\s+|daylight\\s+)?time\\b",
+        RegexOption.IGNORE_CASE
+    )
+    private val TIME_ZONES = listOf(
+        "est", "edt", "pst", "pdt", "cst", "cdt", "mst", "mdt", "et", "pt", "ct", "mt", "gmt", "utc", "bst", "cet", "cest",
+        "ist", "aest", "aedt", "jst", "kst", "hst", "akst", "akdt", "eet", "eest", "nzst", "nzdt"
+    )
+    /**
+     * The words of when a task may not hold ([isPlainTask]): day, weekday and month names and their short forms, today,
+     * tonight and tomorrow and how quick notes write them, the parts of the day and their slang, am and pm, "o'clock",
+     * weeks and weekends as notes shorten them, end-of-day words, and time zones. Names that are as often an everyday
+     * word or a name ("may", "march", "april", "june", "jan", "dec", "sun", "sat", "wed") count only beside a day
+     * ([hasUnreadDayLeft]), so "call april at 5" and "get some sun at 2pm" stay tasks.
+     */
+    private val WHEN_WORDS: Set<String> = buildSet {
+        addAll(WEEKDAYS)
+        addAll(WEEKDAYS.map { it + "s" })
+        addAll(listOf("mon", "tue", "tues", "thu", "thur", "thurs", "fri", "weds"))
+        addAll(listOf("january", "february", "july", "august", "september", "october", "november", "december"))
+        addAll(listOf("feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct", "nov"))
+        addAll(listOf(
+            "today", "tonight", "tomorrow", "yesterday", "tmrw", "tmr", "tmw", "tmrow", "tmro", "tomm", "tomoz", "tonite", "nite",
+            "morning", "mornings", "mornin", "morn", "afternoon", "afternoons", "arvo", "evening", "evenings", "night", "nights",
+            "noon", "midday", "midnight", "am", "pm", "oclock", "o'clock", "weekend", "weekends", "wknd", "wkend", "wk", "wks",
+            "weekday", "weekdays", "weeknight", "weeknights", "fortnight", "eod", "eow", "eom", "eoy", "cob", "eob", "asap",
+            "soon", "later"
+        ))
+        addAll(TIME_ZONES)
+    }
+    /** The words of when a typo of which ([nearWhenWord]) is no task word either. */
+    private val TYPO_TARGETS = WEEKDAYS + listOf(
+        "january", "february", "august", "september", "october", "november", "december", "today", "tonight", "tomorrow",
+        "yesterday", "tmrw", "morning", "afternoon", "evening", "midnight", "weekend"
+    )
+    // Tomorrow typed fast: "tommrow", "tommorw", "tomorrowww".
+    private val TOMORROW_SHAPE_REGEX = Regex("to{0,2}m+o{0,2}r+o{0,2}w*")
+    // Phrases of when a task may not hold: "first thing", a holiday ("christmas presents", "halloween party", "diwali
+    // lights"), "or so", "or two". Not the [UNKNOWN_HOLIDAYS] that are as often a thing ("the super bowl", "lent").
+    private val WHEN_PHRASE_REGEX = Regex(
+        "\\bfirst\\s+thing\\b|\\b(?:$OCCASION_NAMES|juneteenth|hanukk?ah|chanukk?ah|kwanzaa|diwali|eid|ramadan|passover|" +
+            "rosh\\s+hashanah?|yom\\s+kippur|purim|mardi\\s+gras|cinco\\s+de\\s+mayo|day\\s+of\\s+the\\s+dead)(?!\\p{L})|" +
+            "\\bor\\s+(?:so|two|three|four|five|six|seven|eight|nine|ten|more|less|later|earlier)\\b",
+        RegexOption.IGNORE_CASE
+    )
+    /** What a task's words may start or end with besides letters: punctuation, quotes and brackets. */
+    private val TASK_WORD_TRIM = charArrayOf(',', '.', ';', ':', '!', '?', '"', '“', '”', '\'', '‘', '’', '(', ')', '[', ']', '…')
+    /** Marks that may stand alone between a task's words: "pay rent - landlord", "milk & eggs", "lunch w/ sam". */
+    private val STANDALONE_MARKS = setOf("-", "–", "—", "&", "w/", "w/o")
+    // Clock faces (🕐 to 🕧) say an hour; other emoji only decorate a task.
+    private val CLOCK_FACES = 0x1F550..0x1F567
+    // Letters, with an apostrophe, hyphen or dot inside ("mom's", "follow-up", "o'brien", "a.m").
+    private val PLAIN_WORD_REGEX = Regex("[\\p{L}\\p{M}]+(?:['’.\\-][\\p{L}\\p{M}]+)*")
 
     /** AlarmClock.EXTRA_LENGTH accepts 1..86400 seconds. */
     private const val MAX_TIMER_SECONDS = 24L * 60L * 60L
@@ -551,82 +645,25 @@ object NaturalLanguageIntentParser {
     // TIMER PARSER
     // ---------------------------------------------------------------------------------------------
 
+    /**
+     * A timer, under the whole-phrase rule: its length is read whole or not at all. The length is one run of parts
+     * ([TIMER_PART_REGEX]), each unit once, joined by nothing, a comma or "and" ("1h30m", "an hour and 15 minutes", "1
+     * 1/2 hours"), then "and a half" ("an hour and a half") or a bare number at the end in the next smaller unit ("2
+     * hours 30"). The words around it may name what it's for ("timer 3 minutes for eggs", "timer for pasta 10 minutes",
+     * "timer for 2 eggs 5 minutes"), but none may be part of a length the reader didn't read: a unit or "half" left
+     * over ("twenty minutes", "5 minutes ... 3 minutes"), or a number that counts nothing ("3 to 4 minutes", "45
+     * minutes then 10", "1½ minutes") gives no timer rather than one of the wrong length. With no part, the whole of
+     * what follows "timer" may be a number of minutes ("timer 15") or a clock form ("timer 1:30", "timer 1:05:00").
+     */
     private fun parseTimer(lower: String): ParsedIntent.Timer? {
         val matchedPrefix = TIMER_PREFIXES.firstOrNull { lower.startsWith(it) } ?: return null
         val remainder = lower.removePrefix(matchedPrefix).trim().replace(TIMER_NUMBER_AND_A_HALF_REGEX, "$1.5 ")
         if (NEGATIVE_AMOUNT_REGEX.containsMatchIn(remainder)) return null
 
-        var totalSeconds = 0L
-        var matched = false
-
-        val hrMatch = TIMER_HOURS_REGEX.find(remainder)
-        if (hrMatch != null) {
-            totalSeconds += unitSeconds(hrMatch, 3600L)
-            matched = true
-        }
-
-        val minMatch = TIMER_MINUTES_REGEX.find(remainder)
-        if (minMatch != null) {
-            totalSeconds += unitSeconds(minMatch, 60L)
-            matched = true
-        }
-
-        val secMatch = TIMER_SECONDS_REGEX.find(remainder)
-        if (secMatch != null) {
-            totalSeconds += unitSeconds(secMatch, 1L)
-            matched = true
-        }
-
-        // "2 hours 30" and "1 m 30": a bare number right after the last unit counts in the next smaller one. More than
-        // 59 of it is a typo, not a longer timer. Words between ("45 minutes then 10") leave it unread: no timer.
-        val lastUnit = listOfNotNull(hrMatch, minMatch, secMatch).maxByOrNull { it.range.last }
-        // "1 hour and a half" is half the last unit more.
-        if (lastUnit != null && lastUnit !== secMatch &&
-            TIMER_AND_A_HALF_REGEX.matches(remainder.substring(lastUnit.range.last + 1).trimStart { it.isLetter() })
-        ) {
-            totalSeconds += if (lastUnit === hrMatch) 1_800L else 30L
-        }
-        val trailing = TIMER_TRAILING_AMOUNT_REGEX.find(remainder)
-        if (lastUnit != null && trailing != null && trailing.range.first > lastUnit.range.last && lastUnit !== secMatch) {
-            // The unit's match may end inside its word ("h" of "hours"), so the rest of that word isn't in between.
-            val between = remainder.substring(lastUnit.range.last + 1, trailing.range.first).trimStart { it.isLetter() }
-            if (between.isNotBlank()) return null
-            val amount = trailing.value.toLongOrNull()?.takeIf { it < 60L } ?: return null
-            totalSeconds += amount * if (lastUnit === hrMatch) 60L else 1L
-        }
-
-        // Fallbacks: "timer 15" -> 15 minutes, "timer 1:30" -> 1m 30s, "timer 1:05:00" -> 1h 5m, "timer half an
-        // hour" -> 30m. Only a single number or a clock form is accepted; concatenating every digit turned
-        // "timer 1:30" into 130 minutes.
-        if (!matched) {
-            val clock = TIMER_CLOCK_REGEX.matchEntire(remainder)
-            val words = TIMER_WORD_AMOUNT_REGEX.matchEntire(remainder)
-            if (words != null) {
-                val half = words.groupValues[1].isNotEmpty() || words.groupValues[2].isNotEmpty()
-                val unitSeconds = if (words.groupValues[3] == "hour") 3600L else 60L
-                totalSeconds = if (half) unitSeconds / 2 else unitSeconds
-                matched = true
-            } else if (clock != null) {
-                val parts = clock.groupValues.drop(1).filter { it.isNotEmpty() }.map { it.toLong() }
-                if (parts.drop(1).any { it >= 60L }) return null
-                totalSeconds = if (parts.size == 3) {
-                    parts[0] * 3600L + parts[1] * 60L + parts[2]
-                } else {
-                    parts[0] * 60L + parts[1]
-                }
-                matched = true
-            } else {
-                val minutes = remainder.toLongOrNull()
-                if (minutes != null && minutes > 0) {
-                    totalSeconds = minutes.coerceAtMost(MAX_TIMER_SECONDS) * 60L
-                    matched = true
-                }
-            }
-        }
-
+        val totalSeconds = timerLength(remainder) ?: timerFallback(remainder) ?: return null
         // AlarmClock.EXTRA_LENGTH only accepts 1..86400 seconds. Anything larger is rejected rather than
         // clamped so a typo never silently becomes a different duration.
-        if (!matched || totalSeconds <= 0L || totalSeconds > MAX_TIMER_SECONDS) return null
+        if (totalSeconds <= 0L || totalSeconds > MAX_TIMER_SECONDS) return null
         val durationSeconds = totalSeconds.toInt()
 
         return ParsedIntent.Timer(
@@ -637,12 +674,94 @@ object NaturalLanguageIntentParser {
     }
 
     /**
-     * Seconds contributed by one captured amount. The amount is capped before scaling so absurdly long
-     * digit runs can never overflow the accumulator.
+     * The seconds of the one length [text] holds, read whole, or null when it holds none or any of it is left unread
+     * ([parseTimer]). Each part's amount is capped before scaling, so absurdly long digit runs can't overflow the sum.
      */
-    private fun unitSeconds(match: MatchResult, secondsPerUnit: Long): Long {
-        val amount = match.groupValues[1].replace(',', '.').toDoubleOrNull() ?: 0.0
-        return Math.round(amount.coerceAtMost(MAX_TIMER_SECONDS.toDouble()) * secondsPerUnit)
+    private fun timerLength(text: String): Long? {
+        val first = TIMER_PART_REGEX.find(text) ?: return null
+        var total = 0.0
+        val units = HashSet<Char>()
+        var part: MatchResult = first
+        while (true) {
+            val unit = part.groupValues[6][0]
+            if (!units.add(unit)) return null
+            total += timerAmount(part).coerceAtMost(MAX_TIMER_SECONDS.toDouble()) * unitSecondsOf(unit)
+            val next = TIMER_PART_REGEX.find(text, part.range.last + 1) ?: break
+            if (!TIMER_JOIN_REGEX.matches(text.substring(part.range.last + 1, next.range.first))) break
+            part = next
+        }
+        var end = part.range.last + 1
+        val lastUnit = part.groupValues[6][0]
+        val rest = text.substring(end)
+        val half = TIMER_AND_A_HALF_REGEX.find(rest)
+        val trailing = TIMER_TRAILING_AMOUNT_REGEX.find(rest)
+        when {
+            // "1 hour and a half" is half the last unit more.
+            half != null && lastUnit != 's' -> {
+                total += unitSecondsOf(lastUnit) / 2.0
+                end += half.range.last + 1
+            }
+            // More than 59 of the next smaller unit is a typo, not a longer timer.
+            trailing != null && lastUnit != 's' -> {
+                val amount = trailing.groupValues[1].toLongOrNull()?.takeIf { it < 60L } ?: return null
+                total += amount * unitSecondsOf(lastUnit) / 60.0
+                end = text.length
+            }
+        }
+        if (!isTimerLabel(text.substring(0, first.range.first), before = true) || !isTimerLabel(text.substring(end), before = false)) {
+            return null
+        }
+        return Math.round(total)
+    }
+
+    /** The amount of one [TIMER_PART_REGEX] part: "1.5", "1 1/2", "3/4 of an", "half an", "a quarter of an", "one". */
+    private fun timerAmount(part: MatchResult): Double {
+        val g = part.groupValues
+        return when {
+            g[3].isNotEmpty() -> (g[1].toDoubleOrNull() ?: 0.0) + g[2].toDouble() / g[3].toDouble()
+            g[4].isNotEmpty() -> g[4].replace(',', '.').toDoubleOrNull() ?: 0.0
+            "half" in g[5] -> 0.5
+            "quarter" in g[5] -> 0.25
+            else -> 1.0
+        }
+    }
+
+    private fun unitSecondsOf(unit: Char): Long = when (unit) {
+        'h' -> 3600L
+        'm' -> 60L
+        else -> 1L
+    }
+
+    /**
+     * Whether [words], what is [before] or after a timer's length, only say what the timer is for: no unit or "half"
+     * left over, and a number only where it counts something ("2 eggs"), never right beside the length.
+     */
+    private fun isTimerLabel(words: String, before: Boolean): Boolean {
+        val tokens = words.split(WHITESPACE_REGEX).map { it.trim(*TASK_WORD_TRIM) }.filter { it.isNotEmpty() }
+        for ((index, token) in tokens.withIndex()) {
+            if (token in TIMER_LENGTH_WORDS) return false
+            if (token.none { it.isDigit() || Character.getType(it) == Character.OTHER_NUMBER.toInt() }) continue
+            val besideLength = if (before) index == tokens.lastIndex else index == 0
+            val counted = tokens.getOrNull(index + 1)
+            if (besideLength || !token.all { it.isDigit() } || counted == null || counted.none { it.isLetter() } ||
+                counted in NOT_COUNTED_AFTER || counted in TIMER_LENGTH_WORDS
+            ) return false
+        }
+        return true
+    }
+
+    /**
+     * A length with no unit: "timer 15" is 15 minutes, "timer 1:30" 1 min 30 s, "timer 1:05:00" 1 h 5 min. Only the
+     * whole of [text] counts; concatenating every digit turned "timer 1:30" into 130 minutes.
+     */
+    private fun timerFallback(text: String): Long? {
+        TIMER_CLOCK_REGEX.matchEntire(text)?.let { clock ->
+            val parts = clock.groupValues.drop(1).filter { it.isNotEmpty() }.map { it.toLong() }
+            if (parts.drop(1).any { it >= 60L }) return null
+            return if (parts.size == 3) parts[0] * 3600L + parts[1] * 60L + parts[2] else parts[0] * 60L + parts[1]
+        }
+        val minutes = text.toLongOrNull()?.takeIf { it > 0 } ?: return null
+        return minutes.coerceAtMost(MAX_TIMER_SECONDS) * 60L
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -651,7 +770,7 @@ object NaturalLanguageIntentParser {
 
     private fun parseAlarm(lower: String, currentTimeMs: Long, locale: Locale): ParsedIntent.Alarm? {
         val matchedPrefix = ALARM_PREFIXES.firstOrNull { lower.startsWith(it) } ?: return null
-        val remainder = lower.removePrefix(matchedPrefix).trim()
+        val remainder = spellClockTimes(lower.removePrefix(matchedPrefix).trim())
         if (SPOKEN_CLOCK_REGEX.containsMatchIn(remainder)) return null
 
         // "alarm in 10 minutes" and "alarm for 10 minutes" are a time from now, not 10 o'clock. An alarm is only an
@@ -660,6 +779,8 @@ object NaturalLanguageIntentParser {
         val now = Calendar.getInstance().apply { timeInMillis = currentTimeMs }
         val rings = (now.clone() as Calendar).apply { set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
         if (relative != null) {
+            // The whole-phrase rule, as for a clock time: "alarm in 20 minutes tomorrow" is no alarm.
+            if (!isPlainTask(remainder.removeRange(relative.range))) return null
             val minutes = relativeMinutes(relative) ?: return null
             if (minutes >= MINUTES_PER_DAY) return null
             rings.add(Calendar.MINUTE, Math.round(minutes).toInt())
@@ -690,7 +811,10 @@ object NaturalLanguageIntentParser {
      */
     private fun ringsOnTheDayNamed(words: String, now: Calendar, rings: Calendar, locale: Locale): Boolean {
         val day = readDay(words, now, locale) ?: return false
-        val (typedHour, minute, bare) = extractTime(day.text) ?: return false
+        val (typedHour, minute, bare, timeWords) = extractTime(day.text) ?: return false
+        // The whole-phrase rule: once the day and time are out, only plain words may be left ("alarm 7am for work"),
+        // never another number or a word of when ("alarm 6:45 pm est", "alarm 7 30 45").
+        if (!isPlainTask(day.text.removeRange(timeWords).replace(AT_WORD_REGEX, " "))) return false
         var hour = typedHour
         val night = day.namedDay == NamedDay.TONIGHT || day.period == "night"
         var smallHours = false
@@ -808,6 +932,8 @@ object NaturalLanguageIntentParser {
             // "text editor, free" and "message saying sorry to her" name no one: no contact answers and the words are
             // a search's. A name no contact answers is still taken when it could be one ("text Sarah: running late").
             if (separatedTo == null && startsAsSearch(separated.groupValues[2])) return null
+            // "text dad's work number to mom" names someone by whose they are, which no contact answers.
+            if (separatedTo == null && separated.groupValues[2].split(WHITESPACE_REGEX).any { POSSESSIVE_REGEX.matches(it) }) return null
             verb = separated.groupValues[1]
             typedName = separated.groupValues[2].trim()
             recipient = separatedTo
@@ -880,6 +1006,10 @@ object NaturalLanguageIntentParser {
             // contacts. "Text mom: not coming" still goes, its colon marking the message.
             val body = rest.substring(words[count].range.first).trim()
             if (TROUBLESHOOTING.containsMatchIn(body.replace('’', '\''))) return null
+            // "text will smith's wife happy birthday": the name runs on into whose someone is, so the message is for
+            // someone else, not Will Smith with "smith's wife ..." as its words.
+            val owner = POSSESSIVE_REGEX.matchEntire(words[count].value)?.groupValues?.get(1)
+            if (owner != null && nameTokens(owner).all { it in nameTokens(recipient.name) }) return null
             return SplitMessage(match.groupValues[1], name, recipient, body)
         }
         return null
@@ -1076,7 +1206,7 @@ object NaturalLanguageIntentParser {
      */
     private fun extractTemporalInfo(rawText: String, baseTimeMs: Long, locale: Locale): TemporalResult? {
         val cal = Calendar.getInstance().apply { timeInMillis = baseTimeMs }
-        val day = readDay(rawText, cal, locale) ?: return null
+        val day = readDay(spellClockTimes(rawText), cal, locale) ?: return null
         // "730pm" is 7:30 PM.
         var text = day.text.replace(COMPACT_TIME_REGEX) { "${it.groupValues[1]}:${it.groupValues[2]}" }
         val namedDay = day.namedDay
@@ -1171,12 +1301,13 @@ object NaturalLanguageIntentParser {
             // - "tonight" and a night run past midnight: "tonight at 9" is 21:00, "at 12" midnight, the end of the
             //   day, and 1 to 4 the small hours after it. "Tonight at 5" may be either, so it is no time;
             // - a part of the day: "tomorrow morning at 7" is 7 AM, "this evening at 7" 7 PM;
-            // - tomorrow, a weekday or a date has no "already passed" to go by, so 1-7 is read as the afternoon or
-            //   evening people mean ("tomorrow at 3") and 8-11 as the morning;
-            // - with no day or "today", the next one still ahead: "at 3" said at 10 AM is 3 PM.
+            // - else [bareHour], the rule the short phrasing shares: 1-7 the afternoon or evening ("in 2 days at 5" is 5
+            //   PM too), 12 noon, and 8-11 the morning on a named day, or the next one still ahead today.
             var said: Int? = null
             if (amPm.isEmpty() && !zeroPadded && hour in 1..12) {
                 said = hourForWords(text, hour)
+                // "Pack lunch at 7": the words say a half of the day the hour isn't in.
+                if (said == null && wordsDisagreeWithHour(text, hour)) return null
                 when {
                     said != null -> hour = said
                     night -> hour = when (hour) {
@@ -1187,13 +1318,14 @@ object NaturalLanguageIntentParser {
                     }
                     hour == 12 -> {}
                     period != null -> if (period != "morning") hour += 12
-                    relativeMatch != null -> {}
-                    namedDay == NamedDay.TOMORROW || namedDay == NamedDay.WEEKDAY || namedDay == NamedDay.DATE -> if (hour <= 7) hour += 12
                     else -> {
-                        val morning = (cal.clone() as Calendar).apply {
-                            set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute); set(Calendar.SECOND, 0)
+                        val dayNamed = (relativeMatch != null && inDaysOnly(relativeMatch)) ||
+                            namedDay == NamedDay.TOMORROW || namedDay == NamedDay.WEEKDAY || namedDay == NamedDay.DATE
+                        val nowMinutes = if (dayNamed) 0 else {
+                            val now = Calendar.getInstance().apply { timeInMillis = baseTimeMs }
+                            now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
                         }
-                        if (morning.timeInMillis < baseTimeMs && morning.timeInMillis + 12 * 3_600_000L > baseTimeMs) hour += 12
+                        hour = bareHour(hour, minute, dayNamed, nowMinutes)
                     }
                 }
             }
@@ -1234,6 +1366,8 @@ object NaturalLanguageIntentParser {
             rangeEndMillis(cal, rangeEnd) ?: return null
         } else null
         val cleanTitle = text.replace(WHITESPACE_REGEX, " ").trim(*STRAY_PUNCTUATION)
+        // The whole-phrase rule: what is left must be plain words of the task, or the phrase was only partly read.
+        if (!isPlainTask(cleanTitle)) return null
         return TemporalResult(cal.timeInMillis, cleanTitle, endMs)
     }
 
@@ -1295,10 +1429,11 @@ object NaturalLanguageIntentParser {
      * "daily").
      *
      * Last, the words left once all of that is out, the task, are looked over ([hasUnreadDayLeft]): any that still look
-     * like a date or a day ("dentist 11/15 at 3pm", "on the 15", "december first", "call mom fri", "saturday's game",
-     * "on election day", "in 5") give null too. So the grammar is closed both ways: a when-word the lists above don't
-     * know can't fall through to today or now. When in doubt the phrase is searched rather than set on a guessed day or
-     * for now, as no action is better than a wrong one.
+     * like a day ("december first", "call mom on sat", "on election day") give null too. Once the clock time is read
+     * as well, the whole-phrase rule ([isPlainTask]) refuses any digit or other word of when left ("dentist 11/15 at
+     * 3pm", "on the 15", "call mom fri", "saturday's game", "in 5"). So the grammar is closed both ways: a when-word the
+     * lists above don't know can't fall through to today or now. When in doubt the phrase is searched rather than set
+     * on a guessed day or for now, as no action is better than a wrong one.
      *
      * [clockFollows] says a clock time comes right after [rawText] (the short phrasings read the time apart), which "the
      * 12th" and "fri" at its end are then right before.
@@ -1383,6 +1518,8 @@ object NaturalLanguageIntentParser {
         }
         for (match in BARE_ORDINAL_REGEX.findAll(scan)) {
             if (scan.substring(match.range).isBlank() || !timeFollows(match.range.last + 1)) continue
+            // "Celebrate my 30th at 7pm" is a birthday, not the 30th of the month.
+            if (wordBefore(scan, match.range.first) in DETERMINERS) continue
             val dayOfMonth = match.groupValues[1].toIntOrNull()
                 ?: SPELLED_ORDINALS[match.groupValues[2].lowercase(Locale.ROOT).replace(WHITESPACE_REGEX, "-")] ?: return null
             val date = dayOfMonthOnOrAfter(today, dayOfMonth) ?: return null
@@ -1471,11 +1608,17 @@ object NaturalLanguageIntentParser {
     }
 
     /**
-     * Whether [text] has when-words outside the reader's grammar ([NEVER_READ_REGEX], [ROUGH_TIME_REGEX],
+     * Whether [text] says a time zone after a clock time ("at 5pm eastern", "3pm my time", "9am london time"): the
+     * reader reads every time as the phone's own, so such a phrase is no action rather than one at the wrong hour.
+     */
+    internal fun namesTimeZone(text: String): Boolean = ZONE_AFTER_TIME_REGEX.containsMatchIn(text)
+
+    /**
+     * Whether [text] has when-words outside the reader's grammar ([NEVER_READ_REGEX], a time zone, [ROUGH_TIME_REGEX],
      * [REPEAT_OR_ROUGH_PART_REGEX], a misspelled weekday): a phrase with any is no event, reminder or alarm.
      */
     private fun hasUnreadWhenWords(text: String): Boolean =
-        NEVER_READ_REGEX.containsMatchIn(text) ||
+        NEVER_READ_REGEX.containsMatchIn(text) || namesTimeZone(text) ||
             ROUGH_TIME_REGEX.findAll(text).any { !describesNext(text, it.range.last + 1) } ||
             REPEAT_OR_ROUGH_PART_REGEX.findAll(text).any { !describesNext(text, it.range.last + 1) } ||
             UNKNOWN_WEEKDAY_REGEX.findAll(text).any { it.value.lowercase(Locale.ROOT) !in KNOWN_DAY_WORDS }
@@ -1483,35 +1626,18 @@ object NaturalLanguageIntentParser {
     /**
      * Whether [left], a phrase's words with everything [readDay] read blanked out, still holds a date or a day: the
      * grammar is closed for what it reads, and this keeps it closed for what it leaves, so a when-word it doesn't know
-     * makes no action rather than one set for today or now. These count, unless they plainly describe the word after
-     * them ("the 3rd floor", "5-10 minutes", "sunday school"):
-     * - digits that may be a date ("11/15", "12-1", "15/11"), but not a fraction or a count of small numbers ("take
-     *   1/2", "episode 4/5", "chapters 2-3") or a time range ("2-3pm", "at 10-11");
-     * - a day of the month with no suffix after "on" or "the" ("on the 15");
-     * - a month beside a day ("december first", "the fifth of december"), "on december" or "of november";
-     * - a weekday, its short name (not after "the", "some" and the like: "the sun", "get some sun") or its possessive
-     *   ("saturday's game");
-     * - a day named for something ("on election day", "for veterans day") that isn't one of [OCCASIONS];
-     * - "in" and a number with no unit ("in 5"), and a time with a dot after "the" ("the 7.30 train").
+     * makes no action rather than one set for today or now. It looks for the words of a day that [isPlainTask], which
+     * every task passes once its time is read too, lets through as everyday words or names; any digit and any full
+     * weekday name is already left to that. These count:
+     * - a month beside a day ("december first", "the fifth of december"), "on december" or "of november", so "call
+     *   june at 5pm" stays a task;
+     * - a short weekday name that is also a word ("sun", "sat", "wed"), unless it plainly is the word ("the sun", "get
+     *   some sun", "my sat score", "the wed planner");
+     * - a day named for something ("on election day", "for veterans day") that isn't one of [OCCASIONS].
      * When in doubt, the phrase counts as having one: a search is better than a reminder on the wrong day.
      */
     private fun hasUnreadDayLeft(left: String): Boolean {
-        for (match in DATE_SHAPED_REGEX.findAll(left)) {
-            if (match.groups[1] == null) return true
-            val first = match.groupValues[1].toInt()
-            val second = match.groupValues[3].toInt()
-            if (first < 1 || second < 1 || !((first <= 12 && second <= 31) || (second <= 12 && first <= 31))) continue
-            if (first < second && second <= 9) continue
-            // "The 9/11 memorial" names an event, as "christmas presents" does.
-            if (first == 9 && second == 11 && match.groupValues[2] == "/" && describesNext(left, match.range.last + 1)) continue
-            if (match.groupValues[2] == "-" && (RANGE_END_TIME_REGEX.containsMatchIn(left.substring(match.range.last + 1)) ||
-                    wordBefore(left, match.range.first) in RANGE_STARTS || describesNext(left, match.range.last + 1))
-            ) continue
-            return true
-        }
-        if (BARE_DAY_NUMBER_REGEX.findAll(left).any { !describesNext(left, it.range.last + 1) }) return true
         if (MONTH_LEFT_REGEX.containsMatchIn(left)) return true
-        if (FULL_WEEKDAY_LEFT_REGEX.findAll(left).any { !describesNext(left, it.range.last + 1) }) return true
         if (SHORT_WEEKDAY_LEFT_REGEX.findAll(left).any {
                 wordBefore(left, it.range.first) !in DETERMINERS && !describesNext(left, it.range.last + 1)
             }) return true
@@ -1520,7 +1646,94 @@ object NaturalLanguageIntentParser {
             if (name in OCCASIONS.occasionNames || name in WEEKDAYS || name == "today" || describesNext(left, match.range.last + 1)) continue
             return true
         }
-        return IN_BARE_NUMBER_REGEX.containsMatchIn(RELATIVE_TIME_REGEX.replace(left, " ")) || TIME_LEFT_REGEX.containsMatchIn(left)
+        return false
+    }
+
+    /**
+     * Whether [task], the words of an event, reminder or alarm once its cue and every date and time read are out, is
+     * plain words of a task: THE WHOLE-PHRASE RULE (see this object's KDoc). Every word must be letters ("mom's",
+     * "follow-up" and "dr." are); a lone "-", "&" or "w/" between words and emoji ("🎂") are allowed, as they say
+     * nothing of when. These make it no task, and so no action:
+     * - a digit, '@', '#', a currency sign, a clock face or any other mark ("call mom 5", "dentist 15.11", "b4");
+     * - a word of when ([WHEN_WORDS]): "tmrw nite", "in the am", "by eow", "at 3pm est", "sunday school";
+     * - a typo of one ([nearWhenWord]): "tomorrrow", "firday", "novemeber", "mornign";
+     * - a phrase of when ([WHEN_PHRASE_REGEX]): "first thing", "halloween party", "or so";
+     * - an "at" at the end, a time not yet typed ("call mom at").
+     * Holding one means the reader understood only part of the phrase, and a guess could set the wrong day or time,
+     * so the query stays a search.
+     */
+    internal fun isPlainTask(task: String): Boolean {
+        if (WHEN_PHRASE_REGEX.containsMatchIn(task)) return false
+        val words = task.split(WHITESPACE_REGEX).map { it.trim(*TASK_WORD_TRIM) }.filter { it.isNotEmpty() }
+        if (words.lastOrNull().equals("at", ignoreCase = true)) return false
+        for ((index, word) in words.withIndex()) {
+            if (word.lowercase(Locale.ROOT) in STANDALONE_MARKS || isEmoji(word)) continue
+            if (!PLAIN_WORD_REGEX.matches(word)) return false
+            val key = word.lowercase(Locale.ROOT).replace('’', '\'').removeSuffix("'s").replace(".", "")
+            for (part in key.split('-')) {
+                // "I am" is no morning.
+                if (part == "am" && words.getOrNull(index - 1).equals("i", ignoreCase = true)) continue
+                if (part in WHEN_WORDS || nearWhenWord(part)) return false
+            }
+        }
+        return true
+    }
+
+    /**
+     * Whether [word] is only emoji ("🎂", "👍🏽", "🙏"), which decorate a task and say nothing of when. A clock face
+     * ("🕔") says an hour, so it isn't.
+     */
+    private fun isEmoji(word: String): Boolean = word.codePoints().allMatch { point ->
+        point !in CLOCK_FACES && (Character.getType(point) == Character.OTHER_SYMBOL.toInt() ||
+            Character.getType(point) == Character.MODIFIER_SYMBOL.toInt() || point == 0x200D || point in 0xFE00..0xFE0F)
+    } && word.codePoints().anyMatch { Character.getType(it) == Character.OTHER_SYMBOL.toInt() }
+
+    /**
+     * Whether [word] is a typo of a word of when ([TYPO_TARGETS]): at most one letter off (added, dropped, changed or two
+     * swapped) for a word of 4 to 6 letters, two for a longer one, with the first letter kept, as typos keep it, so
+     * "light" and "warning" are no "night" or "morning". Tomorrow typed fast ("tommrow", "tomorrowww") counts too.
+     */
+    private fun nearWhenWord(word: String): Boolean {
+        if (word.length < 4) return false
+        if (TOMORROW_SHAPE_REGEX.matches(word)) return true
+        val most = if (word.length <= 6) 1 else 2
+        return TYPO_TARGETS.any { target ->
+            target[0] == word[0] && kotlin.math.abs(target.length - word.length) <= most && typoDistance(word, target) <= most
+        }
+    }
+
+    /** The fewest one-letter edits (add, drop, change, swap two side by side) that turn [a] into [b]. */
+    private fun typoDistance(a: String, b: String): Int {
+        val d = Array(a.length + 1) { IntArray(b.length + 1) }
+        for (i in 0..a.length) d[i][0] = i
+        for (j in 0..b.length) d[0][j] = j
+        for (i in 1..a.length) for (j in 1..b.length) {
+            val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+            d[i][j] = minOf(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost)
+            if (i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1]) d[i][j] = minOf(d[i][j], d[i - 2][j - 2] + 1)
+        }
+        return d[a.length][b.length]
+    }
+
+    /** [text] with "@ 5" written "at 5" and "6 in the am" written "6 am", the clock times as the reader reads them. */
+    internal fun spellClockTimes(text: String): String =
+        text.replace(AT_SIGN_REGEX, "at ").replace(IN_THE_MERIDIEM_REGEX, " $1m")
+
+    /**
+     * The hour a bare [hour] (1 to 12, no am/pm and no leading zero) of an event or reminder means, on 12- and 24-hour
+     * phones alike, when no words have said which half of the day it is: 12 is noon; 1 to 7 is the afternoon or
+     * evening, as people mean "call mom at 5" or "pick up the kids at 3"; 8 to 11 is the morning when [dayNamed] (a
+     * day other than today, or a number of days from now: "tomorrow at 9", "in 2 days at 9"), else the next of 8-11 AM
+     * and PM still ahead of [nowMinutes] (minutes into today), or the morning once both are gone. Both readers use it,
+     * so the short "pick up kids at 3" and the full "remind me to pick up kids at 3" agree.
+     */
+    internal fun bareHour(hour: Int, minute: Int, dayNamed: Boolean, nowMinutes: Int): Int = when {
+        hour == 12 -> 12
+        hour <= 7 -> hour + 12
+        dayNamed -> hour
+        hour * 60 + minute > nowMinutes -> hour
+        (hour + 12) * 60 + minute > nowMinutes -> hour + 12
+        else -> hour
     }
 
     /** The word right before [index] in [text], lowercased ("the" in "the sun"), or "" at its start. */
@@ -1581,30 +1794,43 @@ object NaturalLanguageIntentParser {
 
     /**
      * The 24-hour hour a bare [hour] (no am/pm) means beside the words of [words] that say which half of the day: a
-     * meal (breakfast is the morning, brunch late morning to early afternoon, lunch 11 to 3, dinner and supper the
+     * meal (breakfast is the morning, brunch late morning to early afternoon, lunch 11 to 4, dinner and supper the
      * evening), bedtime (6 to 11 at night), "after work" (the afternoon or evening), "after school" or "after class" (1
      * to 7 in the afternoon or evening) and "before work", "school" or "class" (5 to 11 in the morning). These go before
      * any other rule, "tonight"'s included: "dinner tonight at 5:30" is 5:30 PM. A word counts only when it is the plan
      * itself, at the time or ending the task ("dinner at 7", "make dinner at 7", "at 7 to eat dinner"): one that
      * describes the word after it ("book dinner reservations at 10") or says what the task is for ("take the chicken
-     * out for dinner at 8") says nothing about the hour. Null when no such word is there or the hour doesn't fit it,
-     * which is then read as any other.
+     * out for dinner at 8") says nothing about the hour. Null when no such word is there, or when the hour doesn't fit
+     * it ([wordsDisagreeWithHour]).
      */
-    internal fun hourForWords(words: String, hour: Int): Int? {
+    internal fun hourForWords(words: String, hour: Int): Int? = halfOfDay(words, hour)?.takeIf { it != UNFIT_HOUR }
+
+    /**
+     * Whether a word of [words] says which half of the day a bare [hour] is ([hourForWords]) but the hour doesn't fit
+     * it: "pack lunch at 7" is no lunch at 7 PM and may as well be 7 AM, so the phrase is no action rather than a guess.
+     */
+    internal fun wordsDisagreeWithHour(words: String, hour: Int): Boolean = halfOfDay(words, hour) == UNFIT_HOUR
+
+    /** [halfOfDay]'s answer for a word that says the half of the day an hour isn't in. */
+    private const val UNFIT_HOUR = -1
+
+    /** [hourForWords]' hour, [UNFIT_HOUR] when a word says a half of the day [hour] isn't in, or null with no such word. */
+    private fun halfOfDay(words: String, hour: Int): Int? {
         fun counts(word: MatchResult) = !describesNext(words, word.range.last + 1)
+        fun fit(hour24: Int?) = hour24 ?: UNFIT_HOUR
         val meal = MEAL_REGEX.findAll(words).firstOrNull { counts(it) && wordBefore(words, it.range.first) != "for" }
         when (meal?.value?.lowercase(Locale.ROOT)) {
-            "breakfast" -> return hour.takeIf { it in 5..11 }
-            "brunch" -> return when (hour) { in 9..12 -> hour; in 1..2 -> hour + 12; else -> null }
-            "lunch" -> return when (hour) { 11, 12 -> hour; in 1..3 -> hour + 12; else -> null }
-            "dinner", "supper" -> return if (hour in 1..11) hour + 12 else null
+            "breakfast" -> return fit(hour.takeIf { it in 5..11 })
+            "brunch" -> return fit(when (hour) { in 9..12 -> hour; in 1..2 -> hour + 12; else -> null })
+            "lunch" -> return fit(when (hour) { 11, 12 -> hour; in 1..4 -> hour + 12; else -> null })
+            "dinner", "supper" -> return fit(if (hour in 1..11) hour + 12 else null)
         }
-        if (BEDTIME_REGEX.findAll(words).any { counts(it) }) return if (hour in 6..11) hour + 12 else null
+        if (BEDTIME_REGEX.findAll(words).any { counts(it) }) return fit(if (hour in 6..11) hour + 12 else null)
         AFTER_WORK_REGEX.findAll(words).firstOrNull { counts(it) }?.let { after ->
             val latest = if (after.groupValues[1].equals("work", ignoreCase = true)) 11 else 7
-            return if (hour in 1..latest) hour + 12 else null
+            return fit(if (hour in 1..latest) hour + 12 else null)
         }
-        if (BEFORE_WORK_REGEX.findAll(words).any { counts(it) }) return hour.takeIf { it in 5..11 }
+        if (BEFORE_WORK_REGEX.findAll(words).any { counts(it) }) return fit(hour.takeIf { it in 5..11 })
         return null
     }
 
@@ -1698,11 +1924,16 @@ object NaturalLanguageIntentParser {
         else -> 1
     }
 
-    /** An alarm's time of day, 24-hour; [bare] when typed with no am/pm or leading zero ("7", "7:30"). */
-    private data class AlarmTime(val hour: Int, val minute: Int, val bare: Boolean)
+    /**
+     * An alarm's time of day, 24-hour; [bare] when typed with no am/pm or leading zero ("7", "7:30"). [words] are where
+     * it was in the text.
+     */
+    private data class AlarmTime(val hour: Int, val minute: Int, val bare: Boolean, val words: IntRange)
 
     private fun extractTime(text: String): AlarmTime? {
-        NOON_OR_MIDNIGHT_REGEX.find(text)?.let { return AlarmTime(if (it.groupValues[1].equals("midnight", ignoreCase = true)) 0 else 12, 0, false) }
+        NOON_OR_MIDNIGHT_REGEX.find(text)?.let {
+            return AlarmTime(if (it.groupValues[1].equals("midnight", ignoreCase = true)) 0 else 12, 0, false, it.range)
+        }
         val match = CLOCK_TIME_REGEX.find(text) ?: return null
 
         var hour = match.groupValues[1].toIntOrNull() ?: return null
@@ -1714,7 +1945,7 @@ object NaturalLanguageIntentParser {
         if (amPm == "a" && hour == 12) hour = 0
 
         if (hour !in 0..23 || minute !in 0..59) return null
-        return AlarmTime(hour, minute, bare = amPm.isEmpty() && hour in 1..12 && !match.groupValues[1].startsWith("0"))
+        return AlarmTime(hour, minute, bare = amPm.isEmpty() && hour in 1..12 && !match.groupValues[1].startsWith("0"), match.range)
     }
 
     // ---------------------------------------------------------------------------------------------

@@ -11,6 +11,7 @@ import com.pixel.intelligentsearch.core.profile.MultiProfileManager
 import com.pixel.intelligentsearch.core.system.SystemToggleManager
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -129,6 +130,34 @@ class UnifiedSearchCoordinatorTest {
         assertEquals(emptyList<ContactItem>(), coordinator.executeSearchSync("$50 to eur").contacts)
         // Without a number, a name that sounds the same is still found.
         assertEquals(listOf(kyle), coordinator.executeSearchSync("kile").contacts)
+    }
+
+    @Test
+    fun aCallOrMessageGoesOnlyToTheOneContactTheWordsName() {
+        context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(SettingsManager.SEARCH_CONTACTS.name, true).commit()
+        val coordinator = coordinator().apply {
+            replaceContacts(listOf(
+                ContactItem("Dad", "+14155550214", "content://c/214"), ContactItem("Dad Work", "+14155550215", "content://c/215"),
+                ContactItem("Sarah Connor", "+14155550230", "content://c/230"), ContactItem("Sarah Lee", "+14155550231", "content://c/231")
+            ))
+        }
+        fun action(query: String) = when (val parsed = coordinator.executeSearchSync(query).parsedIntent) {
+            is NaturalLanguageIntentParser.ParsedIntent.PhoneCall -> "Call ${parsed.contactNameOrNumber}"
+            is NaturalLanguageIntentParser.ParsedIntent.DirectMessage -> "Message ${parsed.recipientName}: ${parsed.body}"
+            else -> null
+        }
+        // With two Sarahs, these went to whichever ranked first: Sarah Lee, "c hi" as the words.
+        assertNull(action("call sarah"))
+        assertNull(action("text sarah running late"))
+        assertEquals("Message Sarah Connor: hi", action("text sarah c hi"))
+        assertEquals("Call Sarah Connor", action("call sarah c"))
+        // Both Sarahs are still found.
+        assertEquals(2, coordinator.executeSearchSync("sarah").contacts.size)
+        // A whole name beats one it only starts.
+        assertEquals("Call Dad", action("call dad"))
+        assertEquals("Call Dad Work", action("call dad work"))
+        assertEquals("Call Sarah Lee", action("call sarah lee"))
     }
 
     @Test

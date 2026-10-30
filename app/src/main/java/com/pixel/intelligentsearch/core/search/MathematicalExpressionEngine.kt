@@ -188,6 +188,8 @@ object MathematicalExpressionEngine {
     private val REGEX_FUNC_NO_PAREN = Regex("^(sqrt|cbrt|sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|ln|log|log10|log2|abs|round|floor|ceil|rad|deg)\\s+([+-]?[0-9.]+(?:[eE][-+]?[0-9]+)?)$", RegexOption.IGNORE_CASE)
 
     private fun evaluateScientific(input: String): MathEvaluationResult.Computation? {
+        // "$5 + €5" adds two currencies, which the sum would add as plain numbers: no answer rather than a wrong one.
+        if (REGEX_CURRENCY_SIGN.findAll(input).map { it.value }.distinct().count() > 1) return null
         val trimmed = input.trim().replace(REGEX_ROOT_OF_NUMBER, "sqrt($1)").replace("√", "sqrt")
         val funcMatch = REGEX_FUNC_NO_PAREN.matchEntire(trimmed)
         val normalizedInput = if (funcMatch != null) {

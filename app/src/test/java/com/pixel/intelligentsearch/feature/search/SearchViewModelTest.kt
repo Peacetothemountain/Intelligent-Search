@@ -367,14 +367,15 @@ class SearchViewModelTest {
 
     @Test
     fun eventReminderAndAlarmRowsSayWhenTheyAreSet() {
-        // The rows said only "call mom", "Meeting" and "7:00 AM": not the day Enter would set them for.
+        // The rows said only "call mom", "Meeting" and "7:00 AM": not the day Enter would set them for. The day and time
+        // come first, so a long task or large text cuts the task, never when.
         start()
         fun row(query: String, title: String): DirectAction {
             viewModel.onQueryChanged(query)
             return await(title) { state -> state.directActions.any { it.title == title } }.directActions.first { it.title == title }
         }
-        assertEquals("call mom · Tomorrow, 9:00 AM", row("remind me to call mom tomorrow at 9am", "Set Reminder").subtitle)
-        assertEquals("Meeting · Tomorrow, 3:00 PM", row("meeting tomorrow at 3pm", "Add Calendar Event").subtitle)
+        assertEquals("Tomorrow, 9:00 AM · call mom", row("remind me to call mom tomorrow at 9am", "Set Reminder").subtitle)
+        assertEquals("Tomorrow, 3:00 PM · Meeting", row("meeting tomorrow at 3pm", "Add Calendar Event").subtitle)
         val alarm = row("set alarm for 7am", "Set Alarm").subtitle
         assertTrue(alarm, alarm == "Today, 7:00 AM" || alarm == "Tomorrow, 7:00 AM")
     }

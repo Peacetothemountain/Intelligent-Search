@@ -118,8 +118,9 @@ class ShortActionPhrasingTest {
 
     @Test
     fun theAlarmSaysWhichDayItRingsAndOpensTheClock() {
-        assertEquals("Clock Alarm · Tomorrow", parse("7:30am")!!.subtitle)
-        assertEquals("Clock Alarm · Today", parse("7:30pm")!!.subtitle)
+        // The day and time come first, in the region's words; it was "Clock Alarm · Tomorrow", in English everywhere.
+        assertEquals("Tomorrow, 7:30 AM · Clock Alarm", parse("7:30am")!!.subtitle)
+        assertEquals("Today, 7:30 PM · Clock Alarm", parse("7:30pm")!!.subtitle)
         val intent = parse("7:30am")!!.intent
         assertEquals(AlarmClock.ACTION_SET_ALARM, intent.action)
         assertEquals(7, intent.getIntExtra(AlarmClock.EXTRA_HOUR, -1))
@@ -161,18 +162,20 @@ class ShortActionPhrasingTest {
 
     @Test
     fun aTaskWithATimeOffersAReminder() {
+        // The row says when as the full phrasings' rows do, first in the subtitle; it was "Remind: Laundry at 4:00 PM"
+        // over "Calendar Reminder · Thu, Oct 22", English words in US order on every phone.
         val cases = mapOf(
-            "laundry in 2 hrs" to (at(22, 16) to "Remind: Laundry at 4:00 PM"),
-            "laundry in 90 minutes" to (at(22, 15, 30) to "Remind: Laundry at 3:30 PM"),
-            "take out the bins in an hour" to (at(22, 15) to "Remind: Take out the bins at 3:00 PM"),
-            "call mom at 5pm" to (at(22, 17) to "Remind: Call mom at 5:00 PM"),
-            "dinner at 7" to (at(22, 19) to "Remind: Dinner at 7:00 PM"),
-            "pay rent tomorrow 9am" to (at(23, 9) to "Remind: Pay rent tomorrow at 9:00 AM"),
-            "tomorrow 9am pay rent" to (at(23, 9) to "Remind: Pay rent tomorrow at 9:00 AM"),
-            "standup monday at 3" to (at(26, 15) to "Remind: Standup on Monday at 3:00 PM"),
-            "gym tonight at 8" to (at(22, 20) to "Remind: Gym at 8:00 PM"),
+            "laundry in 2 hrs" to Triple(at(22, 16), "Remind: Laundry", "Today, 4:00 PM"),
+            "laundry in 90 minutes" to Triple(at(22, 15, 30), "Remind: Laundry", "Today, 3:30 PM"),
+            "take out the bins in an hour" to Triple(at(22, 15), "Remind: Take out the bins", "Today, 3:00 PM"),
+            "call mom at 5pm" to Triple(at(22, 17), "Remind: Call mom", "Today, 5:00 PM"),
+            "dinner at 7" to Triple(at(22, 19), "Remind: Dinner", "Today, 7:00 PM"),
+            "pay rent tomorrow 9am" to Triple(at(23, 9), "Remind: Pay rent", "Tomorrow, 9:00 AM"),
+            "tomorrow 9am pay rent" to Triple(at(23, 9), "Remind: Pay rent", "Tomorrow, 9:00 AM"),
+            "standup monday at 3" to Triple(at(26, 15), "Remind: Standup", "Mon, Oct 26, 3:00 PM"),
+            "gym tonight at 8" to Triple(at(22, 20), "Remind: Gym", "Today, 8:00 PM"),
             // 1 PM has passed today, so it is tomorrow's.
-            "call mom at 1pm" to (at(23, 13) to "Remind: Call mom tomorrow at 1:00 PM")
+            "call mom at 1pm" to Triple(at(23, 13), "Remind: Call mom", "Tomorrow, 1:00 PM")
         )
         for ((query, expected) in cases) {
             val reminder = parse(query)
@@ -180,6 +183,7 @@ class ShortActionPhrasingTest {
             assertEquals(query, Kind.REMINDER, reminder!!.kind)
             assertEquals(query, expected.first, reminder.triggerMillis)
             assertEquals(query, expected.second, reminder.title)
+            assertEquals(query, "${expected.third} · Calendar Reminder", reminder.subtitle)
             assertTrue(query, reminder.runsOnEnter)
         }
     }
@@ -187,7 +191,7 @@ class ShortActionPhrasingTest {
     @Test
     fun theReminderOpensTheCalendarWithTheTaskAndTime() {
         val reminder = parse("pay rent tomorrow 9am")!!
-        assertEquals("Calendar Reminder · Fri, Oct 23", reminder.subtitle)
+        assertEquals("Tomorrow, 9:00 AM · Calendar Reminder", reminder.subtitle)
         val intent = reminder.intent
         assertEquals(Intent.ACTION_INSERT, intent.action)
         assertEquals(CalendarContract.Events.CONTENT_URI, intent.data)
@@ -250,13 +254,13 @@ class ShortActionPhrasingTest {
         // Each was set for today or tomorrow with the date words left in the task ("gym tomorrow morning at 7" was
         // today at 7 PM).
         val cases = mapOf(
-            "gym tomorrow morning at 7" to (at(23, 7) to "Remind: Gym tomorrow at 7:00 AM"),
-            "call mom tomorrow evening at 7" to (at(23, 19) to "Remind: Call mom tomorrow at 7:00 PM"),
-            "dentist on the 3rd at 2pm" to (on(Calendar.NOVEMBER, 3, 14) to "Remind: Dentist on Nov 3 at 2:00 PM"),
-            "dinner next week at 7" to (at(29, 19) to "Remind: Dinner on Oct 29 at 7:00 PM"),
-            "dentist next friday at 2pm" to (at(30, 14) to "Remind: Dentist on Oct 30 at 2:00 PM"),
-            "call mom on thanksgiving at 5" to (on(Calendar.NOVEMBER, 26, 17) to "Remind: Call mom on Nov 26 at 5:00 PM"),
-            "haircut on nov 12 at 10am" to (on(Calendar.NOVEMBER, 12, 10) to "Remind: Haircut on Nov 12 at 10:00 AM")
+            "gym tomorrow morning at 7" to (at(23, 7) to "Remind: Gym"),
+            "call mom tomorrow evening at 7" to (at(23, 19) to "Remind: Call mom"),
+            "dentist on the 3rd at 2pm" to (on(Calendar.NOVEMBER, 3, 14) to "Remind: Dentist"),
+            "dinner next week at 7" to (at(29, 19) to "Remind: Dinner"),
+            "dentist next friday at 2pm" to (at(30, 14) to "Remind: Dentist"),
+            "call mom on thanksgiving at 5" to (on(Calendar.NOVEMBER, 26, 17) to "Remind: Call mom"),
+            "haircut on nov 12 at 10am" to (on(Calendar.NOVEMBER, 12, 10) to "Remind: Haircut")
         )
         for ((query, expected) in cases) {
             val reminder = parse(query)
@@ -346,13 +350,13 @@ class ShortActionPhrasingTest {
     fun shortWeekdaysAndADayOfTheMonthBeforeATimeAreItsDay() {
         // Each was set for today or tomorrow, the day words left in the task. Thursday 22 October, 2 PM.
         val cases = mapOf(
-            "dentist fri 2pm" to (at(23, 14) to "Remind: Dentist tomorrow at 2:00 PM"),
-            "gym sat 9am" to (at(24, 9) to "Remind: Gym on Saturday at 9:00 AM"),
-            "call mom mon at 5pm" to (at(26, 17) to "Remind: Call mom on Monday at 5:00 PM"),
-            "gym tues 6am" to (at(27, 6) to "Remind: Gym on Tuesday at 6:00 AM"),
-            "fri 2pm dentist" to (at(23, 14) to "Remind: Dentist tomorrow at 2:00 PM"),
-            "dentist the 12th at 10am" to (on(Calendar.NOVEMBER, 12, 10) to "Remind: Dentist on Nov 12 at 10:00 AM"),
-            "dentist friday the 13th at 2pm" to (on(Calendar.NOVEMBER, 13, 14) to "Remind: Dentist on Nov 13 at 2:00 PM")
+            "dentist fri 2pm" to (at(23, 14) to "Remind: Dentist"),
+            "gym sat 9am" to (at(24, 9) to "Remind: Gym"),
+            "call mom mon at 5pm" to (at(26, 17) to "Remind: Call mom"),
+            "gym tues 6am" to (at(27, 6) to "Remind: Gym"),
+            "fri 2pm dentist" to (at(23, 14) to "Remind: Dentist"),
+            "dentist the 12th at 10am" to (on(Calendar.NOVEMBER, 12, 10) to "Remind: Dentist"),
+            "dentist friday the 13th at 2pm" to (on(Calendar.NOVEMBER, 13, 14) to "Remind: Dentist")
         )
         for ((query, expected) in cases) {
             val reminder = parse(query)
@@ -391,7 +395,7 @@ class ShortActionPhrasingTest {
     fun wordsThatSayWhichHalfOfTheDayCountOnA24HourClockToo() {
         // On a 24-hour phone each was the morning hour, tomorrow: 07:00, 01:00, 07:30, and tomorrow at 07:00.
         assertEquals(at(22, 19), parse("dinner at 7", is24Hour = true)?.triggerMillis)
-        assertEquals("Remind: Dinner at 19:00", parse("dinner at 7", is24Hour = true)?.title)
+        assertEquals("Today, 19:00 · Calendar Reminder", parse("dinner at 7", is24Hour = true)?.subtitle)
         assertEquals(at(23, 13), ShortActionPhrasing.parse("lunch at 1", at(22, 14), true, utc, Locale.US)?.triggerMillis)
         assertEquals(at(22, 19, 30), parse("dinner at 7:30", is24Hour = true)?.triggerMillis)
         assertEquals(at(23, 19), parse("dinner tomorrow at 7", is24Hour = true)?.triggerMillis)
@@ -416,5 +420,43 @@ class ShortActionPhrasingTest {
         assertNull(parse("call grandpa on veterans day at 11am"))
         assertNull(parse("buy tickets for saturday's game at 5pm"))
         assertEquals(at(23, 17), parse("call mom tmw 5pm")?.triggerMillis)
+    }
+
+    @Test
+    fun aBareHourIsReadAsTheFullPhrasingReadsItOnA24HourClock() {
+        fun at10(query: String) = ShortActionPhrasing.parse(query, at(22, 10), true, utc, Locale.US)?.triggerMillis
+        // On a 24-hour phone each was the small hours, tomorrow, while "remind me to pick up kids at 3" was 3 PM.
+        assertEquals(at(22, 15), at10("pick up kids at 3"))
+        assertEquals(at(22, 14, 30), at10("call mom at 2:30"))
+        assertEquals(at(23, 15), at10("pick up kids fri at 3"))
+        assertEquals(at(23, 16), at10("call mom tmrw at 4"))
+        assertEquals(at(23, 16), at10("dentist tomorrow at 4"))
+        // 8 to 11 is the next one still ahead, a leading zero or an hour past 12 as written.
+        assertEquals(at(22, 11), at10("meds at 11"))
+        assertEquals(at(23, 9), at10("meds at 09:00"))
+        assertEquals(at(22, 15), at10("pick up kids at 15:00"))
+    }
+
+    @Test
+    fun theRowSaysWhenTheWayTheRegionWritesIt() {
+        // In Germany these read "Remind: Dinner at 19:00 · Fr., Okt. 30" and "Remind: Dentist on Dienstag at 03:30".
+        fun german(query: String) = ShortActionPhrasing.parse(query, now, true, utc, Locale.GERMANY)
+        assertEquals("Heute, 19:00 · Calendar Reminder", german("dinner at 7")?.subtitle)
+        assertEquals("Do., 12. Nov., 16:00 · Calendar Reminder", german("doctor on nov 12 at 4pm")?.subtitle)
+        assertEquals("Remind: Doctor", german("doctor on nov 12 at 4pm")?.title)
+        assertEquals("Morgen, 07:30 · Clock Alarm", german("7:30am")?.subtitle)
+    }
+
+    @Test
+    fun aTaskWithWordsTheReaderLeftIsNoReminder() {
+        // Each was a reminder Enter ran: today at the time, the date or typo in the task, or "Call mom @ at 5:00 PM".
+        for (query in listOf(
+            "call mom tomorrrow 5pm", "pay rent 1.12 at 9am", "dentist 15.11 at 3pm", "call mom tmrw in 2 hours",
+            "tomorrow 9am eastern call mom", "call mom 5pm est"
+        )) {
+            assertNull(query, parse(query))
+        }
+        assertEquals("Remind: Call mom", parse("call mom @ 5pm")?.title)
+        assertEquals(at(22, 17), parse("call mom @ 5pm")?.triggerMillis)
     }
 }

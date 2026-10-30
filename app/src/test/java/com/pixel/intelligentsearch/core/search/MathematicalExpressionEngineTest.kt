@@ -688,4 +688,13 @@ class MathematicalExpressionEngineTest {
         assertEquals(1_500.0, thousands?.fromValue ?: 0.0, 1e-9)
         assertEquals("USD" to "GBP", thousands?.fromUnit to thousands?.toUnit)
     }
+
+    @Test
+    fun aSumOfTwoCurrenciesHasNoAnswer() {
+        // "$5 + €5" was 10, the dollars and euros added as plain numbers.
+        assertNull(MathematicalExpressionEngine.evaluate("\$5 + €5"))
+        assertNull(MathematicalExpressionEngine.evaluate("£20 - \$3"))
+        assertEquals("10", computed("\$5 + \$5"))
+        assertEquals("12", computed("15% of \$80"))
+    }
 }

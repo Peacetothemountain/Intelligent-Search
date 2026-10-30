@@ -713,6 +713,19 @@ class UnifiedSearchCoordinator @Inject constructor(
         return resultContacts
     }
 
+    /**
+     * The one contact with a number that [typed] names outright ([NaturalLanguageIntentParser.namesContact]) among
+     * [found], or null when none does or more than one does: a call or message goes to the person meant or to no one.
+     * A contact whose whole name is the typed words wins over those it only starts ("dad" is Dad, not Dad Work), and
+     * the same person listed twice with one number counts once.
+     */
+    private fun namedContact(typed: String, found: List<ContactItem>): ContactItem? {
+        val named = found.filter { it.phoneNumber.isNotBlank() && NaturalLanguageIntentParser.namesContact(typed, it.name) }
+            .distinctBy { it.name.lowercase(java.util.Locale.ROOT) to it.phoneNumber.filter { c -> c.isDigit() } }
+        val whole = named.filter { QueryNormalizer.normalize(it.name).equals(QueryNormalizer.normalize(typed), ignoreCase = true) }
+        return whole.singleOrNull() ?: named.singleOrNull()
+    }
+
     suspend fun executeSearch(rawQuery: String): UnifiedSearchResults = withContext(Dispatchers.Default) {
         executeSearchInternal(rawQuery) { ensureActive() }
     }
@@ -741,13 +754,10 @@ class UnifiedSearchCoordinator @Inject constructor(
         val randomAnswer = if (mathResult == null && dateAnswer == null && timeAnswer == null) randomAnswer(query) else null
 
         // 3. Natural Language Intent Parser
-        // "Call X" / "Message X" only resolve names from contacts when contact search is turned on. A contact the words
-        // name outright comes first: "tom" is Tom Baker before Tommy, and a message goes only to such a one.
+        // "Call X" / "Message X" only resolve names from contacts when contact search is turned on, and only to the one
+        // contact the words name outright ([namedContact]): with two Sarahs, "call sarah" names neither.
         val contactLookup: ((String) -> ContactItem?)? = if (cachedContactSearchEnabled) {
-            { target ->
-                val found = searchContacts(target, limit = 5).filter { it.phoneNumber.isNotBlank() }
-                found.firstOrNull { NaturalLanguageIntentParser.namesContact(target, it.name) } ?: found.firstOrNull()
-            }
+            { target -> namedContact(target, searchContacts(target, limit = 10)) }
         } else null
         val parsedIntent = NaturalLanguageIntentParser.parse(query, contactLookup = contactLookup)
         // Only what the full phrasings, the calculator, the converters, date maths and the clock and chance answers

@@ -85,8 +85,8 @@ class ActionsAndAnswersGoldenTest(private val dark: Boolean) {
             IntelligentSearchTheme(darkTheme = dark) {
                 Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(vertical = 12.dp)) {
                     DirectActionRow("Start 15 min Timer", "Clock Timer", Icons.Default.Timer) {}
-                    DirectActionRow("Set Alarm for 7:30 AM", "Clock Alarm · Tomorrow", Icons.Default.Alarm) {}
-                    DirectActionRow("Remind: Laundry at 4:12 PM", "Calendar Reminder · Thu, Oct 22", Icons.Default.Event) {}
+                    DirectActionRow("Set Alarm for 7:30 AM", "Tomorrow, 7:30 AM · Clock Alarm", Icons.Default.Alarm) {}
+                    DirectActionRow("Remind: Laundry", "Today, 4:12 PM · Calendar Reminder", Icons.Default.Event) {}
                     AskAiRow(AiProvider.ANTHROPIC, "how tall is everest?") {}
                 }
             }

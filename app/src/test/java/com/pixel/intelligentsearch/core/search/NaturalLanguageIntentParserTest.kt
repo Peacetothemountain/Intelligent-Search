@@ -383,16 +383,17 @@ class NaturalLanguageIntentParserTest {
     @Test
     fun aDurationWithoutInIsPartOfTheTask() {
         // "cabin 2 hours" read as "in 2 hours", leaving the task "check the cab".
-        val cabin = reminder("remind me to check the cabin 2 hours")
-        assertEquals("check the cabin 2 hours", cabin.task)
-        assertEquals(at(12), cabin.triggerMillis)
+        // Under the whole-phrase rule a number left in the task ("2 hours" with no "in") is a time the reader didn't
+        // read, so it is no reminder at all.
+        assertNull(NaturalLanguageIntentParser.parse("remind me to check the cabin 2 hours", currentTimeMs = at(12)))
     }
 
     @Test
     fun dayWordsInsideOtherWordsStay() {
-        // "today" was cut out of "todays", leaving "read s report".
-        assertEquals("read todays report", reminder("remind me to read todays report at 4pm").task)
-        assertEquals("read today's report", reminder("remind me to read today's report at 4pm").task)
+        // "today" was cut out of "todays", leaving "read s report". Under the whole-phrase rule a word of when left in
+        // the task makes no reminder, rather than one with a day word it didn't read.
+        assertNull(NaturalLanguageIntentParser.parse("remind me to read todays report at 4pm", currentTimeMs = at(12)))
+        assertNull(NaturalLanguageIntentParser.parse("remind me to read today's report at 4pm", currentTimeMs = at(12)))
     }
 
     @Test
@@ -641,8 +642,8 @@ class NaturalLanguageIntentParserTest {
         val uk = NaturalLanguageIntentParser.parse("remind me to call mom on 11/5 at 3pm", thursday(10), locale = java.util.Locale.UK)
             as NaturalLanguageIntentParser.ParsedIntent.Reminder
         assertEquals("2027-05-11 15:00", shown(uk.triggerMillis))
-        // An amount written as a fraction is no date.
-        assertEquals("buy 1/2 gallon milk", usReminder("remind me to buy 1/2 gallon milk at 5pm").task)
+        // An amount written as a fraction is no date; under the whole-phrase rule it is no reminder either.
+        assertNull(NaturalLanguageIntentParser.parse("remind me to buy 1/2 gallon milk at 5pm", thursday(10), locale = java.util.Locale.US))
     }
 
     @Test
@@ -741,22 +742,23 @@ class NaturalLanguageIntentParserTest {
 
     @Test
     fun aDateThatDescribesTheTaskIsNotItsDay() {
-        // Each was set on the holiday, ordinal or month inside the task, with the day named left in the title.
-        val cases = mapOf(
-            "remind me to shop for christmas presents tomorrow" to "shop for christmas presents @ 2026-10-30 10:00",
-            "remind me to buy candy for halloween tomorrow" to "buy candy for halloween @ 2026-10-30 10:00",
-            "remind me to order the turkey for thanksgiving on monday" to "order the turkey for thanksgiving @ 2026-11-02 10:00",
-            "remind me on friday to buy candy for halloween" to "buy candy for halloween @ 2026-10-30 10:00",
-            "schedule planning for new year tomorrow at 3pm" to "planning for new year @ 2026-10-30 15:00",
-            "meeting on the 3rd floor at 2pm" to "Meeting on the 3rd floor @ 2026-10-29 14:00",
-            "remind me to read the 3rd chapter tomorrow" to "read the 3rd chapter @ 2026-10-30 10:00",
-            "remind me to submit the 1st draft by friday" to "submit the 1st draft @ 2026-10-30 10:00",
-            "meeting about the 2nd quarter results tomorrow at 3pm" to "Meeting about the 2nd quarter results @ 2026-10-30 15:00",
-            "remind me to watch the 2nd half at 3pm" to "watch the 2nd half @ 2026-10-29 15:00",
-            "remind me to book tickets for the concert in may tomorrow" to "book tickets for the concert in may @ 2026-10-30 10:00",
-            "remind me to buy a midnight snack at 9pm" to "buy a midnight snack @ 2026-10-29 21:00"
+        // Each was set on the holiday, ordinal or month inside the task, with the day named left in the title. Under the
+        // whole-phrase rule a holiday, a number or a word of when left in the task is no action at all.
+        for (query in listOf(
+            "remind me to shop for christmas presents tomorrow", "remind me to buy candy for halloween tomorrow",
+            "remind me to order the turkey for thanksgiving on monday", "remind me on friday to buy candy for halloween",
+            "schedule planning for new year tomorrow at 3pm", "meeting on the 3rd floor at 2pm",
+            "remind me to read the 3rd chapter tomorrow", "remind me to submit the 1st draft by friday",
+            "meeting about the 2nd quarter results tomorrow at 3pm", "remind me to watch the 2nd half at 3pm",
+            "remind me to buy a midnight snack at 9pm"
+        )) {
+            assertNull(query, whenOf(query))
+        }
+        // "May" is as often a word: beside no day it stays in the task.
+        assertEquals(
+            "book tickets for the concert in may @ 2026-10-30 10:00",
+            whenOf("remind me to book tickets for the concert in may tomorrow")
         )
-        for ((query, expected) in cases) assertEquals(query, expected, whenOf(query))
         // Said alone they are still the day.
         assertEquals("call grandma @ 2026-12-25 10:00", whenOf("remind me to call grandma for christmas"))
         assertEquals("pay rent @ 2026-11-03 10:00", whenOf("remind me to pay rent on the 3rd"))
@@ -809,8 +811,9 @@ class NaturalLanguageIntentParserTest {
     @Test
     fun aFractionInTheTaskIsNoDateAndAMealSaysWhichHalfOfTheDay() {
         // These were January 2 and April 5.
-        assertEquals("take 1/2 @ 2026-10-29 21:00", whenOf("remind me to take 1/2 at 9pm"))
-        assertEquals("about episode 4/5 @ 2026-10-29 21:00", whenOf("remind me about episode 4/5 at 9pm"))
+        // Under the whole-phrase rule a number left in the task is no reminder at all.
+        assertNull(whenOf("remind me to take 1/2 at 9pm"))
+        assertNull(whenOf("remind me about episode 4/5 at 9pm"))
         // "Dinner at 7" said at 5 AM was 7 AM.
         assertEquals("make dinner @ 2026-10-29 19:00", whenOf("remind me to make dinner at 7", thursday(5)))
         assertEquals("eat breakfast @ 2026-10-30 07:00", whenOf("remind me to eat breakfast at 7", thursday(10)))
@@ -882,8 +885,9 @@ class NaturalLanguageIntentParserTest {
         }
         // Words that only describe the task stay in it, and "730pm" is 7:30 PM.
         assertEquals("send the weekly report @ 2026-10-30 09:00", whenOf("remind me to send the weekly report tomorrow at 9am"))
-        assertEquals("read about 3 chapters @ 2026-10-29 17:00", whenOf("remind me to read about 3 chapters at 5pm"))
-        assertEquals("buy a late night snack @ 2026-10-29 21:00", whenOf("remind me to buy a late night snack at 9pm"))
+        // Under the whole-phrase rule a number or a word of when left in the task is no reminder at all.
+        assertNull(whenOf("remind me to read about 3 chapters at 5pm"))
+        assertNull(whenOf("remind me to buy a late night snack at 9pm"))
         assertEquals("call mom @ 2026-10-29 19:30", whenOf("remind me to call mom at 730pm"))
         assertEquals("call mom @ 2026-10-31 17:00", whenOf("remind me to call mom the day after tomorrow at 5"))
         assertEquals("call mom @ 2026-10-30 00:00", whenOf("remind me to call mom at midnight"))
@@ -933,7 +937,8 @@ class NaturalLanguageIntentParserTest {
     fun aWeekdayThatDescribesTheTaskIsNotItsDay() {
         // This was Sunday at 5 PM.
         assertNull(whenOf("remind me to call the sunday school teacher at 5"))
-        assertEquals("call the sunday school teacher @ 2026-10-30 17:00", whenOf("remind me to call the sunday school teacher tomorrow at 5"))
+        // Under the whole-phrase rule a weekday left in the task is no reminder, another day named or not.
+        assertNull(whenOf("remind me to call the sunday school teacher tomorrow at 5"))
         assertEquals("watch football @ 2026-11-02 17:00", whenOf("remind me to watch monday night football at 5pm"))
     }
 
@@ -956,8 +961,8 @@ class NaturalLanguageIntentParserTest {
         }
         // A reminder starts at the start.
         assertEquals("call mom @ 2026-10-30 14:00", whenOf("remind me to call mom tomorrow 2-3pm"))
-        // Two numbers in the task are no range.
-        assertEquals("read chapters 2-3 @ 2026-10-29 17:00", whenOf("remind me to read chapters 2-3 at 5pm"))
+        // Two numbers in the task are no range; under the whole-phrase rule they are no reminder either.
+        assertNull(whenOf("remind me to read chapters 2-3 at 5pm"))
     }
 
     @Test
@@ -1057,13 +1062,16 @@ class NaturalLanguageIntentParserTest {
         for (query in listOf("schedule dentist 15/11 at 3pm", "remind me a week on friday")) {
             assertNull(query, NaturalLanguageIntentParser.parse(query, thursday(10), locale = java.util.Locale.UK))
         }
-        // Words that only describe the task, or a reading another day outweighs, stay in it.
-        assertEquals("read chapters 2-3 @ 2026-10-29 17:00", whenOf("remind me to read chapters 2-3 at 5pm"))
-        assertEquals("stretch for 5-10 minutes @ 2026-10-29 17:00", whenOf("remind me to stretch for 5-10 minutes at 5pm"))
-        assertEquals("buy candy for halloween @ 2026-10-30 10:00", whenOf("remind me to buy candy for halloween tomorrow"))
-        assertEquals("buy christmas presents @ 2026-10-30 17:00", whenOf("remind me to buy christmas presents tomorrow at 5pm"))
+        // Under the whole-phrase rule numbers and holidays left in the task are no action, even where they only describe
+        // it; words that are as often things ("the super bowl", "june") stay in it.
+        for (query in listOf(
+            "remind me to read chapters 2-3 at 5pm", "remind me to stretch for 5-10 minutes at 5pm",
+            "remind me to buy candy for halloween tomorrow", "remind me to buy christmas presents tomorrow at 5pm",
+            "remind me to watch the 9/11 documentary at 8pm"
+        )) {
+            assertNull(query, whenOf(query))
+        }
         assertEquals("watch the super bowl @ 2026-10-29 18:00", whenOf("remind me to watch the super bowl at 6pm"))
-        assertEquals("watch the 9/11 documentary @ 2026-10-29 20:00", whenOf("remind me to watch the 9/11 documentary at 8pm"))
         assertEquals("call mom @ 2026-11-06 10:00", whenOf("remind me to call mom next week on friday"))
         assertEquals("call june @ 2026-10-29 17:00", whenOf("remind me to call june 5pm"))
     }
@@ -1125,5 +1133,188 @@ class NaturalLanguageIntentParserTest {
         assertNull(callee("call will's office"))
         assertEquals("Will Smith", callee("call will"))
         assertEquals("Will Smith", callee("call will smith"))
+    }
+
+    @Test
+    fun aTimerIsSetOnlyWhenItsWholeLengthIsRead() {
+        // "An hour and 15 minutes" was 15 minutes, "a minute and 30 seconds" 30 seconds, "1/2 hour" 2 hours and "1 1/2
+        // hours" 2 hours.
+        assertEquals(4_500, timerSeconds("set a timer for an hour and 15 minutes"))
+        assertEquals(90, timerSeconds("timer for a minute and 30 seconds"))
+        assertEquals(2_400, timerSeconds("set a timer for half an hour and 10 minutes"))
+        assertEquals(1_800, timerSeconds("set a timer for 1/2 hour"))
+        assertEquals(1_800, timerSeconds("timer 1/2 hr"))
+        assertEquals(900, timerSeconds("timer 1/4 hour"))
+        assertEquals(30, timerSeconds("timer 1/2 minute"))
+        assertEquals(5_400, timerSeconds("set a timer for 1 1/2 hours"))
+        assertEquals(150, timerSeconds("set a timer for 2 1/2 minutes"))
+        assertEquals(5_400, timerSeconds("set a timer for an hour and a half"))
+        assertEquals(2_700, timerSeconds("timer for 3/4 of an hour"))
+        // What the timer is for may sit around its length.
+        assertEquals(180, timerSeconds("timer 3 minutes for eggs"))
+        assertEquals(300, timerSeconds("timer for 2 eggs 5 minutes"))
+        assertEquals(600, timerSeconds("set a timer for 10 mins for the pasta"))
+        // A length read only in part is no timer rather than one of the wrong length.
+        for (query in listOf(
+            "set a timer for twenty minutes", "set a timer for 3 to 4 minutes", "timer 1½ minutes",
+            "timer 5 minutes for eggs 3 minutes", "timer 45 minutes then 10"
+        )) {
+            assertNull(query, NaturalLanguageIntentParser.parse(query))
+        }
+    }
+
+    @Test
+    fun aTimeInAnotherZoneIsNoAction() {
+        // Each was set at that hour here, the zone in its title or ignored.
+        for (query in listOf(
+            "meeting at 3pm est", "remind me to join the call at 9am et tomorrow", "schedule call with the london office at 4pm gmt",
+            "meeting at 10am cet tomorrow", "remind me at 5pm eastern to call mom", "meeting at 2pm central time",
+            "schedule standup at 9am ist tomorrow", "set an alarm for 6:45 pm est", "meeting at 3pm my time"
+        )) {
+            assertNull(query, NaturalLanguageIntentParser.parse(query, thursday(10), locale = java.util.Locale.US))
+        }
+        // "Central" on its own is a word of the task.
+        assertEquals("call the central library @ 2026-10-29 17:00", whenOf("remind me to call the central library at 5pm"))
+    }
+
+    @Test
+    fun aTimeOrDateWrittenWithADotIsReadOnlyWithAtOrNoAction() {
+        // Each was set at the moment it was said, or for today, the "14.00" or "15.11" left in its title.
+        for (query in listOf(
+            "meeting tomorrow 14.00", "remind me tomorrow 9.30 to call the bank", "remind me to call the bank tomorrow 9.30",
+            "meeting tomorrow 14h"
+        )) {
+            assertNull(query, whenOf(query))
+        }
+        for ((query, locale) in listOf(
+            "remind me to pay rent on 1.12 at 9am" to java.util.Locale.GERMANY, "remind me to pay rent 15.11 at 3pm" to java.util.Locale.GERMANY,
+            "meeting on 3.11 at 14:00" to java.util.Locale.UK, "schedule dentist 15.11 at 14:00" to java.util.Locale.UK
+        )) {
+            assertNull(query, NaturalLanguageIntentParser.parse(query, thursday(10), locale = locale))
+        }
+        assertEquals("Meeting @ 2026-10-30 14:00", whenOf("meeting tomorrow at 14.00"))
+    }
+
+    @Test
+    fun anAtSignIsAtAndANumberLeftInTheTaskIsNoAction() {
+        // Each was set for now, or for tomorrow at this time, with "@ 5" or "5" in its title.
+        assertEquals("call mom @ 2026-10-29 17:00", whenOf("remind me to call mom @ 5"))
+        assertEquals("call mom @ 2026-10-29 17:00", whenOf("remind me to call mom @5"))
+        assertEquals("call mom @ 2026-10-30 17:00", whenOf("remind me to call mom tomorrow @ 5"))
+        assertEquals("Meeting @ 2026-10-30 15:00", whenOf("meeting tomorrow @ 3"))
+        for (query in listOf(
+            "remind me to call mom 5", "remind me to call mom tomorrow 5", "remind me to call mom b4 5",
+            "remind me to watch the 9 o'clock news", "remind me to catch the 5 o'clock train", "remind me to call mom at"
+        )) {
+            assertNull(query, whenOf(query))
+        }
+        // An address keeps its "@", and isn't a plain word of a task.
+        assertNull(whenOf("remind me to email bob@example.com at 5pm"))
+    }
+
+    @Test
+    fun aBareHourAfterSomeDaysFromNowIsTheAfternoonOrEvening() {
+        // Each was the small hours: 05:00, 03:00, 02:30.
+        assertEquals("call mom @ 2026-10-31 17:00", whenOf("remind me in 2 days at 5 to call mom"))
+        assertEquals("pay the bill @ 2026-11-05 15:00", whenOf("remind me in a week at 3 to pay the bill"))
+        assertEquals("pick up the prescription @ 2026-11-01 14:30", whenOf("remind me in 3 days at 2:30 to pick up the prescription"))
+        // 8 to 11 on a day ahead is the morning.
+        assertEquals("call mom @ 2026-10-31 09:00", whenOf("remind me in 2 days at 9 to call mom"))
+    }
+
+    @Test
+    fun aMisspelledOrSlangDayWordIsNoAction() {
+        // Each was set for today or now, the misspelling left in the task.
+        for (query in listOf(
+            "remind me to call mom tomorrrow at 5", "remind me to call mom tomrrow at 5", "remind me to call mom tommorw at 5",
+            "remind me to call mom tmrow at 5", "remind me to call mom tomorroe at 5", "remind me to call mom tomororw at 5",
+            "remind me to call mom tmro at 5", "remind me to call mom tomm at 5", "remind me to call mom tommrow at 5",
+            "remind me to call mom tomorrowww at 5", "remind me to call mom firday at 5", "remind me to call mom on tuesady at 5",
+            "remind me to call mom on fridya at 5", "remind me to call mom mondy at 5", "remind me to call mom on novemeber 5 at 3pm",
+            "remind me to call mom on decmber 1 at 3pm", "remind me tomorrow mornin at 6 to go for a run",
+            "remind me tomorrow morming at 6 to go for a run", "remind me to call mom at 5 tomorrow mornign",
+            "remind me to call mom tmrw mornin", "remind me to call mom tmrw nite", "remind me to call mom this arvo",
+            "remind me to call mom by eow", "remind me to call mom next wk", "remind me to call mom on the wknd",
+            "remind me to call mom on the day of the dead"
+        )) {
+            assertNull(query, whenOf(query))
+        }
+        // Words a letter from a day word are still tasks: "light" is no "night", "warning" no "morning".
+        assertEquals("turn off the light @ 2026-10-29 22:00", whenOf("remind me to turn off the light at 10pm"))
+        assertEquals("check the warning lamp @ 2026-10-29 17:00", whenOf("remind me to check the warning lamp at 5pm"))
+        assertEquals("call mom @ 2026-10-30 17:00", whenOf("remind me to call mom tmrw at 5"))
+    }
+
+    @Test
+    fun firstThingAndInTheAmAreReadOrNoAction() {
+        val tenPm = thursday(22)
+        // Said at 10 PM these were 10 PM the next day.
+        assertNull(whenOf("remind me first thing tomorrow to call the bank", tenPm))
+        assertNull(whenOf("remind me to call the bank first thing in the morning", tenPm))
+        // "At 6 in the am" was 6 PM.
+        assertEquals("go running @ 2026-10-30 06:00", whenOf("remind me at 6 in the am to go running"))
+        assertEquals("go running @ 2026-10-30 06:00", whenOf("remind me at 6 in the a.m. to go running"))
+        assertEquals("lock the door @ 2026-10-29 21:00", whenOf("remind me at 9 in the pm to lock the door"))
+        assertEquals(6 to 0, alarm("set alarm for 6 in the am", now = thursday(10)).let { it.hour to it.minute })
+    }
+
+    @Test
+    fun aHolidayThatNamesTheEventIsNoAction() {
+        // Each was set for today, as "schedule monday standup at 9" already wasn't.
+        for (query in listOf(
+            "schedule halloween party at 8pm", "schedule thanksgiving dinner at 4", "schedule christmas party at 7pm",
+            "schedule new year's eve party at 9pm", "remind me to buy diwali lights at 5pm"
+        )) {
+            assertNull(query, whenOf(query))
+        }
+        // The holiday said as the day is still read.
+        assertEquals("call grandma @ 2026-11-26 09:00", whenOf("remind me to call grandma on thanksgiving morning at 9"))
+    }
+
+    @Test
+    fun aDayOfTheMonthAfterAWordOfWhoseIsNoDate() {
+        // "December the first" was November 1 with "december" in the task; "my 30th" was October 30.
+        assertNull(whenOf("remind me to call mom december the first at 3pm"))
+        assertNull(whenOf("remind me to celebrate my 30th at 7pm"))
+    }
+
+    @Test
+    fun wordsThatSayAnotherHalfOfTheDayThanTheHourAreNoAction() {
+        // Under the shared hour rule "pack lunch at 7" would be 7 PM; it is neither a lunch nor clearly the morning.
+        assertNull(whenOf("remind me to pack lunch at 7", thursday(6)))
+        assertEquals("eat lunch @ 2026-10-29 16:00", whenOf("remind me to eat lunch at 4"))
+    }
+
+    @Test
+    fun emojiAndWithShorthandStayInTheTask() {
+        assertEquals("call mom 📞 @ 2026-10-30 17:00", whenOf("remind me to call mom 📞 tomorrow at 5"))
+        assertEquals("Meeting w/ bob @ 2026-10-30 15:00", whenOf("meeting w/ bob tmrw 3pm"))
+        // A clock face says an hour.
+        assertNull(whenOf("remind me to call mom at 5 🕔"))
+    }
+
+    @Test
+    fun aContactIsNamedByItsWordsOrAnInitial() {
+        // "Sarah c" was Sarah Lee, the contact the search ranked first.
+        assertTrue(NaturalLanguageIntentParser.namesContact("sarah c", "Sarah Connor"))
+        assertFalse(NaturalLanguageIntentParser.namesContact("sarah c", "Sarah Lee"))
+        assertFalse(NaturalLanguageIntentParser.namesContact("c", "Sarah Connor"))
+        assertFalse(NaturalLanguageIntentParser.namesContact("sarah s", "Sarah Lee"))
+        assertTrue(NaturalLanguageIntentParser.namesContact("dad", "Dad Work"))
+    }
+
+    @Test
+    fun aMessageToSomeoneByWhoseTheyAreIsNoMessage() {
+        val will = com.pixel.intelligentsearch.core.data.ContactItem("Will Smith", "+14155550201", "")
+        val lookup: (String) -> com.pixel.intelligentsearch.core.data.ContactItem? = { typed ->
+            will.takeIf { typed.lowercase().startsWith("will") }
+        }
+        // This went to Will Smith, "smith's wife happy birthday" as its words.
+        assertNull(NaturalLanguageIntentParser.parse("text will smith's wife happy birthday", contactLookup = lookup))
+        // This went to no one, "mom" as its words.
+        assertNull(NaturalLanguageIntentParser.parse("text dad's work number to mom", contactLookup = lookup))
+        val message = NaturalLanguageIntentParser.parse("text will it's done", contactLookup = lookup)
+            as NaturalLanguageIntentParser.ParsedIntent.DirectMessage
+        assertEquals("it's done", message.body)
     }
 }

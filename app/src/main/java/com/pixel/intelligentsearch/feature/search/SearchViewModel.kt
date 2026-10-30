@@ -791,13 +791,14 @@ class SearchViewModel @Inject constructor(
             val queryLower = newQuery.lowercase()
 
             // An event, reminder or alarm row says the day and time it is set for ("Tomorrow, 7:00 AM"), so the user
-            // sees what Enter will set.
+            // sees what Enter will set. It comes first in the subtitle: a long title or large text cuts the words after
+            // it, never when.
             val is24Hour = android.text.format.DateFormat.is24HourFormat(context)
             fun setFor(atMs: Long) = com.pixel.intelligentsearch.core.util.Durations.dayAndTime(atMs, System.currentTimeMillis(), is24Hour)
             unifiedResults.parsedIntent?.let { intent ->
                 when (intent) {
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.CalendarEvent -> {
-                        directActions.add(DirectAction("Add Calendar Event", "${intent.title} · ${setFor(intent.startMillis)}", "calendar", intent.intent))
+                        directActions.add(DirectAction("Add Calendar Event", "${setFor(intent.startMillis)} · ${intent.title}", "calendar", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Alarm -> {
                         directActions.add(DirectAction("Set Alarm", setFor(intent.ringsAtMillis), "alarm", intent.intent))
@@ -806,7 +807,7 @@ class SearchViewModel @Inject constructor(
                         directActions.add(DirectAction("Set Timer", intent.label, "timer", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Reminder -> {
-                        directActions.add(DirectAction("Set Reminder", "${intent.task} · ${setFor(intent.triggerMillis)}", "calendar", intent.intent))
+                        directActions.add(DirectAction("Set Reminder", "${setFor(intent.triggerMillis)} · ${intent.task}", "calendar", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.DirectMessage -> {
                         val app = if (intent.isWhatsApp) "WhatsApp" else "SMS"

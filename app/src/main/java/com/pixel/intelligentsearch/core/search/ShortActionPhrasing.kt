@@ -17,6 +17,10 @@ import java.util.TimeZone
  * whether Enter may run it too. A bare clock time such as "7:30" could as well be a score, a verse or a search, so it
  * is offered but Enter keeps searching. Queries the calculator, a converter or date maths answer never reach this
  * (the coordinator skips it then), and plain numbers, phone numbers and questions are never read as actions.
+ *
+ * A reminder follows the full phrasing's whole-phrase rule ([NaturalLanguageIntentParser.isPlainTask]): once the day
+ * and time are read, the task must be plain words, so "call mom tomorrrow 5pm" or "dentist 15.11 at 3pm" is none. Its
+ * bare hour is read by the full phrasing's rule too ([NaturalLanguageIntentParser.bareHour]), on either clock.
  */
 object ShortActionPhrasing {
 
@@ -144,7 +148,8 @@ object ShortActionPhrasing {
         zone: TimeZone = TimeZone.getDefault(),
         locale: Locale = Locale.getDefault()
     ): Suggestion? {
-        val original = rawQuery.trim().replace(WHITESPACE, " ")
+        // "call mom @ 5pm" is "call mom at 5pm".
+        val original = NaturalLanguageIntentParser.spellClockTimes(rawQuery.trim().replace(WHITESPACE, " "))
         if (original.isEmpty() || original.length > 80 || '?' in original) return null
         val lower = original.lowercase(Locale.ROOT)
         // Every phrasing has a number, but "in an hour": most queries leave here, before any pattern runs.
@@ -219,13 +224,14 @@ object ShortActionPhrasing {
         // A lone number ("7", "730") is a number; it takes "at", am/pm, "alarm" or a colon to be a time.
         if (time.meridiem == null && !time.explicitAt && !alarmWord && !time.hasMinutes) return null
         val now = calendar(nowMs, zone)
-        val hour24 = resolveHour(time, now, is24Hour, preferEvening = false)
-        val today = (now.clone() as Calendar).apply { set(Calendar.HOUR_OF_DAY, hour24); set(Calendar.MINUTE, time.minute); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
-        val day = if (today.timeInMillis <= nowMs) "Tomorrow" else "Today"
+        val hour24 = resolveHour(time, now, is24Hour)
+        val rings = (now.clone() as Calendar).apply { set(Calendar.HOUR_OF_DAY, hour24); set(Calendar.MINUTE, time.minute); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
+        if (rings.timeInMillis <= nowMs) rings.add(Calendar.DAY_OF_YEAR, 1)
         return Suggestion(
             kind = Kind.ALARM,
             title = "Set Alarm for ${Durations.timeOfDay(hour24, time.minute, is24Hour, locale)}",
-            subtitle = "Clock Alarm · $day",
+            // The day and time first, as the region writes them, so a narrow row cuts the source, never when.
+            subtitle = "${Durations.dayAndTime(rings.timeInMillis, nowMs, is24Hour, locale, zone.toZoneId())} · Clock Alarm",
             intent = NaturalLanguageIntentParser.alarmIntent(hour24, time.minute),
             // "7:30" alone may be meant as a search; "7:30am", "at 7:30" and "7:30 alarm" can't be.
             runsOnEnter = time.meridiem != null || time.explicitAt || alarmWord,
@@ -235,18 +241,16 @@ object ShortActionPhrasing {
     }
 
     /**
-     * The 24-hour hour [time] means. With am/pm it is exact. Without, a leading zero ("07:00") or an hour past 12 reads
-     * as written, and so does any hour on a 24-hour clock once no words have said which half of the day it is (a
-     * reminder's meal, bedtime, "tonight" or part of the day go first, on either clock); a 12-hour clock takes the next
-     * of its morning and evening times still ahead ("at 6" at 2 PM is 6 PM), or, when [preferEvening] (a day other than
-     * today was named), 1 to 7 as the afternoon and evening people mean.
+     * The 24-hour hour [time] means for an alarm. With am/pm it is exact. Without, a leading zero ("07:00") or an hour
+     * past 12 reads as written, and so does any hour on a 24-hour clock; a 12-hour clock takes the next of its morning
+     * and evening times still ahead ("at 6" at 2 PM is 6 PM). A reminder's bare hour goes by
+     * [NaturalLanguageIntentParser.bareHour] instead.
      */
-    private fun resolveHour(time: ClockTime, now: Calendar, is24Hour: Boolean, preferEvening: Boolean): Int {
+    private fun resolveHour(time: ClockTime, now: Calendar, is24Hour: Boolean): Int {
         val meridiem = time.meridiem
         if (meridiem != null) return (time.hour % 12) + if (meridiem == "pm") 12 else 0
         if (is24Hour || time.zeroPadded || time.hour == 0 || time.hour > 12) return time.hour
         val morning = time.hour % 12
-        if (preferEvening) return if (time.hour in 1..7) morning + 12 else if (time.hour == 12) 12 else morning
         val nowMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
         val morningMinutes = morning * 60 + time.minute
         val eveningMinutes = morningMinutes + 12 * 60
@@ -262,6 +266,8 @@ object ShortActionPhrasing {
     // ---------------------------------------------------------------------------------------------
 
     private fun parseReminder(original: String, nowMs: Long, is24Hour: Boolean, zone: TimeZone, locale: Locale): Suggestion? {
+        // "tomorrow 9am eastern call mom": a time in another zone, which would be set at the phone's own hour.
+        if (NaturalLanguageIntentParser.namesTimeZone(original)) return null
         RELATIVE_REMINDER.matchEntire(original)?.let { match ->
             val task = cleanTask(match.groupValues[1]) ?: return null
             val amount = match.groupValues[2].replace(',', '.').toDoubleOrNull() ?: 1.0
@@ -305,10 +311,14 @@ object ShortActionPhrasing {
         // A bare hour (1 to 12, no am/pm or leading zero) goes by the first rule that says which half of the day it is,
         // as the full phrasing's does: words that say so ("dinner at 7" is 7 PM even said at 5 AM, "dinner tonight at
         // 5:30" 5:30 PM, "pills before bed at 10" 10 PM), then "tonight", which runs past midnight ("at 12" is midnight,
-        // 1 to 4 the small hours after it, and 5 either, so no time), then a part of the day. On a 24-hour clock too:
-        // people there still say "dinner at 7" for 19:00, which read as written set a reminder for 7 in the morning.
+        // 1 to 4 the small hours after it, and 5 either, so no time), then a part of the day, then the full phrasing's
+        // rule for any other bare hour ([NaturalLanguageIntentParser.bareHour]: "pick up kids at 3" is 3 PM). On a
+        // 24-hour clock too: people there still say "dinner at 7" or "pick up kids at 3" for the evening and the
+        // afternoon, which read as written set a reminder for the small hours.
         val bare = time.meridiem == null && !time.zeroPadded && time.hour in 1..12
         val said24 = if (bare) NaturalLanguageIntentParser.hourForWords(task, time.hour) else null
+        // "Pack lunch at 7": the words say a half of the day the hour isn't in.
+        if (bare && said24 == null && NaturalLanguageIntentParser.wordsDisagreeWithHour(task, time.hour)) return null
         val hour = when {
             said24 != null -> said24
             bare && night -> when (time.hour) {
@@ -319,7 +329,11 @@ object ShortActionPhrasing {
             }
             bare && day.period == "morning" -> time.hour
             bare && day.period != null -> if (time.hour == 12) 12 else time.hour + 12
-            else -> resolveHour(time, now, is24Hour, preferEvening = namedDay != NamedDay.NONE && namedDay != NamedDay.TODAY)
+            bare -> NaturalLanguageIntentParser.bareHour(
+                time.hour, time.minute, dayNamed = namedDay != NamedDay.NONE && namedDay != NamedDay.TODAY,
+                nowMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+            )
+            else -> resolveHour(time, now, is24Hour)
         }
         at.set(Calendar.HOUR_OF_DAY, hour)
         at.set(Calendar.MINUTE, time.minute)
@@ -351,43 +365,30 @@ object ShortActionPhrasing {
         if (words.any { it.lowercase(Locale.ROOT) in OPENING_HOURS_WORDS }) return null
         // What is left after the time must not itself be a calculation or conversion ("15 min in", "5 + 3").
         if (task.any { it in "+*/=^%" }) return null
+        // The whole-phrase rule: plain words only, so no number or word of when the reader left unread.
+        if (!NaturalLanguageIntentParser.isPlainTask(task)) return null
         return task.replaceFirstChar { it.titlecase(Locale.ROOT) }
     }
 
+    /**
+     * The row for a reminder to [task] at [at]. When it is set for is said as the full phrasings' rows say it
+     * ([Durations.dayAndTime]: "Tomorrow, 9:00 AM", "Fr., 13. Nov., 14:00"), in the region's words and order, and first
+     * in the subtitle, so a long task or large text never hides it.
+     */
     private fun reminder(
         task: String, at: Calendar, nowMs: Long, is24Hour: Boolean, zone: TimeZone, locale: Locale, runsOnEnter: Boolean = true
     ): Suggestion {
-        val time = Durations.timeOfDay(at.get(Calendar.HOUR_OF_DAY), at.get(Calendar.MINUTE), is24Hour, locale)
-        val days = daysBetween(calendar(nowMs, zone), at)
-        val whenText = when {
-            days == 0 -> "at $time"
-            days == 1 -> "tomorrow at $time"
-            days in 2..6 -> "on ${at.getDisplayName(Calendar.DAY_OF_WEEK, Calendar.LONG, locale)} at $time"
-            else -> "on ${at.getDisplayName(Calendar.MONTH, Calendar.SHORT, locale)} ${at.get(Calendar.DAY_OF_MONTH)} at $time"
-        }
-        val date = "${at.getDisplayName(Calendar.DAY_OF_WEEK, Calendar.SHORT, locale)}, " +
-            "${at.getDisplayName(Calendar.MONTH, Calendar.SHORT, locale)} ${at.get(Calendar.DAY_OF_MONTH)}"
+        val setFor = Durations.dayAndTime(at.timeInMillis, nowMs, is24Hour, locale, zone.toZoneId())
         return Suggestion(
             kind = Kind.REMINDER,
-            title = "Remind: $task $whenText",
-            subtitle = "Calendar Reminder · $date",
+            title = "Remind: $task",
+            subtitle = "$setFor · Calendar Reminder",
             intent = NaturalLanguageIntentParser.reminderIntent(task, at.timeInMillis),
             runsOnEnter = runsOnEnter,
             hour = at.get(Calendar.HOUR_OF_DAY),
             minute = at.get(Calendar.MINUTE),
             triggerMillis = at.timeInMillis
         )
-    }
-
-    private fun daysBetween(from: Calendar, to: Calendar): Int {
-        fun dayNumber(c: Calendar): Long {
-            val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
-                clear()
-                set(c.get(Calendar.YEAR), c.get(Calendar.MONTH), c.get(Calendar.DAY_OF_MONTH))
-            }
-            return utc.timeInMillis / 86_400_000L
-        }
-        return (dayNumber(to) - dayNumber(from)).toInt()
     }
 
     private fun calendar(ms: Long, zone: TimeZone): Calendar = Calendar.getInstance(zone).apply { timeInMillis = ms }

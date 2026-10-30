@@ -83,7 +83,8 @@ object LiveAnswerParser {
     private val TRANSLATE_FROM_TO = Regex("^translate (.+?) from ([\\p{L} ]+?) (?:to|into) ([\\p{L} ]+)$")
     private val TRANSLATE_TO = Regex("^translate (.+?) (?:to|into|in) ([\\p{L} ]+)$")
     private val TRANSLATE_ONLY = Regex("^translate (.+)$")
-    private val HOW_DO_YOU_SAY = Regex("^how (?:do|would|can) (?:you|i) say (.+?) in ([\\p{L} ]+)$")
+    // "how do you say thank you in japanese", and "how to say ..." as it is often typed.
+    private val HOW_DO_YOU_SAY = Regex("^how (?:(?:do|would|can|should) (?:you|i|we) |to )say (.+?) in ([\\p{L} ]+)$")
     private val MEANING_IN = Regex("^(.+?) (?:meaning|translation) in ([\\p{L} ]+)$")
     private val WHAT_IS_IN = Regex("^what(?:'s| is) (.+?) in ([\\p{L} ]+)$")
     private val BARE_IN = Regex("^(.+?) in ([\\p{L} ]+)$")
@@ -124,6 +125,12 @@ object LiveAnswerParser {
      * for the advice in Tamil, not for the words translated.
      */
     private val HOW_TO = Regex("^how (?:to|do i|do we|can i|can we|should i|does)\\b")
+
+    /**
+     * A question put to someone, "how can i help you", "how may i help you": words to say in the language, not a
+     * how-to. A "how to" never is one ("how to make you happy").
+     */
+    private val SAID_TO_SOMEONE = Regex("^how (?:can|may|could) (?:i|we) .*\\byou\\b")
 
     /**
      * The everyday words people most often ask for in another language on their own ("water in hindi", "cat in
@@ -346,7 +353,8 @@ object LiveAnswerParser {
      */
     private fun readsAsPhrase(text: String, target: String): Boolean {
         val words = text.trim().trim(*QUOTES).split(' ').map { it.trim(*QUOTES, ',', '.', '!', '?') }
-        if (words.any { it in NOT_TRANSLATABLE } || HOW_TO.containsMatchIn(text)) return false
+        if (words.any { it in NOT_TRANSLATABLE }) return false
+        if (HOW_TO.containsMatchIn(text) && !SAID_TO_SOMEONE.containsMatchIn(text)) return false
         if (words.size > 1) return words.any { it in PHRASE_WORDS }
         val word = words.single()
         return target == ENGLISH || word in PHRASE_WORDS || word in EVERYDAY_WORDS

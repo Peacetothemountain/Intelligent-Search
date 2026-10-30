@@ -260,6 +260,16 @@ class LiveAnswerParserTest {
     }
 
     @Test
+    fun howToSayAndAQuestionPutToSomeoneAreTranslated() {
+        // The how-to rule took these for searches and gave no card.
+        assertEquals(Translate("thank you", "ja", null), parse("how to say thank you in japanese"))
+        assertEquals(Translate("good morning", "hi", null), parse("how to say good morning in hindi"))
+        assertEquals(Translate("how can i help you", "es", null), parse("how can i help you in spanish"))
+        // A how-to with no one spoken to is still a search.
+        assertNull(parse("how can i learn english in hindi"))
+    }
+
+    @Test
     fun aLanguageNameWinsOverAPlace() {
         // "weather in french" asks for a word, not a forecast in a town called French.
         assertEquals(Translate("weather", "fr", null), parse("weather in french"))

@@ -388,7 +388,11 @@ class NotificationIndexTest {
         assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your code is A1B2C3. Free shipping on orders over $50"))
         assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your code: K7P-2Q9. 20% off your next order"))
         // The shop's own codes still are promo codes.
-        for (text in listOf("Use code SPRING2026 for 25% off", "Flash sale: code BF2026 saves you more", "Code 50OFF at checkout")) {
+        // "GET20OFF" (a word, its amount and OFF) was hidden as a sign-in code.
+        for (text in listOf(
+            "Use code SPRING2026 for 25% off", "Flash sale: code BF2026 saves you more", "Code 50OFF at checkout",
+            "Use code GET20OFF at checkout"
+        )) {
             assertFalse(text, NotificationExtractor.looksLikeOneTimeCode(text))
         }
         // A number in a phone number isn't a code beside "OTP".

@@ -273,8 +273,11 @@ internal class NotificationExtractor(
             RegexOption.IGNORE_CASE
         )
         private val PLAIN_CODE_WORD = Regex("codes?", RegexOption.IGNORE_CASE)
-        /** A shop's code: letters then digits, or digits then letters, as "SAVE20", "FALL2026" and "50OFF" are. */
-        private val PROMO_CODE = Regex("[A-Z]+\\d+|\\d+[A-Z]+")
+        /**
+         * A shop's code: letters then digits, or digits then letters, as "SAVE20", "FALL2026" and "50OFF" are, or a word,
+         * its amount and "OFF", as "GET20OFF" is.
+         */
+        private val PROMO_CODE = Regex("[A-Z]+\\d+(?:OFF)?|\\d+[A-Z]+")
         /** "Dropped pin": a place on a map, not a PIN. */
         private val DROPPED_PIN = Regex("(?<!\\p{L})dropped\\s+pin(?!\\p{L})", RegexOption.IGNORE_CASE)
         private val GOOGLE_CODE = Regex("(?<![\\p{L}\\p{N}])G-\\p{Nd}{5,8}(?![\\p{N}])")

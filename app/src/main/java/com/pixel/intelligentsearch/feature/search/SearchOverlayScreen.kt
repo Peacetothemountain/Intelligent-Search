@@ -656,8 +656,8 @@ fun SearchOverlayScreen(
         when (val match = bestMatch) {
             is ContactItem -> {
                 viewModel.recordOpened(match)
-                // A spoken name can be misheard, so voice opens the contact rather than dialling straight away.
-                launchSafeIntent(context, ContactActions.openIntent(match, directCall = settingsState.contactDirectCall && !fromVoice))
+                // A spoken name can be misheard, so voice opens the contact rather than calling straight away.
+                ContactActions.open(context, match, directCall = settingsState.contactDirectCall && !fromVoice)
             }
             is AppItem -> performAppLaunch(match, LaunchSource.keyboard(LaunchIconKeys.BEST_MATCH, LaunchIconKeys.app(match)))
             is FileItem -> {

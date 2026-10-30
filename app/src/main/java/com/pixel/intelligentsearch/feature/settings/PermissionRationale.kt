@@ -114,6 +114,45 @@ internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): Cont
 internal fun contactsAllowed(context: android.content.Context): Boolean =
     context.checkSelfPermission(Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
+/** What Direct Call says before Android asks to let the app make phone calls. */
+internal const val PHONE_CALLS_RATIONALE =
+    "Direct Call places the call as soon as you tap a contact. Allow phone calls for that; otherwise tapping a " +
+        "contact opens the dialer with the number ready."
+
+/** A way to ask to make phone calls: [request] does nothing when allowed, else explains first. */
+internal fun interface PhoneCallsRequest {
+    fun request()
+}
+
+/**
+ * Phone calls for Direct Call, asked the one way the app asks: when they are allowed nothing more is needed;
+ * otherwise [PHONE_CALLS_RATIONALE] shows, then Android's prompt. Declining keeps Direct Call on, opening the dialer
+ * instead ([com.pixel.intelligentsearch.feature.search.ContactActions.open]). Shows its dialog in place while it is up.
+ */
+@Composable
+internal fun rememberPhoneCallsRequest(): PhoneCallsRequest {
+    val context = LocalContext.current
+    var showRationale by remember { mutableStateOf(false) }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    if (showRationale) {
+        PermissionRationaleDialog(
+            title = "Allow Phone Calls?",
+            text = PHONE_CALLS_RATIONALE,
+            confirm = "Allow",
+            onConfirm = {
+                showRationale = false
+                permission.launch(Manifest.permission.CALL_PHONE)
+            },
+            onDismiss = { showRationale = false }
+        )
+    }
+    return remember(context) {
+        PhoneCallsRequest {
+            if (!com.pixel.intelligentsearch.feature.search.ContactActions.canCallDirectly(context)) showRationale = true
+        }
+    }
+}
+
 /** What weather answers say before Android asks for approximate location. */
 internal const val LOCATION_RATIONALE =
     "The weather can use your phone's approximate location, never its precise one. Only rounded coordinates " +

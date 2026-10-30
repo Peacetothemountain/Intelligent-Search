@@ -127,7 +127,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
                                     s.viewModel.recordOpened(match)
-                                    launchSafeIntent(context, ContactActions.openIntent(match, settingsState.contactDirectCall))
+                                    ContactActions.open(context, match, settingsState.contactDirectCall)
                                 }
                                 .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically

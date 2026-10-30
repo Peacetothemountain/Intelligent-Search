@@ -27,6 +27,9 @@
     <!-- Search Data Source Permissions -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Direct Call: tapping a contact places the call. Asked for only when the switch is turned on; without it the
+         dialer opens with the number ready. -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -35,6 +38,8 @@
 
     <!-- Optional Hardware Features to Support Maximum Devices on Google Play -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- Phone calls would otherwise make Play hide the app from tablets without phone service. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />

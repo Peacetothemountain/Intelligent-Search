@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.feature.search
 
-import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -48,7 +47,7 @@ internal fun pinnedIconKey(app: AppItem) = "pinned_${LaunchIconKeys.app(app)}"
 
 /**
  * Opens a result the way its own row does: an app in its profile (out of [from]'s icon), a contact's card (or the
- * dialler with Direct Call), a file in its app, a Settings page. For the Pinned row.
+ * call with Direct Call), a file in its app, a Settings page. For the Pinned row.
  */
 internal fun openResult(context: Context, s: OverlayScope, result: Any, from: LaunchSource) {
     s.ui.hasStartedTyping = false
@@ -56,7 +55,7 @@ internal fun openResult(context: Context, s: OverlayScope, result: Any, from: La
         is AppItem -> s.performAppLaunch(result, from)
         is ContactItem -> {
             s.viewModel.recordOpened(result)
-            launchSafeIntent(context, ContactActions.openIntent(result, s.settingsState.contactDirectCall))
+            ContactActions.open(context, result, s.settingsState.contactDirectCall)
         }
         is FileItem -> {
             s.viewModel.recordOpened(result)

@@ -646,7 +646,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         .expressiveRowClickable(onLongClick = openMenu) {
                                             hasStartedTyping = false
                                             viewModel.recordOpened(contact)
-                                            launchSafeIntent(context, ContactActions.openIntent(contact, isDirectCall))
+                                            ContactActions.open(context, contact, isDirectCall)
                                         }
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically

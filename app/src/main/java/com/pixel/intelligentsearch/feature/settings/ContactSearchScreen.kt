@@ -47,12 +47,17 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         ) {
             SettingsCard {
                 var directCall by rememberSetting(SettingsManager.CONTACT_DIRECT_CALL)
+                // Placing the call needs the user's say-so; turned on without it, a tap opens the dialer instead.
+                val phoneCalls = rememberPhoneCallsRequest()
                 SettingsRowToggle(
                     title = "Direct Call",
                     subtitle = "Tap Contact to Call Directly.",
                     icon = Icons.Outlined.Call,
                     isChecked = directCall,
-                    onCheckedChange = { directCall = it },
+                    onCheckedChange = {
+                        directCall = it
+                        if (it) phoneCalls.request()
+                    },
                     showDivider = true
                 )
                 // Android doesn't tell the app which assistant is asking, so it can't check that assistant's

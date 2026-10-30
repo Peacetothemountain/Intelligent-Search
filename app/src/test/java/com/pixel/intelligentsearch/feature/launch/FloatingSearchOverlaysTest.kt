@@ -2,6 +2,9 @@ package com.pixel.intelligentsearch.feature.launch
 
 import android.app.Application
 import android.content.Context
+import android.content.Intent
+import android.os.Looper
+import androidx.core.content.ContextCompat
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -19,6 +22,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowSettings
 
@@ -90,6 +94,25 @@ class FloatingSearchOverlaysTest {
 
         view.performAccessibilityAction(R.id.floating_button_move_right, null)
         assertEquals("right", stored[SettingsManager.FLOATING_BUTTON_EDGE])
+    }
+
+    @Test
+    fun hiddenUntilUnlockItHearsAnUnlockSentBySystemUi() {
+        ShadowSettings.setCanDrawOverlays(true)
+        prefs.edit().put(SettingsManager.FLOATING_SEARCH_BUTTON, true).commit()
+        FloatingSearchOverlays.sync(context)
+        assertTrue(FloatingSearchOverlays.buttonView!!.performLongClick())
+
+        // Android 17 sends the unlock from System UI, an app: a receiver that isn't exported never heard it, so the
+        // button stayed hidden.
+        val unlock = shadowOf(context).registeredReceivers.single { it.intentFilter.hasAction(Intent.ACTION_USER_PRESENT) }
+        assertEquals(ContextCompat.RECEIVER_EXPORTED, unlock.flags and ContextCompat.RECEIVER_EXPORTED)
+        assertEquals(0, unlock.flags and ContextCompat.RECEIVER_NOT_EXPORTED)
+
+        context.sendBroadcast(Intent(Intent.ACTION_USER_PRESENT))
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(shadowOf(context).registeredReceivers.none { it.intentFilter.hasAction(Intent.ACTION_USER_PRESENT) })
+        assertTrue(FloatingSearchOverlays.isButtonShowing)
     }
 
     @Test

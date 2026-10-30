@@ -283,12 +283,12 @@ class SystemToggleManager @Inject constructor(
     // ==========================================
     // 2. BLUETOOTH
     // ==========================================
+    /**
+     * Whether Bluetooth is on. Reading it needs no permission on Android 12 and later (the app's minimum); only
+     * turning it on or off needs Nearby Devices, which the app never asks for, so the card read "off" whenever it was on.
+     */
     private fun checkBluetoothEnabled(): Boolean = try {
-        if (context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            false
-        } else {
-            bluetoothAdapter?.isEnabled == true
-        }
+        bluetoothAdapter?.isEnabled == true
     } catch (_: SecurityException) {
         false
     } catch (_: Exception) {

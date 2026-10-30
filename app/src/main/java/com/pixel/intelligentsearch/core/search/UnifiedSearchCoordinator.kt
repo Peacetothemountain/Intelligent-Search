@@ -153,31 +153,16 @@ class UnifiedSearchCoordinator @Inject constructor(
      */
     @Volatile private var itemsByShortcutKey: Map<String, SearchItem> = emptyMap()
 
+    /**
+     * The settings read on every search (fuzzy app search, contact search) are read from here each time, not cached
+     * behind a change listener: SharedPreferences keeps its listeners weakly, and the release build's shrinker can drop
+     * the field that holds one, which left call and message rows following the Contacts switch as it was when the app
+     * started. A read is a lookup in the file's in-memory map. The per-domain search weights aren't read here: results
+     * are ranked within each domain, where one multiplier for every item changes no order, so the overlay applies them
+     * when it orders the sections instead.
+     */
     private val prefs = settingsManager.prefs
     @Volatile private var appUsage: Map<String, SystemDataProvider.AppUsage> = emptyMap()
-    @Volatile private var cachedFuzzySearchEnabled: Boolean = true
-    @Volatile private var cachedContactSearchEnabled: Boolean = false
-
-    // Settings read on every keystroke are cached and refreshed when any of them changes. The per-domain search
-    // weights aren't among them: results are ranked within each domain, where one multiplier for every item
-    // changes no order, so the overlay applies them when it orders the sections instead.
-    private val cachedSettingNames = listOf(
-        SettingsManager.APP_FUZZY_SEARCH, SettingsManager.SEARCH_CONTACTS
-    ).flatMap { it.allNames }.toSet()
-
-    private val prefChangeListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == null || key in cachedSettingNames) refreshCachedSettings()
-    }
-
-    init {
-        refreshCachedSettings()
-        prefs.registerOnSharedPreferenceChangeListener(prefChangeListener)
-    }
-
-    private fun refreshCachedSettings() {
-        cachedFuzzySearchEnabled = prefs[SettingsManager.APP_FUZZY_SEARCH]
-        cachedContactSearchEnabled = prefs[SettingsManager.SEARCH_CONTACTS]
-    }
 
     /**
      * The calculator and converter answer, with the current currency rates. A currency answer may start a fetch, which
@@ -677,15 +662,22 @@ class UnifiedSearchCoordinator @Inject constructor(
     /**
      * Queries indexed contacts from memory (< 1ms).
      */
-    fun searchContacts(query: String, limit: Int = 10): List<ContactItem> {
+    fun searchContacts(query: String, limit: Int = 10): List<ContactItem> =
+        rankedContacts(query, prefixLimit = limit * 3).take(limit)
+
+    /**
+     * The contacts [query] finds, best first and uncut: each prefix lookup takes up to [prefixLimit], and [keep] drops
+     * contacts before they are scored or ranked.
+     */
+    private fun rankedContacts(query: String, prefixLimit: Int, keep: (ContactItem) -> Boolean = { true }): List<ContactItem> {
         val q = query.trim()
         if (q.isEmpty()) return emptyList()
         val candidates = mutableSetOf<SearchItem>()
-        contactRadixTree.searchPrefix(q, limit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
+        contactRadixTree.searchPrefix(q, limit = prefixLimit).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
 
         val normalized = QueryNormalizer.normalize(q)
         if (normalized.isNotEmpty() && !normalized.equals(q, ignoreCase = true)) {
-            contactRadixTree.searchPrefix(normalized, limit = limit * 3).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
+            contactRadixTree.searchPrefix(normalized, limit = prefixLimit).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
         }
 
         addRemembered(candidates, SelectionMemory.normalizeQuery(q), SearchScoringEngine.EntityDomain.CONTACT)
@@ -699,29 +691,29 @@ class UnifiedSearchCoordinator @Inject constructor(
         val now = System.currentTimeMillis()
         val scoredContacts = ArrayList<ScoredCandidate<ContactItem>>(candidates.size)
         for (item in candidates) {
+            val contact = item.payload as ContactItem
+            if (!keep(contact)) continue
             val score = scoreItem(q, item, shortcuts, now, queryMetaphone)
             if (score.totalScore > 0f) {
-                scoredContacts.add(ScoredCandidate(item.payload as ContactItem, score.totalScore))
+                scoredContacts.add(ScoredCandidate(contact, score.totalScore))
             }
         }
         scoredContacts.sortByDescending { it.score }
-        val takeCount = minOf(limit, scoredContacts.size)
-        val resultContacts = ArrayList<ContactItem>(takeCount)
-        for (i in 0 until takeCount) {
-            resultContacts.add(scoredContacts[i].item)
-        }
-        return resultContacts
+        return scoredContacts.map { it.item }
     }
 
     /**
-     * The one contact with a number that [typed] names outright ([NaturalLanguageIntentParser.namesContact]) among
-     * [found], or null when none does or more than one does: a call or message goes to the person meant or to no one.
-     * A contact whose whole name is the typed words wins over those it only starts ("dad" is Dad, not Dad Work), and
-     * the same person listed twice with one number counts once.
+     * The one contact with a number that [typed] names outright ([NaturalLanguageIntentParser.namesContact]), or null
+     * when none does or more than one does: a call or message goes to the person meant or to no one. Contacts are
+     * filtered before any cut, so a namesake ranked below other matches (contacts kept only for their email, say)
+     * still counts, and "call sam" with Sam Lee and Sam Wu names neither. A contact whose whole name is the typed words
+     * wins over those it only starts ("dad" is Dad, not Dad Work), and the same person listed twice with one number
+     * counts once.
      */
-    private fun namedContact(typed: String, found: List<ContactItem>): ContactItem? {
-        val named = found.filter { it.phoneNumber.isNotBlank() && NaturalLanguageIntentParser.namesContact(typed, it.name) }
-            .distinctBy { it.name.lowercase(java.util.Locale.ROOT) to it.phoneNumber.filter { c -> c.isDigit() } }
+    private fun namedContact(typed: String): ContactItem? {
+        val named = rankedContacts(typed, prefixLimit = Int.MAX_VALUE) {
+            it.phoneNumber.isNotBlank() && NaturalLanguageIntentParser.namesContact(typed, it.name)
+        }.distinctBy { it.name.lowercase(java.util.Locale.ROOT) to it.phoneNumber.filter { c -> c.isDigit() } }
         val whole = named.filter { QueryNormalizer.normalize(it.name).equals(QueryNormalizer.normalize(typed), ignoreCase = true) }
         return whole.singleOrNull() ?: named.singleOrNull()
     }
@@ -756,8 +748,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         // 3. Natural Language Intent Parser
         // "Call X" / "Message X" only resolve names from contacts when contact search is turned on, and only to the one
         // contact the words name outright ([namedContact]): with two Sarahs, "call sarah" names neither.
-        val contactLookup: ((String) -> ContactItem?)? = if (cachedContactSearchEnabled) {
-            { target -> namedContact(target, searchContacts(target, limit = 10)) }
+        val contactLookup: ((String) -> ContactItem?)? = if (prefs[SettingsManager.SEARCH_CONTACTS]) {
+            { target -> namedContact(target) }
         } else null
         val parsedIntent = NaturalLanguageIntentParser.parse(query, contactLookup = contactLookup, is24Hour = is24Hour)
         // Only what the full phrasings, the calculator, the converters, date maths and the clock and chance answers
@@ -821,7 +813,7 @@ class UnifiedSearchCoordinator @Inject constructor(
 
         // 6. Typo-Tolerant Fuzzy Search if App Candidate Pool is Small (< 1.5ms)
         val appCandidateCount = candidates.count { it.domain == SearchScoringEngine.EntityDomain.APPLICATION }
-        if (cachedFuzzySearchEnabled && appCandidateCount < 8 && query.length >= 3) {
+        if (prefs[SettingsManager.APP_FUZZY_SEARCH] && appCandidateCount < 8 && query.length >= 3) {
             cancellationCheck?.invoke()
             val fuzzyResults = appRadixTree.searchFuzzy(query, maxDistance = SearchScoringEngine.fuzzyEditsFor(query), limit = 20)
             for (f in fuzzyResults) {

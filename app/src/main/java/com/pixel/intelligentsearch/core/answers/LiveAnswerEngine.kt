@@ -61,7 +61,7 @@ class LiveAnswerEngine internal constructor(
     private val debounceMs: Long = DEBOUNCE_MS,
     /** Where a switched-off feature's saved answers are deleted, off the main thread the change arrives on. */
     private val cacheCleaner: Executor = Dispatchers.IO.asExecutor()
-) {
+) : SharedPreferences.OnSharedPreferenceChangeListener {
     /** The answers that keep what they fetched on the phone. */
     enum class Feature { DICTIONARY, WEATHER }
 
@@ -179,10 +179,11 @@ class LiveAnswerEngine internal constructor(
 
     /**
      * Off means off, wherever it was switched (the settings page, a restore, the debug menu): when Web or Web
-     * Suggestions turns off, the definitions and forecasts kept go too. Held here, as SharedPreferences only keeps
-     * listeners weakly.
+     * Suggestions turns off, the definitions and forecasts kept go too. The engine is the listener itself:
+     * SharedPreferences keeps its listeners weakly, and the release build's shrinker dropped the field that held a
+     * separate one, so after a garbage collection nothing was cleared. The engine lives as long as the app.
      */
-    private val switchedOff = SharedPreferences.OnSharedPreferenceChangeListener { changed, key ->
+    override fun onSharedPreferenceChanged(changed: SharedPreferences, key: String?) {
         // A null key means every setting was cleared.
         val relevant = key == null || key in SettingsManager.SEARCH_WEB.allNames || key in SettingsManager.SEARCH_WEB_SUGGESTIONS.allNames
         if (relevant && !NetworkPolicy.webAnswersKept(changed)) {
@@ -191,7 +192,7 @@ class LiveAnswerEngine internal constructor(
     }
 
     init {
-        runCatching { prefs().registerOnSharedPreferenceChangeListener(switchedOff) }
+        runCatching { prefs().registerOnSharedPreferenceChangeListener(this) }
     }
 
     /** Places called [name], for setting the weather's location; null when the lookup failed or isn't allowed. */

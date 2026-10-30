@@ -158,56 +158,39 @@ class SearchBangManager @Inject constructor(
 
     private fun getPrefs(): SharedPreferences = settingsManager.prefs
 
-    private val prefChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == null || key == SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL.name ||
-            key == SettingsManager.CUSTOM_BANGS_JSON.name || key == SettingsManager.DISABLED_WEB_SHORTCUTS.name
-        ) {
-            cachedTriggerSymbol = null
-            cachedSyncBangs = null
-        }
-        if (key == null || key == SettingsManager.SEARCH_QUICK_SHORTCUTS.name) cachedQuickShortcutsEnabled = null
-    }
-
-    init {
-        try {
-            getPrefs().registerOnSharedPreferenceChangeListener(prefChangeListener)
-        } catch (_: Exception) {}
-    }
-
-    @Volatile
-    private var cachedTriggerSymbol: String? = null
-
-    fun getTriggerSymbol(): String =
-        cachedTriggerSymbol ?: getPrefs()[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL].ifBlank { "!" }
-            .also { cachedTriggerSymbol = it }
-
-    @Volatile
-    private var cachedQuickShortcutsEnabled: Boolean? = null
+    fun getTriggerSymbol(): String = getPrefs()[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL].ifBlank { "!" }
 
     /**
      * The "Enable Quick Web Shortcuts" switch. While it's off no query is read as a shortcut and none are
      * suggested, so "!yt cats" is searched as typed; the editor still lists the shortcuts through [bangsFlow].
      */
-    private fun quickShortcutsEnabled(): Boolean =
-        cachedQuickShortcutsEnabled ?: getPrefs()[SettingsManager.SEARCH_QUICK_SHORTCUTS]
-            .also { cachedQuickShortcutsEnabled = it }
+    private fun quickShortcutsEnabled(): Boolean = getPrefs()[SettingsManager.SEARCH_QUICK_SHORTCUTS]
 
     val bangsFlow: Flow<List<SearchBang>> = settingsManager.settingsFlow.map { settings ->
-        val trigger = settings.webShortcutTriggerSymbol.ifBlank { "!" }
-        cachedTriggerSymbol = trigger
-        buildBangs(trigger, settings.customBangsJson, settings.disabledWebShortcuts).also { cachedSyncBangs = it }
+        bangsFor(settings.webShortcutTriggerSymbol.ifBlank { "!" }, settings.customBangsJson, settings.disabledWebShortcuts)
     }
 
+    /** The shortcuts last built, with the stored values they were built from. */
+    private class BuiltBangs(val trigger: String, val customBangsJson: String, val disabled: Set<String>, val bangs: List<SearchBang>)
+
+    /**
+     * Kept with what it was built from and checked against the stored values at each use, not cleared by a change
+     * listener: SharedPreferences keeps its listeners weakly, and the release build's shrinker can drop the field that
+     * holds one, which left the trigger symbol and the shortcuts as they were when the app started.
+     */
     @Volatile
-    private var cachedSyncBangs: List<SearchBang>? = null
+    private var builtBangs: BuiltBangs? = null
     private val mutex = Mutex()
 
-    fun getAllBangsSync(): List<SearchBang> = cachedSyncBangs ?: getPrefs().let { prefs ->
-        buildBangs(
-            getTriggerSymbol(),
-            prefs[SettingsManager.CUSTOM_BANGS_JSON],
-            prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]
-        ).also { cachedSyncBangs = it }
+    fun getAllBangsSync(): List<SearchBang> = getPrefs().let { prefs ->
+        bangsFor(getTriggerSymbol(), prefs[SettingsManager.CUSTOM_BANGS_JSON], prefs[SettingsManager.DISABLED_WEB_SHORTCUTS])
+    }
+
+    private fun bangsFor(trigger: String, customBangsJson: String, disabled: Set<String>): List<SearchBang> {
+        builtBangs?.takeIf { it.trigger == trigger && it.customBangsJson == customBangsJson && it.disabled == disabled }
+            ?.let { return it.bangs }
+        return buildBangs(trigger, customBangsJson, disabled)
+            .also { builtBangs = BuiltBangs(trigger, customBangsJson, disabled, it) }
     }
 
     /** Custom bangs first, then the built-ins that aren't disabled, re-prefixed when the trigger isn't "!". */
@@ -414,7 +397,6 @@ class SearchBangManager @Inject constructor(
             val custom = parseCustomBangs(prefs[SettingsManager.CUSTOM_BANGS_JSON]).toMutableList()
             val disabled = prefs[SettingsManager.DISABLED_WEB_SHORTCUTS].toMutableSet()
             edit(custom, disabled)
-            cachedSyncBangs = null
             prefs.edit()
                 .put(SettingsManager.CUSTOM_BANGS_JSON, serializeCustomBangs(custom))
                 .put(SettingsManager.DISABLED_WEB_SHORTCUTS, disabled.toSet())

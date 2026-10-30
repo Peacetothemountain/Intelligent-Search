@@ -16,6 +16,7 @@ import com.pixel.intelligentsearch.core.data.DeviceSearchSources
 import com.pixel.intelligentsearch.core.data.DeviceSearchSourcesModule
 import com.pixel.intelligentsearch.core.data.GlobalSearchProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.system.GoogleApps
 import com.pixel.intelligentsearch.feature.search.FakeDeviceSearchSources
 import com.pixel.intelligentsearch.feature.search.SearchActivity
 import com.pixel.intelligentsearch.feature.search.SearchViewModel
@@ -157,6 +158,68 @@ class OverlayHandOffTest {
         assertFalse(controller.get().isFinishing)
         assertNull(shadowOf(controller.get()).nextStartedActivityForResult)
         controller.pause().stop().destroy()
+    }
+
+    /**
+     * Voice search from [open] with Search Overlay off, answered with [answer] and [said]. The search started the
+     * recognizer, then handed an empty search on and closed, so the words came back to a closed screen and were lost.
+     */
+    private fun voiceWithTheOverlayOff(open: Intent, answer: Int, said: String?): Activity {
+        context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(SettingsManager.SEARCH_OVERLAY_ENABLED.name, false).commit()
+        install("org.example.speech", IntentFilter(RecognizerIntent.ACTION_RECOGNIZE_SPEECH))
+        val controller = Robolectric.buildActivity(WidgetActivity::class.java, open).setup()
+        val activity = controller.get()
+        val started = shadowOf(activity).nextStartedActivityForResult
+        assertNotNull("the recognizer is started for its words", started)
+        assertFalse("the search waits for the words", activity.isFinishing)
+        shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).clearNextStartedActivities()
+
+        controller.pause().stop()
+        shadowOf(activity).receiveResult(
+            started.intent, answer,
+            said?.let { Intent().putStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS, arrayListOf(it)) }
+        )
+        controller.restart().resume()
+        return activity
+    }
+
+    @Test
+    fun withTheOverlayOffTheAssistantButtonsVoiceSearchSearchesTheWebForWhatWasSaid() {
+        shadowOf(context.getSystemService(RoleManager::class.java)).addHeldRole(RoleManager.ROLE_ASSISTANT)
+        install("org.example.search", IntentFilter(Intent.ACTION_WEB_SEARCH))
+
+        val activity = voiceWithTheOverlayOff(getVoiceActionIntent(context), Activity.RESULT_OK, "bus times")
+
+        val searched = shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity
+        assertEquals(Intent.ACTION_WEB_SEARCH, searched?.action)
+        assertEquals("bus times", searched.getStringExtra(android.app.SearchManager.QUERY))
+        assertTrue(activity.isFinishing)
+    }
+
+    @Test
+    fun withTheOverlayOffTheLaunchersVoiceShortcutHandsWhatWasSaidToAndroidsSearch() {
+        install(GoogleApps.GOOGLE_APP, IntentFilter("android.search.action.GLOBAL_SEARCH"))
+        val shortcut = Intent(context, WidgetActivity::class.java).putExtra("auto_voice", true)
+
+        val activity = voiceWithTheOverlayOff(shortcut, Activity.RESULT_OK, "weather in paris")
+
+        val searched = shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity
+        assertEquals("android.search.action.GLOBAL_SEARCH", searched?.action)
+        assertEquals(GoogleApps.GOOGLE_APP, searched.`package`)
+        assertEquals("weather in paris", searched.getStringExtra(android.app.SearchManager.QUERY))
+        assertTrue(activity.isFinishing)
+    }
+
+    @Test
+    fun withTheOverlayOffNothingSaidJustCloses() {
+        install("org.example.search", IntentFilter(Intent.ACTION_WEB_SEARCH))
+        val shortcut = Intent(context, WidgetActivity::class.java).putExtra("auto_voice", true)
+
+        val activity = voiceWithTheOverlayOff(shortcut, Activity.RESULT_CANCELED, null)
+
+        assertNull(shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity)
+        assertTrue(activity.isFinishing)
     }
 
     @Test

@@ -624,14 +624,20 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
 
     /**
      * A plain speech recognizer gives the words back only to whoever started it, so it's started here, for a
-     * result, and what was said is searched. Started with startActivity, as before, the words were lost.
+     * result, and what was said is searched. Started with startActivity, as before, the words were lost. With Search
+     * Overlay off, the words go where a typed search would ([forwardSearch]); with nothing said, the search just closes.
      */
     private val speechRecognizer = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
     ) { result ->
         awaitingSpeech = false
         val words = result.data?.getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()?.trim()
-        if (result.resultCode == RESULT_OK && !words.isNullOrEmpty()) searchViewModel.onQueryChanged(words.take(512))
+        val heard = words?.takeIf { result.resultCode == RESULT_OK && it.isNotEmpty() }?.take(512)
+        if (!searchOverlayEnabled()) {
+            if (heard == null || !forwardSearch(heard)) closeWithoutAnimation()
+        } else if (heard != null) {
+            searchViewModel.onQueryChanged(heard)
+        }
     }
 
     /** Starts the speech recognizer when [intent] asks for it ([com.pixel.intelligentsearch.feature.widget.EXTRA_RECOGNIZE_SPEECH]). */
@@ -680,45 +686,58 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
         const val WAIT_GIVE_UP_MS = 2 * 60 * 1000L
     }
 
+    private fun searchOverlayEnabled(): Boolean =
+        getSharedPreferences(SettingsManager.PREFS_NAME, android.content.Context.MODE_PRIVATE)[SettingsManager.SEARCH_OVERLAY_ENABLED]
+
     private fun checkAndForwardIfSearchOverlayDisabled(): Boolean {
-        val prefs = getSharedPreferences(SettingsManager.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-        val searchOverlayEnabled = prefs[SettingsManager.SEARCH_OVERLAY_ENABLED]
-        if (!searchOverlayEnabled) {
-            val queryExtra = (intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: "").take(512)
-            val fallbackIntent = Intent("android.search.action.GLOBAL_SEARCH").apply {
-                setPackage(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
+        if (searchOverlayEnabled()) return false
+        // A speech recognizer this search started is still listening: what is said is handed on once it comes back
+        // (speechRecognizer). Already handed on, there is nothing left to do.
+        if (awaitingSpeech || isFinishing) return true
+        return forwardSearch((intent?.getStringExtra("query") ?: intent?.getStringExtra(SearchManager.QUERY) ?: "").take(512))
+    }
+
+    /**
+     * With Search Overlay off, hands [queryExtra] to Android's search (the Google app), else to an app that searches the
+     * web, and closes. False, staying open, when this activity was itself picked for a web search with nowhere else to go.
+     */
+    private fun forwardSearch(queryExtra: String): Boolean {
+        val fallbackIntent = Intent("android.search.action.GLOBAL_SEARCH").apply {
+            setPackage(com.pixel.intelligentsearch.core.system.GoogleApps.GOOGLE_APP)
+            if (queryExtra.isNotEmpty()) {
+                putExtra(SearchManager.QUERY, queryExtra)
+            }
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+        if (packageManager.resolveActivity(fallbackIntent, 0) != null) {
+            startActivity(fallbackIntent)
+        } else if (intent?.action == Intent.ACTION_WEB_SEARCH) {
+            // This activity was itself picked to handle the web search, so handing it on as another web search
+            // would only bring it back here, over and over. With nowhere else to send it, the overlay shows it.
+            return false
+        } else {
+            val webIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 if (queryExtra.isNotEmpty()) {
                     putExtra(SearchManager.QUERY, queryExtra)
                 }
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            if (packageManager.resolveActivity(fallbackIntent, 0) != null) {
-                startActivity(fallbackIntent)
-            } else if (intent?.action == Intent.ACTION_WEB_SEARCH) {
-                // This activity was itself picked to handle the web search, so handing it on as another web search
-                // would only bring it back here, over and over. With nowhere else to send it, the overlay shows it.
-                return false
-            } else {
-                val webIntent = Intent(Intent.ACTION_WEB_SEARCH).apply {
-                    if (queryExtra.isNotEmpty()) {
-                        putExtra(SearchManager.QUERY, queryExtra)
-                    }
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                if (packageManager.resolveActivity(webIntent, 0) != null) {
-                    startActivity(webIntent)
-                }
+            if (packageManager.resolveActivity(webIntent, 0) != null) {
+                startActivity(webIntent)
             }
-            finish()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
-            } else {
-                @Suppress("DEPRECATION")
-                overridePendingTransition(0, 0)
-            }
-            return true
         }
-        return false
+        closeWithoutAnimation()
+        return true
+    }
+
+    private fun closeWithoutAnimation() {
+        finish()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            @Suppress("DEPRECATION")
+            overridePendingTransition(0, 0)
+        }
     }
 
 }

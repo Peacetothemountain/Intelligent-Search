@@ -7,10 +7,10 @@ import androidx.core.content.edit
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.pixel.intelligentsearch.core.occasion.Occasion
 import com.pixel.intelligentsearch.core.occasion.OccasionCalendar
+import com.pixel.intelligentsearch.core.system.workManagerOnceUnlocked
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 
@@ -44,7 +44,10 @@ object WidgetDoodles {
         redraw()
     }
 
-    /** Arranges the redraw for the next time the doodle changes, replacing any arranged before. */
+    /**
+     * Arranges the redraw for the next time the doodle changes, replacing any arranged before. Skipped before the first
+     * unlock after a restart (see [workManagerOnceUnlocked]); the app arranges it at the unlock.
+     */
     fun scheduleNextChange(context: Context) {
         val now = OccasionCalendar.now()
         val delayMs = Duration.between(now, OccasionCalendar.nextChange(now, OccasionCalendar.region())).toMillis() + AFTER_MIDNIGHT_MS
@@ -53,7 +56,7 @@ object WidgetDoodles {
             .build()
         // Replacing it from inside the run that is redrawing ends that run; its work is already done.
         runCatching {
-            WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(CHANGE_WORK, ExistingWorkPolicy.REPLACE, request)
+            context.workManagerOnceUnlocked()?.enqueueUniqueWork(CHANGE_WORK, ExistingWorkPolicy.REPLACE, request)
         }.onFailure { Log.w(TAG, "Couldn't schedule the next doodle change", it) }
     }
 }

@@ -116,14 +116,22 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
     // to Android's settings ([declinedForGood]).
     var contactsRationaleBefore by remember { mutableStateOf(false) }
     var calendarRationaleBefore by remember { mutableStateOf(false) }
+    fun searchContacts() {
+        prefs.edit { put(SettingsManager.SEARCH_CONTACTS, true) }
+        viewModel?.reindexContacts()
+    }
+    // Allowed on App info after a decline for good, contact search turns on as it does when allowed here.
+    val contactsSettingsGrant = rememberSettingsGrant(Manifest.permission.READ_CONTACTS) {
+        searchContacts()
+        revision++
+    }
     val contactsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
             forgetDecline(context, Manifest.permission.READ_CONTACTS)
-            prefs.edit { put(SettingsManager.SEARCH_CONTACTS, true) }
-            viewModel?.reindexContacts()
+            searchContacts()
         } else if (context.findActivity()?.let { declinedForGood(it, Manifest.permission.READ_CONTACTS, contactsRationaleBefore) } == true) {
             Toast.makeText(context, "Contacts access was declined. You can allow it in Android settings.", Toast.LENGTH_LONG).show()
-            openAppSettings()
+            contactsSettingsGrant.open()
         }
         revision++
     }

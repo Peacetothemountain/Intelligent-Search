@@ -54,8 +54,9 @@ import java.util.Locale
  * phrase is read under the whole-phrase rule, and:
  * - the time says itself: am/pm, a 24-hour hour (13-23, or 0), a leading zero ("07:00"), noon or midnight, a part of
  *   the day ("at 7 in the evening", "tonight at 9"), or minutes on a 24-hour phone ("9:30");
- * - and the day is named ("today", "tomorrow", "friday", "dec 5"). With no day, only a time from now ("in 10
- *   minutes", "in 2 days") is certain, and an alarm, which rings at the next such time, needs only its time.
+ * - and the day is named ("today", "tomorrow", "friday", "dec 5"), or no day is said at all: a time that says
+ *   itself with no day ("remind me to call mom at 5pm") is the next such time, as an alarm's is. A time from now
+ *   ("in 10 minutes", "in 2 days") is certain too.
  * A timer read whole is certain. Anything the reader had to decide is guessed: a bare hour read by [bareHour], by a
  * meal or bed word, by a task that says its half of the day ("wake up at 7"), or by an alarm's next AM or PM, the
  * small hours of a night, and a time the reader filled in ("tonight" alone is 8 PM, "remind me tomorrow" now's
@@ -1577,7 +1578,9 @@ object NaturalLanguageIntentParser {
         // says itself and the day is named, or is a number of days from now ("in 2 days at 5pm"). "This evening"
         // names today, "in the evening" only the next one. A time filled in ("tonight" alone, now's minute) is not.
         val dayNamed = namedDay != NamedDay.NONE || relativeMatch != null || (period != null && !day.periodWithIn)
-        val certain = if (clockTime) timeSaid && dayNamed else relativeMatch != null && period == null && !isTonight
+        // No day at all, but a time that says itself ("at 5pm"): the next 5 PM, as an alarm is, which is what it means.
+        val noDaySaid = namedDay == NamedDay.NONE && relativeMatch == null && period == null && !isTonight
+        val certain = if (clockTime) timeSaid && (dayNamed || noDaySaid) else relativeMatch != null && period == null && !isTonight
         return TemporalResult(cal.timeInMillis, cleanTitle, endMs, certain)
     }
 

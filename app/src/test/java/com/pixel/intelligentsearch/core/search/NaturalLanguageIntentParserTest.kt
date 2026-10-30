@@ -1354,12 +1354,13 @@ class NaturalLanguageIntentParserTest {
             "set an alarm for 7am" to "2026-10-30 07:00",
             "alarm in 10 minutes" to "2026-10-29 10:10",
             "alarm at 7 in the evening" to "2026-10-29 19:00",
-            "set alarm for 19:30" to "2026-10-29 19:30"
+            "set alarm for 19:30" to "2026-10-29 19:30",
+            // No day said, but a time that says itself: the next such time, as an alarm's is.
+            "remind me to call mom at 5pm" to "2026-10-29 17:00"
         )
         for ((query, at) in certain) assertEquals(query, "$at certain", setFor(query))
         // A day or a half of the day the reader chose: still offered, its day and time first, but Enter searches.
         val guessed = mapOf(
-            "remind me to call mom at 5pm" to "2026-10-29 17:00",
             "remind me to call mom at 5" to "2026-10-29 17:00",
             "remind me to call mom tomorrow at 5" to "2026-10-30 17:00",
             "remind me to call mom tomorrow at 9" to "2026-10-30 09:00",
@@ -1380,8 +1381,8 @@ class NaturalLanguageIntentParserTest {
     @Test
     fun aTimeWithMinutesOnA24HourPhoneIsAsWritten() {
         // Each was the afternoon or evening: 16:30, 21:30 (the open owner question), and an alarm at 7:30 PM.
-        assertEquals("2026-10-30 04:30 guessed", setFor("remind me to call mom at 4:30", is24Hour = true))
-        assertEquals("2026-10-30 09:30 guessed", setFor("remind me to join the standup at 9:30", is24Hour = true))
+        assertEquals("2026-10-30 04:30 certain", setFor("remind me to call mom at 4:30", is24Hour = true))
+        assertEquals("2026-10-30 09:30 certain", setFor("remind me to join the standup at 9:30", is24Hour = true))
         assertEquals("2026-10-30 09:30 certain", setFor("remind me to join the standup tomorrow at 9:30", is24Hour = true))
         assertEquals("2026-10-30 07:30 certain", setFor("set an alarm for 7:30", now = thursday(10), is24Hour = true))
         // A bare hour still follows the one rule, and words that say the other half make it no action.

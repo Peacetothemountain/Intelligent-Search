@@ -34,9 +34,9 @@ class AskAiOfferTest {
 
     @Test
     fun aQueryThatReadsAsAGuessedReminderOffersNoAskRowEither() {
-        // "Ask sarah at 6pm" names no day, so Enter leaves the reminder for a tap (the certainty rule). The row is still
-        // the answer at the top, and the Ask row would say something else beside it.
-        val query = "ask sarah at 6pm"
+        // "Ask sarah at 6" doesn't say AM or PM, so Enter leaves the reminder for a tap (the certainty rule). The row is
+        // still the answer at the top, and the Ask row would say something else beside it.
+        val query = "ask sarah at 6"
         val reminder = ShortActionPhrasing.parse(query, 0L, false, TimeZone.getTimeZone("UTC"), Locale.US)
         assertEquals(ShortActionPhrasing.Kind.REMINDER, reminder?.kind)
         assertFalse(reminder!!.runsOnEnter)

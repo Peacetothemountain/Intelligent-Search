@@ -21,8 +21,8 @@ import java.util.TimeZone
  * Enter also follows the full phrasing's certainty rule (THE CERTAINTY RULE FOR ENTER, [NaturalLanguageIntentParser]):
  * it runs only a reading with nothing guessed. A timer read whole is certain; an alarm when its time says itself
  * ("7:30am", "at 19:30", "at 7:30" on a 24-hour phone); a reminder when its time says itself and its day is named
- * ("pay rent tomorrow 9am"), or when it is a time from now ("laundry in 2 hrs"). "At 6", "call mom at 5pm" (which
- * day?) and "dinner at 7" are still offered, their day and time first in the row, for a tap.
+ * ("pay rent tomorrow 9am") or no day is said ("call mom at 5pm", the next 5 PM), or when it is a time from now
+ * ("laundry in 2 hrs"). "At 6" and "dinner at 7" are still offered, their day and time first in the row, for a tap.
  *
  * A reminder follows the full phrasing's whole-phrase rule ([NaturalLanguageIntentParser.isPlainTask]): once the day
  * and time are read, the task must be plain words, so "call mom tomorrrow 5pm" or "dentist 15.11 at 3pm" is none. Its
@@ -384,8 +384,10 @@ object ShortActionPhrasing {
             )
             else -> resolveHour(time, now, is24Hour)
         }
-        // "This evening" names today; with no day named, "call mom at 5pm" may be today's or tomorrow's.
-        val dayNamed = namedDay != NamedDay.NONE || (day.period != null && !day.periodWithIn)
+        // "This evening" names today. With no day at all, a time that says itself ("call mom at 5pm") is the next such
+        // time, as the full phrasing reads it.
+        val dayNamed = namedDay != NamedDay.NONE || (day.period != null && !day.periodWithIn) ||
+            (namedDay == NamedDay.NONE && day.period == null && !night)
         at.set(Calendar.HOUR_OF_DAY, hour)
         at.set(Calendar.MINUTE, time.minute)
         if (night && said24 == null && hour < 6) at.add(Calendar.DAY_OF_YEAR, 1)

@@ -189,11 +189,12 @@ class ShortActionPhrasingTest {
             assertEquals(query, expected.first, reminder.triggerMillis)
             assertEquals(query, expected.second, reminder.title)
             assertEquals(query, "${expected.third} · Calendar Reminder", reminder.subtitle)
-            // The certainty rule: Enter sets only a time from now, or a time that says itself on a day that is named.
-            // "Call mom at 5pm" (which day?), "dinner at 7" and "standup monday at 3" (AM or PM?) wait for a tap.
+            // The certainty rule: Enter sets only a time from now, or a time that says itself on a day that is named or
+            // with no day at all ("call mom at 5pm", the next 5 PM). "Dinner at 7" and "standup monday at 3" (AM or
+            // PM?) wait for a tap.
             val certain = query in setOf(
                 "laundry in 2 hrs", "laundry in 90 minutes", "take out the bins in an hour", "pay rent tomorrow 9am",
-                "tomorrow 9am pay rent", "gym tonight at 8"
+                "tomorrow 9am pay rent", "gym tonight at 8", "call mom at 5pm", "call mom at 1pm"
             )
             assertEquals(query, certain, reminder.runsOnEnter)
         }
@@ -493,7 +494,7 @@ class ShortActionPhrasingTest {
         // The certainty rule: a time that says itself on a day that is named. Each ran on Enter.
         assertEquals(true, parse("call mom tomorrow 5pm")?.runsOnEnter)
         assertEquals(true, parse("dentist tues 10am")?.runsOnEnter)
-        assertEquals(false, parse("call mom at 5pm")?.runsOnEnter)
+        assertEquals(true, parse("call mom at 5pm")?.runsOnEnter)
         assertEquals(false, parse("dentist friday at 10")?.runsOnEnter)
         assertEquals(false, parse("at 3")?.runsOnEnter)
         assertEquals(at(22, 15), parse("at 3")?.let { at(22, it.hour) })
@@ -501,7 +502,7 @@ class ShortActionPhrasingTest {
         assertEquals(at(23, 6, 30), parse("gym tomorrow 6:30", is24Hour = true)?.triggerMillis)
         assertEquals(true, parse("gym tomorrow 6:30", is24Hour = true)?.runsOnEnter)
         assertEquals(at(23, 6, 30), parse("gym 6:30", is24Hour = true)?.triggerMillis)
-        assertEquals(false, parse("gym 6:30", is24Hour = true)?.runsOnEnter)
+        assertEquals(true, parse("gym 6:30", is24Hour = true)?.runsOnEnter)
     }
 
     @Test

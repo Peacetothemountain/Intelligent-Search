@@ -113,6 +113,51 @@ object LiveAnswerParser {
         "good", "happy", "merry", "welcome", "love", "cheers", "congratulations", "yes", "no"
     )
 
+    /**
+     * The everyday words people most often ask for in another language on their own ("water in hindi", "cat in
+     * french", "beautiful in spanish"). A lone word outside these and [PHRASE_WORDS] is left to the web search, which
+     * still answers a word; "translate x to <language>" and "x meaning in <language>" translate any word.
+     */
+    private val EVERYDAY_WORDS = setOf(
+        // People and family
+        "mother", "mom", "mum", "mommy", "father", "dad", "daddy", "brother", "sister", "son", "daughter", "baby",
+        "child", "children", "kid", "kids", "family", "friend", "friends", "boyfriend", "girlfriend", "husband", "wife",
+        "grandma", "grandmother", "grandpa", "grandfather", "uncle", "aunt", "cousin", "man", "woman", "boy", "girl",
+        "people", "person", "teacher", "doctor", "king", "queen", "god",
+        // Animals
+        "cat", "dog", "bird", "fish", "horse", "cow", "pig", "chicken", "duck", "rabbit", "mouse", "lion", "tiger",
+        "bear", "elephant", "monkey", "snake", "butterfly", "bee", "sheep", "goat", "frog", "turtle", "wolf", "fox",
+        // Food and drink
+        "water", "food", "bread", "milk", "rice", "egg", "eggs", "meat", "fruit", "apple", "banana", "orange", "mango",
+        "grape", "grapes", "strawberry", "lemon", "tomato", "potato", "onion", "garlic", "carrot", "vegetable",
+        "vegetables", "cheese", "butter", "sugar", "salt", "pepper", "honey", "coffee", "tea", "juice", "beer", "wine",
+        "cake", "chocolate", "soup", "breakfast", "lunch", "dinner",
+        // Home and things
+        "house", "home", "room", "kitchen", "bathroom", "toilet", "bed", "door", "window", "table", "chair", "book",
+        "pen", "paper", "phone", "computer", "car", "bus", "train", "plane", "bike", "bicycle", "money", "key", "bag",
+        "shoes", "shirt", "dress", "hat", "clothes", "gift", "ball", "school", "hospital", "street", "city", "country",
+        "shop", "store", "church", "beach", "island", "mountain", "river", "lake", "sea", "ocean", "forest", "garden",
+        // Nature, time and weather
+        "sun", "moon", "star", "stars", "sky", "rain", "snow", "wind", "cloud", "fire", "earth", "world", "tree",
+        "flower", "flowers", "rose", "grass", "weather", "time", "day", "night", "morning", "evening", "afternoon",
+        "today", "tomorrow", "yesterday", "week", "month", "year", "birthday", "summer", "winter", "spring", "autumn",
+        "fall", "christmas",
+        // Body
+        "head", "hair", "eye", "eyes", "ear", "nose", "mouth", "hand", "hands", "foot", "feet", "heart", "face",
+        // Colors and numbers
+        "red", "blue", "green", "yellow", "black", "white", "pink", "purple", "brown", "gray", "grey", "color", "colour",
+        "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "hundred", "thousand",
+        // Feelings, describing words and doings
+        "beautiful", "pretty", "cute", "ugly", "big", "small", "little", "hot", "cold", "new", "old", "young", "nice",
+        "bad", "great", "best", "delicious", "sad", "angry", "tired", "hungry", "thirsty", "sick", "funny", "strong",
+        "smart", "crazy", "friendship", "life", "death", "peace", "hope", "dream", "smile", "kiss", "hug", "beauty",
+        "eat", "drink", "sleep", "go", "come", "run", "walk", "dance", "sing", "speak", "help", "stop", "wait", "miss",
+        "like", "want", "need", "know", "understand", "see", "work", "play", "learn", "name", "word", "language",
+        "freedom", "goodnight", "okay", "ok"
+    )
+
+    private const val ENGLISH = "en"
+
     /** Longest text a query offers to translate; anything longer is better pasted into a translator. */
     const val MAX_TRANSLATE_CHARS = 500
 
@@ -132,7 +177,8 @@ object LiveAnswerParser {
      */
     private val WEATHER_HERE = Regex(
         "\\b(?:(?:near|around|at|in|for|close to) (?:me|here|my (?:current )?(?:area|location))|(?:my )?current location|" +
-            "my (?:area|location)|right here|here|outside|nearby|near by|close by|where i am)\\b"
+            "my (?:area|location)|right here|here|outside|nearby|near by|close by|where i am|where i live|" +
+            "(?:at|near|around) (?:my )?home|(?:in|near|around|for) my (?:city|town|village|neighborhood|neighbourhood))\\b"
     )
 
     /** A scale the query asks the temperatures in. */
@@ -166,6 +212,32 @@ object LiveAnswerParser {
         "update", "updates", "hourly", "weekly", "10 day", "10-day", "7 day", "7-day", "this week", "next week",
         "weekend", "this weekend", "the", "a", "bad", "good", "nice", "cold", "hot", "the weather channel"
     )
+
+    /**
+     * Words that make what's beside "weather" something other than a place, wherever they sit in it. A day other than
+     * today or tomorrow ("weather friday", "weather sunday in london") asks for a forecast the card doesn't show, and
+     * "home", "work" and "school" are places only the user knows. Geocoded, each found a real town: Thursday Island,
+     * Friday Harbor, Homyel, Worksop.
+     */
+    private val NOT_A_PLACE_WORDS = setOf(
+        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "yesterday", "home", "work",
+        "office", "school", "vs", "versus"
+    )
+
+    /**
+     * Things said with "weather" ("weather man", "weather balloon", "weather the storm"), not places, in a place of
+     * one or two words; a longer name may hold one ("isle of man", "las vegas strip").
+     */
+    private val WEATHER_THINGS = setOf(
+        "man", "men", "woman", "women", "girl", "girls", "boy", "guy", "lady", "presenter", "anchor", "balloon",
+        "balloons", "vane", "vanes", "stripping", "strip", "proof", "proofing", "resistant", "storm", "climate", "change",
+        "pattern", "patterns"
+    )
+    private val MONTHS = setOf(
+        "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november",
+        "december"
+    )
+    private val MONTH_LEADS = setOf("in", "this", "next", "last", "during", "for", "of", "early", "late", "mid")
 
     /** What [rawQuery] asks to be answered inline, or null for an ordinary search. */
     fun parse(rawQuery: String): LiveAnswerQuery? {
@@ -231,7 +303,7 @@ object LiveAnswerParser {
         }
         BARE_IN.matchEntire(sentence)?.let { match ->
             val target = TranslationLanguages.codeFor(match.groupValues[2])
-            if (target != null && readsAsPhrase(match.groupValues[1])) {
+            if (target != null && readsAsPhrase(match.groupValues[1], target)) {
                 return translation(original, match.groups[1]!!.range, target, null)
             }
         }
@@ -240,13 +312,17 @@ object LiveAnswerParser {
 
     /**
      * Whether [text], from a bare "X in <language>" with nothing else asking for a translation, reads as words to
-     * translate: a single word ("hola in english") or a phrase with a person, question or courtesy in it, and never a
-     * search for songs, films or lessons in that language.
+     * translate into [target]: a phrase with a person, question or courtesy in it, and never a search for songs, films
+     * or lessons in that language. A single word is a title or a name as often as a word ("avengers in hindi",
+     * "netflix in korean"), so it needs to be an everyday word ([EVERYDAY_WORDS]), or a word being brought into English
+     * ("hola in english"), which a title rarely is.
      */
-    private fun readsAsPhrase(text: String): Boolean {
+    private fun readsAsPhrase(text: String, target: String): Boolean {
         val words = text.trim().trim(*QUOTES).split(' ').map { it.trim(*QUOTES, ',', '.', '!', '?') }
         if (words.any { it in NOT_TRANSLATABLE }) return false
-        return words.size == 1 || words.any { it in PHRASE_WORDS }
+        if (words.size > 1) return words.any { it in PHRASE_WORDS }
+        val word = words.single()
+        return target == ENGLISH || word in PHRASE_WORDS || word in EVERYDAY_WORDS
     }
 
     /**
@@ -307,6 +383,12 @@ object LiveAnswerParser {
     private fun place(raw: String): String? {
         val place = raw.trim().trim(',', '.').trim()
         if (place.isEmpty() || place in NOT_A_PLACE || !PLACE.matches(place) || place.split(' ').size > 5) return null
+        val words = place.split(' ', ',').filter { it.isNotEmpty() }
+        if (words.any { it in NOT_A_PLACE_WORDS }) return null
+        if (words.size <= 2 && words.any { it in WEATHER_THINGS }) return null
+        // "weather in july", "weather this may": a month, not the towns called May or July. "May" in a longer name
+        // ("weather mayfield") is still a place.
+        if (words.last() in MONTHS && words.dropLast(1).all { it in MONTH_LEADS }) return null
         return place
     }
 }

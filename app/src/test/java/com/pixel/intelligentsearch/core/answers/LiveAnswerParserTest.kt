@@ -193,6 +193,44 @@ class LiveAnswerParserTest {
     }
 
     @Test
+    fun aLoneTitleOrNameInALanguageIsNotATranslation() {
+        // Each was offered as a Translate card.
+        for (query in listOf(
+            "avengers in hindi", "pushpa in hindi", "bahubali in tamil", "frozen in spanish", "netflix in korean",
+            "restaurants in turkish"
+        )) {
+            assertNull(query, parse(query))
+        }
+        // Everyday words still translate on their own, and any word does when asked for in so many words.
+        assertEquals(Translate("water", "hi", null), parse("water in hindi"))
+        assertEquals(Translate("beautiful", "es", null), parse("beautiful in spanish"))
+        assertEquals(Translate("hello", "fr", null), parse("hello in french"))
+        assertEquals(Translate("danke", "en", null), parse("danke in english"))
+        assertEquals(Translate("frozen", "es", null), parse("translate frozen to spanish"))
+        assertEquals(Translate("frozen", "es", null), parse("frozen meaning in spanish"))
+    }
+
+    @Test
+    fun weatherForADayTheCardDoesntShowOrAPlaceOnlyTheUserKnowsStaysASearch() {
+        // Each was a forecast for a real place: Thursday Island, Friday Harbor, Saturdaygua, Worksop, Manila.
+        for (query in listOf(
+            "weather thursday", "thursday weather", "weather friday", "weather saturday", "saturday weather",
+            "what's the weather on friday", "weather this saturday", "weather sunday in london", "weather monday in paris",
+            "weather yesterday", "weather in july", "weather at work", "weather man", "weather girl", "weather balloon",
+            "weather vane", "weather stripping", "weather proof", "weather the storm", "weather vs climate"
+        )) {
+            assertNull(query, parse(query))
+        }
+        // Home and the user's own city or town are here ("weather at home" found Homyel, Belarus).
+        for (query in listOf("weather at home", "weather in my city", "weather in my town", "weather where i live")) {
+            assertEquals(query, Weather(null, ForecastDay.TODAY), parse(query))
+        }
+        // Real places with those words in a longer name are still places.
+        assertEquals(Weather("isle of man", ForecastDay.TODAY), parse("weather isle of man"))
+        assertEquals(Weather("mayfield", ForecastDay.TODAY), parse("weather mayfield"))
+    }
+
+    @Test
     fun aLanguageNameWinsOverAPlace() {
         // "weather in french" asks for a word, not a forecast in a town called French.
         assertEquals(Translate("weather", "fr", null), parse("weather in french"))

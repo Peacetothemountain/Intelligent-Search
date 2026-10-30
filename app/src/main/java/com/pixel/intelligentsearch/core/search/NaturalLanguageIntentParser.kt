@@ -13,11 +13,11 @@ import java.util.Locale
 /**
  * On-device Natural Language Intent Parser and Date/Time Extractor.
  * Parses conversational commands into direct executable Android system intents:
- * - Calendar Events ("meeting tomorrow at 3pm", "lunch with Sarah on Friday at 12:30")
- * - Alarms ("set alarm for 7am", "wake me up tomorrow at 6:30")
+ * - Calendar Events ("meeting tomorrow at 3pm", "lunch with Sarah on Friday at 12:30", "meeting on dec 5 at 3pm")
+ * - Alarms ("set alarm for 7am", "wake me up tomorrow at 6:30", "alarm for 20 minutes")
  * - Timers ("set a timer for 10 minutes", "set timer 15m", "timer 5 minutes 30 seconds")
  * - Reminders ("remind me to call John in 2 hours")
- * - Direct Messaging ("text Sarah: I will be late", "message Dave on WhatsApp saying hi")
+ * - Direct Messaging ("text Sarah: I will be late", "message Dave on WhatsApp saying hi", "text mom hello")
  * - Phone Calls ("call Mom", "dial 555-0199")
  * - Navigation ("directions to Central Park", "navigate to work", "directions home")
  * - Media ("play lo-fi beats", "play Taylor Swift on Spotify", "play jazz on YouTube Music")
@@ -37,33 +37,78 @@ object NaturalLanguageIntentParser {
     private val TIMER_MINUTES_REGEX = Regex("$TIMER_AMOUNT\\s*(?:m|min|mins|minutes?)")
     private val TIMER_SECONDS_REGEX = Regex("$TIMER_AMOUNT\\s*(?:s|sec|secs|seconds?)")
     private val TIMER_CLOCK_REGEX = Regex("(\\d{1,2}):(\\d{2})(?::(\\d{2}))?")
+    // A bare number after the last unit: "2 hours 30" is 2 h 30 min, "1 m 30" is 1 min 30 s.
+    private val TIMER_TRAILING_AMOUNT_REGEX = Regex("(?<![\\d.,])(\\d+)$")
+    // The amount in words: "half an hour", "a half hour", "an hour", "one minute".
+    private val TIMER_WORD_AMOUNT_REGEX = Regex("^(?:(half)\\s+(?:an?\\s+)?|an?\\s+(half\\s+)?|one\\s+)(hour|minute)$")
+    // A timer can't run backward: "timer -5 minutes" is no timer rather than a 5 minute one.
+    private val NEGATIVE_AMOUNT_REGEX = Regex("-\\s*\\d")
 
-    // Recipient names are Unicode letters/digits so "text José hi" and "message Zoë saying ok" parse.
+    // Recipient names are Unicode letters/digits so "text José hi" and "message Zoë saying ok" parse, with the marks
+    // names and numbers are written with: "O'Brien", "Jean-Luc", "+1 (415) 555-0100".
+    private const val RECIPIENT = "[\\p{L}\\p{N}_\\s'’.+\\-()]"
+    private const val MESSAGE_VERBS = "message|text|send message to|send text to|whatsapp"
     private val MESSAGE_REGEX = Regex(
-        "^(?:message|text|send message to|send text to)\\s+([\\p{L}\\p{N}_\\s]+?)(?:\\s+(?:on|via)\\s+(whatsapp))?(?:\\s*[:,]\\s*|\\s+(?:that|saying|to)\\s+)(.+)$",
+        "^($MESSAGE_VERBS)\\s+($RECIPIENT+?)(?:\\s+(?:on|via)\\s+(whatsapp))?(?:\\s*[:,]\\s*|\\s+(?:that|saying|to)\\s+)(.+)$",
         RegexOption.IGNORE_CASE
     )
+    // "text mom hello": nothing marks where the name ends, so it is only known once a contact (or a number) answers.
+    private val MESSAGE_WITHOUT_SEPARATOR_REGEX = Regex("^($MESSAGE_VERBS)\\s+(.+)$", RegexOption.IGNORE_CASE)
+    private val WORD_REGEX = Regex("\\S+")
+    /** The most words a name is tried with when nothing marks where it ends ("text mary ann smith hi"). */
+    private const val MAX_RECIPIENT_WORDS = 4
 
-    // "in 10 minutes", "in 1.5 hours", "in 2 days", "in an hour". The unit must end there: "in 5 minutes" used to
-    // match as "in 5 min" and leave "utes" in the title.
-    private val RELATIVE_TIME_REGEX = Regex(
-        "in\\s+(\\d+(?:[.,]\\d+)?\\s*|an?\\s+)(minutes?|mins?|hours?|hrs?|h|days?|weeks?|wks?|m)\\b",
+    // The units a time from now is read in: "10 minutes", "1.5 hours", "2 days", "an hour". The unit must end there:
+    // "in 5 minutes" used to match as "in 5 min" and leave "utes" in the title.
+    private const val RELATIVE_UNITS = "(minutes?|mins?|hours?|hrs?|h|days?|weeks?|wks?|m)\\b"
+    // "in 10 minutes", "in an hour". "In" must be a word of its own: "check the cabin 2 hours" is not "in 2 hours".
+    private val RELATIVE_TIME_REGEX = Regex("\\bin\\s+(\\d+(?:[.,]\\d+)?\\s*|an?\\s+)$RELATIVE_UNITS", RegexOption.IGNORE_CASE)
+    // An alarm given a duration can only mean that long from now, so "alarm for 10 minutes" needs no "in". "A" or
+    // "an" still does, so "alarm at a minute past 7" isn't a minute from now.
+    private val ALARM_DURATION_REGEX = Regex(
+        "(?:\\bin\\s+)?((?<![\\d.,])\\d+(?:[.,]\\d+)?\\s*|(?<=\\bin\\s{1,9})an?\\s+)$RELATIVE_UNITS",
         RegexOption.IGNORE_CASE
     )
+    // An amount (a number or number words) and any unit of time, whether it can be read or not.
+    private const val SPOKEN_DURATION =
+        "(?:(?:\\d+(?:[.,]\\d+)?|(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|" +
+            "thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|" +
+            "eighty|ninety|hundred|half|couple|few|several|and|of)\\b)[\\s-]*){1,4}" +
+            "(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?|wks?|fortnights?|months?|years?|yrs?)\\b"
     // A time from now that can't be read ("in two hours", "in 30 seconds", "in 3 months"): the phrase is then not
     // taken as an event or reminder at all rather than one set for now. "In" must be followed by an amount (a number
     // or a number word), so words that merely sit in the task, "fill in hours tomorrow at 9", are left to be read.
-    private val UNREAD_RELATIVE_TIME_REGEX = Regex(
-        "\\bin\\s+(?:(?:\\d+(?:[.,]\\d+)?|(?:a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|" +
-            "thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|" +
-            "eighty|ninety|hundred|half|couple|few|several|and|of)\\b)[\\s-]*){1,4}" +
-            "(?:seconds?|secs?|minutes?|mins?|hours?|hrs?|days?|weeks?|wks?|fortnights?|months?|years?|yrs?)\\b",
-        RegexOption.IGNORE_CASE
-    )
+    private val UNREAD_RELATIVE_TIME_REGEX = Regex("\\bin\\s+$SPOKEN_DURATION", RegexOption.IGNORE_CASE)
+    // The same for an alarm, "in" or not: "alarm 5 seconds" is not 5 o'clock.
+    private val UNREAD_ALARM_DURATION_REGEX = Regex("\\b$SPOKEN_DURATION", RegexOption.IGNORE_CASE)
+    // "am" or "pm", also written "a.m.", "p.m" or "p m"; only the letter is kept.
+    private const val MERIDIEM = "\\s*([ap])\\.?\\s?m\\b\\.?"
     // Minutes follow a colon or a dot ("6:30", "6.30pm"). In an event or reminder a dot counts only with "at" or
     // am/pm, so "budget 12.50" is not a time.
-    private val EXPLICIT_TIME_REGEX = Regex("\\b(?:(at)\\s+)?(\\d{1,2})(?:([:.])(\\d{2}))?\\s*(am|pm)?\\b", RegexOption.IGNORE_CASE)
-    private val CLOCK_TIME_REGEX = Regex("\\b(\\d{1,2})(?:[:.](\\d{2}))?\\s*(am|pm)?\\b", RegexOption.IGNORE_CASE)
+    private val EXPLICIT_TIME_REGEX = Regex("\\b(?:(at)\\s+)?(\\d{1,2})(?:([:.])(\\d{2}))?(?:$MERIDIEM|\\b)", RegexOption.IGNORE_CASE)
+    // An alarm is only a time of day, so a space can part the hour from the minutes too: "alarm 6 30".
+    private val CLOCK_TIME_REGEX = Regex("\\b(\\d{1,2})(?:[:.\\s](\\d{2}))?(?:$MERIDIEM|\\b)", RegexOption.IGNORE_CASE)
+    private val NOON_OR_MIDNIGHT_REGEX = Regex("\\b(noon|midday|midnight)\\b", RegexOption.IGNORE_CASE)
+    // Whole words only, so "read todays report" keeps its "todays" and "today's report" its "'s".
+    private val TOMORROW_REGEX = Regex("\\btomorrow\\b(?!['’]\\w)", RegexOption.IGNORE_CASE)
+    private val TONIGHT_REGEX = Regex("\\btonight\\b(?!['’]\\w)", RegexOption.IGNORE_CASE)
+    private val TODAY_REGEX = Regex("\\btoday\\b(?!['’]\\w)", RegexOption.IGNORE_CASE)
+    // A month and day, either way round: "dec 5", "december 5th, 2027", "on the 5th of december", "5 dec". Numbers
+    // alone ("12/5") are left be: whether the month or the day comes first depends on where the writer is from.
+    private const val MONTHS =
+        "(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|" +
+            "oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\b\\.?"
+    private const val DATE_YEAR = "(?:,?\\s+(20\\d{2})\\b)?"
+    // The day is not an hour: "dec 5 pm" and "dec 5:30" are left to be read as times.
+    private val MONTH_DAY_REGEX = Regex(
+        "(?:\\bon\\s+)?\\b$MONTHS\\s*(\\d{1,2})(?:st|nd|rd|th)?\\b(?!\\s*(?:[:.]\\d|[ap]\\.?\\s?m\\b))$DATE_YEAR",
+        RegexOption.IGNORE_CASE
+    )
+    private val DAY_MONTH_REGEX = Regex(
+        "(?:\\bon\\s+)?(?:\\bthe\\s+)?\\b(\\d{1,2})(?:st|nd|rd|th)?\\s+(?:of\\s+)?$MONTHS$DATE_YEAR",
+        RegexOption.IGNORE_CASE
+    )
+    private val MONTH_ABBREVIATIONS = listOf("jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec")
     private val WHITESPACE_REGEX = Regex("\\s+")
     private val WEEKDAYS = listOf("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
     private val WEEKDAY_REGEX = Regex("(?:\\bon\\s+)?\\b(${WEEKDAYS.joinToString("|")})\\b", RegexOption.IGNORE_CASE)
@@ -193,6 +238,7 @@ object NaturalLanguageIntentParser {
     private fun parseTimer(lower: String): ParsedIntent.Timer? {
         val matchedPrefix = TIMER_PREFIXES.firstOrNull { lower.startsWith(it) } ?: return null
         val remainder = lower.removePrefix(matchedPrefix).trim()
+        if (NEGATIVE_AMOUNT_REGEX.containsMatchIn(remainder)) return null
 
         var totalSeconds = 0L
         var matched = false
@@ -215,12 +261,27 @@ object NaturalLanguageIntentParser {
             matched = true
         }
 
-        // Fallbacks: "timer 15" -> 15 minutes, "timer 1:30" -> 1m 30s, "timer 1:05:00" -> 1h 5m.
-        // Only a single number or a clock form is accepted; concatenating every digit turned
+        // "2 hours 30" and "1 m 30": a bare number after the last unit counts in the next smaller one. More than 59
+        // of it is a typo, not a longer timer.
+        val lastUnit = listOfNotNull(hrMatch, minMatch, secMatch).maxByOrNull { it.range.last }
+        val trailing = TIMER_TRAILING_AMOUNT_REGEX.find(remainder)
+        if (lastUnit != null && trailing != null && trailing.range.first > lastUnit.range.last && lastUnit !== secMatch) {
+            val amount = trailing.value.toLongOrNull()?.takeIf { it < 60L } ?: return null
+            totalSeconds += amount * if (lastUnit === hrMatch) 60L else 1L
+        }
+
+        // Fallbacks: "timer 15" -> 15 minutes, "timer 1:30" -> 1m 30s, "timer 1:05:00" -> 1h 5m, "timer half an
+        // hour" -> 30m. Only a single number or a clock form is accepted; concatenating every digit turned
         // "timer 1:30" into 130 minutes.
         if (!matched) {
             val clock = TIMER_CLOCK_REGEX.matchEntire(remainder)
-            if (clock != null) {
+            val words = TIMER_WORD_AMOUNT_REGEX.matchEntire(remainder)
+            if (words != null) {
+                val half = words.groupValues[1].isNotEmpty() || words.groupValues[2].isNotEmpty()
+                val unitSeconds = if (words.groupValues[3] == "hour") 3600L else 60L
+                totalSeconds = if (half) unitSeconds / 2 else unitSeconds
+                matched = true
+            } else if (clock != null) {
                 val parts = clock.groupValues.drop(1).filter { it.isNotEmpty() }.map { it.toLong() }
                 if (parts.drop(1).any { it >= 60L }) return null
                 totalSeconds = if (parts.size == 3) {
@@ -268,9 +329,9 @@ object NaturalLanguageIntentParser {
         val matchedPrefix = prefixes.firstOrNull { lower.startsWith(it) } ?: return null
         val remainder = lower.removePrefix(matchedPrefix).trim()
 
-        // "alarm in 10 minutes" is a time from now, not 10 o'clock. An alarm is only an hour and minute, so a day or
-        // more ahead ("alarm in 2 days") can't be set, and "alarm in 5 seconds" is not 5 o'clock.
-        val relative = RELATIVE_TIME_REGEX.find(remainder)
+        // "alarm in 10 minutes" and "alarm for 10 minutes" are a time from now, not 10 o'clock. An alarm is only an
+        // hour and minute, so a day or more ahead ("alarm 2 days") can't be set, and "alarm 5 seconds" is not 5 o'clock.
+        val relative = ALARM_DURATION_REGEX.find(remainder)
         val time = if (relative != null) {
             val minutes = relativeMinutes(relative) ?: return null
             if (minutes >= MINUTES_PER_DAY) return null
@@ -278,7 +339,7 @@ object NaturalLanguageIntentParser {
             cal.add(Calendar.MINUTE, Math.round(minutes).toInt())
             Pair(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
         } else {
-            if (UNREAD_RELATIVE_TIME_REGEX.containsMatchIn(remainder)) return null
+            if (UNREAD_ALARM_DURATION_REGEX.containsMatchIn(remainder)) return null
             extractTime(remainder) ?: return null
         }
 
@@ -304,7 +365,8 @@ object NaturalLanguageIntentParser {
         val rawTask = original.substring(prefixLen).trim()
 
         val temporalResult = extractTemporalInfo(rawTask, currentTimeMs) ?: return null
-        val cleanTask = temporalResult.cleanText.ifBlank { rawTask }
+        // "remind me tomorrow at 9" names no task; its time words aren't one.
+        val cleanTask = temporalResult.cleanText.ifBlank { "Reminder" }
         val triggerTime = temporalResult.timestampMs
 
         return ParsedIntent.Reminder(
@@ -325,7 +387,8 @@ object NaturalLanguageIntentParser {
         val rawBody = original.substring(matchedTrigger.length).trim()
         val temporalResult = extractTemporalInfo(rawBody, currentTimeMs) ?: return null
 
-        val cleanTitle = temporalResult.cleanText.ifBlank { rawBody }
+        // "meeting tomorrow at 3pm" names no event beyond the meeting itself; its time words aren't a title.
+        val cleanTitle = temporalResult.cleanText.ifBlank { if ("meeting" in matchedTrigger) "Meeting" else "Event" }
         val startMs = temporalResult.timestampMs
         val endMs = startMs + 60 * 60 * 1000 // 1-hour duration
 
@@ -352,14 +415,37 @@ object NaturalLanguageIntentParser {
         original: String,
         contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)?
     ): ParsedIntent.DirectMessage? {
-        val match = MESSAGE_REGEX.find(original) ?: return null
+        // "text Sarah: hi", "message Dave saying ok": the words mark where the name ends. When that name finds no one
+        // but a shorter one does ("text mom hello to everyone"), or nothing marks it ("text mom hello"), the name is
+        // the most words that find a contact or make a number.
+        val separated = MESSAGE_REGEX.find(original)
+        val separatedTo = separated?.let { resolveRecipient(it.groupValues[2].trim(), contactLookup) }
+        val verb: String
+        val typedName: String
+        val body: String
+        val recipient: Recipient?
+        var onWhatsApp = false
+        val split = if (separated == null || separatedTo == null) splitAtRecipient(original, contactLookup) else null
+        if (split != null) {
+            verb = split.verb
+            typedName = split.name
+            recipient = split.recipient
+            body = split.body
+        } else {
+            separated ?: return null
+            verb = separated.groupValues[1]
+            typedName = separated.groupValues[2].trim()
+            recipient = separatedTo
+            onWhatsApp = separated.groupValues[3].isNotEmpty()
+            body = separated.groupValues[4].trim()
+        }
+        val whatsAppVerb = verb.equals("whatsapp", ignoreCase = true)
+        // Searches start with "whatsapp" too ("whatsapp, backup chats"); as a verb it needs someone to message.
+        if (whatsAppVerb && recipient == null) return null
+        val isWhatsApp = onWhatsApp || whatsAppVerb
 
-        val recipient = match.groupValues[1].trim()
-        val isWhatsApp = match.groupValues[2].equals("whatsapp", ignoreCase = true)
-        val body = match.groupValues[3].trim()
-
-        // Resolve the recipient to a number the same way calls do, so the composer opens addressed to them.
-        val number = resolveRecipientNumber(recipient, contactLookup)
+        // Resolved the same way calls are, so the composer opens addressed to them.
+        val number = recipient?.number
 
         val sms = Intent(Intent.ACTION_SENDTO).apply {
             data = Uri.parse("smsto:" + (number?.let { Uri.encode(it) } ?: ""))
@@ -379,7 +465,8 @@ object NaturalLanguageIntentParser {
         }
 
         return ParsedIntent.DirectMessage(
-            recipientName = recipient,
+            // The contact's own name, as "call" shows it, rather than however it was typed.
+            recipientName = recipient?.name ?: typedName,
             body = body,
             isWhatsApp = isWhatsApp,
             intent = intent,
@@ -388,17 +475,45 @@ object NaturalLanguageIntentParser {
         )
     }
 
-    /** A dialable number for [target]: the target itself if it is one, else a matching contact's number. */
-    private fun resolveRecipientNumber(
+    /** Who a message goes to: the name to show and the number to send to. */
+    private data class Recipient(val name: String, val number: String)
+
+    /** A message with nothing marking where the name ends, split where the name finds someone. */
+    private data class SplitMessage(val verb: String, val name: String, val recipient: Recipient, val body: String)
+
+    /**
+     * "text mom hello" read as "mom" and "hello": the most leading words (up to [MAX_RECIPIENT_WORDS], leaving at least
+     * one for the message) that find a contact or make a number. Null when none do, so a search like "text to speech
+     * app" is never taken for a message.
+     */
+    private fun splitAtRecipient(
+        original: String,
+        contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)?
+    ): SplitMessage? {
+        val match = MESSAGE_WITHOUT_SEPARATOR_REGEX.find(original) ?: return null
+        val rest = match.groupValues[2]
+        val words = WORD_REGEX.findAll(rest).toList()
+        for (count in minOf(words.size - 1, MAX_RECIPIENT_WORDS) downTo 1) {
+            val name = rest.substring(0, words[count - 1].range.last + 1).trim()
+            val recipient = resolveRecipient(name, contactLookup) ?: continue
+            return SplitMessage(match.groupValues[1], name, recipient, rest.substring(words[count].range.first).trim())
+        }
+        return null
+    }
+
+    /** [target] as someone to message: a number if it is one, else a matching contact with a number. */
+    private fun resolveRecipient(
         target: String,
         contactLookup: ((String) -> com.pixel.intelligentsearch.core.data.ContactItem?)?
-    ): String? {
+    ): Recipient? {
         if (target.isEmpty()) return null
         if (target.all { it.isDigit() || it in "+- ()" }) {
-            return target.filter { it.isDigit() || it == '+' }.takeIf { it.count(Char::isDigit) >= 3 }
+            val number = target.filter { it.isDigit() || it == '+' }.takeIf { it.count(Char::isDigit) >= 3 } ?: return null
+            return Recipient(target, number)
         }
-        val contact = contactLookup?.invoke(target)?.takeIf { it.phoneNumber.isNotBlank() }
-        return contact?.phoneNumber?.filter { it.isDigit() || it == '+' }?.takeIf { it.isNotEmpty() }
+        val contact = contactLookup?.invoke(target)?.takeIf { it.phoneNumber.isNotBlank() } ?: return null
+        val number = contact.phoneNumber.filter { it.isDigit() || it == '+' }.takeIf { it.isNotEmpty() } ?: return null
+        return Recipient(contact.name.ifBlank { target }, number)
     }
 
     private fun parsePhoneCall(
@@ -516,28 +631,45 @@ object NaturalLanguageIntentParser {
     private data class TemporalResult(val timestampMs: Long, val cleanText: String)
 
     /** The day word a phrase named, which decides how a bare hour like "at 3" is read. */
-    private enum class NamedDay { NONE, TODAY, TONIGHT, TOMORROW, WEEKDAY }
+    private enum class NamedDay { NONE, TODAY, TONIGHT, TOMORROW, WEEKDAY, DATE }
 
-    /** When [rawText] names, from [baseTimeMs]; null when it names a time from now that can't be read. */
+    /**
+     * When [rawText] names, from [baseTimeMs]; null when it names a time from now, a date or a clock time that can't
+     * be read, so the phrase is not taken as one set at some other time.
+     */
     private fun extractTemporalInfo(rawText: String, baseTimeMs: Long): TemporalResult? {
         val cal = Calendar.getInstance().apply { timeInMillis = baseTimeMs }
         var text = rawText
         var namedDay = NamedDay.NONE
-        val isTonight = text.contains("tonight", ignoreCase = true)
+        val isTonight = TONIGHT_REGEX.containsMatchIn(text)
 
-        // Check relative days
+        // Check named days and dates
         val weekdayMatch = WEEKDAY_REGEX.find(text)
-        if (text.contains("tomorrow", ignoreCase = true)) {
+        val monthFirst = MONTH_DAY_REGEX.find(text)
+        val dateMatch = monthFirst ?: DAY_MONTH_REGEX.find(text)
+        if (dateMatch != null) {
+            val (monthText, dayText) = if (monthFirst != null) {
+                dateMatch.groupValues[1] to dateMatch.groupValues[2]
+            } else {
+                dateMatch.groupValues[2] to dateMatch.groupValues[1]
+            }
+            val month = MONTH_ABBREVIATIONS.indexOf(monthText.take(3).lowercase(Locale.ROOT))
+            if (!moveToDate(cal, month, dayText.toInt(), dateMatch.groupValues[3].toIntOrNull())) return null
+            text = text.replace(dateMatch.value, " ")
+            // "on friday, dec 5": the date says the day; the weekday is just said with it.
+            if (weekdayMatch != null) text = text.replace(weekdayMatch.value, " ")
+            namedDay = NamedDay.DATE
+        } else if (TOMORROW_REGEX.containsMatchIn(text)) {
             cal.add(Calendar.DAY_OF_YEAR, 1)
-            text = text.replace("tomorrow", "", ignoreCase = true)
+            text = text.replace(TOMORROW_REGEX, "")
             namedDay = NamedDay.TOMORROW
-        } else if (text.contains("tonight", ignoreCase = true)) {
+        } else if (isTonight) {
             cal.set(Calendar.HOUR_OF_DAY, 20)
             cal.set(Calendar.MINUTE, 0)
-            text = text.replace("tonight", "", ignoreCase = true)
+            text = text.replace(TONIGHT_REGEX, "")
             namedDay = NamedDay.TONIGHT
-        } else if (text.contains("today", ignoreCase = true)) {
-            text = text.replace("today", "", ignoreCase = true)
+        } else if (TODAY_REGEX.containsMatchIn(text)) {
+            text = text.replace(TODAY_REGEX, "")
             namedDay = NamedDay.TODAY
         } else if (weekdayMatch != null) {
             // "on Friday" means the next Friday; naming today's weekday means a week from today.
@@ -554,8 +686,10 @@ object NaturalLanguageIntentParser {
         if (relativeMatch != null) {
             val minutes = relativeMinutes(relativeMatch) ?: return null
             val days = minutes / MINUTES_PER_DAY
-            // Whole days keep the clock time across a daylight saving change.
-            if (days >= 1.0 && days == kotlin.math.floor(days)) {
+            val inDays = relativeMatch.groupValues[2].lowercase(Locale.ROOT)[0] in "dw"
+            // Whole days and weeks keep the clock time across a daylight saving change. Hours and minutes are exact:
+            // "in 24 hours" is 24 real hours even on the night the clocks change.
+            if (inDays && days >= 1.0 && days == kotlin.math.floor(days)) {
                 cal.add(Calendar.DAY_OF_YEAR, days.toInt())
             } else {
                 cal.add(Calendar.MINUTE, Math.round(minutes).toInt())
@@ -576,20 +710,23 @@ object NaturalLanguageIntentParser {
             // "07:00" is 24-hour notation: the hour is meant exactly as written.
             val zeroPadded = timeMatch.groupValues[2].length == 2 && timeMatch.groupValues[2][0] == '0'
 
-            if (amPm == "pm" && hour < 12) hour += 12
-            if (amPm == "am" && hour == 12) hour = 0
+            // A time that doesn't exist ("at 25:00", "13pm") is no time: Calendar is lenient and would roll it into
+            // another day, and clamping it would set the event at a time nobody asked for.
+            if (minute !in 0..59 || (amPm.isEmpty() && hour !in 0..23) || (amPm.isNotEmpty() && hour !in 1..12)) return null
+            if (amPm == "p" && hour < 12) hour += 12
+            if (amPm == "a" && hour == 12) hour = 0
             // Without am/pm: "tonight at 9" is 21:00. With no day or "today", "at 3" is the next 3 o'clock still
-            // ahead. Tomorrow or a weekday has no "already passed" to go by, so 1-7 is read as the afternoon or
-            // evening people mean ("tomorrow at 3") and 8-11 as the morning, unless the hour has a leading zero.
+            // ahead. Tomorrow, a weekday or a date has no "already passed" to go by, so 1-7 is read as the afternoon
+            // or evening people mean ("tomorrow at 3") and 8-11 as the morning, unless the hour has a leading zero.
             if (amPm.isEmpty() && hour in 1..11) {
                 if (isTonight) {
                     hour += 12
                 } else if (relativeMatch == null) {
                     when (namedDay) {
-                        NamedDay.TOMORROW, NamedDay.WEEKDAY -> if (hour <= 7 && !zeroPadded) hour += 12
+                        NamedDay.TOMORROW, NamedDay.WEEKDAY, NamedDay.DATE -> if (hour <= 7 && !zeroPadded) hour += 12
                         else -> {
                             val morning = (cal.clone() as Calendar).apply {
-                                set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute.coerceIn(0, 59)); set(Calendar.SECOND, 0)
+                                set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute); set(Calendar.SECOND, 0)
                             }
                             if (morning.timeInMillis < baseTimeMs && morning.timeInMillis + 12 * 3_600_000L > baseTimeMs) hour += 12
                         }
@@ -597,9 +734,8 @@ object NaturalLanguageIntentParser {
                 }
             }
 
-            // Calendar is lenient, so an out-of-range "at 27:90" would silently roll into another day.
-            cal.set(Calendar.HOUR_OF_DAY, hour.coerceIn(0, 23))
-            cal.set(Calendar.MINUTE, minute.coerceIn(0, 59))
+            cal.set(Calendar.HOUR_OF_DAY, hour)
+            cal.set(Calendar.MINUTE, minute)
             cal.set(Calendar.SECOND, 0)
             text = text.replace(timeMatch.value, "")
 
@@ -625,7 +761,31 @@ object NaturalLanguageIntentParser {
         return minutes.takeIf { it.isFinite() && it <= 366.0 * MINUTES_PER_DAY }
     }
 
+    /**
+     * Moves [cal] to [day] of [month] (0-based), keeping its time of day: in [year] when one was given, else the next
+     * time that date comes round, today included. False when the date doesn't exist ("feb 30").
+     */
+    private fun moveToDate(cal: Calendar, month: Int, day: Int, year: Int?): Boolean {
+        if (month < 0 || day !in 1..31) return false
+        val today = cal.get(Calendar.YEAR) * 10_000 + cal.get(Calendar.MONTH) * 100 + cal.get(Calendar.DAY_OF_MONTH)
+        // "feb 29" may be a few years ahead.
+        for (candidateYear in (year ?: cal.get(Calendar.YEAR))..(year ?: (cal.get(Calendar.YEAR) + 8))) {
+            val date = (cal.clone() as Calendar).apply {
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.YEAR, candidateYear)
+                set(Calendar.MONTH, month)
+            }
+            if (day > date.getActualMaximum(Calendar.DAY_OF_MONTH)) continue
+            if (year == null && candidateYear * 10_000 + month * 100 + day < today) continue
+            date.set(Calendar.DAY_OF_MONTH, day)
+            cal.timeInMillis = date.timeInMillis
+            return true
+        }
+        return false
+    }
+
     private fun extractTime(text: String): Pair<Int, Int>? {
+        NOON_OR_MIDNIGHT_REGEX.find(text)?.let { return Pair(if (it.groupValues[1].equals("midnight", ignoreCase = true)) 0 else 12, 0) }
         val match = CLOCK_TIME_REGEX.find(text) ?: return null
 
         var hour = match.groupValues[1].toIntOrNull() ?: return null
@@ -633,8 +793,8 @@ object NaturalLanguageIntentParser {
         val amPm = match.groupValues[3].lowercase(Locale.ROOT)
 
         if (amPm.isNotEmpty() && hour !in 1..12) return null
-        if (amPm == "pm" && hour < 12) hour += 12
-        if (amPm == "am" && hour == 12) hour = 0
+        if (amPm == "p" && hour < 12) hour += 12
+        if (amPm == "a" && hour == 12) hour = 0
 
         if (hour !in 0..23 || minute !in 0..59) return null
         return Pair(hour, minute)

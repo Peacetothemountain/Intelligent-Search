@@ -275,4 +275,208 @@ class NaturalLanguageIntentParserTest {
         val comma = NaturalLanguageIntentParser.parse("text mom, on my way") as NaturalLanguageIntentParser.ParsedIntent.DirectMessage
         assertEquals("on my way", comma.body)
     }
+
+    private fun alarm(query: String, now: Long = at(12)) =
+        NaturalLanguageIntentParser.parse(query, currentTimeMs = now) as NaturalLanguageIntentParser.ParsedIntent.Alarm
+
+    private fun event(query: String, now: Long = at(12)) =
+        NaturalLanguageIntentParser.parse(query, currentTimeMs = now) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+
+    private fun reminder(query: String, now: Long = at(12)) =
+        NaturalLanguageIntentParser.parse(query, currentTimeMs = now) as NaturalLanguageIntentParser.ParsedIntent.Reminder
+
+    private fun timerSeconds(query: String) =
+        (NaturalLanguageIntentParser.parse(query) as NaturalLanguageIntentParser.ParsedIntent.Timer).durationSeconds
+
+    private fun date(millis: Long): Triple<Int, Int, Int> = Calendar.getInstance().apply { timeInMillis = millis }
+        .let { Triple(it.get(Calendar.YEAR), it.get(Calendar.MONTH), it.get(Calendar.DAY_OF_MONTH)) }
+
+    @Test
+    fun anAlarmForADurationIsThatLongFromNowWithoutIn() {
+        // "for 10 minutes" was read as 10 o'clock.
+        val tenMinutes = alarm("set alarm for 10 minutes", now = at(14, 55))
+        assertEquals(15, tenMinutes.hour)
+        assertEquals(5, tenMinutes.minute)
+        val twenty = alarm("alarm for 20 minutes")
+        assertEquals(12, twenty.hour)
+        assertEquals(20, twenty.minute)
+        val hours = alarm("wake me up 8 hours", now = at(23, 30))
+        assertEquals(7, hours.hour)
+        assertEquals(30, hours.minute)
+        // An alarm can't be set days ahead, and seconds are no hour.
+        assertNull(NaturalLanguageIntentParser.parse("alarm 2 days", currentTimeMs = at(12)))
+        assertNull(NaturalLanguageIntentParser.parse("alarm 5 seconds", currentTimeMs = at(12)))
+        // A bare hour is still a clock time.
+        assertEquals(7, alarm("alarm 7").hour)
+    }
+
+    @Test
+    fun alarmsReadDottedMeridiemsSpacedMinutesNoonAndMidnight() {
+        assertEquals(19, alarm("alarm 7 p.m.").hour)
+        assertEquals(19, alarm("alarm 7 pm").hour)
+        assertEquals(7, alarm("alarm 7 a.m.").hour)
+        val spaced = alarm("alarm 6 30")
+        assertEquals(6, spaced.hour)
+        assertEquals(30, spaced.minute)
+        val noon = alarm("alarm at noon")
+        assertEquals(12, noon.hour)
+        assertEquals(0, noon.minute)
+        assertEquals(0, alarm("wake me up at midnight").hour)
+        // The same marks work in an event.
+        assertEquals(15, hourOf(event("meeting at 3 p.m.").startMillis))
+    }
+
+    @Test
+    fun timersReadATrailingAmountWordsAndRejectNegatives() {
+        assertEquals(9_000, timerSeconds("timer 2 hours 30"))
+        assertEquals(90, timerSeconds("timer 1 m 30"))
+        assertEquals(5_400, timerSeconds("timer 1h30"))
+        assertEquals(1_800, timerSeconds("set a timer for half an hour"))
+        assertEquals(1_800, timerSeconds("timer a half hour"))
+        assertEquals(3_600, timerSeconds("timer an hour"))
+        assertEquals(30, timerSeconds("timer half a minute"))
+        // A timer can't run backward, and 90 of the next unit is a typo.
+        assertNull(NaturalLanguageIntentParser.parse("timer -5 minutes"))
+        assertNull(NaturalLanguageIntentParser.parse("timer 2 hours 90"))
+    }
+
+    @Test
+    fun anEventOrReminderOnANamedDateLandsOnItWithTheDateOutOfTheTitle() {
+        // 2026-03-10, 12:00. These were set for today or tomorrow, with the date left in the title.
+        val meeting = event("meeting on dec 5 at 3pm")
+        assertEquals(Triple(2026, Calendar.DECEMBER, 5), date(meeting.startMillis))
+        assertEquals(15, hourOf(meeting.startMillis))
+        assertEquals("Meeting", meeting.title)
+
+        val rent = reminder("remind me to pay rent on november 1 at 9am")
+        assertEquals(Triple(2026, Calendar.NOVEMBER, 1), date(rent.triggerMillis))
+        assertEquals(9, hourOf(rent.triggerMillis))
+        assertEquals("pay rent", rent.task)
+
+        val dayFirst = event("meeting lunch with Sam 5 december at 1pm")
+        assertEquals(Triple(2026, Calendar.DECEMBER, 5), date(dayFirst.startMillis))
+        assertEquals("lunch with Sam", dayFirst.title)
+        assertEquals(Triple(2026, Calendar.DECEMBER, 5), date(event("meeting on the 5th of december at 1pm").startMillis))
+        assertEquals(Triple(2026, Calendar.DECEMBER, 5), date(event("meeting December 5th at 1pm").startMillis))
+
+        // A date already past this year is next year's; today's is today.
+        assertEquals(Triple(2027, Calendar.MARCH, 5), date(event("meeting on march 5 at 10am").startMillis))
+        assertEquals(Triple(2026, Calendar.MARCH, 10), date(event("meeting on march 10 at 3pm").startMillis))
+        // A year said is kept.
+        assertEquals(Triple(2027, Calendar.DECEMBER, 5), date(event("meeting dec 5, 2027 at 9am").startMillis))
+        // A bare hour on a date is read as on a named day.
+        assertEquals(15, hourOf(event("meeting dec 5 at 3").startMillis))
+        // A date that doesn't exist is no event.
+        assertNull(NaturalLanguageIntentParser.parse("meeting on feb 30 at 3pm", currentTimeMs = at(12)))
+        // Numbers alone are left be: "12/5" is December 5 in one country and May 12 in another.
+        assertTrue(event("meeting 12/5 at 3pm").title.contains("12/5"))
+    }
+
+    @Test
+    fun aDurationWithoutInIsPartOfTheTask() {
+        // "cabin 2 hours" read as "in 2 hours", leaving the task "check the cab".
+        val cabin = reminder("remind me to check the cabin 2 hours")
+        assertEquals("check the cabin 2 hours", cabin.task)
+        assertEquals(at(12), cabin.triggerMillis)
+    }
+
+    @Test
+    fun dayWordsInsideOtherWordsStay() {
+        // "today" was cut out of "todays", leaving "read s report".
+        assertEquals("read todays report", reminder("remind me to read todays report at 4pm").task)
+        assertEquals("read today's report", reminder("remind me to read today's report at 4pm").task)
+    }
+
+    @Test
+    fun hoursFromNowAreRealHoursAcrossAClockChange() {
+        val zone = java.util.TimeZone.getDefault()
+        java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("America/Los_Angeles"))
+        try {
+            // The clocks go forward overnight on 2026-03-08; "in 24 hours" was read as tomorrow at this time, 23 h on.
+            val now = Calendar.getInstance().apply { set(2026, Calendar.MARCH, 7, 22, 0, 0); set(Calendar.MILLISECOND, 0) }.timeInMillis
+            val run = reminder("remind me to run in 24 hours", now = now)
+            assertEquals(24 * 3_600_000L, run.triggerMillis - now)
+            // A day keeps the clock time.
+            val day = reminder("remind me to run in 1 day", now = now)
+            assertEquals(22, hourOf(day.triggerMillis))
+        } finally {
+            java.util.TimeZone.setDefault(zone)
+        }
+    }
+
+    @Test
+    fun aClockTimeThatDoesntExistIsNoEventOrReminder() {
+        assertNull(NaturalLanguageIntentParser.parse("meeting at 25:00", currentTimeMs = at(12)))
+        assertNull(NaturalLanguageIntentParser.parse("remind me to call at 25:00", currentTimeMs = at(12)))
+        assertNull(NaturalLanguageIntentParser.parse("meeting at 13pm", currentTimeMs = at(12)))
+    }
+
+    @Test
+    fun anEventWithOnlyTimeWordsIsCalledWhatItIs() {
+        // The leftover time words were the title: "tomorrow at 3pm", "2pm", "at 15:30".
+        assertEquals("Meeting", event("meeting tomorrow at 3pm").title)
+        assertEquals("Meeting", event("meeting 2pm").title)
+        assertEquals("Meeting", event("meeting at 15:30").title)
+        assertEquals("Event", event("add event friday at 2").title)
+        assertEquals("Reminder", reminder("remind me tomorrow at 9").task)
+    }
+
+    private val mom = com.pixel.intelligentsearch.core.data.ContactItem("Mom", "+1 415 555 0100", "")
+    private val jean = com.pixel.intelligentsearch.core.data.ContactItem("Jean Valjean", "+33 1 23 45 67 89", "")
+
+    /** The contacts lookup: "mom" and "jean" find their contacts, nothing else does. */
+    private val contacts: (String) -> com.pixel.intelligentsearch.core.data.ContactItem? = { name ->
+        when (name.lowercase()) {
+            "mom" -> mom
+            "jean" -> jean
+            else -> null
+        }
+    }
+
+    private fun message(query: String) =
+        NaturalLanguageIntentParser.parse(query, contactLookup = contacts) as NaturalLanguageIntentParser.ParsedIntent.DirectMessage
+
+    @Test
+    fun aMessageNeedsNoWordBetweenAContactAndTheText() {
+        val text = message("text mom hello")
+        assertEquals("Mom", text.recipientName)
+        assertEquals("hello", text.body)
+        assertFalse(text.isWhatsApp)
+
+        val whatsApp = message("whatsapp mom hi")
+        assertEquals("Mom", whatsApp.recipientName)
+        assertEquals("hi", whatsApp.body)
+        assertTrue(whatsApp.isWhatsApp)
+
+        assertEquals("hi there", message("message mom hi there").body)
+        // A "to" in the message doesn't end the name early.
+        val everyone = message("text mom hello to everyone")
+        assertEquals("Mom", everyone.recipientName)
+        assertEquals("hello to everyone", everyone.body)
+
+        // Without a contact or a number nothing says where a name would end: searches stay searches.
+        assertNull(NaturalLanguageIntentParser.parse("text to speech app", contactLookup = contacts))
+        assertNull(NaturalLanguageIntentParser.parse("text mom hello"))
+        assertNull(NaturalLanguageIntentParser.parse("whatsapp tips, backup chats", contactLookup = contacts))
+    }
+
+    @Test
+    fun aMessageShowsTheContactsOwnName() {
+        // The row said "Message jean (SMS)", as typed, where "call jean" says "Jean Valjean".
+        assertEquals("Jean Valjean", message("text jean: running late").recipientName)
+        assertEquals("Jean Valjean", message("text jean running late").recipientName)
+    }
+
+    @Test
+    fun numbersAndNamesWithMarksCanBeMessaged() {
+        val plus = message("text +14155550100 hello")
+        assertEquals("+14155550100", plus.recipientName)
+        assertEquals("hello", plus.body)
+        val dashed = message("text 555-1234 running late")
+        assertEquals("555-1234", dashed.recipientName)
+        assertEquals("running late", dashed.body)
+        assertEquals("+1 (415) 555-0100", message("text +1 (415) 555-0100: hi").recipientName)
+        assertEquals("O'Brien", message("text O'Brien saying hi").recipientName)
+        assertEquals("Jean-Luc", message("message Jean-Luc: on my way").recipientName)
+    }
 }

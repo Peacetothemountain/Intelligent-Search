@@ -34,12 +34,10 @@ class AuditRegressionTest {
     }
 
     @Test
-    fun outOfRangeClockTimeIsClampedInsteadOfRollingIntoAnotherDay() {
+    fun outOfRangeClockTimeIsRejectedInsteadOfRollingIntoAnotherDay() {
+        // Clamping it to 23:59 still set the event at a time nobody asked for; it is no event at all.
         val base = Calendar.getInstance().apply { set(2026, Calendar.OCTOBER, 7, 9, 0, 0) }
-        val start = startOf(NaturalLanguageIntentParser.parse("meeting review at 27:90", base.timeInMillis))
-        assertEquals(7, start.get(Calendar.DAY_OF_MONTH))
-        assertEquals(23, start.get(Calendar.HOUR_OF_DAY))
-        assertEquals(59, start.get(Calendar.MINUTE))
+        assertNull(NaturalLanguageIntentParser.parse("meeting review at 27:90", base.timeInMillis))
     }
 
     @Test

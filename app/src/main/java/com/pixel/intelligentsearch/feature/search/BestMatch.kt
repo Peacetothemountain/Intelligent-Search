@@ -1,5 +1,8 @@
 package com.pixel.intelligentsearch.feature.search
 
+import java.text.Normalizer
+import java.util.Locale
+
 /**
  * Picks the result the overlay highlights as the best match and offers as ghost text. A result the user has picked
  * for exactly this text before ([com.pixel.intelligentsearch.core.search.SelectionMemory.topPick]) comes first while
@@ -22,9 +25,19 @@ internal object BestMatch {
     )
 
     private val WORDS = Regex("\\s+")
+    private val ACCENTS = Regex("\\p{InCombiningDiacriticalMarks}+")
+
+    /**
+     * [text] as names are compared: lowercase, accents off and runs of spaces as one, so "cafe" is "Café" and
+     * "google  maps" is "Google Maps" as they are in the results. Punctuation stays: "c++" is not "c".
+     */
+    private fun fold(text: String): String {
+        val plain = if (text.all { it.code < 0x80 }) text else Normalizer.normalize(text, Normalizer.Form.NFD).replace(ACCENTS, "")
+        return plain.lowercase(Locale.ROOT).replace(WORDS, " ").trim()
+    }
 
     fun find(query: String, domains: List<Domain<*>>, learnedPick: String? = null): Any? {
-        val q = query.trim()
+        val q = fold(query)
         if (q.isEmpty()) return null
         val ordered = domains.filter { it.enabled }.sortedByDescending { it.weight }
         if (learnedPick != null) {
@@ -33,9 +46,9 @@ internal object BestMatch {
             }
         }
         val tiers: List<(String) -> Boolean> = listOf(
-            { name -> name.equals(q, ignoreCase = true) },
-            { name -> name.startsWith(q, ignoreCase = true) },
-            { name -> name.split(WORDS).any { it.startsWith(q, ignoreCase = true) } }
+            { name -> name == q },
+            { name -> name.startsWith(q) },
+            { name -> name.split(' ').any { it.startsWith(q) } }
         )
         for (matches in tiers) {
             for (domain in ordered) {
@@ -49,5 +62,5 @@ internal object BestMatch {
         domain.items.firstOrNull { item -> domain.keyOf(item) == key }
 
     private fun <T : Any> firstMatch(domain: Domain<T>, matches: (String) -> Boolean): T? =
-        domain.items.firstOrNull { item -> matches(domain.nameOf(item)) }
+        domain.items.firstOrNull { item -> matches(fold(domain.nameOf(item))) }
 }

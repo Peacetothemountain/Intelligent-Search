@@ -270,6 +270,8 @@ class SearchViewModel @Inject constructor(
     init {
         // initialize() already indexes contacts (when permitted); loadInitialData() refreshes them if stale.
         corpusIndexManager.initialize()
+        // A new overlay is a new session: the last one's coin or die doesn't carry over.
+        unifiedSearchCoordinator.forgetChanceDraw()
 
         // A query handed in with the launch (another app's search, a widget, the assistant) may arrive before the
         // index is built; search it again the moment the index is ready.
@@ -661,6 +663,8 @@ class SearchViewModel @Inject constructor(
             _remoteSearchQueryFlow.value = ""
             liveAnswerRequests.value = null
             searchJob?.cancel()
+            // Clearing the field (or closing the overlay) ends the query: a coin flipped again lands anew.
+            unifiedSearchCoordinator.forgetChanceDraw()
             _uiState.update { it.copy(
                 filteredApps = emptyList(),
                 contacts = emptyList(),

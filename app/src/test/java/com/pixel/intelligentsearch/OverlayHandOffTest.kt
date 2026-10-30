@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.TaskInfo
+import android.app.role.RoleManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -22,6 +23,7 @@ import com.pixel.intelligentsearch.feature.search.launchWebSearch
 import com.pixel.intelligentsearch.feature.search.systemWebSearchIntent
 import com.pixel.intelligentsearch.feature.widget.WidgetActivity
 import com.pixel.intelligentsearch.feature.widget.getLensTranslateIntent
+import com.pixel.intelligentsearch.feature.widget.getVoiceActionIntent
 import com.pixel.intelligentsearch.feature.widget.webSearchFromWidgetIntent
 import dagger.Module
 import dagger.Provides
@@ -121,6 +123,39 @@ class OverlayHandOffTest {
             Intent().putStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS, arrayListOf("weather in paris", "whether in paris"))
         )
         assertEquals("weather in paris", ViewModelProvider(activity)[SearchViewModel::class.java].uiState.value.query)
+        controller.pause().stop().destroy()
+    }
+
+    @Test
+    fun asTheAssistantWithoutGeminiOrGoogleTheAssistantButtonSearchesWhatWasSaid() {
+        shadowOf(context.getSystemService(RoleManager::class.java)).addHeldRole(RoleManager.ROLE_ASSISTANT)
+        install("org.example.speech", IntentFilter(RecognizerIntent.ACTION_RECOGNIZE_SPEECH))
+        // The widget's assistant button and the overlay's Digital Assistant row. Their last fallback, this app's own
+        // voice search, was started from the search handling the button, which closed right after: the words were lost.
+        val controller = Robolectric.buildActivity(WidgetActivity::class.java, getVoiceActionIntent(context)).setup()
+        val activity = controller.get()
+
+        val started = shadowOf(activity).nextStartedActivityForResult
+        assertNotNull("the recognizer is started from the search, for its words", started)
+        assertEquals(RecognizerIntent.ACTION_RECOGNIZE_SPEECH, started.intent.action)
+        assertFalse(activity.isFinishing)
+
+        shadowOf(activity).receiveResult(
+            started.intent,
+            Activity.RESULT_OK,
+            Intent().putStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS, arrayListOf("weather in paris"))
+        )
+        assertEquals("weather in paris", ViewModelProvider(activity)[SearchViewModel::class.java].uiState.value.query)
+        controller.pause().stop().destroy()
+    }
+
+    @Test
+    fun asTheAssistantWithNoRecognizerEitherTheAssistantButtonOpensTheSearch() {
+        shadowOf(context.getSystemService(RoleManager::class.java)).addHeldRole(RoleManager.ROLE_ASSISTANT)
+        // Nothing to listen with: the search stays open to type in, instead of flashing and closing.
+        val controller = Robolectric.buildActivity(WidgetActivity::class.java, getVoiceActionIntent(context)).setup()
+        assertFalse(controller.get().isFinishing)
+        assertNull(shadowOf(controller.get()).nextStartedActivityForResult)
         controller.pause().stop().destroy()
     }
 

@@ -515,7 +515,15 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
             intent.action == com.pixel.intelligentsearch.core.data.GlobalSearchProvider.ACTION_OPEN_APP -> openAppFromSearch(intent)
             this is com.pixel.intelligentsearch.feature.search.SearchActivity -> return false
             intent.action == "com.pixel.intelligentsearch.LAUNCH_GEMINI_OVERLAY" ||
-                intent.getBooleanExtra("launch_gemini_overlay", false) -> launchGeminiCornerOverlay(this)
+                intent.getBooleanExtra("launch_gemini_overlay", false) -> {
+                // Its last fallback is this app's own voice search: run here, as the launcher's shortcut below does.
+                val ownVoice = com.pixel.intelligentsearch.feature.widget.ownVoiceSearchForAssistant(this)
+                if (ownVoice != null) {
+                    if (fresh) recognizeSpeechIfAsked(ownVoice)
+                    return false
+                }
+                launchGeminiCornerOverlay(this)
+            }
             intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS" -> launchLens(translate = false)
             intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS_TRANSLATE" -> launchLens(translate = true)
             intent.action == com.pixel.intelligentsearch.feature.widget.ACTION_SEARCH_WEB -> searchWebFromWidget(intent)

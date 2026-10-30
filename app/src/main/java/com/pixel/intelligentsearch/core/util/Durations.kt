@@ -1,6 +1,8 @@
 package com.pixel.intelligentsearch.core.util
 
+import java.time.Instant
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.chrono.IsoChronology
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeFormatterBuilder
@@ -9,7 +11,8 @@ import java.util.Locale
 
 /**
  * How the app writes spans of time and times of day, one style everywhere: "1 hr 30 min", "45 sec", "In 6 hr 20 min",
- * "5 min ago", a stopwatch's "1:02:03", and the phone's own time format ("7:30 AM", or "07:30" on a 24-hour clock).
+ * "5 min ago", a stopwatch's "1:02:03", the phone's own time format ("7:30 AM", or "07:30" on a 24-hour clock), and
+ * when an action is set for ("Tomorrow, 7:00 AM").
  */
 object Durations {
 
@@ -67,6 +70,22 @@ object Durations {
     fun timeOfDay(hour24: Int, minute: Int, is24Hour: Boolean, locale: Locale = Locale.getDefault()): String {
         val time = LocalTime.of(hour24.coerceIn(0, 23), minute.coerceIn(0, 59))
         return formatter(is24Hour, locale).format(time)
+    }
+
+    /**
+     * When something set for [atMs] happens, as seen at [nowMs] in [zone]: "Today, 7:00 AM", "Tomorrow, 7:00 AM", "Fri,
+     * Nov 13, 2:00 PM", and the year too when it isn't this one. An action's row says it, so the user sees what Enter
+     * will set before setting it.
+     */
+    fun dayAndTime(atMs: Long, nowMs: Long, is24Hour: Boolean, locale: Locale = Locale.getDefault(), zone: ZoneId = ZoneId.systemDefault()): String {
+        val at = Instant.ofEpochMilli(atMs).atZone(zone)
+        val today = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
+        val day = when (at.toLocalDate()) {
+            today -> "Today"
+            today.plusDays(1) -> "Tomorrow"
+            else -> DateTimeFormatter.ofPattern(if (at.year == today.year) "EEE, MMM d" else "EEE, MMM d, yyyy", locale).format(at)
+        }
+        return "$day, ${timeOfDay(at.hour, at.minute, is24Hour, locale)}"
     }
 
     private fun formatter(is24Hour: Boolean, locale: Locale): DateTimeFormatter {

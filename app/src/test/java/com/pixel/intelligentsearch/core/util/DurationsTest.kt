@@ -54,4 +54,16 @@ class DurationsTest {
         // A 24-hour language keeps its own pattern on a 24-hour clock.
         assertEquals("19:30", Durations.timeOfDay(19, 30, is24Hour = true, Locale.GERMANY))
     }
+
+    @Test
+    fun whenAnActionIsSetSaysItsDayAndTime() {
+        val zone = java.time.ZoneId.of("America/Los_Angeles")
+        fun at(month: Int, day: Int, hour: Int, minute: Int = 0, year: Int = 2026) =
+            java.time.LocalDateTime.of(year, month, day, hour, minute).atZone(zone).toInstant().toEpochMilli()
+        val now = at(10, 29, 22)
+        assertEquals("Today, 11:30 PM", Durations.dayAndTime(at(10, 29, 23, 30), now, is24Hour = false, Locale.US, zone))
+        assertEquals("Tomorrow, 7:00 AM", Durations.dayAndTime(at(10, 30, 7), now, is24Hour = false, Locale.US, zone))
+        assertEquals("Fri, Nov 13, 2:00 PM", Durations.dayAndTime(at(11, 13, 14), now, is24Hour = false, Locale.US, zone))
+        assertEquals("Fri, Jan 1, 2027, 09:00", Durations.dayAndTime(at(1, 1, 9, year = 2027), now, is24Hour = true, Locale.US, zone))
+    }
 }

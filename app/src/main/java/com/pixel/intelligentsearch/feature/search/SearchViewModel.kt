@@ -790,19 +790,23 @@ class SearchViewModel @Inject constructor(
             val directActions = mutableListOf<DirectAction>()
             val queryLower = newQuery.lowercase()
 
+            // An event, reminder or alarm row says the day and time it is set for ("Tomorrow, 7:00 AM"), so the user
+            // sees what Enter will set.
+            val is24Hour = android.text.format.DateFormat.is24HourFormat(context)
+            fun setFor(atMs: Long) = com.pixel.intelligentsearch.core.util.Durations.dayAndTime(atMs, System.currentTimeMillis(), is24Hour)
             unifiedResults.parsedIntent?.let { intent ->
                 when (intent) {
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.CalendarEvent -> {
-                        directActions.add(DirectAction("Add Calendar Event", intent.title, "calendar", intent.intent))
+                        directActions.add(DirectAction("Add Calendar Event", "${intent.title} · ${setFor(intent.startMillis)}", "calendar", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Alarm -> {
-                        directActions.add(DirectAction("Set Alarm", com.pixel.intelligentsearch.core.util.Durations.timeOfDay(intent.hour, intent.minute, android.text.format.DateFormat.is24HourFormat(context)), "alarm", intent.intent))
+                        directActions.add(DirectAction("Set Alarm", setFor(intent.ringsAtMillis), "alarm", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Timer -> {
                         directActions.add(DirectAction("Set Timer", intent.label, "timer", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Reminder -> {
-                        directActions.add(DirectAction("Set Reminder", intent.task, "calendar", intent.intent))
+                        directActions.add(DirectAction("Set Reminder", "${intent.task} · ${setFor(intent.triggerMillis)}", "calendar", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.DirectMessage -> {
                         val app = if (intent.isWhatsApp) "WhatsApp" else "SMS"

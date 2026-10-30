@@ -94,6 +94,26 @@ class ApproximateLocationRequestTest {
     }
 
     @Test
+    fun declinedForGoodItOffersAndroidSettings() {
+        // Android won't ask again: "Allow" answered no at once and nothing else happened.
+        shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION, false)
+        askWith(allow = false)
+        compose.onNodeWithText("Allow").performClick()
+        compose.waitForIdle()
+        assertEquals(0, granted)
+        compose.onNodeWithText("Location Access Is Off").assertExists()
+    }
+
+    @Test
+    fun decliningOnceJustLeavesItOff() {
+        shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION, true)
+        askWith(allow = false)
+        compose.onNodeWithText("Allow").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Location Access Is Off").assertDoesNotExist()
+    }
+
+    @Test
     fun notNowAsksNothing() {
         askWith(allow = true)
         compose.onNodeWithText("Not Now").performClick()

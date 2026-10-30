@@ -95,6 +95,35 @@ internal fun systemWebSearchIntent(query: String): Intent = Intent(Intent.ACTION
 }
 
 /**
+ * The system web search for [query] in another app, never this one: this app answers it as the search engine, so it
+ * would only reopen with the query. Null when no other app searches the web.
+ */
+internal fun externalWebSearchIntent(context: Context, query: String): Intent? {
+    val intent = systemWebSearchIntent(query)
+    val handlers = context.packageManager.queryIntentActivities(intent, 0)
+    val others = handlers.filter { it.activityInfo.packageName != context.packageName }
+    if (others.isEmpty()) return null
+    // Left to Android (the default app, or a choice) unless that choice could be this app.
+    if (others.size == handlers.size) return intent
+    return intent.setClassName(others.first().activityInfo.packageName, others.first().activityInfo.name)
+}
+
+/**
+ * Opens [intent], a web search for [query] from [webSearchLaunch], else the system web search in another app
+ * ([externalWebSearchIntent]). False when neither opens, so the caller can say so; an intent this app would answer
+ * itself counts as not opening, as it would only bring the search back.
+ */
+internal fun launchWebSearch(context: Context, intent: Intent, query: String): Boolean {
+    // The system web search addressed to no app goes to another one by name instead.
+    val anyApp = intent.action == Intent.ACTION_WEB_SEARCH && intent.component == null && intent.`package` == null
+    if (!anyApp) {
+        val target = context.packageManager.resolveActivity(intent, 0)?.activityInfo?.packageName
+        if (target != context.packageName && launchSafeIntent(context, intent)) return true
+    }
+    return externalWebSearchIntent(context, query)?.let { launchSafeIntent(context, it) } == true
+}
+
+/**
  * How to search the web for [query] with the chosen engine. Named engines open in an app that can show them and
  * fall back to the system web search; a custom address is re-validated on every search (https only, browsable
  * activities only); Tor never falls back to a normal browser, it asks for Tor Browser instead.
@@ -106,7 +135,8 @@ internal fun webSearchLaunch(context: Context, engine: String, customUrl: String
         val view = Intent(Intent.ACTION_VIEW, url.toUri()).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
         }
-        return if (context.packageManager.resolveActivity(view, 0) != null) view else systemWebSearchIntent(query)
+        if (context.packageManager.resolveActivity(view, 0) != null) return view
+        return externalWebSearchIntent(context, query) ?: systemWebSearchIntent(query)
     }
     val encoded = Uri.encode(query)
     fun googleSearch(): Intent {

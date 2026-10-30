@@ -127,15 +127,34 @@ internal fun interface ApproximateLocationRequest {
 /**
  * Approximate location for weather answers, asked the one way the app asks for it: when it is already allowed
  * [onGranted] runs at once; otherwise the rationale ([LOCATION_RATIONALE]) shows, then Android's prompt, and
- * [onGranted] runs if the user allows it. Shows its dialog in place while it is up.
+ * [onGranted] runs if the user allows it. Once Android won't ask again ("Allow" then answers no at once), the user
+ * is offered Android's settings instead, as contacts do. Shows its dialogs in place while they are up.
  */
 @Composable
 internal fun rememberApproximateLocationRequest(onGranted: () -> Unit): ApproximateLocationRequest {
     val context = LocalContext.current
     val currentOnGranted by rememberUpdatedState(onGranted)
     var showRationale by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) currentOnGranted()
+        // Declined for good: only Android's settings can allow it now.
+        else if (context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION) == false) {
+            showSettings = true
+        }
+    }
+    if (showSettings) {
+        PermissionRationaleDialog(
+            title = "Location Access Is Off",
+            text = "Location access for Intelligent Search is turned off. Allow approximate location in Android " +
+                "settings to get the weather where you are, or choose a place with Set Location on the weather card.",
+            confirm = "Open Settings",
+            onConfirm = {
+                showSettings = false
+                openSettingsPage(context, appDetailsSettings(context.packageName))
+            },
+            onDismiss = { showSettings = false }
+        )
     }
     if (showRationale) {
         PermissionRationaleDialog(

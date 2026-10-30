@@ -25,17 +25,27 @@ fun getVoiceSearchIntent(context: Context): Intent {
     if (context.packageManager.resolveActivityCompat(webSearch) != null) {
         return webSearch
     }
-    val speech = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
-    if (context.packageManager.resolveActivityCompat(speech) != null) {
-        return speech
-    }
-    // No recognizer at all: open the overlay so the user can type instead.
+    // A plain recognizer hands the words back only to whoever started it: the search starts it and searches them.
+    // No recognizer at all: the search opens so the user can type instead.
     return Intent(context, WidgetActivity::class.java).apply {
+        if (speechRecognizerIntent(context) != null) {
+            action = ACTION_RECOGNIZE_SPEECH_IN_SEARCH
+            putExtra(EXTRA_RECOGNIZE_SPEECH, true)
+        }
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
     }
+}
+
+/** Asks the search to start [speechRecognizerIntent] and search what is said. */
+const val EXTRA_RECOGNIZE_SPEECH = "com.pixel.intelligentsearch.extra.RECOGNIZE_SPEECH"
+
+private const val ACTION_RECOGNIZE_SPEECH_IN_SEARCH = "com.pixel.intelligentsearch.RECOGNIZE_SPEECH"
+
+/** The phone's plain speech recognizer, to start for a result, or null when none is installed. */
+fun speechRecognizerIntent(context: Context): Intent? {
+    val speech = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+    return speech.takeIf { context.packageManager.resolveActivityCompat(it) != null }
 }
 
 fun getShortcutIconRes(shortcut: String, isMaterialYou: Boolean = true): Int {

@@ -278,7 +278,8 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
         }
         is NavTarget.WebQuery -> {
             val suggestion = target.suggestion
-            val imageUrl = suggestion?.imageUrl?.takeIf { s.settingsState.filesThumbnails && !target.isRecent }
+            // The suggestion's picture shows whatever File Search's Show Thumbnails says: that switch is for files.
+            val imageUrl = suggestion?.imageUrl?.takeIf { !target.isRecent }
             val symbol = @Composable { DetailSymbol(Icons.Outlined.Search) }
             if (imageUrl != null) ResultThumbnail(ThumbnailSource.Web(imageUrl), DETAIL_PICTURE_SIZE, fallback = symbol) else symbol()
             DetailTitle(

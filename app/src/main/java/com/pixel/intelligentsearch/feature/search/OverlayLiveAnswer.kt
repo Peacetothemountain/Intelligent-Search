@@ -2,7 +2,7 @@ package com.pixel.intelligentsearch.feature.search
 
 import com.pixel.intelligentsearch.feature.settings.rememberApproximateLocationRequest
 import com.pixel.intelligentsearch.feature.settings.PermissionRationaleDialog
-import com.pixel.intelligentsearch.core.system.openSettingsPage
+import com.pixel.intelligentsearch.core.system.openSettingsPageToGrant
 import com.pixel.intelligentsearch.core.system.GoogleApps
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Context
@@ -166,7 +166,8 @@ private fun ScreenTimePrompt(s: OverlayScope, answer: LiveAnswer.ScreenTime) {
             onConfirm = {
                 showRationale = false
                 s.ui.hasStartedTyping = false
-                openSettingsPage(
+                // Back from Android's page comes back here, with the search, to show the answer.
+                openSettingsPageToGrant(
                     context,
                     Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS, Uri.fromParts("package", context.packageName, null)),
                     Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)

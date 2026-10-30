@@ -14,6 +14,9 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.core.app.ActivityOptionsCompat
 import androidx.core.content.edit
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -44,12 +47,27 @@ class VoicePermissionTest {
     /** What Android's prompt answers next: allowed or not, after what Android changes as the user answers. */
     private var answer: Pair<Boolean, () -> Unit> = false to {}
 
+    private class SearchLifecycle : LifecycleOwner {
+        val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.RESUMED }
+        override val lifecycle: Lifecycle get() = registry
+    }
+
+    /**
+     * The search, for [inAndroidsOrder]: on a phone Android's prompt is a screen of its own over the search, which
+     * pauses it. The answer comes as the search resumes, and the resume follows it even when the answer has just
+     * opened App info, which only covers the search after that.
+     */
+    private val search = SearchLifecycle()
+    private var inAndroidsOrder = false
+
     private val prompt = object : ActivityResultRegistryOwner {
         override val activityResultRegistry = object : ActivityResultRegistry() {
             override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
+                if (inAndroidsOrder) search.registry.currentState = Lifecycle.State.STARTED
                 answer.second()
                 @Suppress("UNCHECKED_CAST")
                 dispatchResult(requestCode, answer.first as O)
+                if (inAndroidsOrder) search.registry.currentState = Lifecycle.State.RESUMED
             }
         }
     }
@@ -72,6 +90,27 @@ class VoicePermissionTest {
         }
         compose.waitForIdle()
     }
+
+    /** [show], with Android's prompt pausing and resuming the search around its answer ([inAndroidsOrder]). */
+    private fun showInAndroidsOrder() {
+        inAndroidsOrder = true
+        compose.setContent {
+            CompositionLocalProvider(LocalActivityResultRegistryOwner provides prompt, LocalLifecycleOwner provides search) {
+                voice = rememberOverlayVoice(onHeard = {}, onProblem = { problems += it })
+            }
+        }
+        compose.waitForIdle()
+    }
+
+    /** App info covers the search, the user allows the microphone there or not, then Back. */
+    private fun onAppInfo(allow: Boolean) {
+        search.registry.currentState = Lifecycle.State.CREATED
+        if (allow) shadowOf(app).grantPermissions(mic)
+        search.registry.currentState = Lifecycle.State.RESUMED
+        compose.waitForIdle()
+    }
+
+    private fun listening() = voice.active || problems.lastOrNull() == "Speech recognition service unavailable on device."
 
     /** Taps the microphone with it off; true when App Info opened. */
     private fun tapMic(allow: Boolean, whileAsking: () -> Unit = {}): Boolean {
@@ -125,6 +164,30 @@ class VoicePermissionTest {
             "listening starts: ${problems.last()}",
             voice.active || problems.last() == "Speech recognition service unavailable on device."
         )
+    }
+
+    @Test
+    fun allowedOnAppInfoItListensOnceTheSearchIsBackInAndroidsOrder() {
+        showInAndroidsOrder()
+        tapMic(allow = false) { androidShowsItsReason(true) }
+        assertEquals(true, tapMic(allow = false) { androidShowsItsReason(false) })
+
+        // The search resumed after the answer, before App info covered it: that wasn't the user coming back.
+        onAppInfo(allow = true)
+        assertTrue("listening starts: ${problems.last()}", listening())
+    }
+
+    @Test
+    fun backFromAppInfoWithoutAllowingNeverListensLaterInAndroidsOrder() {
+        showInAndroidsOrder()
+        tapMic(allow = false) { androidShowsItsReason(true) }
+        assertEquals(true, tapMic(allow = false) { androidShowsItsReason(false) })
+        onAppInfo(allow = false)
+        val asked = problems.size
+
+        // Allowed some other time, without a tap asking: the microphone stays off until the user taps it.
+        onAppInfo(allow = true)
+        assertTrue("nothing listens: ${problems.drop(asked)}", !voice.active && problems.size == asked)
     }
 
     @Test

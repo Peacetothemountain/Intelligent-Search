@@ -2,9 +2,15 @@ package com.pixel.intelligentsearch.core.util
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import java.util.Locale
 
-/** One way of writing spans of time and times of day, everywhere the app shows one. */
+/**
+ * One way of writing spans of time and times of day, everywhere the app shows one. Run on Robolectric, so a day is
+ * written with the phone's own date patterns and words.
+ */
+@RunWith(RobolectricTestRunner::class)
 class DurationsTest {
 
     private val minute = 60_000L
@@ -65,5 +71,19 @@ class DurationsTest {
         assertEquals("Tomorrow, 7:00 AM", Durations.dayAndTime(at(10, 30, 7), now, is24Hour = false, Locale.US, zone))
         assertEquals("Fri, Nov 13, 2:00 PM", Durations.dayAndTime(at(11, 13, 14), now, is24Hour = false, Locale.US, zone))
         assertEquals("Fri, Jan 1, 2027, 09:00", Durations.dayAndTime(at(1, 1, 9, year = 2027), now, is24Hour = true, Locale.US, zone))
+    }
+
+    @Test
+    fun theDayIsWrittenAsThePhonesRegionWritesIt() {
+        val zone = java.time.ZoneId.of("Europe/Berlin")
+        fun at(month: Int, day: Int, hour: Int, minute: Int = 0, year: Int = 2026) =
+            java.time.LocalDateTime.of(year, month, day, hour, minute).atZone(zone).toInstant().toEpochMilli()
+        val now = at(10, 29, 10)
+        // Every region had "Fri, Nov 13", and English "Today" and "Tomorrow".
+        assertEquals("Heute, 23:30", Durations.dayAndTime(at(10, 29, 23, 30), now, is24Hour = true, Locale.GERMANY, zone))
+        assertEquals("Morgen, 07:00", Durations.dayAndTime(at(10, 30, 7), now, is24Hour = true, Locale.GERMANY, zone))
+        assertEquals("Fr., 13. Nov., 14:00", Durations.dayAndTime(at(11, 13, 14), now, is24Hour = true, Locale.GERMANY, zone))
+        assertEquals("Fri, 13 Nov, 14:00", Durations.dayAndTime(at(11, 13, 14), now, is24Hour = true, Locale.UK, zone))
+        assertEquals("Fri, 13 Nov, 2:00 pm", Durations.dayAndTime(at(11, 13, 14), now, is24Hour = false, Locale.UK, zone))
     }
 }

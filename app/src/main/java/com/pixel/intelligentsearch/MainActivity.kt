@@ -369,6 +369,10 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
         targetBlurRadius = if (initialShowWallpaper && initialBlur > 0) initialBlur else 0
         applyWindowBlur()
 
+        // Recreated while a speech recognizer it started listens (the app was closed meanwhile to free memory), the
+        // search still waits for the words: with Search Overlay off it handed an empty search on and closed instead,
+        // so what was said came back to nothing.
+        awaitingSpeech = savedInstanceState?.getBoolean(STATE_AWAITING_SPEECH) == true
         if (handleIntent(intent, fresh = savedInstanceState == null)) return
         // A recreated activity gets its launch query back, though the first instance already used it.
         if (savedInstanceState != null) clearConsumedQuery()
@@ -647,6 +651,11 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
         awaitingSpeech = runCatching { speechRecognizer.launch(speech) }.isSuccess
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_AWAITING_SPEECH, awaitingSpeech)
+    }
+
     override fun onPause() {
         super.onPause()
 
@@ -675,6 +684,9 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
     private companion object {
         /** Every extra a query can arrive in ([SearchManager.QUERY] is also the plain "query" extra). */
         val QUERY_EXTRAS = listOf(SearchManager.QUERY, Intent.EXTRA_TEXT)
+
+        /** Whether a recreated search is still waiting for its speech recognizer's words ([awaitingSpeech]). */
+        const val STATE_AWAITING_SPEECH = "awaiting_speech"
 
         /** How often a waiting overlay checks the user is still on the screen it waits for ([leftWhileWaiting]). */
         const val WAIT_CHECK_MS = 1000L

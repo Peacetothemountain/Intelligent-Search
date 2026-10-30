@@ -115,6 +115,20 @@ class LiveAnswerParserTest {
     }
 
     @Test
+    fun aDayAfterThePlaceOrAPartOfTheDayIsNoPartOfThePlace() {
+        // These looked up places called "boston tomorrow" and "the morning", and "weather in nice" no place at all.
+        assertEquals(Weather("boston", ForecastDay.TOMORROW), parse("weather boston tomorrow"))
+        assertEquals(Weather("10001", ForecastDay.TOMORROW), parse("weather 10001 tomorrow"))
+        assertEquals(Weather("seattle", ForecastDay.TODAY), parse("weather seattle tonight"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather in the morning"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather at night"))
+        assertEquals(Weather("nice", ForecastDay.TODAY), parse("weather in nice"))
+        // "Nice weather" and "weather nice" are still no place.
+        assertNull(parse("nice weather"))
+        assertNull(parse("weather nice"))
+    }
+
+    @Test
     fun weatherOverManyDaysStaysASearchRatherThanAPlace() {
         // The card shows one day, so a stretch of days is left to the web search, as "weather 10 day" is.
         for (query in listOf(

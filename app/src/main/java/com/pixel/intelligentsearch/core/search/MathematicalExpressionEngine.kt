@@ -67,6 +67,9 @@ object MathematicalExpressionEngine {
      */
     private fun withoutQuestionWords(raw: String): String =
         raw.trim().trimEnd('?').trim().replace(REGEX_QUESTION_PREFIX, "").trim().trim('=').trim()
+            // The minus sign keyboards and copied text use ("−5+3") is the hyphen's minus.
+            .replace('−', '-')
+
 
     /**
      * Whether [word] is a unit or currency the converter knows ("km", "ft2", "euros", "usd"), which a spell checker
@@ -107,7 +110,13 @@ object MathematicalExpressionEngine {
         "^([-+]?[0-9.,]+(?:[eE][-+]?[0-9]+)?)\\s*([a-zA-Z/_°][a-zA-Z0-9/_°]*)\\s*(?:to|in)\\s*([a-zA-Z/_°][a-zA-Z0-9/_°]*)$",
         RegexOption.IGNORE_CASE
     )
+    private val REGEX_CURRENCY_THOUSANDS = Regex("^([0-9.,]+)\\s*([km])\\s+([a-z]+)\\s+(?:to|in)\\s+([a-z]+)$", RegexOption.IGNORE_CASE)
+    private val REGEX_FEET_AND_INCHES = Regex(
+        "^(\\d+)\\s*(?:ft|feet|foot|')\\s*(\\d+(?:\\.\\d+)?)\\s*(?:in|inch|inches|\"|'')\\s+(?:to|in)\\s+([a-z_]+)$",
+        RegexOption.IGNORE_CASE
+    )
     // Units written in two words, joined into their table names: "fl oz", "sq ft", "square meters", "metric ton".
+
     private val REGEX_FLUID_OUNCE = Regex("\\b(?:fl\\.?\\s*oz|fluid\\s+ounces?)\\b", RegexOption.IGNORE_CASE)
     private val REGEX_SQUARE_OR_CUBIC_UNIT = Regex(
         "\\b(sq|square|cu|cubic)\\.?\\s+(kilomet(?:er|re)s?|km|miles?|mi|feet|foot|ft|yards?|yd|inch(?:es)?|in|" +
@@ -974,6 +983,23 @@ object MathematicalExpressionEngine {
             .replace(REGEX_METRIC_TON, "tonne")
             .replace(REGEX_SHORT_OR_LONG_TON, "$1_ton")
             .trim()
+
+        // "2.5k usd to eur": thousands ("k") or millions ("m") of a currency. "5m to ft" is still metres.
+        REGEX_CURRENCY_THOUSANDS.matchEntire(normalizedQuery)?.let { amount ->
+            val value = localNumbers(amount.groupValues[1]).toDoubleOrNull() ?: return null
+            val times = if (amount.groupValues[2].equals("k", ignoreCase = true)) 1e3 else 1e6
+            val from = amount.groupValues[3].lowercase(Locale.ROOT)
+            convertCurrency(value * times, from, amount.groupValues[4].lowercase(Locale.ROOT), currencyRates)?.let { return it }
+        }
+        // "5 ft 10 in to cm": a height in feet and inches, converted as the inches it adds up to.
+        REGEX_FEET_AND_INCHES.matchEntire(normalizedQuery)?.let { height ->
+            val feet = height.groupValues[1].toDouble()
+            val inches = height.groupValues[2].toDouble()
+            val total = BigDecimal.valueOf(feet * 12 + inches).stripTrailingZeros().toPlainString()
+            val converted = evaluateUnitConversion("$total in to ${height.groupValues[3]}", currencyRates) ?: return null
+            val result = converted.formatted.substring(converted.formatted.indexOf(" = ").takeIf { it >= 0 } ?: return null)
+            return converted.copy(formatted = "${formatNumber(feet)} ft ${formatNumber(inches)} in$result")
+        }
 
         val match = REGEX_UNIT_CONVERSION.find(normalizedQuery)
             ?: return REGEX_BARE_CURRENCY_CONVERSION.find(normalizedQuery)?.let { bare ->

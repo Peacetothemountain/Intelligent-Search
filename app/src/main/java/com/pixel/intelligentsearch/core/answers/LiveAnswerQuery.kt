@@ -184,9 +184,12 @@ object LiveAnswerParser {
     // WEATHER
     // ---------------------------------------------------------------------------------------------
 
-    /** When a forecast is for: the day, with the part of it people add ("tomorrow morning", "this evening"). */
+    /**
+     * When a forecast is for: the day, with the part of it people add ("tomorrow morning", "this evening", "in the
+     * afternoon", "at night").
+     */
     private val DAY_WORD = "((?:today|tomorrow)(?: (?:morning|afternoon|evening|night))?|tonight|now|right now|" +
-        "this (?:morning|afternoon|evening)|later(?: today)?)"
+        "this (?:morning|afternoon|evening)|in the (?:morning|afternoon|evening)|at night|later(?: today)?)"
     private val WEATHER_LEAD = Regex("^(?:what(?:'s| is|s) the |how(?:'s| is|s) the |the )")
     private val WEATHER_WORD = Regex("\\b(?:weather|forecast)\\b")
 
@@ -219,7 +222,8 @@ object LiveAnswerParser {
     private val WEATHER_IN = Regex("^(?:weather|forecast|weather forecast) (?:in|for|at|near) (.+?)(?: $DAY_WORD)?$")
     private val WEATHER_DAY_IN = Regex("^(?:weather|forecast|weather forecast) $DAY_WORD (?:in|for|at|near) (.+)$")
     private val WEATHER_PLACE_FIRST = Regex("^(.+?) (?:weather|forecast|weather forecast)(?: $DAY_WORD)?$")
-    private val WEATHER_BARE_PLACE = Regex("^(?:weather|forecast) (.+)$")
+    // "weather boston tomorrow": the day after the place, as after "in" ([WEATHER_IN]).
+    private val WEATHER_BARE_PLACE = Regex("^(?:weather|forecast) (.+?)(?: $DAY_WORD)?$")
 
     /** A place name: letters, digits (postcodes), spaces and the punctuation place names use. */
     private val PLACE = Regex("^[\\p{L}\\p{N}][\\p{L}\\p{N} .,'\\-]{0,59}$")
@@ -231,6 +235,8 @@ object LiveAnswerParser {
         "update", "updates", "hourly", "weekly", "10 day", "10-day", "7 day", "7-day", "this week", "next week",
         "weekend", "this weekend", "the", "a", "bad", "good", "nice", "cold", "hot", "the weather channel"
     )
+    /** [NOT_A_PLACE]'s words for weather that are towns too, named as places after "in": "weather in nice" is Nice. */
+    private val TOWNS_AFTER_IN = setOf("nice", "bad", "good", "cold", "hot")
 
     /**
      * Words that make what's beside "weather" something other than a place, wherever they sit in it. A day other than
@@ -401,13 +407,13 @@ object LiveAnswerParser {
             return place(match.groupValues[2])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[1]), unit) }
         }
         WEATHER_IN.matchEntire(q)?.let { match ->
-            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2]), unit) }
+            return place(match.groupValues[1], afterIn = true)?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2]), unit) }
         }
         WEATHER_PLACE_FIRST.matchEntire(q)?.let { match ->
             return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2]), unit) }
         }
         WEATHER_BARE_PLACE.matchEntire(q)?.let { match ->
-            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, ForecastDay.TODAY, unit) }
+            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2]), unit) }
         }
         return null
     }
@@ -415,9 +421,12 @@ object LiveAnswerParser {
     /** "tomorrow", "tomorrow morning", "tomorrow's": tomorrow; every other day word is today. */
     private fun dayOf(word: String): ForecastDay = if (word.startsWith("tomorrow")) ForecastDay.TOMORROW else ForecastDay.TODAY
 
-    private fun place(raw: String): String? {
+    /** [raw] as a place to look up, or null when it names something else. [afterIn]: it came after "in", "for" or "at". */
+    private fun place(raw: String, afterIn: Boolean = false): String? {
         val place = raw.trim().trim(',', '.').trim()
-        if (place.isEmpty() || place in NOT_A_PLACE || !PLACE.matches(place) || place.split(' ').size > 5) return null
+        if (place.isEmpty() || (place in NOT_A_PLACE && !(afterIn && place in TOWNS_AFTER_IN)) || !PLACE.matches(place) ||
+            place.split(' ').size > 5
+        ) return null
         val words = place.split(' ', ',').filter { it.isNotEmpty() }
         // A word before "harbor", "lake" or "river" is part of a town's name: Friday Harbor, Storm Lake, Sunday River.
         fun named(i: Int) = words.getOrNull(i + 1) in PLACE_FEATURES

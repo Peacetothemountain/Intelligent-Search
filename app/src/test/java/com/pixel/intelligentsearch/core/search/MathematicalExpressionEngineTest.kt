@@ -664,4 +664,19 @@ class MathematicalExpressionEngineTest {
             assertFalse(word, MathematicalExpressionEngine.isUnitName(word))
         }
     }
+
+    @Test
+    fun aUnicodeMinusThousandsOfACurrencyAndAHeightAreRead() {
+        // Each had no answer.
+        assertEquals("-2", computed("−5+3"))
+        val thousands = inLocale(java.util.Locale.US) { converted("2.5k usd to eur") }
+        assertEquals(2_500.0, thousands?.fromValue ?: 0.0, 1e-9)
+        assertEquals("USD" to "EUR", thousands?.fromUnit to thousands?.toUnit)
+        assertEquals(1e6, inLocale(java.util.Locale.US) { converted("1m jpy to usd") }?.fromValue ?: 0.0, 1e-9)
+        val height = inLocale(java.util.Locale.US) { converted("5 ft 10 in to cm") }
+        assertEquals(177.8, height?.toValue ?: 0.0, 1e-9)
+        assertEquals("5 ft 10 in = 177.8 cm", height?.formatted)
+        // "5m" is still 5 metres.
+        assertEquals(5.0, inLocale(java.util.Locale.US) { converted("5m to ft") }?.fromValue ?: 0.0, 1e-9)
+    }
 }

@@ -17,6 +17,7 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -69,5 +70,18 @@ class KeyboardSettingsCardTest {
         // No longer among the overlay's switches, which end with Smart Clipboard Suggestions.
         assertTrue(top("Smart Clipboard Suggestions") < top("Start Assistant with Voice"))
         assertTrue(top("Start Assistant with Voice") < top("Show Keyboard When Search Opens"))
+    }
+
+    /** Quick Launch, which Enter reads when nothing is the Best Match, has a switch of its own; still off by default. */
+    @Test
+    fun enterOpensTheFirstAppHasASwitchOnSearchBehavior() {
+        compose.setContent { IntelligentSearchTheme(darkTheme = false) { SearchBehaviorScreen(prefs) {} } }
+        compose.waitForIdle()
+
+        assertFalse(prefs[SettingsManager.APP_QUICK_LAUNCH])
+        assertTrue(top("Show Keyboard When Search Opens") < top("Enter Opens the First App"))
+        compose.onNode(isToggleable() and hasText("Enter Opens the First App")).performClick()
+        compose.waitForIdle()
+        assertTrue(prefs[SettingsManager.APP_QUICK_LAUNCH])
     }
 }

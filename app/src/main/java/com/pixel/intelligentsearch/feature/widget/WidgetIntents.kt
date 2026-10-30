@@ -157,6 +157,7 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
             ?: Intent(Intent.ACTION_VIEW, Uri.parse(GoogleTranslate.WEB_HOME)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "Translate (camera)" -> getLensTranslateIntent(context)
         "Weather" -> getCustomIntentOrDefault(context, "Weather") {
+            torTopicSearch(context, "Weather")?.let { return@getCustomIntentOrDefault it }
             val intentWeatherApp = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.weather")
             if (intentWeatherApp != null) {
                 intentWeatherApp.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
@@ -176,6 +177,7 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
             }
         }
         "Sports" -> getCustomIntentOrDefault(context, "Sports") {
+            torTopicSearch(context, "Sports")?.let { return@getCustomIntentOrDefault it }
             val intent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 putExtra("query", "Sports")
                 setPackage(GoogleApps.GOOGLE_APP)
@@ -201,12 +203,31 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
             intent?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
                 ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.labs.language.tailwind")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         }
-        "Finance" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/finance")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        "Finance" -> torTopicSearch(context, "Finance")
+            ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/finance")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "Saved" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://google.com/save")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-        "News" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://news.google.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        "News" -> torTopicSearch(context, "News")
+            ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://news.google.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "Calculator" -> getCalculatorIntent(context)
         "Discover" -> getDiscoverIntent(context)
         else -> getLensSearchIntent(context)
+    }
+}
+
+/**
+ * With Tor as the search engine, the shortcuts that would open Google's pages or apps (News, Sports, Finance, Weather)
+ * search their [topic] through Tor Browser instead, as the bar's web searches do, so nothing goes around Tor; without
+ * Tor Browser they open its Play Store page. Null when Tor isn't the engine.
+ */
+internal fun torTopicSearch(context: Context, topic: String): Intent? {
+    val prefs = com.pixel.intelligentsearch.core.data.SettingsManager.storedPrefs(context)
+    if (!com.pixel.intelligentsearch.core.security.NetworkPolicy.torSelected(prefs)) return null
+    return when (val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.torSearch(context, topic)) {
+        is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open -> launch.intent
+        else -> Intent(
+            Intent.ACTION_VIEW,
+            "market://details?id=${com.pixel.intelligentsearch.core.security.SafeWebLaunch.TOR_BROWSER_PACKAGES.first()}".toUri()
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 }
 

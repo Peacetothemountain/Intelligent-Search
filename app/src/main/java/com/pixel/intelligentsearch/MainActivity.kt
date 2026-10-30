@@ -29,7 +29,7 @@ import com.pixel.intelligentsearch.feature.search.SearchViewModel
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
-open class MainActivity : AppCompatActivity() {
+open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.system.WaitsForPermissionGrant {
 
     @javax.inject.Inject
     lateinit var multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager
@@ -54,6 +54,16 @@ open class MainActivity : AppCompatActivity() {
     /** True while the overlay has opened its own settings above it, which may come back to it (Back Swipe to Overlay). */
     private var awayInOwnSettings = false
 
+    /**
+     * True while the user turns on a permission on Android's page, opened from the overlay over it (Usage Access for
+     * screen time): the overlay waits behind it with what was typed, so Back comes back to the search.
+     */
+    private var awayGrantingAccess = false
+
+    override fun waitWhileGranting(waiting: Boolean) {
+        awayGrantingAccess = waiting
+    }
+
     private val dismissOverlayReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             finish()
@@ -63,6 +73,7 @@ open class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         awayInOwnSettings = false
+        awayGrantingAccess = false
         frameMetricsMonitor.attach(this)
         adpfThermalManager.startHeadroomMonitoring()
     }
@@ -77,16 +88,16 @@ open class MainActivity : AppCompatActivity() {
     override fun onStop() {
         // Cleared only once the overlay is out of sight, not as it starts to leave: an app opening from a result
         // grows out of the icon that was tapped, which must still be there, and a dialog over the overlay (a
-        // permission) must not wipe what was typed.
-        searchViewModel.onQueryChanged("")
+        // permission) must not wipe what was typed, nor must a permission page the user comes Back from.
+        if (!awayGrantingAccess) searchViewModel.onQueryChanged("")
         frameMetricsMonitor.detach()
         adpfThermalManager.stopHeadroomMonitoring()
         super.onStop()
         // Out of sight, the overlay closes for good, so the next search opens a fresh one. Brought back instead,
         // Android first shows a placeholder of the old one: as the overlay keeps itself out of Recents screenshots
         // (what was typed), that placeholder is drawn from the theme, a black screen under a lavender status bar.
-        // A speech recognizer over it is waiting to hand its words back here.
-        if (!isChangingConfigurations && !isFinishing && !awayInOwnSettings && !awaitingSpeech) {
+        // A speech recognizer or one of Android's permission pages over it is waiting to hand back here.
+        if (!isChangingConfigurations && !isFinishing && !awayInOwnSettings && !awaitingSpeech && !awayGrantingAccess) {
             // The whole task only when this overlay is its top: another overlay entry opened over it in the same task
             // (the singleTask entries share one affinity) must not go with it.
             if (isTopOfTask()) finishAndRemoveTask() else finish()

@@ -80,3 +80,34 @@ fun openPendingOrApp(context: Context, pending: PendingIntent?, packageName: Str
 fun openSettingsPage(context: Context, vararg pages: Intent): Boolean =
     pages.any { launchSafeIntent(context, it) } ||
         launchSafeIntent(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)))
+
+/**
+ * A screen that closes once it's out of sight (the search overlay), which can be asked to wait instead while the user
+ * turns on a permission on one of Android's pages, so Back from there comes back to it as it was.
+ */
+interface WaitsForPermissionGrant {
+    /** Whether the screen waits, rather than closes, the next time it goes out of sight; cleared once it's back. */
+    fun waitWhileGranting(waiting: Boolean)
+}
+
+/**
+ * Opens the first of [pages] as [openSettingsPage] does, for a permission the user turns on there and then comes Back
+ * from. The page opens in the asking screen's own task, so Back returns to that screen rather than to wherever
+ * Android's settings were last left, and a screen that closes out of sight ([WaitsForPermissionGrant]) waits behind
+ * it, with what was typed.
+ */
+fun openSettingsPageToGrant(context: Context, vararg pages: Intent): Boolean {
+    val activity = context.findActivity() ?: return openSettingsPage(context, *pages)
+    val waiting = activity as? WaitsForPermissionGrant
+    waiting?.waitWhileGranting(true)
+    val opened = pages.any { page ->
+        try {
+            activity.startActivity(page)
+            true
+        } catch (_: Exception) {
+            false
+        }
+    } || openSettingsPage(context)
+    if (!opened) waiting?.waitWhileGranting(false)
+    return opened
+}

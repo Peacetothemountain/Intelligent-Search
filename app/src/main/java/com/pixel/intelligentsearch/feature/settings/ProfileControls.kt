@@ -17,7 +17,6 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,12 +53,13 @@ internal fun ProfileSelector(count: Int, selected: Int, onSelect: (Int) -> Unit,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
+            // At large text the number wraps under "Profile" rather than spill over the chip, and on the narrowest
+            // phones the chip shows just the number.
+            OneLineLabel(
                 "Profile $id",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                maxLines = 1,
-                autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium)
+                shortText = "$id"
             )
         }
     }

@@ -33,7 +33,7 @@
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Weather answers for "here", only if the user picks Use Approximate Location; asked for when turned on. Never precise. -->
+    <!-- Weather answers for "here", only if the user taps Use Approximate Location on the weather card; asked for then. Never precise. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- Optional Hardware Features to Support Maximum Devices on Google Play -->
@@ -467,9 +467,9 @@
             android:exported="true">
         </service>
 
-        <!-- The app's one notification listener, so one Notification Access grant covers Search Your Notifications
+        <!-- The app's one notification listener, so one Notification Access grant covers notification search
              (and At a Glance's timers) and At a Glance's Media Controls. Reads notifications into memory only while
-             Search Your Notifications is on, and unbinds itself while it is off. See NotificationAccessListener for
+             the user grants Notification Access, and forgets them once it's turned off. See NotificationAccessListener for
              the Play policy justification. -->
         <service
             android:name=".core.glance.NotificationAccessListener"

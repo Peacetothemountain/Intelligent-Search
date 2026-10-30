@@ -129,7 +129,8 @@ fun SettingsScreensHub(
         // over it, so a back swipe can show it underneath as the system shows the activity underneath.
         val nativeBack = remember { com.pixel.intelligentsearch.core.ui.NativeBackState() }
         val pageSnapshots = remember { mutableStateMapOf<String, androidx.compose.ui.graphics.ImageBitmap>() }
-        val livePage = androidx.compose.ui.graphics.rememberGraphicsLayer()
+        val pagePicture = remember { com.pixel.intelligentsearch.core.ui.PageSnapshotter() }
+        DisposableEffect(pagePicture) { onDispose { pagePicture.release() } }
         val navScope = rememberCoroutineScope()
         // Set while a page leaves at the end of the back animation, which has already moved it: no transition then.
         var instantPop by remember { mutableStateOf(false) }
@@ -137,13 +138,12 @@ fun SettingsScreensHub(
         val leavingPage = remember { mutableStateOf<LeavingPage?>(null) }
 
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
-            navScope.launch {
-                val leaving = navController.currentBackStackEntry
-                val snapshot = runCatching { livePage.toImageBitmap() }.getOrNull()
-                if (leaving != null && snapshot != null) pageSnapshots[leaving.id] = snapshot
-                navController.navigate(route) {
-                    launchSingleTop = true
-                }
+            // Taken as the tap lands and the page opens in the same moment: no waiting for a later frame.
+            val leaving = navController.currentBackStackEntry
+            val snapshot = pagePicture.capture()
+            if (leaving != null && snapshot != null) pageSnapshots[leaving.id] = snapshot
+            navController.navigate(route) {
+                launchSingleTop = true
             }
         }
 
@@ -263,14 +263,18 @@ fun SettingsScreensHub(
          * its (empty) exit transition is done: handing over before that flashed it over the page underneath for a
          * frame.
          */
-        suspend fun handOver(closing: androidx.navigation.NavBackStackEntry?) {
+        suspend fun awaitLeft(closing: androidx.navigation.NavBackStackEntry?) {
             snapshotFlow { navController.currentBackStackEntry?.id }.first { it != closing?.id }
             kotlinx.coroutines.withTimeoutOrNull(1_000L) {
                 closing?.lifecycle?.currentStateFlow?.first { it == androidx.lifecycle.Lifecycle.State.DESTROYED }
             }
             withFrameNanos { }
-            nativeBack.end()
             instantPop = false
+        }
+
+        suspend fun handOver(closing: androidx.navigation.NavBackStackEntry?) {
+            awaitLeft(closing)
+            nativeBack.end()
         }
 
         Box(
@@ -283,7 +287,7 @@ fun SettingsScreensHub(
                     nativeBack.offsetPx = with(density) { com.pixel.intelligentsearch.core.ui.NativeBackMotion.ENTERING_OFFSET_DP.dp.toPx() }
                 }
         ) {
-        if (nativeBack.active) {
+        if (nativeBack.active && !nativeBack.liveEntering) {
             // The page underneath, as it was last seen, under the scrim.
             Box(
                 Modifier
@@ -303,9 +307,16 @@ fun SettingsScreensHub(
             modifier = Modifier
                 .fillMaxSize()
                 .backFrame(
-                    frame = { if (nativeBack.active) nativeBack.closingFrame() else null },
+                    frame = {
+                        when {
+                            !nativeBack.active -> null
+                            // The real page underneath, settling the rest of the way in its picture's place.
+                            nativeBack.liveEntering -> nativeBack.enteringFrame()
+                            else -> nativeBack.closingFrame()
+                        }
+                    },
                     cornerPx = { screenCorner },
-                    alpha = { nativeBack.closingAlpha() }
+                    alpha = { if (nativeBack.liveEntering) 1f else nativeBack.closingAlpha() }
                 )
                 .background(MaterialTheme.colorScheme.background)
                 // Every page but Widget Customization (whose previews carry their own colours) has the glow behind
@@ -314,8 +325,8 @@ fun SettingsScreensHub(
                 // The page as drawn, over its background and glow, kept so it can be shown underneath once another page
                 // opens over it. Kept without them: the glow drifts on, so a picture of it would be out of step.
                 .drawWithContent {
-                    livePage.record { this@drawWithContent.drawContent() }
-                    drawLayer(livePage)
+                    drawContent()
+                    pagePicture.record(this)
                 }
                 .graphicsLayer {
                     val p = exitBackProgress.value
@@ -458,11 +469,16 @@ fun SettingsScreensHub(
                 )
             }
         }
-        if (nativeBack.active) {
+        if (nativeBack.active && nativeBack.liveEntering) {
+            // The scrim over the page underneath fades out above it now that it is the real page.
+            Box(Modifier.fillMaxSize().drawBehind { drawRect(backScrim(darkPage, nativeBack.scrimFraction())) })
+        }
+        if (nativeBack.active && !nativeBack.liveEntering) {
             // While the pages move, the page underneath is only a picture, and the real page under it is the one
             // leaving, invisible but still there to be tapped: a tap meant for the page coming back flipped a switch
-            // on the page that left. So no touch gets through until the real page is shown, under half a second
-            // after letting go. The back arrow is held back with the rest: it belongs to the page that is leaving.
+            // on the page that left. So no touch gets through until the real page takes the picture's place, about a
+            // tenth of a second after letting go. The back arrow is held back with the rest: it belongs to the page
+            // that is leaving.
             Box(
                 Modifier
                     .fillMaxSize()
@@ -543,9 +559,18 @@ fun SettingsScreensHub(
             leavingPage.value = leaving
             leaving.job = navScope.launch {
                 try {
-                    nativeBack.commit()
-                    leaving.leave()
-                    handOver(closing)
+                    kotlinx.coroutines.coroutineScope {
+                        val settling = launch { nativeBack.commit() }
+                        // The page that leaves is out of sight within the first fifth of the animation. Then it leaves
+                        // the back stack, and the real page underneath takes its picture's place and settles the rest
+                        // of the way itself, taking taps at once instead of after the whole animation.
+                        snapshotFlow { nativeBack.closingAlpha() <= 0f }.first { it }
+                        leaving.leave()
+                        awaitLeft(closing)
+                        nativeBack.goLive()
+                        settling.join()
+                    }
+                    nativeBack.end()
                 } finally {
                     // Finished early by the next swipe, that swipe has the pages and the refresh rate now.
                     if (leavingPage.value === leaving) {

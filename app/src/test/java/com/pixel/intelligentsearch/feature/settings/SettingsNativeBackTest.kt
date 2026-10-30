@@ -185,9 +185,9 @@ class SettingsNativeBackTest {
         compose.onNodeWithText("Launch Portal").assertDoesNotExist()
     }
     /**
-     * In the half second after letting go, Main is only a picture, and the real page under it is Appearance, leaving,
-     * invisible. A tap on one of Appearance's switches where it is now drawn, and one on Main's Launch Portal row as
-     * the user sees it, must change nothing and open nothing: the first used to turn System Vibration off unseen.
+     * Just after letting go, Main is only a picture, and the real page under it is Appearance, leaving, invisible. A tap
+     * on one of Appearance's switches where it is now drawn, and one on Main's Launch Portal row as the user sees it,
+     * must change nothing and open nothing: the first used to turn System Vibration off unseen.
      */
     @Test
     fun aTapAsThePageUnderneathSettlesReachesNoPage() {
@@ -198,14 +198,33 @@ class SettingsNativeBackTest {
         compose.settle(steps = 5)
         val before = prefs().all
         swipeBack()
-        // About 190 ms after letting go, with 260 ms of the settle to go.
-        repeat(12) { compose.mainClock.advanceTimeByFrame() }
+        // About 50 ms after letting go, while Appearance is still fading out.
+        repeat(3) { compose.mainClock.advanceTimeByFrame() }
         val vibration = compose.onNodeWithText("System Vibration").fetchSemanticsNode().boundsInRoot.center
         compose.onRoot().performTouchInput { click(vibration) }
         compose.onRoot().performTouchInput { click(launchPortal) }
         compose.settle(steps = 15)
         assertEquals(before, prefs().all)
         assertOnMain()
+    }
+
+    /**
+     * Once the page that left is out of sight, the real page underneath settles the rest of the way itself, so a tap
+     * reaches it at once: about 260 ms after letting go, with part of the settle still to come, a tap on Launch Portal
+     * opens it. It used to be held back for the whole animation and the hand-over, which made the next tap feel slow.
+     */
+    @Test
+    fun aTapWhileThePageUnderneathSettlesReachesIt() {
+        compose.mainClock.autoAdvance = false
+        compose.settle(steps = 5)
+        val launchPortal = compose.onNodeWithText("Launch Portal").fetchSemanticsNode().boundsInRoot.center
+        compose.onNodeWithText("Appearance").performClick()
+        compose.settle(steps = 5)
+        swipeBack()
+        repeat(16) { compose.mainClock.advanceTimeByFrame() }
+        compose.onRoot().performTouchInput { click(launchPortal) }
+        compose.settle(steps = 15)
+        compose.onNodeWithText("Always Within Reach").assertExists()
     }
 
     /** Once the page underneath is really shown, taps reach it again. */

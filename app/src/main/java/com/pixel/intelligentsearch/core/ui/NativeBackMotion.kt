@@ -240,10 +240,22 @@ internal class NativeBackState {
         closingHidden = true
     }
 
+    /**
+     * True once the real page underneath has taken its picture's place (the page that left gone from view and from the
+     * back stack): it moves the rest of the way itself, so taps reach it while it settles.
+     */
+    var liveEntering by mutableStateOf(false)
+        private set
+
+    fun goLive() {
+        liveEntering = true
+    }
+
     fun end() {
         active = false
         committing = false
         closingHidden = false
+        liveEntering = false
         entering = null
         progress = 0f
         touchDy = 0f

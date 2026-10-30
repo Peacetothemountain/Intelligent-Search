@@ -369,8 +369,15 @@ class NaturalLanguageIntentParserTest {
         assertEquals(15, hourOf(event("meeting dec 5 at 3").startMillis))
         // A date that doesn't exist is no event.
         assertNull(NaturalLanguageIntentParser.parse("meeting on feb 30 at 3pm", currentTimeMs = at(12)))
-        // Numbers alone are left be: "12/5" is December 5 in one country and May 12 in another.
-        assertTrue(event("meeting 12/5 at 3pm").title.contains("12/5"))
+        // Numbers alone are read the region's way: "12/5" is December 5 in the US and May 12 in the UK. (They were
+        // left in the title, with the event set for today.)
+        val us = NaturalLanguageIntentParser.parse("meeting 12/5 at 3pm", at(12), locale = java.util.Locale.US)
+            as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        assertEquals(Triple(2026, Calendar.DECEMBER, 5), date(us.startMillis))
+        assertEquals("Meeting", us.title)
+        val uk = NaturalLanguageIntentParser.parse("meeting 12/5 at 3pm", at(12), locale = java.util.Locale.UK)
+            as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        assertEquals(Triple(2026, Calendar.MAY, 12), date(uk.startMillis))
     }
 
     @Test
@@ -590,5 +597,137 @@ class NaturalLanguageIntentParserTest {
         assertEquals("+1 (415) 555-0100", message("text +1 (415) 555-0100: hi").recipientName)
         assertEquals("O'Brien", message("text O'Brien saying hi").recipientName)
         assertEquals("Jean-Luc", message("message Jean-Luc: on my way").recipientName)
+    }
+
+    /** Thursday 29 October 2026 at [hour]:[minute]. */
+    private fun thursday(hour: Int, minute: Int = 0): Long = Calendar.getInstance().apply {
+        set(2026, Calendar.OCTOBER, 29, hour, minute, 0); set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    /** When [millis] is, as "2026-11-01 09:00". */
+    private fun shown(millis: Long): String = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(millis)
+
+    private fun usReminder(query: String) = NaturalLanguageIntentParser.parse(query, thursday(10), locale = java.util.Locale.US)
+        as NaturalLanguageIntentParser.ParsedIntent.Reminder
+
+    @Test
+    fun aReminderReadsTheDateAndTimeItIsGiven() {
+        // Each was set for now, or the next 9 AM, with the date words left in the task.
+        val cases = mapOf(
+            "remind me to pay rent on the 1st at 9am" to ("pay rent" to "2026-11-01 09:00"),
+            "remind me to call mom on the 5th" to ("call mom" to "2026-11-05 10:00"),
+            "remind me to call mom on 11/5 at 3pm" to ("call mom" to "2026-11-05 15:00"),
+            "remind me to call mom at noon" to ("call mom" to "2026-10-29 12:00"),
+            "remind me to call mom at 12 noon" to ("call mom" to "2026-10-29 12:00"),
+            "remind me to call mom at midnight" to ("call mom" to "2026-10-30 00:00"),
+            "remind me to call mom this evening" to ("call mom" to "2026-10-29 18:00"),
+            "remind me to call mom tomorrow morning" to ("call mom" to "2026-10-30 09:00"),
+            "remind me to call mom tomorrow evening at 7" to ("call mom" to "2026-10-30 19:00"),
+            "remind me to call mom in the morning" to ("call mom" to "2026-10-30 09:00"),
+            "remind me to call mom next week" to ("call mom" to "2026-11-05 10:00"),
+            "remind me to renew passport in may" to ("renew passport" to "2027-05-01 10:00"),
+            "remind me to buy flowers on valentine's day" to ("buy flowers" to "2027-02-14 10:00"),
+            "remind me to call grandma on thanksgiving" to ("call grandma" to "2026-11-26 10:00"),
+            "remind me to call mom the day after tomorrow at 5" to ("call mom" to "2026-10-31 17:00"),
+            "remind me to call mom at 5 o'clock" to ("call mom" to "2026-10-29 17:00"),
+            "remind me to submit the report by friday" to ("submit the report" to "2026-10-30 10:00")
+        )
+        for ((query, expected) in cases) {
+            val reminder = usReminder(query)
+            assertEquals(query, expected.first, reminder.task)
+            assertEquals(query, expected.second, shown(reminder.triggerMillis))
+        }
+        // In the UK the day comes first: 11/5 is the 11th of May.
+        val uk = NaturalLanguageIntentParser.parse("remind me to call mom on 11/5 at 3pm", thursday(10), locale = java.util.Locale.UK)
+            as NaturalLanguageIntentParser.ParsedIntent.Reminder
+        assertEquals("2027-05-11 15:00", shown(uk.triggerMillis))
+        // An amount written as a fraction is no date.
+        assertEquals("buy 1/2 gallon milk", usReminder("remind me to buy 1/2 gallon milk at 5pm").task)
+    }
+
+    @Test
+    fun aReminderWithWhenWordsItCantReadIsNoReminder() {
+        // Each was a reminder for now with the words in its task; a search is better than a wrong time.
+        for (query in listOf(
+            "remind me to clean the garage this weekend", "remind me to call mom next month", "remind me to pay taxes by june",
+            "remind me to call mom at half past 5", "remind me to file the report at the end of the month",
+            "remind me to call mom this morning", "remind me to call mom on the 31st of november"
+        )) {
+            assertNull(query, NaturalLanguageIntentParser.parse(query, thursday(10), locale = java.util.Locale.US))
+        }
+        // Words that only sound like a time stay in the task.
+        assertEquals("plan next year's budget", usReminder("remind me to plan next year's budget tomorrow at 9").task)
+    }
+
+    @Test
+    fun anEventReadsNextWeekdaysAndLosesTheWordsAroundItsDate() {
+        fun usEvent(query: String) = NaturalLanguageIntentParser.parse(query, thursday(10), locale = java.util.Locale.US)
+            as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
+        // "next tuesday" was titled "next"; "next friday" on a Thursday was tomorrow, not the Friday of next week.
+        val tuesday = usEvent("meeting next tuesday at 2pm")
+        assertEquals("Meeting", tuesday.title)
+        assertEquals("2026-11-03 14:00", shown(tuesday.startMillis))
+        assertEquals("2026-11-06 15:00", shown(usEvent("meeting next friday at 3pm").startMillis))
+        assertEquals("2026-10-30 15:00", shown(usEvent("meeting this friday at 3pm").startMillis))
+        // The title was "dentist appointment for".
+        val dentist = usEvent("schedule dentist appointment for nov 12 at 10:30am")
+        assertEquals("dentist appointment", dentist.title)
+        assertEquals("2026-11-12 10:30", shown(dentist.startMillis))
+    }
+
+    @Test
+    fun aDurationKeepsItsHalfAndItsBareMinutes() {
+        // These lost their second part: 3,600 s, 11:00, 11:00, 12:00, and "call and a half" and "call 30" at 11:00.
+        assertEquals(5_400, timerSeconds("timer 1 hour and a half"))
+        assertEquals(90, timerSeconds("timer 1 minute and a half"))
+        fun alarmAt(query: String) = alarm(query, now = thursday(10)).let { it.hour to it.minute }
+        assertEquals(11 to 30, alarmAt("alarm in 1 hour and a half"))
+        assertEquals(11 to 30, alarmAt("alarm in 1 hour 30"))
+        assertEquals(12 to 15, alarmAt("alarm in 2 hours 15"))
+        val half = usReminder("remind me to call in 1 hour and a half")
+        assertEquals("call" to "2026-10-29 11:30", half.task to shown(half.triggerMillis))
+        val thirty = usReminder("remind me to call in 1 hour 30")
+        assertEquals("call" to "2026-10-29 11:30", thirty.task to shown(thirty.triggerMillis))
+        val before = usReminder("remind me in 1 hour 30 to call")
+        assertEquals("call" to "2026-10-29 11:30", before.task to shown(before.triggerMillis))
+        // 90 of the smaller unit is a typo, and days have none left unsaid.
+        assertNull(NaturalLanguageIntentParser.parse("alarm in 2 hours 90", thursday(10)))
+        assertNull(NaturalLanguageIntentParser.parse("remind me to call in 2 days 3", thursday(10)))
+    }
+
+    private val will = com.pixel.intelligentsearch.core.data.ContactItem("Will Smith", "+1 415 555 0201", "")
+    private val bjorn = com.pixel.intelligentsearch.core.data.ContactItem("Bjørn Larsen", "+47 1234 5678", "")
+
+    /** As the app's contacts search answers: Will Smith for "will", Bjørn Larsen for "bjorn" and "bjørn". */
+    private val troubleContacts: (String) -> com.pixel.intelligentsearch.core.data.ContactItem? = { typed ->
+        when (typed.lowercase()) {
+            "will", "will smith" -> will
+            "bjorn", "bjørn" -> bjorn
+            else -> null
+        }
+    }
+
+    @Test
+    fun aSearchAboutMessagesNotSendingIsNoMessageToAContact() {
+        // With a contact called Will these were messages to Will Smith saying "not send".
+        for (query in listOf("text will not send", "message will not send", "text will won't go through", "text will isn't working")) {
+            assertNull(query, NaturalLanguageIntentParser.parse(query, contactLookup = troubleContacts))
+        }
+        // A message to Will still goes, and a colon still marks one that starts that way.
+        assertEquals("hi", (NaturalLanguageIntentParser.parse("text will hi", contactLookup = troubleContacts)
+            as NaturalLanguageIntentParser.ParsedIntent.DirectMessage).body)
+        assertEquals("not coming", (NaturalLanguageIntentParser.parse("text will: not coming", contactLookup = troubleContacts)
+            as NaturalLanguageIntentParser.ParsedIntent.DirectMessage).body)
+    }
+
+    @Test
+    fun aNameTypedWithoutItsLettersKeyStillNamesTheContact() {
+        // "bjorn" didn't name Bjørn, nor "strasse" Straße: NFD leaves ø and ß whole.
+        assertTrue(NaturalLanguageIntentParser.namesContact("bjorn", "Bjørn Larsen"))
+        assertTrue(NaturalLanguageIntentParser.namesContact("strasse", "Straße"))
+        val text = NaturalLanguageIntentParser.parse("text bjorn hi", contactLookup = troubleContacts)
+            as NaturalLanguageIntentParser.ParsedIntent.DirectMessage
+        assertEquals("Bjørn Larsen", text.recipientName)
+        assertEquals("hi", text.body)
     }
 }

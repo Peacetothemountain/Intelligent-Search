@@ -94,7 +94,10 @@ data class ContactItem(
     val chatNumber: String = "",
     /** Starred (a favorite) in the Contacts app, which lifts it in search. */
     val starred: Boolean = false
-)
+) {
+    /** What a result shows under the name: the number, else the email address of a contact saved with only that. */
+    val detail: String get() = phoneNumber.ifBlank { email }
+}
 
 @Immutable
 data class FileItem(
@@ -396,11 +399,68 @@ object SystemDataProvider {
                 }
             }
         } catch (_: Throwable) {}
+        // Contacts with no number, which only an email address makes useful; not for callers that skip addresses.
+        val numberless = if (forActions && contacts.size < 15) {
+            val filter = ContactsContract.Contacts.CONTENT_FILTER_URI.buildUpon().appendPath(query).build()
+            contactsWithoutNumbers(context, filter, contactIds.toSet(), emptySet(), limit = 15 - contacts.size)
+        } else emptyList()
+        numberless.forEach { (id, contact) -> contacts.add(contact); contactIds.add(id) }
 
         val found = if (forActions) {
             withEmails(context, withChatNumbers(context, contacts, contactIds), contactIds, onlyThese = true)
         } else contacts
-        found.distinctBy { it.lookupUri.ifEmpty { "${it.name}:${it.phoneNumber}" } }
+        withAddressIfNumberless(found, contactIds, numberless)
+            .distinctBy { it.lookupUri.ifEmpty { "${it.name}:${it.phoneNumber}" } }
+    }
+
+    /**
+     * Contacts saved with no phone number (often ones synced from Gmail with only an email address), which the phone
+     * rows never list, by contact id: read from [uri] (every contact, or the ones matching a search), leaving out
+     * [phoneContactIds], at most [limit]. They come back with no number and no address; [withEmails] fills the
+     * address in and [withAddressIfNumberless] drops the ones that have none, as there's nothing to do with them.
+     */
+    private fun contactsWithoutNumbers(
+        context: Context,
+        uri: android.net.Uri,
+        phoneContactIds: Set<Long>,
+        starredIds: Set<Long>,
+        limit: Int = Int.MAX_VALUE
+    ): List<Pair<Long, ContactItem>> {
+        val found = LinkedHashMap<Long, ContactItem>()
+        try {
+            context.contentResolver.query(
+                uri,
+                arrayOf(ContactsContract.Contacts._ID, ContactsContract.Contacts.DISPLAY_NAME, ContactsContract.Contacts.LOOKUP_KEY),
+                "${ContactsContract.Contacts.HAS_PHONE_NUMBER} = 0",
+                null,
+                ContactsContract.Contacts.DISPLAY_NAME + " ASC"
+            )?.use { cursor ->
+                val idIndex = cursor.getColumnIndexOrThrow(ContactsContract.Contacts._ID)
+                val nameIndex = cursor.getColumnIndexOrThrow(ContactsContract.Contacts.DISPLAY_NAME)
+                val lookupKeyIndex = cursor.getColumnIndexOrThrow(ContactsContract.Contacts.LOOKUP_KEY)
+                while (found.size < limit && cursor.moveToNext()) {
+                    val id = cursor.getLong(idIndex)
+                    if (id <= 0L || id in phoneContactIds || id in found) continue
+                    val name = cursor.getString(nameIndex)?.takeIf { it.isNotBlank() } ?: continue
+                    val lookupUri = ContactsContract.Contacts.getLookupUri(id, cursor.getString(lookupKeyIndex).orEmpty())?.toString() ?: ""
+                    found[id] = ContactItem(name, "", lookupUri, starred = id in starredIds)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("IntelligentSearch", "Contacts without numbers unreadable", e)
+        }
+        return found.toList()
+    }
+
+    /** [contacts] (matched by [contactIds]) less the [numberless] ones that got no email address either. */
+    private fun withAddressIfNumberless(
+        contacts: List<ContactItem>,
+        contactIds: List<Long>,
+        numberless: List<Pair<Long, ContactItem>>
+    ): List<ContactItem> {
+        if (numberless.isEmpty()) return contacts
+        val ids = numberless.mapTo(HashSet()) { it.first }
+        return contacts.filterIndexed { i, contact -> contactIds[i] !in ids || contact.email.isNotBlank() }
     }
 
     /** The most phone rows [withChatNumbers] reads, however many numbers the found contacts have saved. */
@@ -583,7 +643,11 @@ object SystemDataProvider {
         } catch (e: Exception) {
             android.util.Log.w("IntelligentSearch", "Unexpected error", e)
         }
-        withEmails(context, chatNumbers.applyTo(contacts, contactIds), contactIds, onlyThese = false)
+        // Contacts with only an email address: the phone rows above never list them, so they were never found.
+        val numberless = contactsWithoutNumbers(context, ContactsContract.Contacts.CONTENT_URI, contactIds.toSet(), starredIds)
+        numberless.forEach { (id, contact) -> contacts.add(contact); contactIds.add(id) }
+        val withAddresses = withEmails(context, chatNumbers.applyTo(contacts, contactIds), contactIds, onlyThese = false)
+        withAddressIfNumberless(withAddresses, contactIds, numberless)
             .distinctBy { it.lookupUri.ifEmpty { "${it.name}:${it.phoneNumber}" } }
     }
 

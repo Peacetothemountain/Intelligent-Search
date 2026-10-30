@@ -662,7 +662,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     }
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                                        Text(contact.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                                        Text(contact.detail, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
                                         if (contactActions.isNotEmpty()) {
                                             // The buttons' 48dp touch areas keep the circles 4dp under the number.
                                             // Pulled back by the touch target's margin so the first circle lines up with the name.
@@ -672,8 +672,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                             }
                                         }
                                     }
-                                    // The action buttons include Call; without them the row keeps its own call button.
-                                    if (contactActions.isEmpty()) IconButton(
+                                    // The action buttons include Call; without them the row keeps its own call button,
+                                    // when there's a number to call.
+                                    if (contactActions.isEmpty() && contact.phoneNumber.isNotBlank()) IconButton(
                                         onClick = {
                                             if (contact.phoneNumber.isNotBlank()) {
                                                 hasStartedTyping = false

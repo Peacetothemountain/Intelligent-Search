@@ -148,6 +148,8 @@ class ContactDefaultsTest {
             if (uri.pathSegments.contains("emails")) {
                 return db.query("emails", projection, selection, args, null, null, order)
             }
+            // The contacts table itself (stars, contacts with no number): every contact here has a number.
+            if (uri.pathSegments.firstOrNull() == "contacts") return android.database.MatrixCursor(projection.orEmpty())
             // A filter matches names containing its text; the real provider also matches numbers.
             val filter = if (uri.pathSegments.contains("filter")) uri.lastPathSegment.orEmpty() else ""
             val where = "${Phone.DISPLAY_NAME} LIKE ?" + (selection?.let { " AND ($it)" } ?: "")

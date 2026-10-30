@@ -145,7 +145,15 @@ internal fun quickAppSearchIntent(context: Context, packageName: String, query: 
         return com.pixel.intelligentsearch.core.bangs.AiAssistants.launchIntent(context, assistant, query).addFlags(flags)
     }
     return when (packageName) {
-        "com.android.chrome" -> Intent(Intent.ACTION_VIEW, "https://google.com/search?q=$encoded".toUri()).setPackage(packageName)
+        "com.android.chrome" -> if (com.pixel.intelligentsearch.core.security.NetworkPolicy.torSelected(SettingsManager.storedPrefs(context))) {
+            // With Tor as the engine the query goes only through Tor Browser, as every web search does; without it
+            // Chrome just opens, and the query isn't sent anywhere.
+            (com.pixel.intelligentsearch.core.security.SafeWebLaunch.torSearch(context, query)
+                as? com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open)?.intent
+                ?: pm.getLaunchIntentForPackage(packageName)
+        } else {
+            Intent(Intent.ACTION_VIEW, "https://google.com/search?q=$encoded".toUri()).setPackage(packageName)
+        }
         "com.google.android.apps.maps" -> Intent(Intent.ACTION_VIEW, "geo:0,0?q=$encoded".toUri()).setPackage(packageName)
         "com.google.android.youtube" -> Intent(Intent.ACTION_SEARCH).setPackage(packageName).putExtra("query", query)
         // Other stores answer market:// links too; the pill is the Play Store's.

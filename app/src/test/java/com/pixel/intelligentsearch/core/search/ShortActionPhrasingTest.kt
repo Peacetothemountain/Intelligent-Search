@@ -227,6 +227,21 @@ class ShortActionPhrasingTest {
         assertEquals(Kind.REMINDER, parse("close the garage at 9pm")?.kind)
     }
 
+    @Test
+    fun aTimeAfterWordsThatArentATaskIsNoReminder() {
+        // Each was a reminder Enter ran, opening the calendar instead of searching for the train, game or service.
+        for (query in listOf(
+            "trains to london at 8am", "nba game tonight at 8", "uber at 5am", "church at 10am", "mass at 9",
+            "superbowl at 6:30pm", "pharmacy at 9pm", "concert tonight at 8"
+        )) {
+            assertNull(query, parse(query))
+        }
+        // Something to do, or a plan of one's own, still is one.
+        for (query in listOf("pick up kids at 3:15", "lunch with sarah at 12:30", "dentist tomorrow at 9am", "take pills at 8:30pm")) {
+            assertEquals(query, Kind.REMINDER, parse(query)?.kind)
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------
     // In the search: the full phrasings, the calculator, converters and date maths come first
     // ---------------------------------------------------------------------------------------------

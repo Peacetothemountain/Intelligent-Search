@@ -91,6 +91,28 @@ object ShortActionPhrasing {
     )
 
     /**
+     * How a task starts: a thing to do ("call mom", "pick up kids", "pay rent") or a plan of one's own ("dinner",
+     * "dentist", "gym"). A time after anything else is a search as often as not ("trains to london at 8am", "nba game
+     * tonight at 8", "mass at 9", "uber at 5am"), and Enter would have opened the calendar for it, so it reads as none.
+     */
+    private val TASK_CUES = setOf(
+        // Things to do
+        "call", "text", "email", "message", "phone", "ring", "ask", "tell", "remind", "pick", "drop", "collect", "buy",
+        "get", "grab", "order", "pay", "book", "cancel", "renew", "return", "send", "post", "take", "bring", "feed",
+        "walk", "water", "wash", "clean", "cook", "make", "bake", "prep", "do", "finish", "check", "charge", "change",
+        "fix", "pack", "unpack", "put", "turn", "close", "lock", "leave", "go", "visit", "meet", "see", "study", "read",
+        "write", "submit", "print", "sign", "file", "review", "prepare", "practice", "practise", "exercise", "run",
+        "stretch", "sleep", "shower", "mow", "vacuum", "iron", "plan", "confirm", "follow", "reply", "respond", "update",
+        "install", "apply", "register", "refill", "defrost", "thaw", "preheat", "load", "empty", "fill", "move", "sort",
+        "tidy", "shop", "pickup", "dropoff", "meditate", "pray", "watch", "listen", "join", "attend", "log", "backup",
+        // Plans of one's own
+        "meeting", "appointment", "event", "dentist", "doctor", "vet", "haircut", "interview", "standup", "stand-up",
+        "meds", "medicine", "pills", "laundry", "gym", "workout", "yoga", "class", "lecture", "rehearsal", "dinner",
+        "lunch", "breakfast", "brunch", "coffee", "date", "chores", "homework", "trash", "bins", "garbage", "recycling",
+        "groceries", "shopping", "school", "work"
+    )
+
+    /**
      * The action [rawQuery] reads as at [nowMs], or null when it reads as none. [is24Hour] is the phone's clock
      * setting: it decides how a bare hour ("at 6") is read and how times are shown.
      */
@@ -277,7 +299,7 @@ object ShortActionPhrasing {
         val words = task.split(' ')
         if (words.size > 8) return null
         val first = words.first().lowercase(Locale.ROOT)
-        if (first in NOT_A_TASK) return null
+        if (first in NOT_A_TASK || first !in TASK_CUES) return null
         if (words.any { it.lowercase(Locale.ROOT) in OPENING_HOURS_WORDS }) return null
         // What is left after the time must not itself be a calculation or conversion ("15 min in", "5 + 3").
         if (task.any { it in "+*/=^%" }) return null

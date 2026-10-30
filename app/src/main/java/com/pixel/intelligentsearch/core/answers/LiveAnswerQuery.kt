@@ -113,6 +113,18 @@ object LiveAnswerParser {
         "good", "happy", "merry", "welcome", "love", "cheers", "congratulations", "yes", "no"
     )
 
+    /** Words that make "what is X" a question of its own ("what is your name"), not a word asked about. */
+    private val PRONOUNS = setOf(
+        "i", "me", "my", "you", "your", "he", "him", "his", "she", "her", "it", "we", "us", "our", "they", "them",
+        "their", "this", "that"
+    )
+
+    /**
+     * How-to searches: "how to make tea in hindi" asks for the recipe in Hindi, as "how do i lose weight in tamil" asks
+     * for the advice in Tamil, not for the words translated.
+     */
+    private val HOW_TO = Regex("^how (?:to|do i|do we|can i|can we|should i|does)\\b")
+
     /**
      * The everyday words people most often ask for in another language on their own ("water in hindi", "cat in
      * french", "beautiful in spanish"). A lone word outside these and [PHRASE_WORDS] is left to the web search, which
@@ -238,6 +250,14 @@ object LiveAnswerParser {
         "december"
     )
     private val MONTH_LEADS = setOf("in", "this", "next", "last", "during", "for", "of", "early", "late", "mid")
+    private val MONTH_INS = setOf("in", "during")
+
+    /** The second word of a place named for something else: Friday Harbor, Storm Lake, Thursday Island, June Lake. */
+    private val PLACE_FEATURES = setOf(
+        "harbor", "harbour", "lake", "lakes", "river", "island", "islands", "isle", "bay", "beach", "falls", "springs",
+        "valley", "creek", "point", "mountain", "mountains", "hills", "heights", "park", "port", "cove", "peak", "city",
+        "town", "village", "county"
+    )
 
     /** What [rawQuery] asks to be answered inline, or null for an ordinary search. */
     fun parse(rawQuery: String): LiveAnswerQuery? {
@@ -297,9 +317,16 @@ object LiveAnswerParser {
             val target = TranslationLanguages.codeFor(match.groupValues[2])
             if (target != null) return translation(original, match.groups[1]!!.range, target, null)
         }
-        (MEANING_IN.matchEntire(sentence) ?: WHAT_IS_IN.matchEntire(sentence))?.let { match ->
+        MEANING_IN.matchEntire(sentence)?.let { match ->
             val target = TranslationLanguages.codeFor(match.groupValues[2])
             if (target != null) return translation(original, match.groups[1]!!.range, target, null)
+        }
+        WHAT_IS_IN.matchEntire(sentence)?.let { match ->
+            val target = TranslationLanguages.codeFor(match.groupValues[2])
+            // "what is love in spanish" asks for "love"; "what is your name in japanese" is the question to be said.
+            val asked = match.groups[1]!!.range
+            val whole = match.groupValues[1].split(' ').any { it in PRONOUNS }
+            if (target != null) return translation(original, if (whole) 0..asked.last else asked, target, null)
         }
         BARE_IN.matchEntire(sentence)?.let { match ->
             val target = TranslationLanguages.codeFor(match.groupValues[2])
@@ -319,7 +346,7 @@ object LiveAnswerParser {
      */
     private fun readsAsPhrase(text: String, target: String): Boolean {
         val words = text.trim().trim(*QUOTES).split(' ').map { it.trim(*QUOTES, ',', '.', '!', '?') }
-        if (words.any { it in NOT_TRANSLATABLE }) return false
+        if (words.any { it in NOT_TRANSLATABLE } || HOW_TO.containsMatchIn(text)) return false
         if (words.size > 1) return words.any { it in PHRASE_WORDS }
         val word = words.single()
         return target == ENGLISH || word in PHRASE_WORDS || word in EVERYDAY_WORDS
@@ -384,11 +411,17 @@ object LiveAnswerParser {
         val place = raw.trim().trim(',', '.').trim()
         if (place.isEmpty() || place in NOT_A_PLACE || !PLACE.matches(place) || place.split(' ').size > 5) return null
         val words = place.split(' ', ',').filter { it.isNotEmpty() }
-        if (words.any { it in NOT_A_PLACE_WORDS }) return null
-        if (words.size <= 2 && words.any { it in WEATHER_THINGS }) return null
+        // A word before "harbor", "lake" or "river" is part of a town's name: Friday Harbor, Storm Lake, Sunday River.
+        fun named(i: Int) = words.getOrNull(i + 1) in PLACE_FEATURES
+        if (words.indices.any { words[it] in NOT_A_PLACE_WORDS && !named(it) }) return null
+        if (words.size <= 2 && words.indices.any { words[it] in WEATHER_THINGS && !named(it) }) return null
         // "weather in july", "weather this may": a month, not the towns called May or July. "May" in a longer name
-        // ("weather mayfield") is still a place.
+        // ("weather mayfield", "isle of may") is still a place.
         if (words.last() in MONTHS && words.dropLast(1).all { it in MONTH_LEADS }) return null
+        // "weather in july in rome", "weather in rome in may": a month's weather, which the card doesn't show.
+        if (words.indices.any { words[it] in MONTHS && !named(it) && (it == 0 || words[it - 1] in MONTH_INS) }) {
+            return null
+        }
         return place
     }
 }

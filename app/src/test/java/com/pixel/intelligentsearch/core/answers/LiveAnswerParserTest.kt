@@ -231,6 +231,35 @@ class LiveAnswerParserTest {
     }
 
     @Test
+    fun aTownNamedForADayOrAWeatherWordIsAPlace() {
+        // These real towns got no card: "friday", "storm" and "sunday" are blocked on their own.
+        assertEquals(Weather("friday harbor", ForecastDay.TODAY), parse("weather in friday harbor"))
+        assertEquals(Weather("storm lake", ForecastDay.TODAY), parse("weather in storm lake"))
+        assertEquals(Weather("sunday river", ForecastDay.TODAY), parse("weather in sunday river"))
+        // A month's weather somewhere is still no place ("july in rome" was looked up as one).
+        assertNull(parse("weather in july in rome"))
+        assertNull(parse("weather in marseille in march"))
+        assertEquals(Weather("isle of may", ForecastDay.TODAY), parse("weather isle of may"))
+    }
+
+    @Test
+    fun aQuestionToTranslateKeepsItsQuestionWords() {
+        // This translated "your name".
+        assertEquals(Translate("what is your name", "ja", null), parse("what is your name in japanese"))
+        assertEquals(Translate("what's this", "es", null), parse("what's this in spanish"))
+        assertEquals(Translate("love", "es", null), parse("what is love in spanish"))
+    }
+
+    @Test
+    fun aHowToSearchInALanguageIsNoTranslation() {
+        // Each offered to translate the whole search: it asks for the answer in that language.
+        for (query in listOf("how to make tea in hindi", "how to lose weight in hindi", "how to earn money in tamil", "how do i cook rice in telugu")) {
+            assertNull(query, parse(query))
+        }
+        assertEquals(Translate("how are you", "hi", null), parse("how are you in hindi"))
+    }
+
+    @Test
     fun aLanguageNameWinsOverAPlace() {
         // "weather in french" asks for a word, not a forecast in a town called French.
         assertEquals(Translate("weather", "fr", null), parse("weather in french"))

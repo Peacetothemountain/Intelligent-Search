@@ -45,11 +45,12 @@ class ApproximateLocationRequestTest {
     private var asked = 0
     private var granting = false
 
-    /** Android's prompt, answering [allow]. */
-    private fun owner(allow: Boolean) = object : ActivityResultRegistryOwner {
+    /** Android's prompt, answering [allow], after [whileAsking] (what Android changes as the user answers). */
+    private fun owner(allow: Boolean, whileAsking: () -> Unit = {}) = object : ActivityResultRegistryOwner {
         override val activityResultRegistry = object : ActivityResultRegistry() {
             override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
                 asked++
+                whileAsking()
                 @Suppress("UNCHECKED_CAST")
                 dispatchResult(requestCode, allow as O)
             }
@@ -57,9 +58,9 @@ class ApproximateLocationRequestTest {
     }
 
     /** Shows a "Use My Location" button that asks the way the weather card does, and taps it. */
-    private fun askWith(allow: Boolean) {
+    private fun askWith(allow: Boolean, whileAsking: () -> Unit = {}) {
         if (!granting) shadowOf(context).denyPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
-        val registry = owner(allow)
+        val registry = owner(allow, whileAsking)
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) {
                 CompositionLocalProvider(LocalActivityResultRegistryOwner provides registry) {
@@ -95,13 +96,43 @@ class ApproximateLocationRequestTest {
 
     @Test
     fun declinedForGoodItOffersAndroidSettings() {
+        // Declined before: Android then shows its reason to ask again.
+        shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION, true)
+        askWith(allow = false)
+        compose.onNodeWithText("Allow").performClick()
+        compose.waitForIdle()
         // Android won't ask again: "Allow" answered no at once and nothing else happened.
         shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION, false)
-        askWith(allow = false)
+        compose.onNodeWithText("Use My Location").performClick()
+        compose.waitForIdle()
         compose.onNodeWithText("Allow").performClick()
         compose.waitForIdle()
         assertEquals(0, granted)
         compose.onNodeWithText("Location Access Is Off").assertExists()
+    }
+
+    @Test
+    fun decliningForGoodNowOffersAndroidSettings() {
+        // Declined once before; this time the user picks Don't Allow, and Android stops showing its reason.
+        shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION, true)
+        askWith(allow = false) {
+            shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION, false)
+        }
+        compose.onNodeWithText("Allow").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Location Access Is Off").assertExists()
+    }
+
+    @Test
+    fun closingAndroidsFirstPromptOffersNoSettings() {
+        // Never declined, the user closes Android's prompt without choosing (Back, or a tap outside): it answers no,
+        // its reason still not shown, and Android would ask again next time.
+        shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.ACCESS_COARSE_LOCATION, false)
+        askWith(allow = false)
+        compose.onNodeWithText("Allow").performClick()
+        compose.waitForIdle()
+        assertEquals(1, asked)
+        compose.onNodeWithText("Location Access Is Off").assertDoesNotExist()
     }
 
     @Test

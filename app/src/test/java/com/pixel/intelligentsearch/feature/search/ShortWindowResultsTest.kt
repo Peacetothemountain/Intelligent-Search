@@ -1,6 +1,9 @@
 package com.pixel.intelligentsearch.feature.search
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
@@ -71,17 +74,26 @@ class ShortWindowResultsTest {
             .commit()
     }
 
+    /**
+     * The overlay opened on [query] with its results already found, as when it comes back to a search or the results
+     * keep up with typing: the list is laid out once, with the rows and the results together.
+     */
     private fun search(query: String) {
         compose.mainClock.autoAdvance = false
+        var showOverlay by mutableStateOf(false)
         lateinit var viewModel: SearchViewModel
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) {
                 viewModel = hiltViewModel()
-                SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
+                if (showOverlay) {
+                    SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
+                }
             }
         }
         compose.settle()
         viewModel.onQueryChanged(query)
+        compose.settle()
+        showOverlay = true
         compose.settle()
     }
 

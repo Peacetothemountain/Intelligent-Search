@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.forgetHeldListeners
 import com.pixel.intelligentsearch.core.data.settings.put
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -328,6 +329,21 @@ class LiveAnswerEngineTest {
         assertEquals(1, filesIn(dir, "dictionary"))
 
         prefs.edit().put(SettingsManager.SEARCH_WEB, false).commit()
+        assertEquals(0, filesIn(dir, "dictionary"))
+    }
+
+    @Test
+    fun switchingWebSuggestionsOffForgetsWhatWasKeptWithoutAListenerToKeep() {
+        // In the release build the separate listener that cleared the kept answers could be garbage collected, so
+        // turning Web Suggestions off left definitions and forecasts on the phone until the next start.
+        val dir = folder.newFolder("answers")
+        allowWebAnswers()
+        val engine = diskEngine(dir)
+        forgetHeldListeners(engine)
+        answers(engine, "define serendipity")
+        assertEquals(1, filesIn(dir, "dictionary"))
+
+        prefs.edit().put(SettingsManager.SEARCH_WEB_SUGGESTIONS, false).commit()
         assertEquals(0, filesIn(dir, "dictionary"))
     }
 

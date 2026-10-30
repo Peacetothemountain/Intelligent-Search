@@ -7,6 +7,7 @@ import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
+import com.pixel.intelligentsearch.core.data.settings.forgetHeldListeners
 import com.pixel.intelligentsearch.core.profile.MultiProfileManager
 import com.pixel.intelligentsearch.core.system.SystemToggleManager
 import org.junit.Assert.assertEquals
@@ -158,6 +159,87 @@ class UnifiedSearchCoordinatorTest {
         assertEquals("Call Dad", action("call dad"))
         assertEquals("Call Dad Work", action("call dad work"))
         assertEquals("Call Sarah Lee", action("call sarah lee"))
+    }
+
+    /** "Call <name> <number>" or "Message <name> <number>", or null when the query offers neither. */
+    private fun UnifiedSearchCoordinator.action(query: String): String? = when (val parsed = executeSearchSync(query).parsedIntent) {
+        is NaturalLanguageIntentParser.ParsedIntent.PhoneCall -> "Call ${parsed.contactNameOrNumber} ${parsed.resolvedPhoneNumber}"
+        is NaturalLanguageIntentParser.ParsedIntent.DirectMessage -> "Message ${parsed.recipientName}: ${parsed.body}"
+        else -> null
+    }
+
+    private fun contactSearch(on: Boolean) {
+        context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(SettingsManager.SEARCH_CONTACTS.name, on).commit()
+    }
+
+    @Test
+    fun theContactsSwitchReachesCallAndMessageRowsWithoutAListenerToKeep() {
+        // In the release build the listener that refreshed a cached switch was garbage collected: "call zelda" kept
+        // the switch as it was when the app started, still naming contacts after Contacts was turned off.
+        contactSearch(on = true)
+        val coordinator = coordinator().apply { replaceContacts(listOf(ContactItem("Zelda Auditson", "+14155550600", "content://c/600"))) }
+        forgetHeldListeners(coordinator)
+        assertEquals("Call Zelda Auditson +14155550600", coordinator.action("call zelda"))
+
+        contactSearch(on = false)
+        assertNull("Contacts off: no contact is looked up", coordinator.action("call zelda"))
+        assertNull(coordinator.action("text zelda on my way"))
+
+        contactSearch(on = true)
+        assertEquals("Call Zelda Auditson +14155550600", coordinator.action("call zelda"))
+        assertEquals("Message Zelda Auditson: on my way", coordinator.action("text zelda on my way"))
+    }
+
+    @Test
+    fun aNamesakeRankedBelowOtherMatchesStillMakesTheNameAmbiguous() {
+        // Nine "Sam …" contacts kept only for their email ranked above both callable Sams, and only the top ten were
+        // checked: Sam Lee fell out and "call sam" called Sam Wu.
+        contactSearch(on = true)
+        for (emailOnlyCount in listOf(9, 10, 30)) {
+            val emailOnly = (1..emailOnlyCount).map { ContactItem("Sam E$it", "", "content://c/e$it", email = "sam$it@example.com") }
+            val coordinator = coordinator().apply {
+                replaceContacts(emailOnly + listOf(
+                    ContactItem("Sam Lee", "+14155550301", "content://c/301"), ContactItem("Sam Wu", "+14155550302", "content://c/302")
+                ))
+            }
+            assertNull("$emailOnlyCount email-only Sams: two callable Sams", coordinator.action("call sam"))
+            assertNull(coordinator.action("text sam see you soon"))
+            assertEquals("Call Sam Wu +14155550302", coordinator.action("call sam wu"))
+            assertEquals("Call Sam Lee +14155550301", coordinator.action("call sam l"))
+        }
+    }
+
+    @Test
+    fun theRowNamesTheContactItCalls() {
+        contactSearch(on = true)
+        val coordinator = coordinator().apply {
+            replaceContacts(listOf(
+                ContactItem("Dad", "+14155550214", "content://c/214"), ContactItem("Dad Work", "+14155550215", "content://c/215"),
+                ContactItem("Sarah Connor", "+14155550230", "content://c/230"), ContactItem("Sarah Lee", "+14155550231", "content://c/231"),
+                ContactItem("Björn Berg", "+46700000001", "content://c/b1"), ContactItem("Bjørn", "+47900000001", "content://c/b2")
+            ))
+        }
+        assertEquals("Call Dad +14155550214", coordinator.action("call dad"))
+        assertEquals("Call Dad Work +14155550215", coordinator.action("call dad work"))
+        assertEquals("Call Sarah Connor +14155550230", coordinator.action("call sarah c"))
+        assertEquals("Call Sarah Lee +14155550231", coordinator.action("call lee"))
+        assertEquals("Call Bjørn +47900000001", coordinator.action("call bjorn"))
+        assertNull(coordinator.action("call sarah"))
+        assertNull(coordinator.action("text sarah hi"))
+        // The search itself still lists both, cut to its count as before.
+        assertEquals(2, coordinator.searchContacts("sarah").size)
+    }
+
+    @Test
+    fun aCallToOneOfManyMatchesStillFindsTheWholeName() {
+        // Twelve "Mom …" contacts above the old cut of ten: the one named just "Mom" is still the one meant.
+        contactSearch(on = true)
+        val coordinator = coordinator().apply {
+            replaceContacts((1..12).map { ContactItem("Mom E$it", "+1415555${1000 + it}", "content://c/m$it", starred = true) } +
+                ContactItem("Mom", "+14155550400", "content://c/400"))
+        }
+        assertEquals("Call Mom +14155550400", coordinator.action("call mom"))
     }
 
     @Test

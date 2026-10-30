@@ -86,4 +86,12 @@ class DurationsTest {
         assertEquals("Fri, 13 Nov, 14:00", Durations.dayAndTime(at(11, 13, 14), now, is24Hour = true, Locale.UK, zone))
         assertEquals("Fri, 13 Nov, 2:00 pm", Durations.dayAndTime(at(11, 13, 14), now, is24Hour = false, Locale.UK, zone))
     }
+
+    @Test
+    fun aClockTheLanguageDoesntUseByDefaultIsWrittenItsWay() {
+        // Japanese puts the period first; the English order wrote "11:30 午後".
+        assertEquals("午後11:30", Durations.timeOfDay(23, 30, is24Hour = false, Locale.JAPAN))
+        assertEquals("午前7:05", Durations.timeOfDay(7, 5, is24Hour = false, Locale.JAPAN))
+        assertEquals("11:30 PM", Durations.timeOfDay(23, 30, is24Hour = false, Locale.GERMANY))
+    }
 }

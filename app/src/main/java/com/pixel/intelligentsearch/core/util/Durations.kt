@@ -113,11 +113,19 @@ object Durations {
     private fun formatter(is24Hour: Boolean, locale: Locale): DateTimeFormatter {
         val localized = DateTimeFormatterBuilder.getLocalizedDateTimePattern(null, FormatStyle.SHORT, IsoChronology.INSTANCE, locale)
         val usesTwelveHours = localized.contains('h') || localized.contains('K')
-        val pattern = when {
-            is24Hour && usesTwelveHours -> "HH:mm"
-            !is24Hour && !usesTwelveHours -> "h:mm a"
-            else -> localized
-        }
-        return DateTimeFormatter.ofPattern(pattern, locale)
+        if (is24Hour != usesTwelveHours) return DateTimeFormatter.ofPattern(localized, locale)
+        return otherClockFormatter(is24Hour, locale)
+            ?: DateTimeFormatter.ofPattern(if (is24Hour) "HH:mm" else "h:mm a", locale)
+    }
+
+    /**
+     * The time on the clock [locale] doesn't use by default, as its region writes it: Japanese 12-hour time puts the
+     * period first ("午後11:30"), where a fixed "h:mm a" wrote "11:30 午後". Android's narrow space before the period
+     * becomes a plain one, as on every other time the app writes. Null where Android has no pattern (plain JVM tests) or
+     * java.time can't read it.
+     */
+    private fun otherClockFormatter(is24Hour: Boolean, locale: Locale): DateTimeFormatter? {
+        val pattern: String? = android.text.format.DateFormat.getBestDateTimePattern(locale, if (is24Hour) "Hm" else "hm")
+        return pattern?.let { runCatching { DateTimeFormatter.ofPattern(it.replace(' ', ' '), locale) }.getOrNull() }
     }
 }

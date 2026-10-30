@@ -389,6 +389,40 @@ class NotificationIndexTest {
     }
 
     @Test
+    fun promoCodesPinsOnAMapAndAddressesAreNotSignInCodes() {
+        // These were hidden from search as if they were sign-in codes.
+        for (text in listOf(
+            "Use code FALL2026 at checkout for 20% off",
+            "Use code SUMMER2026 for free shipping",
+            "Dropped pin near 2045 Oak Ave",
+            "Dropped pin https://maps.google.com/?q=37.4219,-122.0840",
+            "Pin 1234 Main St to your map",
+            "Error code 50058 when signing in? Try again",
+            "Please verify your address: 1600 Amphitheatre Pkwy",
+            "Course code CS1010 starts Monday",
+            "Your tax code 1257L has changed",
+            "Meeting at 1400 in room 2300, bring the verification forms"
+        )) {
+            assertFalse(text, NotificationExtractor.looksLikeOneTimeCode(text))
+        }
+        // A code of digits alone beside a shop's words, or named outright, is still one.
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Use code 482913 to complete checkout"))
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your verification code for checkout is 482913"))
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your PIN is 4821. Do not share it"))
+    }
+
+    @Test
+    fun aParcelLockerOrDeliveryPinCodeIsAnAccessCode() {
+        // These were taken for India's postal PIN code because "parcel" or "delivery" was near.
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your PIN code for the parcel locker is 1234"))
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Share this PIN code 4821 with the delivery agent"))
+        // As before: the Packstation PIN and a postal PIN code.
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("DHL: Your Packstation PIN is 4821"))
+        assertFalse(NotificationExtractor.looksLikeOneTimeCode("Your PIN code 560001 is not serviceable for delivery"))
+        assertFalse(NotificationExtractor.looksLikeOneTimeCode("Deliver to PIN code 560 001, Bengaluru"))
+    }
+
+    @Test
     fun androidSeventeensClockTimerIsATimer() {
         // As Android 17's Clock posts a running 10-minute timer: MetricStyle, no title and no chronometer; its time
         // counts down to zeroElapsedRealtime, in time since boot (captured from a Pixel with dumpsys notification).

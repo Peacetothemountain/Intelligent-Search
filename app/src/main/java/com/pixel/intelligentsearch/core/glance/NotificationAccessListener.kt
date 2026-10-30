@@ -246,8 +246,35 @@ internal class NotificationExtractor(
          */
         private const val DIGITS = "(?:G-\\p{Nd}{5,8}|\\p{Nd}{3}[ -]\\p{Nd}{3}|\\p{Nd}{4}[ -]\\p{Nd}{4}|" +
             "\\p{Nd}{2} \\p{Nd}{2} \\p{Nd}{2}|\\p{Nd}(?: \\p{Nd}){3,7}|\\p{Nd}{4,8})"
-        /** A code not part of a longer number; a word may run into it ("OTP-482913"), a number can't ("555-1234"). */
-        private val CODE = Regex("(?<!\\p{N})(?<!\\p{N}-)$DIGITS(?!\\p{N})")
+        /**
+         * A code not part of a longer number; a word may run into it ("OTP-482913"), a number can't ("555-1234"), nor a
+         * decimal point (the "37.4219,-122.0840" of a dropped pin).
+         */
+        private val CODE = Regex("(?<!\\p{N})(?<!\\p{N}-)(?<!\\p{N}[.,])$DIGITS(?!\\p{N})(?![.,]\\p{N})")
+        /**
+         * Where a number is a street address's ("2045 Oak Ave", "1600 Amphitheatre Pkwy"), a room, a gate or a time
+         * ("at 1400"), not a code: the words around it say so.
+         */
+        private val ADDRESS_AFTER = Regex(
+            "^\\s+(?:\\p{Lu}\\p{L}*\\.?\\s+){1,3}(?:St|Street|Ave|Avenue|Rd|Road|Blvd|Boulevard|Dr|Drive|Ln|Lane|Way|" +
+                "Pkwy|Parkway|Ct|Court|Pl|Place|Hwy|Highway|Sq|Square|Ter|Terrace|Cres|Crescent)(?!\\p{L})"
+        )
+        private val PLACE_BEFORE = Regex(
+            "(?<!\\p{L})(?:room|rm|suite|ste|gate|unit|apt|flat|floor|platform|flight|at)\\.?\\s*#?\\s*$",
+            RegexOption.IGNORE_CASE
+        )
+        /**
+         * Words of a shop's offer ("Use code FALL2026 at checkout for 20% off"): there a plain "code" is a promo code.
+         * A word that names a sign-in code outright (OTP, verification) still counts.
+         */
+        private val SHOPPING_WORD = Regex(
+            "(?<!\\p{L})(?:checkout|check out|discount|promo|coupon|voucher|sale|free shipping|\\d+\\s?% off|off your|" +
+                "off orders?|save \\d+)(?!\\p{L})",
+            RegexOption.IGNORE_CASE
+        )
+        private val PLAIN_CODE_WORD = Regex("codes?", RegexOption.IGNORE_CASE)
+        /** "Dropped pin": a place on a map, not a PIN. */
+        private val DROPPED_PIN = Regex("(?<!\\p{L})dropped\\s+pin(?!\\p{L})", RegexOption.IGNORE_CASE)
         private val GOOGLE_CODE = Regex("(?<![\\p{L}\\p{N}])G-\\p{Nd}{5,8}(?![\\p{N}])")
         /** "Enter 482913 to sign in": a code that names no code word but says what it's for. */
         private val SIGN_IN_PROMPT = Regex(
@@ -274,17 +301,22 @@ internal class NotificationExtractor(
             RegexOption.IGNORE_CASE
         )
         /**
-         * Codes that aren't a sign-in code, joined or not: "barcode", "zip code", "dress code", "source code", and
-         * India's postal "pincode".
+         * Codes that aren't a sign-in code, joined or not: "barcode", "zip code", "dress code", "source code", "error
+         * code", "tax code", and India's postal "pincode".
          */
         private val NOT_SIGN_IN_CODE = Regex(
-            "(?<![\\p{L}\\p{N}])(?:(?:bar|post(?:al)?|zip|promo|qr|area|dress|country|source|discount|coupon|voucher|gift|pin)[ -]?" +
-                "|uni|en|de)codes?(?![\\p{L}\\p{N}])",
+            "(?<![\\p{L}\\p{N}])(?:(?:bar|post(?:al)?|zip|promo|qr|area|dress|country|source|discount|coupon|voucher|gift|pin|" +
+                "error|status|course|tax|product|tracking)[ -]?|uni|en|de)codes?(?![\\p{L}\\p{N}])",
             RegexOption.IGNORE_CASE
         )
-        /** "PIN code" is a card's PIN too, so it's a postal code only beside a word about a delivery or address. */
+        /**
+         * "PIN code" is a card's or a parcel locker's PIN too, so it's India's postal code only as one: six digits
+         * ([POSTAL_PIN]) beside a word about a delivery or address, and nothing asking to share it or open a locker.
+         */
         private val PIN_CODE = Regex("(?<![\\p{L}\\p{N}])pin[ -]codes?(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
         private val DELIVERY_WORD = Regex("(?<!\\p{L})(?:deliver\\p{L}*|address\\p{L}*|courier|shipping|parcel|postal)(?!\\p{L})", RegexOption.IGNORE_CASE)
+        private val POSTAL_PIN = Regex("(?<!\\p{N})[1-9]\\p{Nd}{2} ?\\p{Nd}{3}(?!\\p{N})")
+        private val ACCESS_WORD = Regex("(?<!\\p{L})(?:share|locker|agent|pick ?up|collect\\p{L}*|unlock|open)(?!\\p{L})", RegexOption.IGNORE_CASE)
         /** How far apart a code and its word may be and still be one sign-in code. */
         private const val CODE_WORD_REACH = 40
         /** How far after its word a letters-and-digits code may start: "code: K7P-2Q9", "code is A1B2C3". */
@@ -294,24 +326,39 @@ internal class NotificationExtractor(
          * Whether [text] holds a one-time sign-in code: a code ("482913", "482 913", "G-482913") within
          * [CODE_WORD_REACH] characters of a word saying so ([CODE_WORD]: code, OTP, verification, código, код, 验证码...),
          * a letters-and-digits code right after one ("code: K7P-2Q9"), or "Enter 482913 to sign in". Kept narrow so
-         * "Your order 123456 has shipped", "Your zip code 94103" and a delivery's "pincode 560001" are still found.
+         * "Your order 123456 has shipped", "Your zip code 94103" and a delivery's "pincode 560001" are still found, as
+         * are a shop's "Use code FALL2026 at checkout", a "Dropped pin" and an address ("verify 1600 Amphitheatre Pkwy").
          */
         internal fun looksLikeOneTimeCode(text: String): Boolean {
             if (text.isEmpty()) return false
             if (GOOGLE_CODE.containsMatchIn(text) || SIGN_IN_PROMPT.containsMatchIn(text)) return true
-            val postal = DELIVERY_WORD.containsMatchIn(text)
+            val postal = DELIVERY_WORD.containsMatchIn(text) && POSTAL_PIN.containsMatchIn(text) && !ACCESS_WORD.containsMatchIn(text)
+            // Beside a shop's offer a plain "code" is a promo code ("FALL2026"); a code of digits alone is still one.
+            val shopping = SHOPPING_WORD.containsMatchIn(text)
             val notSignIn = NOT_SIGN_IN_CODE.findAll(text).map { it.range }
                 .filter { range -> postal || !PIN_CODE.matches(text.substring(range)) }.toList()
-            val words = CODE_WORD.findAll(text).map { it.range }.filterNot { word -> notSignIn.any { word.first in it } }.toList()
+            val droppedPins = DROPPED_PIN.findAll(text).map { it.range }.toList()
+            val words = CODE_WORD.findAll(text).filterNot { word ->
+                notSignIn.any { word.range.first in it } || droppedPins.any { word.range.first in it }
+            }.toList()
             if (words.isEmpty()) return false
-            val digits = CODE.findAll(text).any { code ->
-                words.any { word ->
+            fun isPromoWord(word: MatchResult) = shopping && PLAIN_CODE_WORD.matches(word.value)
+            val digits = CODE.findAll(text).filterNot { code ->
+                ADDRESS_AFTER.containsMatchIn(text.substring(code.range.last + 1)) ||
+                    PLACE_BEFORE.containsMatchIn(text.substring(0, code.range.first))
+            }.any { code ->
+                val runIntoWord = code.range.first > 0 && text[code.range.first - 1].isLetter()
+                words.any { match ->
+                    val word = match.range
                     val gap = if (word.first > code.range.last) word.first - code.range.last else code.range.first - word.last
-                    gap <= CODE_WORD_REACH
+                    gap <= CODE_WORD_REACH && !(runIntoWord && isPromoWord(match))
                 }
             }
             return digits || LETTERS_CODE.findAll(text).any { code ->
-                words.any { word -> word.last < code.range.first && code.range.first - word.last <= LABEL_REACH }
+                words.any { match ->
+                    val word = match.range
+                    !isPromoWord(match) && word.last < code.range.first && code.range.first - word.last <= LABEL_REACH
+                }
             }
         }
 

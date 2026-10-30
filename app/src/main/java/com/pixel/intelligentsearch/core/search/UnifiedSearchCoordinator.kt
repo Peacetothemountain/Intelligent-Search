@@ -741,9 +741,13 @@ class UnifiedSearchCoordinator @Inject constructor(
         val randomAnswer = if (mathResult == null && dateAnswer == null && timeAnswer == null) randomAnswer(query) else null
 
         // 3. Natural Language Intent Parser
-        // "Call X" / "Message X" only resolve names from contacts when contact search is turned on.
+        // "Call X" / "Message X" only resolve names from contacts when contact search is turned on. A contact the words
+        // name outright comes first: "tom" is Tom Baker before Tommy, and a message goes only to such a one.
         val contactLookup: ((String) -> ContactItem?)? = if (cachedContactSearchEnabled) {
-            { target -> searchContacts(target, limit = 5).firstOrNull { it.phoneNumber.isNotBlank() } }
+            { target ->
+                val found = searchContacts(target, limit = 5).filter { it.phoneNumber.isNotBlank() }
+                found.firstOrNull { NaturalLanguageIntentParser.namesContact(target, it.name) } ?: found.firstOrNull()
+            }
         } else null
         val parsedIntent = NaturalLanguageIntentParser.parse(query, contactLookup = contactLookup)
         // Only what the full phrasings, the calculator, the converters, date maths and the clock and chance answers

@@ -264,7 +264,8 @@ class NaturalLanguageIntentParserTest {
         val meeting = NaturalLanguageIntentParser.parse("meeting with Sam at 6.30pm", currentTimeMs = at(10)) as NaturalLanguageIntentParser.ParsedIntent.CalendarEvent
         assertEquals(18, hourOf(meeting.startMillis))
         assertEquals(30, minuteOf(meeting.startMillis))
-        assertEquals("with Sam", meeting.title)
+        // The title names the meeting, not just who it's with.
+        assertEquals("Meeting with Sam", meeting.title)
     }
 
     @Test
@@ -465,6 +466,117 @@ class NaturalLanguageIntentParserTest {
         // The row said "Message jean (SMS)", as typed, where "call jean" says "Jean Valjean".
         assertEquals("Jean Valjean", message("text jean: running late").recipientName)
         assertEquals("Jean Valjean", message("text jean running late").recipientName)
+    }
+
+    private val tom = com.pixel.intelligentsearch.core.data.ContactItem("Tom Baker", "+1 415 555 0110", "")
+    private val arthur = com.pixel.intelligentsearch.core.data.ContactItem("Arthur Dent", "+1 415 555 0111", "")
+    private val megan = com.pixel.intelligentsearch.core.data.ContactItem("Megan Lee", "+1 415 555 0112", "")
+    private val ingrid = com.pixel.intelligentsearch.core.data.ContactItem("Ingrid Olsen", "+1 415 555 0113", "")
+    private val ford = com.pixel.intelligentsearch.core.data.ContactItem("Ford Prefect", "+1 415 555 0114", "")
+    private val webster = com.pixel.intelligentsearch.core.data.ContactItem("Webster Hall", "+1 415 555 0115", "")
+
+    /** As the app's contacts search answers: the first contact any of whose names starts with the words. */
+    private val prefixContacts: (String) -> com.pixel.intelligentsearch.core.data.ContactItem? = { typed ->
+        listOf(tom, arthur, megan, ingrid, ford, webster).firstOrNull { contact ->
+            contact.name.lowercase().split(' ').any { it.startsWith(typed.lowercase()) } ||
+                contact.name.lowercase().startsWith(typed.lowercase())
+        }
+    }
+
+    @Test
+    fun aSearchStartingWithTextIsNoMessageToAContactWhoseNameItStarts() {
+        // Each was "Message Tom Baker", "Message Ingrid Olsen" and so on: the contacts search finds "to" in Tom.
+        for (query in listOf(
+            "text to speech", "text to speech app", "text to binary", "message to my boyfriend", "message in a bottle",
+            "text art generator", "text me when you get home", "message for boss leaving", "whatsapp web login"
+        )) {
+            assertNull(query, NaturalLanguageIntentParser.parse(query, contactLookup = prefixContacts))
+        }
+        // A contact named outright is still messaged, by first name or full name.
+        val tomMessage = NaturalLanguageIntentParser.parse("text tom running late", contactLookup = prefixContacts)
+            as NaturalLanguageIntentParser.ParsedIntent.DirectMessage
+        assertEquals("Tom Baker", tomMessage.recipientName)
+        assertEquals("running late", tomMessage.body)
+        assertEquals(
+            "Arthur Dent",
+            (NaturalLanguageIntentParser.parse("text arthur dent: hi", contactLookup = prefixContacts)
+                as NaturalLanguageIntentParser.ParsedIntent.DirectMessage).recipientName
+        )
+    }
+
+    @Test
+    fun aSeparatedNameThatStartsAsASearchIsNoMessage() {
+        // These became messages to "saying sorry", "editor" and "board".
+        for (query in listOf("message saying sorry to girlfriend", "text editor, free", "message board, reddit")) {
+            assertNull(query, NaturalLanguageIntentParser.parse(query))
+            assertNull(query, NaturalLanguageIntentParser.parse(query, contactLookup = prefixContacts))
+        }
+    }
+
+    @Test
+    fun aNameIsAContactsOnlyWhenEveryWordIsOneOfTheirNames() {
+        assertTrue(NaturalLanguageIntentParser.namesContact("tom", "Tom Baker"))
+        assertTrue(NaturalLanguageIntentParser.namesContact("Tom Baker", "Tom Baker"))
+        assertTrue(NaturalLanguageIntentParser.namesContact("jose", "José"))
+        assertFalse(NaturalLanguageIntentParser.namesContact("to", "Tom Baker"))
+        assertFalse(NaturalLanguageIntentParser.namesContact("tom smith", "Tom Baker"))
+    }
+
+    @Test
+    fun anAlarmOrReminderAddsUpEveryPartOfItsDuration() {
+        // These kept only the first part: 11:00, 12:00, 11:00 and 10:30 (only "30m").
+        fun alarmAt(query: String) = alarm(query, now = at(10)).let { it.hour to it.minute }
+        assertEquals(11 to 30, alarmAt("alarm in 1 hour 30 minutes"))
+        assertEquals(12 to 15, alarmAt("alarm in 2 hours 15 minutes"))
+        assertEquals(11 to 30, alarmAt("set alarm for 1 hour and 30 minutes"))
+        assertEquals(11 to 30, alarmAt("alarm in 1h30m"))
+        // The reminder's task kept the rest: "call 30 minutes" at 11:00, "call and 15 minutes" at 12:00.
+        val call = reminder("remind me to call in 1 hour 30 minutes", now = at(10))
+        assertEquals("call", call.task)
+        assertEquals(11 to 30, hourOf(call.triggerMillis) to minuteOf(call.triggerMillis))
+        val later = reminder("remind me to call in 2 hours and 15 minutes", now = at(10))
+        assertEquals("call", later.task)
+        assertEquals(12 to 15, hourOf(later.triggerMillis) to minuteOf(later.triggerMillis))
+        // Days and hours together are exact time, not whole days.
+        val dayAndHour = reminder("remind me to run in 1 day 2 hours", now = at(10))
+        assertEquals(11, dayOf(dayAndHour.triggerMillis))
+        assertEquals(12, hourOf(dayAndHour.triggerMillis))
+    }
+
+    @Test
+    fun commonAlarmPhrasingsSetAnAlarm() {
+        // Each gave nothing.
+        fun alarmAt(query: String) = alarm(query, now = at(10)).let { it.hour to it.minute }
+        assertEquals(7 to 0, alarmAt("set an alarm for 7am"))
+        assertEquals(18 to 30, alarmAt("set an alarm for 6:30 pm"))
+        assertEquals(10 to 10, alarmAt("set an alarm in 10 minutes"))
+        assertEquals(7 to 0, alarmAt("wake me at 7"))
+        assertEquals(10 to 30, alarmAt("alarm in half an hour"))
+        assertEquals(10 to 30, alarmAt("wake me in half an hour"))
+        assertEquals(11 to 30, alarmAt("alarm in an hour and a half"))
+        // A time said as "10 to 7" is no 10 o'clock alarm.
+        assertNull(NaturalLanguageIntentParser.parse("alarm 10 to 7", currentTimeMs = at(10)))
+        assertNull(NaturalLanguageIntentParser.parse("set alarm quarter past 6", currentTimeMs = at(10)))
+    }
+
+    @Test
+    fun titlesLoseTheirLeadingToAndStrayCommas() {
+        // These kept "to call mom", "to buy milk" and a title of ",".
+        assertEquals("call mom", reminder("remind me on friday to call mom at 3").task)
+        assertEquals("call mom", reminder("remind me in 10 minutes to call mom").task)
+        assertEquals("buy milk", reminder("remind me tomorrow to buy milk").task)
+        assertEquals("Meeting", event("meeting on friday, dec 4 at 3pm").title)
+        assertEquals("Meeting with john", event("meeting with john tomorrow at 3pm").title)
+        // "schedule" names no meeting, so its title is as typed.
+        assertEquals("lunch with Sam", event("schedule lunch with Sam tomorrow at 1pm").title)
+    }
+
+    @Test
+    fun aTimerWithWordsBeforeItsLastNumberIsNoTimer() {
+        // "45 minutes then 10" was 45 min 10 s.
+        assertNull(NaturalLanguageIntentParser.parse("timer 45 minutes then 10"))
+        assertEquals(9_000, timerSeconds("timer 2 hours 30"))
+        assertEquals(5_400, timerSeconds("timer 1h30"))
     }
 
     @Test

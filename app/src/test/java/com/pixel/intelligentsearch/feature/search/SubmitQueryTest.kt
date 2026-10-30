@@ -134,6 +134,18 @@ class SubmitQueryTest {
     }
 
     @Test
+    fun enterOnATimerWithNoClockAppSaysSo() {
+        // Only installed apps open: there is no clock. Enter used to leave the overlay as it was, with no word why.
+        shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).checkActivities(true)
+        showOverlay()
+        viewModel.onQueryChanged("set a timer for 10 minutes")
+        compose.settle()
+        compose.onNode(hasSetTextAction()).performImeAction()
+        compose.settle()
+        assertEquals("Install a clock app to set timers.", org.robolectric.shadows.ShadowToast.getTextOfLatestToast())
+    }
+
+    @Test
     fun aBareClockTimeOffersAnAlarmButEnterStillSearches() {
         showOverlay()
         viewModel.onQueryChanged("7:30")

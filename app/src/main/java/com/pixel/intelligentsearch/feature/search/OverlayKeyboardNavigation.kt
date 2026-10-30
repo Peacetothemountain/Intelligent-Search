@@ -391,7 +391,7 @@ internal fun runDirectAction(context: Context, viewModel: SearchViewModel, actio
     when (action.iconType) {
         "private_space" -> context.findActivity()?.let { viewModel.unlockPrivateSpace(it) }
         ClipboardLens.ICON_TYPE -> ClipboardLens.searchClipboardImage(context)
-        else -> launchDirectActionIntent(context, action)
+        else -> openDirectAction(context, action)
     }
 }
 
@@ -399,6 +399,28 @@ internal fun runDirectAction(context: Context, viewModel: SearchViewModel, actio
 internal fun launchDirectActionIntent(context: Context, action: DirectAction): Boolean {
     val intent = action.intent ?: return false
     return launchSafeIntent(context, intent) || action.fallbackIntent?.let { launchSafeIntent(context, it) } == true
+}
+
+/**
+ * Opens [action] as [launchDirectActionIntent] does, from its row or from Enter. When no app on the phone can do it
+ * (no clock for a timer, no calendar for a reminder), a toast says what is missing instead of the tap doing nothing.
+ */
+internal fun openDirectAction(context: Context, action: DirectAction): Boolean {
+    val opened = launchDirectActionIntent(context, action)
+    if (!opened) android.widget.Toast.makeText(context, directActionMissingAppMessage(action), android.widget.Toast.LENGTH_SHORT).show()
+    return opened
+}
+
+/** What a toast says when nothing could open [action]: the kind of app that would. */
+internal fun directActionMissingAppMessage(action: DirectAction): String = when (action.iconType) {
+    "timer" -> "Install a clock app to set timers."
+    "alarm" -> "Install a clock app to set alarms."
+    "calendar" -> "Install a calendar app to add events and reminders."
+    "phone" -> "Install a phone app to make calls."
+    "message" -> "Install a messaging app to send texts."
+    "navigation" -> "Install a maps app to get directions."
+    "media" -> "Install a music app to play this."
+    else -> "No app on this phone can open this."
 }
 
 /** Opens [target] as tapping its row (or its card's main button) would. */

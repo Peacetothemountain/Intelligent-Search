@@ -12,7 +12,10 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
-    
+    <!-- Set Timer and Set Alarm: the Clock app only takes a timer or an alarm to confirm from apps that declare this.
+         Granted at install; the Clock still opens for the user to confirm each one. -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+
     <!-- System Toggles & Hardware Permissions -->
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />

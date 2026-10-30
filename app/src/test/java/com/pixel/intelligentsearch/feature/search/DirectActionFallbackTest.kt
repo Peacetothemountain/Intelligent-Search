@@ -8,6 +8,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser
 import com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -15,6 +16,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowToast
 
 /**
  * Directions and WhatsApp messages name the app they open. Without Google Maps or WhatsApp the tap did nothing; it
@@ -81,5 +83,34 @@ class DirectActionFallbackTest {
     fun aPlainTextHasNoFallback() {
         val message = NaturalLanguageIntentParser.parse("text Dave saying hi") as ParsedIntent.DirectMessage
         assertNull(message.fallbackIntent)
+    }
+
+    @Test
+    fun theClockTakesTimersAndAlarmsFromTheApp() {
+        // Without this permission the Clock refused every Set Timer and Set Alarm ("Permission Denial"), silently.
+        val declared = context.packageManager
+            .getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_PERMISSIONS).requestedPermissions.orEmpty()
+        assertTrue(declared.contains("com.android.alarm.permission.SET_ALARM"))
+    }
+
+    @Test
+    fun anActionNoAppCanDoSaysWhichAppIsMissing() {
+        // No clock app: the tap used to do nothing at all.
+        val timer = DirectAction("Set Timer", "Timer 5 min", "timer", NaturalLanguageIntentParser.timerIntent(300))
+        assertFalse(openDirectAction(context, timer))
+        assertEquals("Install a clock app to set timers.", ShadowToast.getTextOfLatestToast())
+
+        val reminder = NaturalLanguageIntentParser.parse("remind me to stretch in 1 hour") as ParsedIntent.Reminder
+        assertFalse(openDirectAction(context, DirectAction("Set Reminder", reminder.task, "calendar", reminder.intent)))
+        assertEquals("Install a calendar app to add events and reminders.", ShadowToast.getTextOfLatestToast())
+    }
+
+    @Test
+    fun anActionThatOpensShowsNoToast() {
+        val timerIntent = NaturalLanguageIntentParser.timerIntent(300)
+        installHandlerFor(timerIntent)
+        assertTrue(openDirectAction(context, DirectAction("Set Timer", "Timer 5 min", "timer", timerIntent)))
+        assertEquals(0, ShadowToast.shownToastCount())
+        assertEquals(android.provider.AlarmClock.ACTION_SET_TIMER, shadowOf(context).nextStartedActivity.action)
     }
 }

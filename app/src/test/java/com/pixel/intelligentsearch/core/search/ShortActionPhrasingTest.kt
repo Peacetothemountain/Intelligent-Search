@@ -242,6 +242,56 @@ class ShortActionPhrasingTest {
         }
     }
 
+    private fun on(month: Int, day: Int, hour: Int, minute: Int = 0): Long =
+        Calendar.getInstance(utc).apply { clear(); set(2026, month, day, hour, minute, 0) }.timeInMillis
+
+    @Test
+    fun aDateInsideTheTaskIsReadAsTheFullPhrasingReadsIt() {
+        // Each was set for today or tomorrow with the date words left in the task ("gym tomorrow morning at 7" was
+        // today at 7 PM).
+        val cases = mapOf(
+            "gym tomorrow morning at 7" to (at(23, 7) to "Remind: Gym tomorrow at 7:00 AM"),
+            "call mom tomorrow evening at 7" to (at(23, 19) to "Remind: Call mom tomorrow at 7:00 PM"),
+            "dentist on the 3rd at 2pm" to (on(Calendar.NOVEMBER, 3, 14) to "Remind: Dentist on Nov 3 at 2:00 PM"),
+            "dinner next week at 7" to (at(29, 19) to "Remind: Dinner on Oct 29 at 7:00 PM"),
+            "dentist next friday at 2pm" to (at(30, 14) to "Remind: Dentist on Oct 30 at 2:00 PM"),
+            "call mom on thanksgiving at 5" to (on(Calendar.NOVEMBER, 26, 17) to "Remind: Call mom on Nov 26 at 5:00 PM"),
+            "haircut on nov 12 at 10am" to (on(Calendar.NOVEMBER, 12, 10) to "Remind: Haircut on Nov 12 at 10:00 AM")
+        )
+        for ((query, expected) in cases) {
+            val reminder = parse(query)
+            assertEquals(query, expected.first, reminder?.triggerMillis)
+            assertEquals(query, expected.second, reminder?.title)
+        }
+        // Days it can't read, or a holiday the task may only be for, are no reminder rather than one for today.
+        for (query in listOf("call mom on mother's day at 5", "buy candy for halloween at 6pm", "call mom on the 3rd tomorrow at 5")) {
+            assertNull(query, parse(query))
+        }
+    }
+
+    @Test
+    fun aMealOrTonightSaysWhichHalfOfTheDayABareHourIs() {
+        fun at5am(query: String) = ShortActionPhrasing.parse(query, at(22, 5), false, utc, Locale.US)
+        // At 5 AM "dinner at 7" was 7 AM.
+        assertEquals(at(22, 19), at5am("dinner at 7")?.triggerMillis)
+        assertEquals(at(22, 12, 30), at5am("lunch with sarah at 12:30")?.triggerMillis)
+        assertEquals(at(22, 8), at5am("breakfast with sam at 8")?.triggerMillis)
+        // "Tonight at 12" was noon; "tonight" said once its time has gone was set in the past.
+        assertEquals(at(23, 0), parse("gym tonight at 12")?.triggerMillis)
+        assertEquals(at(23, 1), parse("gym tonight at 1")?.triggerMillis)
+        assertNull(ShortActionPhrasing.parse("gym tonight at 8", at(22, 21), false, utc, Locale.US))
+    }
+
+    @Test
+    fun commonAppointmentsAreTasks() {
+        // Each was no suggestion.
+        for (query in listOf("doctor's appointment at 3pm", "dr appointment at 3pm", "team meeting at 2pm", "swim class at 5pm")) {
+            assertEquals(query, Kind.REMINDER, parse(query)?.kind)
+        }
+        // A word like "team" starts a task only with one after it.
+        assertNull(parse("team liquid at 2pm"))
+    }
+
     // ---------------------------------------------------------------------------------------------
     // In the search: the full phrasings, the calculator, converters and date maths come first
     // ---------------------------------------------------------------------------------------------

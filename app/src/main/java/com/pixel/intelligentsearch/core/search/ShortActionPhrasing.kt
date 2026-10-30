@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.search
 
+import com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.NamedDay
 import com.pixel.intelligentsearch.core.util.Durations
 import android.content.Intent
 import java.util.Calendar
@@ -67,6 +68,8 @@ object ShortActionPhrasing {
     )
     private val TIMED_REMINDER = Regex("^(.+?)\\s+(?:($DAY_WORD)\\s+)?(at\\s+)?(?:$TIME)$", RegexOption.IGNORE_CASE)
     private val DAY_FIRST_REMINDER = Regex("^($DAY_WORD)\\s+(at\\s+)?(?:$TIME)\\s+(.+)$", RegexOption.IGNORE_CASE)
+    /** "tmrw" and "tmr", as quick notes write tomorrow. */
+    private val SHORT_TOMORROW = Regex("\\btmrw?\\b", RegexOption.IGNORE_CASE)
     private val WHITESPACE = Regex("\\s+")
 
     /** First words of searches that name a time without being a task ("weather at 5pm", "what time is it at 6"). */
@@ -109,7 +112,17 @@ object ShortActionPhrasing {
         "meeting", "appointment", "event", "dentist", "doctor", "vet", "haircut", "interview", "standup", "stand-up",
         "meds", "medicine", "pills", "laundry", "gym", "workout", "yoga", "class", "lecture", "rehearsal", "dinner",
         "lunch", "breakfast", "brunch", "coffee", "date", "chores", "homework", "trash", "bins", "garbage", "recycling",
-        "groceries", "shopping", "school", "work"
+        "groceries", "shopping", "school", "work", "doctor's", "doctors", "dr", "dr.", "appt", "checkup", "check-up",
+        "therapy", "physio", "massage", "lesson", "lessons"
+    )
+
+    /**
+     * Words that start a plan of one's own only with one of [TASK_CUES] after them: "team meeting", "zoom call", "swim
+     * class", "piano lesson". On their own ("team liquid at 2pm") they start a search as often.
+     */
+    private val TASK_QUALIFIERS = setOf(
+        "team", "staff", "client", "family", "zoom", "conference", "piano", "guitar", "swim", "soccer", "football",
+        "basketball", "baseball", "hockey", "tennis", "dance", "parent", "parents", "sales", "board"
     )
 
     /**
@@ -261,29 +274,42 @@ object ShortActionPhrasing {
         }
         // A trailing number is a time only with "at", am/pm or a colon: "iphone 15" and "bus 42" are searches.
         if (time.meridiem == null && !time.explicitAt && !time.hasMinutes) return null
-        val task = cleanTask(taskText) ?: return null
         val now = calendar(nowMs, zone)
-        val day = dayWord.lowercase(Locale.ROOT).removePrefix("on ").trim()
+        // The day is read as the full phrasing reads it, wherever its words are ("gym tomorrow morning at 7", "dentist
+        // on the 3rd at 2pm", "call mom on thanksgiving at 5"). Day words it can't read, or that disagree, are no
+        // reminder; "buy candy for halloween at 6pm" may be today or Halloween, so it is none either.
+        val said = (if (timed != null) "$taskText $dayWord" else "$dayWord $taskText").replace(SHORT_TOMORROW, "tomorrow")
+        val day = NaturalLanguageIntentParser.readDay(said, now, locale) ?: return null
+        if (day.forOccasionOnly) return null
+        val task = cleanTask(day.text.replace(WHITESPACE, " ")) ?: return null
         val at = (now.clone() as Calendar).apply { set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
-        when (day) {
-            "tomorrow", "tmrw", "tmr" -> at.add(Calendar.DAY_OF_YEAR, 1)
-            "", "today", "tonight" -> {}
-            else -> {
-                val target = WEEKDAYS.indexOf(day) + Calendar.SUNDAY
-                var ahead = (target - at.get(Calendar.DAY_OF_WEEK) + 7) % 7
-                if (ahead == 0) ahead = 7
-                at.add(Calendar.DAY_OF_YEAR, ahead)
+        day.date?.let { at.set(it.year, it.monthValue - 1, it.dayOfMonth) }
+        val namedDay = day.namedDay
+        val night = namedDay == NamedDay.TONIGHT || day.period == "night"
+        // A bare hour on a 12-hour clock: "tonight" runs past midnight ("at 12" is midnight, 1 to 5 the small hours
+        // after it), a part of the day or a meal says which half ("dinner at 7" is 7 PM even said at 5 AM).
+        val bare = time.meridiem == null && !is24Hour && time.hour in 1..12
+        val meal = if (bare) NaturalLanguageIntentParser.mealHour(task, time.hour) else null
+        val hour = when {
+            bare && night -> when (time.hour) {
+                12 -> 0
+                in 6..11 -> time.hour + 12
+                else -> time.hour
             }
-        }
-        val hour = if (day == "tonight" && time.meridiem == null && time.hour in 1..11 && !is24Hour) {
-            time.hour + 12
-        } else {
-            resolveHour(time, now, is24Hour, preferEvening = day.isNotEmpty() && day != "today")
+            bare && day.period == "morning" -> time.hour
+            bare && day.period != null -> if (time.hour == 12) 12 else time.hour + 12
+            meal != null -> meal
+            else -> resolveHour(time, now, is24Hour, preferEvening = namedDay != NamedDay.NONE && namedDay != NamedDay.TODAY)
         }
         at.set(Calendar.HOUR_OF_DAY, hour)
         at.set(Calendar.MINUTE, time.minute)
-        // No day named and the time has passed today: the next one, tomorrow.
-        if (day.isEmpty() && at.timeInMillis <= nowMs) at.add(Calendar.DAY_OF_YEAR, 1)
+        if (night && hour < 6) at.add(Calendar.DAY_OF_YEAR, 1)
+        // No day named and the time has passed today: the next one, tomorrow. A day named ("tonight", "this friday")
+        // whose time has passed has no time left to mean: no reminder rather than one already gone.
+        if (namedDay == NamedDay.NONE && (day.period == null || day.periodWithIn) && at.timeInMillis <= nowMs) {
+            at.add(Calendar.DAY_OF_YEAR, 1)
+        }
+        if (at.timeInMillis <= nowMs) return null
         return reminder(task, at, nowMs, is24Hour, zone, locale)
     }
 
@@ -298,8 +324,10 @@ object ShortActionPhrasing {
         if (task.isEmpty() || task.length > 60 || task.none { it.isLetter() }) return null
         val words = task.split(' ')
         if (words.size > 8) return null
-        val first = words.first().lowercase(Locale.ROOT)
-        if (first in NOT_A_TASK || first !in TASK_CUES) return null
+        val first = words.first().lowercase(Locale.ROOT).replace('’', '\'')
+        val second = words.getOrNull(1)?.lowercase(Locale.ROOT)
+        if (first in NOT_A_TASK) return null
+        if (first !in TASK_CUES && !(first in TASK_QUALIFIERS && second in TASK_CUES)) return null
         if (words.any { it.lowercase(Locale.ROOT) in OPENING_HOURS_WORDS }) return null
         // What is left after the time must not itself be a calculation or conversion ("15 min in", "5 + 3").
         if (task.any { it in "+*/=^%" }) return null

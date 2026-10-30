@@ -730,4 +730,132 @@ class NaturalLanguageIntentParserTest {
         assertEquals("Bjørn Larsen", text.recipientName)
         assertEquals("hi", text.body)
     }
+
+    /** What [query] said at [now] reads as, "task @ 2026-10-30 10:00" (event or reminder), or null when neither. */
+    private fun whenOf(query: String, now: Long = thursday(10)): String? =
+        when (val parsed = NaturalLanguageIntentParser.parse(query, now, locale = java.util.Locale.US)) {
+            is NaturalLanguageIntentParser.ParsedIntent.Reminder -> "${parsed.task} @ ${shown(parsed.triggerMillis)}"
+            is NaturalLanguageIntentParser.ParsedIntent.CalendarEvent -> "${parsed.title} @ ${shown(parsed.startMillis)}"
+            else -> null
+        }
+
+    @Test
+    fun aDateThatDescribesTheTaskIsNotItsDay() {
+        // Each was set on the holiday, ordinal or month inside the task, with the day named left in the title.
+        val cases = mapOf(
+            "remind me to shop for christmas presents tomorrow" to "shop for christmas presents @ 2026-10-30 10:00",
+            "remind me to buy candy for halloween tomorrow" to "buy candy for halloween @ 2026-10-30 10:00",
+            "remind me to order the turkey for thanksgiving on monday" to "order the turkey for thanksgiving @ 2026-11-02 10:00",
+            "remind me on friday to buy candy for halloween" to "buy candy for halloween @ 2026-10-30 10:00",
+            "schedule planning for new year tomorrow at 3pm" to "planning for new year @ 2026-10-30 15:00",
+            "meeting on the 3rd floor at 2pm" to "on the 3rd floor @ 2026-10-29 14:00",
+            "remind me to read the 3rd chapter tomorrow" to "read the 3rd chapter @ 2026-10-30 10:00",
+            "remind me to submit the 1st draft by friday" to "submit the 1st draft @ 2026-10-30 10:00",
+            "meeting about the 2nd quarter results tomorrow at 3pm" to "Meeting about the 2nd quarter results @ 2026-10-30 15:00",
+            "remind me to watch the 2nd half at 3pm" to "watch the 2nd half @ 2026-10-29 15:00",
+            "remind me to book tickets for the concert in may tomorrow" to "book tickets for the concert in may @ 2026-10-30 10:00",
+            "remind me to buy a midnight snack at 9pm" to "buy a midnight snack @ 2026-10-29 21:00"
+        )
+        for ((query, expected) in cases) assertEquals(query, expected, whenOf(query))
+        // Said alone they are still the day.
+        assertEquals("call grandma @ 2026-12-25 10:00", whenOf("remind me to call grandma for christmas"))
+        assertEquals("pay rent @ 2026-11-03 10:00", whenOf("remind me to pay rent on the 3rd"))
+        // Two days that disagree, or "for christmas" with a clock time (today at 5, or Christmas at 5?): no reminder.
+        for (query in listOf(
+            "remind me to call mom on the 3rd tomorrow", "remind me to call mom on friday on dec 9",
+            "remind me to book flights for christmas at 5pm", "meeting on the 3rd floor"
+        )) {
+            assertNull(query, whenOf(query))
+        }
+    }
+
+    @Test
+    fun aDayOrTimeTheReminderCantReadIsNoReminderForNow() {
+        // Each was a reminder for now with the words left in its task, or ("black friday") on the coming Friday.
+        for (query in listOf(
+            "remind me to call mom on mother's day", "remind me to call dad on father's day", "remind me to call mom on my birthday",
+            "remind me to take my pills before bed", "remind me to call mom at lunch", "remind me to call the bank after work",
+            "remind me to send the report by eod", "remind me to send the report by end of day", "remind me to call mom later today"
+        )) {
+            assertNull(query, whenOf(query))
+        }
+        assertEquals("shop @ 2026-11-27 10:00", whenOf("remind me to shop on black friday"))
+        assertEquals("call mom @ 2026-12-26 10:00", whenOf("remind me to call mom on boxing day"))
+        assertEquals("pay rent @ 2026-11-01 10:00", whenOf("remind me to pay rent on the first"))
+        assertEquals("pay rent @ 2026-11-15 10:00", whenOf("remind me to pay rent on the fifteenth"))
+        // With a time, the hour is clear.
+        assertEquals("take my pills before bed @ 2026-10-29 22:00", whenOf("remind me to take my pills before bed at 10pm"))
+    }
+
+    @Test
+    fun tonightRunsPastMidnightAndATimeAlreadyGoneIsNoReminder() {
+        // "Tonight at 12" was noon and "tonight at 1" 1 PM; "tonight" said at 20:30 was 20:00, already past.
+        assertEquals("call mom @ 2026-10-30 00:00", whenOf("remind me to call mom tonight at 12"))
+        assertEquals("call mom @ 2026-10-30 00:30", whenOf("remind me to call mom tonight at 12:30"))
+        assertEquals("call mom @ 2026-10-30 01:00", whenOf("remind me to call mom tonight at 1"))
+        assertEquals("call mom @ 2026-10-29 23:00", whenOf("remind me to call mom tonight at 11"))
+        assertEquals("call mom @ 2026-10-31 00:00", whenOf("remind me to call mom tomorrow night at 12"))
+        assertEquals("call mom @ 2026-10-31 00:00", whenOf("remind me to call mom friday night at 12"))
+        assertNull(whenOf("remind me to take my pills tonight", thursday(20, 30)))
+        assertNull(whenOf("remind me to call mom tonight at 9", thursday(22)))
+        assertNull(whenOf("remind me to pay rent on the 29th at 9am"))
+        assertNull(whenOf("remind me on 1/2/25"))
+        // "This friday" said on a Friday is today, and once its time has gone, none.
+        val friday = thursday(10) + 24 * 3_600_000L
+        assertEquals("submit the report @ 2026-10-30 17:00", whenOf("remind me to submit the report this friday at 5pm", friday))
+        assertNull(whenOf("remind me to submit the report this friday at 5pm", friday + 8 * 3_600_000L))
+    }
+
+    @Test
+    fun aFractionInTheTaskIsNoDateAndAMealSaysWhichHalfOfTheDay() {
+        // These were January 2 and April 5.
+        assertEquals("take 1/2 @ 2026-10-29 21:00", whenOf("remind me to take 1/2 at 9pm"))
+        assertEquals("about episode 4/5 @ 2026-10-29 21:00", whenOf("remind me about episode 4/5 at 9pm"))
+        // "Dinner at 7" said at 5 AM was 7 AM.
+        assertEquals("make dinner @ 2026-10-29 19:00", whenOf("remind me to make dinner at 7", thursday(5)))
+        assertEquals("eat breakfast @ 2026-10-30 07:00", whenOf("remind me to eat breakfast at 7", thursday(10)))
+    }
+
+    @Test
+    fun nextSundaySaidOnSaturdayIsNotTomorrow() {
+        val saturday = thursday(10) + 2 * 24 * 3_600_000L
+        // It was tomorrow, the same day as "this sunday".
+        assertEquals("call mom @ 2026-11-08 10:00", whenOf("remind me to call mom next sunday", saturday))
+        assertEquals("call mom @ 2026-11-01 10:00", whenOf("remind me to call mom this sunday", saturday))
+        assertEquals("call mom @ 2026-11-06 10:00", whenOf("remind me to call mom next friday"))
+    }
+
+    @Test
+    fun aTimerUnitMustEndThere() {
+        // "timer 10ms" was a 10 minute timer.
+        assertNull(NaturalLanguageIntentParser.parse("timer 10ms"))
+        assertEquals(7_200, timerSeconds("timer 2hrs"))
+        assertEquals(90, timerSeconds("timer 1m30s"))
+    }
+
+    @Test
+    fun aMessageThatStartsWithANotWordStillGoes() {
+        val family = listOf(
+            com.pixel.intelligentsearch.core.data.ContactItem("Mom", "+14155550213", ""),
+            com.pixel.intelligentsearch.core.data.ContactItem("Dad", "+14155550214", ""),
+            com.pixel.intelligentsearch.core.data.ContactItem("Sarah Connor", "+14155550230", ""),
+            com.pixel.intelligentsearch.core.data.ContactItem("Boss", "+14155550233", "")
+        )
+        val lookup: (String) -> com.pixel.intelligentsearch.core.data.ContactItem? = { typed ->
+            family.firstOrNull { NaturalLanguageIntentParser.namesContact(typed, it.name) }
+        }
+        fun body(query: String) = (NaturalLanguageIntentParser.parse(query, contactLookup = lookup)
+            as? NaturalLanguageIntentParser.ParsedIntent.DirectMessage)?.body
+        // Each gave no action: the rule for "text will not send" took any not-word for a search.
+        assertEquals("can't make it", body("text mom can't make it"))
+        assertEquals("stuck in traffic", body("text sarah stuck in traffic"))
+        assertEquals("won't be home for dinner", body("text dad won't be home for dinner"))
+        assertEquals("working late", body("text boss working late"))
+        assertEquals("not feeling well", body("message sarah not feeling well"))
+        assertEquals("not working today", body("text boss not working today"))
+        // Help with messages that won't send is still a search.
+        for (query in listOf("text mom not sending", "text dad won't deliver", "message sarah keeps failing", "text boss not delivered")) {
+            assertNull(query, body(query))
+        }
+    }
 }

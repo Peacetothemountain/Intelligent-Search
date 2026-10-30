@@ -39,11 +39,11 @@ object NaturalLanguageIntentParser {
     )
     private val HOME_NAVIGATION_PHRASES =setOf("directions home", "navigate home", "take me home", "route home")
     // Amounts may have a decimal point or comma ("1.5 hours", "2,5 min"); the guard keeps "1.5 hours" from also
-    // reading as 5 hours.
+    // reading as 5 hours. The unit must end there: "10ms" is no 10 minutes.
     private const val TIMER_AMOUNT = "(?<![\\d.,])(\\d+(?:[.,]\\d+)?)"
-    private val TIMER_HOURS_REGEX = Regex("$TIMER_AMOUNT\\s*(?:h|hr|hours?)")
-    private val TIMER_MINUTES_REGEX = Regex("$TIMER_AMOUNT\\s*(?:m|min|mins|minutes?)")
-    private val TIMER_SECONDS_REGEX = Regex("$TIMER_AMOUNT\\s*(?:s|sec|secs|seconds?)")
+    private val TIMER_HOURS_REGEX = Regex("$TIMER_AMOUNT\\s*(?:h|hrs?|hours?)(?!\\p{L})")
+    private val TIMER_MINUTES_REGEX = Regex("$TIMER_AMOUNT\\s*(?:m|min|mins|minutes?)(?!\\p{L})")
+    private val TIMER_SECONDS_REGEX = Regex("$TIMER_AMOUNT\\s*(?:s|sec|secs|seconds?)(?!\\p{L})")
     private val TIMER_CLOCK_REGEX = Regex("(\\d{1,2}):(\\d{2})(?::(\\d{2}))?")
     // A bare number after the last unit: "2 hours 30" is 2 h 30 min, "1 m 30" is 1 min 30 s.
     private val TIMER_TRAILING_AMOUNT_REGEX = Regex("(?<![\\d.,])(\\d+)$")
@@ -185,12 +185,24 @@ object NaturalLanguageIntentParser {
     )
     // "on 11/5", "12/5/2027": the month or the day first as the phone's region writes dates ([monthBeforeDay]).
     private val NUMERIC_DATE_REGEX = Regex(
-        "$DATE_LEAD(?<![\\d/.:,])\\b(\\d{1,2})/(\\d{1,2})(?:/(\\d{4}|\\d{2}))?(?![/\\d])",
+        "(?:\\b(on|for|by)\\s+)?(?<![\\d/.:,])\\b(\\d{1,2})/(\\d{1,2})(?:/(\\d{4}|\\d{2}))?(?![/\\d])",
         RegexOption.IGNORE_CASE
     )
-    // "on the 1st", "the 21st": a day of this month or the next that has it.
+    /** "first" to "thirty-first", the days of a month written out. */
+    private val SPELLED_ORDINALS: Map<String, Int> = buildMap {
+        val units = listOf("first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth")
+        units.forEachIndexed { index, word -> put(word, index + 1); put("twenty-$word", index + 21) }
+        listOf("tenth", "eleventh", "twelfth", "thirteenth", "fourteenth", "fifteenth", "sixteenth", "seventeenth",
+            "eighteenth", "nineteenth", "twentieth").forEachIndexed { index, word -> put(word, index + 10) }
+        put("thirtieth", 30)
+        put("thirty-first", 31)
+    }
+    // "on the 1st", "by the 21st", "on the fifteenth": a day of this month or the next that has it. It takes "on",
+    // "for" or "by": "the 3rd" alone is as often a chapter or a floor.
     private val ORDINAL_DAY_REGEX = Regex(
-        "(?:\\b(?:on|for|by)\\s+(?:the\\s+)?|\\bthe\\s+)(\\d{1,2})(?:st|nd|rd|th)\\b",
+        "\\b(on|for|by)\\s+(?:(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)|the\\s+(" +
+            SPELLED_ORDINALS.keys.sortedByDescending { it.length }.joinToString("|") { it.replace("-", "[\\s-]") } +
+            "))(?![\\p{L}\\p{N}])",
         RegexOption.IGNORE_CASE
     )
     // "in may", "in march 2027": the first of that month.
@@ -199,9 +211,39 @@ object NaturalLanguageIntentParser {
     private val OCCASIONS = DateMathEngine()
     // "on christmas", "for valentine's day": the occasion's next date.
     private val OCCASION_REGEX = Regex(
-        "\\b(?:on|for)\\s+(?:the\\s+)?(" + OCCASIONS.occasionNames.sortedByDescending { it.length }.joinToString("|") { name ->
+        "\\b(on|for)\\s+(?:the\\s+)?(" + OCCASIONS.occasionNames.sortedByDescending { it.length }.joinToString("|") { name ->
             name.replace(".", "\\.").replace("'", "['’]").replace(" ", "\\s+")
         } + ")(?!\\p{L})",
+        RegexOption.IGNORE_CASE
+    )
+    /**
+     * Days whose date depends on the country or the person ("mother's day", "labor day", "my birthday"): never read,
+     * so a phrase that names one for when it is no reminder rather than one set for now.
+     */
+    private val UNREAD_OCCASION_REGEX = Regex(
+        "\\b(on|for|by)\\s+(?:the\\s+)?(?:mother['’]?s\\s+day|father['’]?s\\s+day|memorial\\s+day|labou?r\\s+day|" +
+            "good\\s+friday|cyber\\s+monday|(?:my|his|her|their|your|our|\\p{L}+['’]s)\\s+(?:birthday|bday|anniversary))(?!\\p{L})",
+        RegexOption.IGNORE_CASE
+    )
+    /**
+     * Words that may come right after a date ("on the 3rd at 2pm", "for christmas tomorrow", "on the 5th to pay
+     * rent"). Any other word is one the date describes, "the 3rd floor", "christmas presents", "the first time", so
+     * the date words are then part of the task, not when it is.
+     */
+    private val DATE_FOLLOWERS = setOf(
+        "at", "by", "on", "in", "to", "and", "or", "then", "from", "until", "till", "before", "after", "around", "about",
+        "with", "for", "so", "but", "if", "when", "while", "every", "this", "next", "coming", "please", "today", "tonight",
+        "tomorrow", "morning", "afternoon", "evening", "night", "noon", "midday", "midnight", "sunday", "monday",
+        "tuesday", "wednesday", "thursday", "friday", "saturday"
+    )
+    /**
+     * When-words that need a clock time with them ("before bed", "at lunch", "after work", "by eod", "later"): they
+     * say no hour, so a phrase with nothing else to say one is no reminder rather than one set for now.
+     */
+    private val UNTIMED_WHEN_REGEX = Regex(
+        "\\b(?:before|after)\\s+(?:bed|bedtime|work|school|class|lunch|dinner|breakfast)\\b|" +
+            "\\b(?:at|by|around)\\s+(?:lunch|lunchtime|dinner|dinnertime|breakfast|bedtime|eod|cob|close\\s+of\\s+business)\\b|" +
+            "\\bend\\s+of\\s+(?:the\\s+)?(?:day|business\\s+day|workday)\\b|\\beod\\b|\\blater(?:\\s+on)?\\s*$",
         RegexOption.IGNORE_CASE
     )
     private const val FULL_MONTHS =
@@ -226,9 +268,10 @@ object NaturalLanguageIntentParser {
     // "meeting with john" names the meeting by who it's with; the title says so, "Meeting with john", not "with john".
     private val MEETING_PREPOSITION_REGEX = Regex("^(?:with|about|re|for)\\s", RegexOption.IGNORE_CASE)
     private val WEEKDAYS = listOf("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
-    // "on friday", "this friday", "next tuesday": "next" is the one in next week.
+    // "on friday", "this friday", "next tuesday": "next" is the one in next week. "Black friday", "good friday" and
+    // "cyber monday" are days of their own.
     private val WEEKDAY_REGEX = Regex(
-        "$DATE_LEAD(?:\\b(next|this|coming)\\s+)?\\b(${WEEKDAYS.joinToString("|")})\\b",
+        "$DATE_LEAD(?:\\b(next|this|coming)\\s+)?(?<!black\\s)(?<!good\\s)(?<!cyber\\s)\\b(${WEEKDAYS.joinToString("|")})\\b",
         RegexOption.IGNORE_CASE
     )
 
@@ -645,16 +688,25 @@ object NaturalLanguageIntentParser {
             val recipient = resolveRecipient(name, contactLookup) ?: continue
             // "text will not send", "message mark won't go through": a search for help with messages, whoever is in
             // contacts. "Text mom: not coming" still goes, its colon marking the message.
-            if (words[count].value.lowercase(Locale.ROOT).replace('’', '\'') in NOT_A_MESSAGE_START) return null
-            return SplitMessage(match.groupValues[1], name, recipient, rest.substring(words[count].range.first).trim())
+            val body = rest.substring(words[count].range.first).trim()
+            if (TROUBLESHOOTING.containsMatchIn(body.replace('’', '\''))) return null
+            return SplitMessage(match.groupValues[1], name, recipient, body)
         }
         return null
     }
 
-    /** Words that, right after a name, make "text <name> ..." a question about messages not sending or working. */
-    private val NOT_A_MESSAGE_START = setOf(
-        "not", "won't", "wont", "doesn't", "doesnt", "isn't", "isnt", "can't", "cant", "cannot", "didn't", "didnt",
-        "aren't", "arent", "wasn't", "wasnt", "keeps", "stopped", "failed", "failing", "stuck", "delayed", "working"
+    /**
+     * What, right after a name, makes "text <name> ..." a question about messages not working ("text will not send",
+     * "message mark not delivered", "text grace keeps failing"): a not-word or a stuck-word, then a word about sending,
+     * or "not working" with nothing after it. A message that only starts with one ("text mom can't make it", "text
+     * sarah stuck in traffic", "text boss not working today") still goes.
+     */
+    private val TROUBLESHOOTING = Regex(
+        "^(?:(?:not|won'?t|doesn'?t|isn'?t|can'?t|cannot|didn'?t|aren'?t|wasn'?t|stopped|stuck)\\s+" +
+            "(?:(?:be|being|get|getting)\\s+)?(?:send(?:s|ing)?|sent|deliver(?:s|ed|ing)?|go(?:es|ing)?\\s+through|" +
+            "fail(?:s|ed|ing)?|load(?:s|ed|ing)?|receiv(?:e|es|ed|ing)|show(?:s|ing)?\\s+up)(?!\\p{L})|" +
+            "(?:not|won'?t|doesn'?t|isn'?t|aren'?t|stopped)\\s+work(?:s|ing)?\\W*$|keeps\\s+fail(?:s|ing)?(?!\\p{L}))",
+        RegexOption.IGNORE_CASE
     )
 
     /** [target] as someone to message: a number if it is one, else a matching contact with a number. */
@@ -788,108 +840,58 @@ object NaturalLanguageIntentParser {
     private data class TemporalResult(val timestampMs: Long, val cleanText: String)
 
     /** The day word a phrase named, which decides how a bare hour like "at 3" is read. */
-    private enum class NamedDay { NONE, TODAY, TONIGHT, TOMORROW, WEEKDAY, DATE }
+    internal enum class NamedDay { NONE, TODAY, TONIGHT, TOMORROW, WEEKDAY, DATE }
+
+    /**
+     * What a phrase's words of when say about its day ([readDay]): the [date] (null when no day was named), how it was
+     * named, the part of the day ("morning", "night"; [periodWithIn] when said "in the ..."), and [text], the phrase
+     * with those words blanked out.
+     */
+    internal class DayReading(
+        val date: LocalDate?,
+        val namedDay: NamedDay,
+        val period: String?,
+        val periodWithIn: Boolean,
+        val text: String,
+        /** The day is only a "for <holiday>" ("book flights for christmas"): beside a clock time, too unclear to use. */
+        val forOccasionOnly: Boolean,
+        /** Words of when that say no hour ("before bed", an unread "on the 3rd ..."): only a clock time makes it clear. */
+        val needsTime: Boolean
+    )
+
+    /** One reading of a day in a phrase: where its words are, the day ([date] null when it can't be read), and how. */
+    private class DayWords(
+        val ranges: List<IntRange>,
+        val date: LocalDate?,
+        val namedDay: NamedDay,
+        /** False for words that may as well say what the task is for: "for christmas", "in may". */
+        val strong: Boolean,
+        val forOccasion: Boolean = false,
+        /** "dec 4", "11/5", "the 3rd", "on christmas": a weekday said beside one only has to fall on it. */
+        val calendarDate: Boolean = false,
+        /** The weekday named, as Calendar.DAY_OF_WEEK, for a weekday's reading. */
+        val weekday: Int? = null
+    )
 
     /**
      * When [rawText] names, from [baseTimeMs]; null when it names a time from now, a date or a clock time that can't
-     * be read, so the phrase is not taken as one set at some other time. [locale] says how a numeric date is written.
+     * be read, or one already past, so the phrase is not taken as one set at some other time. [locale] says how a
+     * numeric date is written.
      */
     private fun extractTemporalInfo(rawText: String, baseTimeMs: Long, locale: Locale): TemporalResult? {
         val cal = Calendar.getInstance().apply { timeInMillis = baseTimeMs }
-        var text = rawText
-        var namedDay = NamedDay.NONE
-        val isTonight = TONIGHT_REGEX.containsMatchIn(text)
-
-        // The part of the day goes first, while the day word before it ("tomorrow morning") is still there to find it.
-        val partOfDay = PART_OF_DAY_REGEX.find(text)
-        if (partOfDay != null) text = text.replaceRange(partOfDay.range, " ")
-        val period = partOfDay?.groupValues?.get(2)?.lowercase(Locale.ROOT)
-
-        // Check named days and dates
-        val weekdayMatch = WEEKDAY_REGEX.find(text)
-        val nextWeek = NEXT_WEEK_REGEX.find(text)
-        val monthFirst = MONTH_DAY_REGEX.find(text)
-        val dateMatch = monthFirst ?: DAY_MONTH_REGEX.find(text)
-        val numericDate = NUMERIC_DATE_REGEX.find(text)?.takeIf { readsAsDate(it, text) }
-        val ordinalDay = ORDINAL_DAY_REGEX.find(text)
-        val occasion = OCCASION_REGEX.find(text)
-        val monthAlone = MONTH_ALONE_REGEX.find(text)
-        val dayAfterTomorrow = DAY_AFTER_TOMORROW_REGEX.find(text)
-        // A date says the day; a weekday said with it ("on friday, dec 5") is just said with it.
-        fun onDate(match: MatchResult) {
-            text = text.replace(match.value, " ")
-            if (weekdayMatch != null) text = text.replace(weekdayMatch.value, " ")
-            namedDay = NamedDay.DATE
-        }
-        if (dateMatch != null) {
-            val (monthText, dayText) = if (monthFirst != null) {
-                dateMatch.groupValues[1] to dateMatch.groupValues[2]
-            } else {
-                dateMatch.groupValues[2] to dateMatch.groupValues[1]
-            }
-            val month = MONTH_ABBREVIATIONS.indexOf(monthText.take(3).lowercase(Locale.ROOT))
-            if (!moveToDate(cal, month, dayText.toInt(), dateMatch.groupValues[3].toIntOrNull())) return null
-            onDate(dateMatch)
-        } else if (numericDate != null) {
-            val first = numericDate.groupValues[1].toInt()
-            val second = numericDate.groupValues[2].toInt()
-            val (month, day) = if (monthBeforeDay(locale)) first to second else second to first
-            val year = numericDate.groupValues[3].toIntOrNull()?.let { if (it < 100) 2000 + it else it }
-            if (month !in 1..12 || !moveToDate(cal, month - 1, day, year)) return null
-            onDate(numericDate)
-        } else if (ordinalDay != null) {
-            if (!moveToDayOfMonth(cal, ordinalDay.groupValues[1].toInt())) return null
-            onDate(ordinalDay)
-        } else if (occasion != null) {
-            val name = occasion.groupValues[1].lowercase(Locale.ROOT).replace('’', '\'').replace(WHITESPACE_REGEX, " ")
-            val today = LocalDate.of(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH))
-            val date = OCCASIONS.occasionOnOrAfter(name, today) ?: return null
-            cal.set(date.year, date.monthValue - 1, date.dayOfMonth)
-            onDate(occasion)
-        } else if (monthAlone != null) {
-            val month = MONTH_ABBREVIATIONS.indexOf(monthAlone.groupValues[1].take(3).lowercase(Locale.ROOT))
-            val year = monthAlone.groupValues[2].toIntOrNull()
-            // "In october" said in October may be this month or next year's: no reading.
-            if (year == null && month == cal.get(Calendar.MONTH)) return null
-            if (!moveToDate(cal, month, 1, year)) return null
-            onDate(monthAlone)
-        } else if (dayAfterTomorrow != null) {
-            cal.add(Calendar.DAY_OF_YEAR, 2)
-            text = text.replace(dayAfterTomorrow.value, " ")
-            namedDay = NamedDay.TOMORROW
-        } else if (TOMORROW_REGEX.containsMatchIn(text)) {
-            cal.add(Calendar.DAY_OF_YEAR, 1)
-            text = text.replace(TOMORROW_REGEX, "")
-            namedDay = NamedDay.TOMORROW
-        } else if (isTonight) {
+        val day = readDay(rawText, cal, locale) ?: return null
+        var text = day.text
+        val namedDay = day.namedDay
+        val period = day.period
+        val isTonight = namedDay == NamedDay.TONIGHT
+        day.date?.let { cal.set(it.year, it.monthValue - 1, it.dayOfMonth) }
+        if (isTonight) {
             cal.set(Calendar.HOUR_OF_DAY, 20)
             cal.set(Calendar.MINUTE, 0)
-            text = text.replace(TONIGHT_REGEX, "")
-            namedDay = NamedDay.TONIGHT
-        } else if (TODAY_REGEX.containsMatchIn(text)) {
-            text = text.replace(TODAY_REGEX, "")
-            namedDay = NamedDay.TODAY
-        } else if (weekdayMatch != null) {
-            // "on Friday" means the next Friday; naming today's weekday means a week from today. "Next friday" and
-            // "friday next week" are the Friday of next week, which starts on the region's first day of the week.
-            val target = WEEKDAYS.indexOf(weekdayMatch.groupValues[2].lowercase(Locale.ROOT)) + Calendar.SUNDAY
-            var daysAhead = (target - cal.get(Calendar.DAY_OF_WEEK) + 7) % 7
-            if (daysAhead == 0) daysAhead = 7
-            if (weekdayMatch.groupValues[1].equals("next", ignoreCase = true) || nextWeek != null) {
-                val firstDay = Calendar.getInstance(locale).firstDayOfWeek
-                val intoWeek = (cal.get(Calendar.DAY_OF_WEEK) - firstDay + 7) % 7
-                daysAhead = 7 - intoWeek + (target - firstDay + 7) % 7
-            }
-            cal.add(Calendar.DAY_OF_YEAR, daysAhead)
-            text = text.replace(weekdayMatch.value, "")
-            if (nextWeek != null) text = text.replace(nextWeek.value, " ")
-            namedDay = NamedDay.WEEKDAY
-        } else if (nextWeek != null) {
-            // "next week" with no day is a week from now, as "in a week" is.
-            cal.add(Calendar.DAY_OF_YEAR, 7)
-            text = text.replace(nextWeek.value, " ")
-            namedDay = NamedDay.WEEKDAY
         }
+        // "This evening at 7" names today as surely as "today" does: a time of it already past is no time.
+        val today = namedDay == NamedDay.TODAY || (period != null && !day.periodWithIn && namedDay == NamedDay.NONE)
 
         // Relative duration "in X minutes / hours / days / weeks"
         val relativeMatch = RELATIVE_TIME_REGEX.find(text)
@@ -908,8 +910,8 @@ object NaturalLanguageIntentParser {
             return null
         }
 
-        // "at noon" is 12:00; "at midnight" the end of the day named, or of today.
-        val noonOrMidnight = NOON_OR_MIDNIGHT_TIME_REGEX.find(text)
+        // "at noon" is 12:00; "at midnight" the end of the day named, or of today. "A midnight snack" is no time.
+        val noonOrMidnight = NOON_OR_MIDNIGHT_TIME_REGEX.findAll(text).firstOrNull { !describesNext(text, it.range.last + 1) }
         if (noonOrMidnight != null) {
             val midnight = noonOrMidnight.groupValues[1].equals("midnight", ignoreCase = true)
             cal.set(Calendar.HOUR_OF_DAY, if (midnight) 0 else 12)
@@ -917,7 +919,7 @@ object NaturalLanguageIntentParser {
             cal.set(Calendar.SECOND, 0)
             if (midnight) cal.add(Calendar.DAY_OF_YEAR, 1)
             text = text.replace(noonOrMidnight.value, " ")
-            if (namedDay == NamedDay.NONE && relativeMatch == null && cal.timeInMillis < baseTimeMs) {
+            if (namedDay == NamedDay.NONE && !today && relativeMatch == null && cal.timeInMillis < baseTimeMs) {
                 cal.add(Calendar.DAY_OF_YEAR, 1)
             }
         }
@@ -938,15 +940,26 @@ object NaturalLanguageIntentParser {
             if (minute !in 0..59 || (amPm.isEmpty() && hour !in 0..23) || (amPm.isNotEmpty() && hour !in 1..12)) return null
             if (amPm == "p" && hour < 12) hour += 12
             if (amPm == "a" && hour == 12) hour = 0
-            // Without am/pm: "tonight at 9" is 21:00. With no day or "today", "at 3" is the next 3 o'clock still
-            // ahead. Tomorrow, a weekday or a date has no "already passed" to go by, so 1-7 is read as the afternoon
-            // or evening people mean ("tomorrow at 3") and 8-11 as the morning, unless the hour has a leading zero.
-            // A part of the day says which half: "tomorrow morning at 7" is 7 AM, "this evening at 7" 7 PM.
-            if (amPm.isEmpty() && hour in 1..11) {
+            // "Tonight" and a night run past midnight: "tonight at 9" is 21:00, "at 12" is midnight, the end of the
+            // day, and 1 to 5 the small hours after it.
+            val night = isTonight || period == "night"
+            if (amPm.isEmpty() && night && !zeroPadded && hour in 1..12) {
+                hour = when (hour) {
+                    12 -> 0
+                    in 6..11 -> hour + 12
+                    else -> hour
+                }
+            } else if (amPm.isEmpty() && hour in 1..11) {
+                // Without am/pm: with no day or "today", "at 3" is the next 3 o'clock still ahead. Tomorrow, a
+                // weekday or a date has no "already passed" to go by, so 1-7 is read as the afternoon or evening
+                // people mean ("tomorrow at 3") and 8-11 as the morning, unless the hour has a leading zero. A part
+                // of the day says which half ("tomorrow morning at 7" is 7 AM, "this evening at 7" 7 PM), and so does
+                // a meal: "dinner at 7" is 7 PM even said at 5 AM.
+                val meal = if (zeroPadded) null else mealHour(text, hour)
                 if (period != null) {
                     if (period != "morning") hour += 12
-                } else if (isTonight) {
-                    hour += 12
+                } else if (meal != null) {
+                    hour = meal
                 } else if (relativeMatch == null) {
                     when (namedDay) {
                         NamedDay.TOMORROW, NamedDay.WEEKDAY, NamedDay.DATE -> if (hour <= 7 && !zeroPadded) hour += 12
@@ -963,9 +976,10 @@ object NaturalLanguageIntentParser {
             cal.set(Calendar.HOUR_OF_DAY, hour)
             cal.set(Calendar.MINUTE, minute)
             cal.set(Calendar.SECOND, 0)
+            if (night && hour < 6) cal.add(Calendar.DAY_OF_YEAR, 1)
             text = text.replace(timeMatch.value, "")
 
-            if (namedDay == NamedDay.NONE && relativeMatch == null && cal.timeInMillis < baseTimeMs) {
+            if (namedDay == NamedDay.NONE && !today && relativeMatch == null && cal.timeInMillis < baseTimeMs) {
                 cal.add(Calendar.DAY_OF_YEAR, 1)
             }
         } else if (period != null && noonOrMidnight == null && relativeMatch == null) {
@@ -975,25 +989,207 @@ object NaturalLanguageIntentParser {
             cal.set(Calendar.MINUTE, 0)
             cal.set(Calendar.SECOND, 0)
             if (cal.timeInMillis <= baseTimeMs) {
-                val inThe = partOfDay?.groupValues?.get(1)?.startsWith("in", ignoreCase = true) == true
-                if (namedDay != NamedDay.NONE || !inThe) return null
+                if (namedDay != NamedDay.NONE || !day.periodWithIn) return null
                 cal.add(Calendar.DAY_OF_YEAR, 1)
             }
         }
 
+        val timed = relativeMatch != null || noonOrMidnight != null || timeMatch != null || period != null || isTonight
+        // "Before bed" or "the 3rd floor" with no time read: when is unclear. "Book flights for christmas at 5pm" may
+        // be today at 5 or Christmas at 5.
+        if (day.needsTime && !timed) return null
+        if (day.forOccasionOnly && (timeMatch != null || noonOrMidnight != null)) return null
+        // Never a reminder or event already gone ("tonight" said at 21:00, "on 1/2/25"); the minute now is still now.
+        if (cal.timeInMillis < baseTimeMs - Math.floorMod(baseTimeMs, 60_000L)) return null
         val cleanTitle = text.replace(WHITESPACE_REGEX, " ").trim(*STRAY_PUNCTUATION)
-        if (UNREAD_DATE_REGEX.containsMatchIn(cleanTitle)) return null
         return TemporalResult(cal.timeInMillis, cleanTitle)
     }
 
     /**
-     * Whether [match], digits like "11/5", is a date: said with "on", "for" or "by", or with nothing after it but a
-     * time. "Buy 1/2 gallon milk" is an amount, and stays in the task.
+     * The day [rawText] names, read from [now] (its date, in its zone). Words count as the day only where they read
+     * as one:
+     * - a day word: "today", "tonight", "tomorrow", "the day after tomorrow", a weekday ("friday", "this friday", "next
+     *   friday", "friday next week"), or "next week";
+     * - a month and day, either way round ("dec 5", "the 5th of december");
+     * - "on", "for" or "by" and a day of the month ("on the 3rd", "by the fifteenth") or a numeric date ("on 11/5"). A
+     *   numeric date with none of them is one only when it opens the phrase ("12/5 at 3pm"): "take 1/2" and "episode
+     *   4/5" are amounts;
+     * - "on" or "for" and a holiday ("on thanksgiving", "for christmas"), and "in <month>".
+     * A day of the month, a holiday or a month followed by a word it describes is part of the task instead: "the 3rd
+     * floor", "christmas presents", "the first time" ([DATE_FOLLOWERS] lists the words that may follow a date).
+     *
+     * When more than one reading is found they must agree. "For <holiday>" and "in <month>" may say what the task is
+     * for ("buy candy for halloween tomorrow"), so any other reading wins over them and they stay in the task. A weekday
+     * said with a date ("friday, dec 4") must fall on it. Two readings that disagree ("on the 3rd ... tomorrow") give
+     * null, as do a date that doesn't exist, a day that can't be read ("on mother's day") and when-words left over
+     * ("this weekend", "by june"): the phrase is then searched rather than set on a guessed day, as no action is better
+     * than a wrong one.
+     */
+    internal fun readDay(rawText: String, now: Calendar, locale: Locale): DayReading? {
+        val today = LocalDate.of(now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1, now.get(Calendar.DAY_OF_MONTH))
+        // Words read are blanked with as many spaces, so every match keeps its place. [scan] loses each reading as it
+        // is found, so no words are read twice; [text] only the ones taken.
+        var scan = rawText
+        var text = rawText
+        fun blank(source: String, range: IntRange) = source.replaceRange(range, " ".repeat(range.last - range.first + 1))
+        val readings = ArrayList<DayWords>()
+        fun add(reading: DayWords) {
+            readings += reading
+            for (range in reading.ranges) scan = blank(scan, range)
+        }
+        var unreadDayOfMonth = false
+
+        // The part of the day goes first, while the day word before it ("tomorrow morning") is still there to find it.
+        val partOfDay = PART_OF_DAY_REGEX.find(scan)
+        if (partOfDay != null) {
+            scan = blank(scan, partOfDay.range)
+            text = blank(text, partOfDay.range)
+        }
+        val period = partOfDay?.groupValues?.get(2)?.lowercase(Locale.ROOT)
+
+        for (match in OCCASION_REGEX.findAll(scan).toList() + UNREAD_OCCASION_REGEX.findAll(scan)) {
+            if (describesNext(scan, match.range.last + 1)) continue
+            val forOccasion = match.groupValues[1].equals("for", ignoreCase = true)
+            // An unread day ([UNREAD_OCCASION_REGEX]) has no name to read: its reading is one that can't be.
+            val name = match.groupValues.getOrNull(2)?.lowercase(Locale.ROOT)?.replace('’', '\'')?.replace(WHITESPACE_REGEX, " ")
+            add(DayWords(listOf(match.range), name?.let { OCCASIONS.occasionOnOrAfter(it, today) }, NamedDay.DATE,
+                strong = !forOccasion, forOccasion = forOccasion, calendarDate = !forOccasion))
+        }
+        DAY_AFTER_TOMORROW_REGEX.find(scan)?.let { add(DayWords(listOf(it.range), today.plusDays(2), NamedDay.TOMORROW, strong = true)) }
+        for (match in MONTH_DAY_REGEX.findAll(scan).toList() + DAY_MONTH_REGEX.findAll(scan)) {
+            if (scan.substring(match.range).isBlank()) continue
+            val monthFirst = match.groupValues[1].firstOrNull()?.isLetter() == true
+            val (monthText, dayText) = if (monthFirst) match.groupValues[1] to match.groupValues[2] else match.groupValues[2] to match.groupValues[1]
+            val month = MONTH_ABBREVIATIONS.indexOf(monthText.take(3).lowercase(Locale.ROOT)) + 1
+            val date = dateOn(today, month, dayText.toInt(), match.groupValues[3].toIntOrNull()) ?: return null
+            add(DayWords(listOf(match.range), date, NamedDay.DATE, strong = true, calendarDate = true))
+        }
+        for (match in NUMERIC_DATE_REGEX.findAll(scan)) {
+            if (!readsAsDate(match, scan)) continue
+            val first = match.groupValues[2].toInt()
+            val second = match.groupValues[3].toInt()
+            val (month, dayOfMonth) = if (monthBeforeDay(locale)) first to second else second to first
+            val year = match.groupValues[4].toIntOrNull()?.let { if (it < 100) 2000 + it else it }
+            val date = dateOn(today, month, dayOfMonth, year) ?: return null
+            add(DayWords(listOf(match.range), date, NamedDay.DATE, strong = true, calendarDate = true))
+        }
+        for (match in ORDINAL_DAY_REGEX.findAll(scan)) {
+            if (describesNext(scan, match.range.last + 1)) {
+                // "Meeting on the 3rd floor": no date, but with no time either it's unclear.
+                if (!match.groupValues[1].equals("for", ignoreCase = true)) unreadDayOfMonth = true
+                continue
+            }
+            val dayOfMonth = match.groupValues[2].toIntOrNull()
+                ?: SPELLED_ORDINALS[match.groupValues[3].lowercase(Locale.ROOT).replace(WHITESPACE_REGEX, "-")] ?: return null
+            val date = dayOfMonthOnOrAfter(today, dayOfMonth) ?: return null
+            add(DayWords(listOf(match.range), date, NamedDay.DATE, strong = true, calendarDate = true))
+        }
+        for (match in MONTH_ALONE_REGEX.findAll(scan)) {
+            if (describesNext(scan, match.range.last + 1)) continue
+            val month = MONTH_ABBREVIATIONS.indexOf(match.groupValues[1].take(3).lowercase(Locale.ROOT)) + 1
+            val year = match.groupValues[2].toIntOrNull()
+            // "In october" said in October may be this month or next year's: no reading.
+            val date = if (year == null && month == today.monthValue) null else dateOn(today, month, 1, year)
+            add(DayWords(listOf(match.range), date, NamedDay.DATE, strong = false))
+        }
+        for ((regex, offset, named) in listOf(
+            Triple(TOMORROW_REGEX, 1L, NamedDay.TOMORROW), Triple(TONIGHT_REGEX, 0L, NamedDay.TONIGHT),
+            Triple(TODAY_REGEX, 0L, NamedDay.TODAY)
+        )) {
+            for (match in regex.findAll(scan).toList()) add(DayWords(listOf(match.range), today.plusDays(offset), named, strong = true))
+        }
+        val nextWeek = NEXT_WEEK_REGEX.find(scan)
+        val weekdays = WEEKDAY_REGEX.findAll(scan).toList()
+        for (match in weekdays) {
+            val target = WEEKDAYS.indexOf(match.groupValues[2].lowercase(Locale.ROOT)) + Calendar.SUNDAY
+            val ahead = weekdayAhead(now, target, match.groupValues[1].lowercase(Locale.ROOT), nextWeek != null, locale)
+            val named = if (ahead == 0) NamedDay.TODAY else NamedDay.WEEKDAY
+            add(DayWords(listOfNotNull(match.range, nextWeek?.range), today.plusDays(ahead.toLong()), named, strong = true, weekday = target))
+        }
+        // "next week" with no day is a week from now, as "in a week" is.
+        if (weekdays.isEmpty() && nextWeek != null) add(DayWords(listOf(nextWeek.range), today.plusDays(7), NamedDay.WEEKDAY, strong = true))
+
+        // A weekday said with a date only says which day of the week that is; one it isn't makes no reading.
+        val dates = readings.filter { it.strong && it.calendarDate }
+        val agreed = readings.map { reading ->
+            if (reading.weekday == null || dates.isEmpty()) return@map reading
+            val date = dates.first().date
+            if (date == null || date.dayOfWeek.value % 7 + Calendar.SUNDAY != reading.weekday) return null
+            DayWords(reading.ranges, date, NamedDay.DATE, strong = true, calendarDate = true)
+        }
+        val chosen = agreed.filter { it.strong }.ifEmpty { agreed }
+        if (chosen.map { it.date }.distinct().size > 1 || chosen.any { it.date == null }) return null
+        for (reading in chosen) for (range in reading.ranges) text = blank(text, range)
+        // A time from now is read later; its "an hour and a half to stretch" is no "half to 5".
+        if (UNREAD_DATE_REGEX.containsMatchIn(RELATIVE_TIME_REGEX.replace(scan, " "))) return null
+
+        val namedDay = listOf(NamedDay.TONIGHT, NamedDay.TOMORROW, NamedDay.TODAY, NamedDay.WEEKDAY, NamedDay.DATE)
+            .firstOrNull { kind -> chosen.any { it.namedDay == kind } } ?: NamedDay.NONE
+        return DayReading(
+            date = chosen.firstOrNull()?.date,
+            namedDay = namedDay,
+            period = period,
+            periodWithIn = partOfDay?.groupValues?.get(1)?.startsWith("in", ignoreCase = true) == true,
+            text = text,
+            forOccasionOnly = chosen.isNotEmpty() && chosen.all { it.forOccasion },
+            needsTime = UNTIMED_WHEN_REGEX.containsMatchIn(scan) || (unreadDayOfMonth && chosen.isEmpty())
+        )
+    }
+
+    /**
+     * Days from [now] to the weekday [target] (Calendar.DAY_OF_WEEK). "Friday" and "on friday" are the next Friday,
+     * and naming today's weekday means a week from today; "this friday" said on a Friday is today. "Next friday" and
+     * "friday next week" are the Friday of next week, which starts on the region's first day of the week, but never
+     * tomorrow, which would have been said so: "next sunday" said on a Saturday is the Sunday a week later.
+     */
+    private fun weekdayAhead(now: Calendar, target: Int, modifier: String, nextWeek: Boolean, locale: Locale): Int {
+        val dayOfWeek = now.get(Calendar.DAY_OF_WEEK)
+        val coming = (target - dayOfWeek + 7) % 7
+        if (modifier == "next" || nextWeek) {
+            val firstDay = Calendar.getInstance(locale).firstDayOfWeek
+            val intoWeek = (dayOfWeek - firstDay + 7) % 7
+            val inNextWeek = 7 - intoWeek + (target - firstDay + 7) % 7
+            return if (inNextWeek == 1) 8 else inNextWeek
+        }
+        if (modifier == "this" && coming == 0) return 0
+        return if (coming == 0) 7 else coming
+    }
+
+    /**
+     * Whether the word at [from] in [text] is one a date or time before it describes ("the 3rd floor", "christmas
+     * presents", "a midnight snack"), rather than one that may follow a date ([DATE_FOLLOWERS]).
+     */
+    private fun describesNext(text: String, from: Int): Boolean {
+        val next = WORD_REGEX.find(text, from)?.value ?: return false
+        if (!next.first().isLetter()) return false
+        val word = next.lowercase(Locale.ROOT).replace('’', '\'').trimEnd(',', '.', ';', ':', '!').removeSuffix("'s")
+        return word !in DATE_FOLLOWERS
+    }
+
+    /**
+     * Whether [match], digits like "11/5", is a date: said with "on", "for" or "by", or opening [text] with nothing
+     * after it but a time. "Take 1/2 at 9pm" and "buy 1/2 gallon milk" are amounts, and stay in the task.
      */
     private fun readsAsDate(match: MatchResult, text: String): Boolean {
-        if (match.value.first().isLetter()) return true
+        if (match.groupValues[1].isNotEmpty()) return true
+        if (text.substring(0, match.range.first).isNotBlank()) return false
         val after = text.substring(match.range.last + 1).trimStart()
         return after.isEmpty() || !after.first().isLetter() || after.startsWith("at ", ignoreCase = true)
+    }
+
+    private val MEAL_REGEX = Regex("\\b(?:breakfast|brunch|lunch|dinner|supper)\\b", RegexOption.IGNORE_CASE)
+
+    /**
+     * The 24-hour hour a bare [hour] (no am/pm) means beside a meal named in [words]: breakfast is the morning, brunch
+     * late morning to early afternoon, lunch 11 to 3, dinner and supper the evening. Null when no meal is named or the
+     * hour doesn't fit it, which is then read as any other.
+     */
+    internal fun mealHour(words: String, hour: Int): Int? = when (MEAL_REGEX.find(words)?.value?.lowercase(Locale.ROOT)) {
+        "breakfast" -> hour.takeIf { it in 5..11 }
+        "brunch" -> when (hour) { in 9..12 -> hour; in 1..2 -> hour + 12; else -> null }
+        "lunch" -> when (hour) { 11, 12 -> hour; in 1..3 -> hour + 12; else -> null }
+        "dinner", "supper" -> if (hour in 1..11) hour + 12 else null
+        else -> null
     }
 
     /**
@@ -1008,23 +1204,33 @@ object NaturalLanguageIntentParser {
     }
 
     /**
-     * Moves [cal] to [day] of this month, or of the next month that has it once it's past ("on the 31st" in November is
-     * December 31), keeping its time of day. False when no month has it.
+     * [day] of this month, or of the next month that has it once it's past ("on the 31st" in November is December 31).
+     * Null when no month has it.
      */
-    private fun moveToDayOfMonth(cal: Calendar, day: Int): Boolean {
-        if (day !in 1..31) return false
-        for (monthsAhead in 0..12) {
-            val date = (cal.clone() as Calendar).apply {
-                set(Calendar.DAY_OF_MONTH, 1)
-                add(Calendar.MONTH, monthsAhead)
-            }
-            if (day > date.getActualMaximum(Calendar.DAY_OF_MONTH)) continue
-            if (monthsAhead == 0 && day < cal.get(Calendar.DAY_OF_MONTH)) continue
-            date.set(Calendar.DAY_OF_MONTH, day)
-            cal.timeInMillis = date.timeInMillis
-            return true
+    private fun dayOfMonthOnOrAfter(today: LocalDate, day: Int): LocalDate? {
+        if (day !in 1..31) return null
+        for (monthsAhead in 0L..12L) {
+            val month = today.withDayOfMonth(1).plusMonths(monthsAhead)
+            if (day > month.lengthOfMonth()) continue
+            val date = month.withDayOfMonth(day)
+            if (date >= today) return date
         }
-        return false
+        return null
+    }
+
+    /**
+     * [day] of [month] (1-12): in [year] when one was given, else the next time that date comes round, today included.
+     * Null when the date doesn't exist ("feb 30").
+     */
+    private fun dateOn(today: LocalDate, month: Int, day: Int, year: Int?): LocalDate? {
+        if (month !in 1..12 || day !in 1..31) return null
+        // "feb 29" may be a few years ahead.
+        for (candidateYear in (year ?: today.year)..(year ?: (today.year + 8))) {
+            val date = runCatching { LocalDate.of(candidateYear, month, day) }.getOrNull() ?: continue
+            if (year == null && date < today) continue
+            return date
+        }
+        return null
     }
 
     /**
@@ -1074,29 +1280,6 @@ object NaturalLanguageIntentParser {
         'd' -> MINUTES_PER_DAY
         'h' -> 60
         else -> 1
-    }
-
-    /**
-     * Moves [cal] to [day] of [month] (0-based), keeping its time of day: in [year] when one was given, else the next
-     * time that date comes round, today included. False when the date doesn't exist ("feb 30").
-     */
-    private fun moveToDate(cal: Calendar, month: Int, day: Int, year: Int?): Boolean {
-        if (month < 0 || day !in 1..31) return false
-        val today = cal.get(Calendar.YEAR) * 10_000 + cal.get(Calendar.MONTH) * 100 + cal.get(Calendar.DAY_OF_MONTH)
-        // "feb 29" may be a few years ahead.
-        for (candidateYear in (year ?: cal.get(Calendar.YEAR))..(year ?: (cal.get(Calendar.YEAR) + 8))) {
-            val date = (cal.clone() as Calendar).apply {
-                set(Calendar.DAY_OF_MONTH, 1)
-                set(Calendar.YEAR, candidateYear)
-                set(Calendar.MONTH, month)
-            }
-            if (day > date.getActualMaximum(Calendar.DAY_OF_MONTH)) continue
-            if (year == null && candidateYear * 10_000 + month * 100 + day < today) continue
-            date.set(Calendar.DAY_OF_MONTH, day)
-            cal.timeInMillis = date.timeInMillis
-            return true
-        }
-        return false
     }
 
     private fun extractTime(text: String): Pair<Int, Int>? {

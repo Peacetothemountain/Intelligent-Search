@@ -390,12 +390,17 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
             put("halloween", MonthDay.of(10, 31))
             for (name in listOf("valentines", "valentine's", "valentines day", "valentine's day")) put(name, MonthDay.of(2, 14))
             for (name in listOf("st patricks day", "st. patrick's day", "st patrick's day")) put(name, MonthDay.of(3, 17))
+            put("boxing day", MonthDay.of(12, 26))
         }
 
-        /** Days whose date moves: US Thanksgiving (the fourth Thursday of November) and Western Easter. */
+        /**
+         * Days whose date moves: US Thanksgiving (the fourth Thursday of November), Black Friday the day after it, and
+         * Western Easter.
+         */
         val MOVABLE_DAYS: Map<String, (Int) -> LocalDate> = buildMap {
             val thanksgiving = { year: Int -> OccasionCalendar.nth(year, 11, DayOfWeek.THURSDAY, 4) }
             for (name in listOf("thanksgiving", "thanksgiving day")) put(name, thanksgiving)
+            put("black friday") { year: Int -> thanksgiving(year).plusDays(1) }
             val easter = { year: Int -> OccasionCalendar.easter(year) }
             for (name in listOf("easter", "easter sunday", "easter day")) put(name, easter)
         }

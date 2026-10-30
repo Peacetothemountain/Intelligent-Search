@@ -59,6 +59,18 @@ internal fun numberForms(result: String, locale: Locale = Locale.getDefault()): 
 /** The significant digits the calculator writes an answer with. */
 private const val SIGNIFICANT_DIGITS = 10
 
+/** The decimals the calculator keeps on an answer with more whole digits than [SIGNIFICANT_DIGITS] allows for. */
+private const val LARGE_DECIMALS = 4
+
+/** The most significant digits the calculator writes. */
+private const val MAX_DIGITS = 15
+
+/**
+ * The fewest decimals a rounded answer needs for a small fraction matching every one of them to mean it repeats: with
+ * 4, about one irrational in three lands within reach of some fraction up to /100 by chance.
+ */
+private const val MIN_DECIMALS_FOR_REPEATING = 6
+
 /** [number] as "1.2346 × 10⁵". */
 private fun scientific(number: BigDecimal): String {
     if (number.signum() == 0) return "0"
@@ -89,10 +101,14 @@ private fun groupsOfFour(bits: String): String = bits.reversed().chunked(4).join
 private fun fraction(number: BigDecimal, shown: String): String? {
     if (number.signum() == 0) return null
     val magnitude = number.abs()
+    val exponent = magnitude.precision() - magnitude.scale() - 1
     // The decimals the calculator kept: ten significant digits, so 9 after the point from 1 up and more below it
-    // (0.0003333333333 keeps 13).
-    val kept = SIGNIFICANT_DIGITS - 1 - (magnitude.precision() - magnitude.scale() - 1)
+    // (0.0003333333333 keeps 13); from seven whole digits on, 4 decimals (15 digits at most).
+    val kept = maxOf(SIGNIFICANT_DIGITS - 1 - exponent, minOf(LARGE_DECIMALS, MAX_DIGITS - 1 - exponent))
     val decimals = maxOf(kept, shown.substringAfter('.', "").length)
+    // With fewer kept decimals than that, a fraction matches a rounded irrational by chance ("2236067 87/89" for
+    // 1000000·√5, 2236067.9775), so only a fraction the shown number is exactly counts ("1234567.25" is 1234567 1/4).
+    val exactOnly = kept < MIN_DECIMALS_FOR_REPEATING
     val tolerance = BigDecimal.ONE.movePointLeft(decimals).divide(BigDecimal(2))
     for (denominator in 2L..100L) {
         val d = BigDecimal.valueOf(denominator)
@@ -100,7 +116,8 @@ private fun fraction(number: BigDecimal, shown: String): String? {
         val numerator = scaled.setScale(0, RoundingMode.HALF_UP)
         if (numerator.signum() == 0) continue
         // |numerator / d - number| < tolerance, kept exact by multiplying through by d.
-        if (numerator.subtract(scaled).abs() >= tolerance.multiply(d)) continue
+        val off = numerator.subtract(scaled).abs()
+        if (if (exactOnly) off.signum() != 0 else off >= tolerance.multiply(d)) continue
         val n = numerator.toBigInteger().abs()
         val wholePart = n.divide(BigInteger.valueOf(denominator))
         val rest = n.mod(BigInteger.valueOf(denominator))

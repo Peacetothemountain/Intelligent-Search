@@ -464,6 +464,124 @@ class MathematicalExpressionEngineTest {
     }
 
     @Test
+    fun aWholeNumberPastWhatADoubleHoldsIsWrittenInFullOnlyWhenExact() {
+        // These were written out with wrong last digits: ...264, 998000000000, ...256, 1e17 and ...992.
+        assertEquals("121932631112635269", computed("123456789*987654321"))
+        assertEquals("999999998000000001", computed("999999999*999999999"))
+        assertEquals("4052555153018976267", computed("3^39"))
+        assertEquals("100000000000000001", computed("1e17+1"))
+        assertEquals("9007199254740993", computed("9007199254740993*1"))
+        assertEquals("2432902008176640000", computed("20!"))
+        assertEquals("4611686018427387904", computed("2^62"))
+        // What can't be worked out exactly isn't shown as if it were.
+        assertEquals("1.0000e+16", computed("1e17/10"))
+        assertEquals("5.0000e+16", computed("sqrt(25)*1e16"))
+    }
+
+    @Test
+    fun subtractionsOfFiveDigitNumbersAreAnswered() {
+        // Each was taken for a phone number or ZIP+4 code.
+        assertEquals("13000", computed("45999-32999"))
+        assertEquals("11111", computed("23456-12345"))
+        // A dash with spaces around it is always a subtraction.
+        assertEquals("55555", computed("98765 - 43210"))
+        assertEquals("13000", computed("45999 - 32999"))
+        assertEquals("5556", computed("12345 - 6789"))
+        // The shapes of a phone number and a ZIP+4 code still aren't sums.
+        assertNull(computed("98765-43210"))
+        assertNull(computed("94103-1234"))
+    }
+
+    @Test
+    fun internationalNumbersWithLongDashedGroupsAreNotSubtraction() {
+        // These were -141884, -12345659, -907779 and -1374.
+        for (query in listOf("+91-98765-43210", "+49-30-12345678", "+44-7700-900123", "(415)-555-1234")) {
+            assertNull(query, MathematicalExpressionEngine.evaluate(query))
+        }
+        assertEquals("5", computed("+10-5"))
+    }
+
+    @Test
+    fun wordsSpelledFromAToFAreNotHexNumbers() {
+        // "cafe in binary" was 0b1100101011111110 and "dead in decimal" 57005.
+        for (query in listOf("a in binary", "cafe in binary", "face in binary", "bad in binary", "ace in binary", "dead in decimal", "add to hex")) {
+            assertNull(query, MathematicalExpressionEngine.evaluate(query))
+        }
+        assertEquals("ff to dec = 255", bitwise("ff in decimal")?.expression)
+        assertEquals("1a to dec = 26", bitwise("1a in decimal")?.expression)
+        assertEquals("cd to dec = 205", bitwise("cd to decimal")?.expression)
+        assertEquals("deadbeef to dec = 3735928559", bitwise("deadbeef to dec")?.expression)
+    }
+
+    @Test
+    fun fluidOuncesAreImperialWhereGallonsAndPintsAre() {
+        inLocale(java.util.Locale.UK) {
+            // A UK pint was 19.2152 US fluid ounces.
+            assertEquals(20.0, converted("1 pint to fl oz")!!.toValue, 1e-9)
+            assertEquals(160.0, converted("1 gallon to fl oz")!!.toValue, 1e-9)
+            assertEquals(227.3045, converted("8 oz to ml")!!.toValue, 1e-4)
+            assertEquals(29.5735, converted("1 us fl oz to ml")!!.toValue, 1e-4)
+        }
+        inLocale(java.util.Locale.US) {
+            assertEquals(16.0, converted("1 pint to fl oz")!!.toValue, 1e-3)
+        }
+    }
+
+    @Test
+    fun moreCalculatorPhrasingsAreAnswered() {
+        // Each had no answer.
+        assertEquals("2", computed("5 mod 3"))
+        assertEquals("4", computed("2²"))
+        assertEquals("12", computed("15% of $80"))
+        assertEquals("-2", computed("(-8)^(1/3)"))
+        assertEquals("0.5", computed("sin(30°)"))
+        assertEquals("6.283185307", computed("2pi"))
+        assertNull(MathematicalExpressionEngine.evaluate("(-8)^(1/2)"))
+        assertNull(MathematicalExpressionEngine.evaluate("pi"))
+    }
+
+    @Test
+    fun floatRoundingDoesntChangeAFloorOrHideASine() {
+        // floor(4.35*100) was 434, and the sine of anything from 1e12 on was 0.
+        assertEquals("435", computed("floor(4.35*100)"))
+        assertEquals("435", computed("ceil(4.35*100)"))
+        assertEquals("-0.6112387024", computed("sin(1e12)"))
+        assertEquals("0", computed("sin(pi)"))
+        assertEquals("0", computed("sin(1000000*pi)"))
+    }
+
+    @Test
+    fun aTemperatureBelowAbsoluteZeroIsNoAnswer() {
+        assertNull(converted("-10 k to c"))
+        assertNull(converted("-500 c to k"))
+        assertNull(converted("-500 f to c"))
+        assertEquals(0.0, converted("-273.15 c to k")!!.toValue, 1e-9)
+    }
+
+    @Test
+    fun searchesThatLookLikeSumsStaySearches() {
+        // "e-40" (a rapper) was -37.28171817.
+        for (query in listOf("e-40", "24/7", "9-5", "7-11")) {
+            assertNull(query, MathematicalExpressionEngine.evaluate(query))
+        }
+        assertEquals("2.718281828", computed("e*1"))
+    }
+
+    @Test
+    fun spaceAndLakhGroupedNumbersAreRead() {
+        inLocale(java.util.Locale.FRANCE) {
+            assertEquals("1001,5", computed("1 000,5+1"))
+        }
+        inLocale(java.util.Locale.forLanguageTag("en-IN")) {
+            assertEquals("100001", computed("1,00,000+1"))
+        }
+        inLocale(java.util.Locale.US) {
+            assertEquals("100001", computed("1,00,000+1"))
+            assertEquals("1002", computed("1,000+2"))
+        }
+    }
+
+    @Test
     fun unitAndCurrencyNamesAreKnownToTheSpellChecker() {
         for (word in listOf("km", "ft2", "m3", "usd", "euros", "yen", "kwh", "mph", "°F")) {
             assertTrue(word, MathematicalExpressionEngine.isUnitName(word))

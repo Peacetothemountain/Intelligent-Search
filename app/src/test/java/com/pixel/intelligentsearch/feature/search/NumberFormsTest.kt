@@ -55,6 +55,18 @@ class NumberFormsTest {
     }
 
     @Test
+    fun aLargeIrrationalAnswerHasNoFraction() {
+        // With seven or more whole digits the calculator keeps four decimals, and fractions matched them by chance:
+        // 1000000·√5 was "2236067 87/89", 1000000·√7 "2645751 14/45", 1000000·ln 2 "693147 13/72".
+        for (shown in listOf("2236067.9775", "2645751.3111", "693147.1806", "174594265.3708")) {
+            assertTrue(shown, "Fraction" !in forms(shown))
+        }
+        // A fraction the shown number is exactly is still offered.
+        assertEquals("1234567 1/4", forms("1234567.25")["Fraction"])
+        assertEquals("12345 1/2", forms("12345.5")["Fraction"])
+    }
+
+    @Test
     fun anAnswerWithADecimalCommaHasItsOtherForms() {
         val forms = forms("2,5", Locale.GERMANY)
         assertEquals("2 1/2", forms["Fraction"])

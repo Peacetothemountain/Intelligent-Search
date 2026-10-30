@@ -20,6 +20,7 @@ import com.pixel.intelligentsearch.feature.search.launchWebSearch
 import com.pixel.intelligentsearch.feature.search.systemWebSearchIntent
 import com.pixel.intelligentsearch.feature.widget.WidgetActivity
 import com.pixel.intelligentsearch.feature.widget.getLensTranslateIntent
+import com.pixel.intelligentsearch.feature.widget.webSearchFromWidgetIntent
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -145,5 +146,24 @@ class OverlayHandOffTest {
         assertNotNull(started)
         assertEquals(other, started.component)
         assertEquals("cats", started.getStringExtra(android.app.SearchManager.QUERY))
+    }
+
+    @Test
+    fun aDoodleTappedWithNothingToSearchInSaysSoInsteadOfReopeningTheSearch() {
+        // Drawn with no Google app and no browser, the doodle's tap reopened the search with the day typed in.
+        val activity = Robolectric.buildActivity(WidgetActivity::class.java, webSearchFromWidgetIntent(context, "Halloween")).create().get()
+        assertNull(shadowOf(activity).nextStartedActivity)
+        assertEquals("No app available to search the web.", ShadowToast.getTextOfLatestToast())
+        assertTrue(activity.isFinishing)
+    }
+
+    @Test
+    fun aDoodleTappedAfterAWebSearchAppArrivedSearchesThere() {
+        val other = install("org.example.search", IntentFilter(Intent.ACTION_WEB_SEARCH))
+        val activity = Robolectric.buildActivity(WidgetActivity::class.java, webSearchFromWidgetIntent(context, "Halloween")).create().get()
+        val started = shadowOf(activity).nextStartedActivity
+        assertEquals(other, started?.component)
+        assertEquals("Halloween", started?.getStringExtra(android.app.SearchManager.QUERY))
+        assertTrue(activity.isFinishing)
     }
 }

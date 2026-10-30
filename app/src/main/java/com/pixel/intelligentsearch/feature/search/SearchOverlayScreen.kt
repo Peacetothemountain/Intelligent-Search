@@ -408,7 +408,7 @@ fun SearchOverlayScreen(
         }
         // With no Google app and no browser, the system web search came back to this app, reopening the search.
         if (!launchWebSearch(context, intent, searchQuery)) {
-            Toast.makeText(context, "No app available to search the web.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, NO_WEB_SEARCH_APP_MESSAGE, Toast.LENGTH_SHORT).show()
         }
     }
 

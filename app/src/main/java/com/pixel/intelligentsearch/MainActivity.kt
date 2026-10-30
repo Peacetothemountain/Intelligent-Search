@@ -452,6 +452,7 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
                 intent.getBooleanExtra("launch_gemini_overlay", false) -> launchGeminiCornerOverlay(this)
             intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS" -> launchLens(translate = false)
             intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS_TRANSLATE" -> launchLens(translate = true)
+            intent.action == com.pixel.intelligentsearch.feature.widget.ACTION_SEARCH_WEB -> searchWebFromWidget(intent)
             // The launcher's "Voice search" shortcut. With no recognizer installed, the overlay opens instead.
             intent.getBooleanExtra("auto_voice", false) -> {
                 val voice = com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent(this)
@@ -486,6 +487,26 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
         val message = if (translate) "To translate with your camera, install Google Lens or the Google app."
         else "To search with your camera, install Google Lens or the Google app."
         android.widget.Toast.makeText(applicationContext, message, android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    /**
+     * Searches the web for a doodle's day, tapped while no other app could when the widget was drawn
+     * ([com.pixel.intelligentsearch.feature.widget.webSearchFromWidgetIntent]): one may have been installed since.
+     * Never in this app, which would only reopen the search with the day; with nothing to search in, a toast says so.
+     */
+    private fun searchWebFromWidget(intent: Intent) {
+        val query = intent.getStringExtra(SearchManager.QUERY)?.take(512)?.takeIf { it.isNotBlank() } ?: return
+        val prefs = SettingsManager.storedPrefs(this)
+        val launch = com.pixel.intelligentsearch.feature.search.webSearchLaunch(
+            this, prefs[SettingsManager.SEARCH_ENGINE], prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL], query
+        )
+        val opened = (launch as? com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open)?.intent
+            ?.let { com.pixel.intelligentsearch.feature.search.launchWebSearch(this, it, query) } == true
+        if (!opened) {
+            android.widget.Toast.makeText(
+                applicationContext, com.pixel.intelligentsearch.feature.search.NO_WEB_SEARCH_APP_MESSAGE, android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
     /**

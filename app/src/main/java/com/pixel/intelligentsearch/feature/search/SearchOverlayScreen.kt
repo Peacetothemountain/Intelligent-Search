@@ -475,7 +475,9 @@ fun SearchOverlayScreen(
             if (event == Lifecycle.Event.ON_PAUSE) {
                 hasStartedTyping = false
             } else if (event == Lifecycle.Event.ON_RESUME) {
-                hasStartedTyping = false
+                // What was typed is still there after a permission prompt or page the user comes back from (it is
+                // cleared once search is left for good), and the engine's name stays under it as while typing.
+                hasStartedTyping = viewModel.uiState.value.query.isNotEmpty()
                 // Resuming into a voice request (the assistant gesture) keeps the keyboard down, and so does Show
                 // Keyboard When Search Opens being off (the field may still hold focus from before: it lets go).
                 if (!voice.active) isKeyboardDismissedByUser = !keyboardUpOnOpen(prefs)

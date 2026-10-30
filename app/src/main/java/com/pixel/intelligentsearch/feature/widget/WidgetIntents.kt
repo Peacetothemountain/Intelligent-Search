@@ -25,8 +25,14 @@ fun getVoiceSearchIntent(context: Context): Intent {
     if (context.packageManager.resolveActivityCompat(webSearch) != null) {
         return webSearch
     }
-    // A plain recognizer hands the words back only to whoever started it: the search starts it and searches them.
-    // No recognizer at all: the search opens so the user can type instead.
+    return ownVoiceSearchIntent(context)
+}
+
+/**
+ * This app's own voice search. A plain recognizer hands the words back only to whoever started it: the search starts
+ * it and searches them. No recognizer at all: the search opens so the user can type instead.
+ */
+private fun ownVoiceSearchIntent(context: Context): Intent {
     return Intent(context, WidgetActivity::class.java).apply {
         if (speechRecognizerIntent(context) != null) {
             action = ACTION_RECOGNIZE_SPEECH_IN_SEARCH
@@ -133,12 +139,7 @@ fun launchGeminiCornerOverlay(context: Context): Boolean {
     } catch (e: Throwable) {
         android.util.Log.w("SearchWidgetProvider", "SearchManager.launchAssist failed", e)
     }
-    val fallbacks = listOfNotNull(
-        Intent(Intent.ACTION_VOICE_COMMAND).setPackage(GoogleApps.GOOGLE_APP),
-        context.packageManager.getLaunchIntentForPackage("com.google.android.apps.bard"),
-        getVoiceSearchIntent(context)
-    )
-    for (fallback in fallbacks) {
+    for (fallback in assistantFallbacks(context, isTheAssistant)) {
         try {
             if (context.packageManager.resolveActivityCompat(fallback) == null) continue
             context.startActivity(fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -148,6 +149,21 @@ fun launchGeminiCornerOverlay(context: Context): Boolean {
         }
     }
     return false
+}
+
+/**
+ * Where [launchGeminiCornerOverlay] opens the assistant without launchAssist, in order; the first that is installed
+ * opens. While Intelligent Search [isTheAssistant], the Google app's voice command only forwards to Android's "Default
+ * digital assistant app" page, as Google isn't the assistant, so then the button opens Gemini itself, else the Google
+ * app's voice search, else this app's own.
+ */
+internal fun assistantFallbacks(context: Context, isTheAssistant: Boolean): List<Intent> {
+    val gemini = context.packageManager.getLaunchIntentForPackage(GoogleApps.GEMINI_APP)
+    if (!isTheAssistant) {
+        return listOfNotNull(Intent(Intent.ACTION_VOICE_COMMAND).setPackage(GoogleApps.GOOGLE_APP), gemini, getVoiceSearchIntent(context))
+    }
+    val googleVoice = Intent(Intent.ACTION_MAIN).setClassName(GoogleApps.GOOGLE_APP, GoogleApps.VOICE_SEARCH_ACTIVITY)
+    return listOfNotNull(gemini, googleVoice, ownVoiceSearchIntent(context))
 }
 
 fun getVoiceActionIntent(context: Context): Intent {

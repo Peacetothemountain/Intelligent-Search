@@ -679,4 +679,13 @@ class MathematicalExpressionEngineTest {
         // "5m" is still 5 metres.
         assertEquals(5.0, inLocale(java.util.Locale.US) { converted("5m to ft") }?.fromValue ?: 0.0, 1e-9)
     }
+
+    @Test
+    fun nauticalMilesAndThousandsAfterACurrencySignAreRead() {
+        // Neither had an answer.
+        assertEquals(1.852, inLocale(java.util.Locale.US) { converted("1 nautical mile to km") }?.toValue ?: 0.0, 1e-9)
+        val thousands = inLocale(java.util.Locale.US) { converted("\$1.5k to gbp") }
+        assertEquals(1_500.0, thousands?.fromValue ?: 0.0, 1e-9)
+        assertEquals("USD" to "GBP", thousands?.fromUnit to thousands?.toUnit)
+    }
 }

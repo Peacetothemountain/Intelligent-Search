@@ -63,15 +63,13 @@ object ShortActionPhrasing {
     private val WEEKDAYS = listOf("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
     /** Weekdays as quick notes shorten them: "dentist fri 2pm", "gym tues 6am". */
     private val SHORT_WEEKDAYS = listOf("tues", "thurs", "thur", "weds", "sun", "mon", "tue", "wed", "thu", "fri", "sat")
-    private val DAY_WORD = "today|tonight|tomorrow|tmrw|tmr|(?:on\\s+)?(?:${(WEEKDAYS + SHORT_WEEKDAYS).joinToString("|")})"
+    private val DAY_WORD = "today|tonight|tomorrow|tmrw|tmr|tmw|(?:on\\s+)?(?:${(WEEKDAYS + SHORT_WEEKDAYS).joinToString("|")})"
     private val RELATIVE_REMINDER = Regex(
         "^(.+?)\\s+in\\s+(?:($AMOUNT)\\s*(min|mins|minute|minutes|m|hr|hrs|hour|hours|h|day|days)|(an?)\\s+(minute|hour|day))$",
         RegexOption.IGNORE_CASE
     )
     private val TIMED_REMINDER = Regex("^(.+?)\\s+(?:($DAY_WORD)\\s+)?(at\\s+)?(?:$TIME)$", RegexOption.IGNORE_CASE)
     private val DAY_FIRST_REMINDER = Regex("^($DAY_WORD)\\s+(at\\s+)?(?:$TIME)\\s+(.+)$", RegexOption.IGNORE_CASE)
-    /** "tmrw" and "tmr", as quick notes write tomorrow. */
-    private val SHORT_TOMORROW = Regex("\\btmrw?\\b", RegexOption.IGNORE_CASE)
     /**
      * A task that ends in a word that bounds or rounds the time after it ("call mom around 5pm", "pay rent by 5pm",
      * "lunch 12 - 1pm", "meeting from 2 to 3pm"): the time it says is no time to set a reminder for.
@@ -88,7 +86,7 @@ object ShortActionPhrasing {
         "will", "should", "time", "weather", "news", "score", "scores", "flight", "flights", "movie", "movies",
         "showtimes", "traffic", "sunrise", "sunset", "open", "opening", "convert", "define", "translate", "timer",
         "alarm", "remind", "reminder", "set", "start", "days", "weeks", "hours", "minutes", "at", "on", "in",
-        "today", "tonight", "tomorrow", "tmrw", "tmr"
+        "today", "tonight", "tomorrow", "tmrw", "tmr", "tmw"
     ) + WEEKDAYS + listOf(
         // "dec 25 at 5pm" is a date, not a task called "Dec 25".
         "jan", "january", "feb", "february", "mar", "march", "apr", "april", "may", "jun", "june", "jul", "july",
@@ -237,10 +235,11 @@ object ShortActionPhrasing {
     }
 
     /**
-     * The 24-hour hour [time] means. With am/pm it is exact. Without, a 24-hour clock or a leading zero ("07:00") reads
-     * the hour as written; a 12-hour clock takes the next of its morning and evening times still ahead ("at 6" at 2 PM
-     * is 6 PM), or, when [preferEvening] (a day other than today was named), 1 to 7 as the afternoon and evening people
-     * mean.
+     * The 24-hour hour [time] means. With am/pm it is exact. Without, a leading zero ("07:00") or an hour past 12 reads
+     * as written, and so does any hour on a 24-hour clock once no words have said which half of the day it is (a
+     * reminder's meal, bedtime, "tonight" or part of the day go first, on either clock); a 12-hour clock takes the next
+     * of its morning and evening times still ahead ("at 6" at 2 PM is 6 PM), or, when [preferEvening] (a day other than
+     * today was named), 1 to 7 as the afternoon and evening people mean.
      */
     private fun resolveHour(time: ClockTime, now: Calendar, is24Hour: Boolean, preferEvening: Boolean): Int {
         val meridiem = time.meridiem
@@ -295,7 +294,7 @@ object ShortActionPhrasing {
         // on the 3rd at 2pm", "call mom on thanksgiving at 5"), with the time just after them ("dentist fri 2pm",
         // "dentist the 12th at 10am"). Day words it can't read, or that disagree, are no reminder; "buy candy for
         // halloween at 6pm" may be today or Halloween, so it is none either.
-        val said = "$taskText $dayWord".replace(SHORT_TOMORROW, "tomorrow")
+        val said = "$taskText $dayWord"
         val day = NaturalLanguageIntentParser.readDay(said, now, locale, clockFollows = true) ?: return null
         if (day.forOccasionOnly) return null
         val task = cleanTask(day.text.replace(WHITESPACE, " ")) ?: return null
@@ -303,11 +302,12 @@ object ShortActionPhrasing {
         day.date?.let { at.set(it.year, it.monthValue - 1, it.dayOfMonth) }
         val namedDay = day.namedDay
         val night = namedDay == NamedDay.TONIGHT || day.period == "night"
-        // A bare hour on a 12-hour clock goes by the first rule that says which half of the day it is, as the full
-        // phrasing's does: words that say so ("dinner at 7" is 7 PM even said at 5 AM, "dinner tonight at 5:30" 5:30 PM,
-        // "pills before bed at 10" 10 PM), then "tonight", which runs past midnight ("at 12" is midnight, 1 to 4 the
-        // small hours after it, and 5 either, so no time), then a part of the day.
-        val bare = time.meridiem == null && !is24Hour && !time.zeroPadded && time.hour in 1..12
+        // A bare hour (1 to 12, no am/pm or leading zero) goes by the first rule that says which half of the day it is,
+        // as the full phrasing's does: words that say so ("dinner at 7" is 7 PM even said at 5 AM, "dinner tonight at
+        // 5:30" 5:30 PM, "pills before bed at 10" 10 PM), then "tonight", which runs past midnight ("at 12" is midnight,
+        // 1 to 4 the small hours after it, and 5 either, so no time), then a part of the day. On a 24-hour clock too:
+        // people there still say "dinner at 7" for 19:00, which read as written set a reminder for 7 in the morning.
+        val bare = time.meridiem == null && !time.zeroPadded && time.hour in 1..12
         val said24 = if (bare) NaturalLanguageIntentParser.hourForWords(task, time.hour) else null
         val hour = when {
             said24 != null -> said24

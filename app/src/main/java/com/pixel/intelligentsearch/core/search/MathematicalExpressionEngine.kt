@@ -118,6 +118,7 @@ object MathematicalExpressionEngine {
     // Units written in two words, joined into their table names: "fl oz", "sq ft", "square meters", "metric ton".
 
     private val REGEX_FLUID_OUNCE = Regex("\\b(?:fl\\.?\\s*oz|fluid\\s+ounces?)\\b", RegexOption.IGNORE_CASE)
+    private val REGEX_NAUTICAL_MILE = Regex("\\bnautical\\s+miles?\\b", RegexOption.IGNORE_CASE)
     private val REGEX_SQUARE_OR_CUBIC_UNIT = Regex(
         "\\b(sq|square|cu|cubic)\\.?\\s+(kilomet(?:er|re)s?|km|miles?|mi|feet|foot|ft|yards?|yd|inch(?:es)?|in|" +
             "centimet(?:er|re)s?|cm|met(?:er|re)s?|m)\\b",
@@ -179,7 +180,8 @@ object MathematicalExpressionEngine {
     // "15% of 80" is 15% times 80; "20% off 59.99" is 59.99 less 20%.
     private val REGEX_PERCENT_OF = Regex("%\\s*of\\s+", RegexOption.IGNORE_CASE)
     private val REGEX_PERCENT_OFF = Regex("^(.+?)%\\s*off\\s+(.+)$", RegexOption.IGNORE_CASE)
-    private val REGEX_CURRENCY_PREFIX = Regex("([$€£¥₹])\\s*([0-9.,]+)")
+    // "$100", and "$1.5k": the thousands go with the amount.
+    private val REGEX_CURRENCY_PREFIX = Regex("([$€£¥₹])\\s*([0-9.,]+(?:[kKmM](?!\\p{L}))?)")
     private val REGEX_WHITESPACE = Regex("\\s+")
     // "√16" is the square root of 16; the sign takes only the number right after it, as "sqrt" does.
     private val REGEX_ROOT_OF_NUMBER = Regex("√\\s*([0-9.]+)")
@@ -971,6 +973,7 @@ object MathematicalExpressionEngine {
                 CURRENCY_PHRASES[name] ?: CURRENCY_PHRASES[name.removeSuffix("s")] ?: phrase.value
             }
             .replace(REGEX_FLUID_OUNCE, "fl_oz")
+            .replace(REGEX_NAUTICAL_MILE, "nmi")
             .replace(REGEX_SQUARE_OR_CUBIC_UNIT) { unit ->
                 val prefix = if (unit.groupValues[1].lowercase(Locale.ROOT).startsWith("s")) "sq_" else "cu_"
                 prefix + shortLength(unit.groupValues[2].lowercase(Locale.ROOT))

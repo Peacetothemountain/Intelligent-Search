@@ -386,4 +386,35 @@ class ShortActionPhrasingTest {
         assertEquals(at(23, 9, 30), parse("standup 09:30")?.triggerMillis)
         assertEquals(at(23, 7), parse("call mom at 07:00")?.triggerMillis)
     }
+
+    @Test
+    fun wordsThatSayWhichHalfOfTheDayCountOnA24HourClockToo() {
+        // On a 24-hour phone each was the morning hour, tomorrow: 07:00, 01:00, 07:30, and tomorrow at 07:00.
+        assertEquals(at(22, 19), parse("dinner at 7", is24Hour = true)?.triggerMillis)
+        assertEquals("Remind: Dinner at 19:00", parse("dinner at 7", is24Hour = true)?.title)
+        assertEquals(at(23, 13), ShortActionPhrasing.parse("lunch at 1", at(22, 14), true, utc, Locale.US)?.triggerMillis)
+        assertEquals(at(22, 19, 30), parse("dinner at 7:30", is24Hour = true)?.triggerMillis)
+        assertEquals(at(23, 19), parse("dinner tomorrow at 7", is24Hour = true)?.triggerMillis)
+        assertEquals(at(22, 21), parse("gym tonight at 9", is24Hour = true)?.triggerMillis)
+        // A leading zero, or an hour past 12, is as written.
+        assertEquals(at(23, 7), parse("dinner at 07:00", is24Hour = true)?.triggerMillis)
+        assertEquals(at(22, 18), parse("dinner at 18:00", is24Hour = true)?.triggerMillis)
+    }
+
+    @Test
+    fun aMealThatSaysWhatTheTaskIsForLeavesTheHourAlone() {
+        // Said at 8 AM this was 10 PM.
+        assertEquals(at(22, 10), ShortActionPhrasing.parse("book dinner reservations at 10", at(22, 8), false, utc, Locale.US)?.triggerMillis)
+        assertEquals(at(22, 19), ShortActionPhrasing.parse("dinner at 7", at(22, 5), false, utc, Locale.US)?.triggerMillis)
+    }
+
+    @Test
+    fun aDayTheReaderCantPlaceIsNoReminder() {
+        // "Some sun" was Sunday; the others were tomorrow or today, the day words left in the task.
+        assertEquals(at(22, 16), parse("get some sun 4pm")?.triggerMillis)
+        assertNull(parse("pay rent on december first at 9am"))
+        assertNull(parse("call grandpa on veterans day at 11am"))
+        assertNull(parse("buy tickets for saturday's game at 5pm"))
+        assertEquals(at(23, 17), parse("call mom tmw 5pm")?.triggerMillis)
+    }
 }

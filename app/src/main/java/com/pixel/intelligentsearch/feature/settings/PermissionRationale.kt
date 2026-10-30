@@ -73,6 +73,13 @@ internal fun interface SettingsGrant {
  * Setting Up, the search's microphone), App info starts while the screen is still behind that prompt, and Android
  * brings the screen back once before App info covers it, with the permission still off. Counted, that ended the wait,
  * so allowing it on App info then turned nothing on.
+ *
+ * A new request brought to the screen instead (the search opened again from the Quick Settings tile, the notification
+ * shortcut or the assistant gesture, which reuse the waiting search and clear App info off it) ends the wait: it isn't
+ * the user coming back, and that search asked for nothing, so it must not start the microphone. Back from App info never
+ * brings a new request. The wait also ends, answering nothing, when the screen is first left with the permission
+ * already on: App info opened beside it (desktop windows) instead of over it, and the user allowed it there with the
+ * screen still in view. Leaving and coming back later (minimized and restored) isn't coming back from App info.
  */
 @Composable
 internal fun rememberSettingsGrant(permission: String, onGranted: () -> Unit): SettingsGrant {
@@ -82,21 +89,35 @@ internal fun rememberSettingsGrant(permission: String, onGranted: () -> Unit): S
     // Whether the screen has been left since App info was opened, so only coming back from it answers.
     var leftForGrant by rememberSaveable(permission) { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, permission) {
+    DisposableEffect(lifecycleOwner, context, permission) {
+        fun allowed() = context.checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
         val observer = LifecycleEventObserver { _, event ->
             if (!awaitingGrant) return@LifecycleEventObserver
-            if (event == Lifecycle.Event.ON_PAUSE) leftForGrant = true
+            if (event == Lifecycle.Event.ON_PAUSE && !leftForGrant) {
+                // Already allowed as the screen is left: not left for App info, which covers it before anything changes.
+                if (allowed()) awaitingGrant = false else leftForGrant = true
+            }
             if (event == Lifecycle.Event.ON_RESUME && leftForGrant) {
                 awaitingGrant = false
                 leftForGrant = false
-                if (context.checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                if (allowed()) {
                     forgetDecline(context, permission)
                     currentOnGranted()
                 }
             }
         }
+        // Heard before the resume that follows a new request, so that resume answers nothing.
+        val newRequest = androidx.core.util.Consumer<Intent> {
+            awaitingGrant = false
+            leftForGrant = false
+        }
+        val activity = context.findActivity() as? androidx.core.app.OnNewIntentProvider
         lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        activity?.addOnNewIntentListener(newRequest)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            activity?.removeOnNewIntentListener(newRequest)
+        }
     }
     return remember(context, permission) {
         SettingsGrant {

@@ -24,6 +24,10 @@ import java.util.Locale
  * - Phone Calls ("call Mom", "dial 555-0199")
  * - Navigation ("directions to Central Park", "navigate to work", "directions home")
  * - Media ("play lo-fi beats", "play Taylor Swift on Spotify", "play jazz on YouTube Music")
+ *
+ * When an event, reminder or alarm is set for is read by [readDay]'s closed grammar, which lists every date and time
+ * expression it reads. Any other word of when ("around 7", "every monday", "a week from today") makes the phrase no
+ * action rather than one set for now or a guessed day.
  */
 object NaturalLanguageIntentParser {
 
@@ -147,6 +151,18 @@ object NaturalLanguageIntentParser {
         "\\b(?:(at)\\s+)?(\\d{1,2})(?:([:.])(\\d{2}))?(?:$MERIDIEM|\\s*o['’]?clock\\b|\\b)",
         RegexOption.IGNORE_CASE
     )
+    // "730pm": the hour and minutes run together, which only am/pm makes a time.
+    private val COMPACT_TIME_REGEX = Regex("\\b(\\d{1,2})(\\d{2})(?=$MERIDIEM)", RegexOption.IGNORE_CASE)
+    // "2-3pm", "from 2 to 3pm", "10:30-11am", "at 2-3": a time range, which starts at its first time.
+    private val TIME_RANGE_REGEX = Regex(
+        "(?:\\b(from|at)\\s+)?(?<![\\d/.:,-])\\b(\\d{1,2})(?:[:.](\\d{2}))?(?:$MERIDIEM)?\\s*(?:-|–|—|\\bto\\b|\\buntil\\b|\\btill\\b)" +
+            "\\s*(\\d{1,2})(?:[:.](\\d{2}))?(?:$MERIDIEM)?(?![\\d/:])",
+        RegexOption.IGNORE_CASE
+    )
+    // What, left in a task once its clock time is read, is another time the reader couldn't place: "at 1930", "at 7
+    // 30"'s "30", a second "6pm".
+    private val LEFTOVER_TIME_REGEX = Regex("\\bat\\s+\\d|\\b\\d{1,2}(?:[:.]\\d{2})?$MERIDIEM|\\b\\d{1,2}:\\d{2}\\b", RegexOption.IGNORE_CASE)
+    private val MINUTES_AFTER_REGEX = Regex("^\\s+\\d{2}\\b")
     // An alarm is only a time of day, so a space can part the hour from the minutes too: "alarm 6 30".
     private val CLOCK_TIME_REGEX = Regex("\\b(\\d{1,2})(?:[:.\\s](\\d{2}))?(?:$MERIDIEM|\\b)", RegexOption.IGNORE_CASE)
     private val NOON_OR_MIDNIGHT_REGEX = Regex("\\b(noon|midday|midnight)\\b", RegexOption.IGNORE_CASE)
@@ -197,12 +213,17 @@ object NaturalLanguageIntentParser {
         put("thirtieth", 30)
         put("thirty-first", 31)
     }
+    private val SPELLED_ORDINAL = SPELLED_ORDINALS.keys.sortedByDescending { it.length }.joinToString("|") { it.replace("-", "[\\s-]") }
     // "on the 1st", "by the 21st", "on the fifteenth": a day of this month or the next that has it. It takes "on",
     // "for" or "by": "the 3rd" alone is as often a chapter or a floor.
     private val ORDINAL_DAY_REGEX = Regex(
-        "\\b(on|for|by)\\s+(?:(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)|the\\s+(" +
-            SPELLED_ORDINALS.keys.sortedByDescending { it.length }.joinToString("|") { it.replace("-", "[\\s-]") } +
-            "))(?![\\p{L}\\p{N}])",
+        "\\b(on|for|by)\\s+(?:(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)|the\\s+($SPELLED_ORDINAL))(?![\\p{L}\\p{N}])",
+        RegexOption.IGNORE_CASE
+    )
+    // "the 12th", "12th", "the fifth" with no "on": a date only with a clock time right after it ("dentist the 12th at
+    // 10am"). Left anywhere else, and not describing the word after it, it is a date the reader can't place.
+    private val BARE_ORDINAL_REGEX = Regex(
+        "(?<![\\p{L}\\p{N}])(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)(?![\\p{L}\\p{N}])|\\bthe\\s+($SPELLED_ORDINAL)(?![\\p{L}\\p{N}])",
         RegexOption.IGNORE_CASE
     )
     // "in may", "in march 2027": the first of that month.
@@ -234,7 +255,8 @@ object NaturalLanguageIntentParser {
         "at", "by", "on", "in", "to", "and", "or", "then", "from", "until", "till", "before", "after", "around", "about",
         "with", "for", "so", "but", "if", "when", "while", "every", "this", "next", "coming", "please", "today", "tonight",
         "tomorrow", "morning", "afternoon", "evening", "night", "noon", "midday", "midnight", "sunday", "monday",
-        "tuesday", "wednesday", "thursday", "friday", "saturday"
+        "tuesday", "wednesday", "thursday", "friday", "saturday", "because", "re", "regarding", "as", "since", "unless",
+        "again", "too", "also", "instead"
     )
     /**
      * When-words that need a clock time with them ("before bed", "at lunch", "after work", "by eod", "later"): they
@@ -265,15 +287,88 @@ object NaturalLanguageIntentParser {
     private val LEADING_TO_REGEX = Regex("^to\\s+", RegexOption.IGNORE_CASE)
     // What a title is left with when the time words came out from between commas: "meeting on friday, dec 4 at 3pm".
     private val STRAY_PUNCTUATION = charArrayOf(',', ';', ':', '-', ' ')
-    // "meeting with john" names the meeting by who it's with; the title says so, "Meeting with john", not "with john".
-    private val MEETING_PREPOSITION_REGEX = Regex("^(?:with|about|re|for)\\s", RegexOption.IGNORE_CASE)
+    // "meeting with john" names the meeting by who it's with, "meeting on the 3rd floor" by where; the title says so,
+    // "Meeting with john" and "Meeting on the 3rd floor", not "with john" and "on the 3rd floor".
+    private val MEETING_PREPOSITION_REGEX = Regex("^(?:with|about|re|for|on|at|in)\\s", RegexOption.IGNORE_CASE)
     private val WEEKDAYS = listOf("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
-    // "on friday", "this friday", "next tuesday": "next" is the one in next week. "Black friday", "good friday" and
-    // "cyber monday" are days of their own.
+    /** Weekdays as quick notes shorten them ("fri", "tues"), by the full name. */
+    private val SHORT_WEEKDAYS = mapOf(
+        "sun" to "sunday", "mon" to "monday", "tue" to "tuesday", "tues" to "tuesday", "wed" to "wednesday",
+        "weds" to "wednesday", "thu" to "thursday", "thur" to "thursday", "thurs" to "thursday", "fri" to "friday",
+        "sat" to "saturday"
+    )
+    private val WEEKDAY_WORDS = (WEEKDAYS + SHORT_WEEKDAYS.keys).sortedByDescending { it.length }.joinToString("|")
+    // "on friday", "this friday", "next tuesday", "fri": "next" is the one in next week. "Black friday", "good friday"
+    // and "cyber monday" are days of their own, and "c'mon" is no Monday.
     private val WEEKDAY_REGEX = Regex(
-        "$DATE_LEAD(?:\\b(next|this|coming)\\s+)?(?<!black\\s)(?<!good\\s)(?<!cyber\\s)\\b(${WEEKDAYS.joinToString("|")})\\b",
+        "(?:\\b(on|for|by)\\s+)?(?:\\b(next|this|coming)\\s+)?(?<!black\\s)(?<!good\\s)(?<!cyber\\s)(?<!['’])\\b($WEEKDAY_WORDS)\\b\\.?",
         RegexOption.IGNORE_CASE
     )
+    // "friday the 13th", "tuesday, 11/10", "monday nov 2": a weekday said with its date.
+    private val WEEKDAY_DATE_REGEX = Regex(
+        "(?<!['’])\\b($WEEKDAY_WORDS)\\b\\.?,?\\s+(?:(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)(?![\\p{L}\\p{N}])|" +
+            "the\\s+($SPELLED_ORDINAL)(?![\\p{L}\\p{N}])|(\\d{1,2})/(\\d{1,2})(?:/(\\d{4}|\\d{2}))?(?![/\\d])|(?=$MONTHS))",
+        RegexOption.IGNORE_CASE
+    )
+    /** Words before a short weekday that make it a thing: "the sun", "my sat score". */
+    private val DETERMINERS = setOf("the", "a", "an", "my", "your", "his", "her", "our", "their", "its")
+    // A clock time right after a word: "fri 2pm", "fri at 2", "the 12th at 10am", "sat noon".
+    private val TIME_FOLLOWS_REGEX = Regex(
+        "^\\s*,?\\s*(?:(?:at|@)\\s*\\d|\\d{1,2}(?:[:.]\\d{2})?$MERIDIEM|\\d{1,2}:\\d{2}|(?:at\\s+)?(?:noon|midday|midnight)\\b)",
+        RegexOption.IGNORE_CASE
+    )
+
+    private const val CLOCK_WORDS = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve"
+    /**
+     * When-words outside what the reader reads ([readDay] lists what it does), wherever they sit: a time said roughly
+     * ("at 7ish", "noonish") or the spoken way ("at 10 to 7", "20 past 6"), a day counted from another ("a week from today", "2 days from now", "the week after
+     * next", "after 2 days"), part of a week ("early next week", "by the end of next week"), the sun ("at dawn", "at
+     * sunset") or "at night", a task that repeats ("every monday", "each morning", "the 1st of every month", "on
+     * weekdays"), a day misspelled or gone ("tomorow", "tonite", "yesterday"), "asap", and a bound on a day ("before
+     * friday", "until the 5th", "from monday").
+     */
+    private val NEVER_READ_REGEX = Regex(
+        "\\d\\s*-?\\s*ish\\b|\\b(?:noon|midday|midnight|$CLOCK_WORDS)-?ish\\b|" +
+            "\\bat\\s+\\d{1,2}\\s+(?:to|past|after|before)\\s+\\d|\\b\\d{1,2}\\s+(?:past|after)\\s+\\d|" +
+            "(?<!\\bday\\s)\\b(?:from|after)\\s+(?:now|today|tomorrow|tonight|next)\\b|\\bweek\\s+after\\b|" +
+            "\\b(?:after|within)\\s+$SPOKEN_DURATION|\\b$SPOKEN_DURATION\\s+(?:from|later|after|hence|ago)\\b|" +
+            "\\b(?:early|late|mid|(?:end|beginning|start|middle|rest)\\s+of)[\\s-]+(?:the\\s+)?(?:next|this|coming)\\s+(?:week|month|year)\\b|" +
+            "\\b(?:at|by|before|after|around|until|till|from|toward|towards)\\s+(?:dawn|dusk|sunrise|sunset|sundown|sunup|" +
+            "daybreak|nightfall|first\\s+light|night)\\b|" +
+            "\\b(?:every|each)\\s+(?:other\\s+|single\\s+|\\d+\\s*|few\\s+|couple\\s+of\\s+)?(?:day|week|month|year|hour|minute|" +
+            "morning|afternoon|evening|night|weekday|weekend|time|$WEEKDAY_WORDS)s?\\b|\\bof\\s+(?:the|this|next|every|each|a)\\s+month\\b|" +
+            "\\b(?:weekdays|weekends|weeknights|sundays|mondays|tuesdays|wednesdays|thursdays|fridays|saturdays)\\b|" +
+            "\\b(?:yesterday|tomorow|tommorow|tommorrow|tomorrw|tmorrow|tomoro|tomorro|2morrow|2moro|2morow|tonite|2nite|" +
+            "tonigt|tonght|asap)\\b|" +
+            "(?<!\\bday\\s)\\b(?:before|after|until|till|til)\\s+(?:the\\s+)?(?:\\d|(?:$WEEKDAY_WORDS|today|tomorrow|tonight|next)\\b|$MONTHS)|" +
+            "\\bfrom\\s+(?:(?:$WEEKDAY_WORDS)\\b|$MONTHS)",
+        RegexOption.IGNORE_CASE
+    )
+    /**
+     * A clock time said roughly or as a bound ("around 7", "about 5pm", "by 5", "before 9am", "between 2 and 3"), or in
+     * words ("at seven"): unread, unless the word after it is one the number describes ("about 3 things", "at one
+     * point").
+     */
+    private val ROUGH_TIME_REGEX = Regex(
+        "\\b(?:(?:around|about|approx\\.?|approximately|roughly|circa|by|before|after|until|till|til|between|" +
+            "no\\s+later\\s+than)\\s+(?:\\d{1,2}(?:[:.]\\d{2})?|noon|midday|midnight|$CLOCK_WORDS)|" +
+            "at\\s+(?:$CLOCK_WORDS))(?:$MERIDIEM|\\s*o['’]?clock\\b)?(?![\\p{L}\\p{N}/])",
+        RegexOption.IGNORE_CASE
+    )
+    /**
+     * Words that say a task repeats ("take vitamins daily", "weekly"), or a rough part of the day ("in the early
+     * afternoon", "late morning"): unread, unless they describe the word after them ("the weekly report", "a late
+     * night snack").
+     */
+    private val REPEAT_OR_ROUGH_PART_REGEX = Regex(
+        "\\b(?:daily|weekly|monthly|yearly|annually|nightly|hourly|biweekly|fortnightly|" +
+            "(?:early|late|mid)[\\s-]+(?:morning|afternoon|evening|night)|mid(?:morning|afternoon|evening))\\b",
+        RegexOption.IGNORE_CASE
+    )
+    // A misspelled weekday ("wensday", "thrusday", "fryday"): a day that can't be read.
+    private val UNKNOWN_WEEKDAY_REGEX = Regex("\\b(?:mo|tu|we|th|fr|sa|su)\\p{L}{0,7}day\\b", RegexOption.IGNORE_CASE)
+    /** Words [UNKNOWN_WEEKDAY_REGEX] finds that are no misspelling. */
+    private val KNOWN_DAY_WORDS = WEEKDAYS.toSet() + "weekday"
 
     /** AlarmClock.EXTRA_LENGTH accepts 1..86400 seconds. */
     private const val MAX_TIMER_SECONDS = 24L * 60L * 60L
@@ -288,11 +383,13 @@ object NaturalLanguageIntentParser {
             val intent: Intent
         ) : ParsedIntent()
 
+        /** [ringsAtMillis] is the next time [hour]:[minute] comes round, when the clock rings. */
         data class Alarm(
             val hour: Int,
             val minute: Int,
             val message: String,
-            val intent: Intent
+            val intent: Intent,
+            val ringsAtMillis: Long = 0L
         ) : ParsedIntent()
 
         data class Timer(
@@ -374,7 +471,7 @@ object NaturalLanguageIntentParser {
         parseTimer(lower)?.let { return it }
 
         // 2. Alarm Intent ("alarm 7am", "set alarm for 6:30 am", "wake me up at 8")
-        parseAlarm(lower, currentTimeMs)?.let { return it }
+        parseAlarm(lower, currentTimeMs, locale)?.let { return it }
 
         // 3. Reminder Intent ("remind me to ...")
         parseReminder(lower, query, currentTimeMs, locale)?.let { return it }
@@ -499,7 +596,7 @@ object NaturalLanguageIntentParser {
     // ALARM PARSER
     // ---------------------------------------------------------------------------------------------
 
-    private fun parseAlarm(lower: String, currentTimeMs: Long): ParsedIntent.Alarm? {
+    private fun parseAlarm(lower: String, currentTimeMs: Long, locale: Locale): ParsedIntent.Alarm? {
         val matchedPrefix = ALARM_PREFIXES.firstOrNull { lower.startsWith(it) } ?: return null
         val remainder = lower.removePrefix(matchedPrefix).trim()
         if (SPOKEN_CLOCK_REGEX.containsMatchIn(remainder)) return null
@@ -507,26 +604,65 @@ object NaturalLanguageIntentParser {
         // "alarm in 10 minutes" and "alarm for 10 minutes" are a time from now, not 10 o'clock. An alarm is only an
         // hour and minute, so a day or more ahead ("alarm 2 days") can't be set, and "alarm 5 seconds" is not 5 o'clock.
         val relative = ALARM_DURATION_REGEX.find(remainder)
-        val time = if (relative != null) {
+        val now = Calendar.getInstance().apply { timeInMillis = currentTimeMs }
+        val rings = (now.clone() as Calendar).apply { set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0) }
+        if (relative != null) {
             val minutes = relativeMinutes(relative) ?: return null
             if (minutes >= MINUTES_PER_DAY) return null
-            val cal = Calendar.getInstance().apply { timeInMillis = currentTimeMs }
-            cal.add(Calendar.MINUTE, Math.round(minutes).toInt())
-            Pair(cal.get(Calendar.HOUR_OF_DAY), cal.get(Calendar.MINUTE))
+            rings.add(Calendar.MINUTE, Math.round(minutes).toInt())
         } else {
             if (UNREAD_ALARM_DURATION_REGEX.containsMatchIn(remainder)) return null
-            extractTime(remainder) ?: return null
+            if (!ringsOnTheDayNamed(remainder, now, rings, locale)) return null
         }
+        val hour = rings.get(Calendar.HOUR_OF_DAY)
+        val minute = rings.get(Calendar.MINUTE)
 
-        val intent = alarmIntent(time.first, time.second)
-
-        val formattedTime = String.format(Locale.US, "%02d:%02d", time.first, time.second)
+        val formattedTime = String.format(Locale.US, "%02d:%02d", hour, minute)
         return ParsedIntent.Alarm(
-            hour = time.first,
-            minute = time.second,
+            hour = hour,
+            minute = minute,
             message = "Alarm for $formattedTime",
-            intent = intent
+            intent = alarmIntent(hour, minute),
+            ringsAtMillis = rings.timeInMillis
         )
+    }
+
+    /**
+     * Sets [rings] to the next time the clock time in [words] comes round after [now], and says whether that is the
+     * day [words] name, if any. The clock's alarm is only a time of day (it rings the next time that comes round), so
+     * "wake me up at 7 tomorrow" said at 9 PM is an alarm, but said at 6:40 AM it would ring in 20 minutes, and "alarm
+     * monday at 6" said on a Friday would ring on Saturday: those are no alarm. A bare hour is as written ("alarm 7" is
+     * 7 AM) unless a part of the day or "tonight" says otherwise ("alarm at 7 in the evening" is 7 PM). False too when
+     * [words] have no clock time, or when-words the reader can't read ([readDay]).
+     */
+    private fun ringsOnTheDayNamed(words: String, now: Calendar, rings: Calendar, locale: Locale): Boolean {
+        val day = readDay(words, now, locale) ?: return false
+        val (typedHour, minute, bare) = extractTime(day.text) ?: return false
+        var hour = typedHour
+        val night = day.namedDay == NamedDay.TONIGHT || day.period == "night"
+        var smallHours = false
+        if (bare) {
+            when {
+                night -> when (hour) {
+                    12 -> { hour = 0; smallHours = true }
+                    5 -> return false
+                    in 6..11 -> hour += 12
+                    else -> smallHours = true
+                }
+                day.period != null && day.period != "morning" && hour != 12 -> hour += 12
+            }
+        }
+        rings.set(Calendar.HOUR_OF_DAY, hour)
+        rings.set(Calendar.MINUTE, minute)
+        if (!rings.after(now)) rings.add(Calendar.DAY_OF_YEAR, 1)
+        val today = LocalDate.of(now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1, now.get(Calendar.DAY_OF_MONTH))
+        // "This morning", like "today", names today.
+        val named = when {
+            day.date != null -> if (smallHours) day.date.plusDays(1) else day.date
+            day.period != null && !day.periodWithIn -> if (smallHours) today.plusDays(1) else today
+            else -> return true
+        }
+        return named == LocalDate.of(rings.get(Calendar.YEAR), rings.get(Calendar.MONTH) + 1, rings.get(Calendar.DAY_OF_MONTH))
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -572,7 +708,8 @@ object NaturalLanguageIntentParser {
             else -> text
         }
         val startMs = temporalResult.timestampMs
-        val endMs = startMs + 60 * 60 * 1000 // 1-hour duration
+        // A range ("2-3pm") ends when it says; anything else is an hour long.
+        val endMs = temporalResult.endMs ?: (startMs + 60 * 60 * 1000)
 
         val intent = Intent(Intent.ACTION_INSERT).apply {
             data = CalendarContract.Events.CONTENT_URI
@@ -697,14 +834,18 @@ object NaturalLanguageIntentParser {
 
     /**
      * What, right after a name, makes "text <name> ..." a question about messages not working ("text will not send",
-     * "message mark not delivered", "text grace keeps failing"): a not-word or a stuck-word, then a word about sending,
-     * or "not working" with nothing after it. A message that only starts with one ("text mom can't make it", "text
-     * sarah stuck in traffic", "text boss not working today") still goes.
+     * "message mark not delivered", "text grace keeps failing"): a not-word or a stuck-word, then a word about sending
+     * with nothing after it but what a phone sends ("not sending pictures", "won't receive texts from iphone"), or "not
+     * working" with nothing after it. A message that only starts with one ("text mom can't make it", "text sarah stuck
+     * in traffic", "text boss not working today", "text mom didn't receive the package") still goes.
      */
     private val TROUBLESHOOTING = Regex(
         "^(?:(?:not|won'?t|doesn'?t|isn'?t|can'?t|cannot|didn'?t|aren'?t|wasn'?t|stopped|stuck)\\s+" +
             "(?:(?:be|being|get|getting)\\s+)?(?:send(?:s|ing)?|sent|deliver(?:s|ed|ing)?|go(?:es|ing)?\\s+through|" +
-            "fail(?:s|ed|ing)?|load(?:s|ed|ing)?|receiv(?:e|es|ed|ing)|show(?:s|ing)?\\s+up)(?!\\p{L})|" +
+            "fail(?:s|ed|ing)?|load(?:s|ed|ing)?|receiv(?:e|es|ed|ing)|show(?:s|ing)?\\s+up)" +
+            "(?:\\s+(?:any\\s+|my\\s+|the\\s+|group\\s+)?(?:messages?|texts?|sms|mms|imessages?|pictures?|photos?|pics?|" +
+            "images?|videos?|attachments?|links?|gifs?|emojis?|codes?|verification\\s+codes?))?" +
+            "(?:\\s+(?:to|on|from|with)\\s+(?:an?\\s+)?(?:android|iphone|ios|samsung|pixel|my\\s+phone|wi-?fi))?\\W*$|" +
             "(?:not|won'?t|doesn'?t|isn'?t|aren'?t|stopped)\\s+work(?:s|ing)?\\W*$|keeps\\s+fail(?:s|ing)?(?!\\p{L}))",
         RegexOption.IGNORE_CASE
     )
@@ -837,7 +978,7 @@ object NaturalLanguageIntentParser {
     // TEMPORAL EXTRACTION UTILITIES
     // ---------------------------------------------------------------------------------------------
 
-    private data class TemporalResult(val timestampMs: Long, val cleanText: String)
+    private data class TemporalResult(val timestampMs: Long, val cleanText: String, val endMs: Long? = null)
 
     /** The day word a phrase named, which decides how a bare hour like "at 3" is read. */
     internal enum class NamedDay { NONE, TODAY, TONIGHT, TOMORROW, WEEKDAY, DATE }
@@ -876,12 +1017,13 @@ object NaturalLanguageIntentParser {
     /**
      * When [rawText] names, from [baseTimeMs]; null when it names a time from now, a date or a clock time that can't
      * be read, or one already past, so the phrase is not taken as one set at some other time. [locale] says how a
-     * numeric date is written.
+     * numeric date is written. A time range ("2-3pm") also gives its end, [TemporalResult.endMs].
      */
     private fun extractTemporalInfo(rawText: String, baseTimeMs: Long, locale: Locale): TemporalResult? {
         val cal = Calendar.getInstance().apply { timeInMillis = baseTimeMs }
         val day = readDay(rawText, cal, locale) ?: return null
-        var text = day.text
+        // "730pm" is 7:30 PM.
+        var text = day.text.replace(COMPACT_TIME_REGEX) { "${it.groupValues[1]}:${it.groupValues[2]}" }
         val namedDay = day.namedDay
         val period = day.period
         val isTonight = namedDay == NamedDay.TONIGHT
@@ -910,6 +1052,32 @@ object NaturalLanguageIntentParser {
             return null
         }
 
+        // "2-3pm", "from 2 to 3pm": the range is read as its start ("at 2 pm", the end's am/pm when the start has none),
+        // and its end kept for an event. A bare "9-10" or "2 to 3", with no "from", am/pm or minutes, may as well be
+        // pages or people, and with no other time it is a time that can't be read.
+        var rangeEnd: ClockTime? = null
+        var bareRange = false
+        for (range in TIME_RANGE_REGEX.findAll(text)) {
+            if (describesNext(text, range.range.last + 1)) continue
+            val g = range.groupValues
+            if (g[1].isEmpty() && g[3].isEmpty() && g[4].isEmpty() && g[6].isEmpty() && g[7].isEmpty()) {
+                bareRange = true
+                continue
+            }
+            val startHour = g[2].toInt()
+            var startMeridiem = g[4].lowercase(Locale.ROOT)
+            if (startMeridiem.isEmpty() && g[7].isNotEmpty() && startHour in 1..12) {
+                // "11-1pm" starts in the morning, "12-1pm" at noon, "2-3pm" in the afternoon.
+                val end = g[5].toInt() % 12 + if (g[7].equals("p", ignoreCase = true)) 12 else 0
+                val asEnd = startHour % 12 + if (g[7].equals("p", ignoreCase = true)) 12 else 0
+                startMeridiem = if (asEnd <= end) g[7].lowercase(Locale.ROOT) else if (g[7].equals("p", ignoreCase = true)) "a" else "p"
+            }
+            val start = " at ${g[2]}${if (g[3].isNotEmpty()) ":${g[3]}" else ""}${if (startMeridiem.isNotEmpty()) " ${startMeridiem}m" else ""} "
+            rangeEnd = ClockTime(g[5].toIntOrNull() ?: return null, g[6].toIntOrNull() ?: 0, g[7].lowercase(Locale.ROOT), g[5].startsWith("0"))
+            text = text.replaceRange(range.range, start)
+            break
+        }
+
         // "at noon" is 12:00; "at midnight" the end of the day named, or of today. "A midnight snack" is no time.
         val noonOrMidnight = NOON_OR_MIDNIGHT_TIME_REGEX.findAll(text).firstOrNull { !describesNext(text, it.range.last + 1) }
         if (noonOrMidnight != null) {
@@ -932,43 +1100,45 @@ object NaturalLanguageIntentParser {
             var hour = timeMatch.groupValues[2].toIntOrNull() ?: 9
             val minute = timeMatch.groupValues[4].toIntOrNull() ?: 0
             val amPm = timeMatch.groupValues[5].lowercase(Locale.ROOT)
-            // "07:00" is 24-hour notation: the hour is meant exactly as written.
+            // "07:00" is 24-hour notation: the hour is meant exactly as written, whatever day is named or not.
             val zeroPadded = timeMatch.groupValues[2].length == 2 && timeMatch.groupValues[2][0] == '0'
 
             // A time that doesn't exist ("at 25:00", "13pm") is no time: Calendar is lenient and would roll it into
-            // another day, and clamping it would set the event at a time nobody asked for.
+            // another day, and clamping it would set the event at a time nobody asked for. "At 7 30" is a time with
+            // minutes the reader doesn't take apart.
             if (minute !in 0..59 || (amPm.isEmpty() && hour !in 0..23) || (amPm.isNotEmpty() && hour !in 1..12)) return null
+            if (MINUTES_AFTER_REGEX.containsMatchIn(text.substring(timeMatch.range.last + 1))) return null
             if (amPm == "p" && hour < 12) hour += 12
             if (amPm == "a" && hour == 12) hour = 0
-            // "Tonight" and a night run past midnight: "tonight at 9" is 21:00, "at 12" is midnight, the end of the
-            // day, and 1 to 5 the small hours after it.
             val night = isTonight || period == "night"
-            if (amPm.isEmpty() && night && !zeroPadded && hour in 1..12) {
-                hour = when (hour) {
-                    12 -> 0
-                    in 6..11 -> hour + 12
-                    else -> hour
-                }
-            } else if (amPm.isEmpty() && hour in 1..11) {
-                // Without am/pm: with no day or "today", "at 3" is the next 3 o'clock still ahead. Tomorrow, a
-                // weekday or a date has no "already passed" to go by, so 1-7 is read as the afternoon or evening
-                // people mean ("tomorrow at 3") and 8-11 as the morning, unless the hour has a leading zero. A part
-                // of the day says which half ("tomorrow morning at 7" is 7 AM, "this evening at 7" 7 PM), and so does
-                // a meal: "dinner at 7" is 7 PM even said at 5 AM.
-                val meal = if (zeroPadded) null else mealHour(text, hour)
-                if (period != null) {
-                    if (period != "morning") hour += 12
-                } else if (meal != null) {
-                    hour = meal
-                } else if (relativeMatch == null) {
-                    when (namedDay) {
-                        NamedDay.TOMORROW, NamedDay.WEEKDAY, NamedDay.DATE -> if (hour <= 7 && !zeroPadded) hour += 12
-                        else -> {
-                            val morning = (cal.clone() as Calendar).apply {
-                                set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute); set(Calendar.SECOND, 0)
-                            }
-                            if (morning.timeInMillis < baseTimeMs && morning.timeInMillis + 12 * 3_600_000L > baseTimeMs) hour += 12
+            // A bare hour (no am/pm, no leading zero) is read by the first rule that says which half of the day it is:
+            // - words that say so: a meal, bedtime, "after work" ([hourForWords]): "dinner tonight at 5:30" is 5:30 PM;
+            // - "tonight" and a night run past midnight: "tonight at 9" is 21:00, "at 12" midnight, the end of the
+            //   day, and 1 to 4 the small hours after it. "Tonight at 5" may be either, so it is no time;
+            // - a part of the day: "tomorrow morning at 7" is 7 AM, "this evening at 7" 7 PM;
+            // - tomorrow, a weekday or a date has no "already passed" to go by, so 1-7 is read as the afternoon or
+            //   evening people mean ("tomorrow at 3") and 8-11 as the morning;
+            // - with no day or "today", the next one still ahead: "at 3" said at 10 AM is 3 PM.
+            var said: Int? = null
+            if (amPm.isEmpty() && !zeroPadded && hour in 1..12) {
+                said = hourForWords(text, hour)
+                when {
+                    said != null -> hour = said
+                    night -> hour = when (hour) {
+                        12 -> 0
+                        5 -> return null
+                        in 6..11 -> hour + 12
+                        else -> hour
+                    }
+                    hour == 12 -> {}
+                    period != null -> if (period != "morning") hour += 12
+                    relativeMatch != null -> {}
+                    namedDay == NamedDay.TOMORROW || namedDay == NamedDay.WEEKDAY || namedDay == NamedDay.DATE -> if (hour <= 7) hour += 12
+                    else -> {
+                        val morning = (cal.clone() as Calendar).apply {
+                            set(Calendar.HOUR_OF_DAY, hour); set(Calendar.MINUTE, minute); set(Calendar.SECOND, 0)
                         }
+                        if (morning.timeInMillis < baseTimeMs && morning.timeInMillis + 12 * 3_600_000L > baseTimeMs) hour += 12
                     }
                 }
             }
@@ -976,7 +1146,7 @@ object NaturalLanguageIntentParser {
             cal.set(Calendar.HOUR_OF_DAY, hour)
             cal.set(Calendar.MINUTE, minute)
             cal.set(Calendar.SECOND, 0)
-            if (night && hour < 6) cal.add(Calendar.DAY_OF_YEAR, 1)
+            if (night && said == null && hour < 6) cal.add(Calendar.DAY_OF_YEAR, 1)
             text = text.replace(timeMatch.value, "")
 
             if (namedDay == NamedDay.NONE && !today && relativeMatch == null && cal.timeInMillis < baseTimeMs) {
@@ -994,38 +1164,83 @@ object NaturalLanguageIntentParser {
             }
         }
 
-        val timed = relativeMatch != null || noonOrMidnight != null || timeMatch != null || period != null || isTonight
+        val clockTime = noonOrMidnight != null || timeMatch != null
+        // Another time left in the task ("at 1930", "at 5pm 6pm"), or a bare range with nothing else to say when: a
+        // time that can't be read.
+        if (LEFTOVER_TIME_REGEX.containsMatchIn(text) || (bareRange && !clockTime && relativeMatch == null)) return null
+        val timed = relativeMatch != null || clockTime || period != null || isTonight
         // "Before bed" or "the 3rd floor" with no time read: when is unclear. "Book flights for christmas at 5pm" may
         // be today at 5 or Christmas at 5.
         if (day.needsTime && !timed) return null
-        if (day.forOccasionOnly && (timeMatch != null || noonOrMidnight != null)) return null
+        if (day.forOccasionOnly && clockTime) return null
         // Never a reminder or event already gone ("tonight" said at 21:00, "on 1/2/25"); the minute now is still now.
         if (cal.timeInMillis < baseTimeMs - Math.floorMod(baseTimeMs, 60_000L)) return null
+        val endMs = if (rangeEnd != null && timeMatch != null) {
+            rangeEndMillis(cal, rangeEnd) ?: return null
+        } else null
         val cleanTitle = text.replace(WHITESPACE_REGEX, " ").trim(*STRAY_PUNCTUATION)
-        return TemporalResult(cal.timeInMillis, cleanTitle)
+        return TemporalResult(cal.timeInMillis, cleanTitle, endMs)
+    }
+
+    /** A clock time as typed: the hour (1-12 with [meridiem] "a" or "p", else 0-23), minutes and a leading zero. */
+    private class ClockTime(val hour: Int, val minute: Int, val meridiem: String, val zeroPadded: Boolean)
+
+    /**
+     * When a range that starts at [start] ends, at [end]: the first such time after the start, on its day or the next
+     * ("10pm-1am"). Null when it is no time, or more than a day on.
+     */
+    private fun rangeEndMillis(start: Calendar, end: ClockTime): Long? {
+        if (end.minute !in 0..59) return null
+        val hours = when {
+            end.meridiem.isNotEmpty() -> if (end.hour in 1..12) listOf(end.hour % 12 + if (end.meridiem == "p") 12 else 0) else return null
+            end.zeroPadded || end.hour == 0 || end.hour in 13..23 -> listOf(end.hour)
+            end.hour in 1..12 -> listOf(end.hour % 12, end.hour % 12 + 12)
+            else -> return null
+        }
+        val startMinutes = start.get(Calendar.HOUR_OF_DAY) * 60 + start.get(Calendar.MINUTE)
+        val minutesOn = (hours.map { it * 60 + end.minute } + hours.map { it * 60 + end.minute + MINUTES_PER_DAY })
+            .filter { it > startMinutes }.minOrNull() ?: return null
+        return start.timeInMillis + (minutesOn - startMinutes) * 60_000L
     }
 
     /**
-     * The day [rawText] names, read from [now] (its date, in its zone). Words count as the day only where they read
-     * as one:
-     * - a day word: "today", "tonight", "tomorrow", "the day after tomorrow", a weekday ("friday", "this friday", "next
-     *   friday", "friday next week"), or "next week";
-     * - a month and day, either way round ("dec 5", "the 5th of december");
+     * The day [rawText] names, read from [now] (its date, in its zone). The reader has a closed grammar: it reads these
+     * and nothing else.
+     * - Day words: "today", "tonight", "tomorrow" (the short phrasings take "tmrw" too), "the day after tomorrow", "next
+     *   week".
+     * - A weekday: "friday", "on friday", "this friday", "next friday", "friday next week". Its short name ("fri",
+     *   "tues", "sat") only where a day goes: after "on", "by", "this", "next" or "coming", or right before a clock time
+     *   ("fri 2pm"), so "sat down" and "the sun" are no days.
+     * - A weekday with its date: "friday the 13th", "tuesday, 11/10", "monday nov 2". The weekday must fall on the date.
+     * - A month and day, either way round: "dec 5", "december 5th, 2027", "the 5th of december".
      * - "on", "for" or "by" and a day of the month ("on the 3rd", "by the fifteenth") or a numeric date ("on 11/5"). A
-     *   numeric date with none of them is one only when it opens the phrase ("12/5 at 3pm"): "take 1/2" and "episode
-     *   4/5" are amounts;
-     * - "on" or "for" and a holiday ("on thanksgiving", "for christmas"), and "in <month>".
-     * A day of the month, a holiday or a month followed by a word it describes is part of the task instead: "the 3rd
-     * floor", "christmas presents", "the first time" ([DATE_FOLLOWERS] lists the words that may follow a date).
+     *   day of the month alone ("the 12th") is one only right before a clock time ("dentist the 12th at 10am"), and a
+     *   numeric date only when it opens the phrase ("12/5 at 3pm"): "take 1/2" and "episode 4/5" are amounts.
+     * - "On" or "for" and a holiday ("on thanksgiving", "for christmas"), and "in <month>".
+     * - A part of the day: "this evening", "in the morning", "tomorrow night", "friday afternoon".
+     * [extractTemporalInfo] then reads the clock time: "at 3", "3pm", "15:30", "07:00" (a leading zero is the hour as
+     * written), "6.30pm", "730pm", "5 o'clock", "noon", "midnight", a range ("2-3pm", "from 2 to 3pm"), or a time from
+     * now ("in 10 minutes", "in an hour"); words that say which half of the day a bare hour is ("dinner", "before bed")
+     * go before any other rule.
+     *
+     * A date, holiday, month or weekday followed by a word it describes is part of the task instead: "the 3rd floor",
+     * "christmas presents", "the first time", "sunday school" ([DATE_FOLLOWERS] lists the words that may follow a day).
+     * Such a weekday leaves the phrase with no day unless another is named ("call the sunday school teacher tomorrow"),
+     * as "friday lunch" may as well be Friday's.
      *
      * When more than one reading is found they must agree. "For <holiday>" and "in <month>" may say what the task is
      * for ("buy candy for halloween tomorrow"), so any other reading wins over them and they stay in the task. A weekday
-     * said with a date ("friday, dec 4") must fall on it. Two readings that disagree ("on the 3rd ... tomorrow") give
-     * null, as do a date that doesn't exist, a day that can't be read ("on mother's day") and when-words left over
-     * ("this weekend", "by june"): the phrase is then searched rather than set on a guessed day, as no action is better
-     * than a wrong one.
+     * said with a date ("friday, dec 4") must fall on it.
+     *
+     * Anything else that reads as a when-word gives null: readings that disagree ("on the 3rd ... tomorrow"), a date
+     * that doesn't exist, a day that can't be read ("on mother's day", "wensday", "a week from today", "early next
+     * week"), a time said roughly or as a bound ("at 7ish", "around 7", "by 5", "at seven"), and a task that repeats
+     * ("every monday", "the 1st of every month", "daily"). The phrase is then searched rather than set on a guessed day
+     * or for now, as no action is better than a wrong one. [clockFollows] says a clock time comes right after [rawText]
+     * (the short phrasings read the time apart), which "the 12th" and "fri" at its end are then right before.
      */
-    internal fun readDay(rawText: String, now: Calendar, locale: Locale): DayReading? {
+    internal fun readDay(rawText: String, now: Calendar, locale: Locale, clockFollows: Boolean = false): DayReading? {
+        if (hasUnreadWhenWords(rawText)) return null
         val today = LocalDate.of(now.get(Calendar.YEAR), now.get(Calendar.MONTH) + 1, now.get(Calendar.DAY_OF_MONTH))
         // Words read are blanked with as many spaces, so every match keeps its place. [scan] loses each reading as it
         // is found, so no words are read twice; [text] only the ones taken.
@@ -1037,6 +1252,9 @@ object NaturalLanguageIntentParser {
             readings += reading
             for (range in reading.ranges) scan = blank(scan, range)
         }
+        // Whether a clock time comes right after [from]: "fri 2pm", "the 12th at 10am".
+        fun timeFollows(from: Int): Boolean =
+            TIME_FOLLOWS_REGEX.containsMatchIn(rawText.substring(from)) || (clockFollows && scan.substring(from).isBlank())
         var unreadDayOfMonth = false
 
         // The part of the day goes first, while the day word before it ("tomorrow morning") is still there to find it.
@@ -1056,6 +1274,25 @@ object NaturalLanguageIntentParser {
                 strong = !forOccasion, forOccasion = forOccasion, calendarDate = !forOccasion))
         }
         DAY_AFTER_TOMORROW_REGEX.find(scan)?.let { add(DayWords(listOf(it.range), today.plusDays(2), NamedDay.TOMORROW, strong = true)) }
+        // A weekday's date ("friday the 13th", "tuesday 11/10") is read here, as no "on" comes before it; the weekday is
+        // read below and must fall on it. A month and day after one ("monday nov 2") is read as any other.
+        val datedWeekdays = HashSet<Int>()
+        for (match in WEEKDAY_DATE_REGEX.findAll(scan)) {
+            val weekday = match.groups[1]!!.range
+            val date = when {
+                match.groups[2] != null || match.groups[3] != null -> {
+                    // "monday the 3rd floor": no date.
+                    if (describesNext(scan, match.range.last + 1)) continue
+                    val dayOfMonth = match.groups[2]?.value?.toInt()
+                        ?: SPELLED_ORDINALS[match.groupValues[3].lowercase(Locale.ROOT).replace(WHITESPACE_REGEX, "-")] ?: return null
+                    dayOfMonthOnOrAfter(today, dayOfMonth) ?: return null
+                }
+                match.groups[4] != null -> numericDate(match.groupValues[4], match.groupValues[5], match.groupValues[6], today, locale) ?: return null
+                else -> null
+            }
+            datedWeekdays += weekday.first
+            if (date != null) add(DayWords(listOf(weekday.last + 1..match.range.last), date, NamedDay.DATE, strong = true, calendarDate = true))
+        }
         for (match in MONTH_DAY_REGEX.findAll(scan).toList() + DAY_MONTH_REGEX.findAll(scan)) {
             if (scan.substring(match.range).isBlank()) continue
             val monthFirst = match.groupValues[1].firstOrNull()?.isLetter() == true
@@ -1066,11 +1303,7 @@ object NaturalLanguageIntentParser {
         }
         for (match in NUMERIC_DATE_REGEX.findAll(scan)) {
             if (!readsAsDate(match, scan)) continue
-            val first = match.groupValues[2].toInt()
-            val second = match.groupValues[3].toInt()
-            val (month, dayOfMonth) = if (monthBeforeDay(locale)) first to second else second to first
-            val year = match.groupValues[4].toIntOrNull()?.let { if (it < 100) 2000 + it else it }
-            val date = dateOn(today, month, dayOfMonth, year) ?: return null
+            val date = numericDate(match.groupValues[2], match.groupValues[3], match.groupValues[4], today, locale) ?: return null
             add(DayWords(listOf(match.range), date, NamedDay.DATE, strong = true, calendarDate = true))
         }
         for (match in ORDINAL_DAY_REGEX.findAll(scan)) {
@@ -1081,6 +1314,13 @@ object NaturalLanguageIntentParser {
             }
             val dayOfMonth = match.groupValues[2].toIntOrNull()
                 ?: SPELLED_ORDINALS[match.groupValues[3].lowercase(Locale.ROOT).replace(WHITESPACE_REGEX, "-")] ?: return null
+            val date = dayOfMonthOnOrAfter(today, dayOfMonth) ?: return null
+            add(DayWords(listOf(match.range), date, NamedDay.DATE, strong = true, calendarDate = true))
+        }
+        for (match in BARE_ORDINAL_REGEX.findAll(scan)) {
+            if (scan.substring(match.range).isBlank() || !timeFollows(match.range.last + 1)) continue
+            val dayOfMonth = match.groupValues[1].toIntOrNull()
+                ?: SPELLED_ORDINALS[match.groupValues[2].lowercase(Locale.ROOT).replace(WHITESPACE_REGEX, "-")] ?: return null
             val date = dayOfMonthOnOrAfter(today, dayOfMonth) ?: return null
             add(DayWords(listOf(match.range), date, NamedDay.DATE, strong = true, calendarDate = true))
         }
@@ -1099,15 +1339,37 @@ object NaturalLanguageIntentParser {
             for (match in regex.findAll(scan).toList()) add(DayWords(listOf(match.range), today.plusDays(offset), named, strong = true))
         }
         val nextWeek = NEXT_WEEK_REGEX.find(scan)
-        val weekdays = WEEKDAY_REGEX.findAll(scan).toList()
-        for (match in weekdays) {
-            val target = WEEKDAYS.indexOf(match.groupValues[2].lowercase(Locale.ROOT)) + Calendar.SUNDAY
-            val ahead = weekdayAhead(now, target, match.groupValues[1].lowercase(Locale.ROOT), nextWeek != null, locale)
+        var weekdayRead = false
+        var unreadWeekday = false
+        for (match in WEEKDAY_REGEX.findAll(scan).toList()) {
+            val word = match.groups[3]!!
+            val typed = word.value.lowercase(Locale.ROOT)
+            val short = typed in SHORT_WEEKDAYS
+            val lead = match.groupValues[1].lowercase(Locale.ROOT)
+            val modifier = match.groupValues[2].lowercase(Locale.ROOT)
+            val after = match.range.last + 1
+            // "The sun", "my sat score": a thing, not a day.
+            if (short && lead.isEmpty() && modifier.isEmpty() && wordBefore(rawText, word.range.first) in DETERMINERS) continue
+            if (word.range.first !in datedWeekdays && !timeFollows(after)) {
+                // A short name is a day only where a day goes ("on sat", "next fri"), and "put on sun cream" is a thing.
+                // A full one followed by a word it describes ("sunday school", "the friday standup") is part of the task.
+                val describes = describesNext(rawText, after)
+                if (short) {
+                    if (describes || (modifier.isEmpty() && lead != "on" && lead != "by" && !(clockFollows && scan.substring(after).isBlank()))) continue
+                } else if (describes) {
+                    unreadWeekday = true
+                    continue
+                }
+            }
+            val target = WEEKDAYS.indexOf(SHORT_WEEKDAYS[typed] ?: typed) + Calendar.SUNDAY
+            val ahead = weekdayAhead(now, target, modifier, nextWeek != null, locale)
             val named = if (ahead == 0) NamedDay.TODAY else NamedDay.WEEKDAY
-            add(DayWords(listOfNotNull(match.range, nextWeek?.range), today.plusDays(ahead.toLong()), named, strong = true, weekday = target))
+            add(DayWords(listOfNotNull(match.range, nextWeek?.range?.takeIf { !weekdayRead }), today.plusDays(ahead.toLong()), named,
+                strong = true, weekday = target))
+            weekdayRead = true
         }
         // "next week" with no day is a week from now, as "in a week" is.
-        if (weekdays.isEmpty() && nextWeek != null) add(DayWords(listOf(nextWeek.range), today.plusDays(7), NamedDay.WEEKDAY, strong = true))
+        if (!weekdayRead && nextWeek != null) add(DayWords(listOf(nextWeek.range), today.plusDays(7), NamedDay.WEEKDAY, strong = true))
 
         // A weekday said with a date only says which day of the week that is; one it isn't makes no reading.
         val dates = readings.filter { it.strong && it.calendarDate }
@@ -1119,9 +1381,16 @@ object NaturalLanguageIntentParser {
         }
         val chosen = agreed.filter { it.strong }.ifEmpty { agreed }
         if (chosen.map { it.date }.distinct().size > 1 || chosen.any { it.date == null }) return null
+        // "The sunday school teacher" is no Sunday, but "friday lunch" may well be Friday's: with no other day named,
+        // which is meant can't be told.
+        if (unreadWeekday && chosen.isEmpty()) return null
         for (reading in chosen) for (range in reading.ranges) text = blank(text, range)
         // A time from now is read later; its "an hour and a half to stretch" is no "half to 5".
         if (UNREAD_DATE_REGEX.containsMatchIn(RELATIVE_TIME_REGEX.replace(scan, " "))) return null
+        // A day of the month left unread that describes nothing ("pay rent the 12th", "the 1st and the 15th").
+        if (BARE_ORDINAL_REGEX.findAll(scan).any { scan.substring(it.range).isNotBlank() && !describesNext(scan, it.range.last + 1) }) {
+            return null
+        }
 
         val namedDay = listOf(NamedDay.TONIGHT, NamedDay.TOMORROW, NamedDay.TODAY, NamedDay.WEEKDAY, NamedDay.DATE)
             .firstOrNull { kind -> chosen.any { it.namedDay == kind } } ?: NamedDay.NONE
@@ -1134,6 +1403,26 @@ object NaturalLanguageIntentParser {
             forOccasionOnly = chosen.isNotEmpty() && chosen.all { it.forOccasion },
             needsTime = UNTIMED_WHEN_REGEX.containsMatchIn(scan) || (unreadDayOfMonth && chosen.isEmpty())
         )
+    }
+
+    /**
+     * Whether [text] has when-words outside the reader's grammar ([NEVER_READ_REGEX], [ROUGH_TIME_REGEX],
+     * [REPEAT_OR_ROUGH_PART_REGEX], a misspelled weekday): a phrase with any is no event, reminder or alarm.
+     */
+    private fun hasUnreadWhenWords(text: String): Boolean =
+        NEVER_READ_REGEX.containsMatchIn(text) ||
+            ROUGH_TIME_REGEX.findAll(text).any { !describesNext(text, it.range.last + 1) } ||
+            REPEAT_OR_ROUGH_PART_REGEX.findAll(text).any { !describesNext(text, it.range.last + 1) } ||
+            UNKNOWN_WEEKDAY_REGEX.findAll(text).any { it.value.lowercase(Locale.ROOT) !in KNOWN_DAY_WORDS }
+
+    /** The word right before [index] in [text], lowercased ("the" in "the sun"), or "" at its start. */
+    private fun wordBefore(text: String, index: Int): String =
+        text.substring(0, index).trimEnd().substringAfterLast(' ').lowercase(Locale.ROOT)
+
+    /** A numeric date ("11/10", "10/11/27"), the month or the day first as [locale]'s region writes dates. */
+    private fun numericDate(first: String, second: String, year: String, today: LocalDate, locale: Locale): LocalDate? {
+        val (month, dayOfMonth) = if (monthBeforeDay(locale)) first.toInt() to second.toInt() else second.toInt() to first.toInt()
+        return dateOn(today, month, dayOfMonth, year.toIntOrNull()?.let { if (it < 100) 2000 + it else it })
     }
 
     /**
@@ -1178,18 +1467,32 @@ object NaturalLanguageIntentParser {
     }
 
     private val MEAL_REGEX = Regex("\\b(?:breakfast|brunch|lunch|dinner|supper)\\b", RegexOption.IGNORE_CASE)
+    private val BEDTIME_REGEX = Regex("\\b(?:before|at|by)\\s+bed\\b|\\bbedtime\\b", RegexOption.IGNORE_CASE)
+    private val AFTER_WORK_REGEX = Regex("\\bafter\\s+(work|school|class)\\b", RegexOption.IGNORE_CASE)
+    private val BEFORE_WORK_REGEX = Regex("\\bbefore\\s+(?:work|school|class)\\b", RegexOption.IGNORE_CASE)
 
     /**
-     * The 24-hour hour a bare [hour] (no am/pm) means beside a meal named in [words]: breakfast is the morning, brunch
-     * late morning to early afternoon, lunch 11 to 3, dinner and supper the evening. Null when no meal is named or the
+     * The 24-hour hour a bare [hour] (no am/pm) means beside the words of [words] that say which half of the day: a
+     * meal (breakfast is the morning, brunch late morning to early afternoon, lunch 11 to 3, dinner and supper the
+     * evening), bedtime (6 to 11 at night), "after work" (the afternoon or evening), "after school" or "after class" (1
+     * to 7 in the afternoon or evening) and "before work", "school" or "class" (5 to 11 in the morning). These go before
+     * any other rule, "tonight"'s included: "dinner tonight at 5:30" is 5:30 PM. Null when no such word is there or the
      * hour doesn't fit it, which is then read as any other.
      */
-    internal fun mealHour(words: String, hour: Int): Int? = when (MEAL_REGEX.find(words)?.value?.lowercase(Locale.ROOT)) {
-        "breakfast" -> hour.takeIf { it in 5..11 }
-        "brunch" -> when (hour) { in 9..12 -> hour; in 1..2 -> hour + 12; else -> null }
-        "lunch" -> when (hour) { 11, 12 -> hour; in 1..3 -> hour + 12; else -> null }
-        "dinner", "supper" -> if (hour in 1..11) hour + 12 else null
-        else -> null
+    internal fun hourForWords(words: String, hour: Int): Int? {
+        when (MEAL_REGEX.find(words)?.value?.lowercase(Locale.ROOT)) {
+            "breakfast" -> return hour.takeIf { it in 5..11 }
+            "brunch" -> return when (hour) { in 9..12 -> hour; in 1..2 -> hour + 12; else -> null }
+            "lunch" -> return when (hour) { 11, 12 -> hour; in 1..3 -> hour + 12; else -> null }
+            "dinner", "supper" -> return if (hour in 1..11) hour + 12 else null
+        }
+        if (BEDTIME_REGEX.containsMatchIn(words)) return if (hour in 6..11) hour + 12 else null
+        AFTER_WORK_REGEX.find(words)?.let { after ->
+            val latest = if (after.groupValues[1].equals("work", ignoreCase = true)) 11 else 7
+            return if (hour in 1..latest) hour + 12 else null
+        }
+        if (BEFORE_WORK_REGEX.containsMatchIn(words)) return hour.takeIf { it in 5..11 }
+        return null
     }
 
     /**
@@ -1282,8 +1585,11 @@ object NaturalLanguageIntentParser {
         else -> 1
     }
 
-    private fun extractTime(text: String): Pair<Int, Int>? {
-        NOON_OR_MIDNIGHT_REGEX.find(text)?.let { return Pair(if (it.groupValues[1].equals("midnight", ignoreCase = true)) 0 else 12, 0) }
+    /** An alarm's time of day, 24-hour; [bare] when typed with no am/pm or leading zero ("7", "7:30"). */
+    private data class AlarmTime(val hour: Int, val minute: Int, val bare: Boolean)
+
+    private fun extractTime(text: String): AlarmTime? {
+        NOON_OR_MIDNIGHT_REGEX.find(text)?.let { return AlarmTime(if (it.groupValues[1].equals("midnight", ignoreCase = true)) 0 else 12, 0, false) }
         val match = CLOCK_TIME_REGEX.find(text) ?: return null
 
         var hour = match.groupValues[1].toIntOrNull() ?: return null
@@ -1295,7 +1601,7 @@ object NaturalLanguageIntentParser {
         if (amPm == "a" && hour == 12) hour = 0
 
         if (hour !in 0..23 || minute !in 0..59) return null
-        return Pair(hour, minute)
+        return AlarmTime(hour, minute, bare = amPm.isEmpty() && hour in 1..12 && !match.groupValues[1].startsWith("0"))
     }
 
     // ---------------------------------------------------------------------------------------------

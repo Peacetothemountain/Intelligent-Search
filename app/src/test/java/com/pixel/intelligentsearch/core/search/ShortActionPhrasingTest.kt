@@ -341,4 +341,49 @@ class ShortActionPhrasingTest {
         assertNull(days.timeAnswer)
         assertNull(days.randomAnswer)
     }
+
+    @Test
+    fun shortWeekdaysAndADayOfTheMonthBeforeATimeAreItsDay() {
+        // Each was set for today or tomorrow, the day words left in the task. Thursday 22 October, 2 PM.
+        val cases = mapOf(
+            "dentist fri 2pm" to (at(23, 14) to "Remind: Dentist tomorrow at 2:00 PM"),
+            "gym sat 9am" to (at(24, 9) to "Remind: Gym on Saturday at 9:00 AM"),
+            "call mom mon at 5pm" to (at(26, 17) to "Remind: Call mom on Monday at 5:00 PM"),
+            "gym tues 6am" to (at(27, 6) to "Remind: Gym on Tuesday at 6:00 AM"),
+            "fri 2pm dentist" to (at(23, 14) to "Remind: Dentist tomorrow at 2:00 PM"),
+            "dentist the 12th at 10am" to (on(Calendar.NOVEMBER, 12, 10) to "Remind: Dentist on Nov 12 at 10:00 AM"),
+            "dentist friday the 13th at 2pm" to (on(Calendar.NOVEMBER, 13, 14) to "Remind: Dentist on Nov 13 at 2:00 PM")
+        )
+        for ((query, expected) in cases) {
+            val reminder = parse(query)
+            assertEquals(query, expected.first, reminder?.triggerMillis)
+            assertEquals(query, expected.second, reminder?.title)
+        }
+        // "Sun cream" is no Sunday; a weekday its date doesn't fall on, or a date that isn't before the time, is none.
+        assertEquals(at(22, 16), parse("buy sun cream at 4pm")?.triggerMillis)
+        assertNull(parse("dentist friday the 12th at 2pm"))
+        assertNull(parse("dentist the 12th tomorrow at 2pm"))
+    }
+
+    @Test
+    fun aTimeSaidRoughlyOrRepeatedIsNoReminder() {
+        // Each was a reminder at the time given.
+        for (query in listOf(
+            "call mom around 5pm", "pay rent by 5pm", "lunch 12 - 1pm", "call mom before 6pm",
+            "pay rent on the 1st of every month at 9am", "gym every monday at 6am", "pick up kids tonight at 5"
+        )) {
+            assertNull(query, parse(query))
+        }
+    }
+
+    @Test
+    fun wordsThatSayWhichHalfOfTheDayGoBeforeTonightAndALeadingZeroIsAsWritten() {
+        // "Dinner tonight at 5:30" was 5:30 the next morning, "pills before bed at 10" said at 9 AM 10 AM, and "standup
+        // 09:30" 9:30 PM.
+        assertEquals(at(22, 17, 30), parse("dinner tonight at 5:30")?.triggerMillis)
+        assertEquals(at(22, 22), ShortActionPhrasing.parse("pills before bed at 10", at(22, 9), false, utc, Locale.US)?.triggerMillis)
+        assertEquals(at(22, 18), ShortActionPhrasing.parse("call mom after work at 6", at(22, 5), false, utc, Locale.US)?.triggerMillis)
+        assertEquals(at(23, 9, 30), parse("standup 09:30")?.triggerMillis)
+        assertEquals(at(23, 7), parse("call mom at 07:00")?.triggerMillis)
+    }
 }

@@ -165,6 +165,7 @@ internal class NativeBackState {
     private val velocity = VelocityTracker1D(isDataDifferential = false)
 
     private var committing by mutableStateOf(false)
+    private var closingHidden by mutableStateOf(false)
     private val postCommit = Animatable(0f)
     private val fling = Animatable(NativeBackMotion.SPRING_SCALE)
     private var commitClosing = BackFrame.Identity
@@ -182,6 +183,7 @@ internal class NativeBackState {
         startTouchY = event.touchY
         velocity.resetTracking()
         committing = false
+        closingHidden = false
         progress = 0f
         touchDy = 0f
         active = true
@@ -230,9 +232,18 @@ internal class NativeBackState {
         end()
     }
 
+    /**
+     * The next swipe started before the post-commit animation ended: the pages stop where they are, with the closing
+     * page hidden from now on, as it would have been by the end.
+     */
+    fun hideClosing() {
+        closingHidden = true
+    }
+
     fun end() {
         active = false
         committing = false
+        closingHidden = false
         entering = null
         progress = 0f
         touchDy = 0f
@@ -268,7 +279,11 @@ internal class NativeBackState {
         return BackFrame.lerp(commitEntering, BackFrame.Identity, eased).scaledCentered(flingScale(), w, h)
     }
 
-    fun closingAlpha(): Float = if (committing) NativeBackMotion.postCommitClosingAlpha(postCommit.value) else 1f
+    fun closingAlpha(): Float = when {
+        closingHidden -> 0f
+        committing -> NativeBackMotion.postCommitClosingAlpha(postCommit.value)
+        else -> 1f
+    }
 
     /** The scrim over the page underneath, as a share of its full strength: fading out as the page settles. */
     fun scrimFraction(): Float = if (committing) 1f - postCommit.value else 1f

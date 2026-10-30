@@ -1,10 +1,19 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import android.content.Context
+import android.graphics.Bitmap
 import androidx.activity.BackEventCompat
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.test.captureToImage
+import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.screenshots.confinedEffects
@@ -21,6 +30,8 @@ import org.junit.rules.ExternalResource
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
+import kotlin.math.abs
 
 /**
  * Back swipes between Settings pages with Android's animations on, as on a phone: they play Android's own back
@@ -46,6 +57,9 @@ class SettingsNativeBackTest {
     @get:Rule(order = 2) val compose = createAndroidComposeRule<SettingsActivity>(confinedEffects())
 
     private val dispatcher get() = compose.activity.onBackPressedDispatcher
+
+    private fun prefs() = ApplicationProvider.getApplicationContext<Context>()
+        .getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
 
     /** A back swipe from the left edge, let go most of the way across. */
     private fun swipeBack() {
@@ -146,5 +160,112 @@ class SettingsNativeBackTest {
         compose.settle(steps = 10)
         assertEquals(before, section.fetchSemanticsNode().boundsInRoot)
         compose.onNodeWithText("Launch Portal").assertDoesNotExist()
+    }
+    /**
+     * In the half second after letting go, Main is only a picture, and the real page under it is Appearance, leaving,
+     * invisible. A tap on one of Appearance's switches where it is now drawn, and one on Main's Launch Portal row as
+     * the user sees it, must change nothing and open nothing: the first used to turn System Vibration off unseen.
+     */
+    @Test
+    fun aTapAsThePageUnderneathSettlesReachesNoPage() {
+        compose.mainClock.autoAdvance = false
+        compose.settle(steps = 5)
+        val launchPortal = compose.onNodeWithText("Launch Portal").fetchSemanticsNode().boundsInRoot.center
+        compose.onNodeWithText("Appearance").performClick()
+        compose.settle(steps = 5)
+        val before = prefs().all
+        swipeBack()
+        // About 190 ms after letting go, with 260 ms of the settle to go.
+        repeat(12) { compose.mainClock.advanceTimeByFrame() }
+        val vibration = compose.onNodeWithText("System Vibration").fetchSemanticsNode().boundsInRoot.center
+        compose.onRoot().performTouchInput { click(vibration) }
+        compose.onRoot().performTouchInput { click(launchPortal) }
+        compose.settle(steps = 15)
+        assertEquals(before, prefs().all)
+        assertOnMain()
+    }
+
+    /** Once the page underneath is really shown, taps reach it again. */
+    @Test
+    fun aTapOnceThePageHasSettledReachesIt() {
+        compose.mainClock.autoAdvance = false
+        compose.settle(steps = 5)
+        val launchPortal = compose.onNodeWithText("Launch Portal").fetchSemanticsNode().boundsInRoot.center
+        compose.onNodeWithText("Appearance").performClick()
+        compose.settle(steps = 5)
+        swipeBack()
+        compose.settle(steps = 10)
+        compose.onRoot().performTouchInput { click(launchPortal) }
+        compose.settle(steps = 15)
+        compose.onNodeWithText("Always Within Reach").assertExists()
+    }
+
+    /**
+     * The back arrow belongs to the page that is leaving, so in that half second it is held back with every other tap
+     * rather than sent there; tapped again once the page is shown, it goes back.
+     */
+    @Test
+    fun theBackArrowRightAfterASwipeIsHeldBackUntilThePageIsShown() {
+        openCustomIcons()
+        val arrow = compose.onNodeWithContentDescription("Back").fetchSemanticsNode().boundsInRoot.center
+        swipeBack()
+        repeat(12) { compose.mainClock.advanceTimeByFrame() }
+        compose.onRoot().performTouchInput { click(arrow) }
+        compose.settle(steps = 15)
+        assertOnAppearance()
+        compose.onRoot().performTouchInput { click(arrow) }
+        compose.settle(steps = 15)
+        assertOnMain()
+    }
+
+    /**
+     * Two quick swipes: as the second starts, the page the first sent away (Custom Icons) must not come back. Its
+     * title is looked for wherever it is laid out, frame by frame; it used to show there, whole, for a frame or two.
+     */
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun aSecondQuickSwipeNeverShowsThePageTheFirstSentAway() {
+        openCustomIcons()
+        val title = compose.onAllNodesWithText("Custom Icons").fetchSemanticsNodes().single()
+        val reference = crop(compose.onRoot().captureToImage().asAndroidBitmap(), title.boundsInRoot)
+        swipeBack()
+        repeat(18) { compose.mainClock.advanceTimeByFrame() }
+        compose.runOnIdle {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 900f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(300f, 900f, 0.7f, BackEventCompat.EDGE_LEFT))
+        }
+        val likeness = mutableListOf<Float>()
+        repeat(12) {
+            compose.mainClock.advanceTimeByFrame()
+            val frame = compose.onRoot().captureToImage().asAndroidBitmap()
+            // Only the title (Appearance's own Custom Icons row is laid out at another size).
+            compose.onAllNodesWithText("Custom Icons").fetchSemanticsNodes().filter { it.size == title.size }.forEach {
+                likeness += difference(reference, crop(frame, it.boundsInRoot))
+            }
+        }
+        compose.runOnIdle { dispatcher.onBackPressed() }
+        compose.settle(steps = 15)
+        assertOnMain()
+        assertTrue("the page that left showed again: differences from its title $likeness", likeness.all { it > 0.05f })
+    }
+
+    private fun crop(bitmap: Bitmap, bounds: Rect): Bitmap {
+        val left = bounds.left.toInt().coerceIn(0, bitmap.width - 1)
+        val top = bounds.top.toInt().coerceIn(0, bitmap.height - 1)
+        val right = bounds.right.toInt().coerceIn(left + 1, bitmap.width)
+        val bottom = bounds.bottom.toInt().coerceIn(top + 1, bitmap.height)
+        return Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
+    }
+
+    /** Mean difference per color channel (0 to 1) between [a] and [b] scaled to [a]'s size. */
+    private fun difference(a: Bitmap, b: Bitmap): Float {
+        val scaled = Bitmap.createScaledBitmap(b, a.width, a.height, true)
+        var sum = 0L
+        for (y in 0 until a.height) for (x in 0 until a.width) {
+            val p = a.getPixel(x, y)
+            val q = scaled.getPixel(x, y)
+            for (shift in intArrayOf(0, 8, 16)) sum += abs((p shr shift and 0xFF) - (q shr shift and 0xFF))
+        }
+        return sum / (a.width * a.height * 3 * 255f)
     }
 }

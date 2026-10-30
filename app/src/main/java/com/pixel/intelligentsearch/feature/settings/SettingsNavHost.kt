@@ -41,6 +41,8 @@ import com.pixel.intelligentsearch.core.ui.pageGlow
 import com.pixel.intelligentsearch.core.ui.backFrame
 import com.pixel.intelligentsearch.core.ui.backScrim
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.layer.drawLayer
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
@@ -77,10 +79,10 @@ internal val SETTINGS_TUTORIAL_STEPS = mapOf(
 )
 
 /**
- * A page leaving at the end of a back swipe, taken off the back stack by [pop] once its animation ([job]) has played,
- * or at once by [finishNow] when the next swipe starts first.
+ * A page ([closing]) leaving at the end of a back swipe, taken off the back stack by [pop] once its animation ([job])
+ * has played, or at once by [finishNow] when the next swipe starts first.
  */
-private class LeavingPage(private val pop: () -> Unit) {
+private class LeavingPage(val closing: androidx.navigation.NavBackStackEntry?, private val pop: () -> Unit) {
     var job: kotlinx.coroutines.Job? = null
     private var left = false
 
@@ -247,6 +249,22 @@ fun SettingsScreensHub(
         val darkPage = MaterialTheme.colorScheme.background.luminance() < 0.5f
         val animationsOn by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
         var screenCorner by remember { mutableFloatStateOf(0f) }
+
+        /**
+         * Hands over from the back animation to the real page underneath once [closing] has left: the picture stays
+         * until that page is on top and the page that left is gone. The page that left is still drawn, whole, until
+         * its (empty) exit transition is done: handing over before that flashed it over the page underneath for a
+         * frame.
+         */
+        suspend fun handOver(closing: androidx.navigation.NavBackStackEntry?) {
+            snapshotFlow { navController.currentBackStackEntry?.id }.first { it != closing?.id }
+            kotlinx.coroutines.withTimeoutOrNull(1_000L) {
+                closing?.lifecycle?.currentStateFlow?.first { it == androidx.lifecycle.Lifecycle.State.DESTROYED }
+            }
+            withFrameNanos { }
+            nativeBack.end()
+            instantPop = false
+        }
 
         Box(
             modifier = Modifier
@@ -430,6 +448,21 @@ fun SettingsScreensHub(
                 )
             }
         }
+        if (nativeBack.active) {
+            // While the pages move, the page underneath is only a picture, and the real page under it is the one
+            // leaving, invisible but still there to be tapped: a tap meant for the page coming back flipped a switch
+            // on the page that left. So no touch gets through until the real page is shown, under half a second
+            // after letting go. The back arrow is held back with the rest: it belongs to the page that is leaving.
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() }
+                        }
+                    }
+            )
+        }
 
         // Back between pages, with Android's own animation. Registered after the NavHost's own handler, so it takes
         // the gesture first; with animations removed the NavHost's handler plays its plain transition instead.
@@ -440,7 +473,11 @@ fun SettingsScreensHub(
             leavingPage.value?.let {
                 leavingPage.value = null
                 it.finishNow()
-                nativeBack.end()
+                // Handed over as at the end of its animation, hidden meanwhile, so the page that left doesn't flash
+                // back as this swipe starts; this swipe's first moves wait those few frames. Seen through even if
+                // this swipe is cancelled meanwhile, which would otherwise leave the picture up.
+                nativeBack.hideClosing()
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { handOver(it.closing) }
             }
             val previous = navController.previousBackStackEntry
             if (previous == null) {
@@ -483,7 +520,7 @@ fun SettingsScreensHub(
             // Let go: the page leaves in a job of its own, as Android cancels this gesture's job when the next swipe
             // starts, and cancelled mid-animation the page stayed. The next swipe finishes it instead (above).
             val closing = navController.currentBackStackEntry
-            val leaving = LeavingPage {
+            val leaving = LeavingPage(closing) {
                 // Unless the page has already gone another way meanwhile (the top bar's back arrow).
                 if (navController.currentBackStackEntry == closing) {
                     instantPop = true
@@ -495,16 +532,7 @@ fun SettingsScreensHub(
                 try {
                     nativeBack.commit()
                     leaving.leave()
-                    // Keep the picture until the real page has taken its place and the page that left is gone, then
-                    // hand over. The page that left is still drawn, whole, until its (empty) exit transition is done:
-                    // handing over before that flashed it over the page underneath for a frame.
-                    snapshotFlow { navController.currentBackStackEntry?.id }.first { it != closing?.id }
-                    kotlinx.coroutines.withTimeoutOrNull(1_000L) {
-                        closing?.lifecycle?.currentStateFlow?.first { it == androidx.lifecycle.Lifecycle.State.DESTROYED }
-                    }
-                    withFrameNanos { }
-                    nativeBack.end()
-                    instantPop = false
+                    handOver(closing)
                 } finally {
                     // Finished early by the next swipe, that swipe has the pages and the refresh rate now.
                     if (leavingPage.value === leaving) {

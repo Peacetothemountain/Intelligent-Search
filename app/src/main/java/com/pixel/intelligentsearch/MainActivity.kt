@@ -185,6 +185,8 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
     override fun onResume() {
         super.onResume()
         settingsFingerprintAtResume = settingsFingerprint()
+        // Back from App info, say: a permission allowed there is no longer declined.
+        com.pixel.intelligentsearch.feature.settings.forgetDeclinesNowAllowed(this)
         if (checkAndForwardIfSearchOverlayDisabled()) return
     }
 

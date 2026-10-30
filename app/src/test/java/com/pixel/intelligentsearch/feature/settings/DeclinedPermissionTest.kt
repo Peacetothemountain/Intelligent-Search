@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.feature.settings
 import android.Manifest
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.provider.Settings
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.result.ActivityResultRegistry
@@ -34,6 +35,7 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
@@ -163,6 +165,53 @@ class DeclinedPermissionTest {
         tap("Ask Contacts")
         // Android resets the permissions of an app left unused, and asks afresh; the user closes its prompt.
         shadowOf(context).denyPermissions(Manifest.permission.READ_CONTACTS)
+        answer = false to {}
+        tap("Ask Contacts")
+        tap("Allow")
+        assertEquals(false, shown("Contacts Access Is Off"))
+    }
+
+    @Test
+    fun openSettingsOnAnAccessIsOffDialogOpensAppInfoOverThisScreen() {
+        shadowOf(context).denyPermissions(Manifest.permission.READ_CONTACTS, Manifest.permission.ACCESS_COARSE_LOCATION)
+        showRequests()
+        for ((ask, permission, off) in listOf(
+            Triple("Ask Contacts", Manifest.permission.READ_CONTACTS, "Contacts Access Is Off"),
+            Triple("Ask Location", Manifest.permission.ACCESS_COARSE_LOCATION, "Location Access Is Off"),
+        )) {
+            // Declined once before; this time the user picks Don't Allow, and Android stops showing its reason.
+            androidShowsItsReason(permission, true)
+            answer = false to { androidShowsItsReason(permission, false) }
+            tap(ask)
+            tap("Allow")
+            tap("Open Settings")
+            val opened = shadowOf(context).nextStartedActivity
+            assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, opened?.action)
+            // In Android settings' own task, Back went to whatever page those were last left on, and the search,
+            // not told to wait, closed with what was typed.
+            assertEquals("$off: App info opens in this screen's task, so Back comes back here", 0, opened.flags and Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+    }
+
+    @Test
+    fun aGrantMadeOnAppInfoIsSeenWhenSettingsComesBack() {
+        val contacts = Manifest.permission.READ_CONTACTS
+        shadowOf(context).denyPermissions(contacts)
+        showRequests()
+        androidShowsItsReason(contacts, true)
+        answer = false to { androidShowsItsReason(contacts, false) }
+        tap("Ask Contacts")
+        tap("Allow")
+        assertEquals("control: a decline for good says so", true, shown("Contacts Access Is Off"))
+        tap("Not Now")
+
+        // Allowed on App info, then Back to Settings.
+        shadowOf(context).grantPermissions(contacts)
+        prefs.edit().putBoolean(SettingsManager.TUTORIAL_COMPLETED.name, true).commit()
+        Robolectric.buildActivity(SettingsActivity::class.java).create().start().resume().pause().stop().destroy()
+
+        // Later Android takes it back and asks afresh; the user only closes its prompt.
+        shadowOf(context).denyPermissions(contacts)
         answer = false to {}
         tap("Ask Contacts")
         tap("Allow")

@@ -1,7 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.util.findActivity
-import com.pixel.intelligentsearch.core.system.openSettingsPage
+import com.pixel.intelligentsearch.core.system.openSettingsPageToGrant
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -45,7 +45,11 @@ internal fun PermissionRationaleDialog(
     )
 }
 
-/** Android's page for this app's own settings, where any permission declined for good can be allowed. */
+/**
+ * Android's page for this app's own settings, where any permission declined for good can be allowed. Opened with
+ * [openSettingsPageToGrant], so Back from it comes back to the screen that asked (a waiting search with what was
+ * typed), not to whatever page Android's settings were last left on.
+ */
 internal fun appDetailsSettings(packageName: String): Intent =
     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
 
@@ -75,6 +79,24 @@ internal fun declinedForGood(activity: Activity, permission: String, rationaleBe
 internal fun forgetDecline(context: Context, permission: String) {
     val declined = context.getSharedPreferences(DECLINED_PERMISSIONS, Context.MODE_PRIVATE)
     if (declined.contains(permission)) declined.edit { remove(permission) }
+}
+
+/**
+ * [forgetDecline] for every declined permission that is allowed now, however it was allowed: most often on the App
+ * info page "Open Settings" leads to, where no prompt of the app's sees it. Run each time the search or Settings comes
+ * back into view, so the grant is seen before Android can take it back.
+ */
+internal fun forgetDeclinesNowAllowed(context: Context) {
+    runCatching {
+        val declined = context.getSharedPreferences(DECLINED_PERMISSIONS, Context.MODE_PRIVATE)
+        val allowed = declined.all.keys.filter { context.checkSelfPermission(it) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+        if (allowed.isNotEmpty()) declined.edit { allowed.forEach { remove(it) } }
+    }
+}
+
+/** Records [permission] as declined, for [declinedForGood], when that is known some other way than a prompt's answer. */
+internal fun noteDecline(context: Context, permission: String) {
+    context.getSharedPreferences(DECLINED_PERMISSIONS, Context.MODE_PRIVATE).edit { putBoolean(permission, true) }
 }
 
 /** Android's reason flag for [permission] right now, read as a request starts, for [declinedForGood]. */
@@ -137,7 +159,7 @@ internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): Cont
             confirm = "Open Settings",
             onConfirm = {
                 showSettings = false
-                openSettingsPage(context, appDetailsSettings(context.packageName))
+                openSettingsPageToGrant(context, appDetailsSettings(context.packageName))
             },
             onDismiss = { showSettings = false }
         )
@@ -208,7 +230,7 @@ internal fun rememberPhoneCallsRequest(): PhoneCallsRequest {
             confirm = "Open Settings",
             onConfirm = {
                 showSettings = false
-                openSettingsPage(context, appDetailsSettings(context.packageName))
+                openSettingsPageToGrant(context, appDetailsSettings(context.packageName))
             },
             onDismiss = { showSettings = false }
         )
@@ -267,7 +289,7 @@ internal fun rememberApproximateLocationRequest(onGranted: () -> Unit): Approxim
             confirm = "Open Settings",
             onConfirm = {
                 showSettings = false
-                openSettingsPage(context, appDetailsSettings(context.packageName))
+                openSettingsPageToGrant(context, appDetailsSettings(context.packageName))
             },
             onDismiss = { showSettings = false }
         )

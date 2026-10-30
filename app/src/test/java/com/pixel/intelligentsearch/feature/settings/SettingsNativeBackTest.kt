@@ -144,6 +144,29 @@ class SettingsNativeBackTest {
     }
 
     @Test
+    @Config(sdk = [35])
+    fun aCancelledQuickSecondSwipeFromTheFirstSubPageGivesTheRefreshRateBack() {
+        compose.mainClock.autoAdvance = false
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Appearance").performClick()
+        compose.settle(steps = 5)
+        swipeBack()
+        repeat(18) { compose.mainClock.advanceTimeByFrame() }
+        // The first swipe was going back to Main; the second, as a swipe on Main, is cancelled. The page that left
+        // had handed it the high refresh rate, and nothing gave it back.
+        compose.runOnIdle {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 900f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(240f, 900f, 0.5f, BackEventCompat.EDGE_LEFT))
+        }
+        compose.settle(steps = 2)
+        compose.runOnIdle { dispatcher.dispatchOnBackCancelled() }
+        compose.settle(steps = 15)
+        assertOnMain()
+        assertFalse(compose.activity.isFinishing)
+        assertEquals(android.view.View.REQUESTED_FRAME_RATE_CATEGORY_NO_PREFERENCE, compose.activity.window.decorView.requestedFrameRate)
+    }
+
+    @Test
     fun aCancelledSwipeStaysOnThePage() {
         compose.mainClock.autoAdvance = false
         compose.settle(steps = 5)

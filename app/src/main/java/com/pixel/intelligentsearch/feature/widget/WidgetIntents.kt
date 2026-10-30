@@ -122,12 +122,10 @@ fun getLensTranslateIntent(context: Context): Intent =
 fun launchGeminiCornerOverlay(context: Context): Boolean {
     // launchAssist shows whichever app holds the assistant role. When that is Intelligent Search itself, it would only
     // open this app's own search, so Gemini is reached through the fallbacks below instead.
-    val isTheAssistant = runCatching {
-        context.getSystemService(android.app.role.RoleManager::class.java)?.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT) == true
-    }.getOrDefault(false)
+    val isTheAssistant = holdsAssistantRole(context)
     try {
         val searchManager = context.getSystemService(Context.SEARCH_SERVICE) as? android.app.SearchManager
-        val launchAssist = searchManager?.javaClass?.methods?.find { it.name == "launchAssist" && it.parameterTypes.size == 1 }
+        val launchAssist = launchAssistMethod(searchManager)
         if (launchAssist != null && !isTheAssistant) {
             val args = android.os.Bundle().apply {
                 putInt("invocation_type", 1) // INVOCATION_TYPE_GESTURE: the corner swipe
@@ -149,6 +147,30 @@ fun launchGeminiCornerOverlay(context: Context): Boolean {
         }
     }
     return false
+}
+
+private fun holdsAssistantRole(context: Context): Boolean = runCatching {
+    context.getSystemService(android.app.role.RoleManager::class.java)?.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT) == true
+}.getOrDefault(false)
+
+/** SearchManager's hidden launchAssist(Bundle), or null where Android doesn't offer it. */
+private fun launchAssistMethod(searchManager: android.app.SearchManager?): java.lang.reflect.Method? = runCatching {
+    searchManager?.javaClass?.methods?.find { it.name == "launchAssist" && it.parameterTypes.size == 1 }
+}.getOrNull()
+
+/**
+ * This app's own voice search when that is where [launchGeminiCornerOverlay] would open the assistant (this app is the
+ * assistant and neither Gemini nor the Google app is there), else null. The search that handles the button runs it in
+ * place instead: started from there, that search would close right after, and a recognizer gives its words back only
+ * to a search still open to search them.
+ */
+fun ownVoiceSearchForAssistant(context: Context): Intent? {
+    val isTheAssistant = holdsAssistantRole(context)
+    val searchManager = context.getSystemService(Context.SEARCH_SERVICE) as? android.app.SearchManager
+    if (!isTheAssistant && launchAssistMethod(searchManager) != null) return null
+    return assistantFallbacks(context, isTheAssistant)
+        .firstOrNull { context.packageManager.resolveActivityCompat(it) != null }
+        ?.takeIf { it.component?.packageName == context.packageName }
 }
 
 /**

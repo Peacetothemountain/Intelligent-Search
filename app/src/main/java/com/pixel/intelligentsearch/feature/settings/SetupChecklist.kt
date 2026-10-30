@@ -3,11 +3,8 @@ package com.pixel.intelligentsearch.feature.settings
 import android.Manifest
 import com.pixel.intelligentsearch.core.util.findActivity
 import android.content.Context
-import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.net.Uri
-import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -56,6 +53,7 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import com.pixel.intelligentsearch.core.system.openSettingsPage
+import com.pixel.intelligentsearch.core.system.openSettingsPageToGrant
 import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.core.system.SearchRoleManager
 
@@ -112,9 +110,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
     }
 
     fun openAppSettings() {
-        runCatching {
-            context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        }
+        openSettingsPageToGrant(context, appDetailsSettings(context.packageName))
     }
     // Android's reason flag as each request starts, so only a decline for good, not a closed prompt, sends the user
     // to Android's settings ([declinedForGood]).

@@ -59,6 +59,22 @@ class SpellingSuggesterTest {
     }
 
     @Test
+    fun wordsWithDigitsAreNeverCorrected() {
+        // Gboard's suggestions as seen on the phone: "Did you mean trains to london at same" and the like.
+        assertNull(SpellingSuggester.applyCorrections("trains to london at 8am", listOf(Correction(20, 3, "same"))))
+        assertNull(SpellingSuggester.applyCorrections("call mom at 5pm", listOf(Correction(12, 3, "prom"))))
+        assertNull(SpellingSuggester.applyCorrections("4pm meeting notes", listOf(Correction(0, 3, "spam"))))
+        assertNull(SpellingSuggester.applyCorrections("ps5 price", listOf(Correction(0, 3, "past"))))
+        assertNull(SpellingSuggester.applyCorrections("covid19 symptoms", listOf(Correction(0, 7, "covering"))))
+        assertNull(SpellingSuggester.applyCorrections("open at 10am", listOf(Correction(8, 4, "10 am"))))
+        // A real typo beside one is still fixed, and the time kept.
+        assertEquals(
+            "meeting at 8am",
+            SpellingSuggester.applyCorrections("meetng at 8am", listOf(Correction(0, 6, "meeting"), Correction(10, 3, "same")))
+        )
+    }
+
+    @Test
     fun aQueryAnsweredOnTheDeviceIsNotChecked() {
         assertTrue(SpellingSuggester.shouldCheck("3pm pst in ist", "!", isWebAddress = false))
         assertFalse(SpellingSuggester.shouldCheck("3pm pst in ist", "!", isWebAddress = false, answered = true))

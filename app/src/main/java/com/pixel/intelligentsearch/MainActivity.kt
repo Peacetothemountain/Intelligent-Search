@@ -76,26 +76,41 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
      * the waiting overlay would stay behind (a search opened from the launcher's bar came up over it, and Back showed
      * the old search), so it closes then, and that screen with it.
      *
-     * Where that can't be told (Android 12, a permission page that opened in a task of its own, the screen off), the
-     * overlay gives up after [WAIT_GIVE_UP_MS] out of sight instead of waiting and checking for good. Only the overlay
-     * closes then, unless it is the top of its task: the user may still come back to the screen it waited for.
+     * Where that can't be told (Android 12, a permission page that opened in a task of its own), the overlay gives up
+     * once the screen it waited for has been out of sight for [WAIT_GIVE_UP_MS], counted from when the user left it,
+     * instead of waiting and checking for good. Time with the screen off or locked doesn't count: the user comes back
+     * to where they were. Only the overlay closes then, unless it is the top of its task: the user may still come back
+     * to the screen it waited for.
      */
     private val leftWhileWaiting = object : Runnable {
         override fun run() {
             if (isFinishing || (!awaitingSpeech && !awayGrantingAccess)) return
-            when {
-                leftForAnotherTask() -> finishAndRemoveTask()
-                android.os.SystemClock.uptimeMillis() - waitingSince >= WAIT_GIVE_UP_MS && !waitedForScreenInSight() ->
-                    if (isTopOfTask()) finishAndRemoveTask() else finish()
-                else -> waitWatch.postDelayed(this, WAIT_CHECK_MS)
+            if (leftForAnotherTask()) {
+                finishAndRemoveTask()
+                return
+            }
+            val now = android.os.SystemClock.uptimeMillis()
+            when (waitedForScreenInSight()) {
+                true -> outOfSightFor = 0L
+                false -> outOfSightFor += now - lastWaitCheck
+                null -> Unit
+            }
+            lastWaitCheck = now
+            if (outOfSightFor >= WAIT_GIVE_UP_MS) {
+                if (isTopOfTask()) finishAndRemoveTask() else finish()
+            } else {
+                waitWatch.postDelayed(this, if (canTellTaskInSight) WAIT_CHECK_MS else WAIT_GIVE_UP_MS - outOfSightFor)
             }
         }
     }
 
     private val waitWatch = android.os.Handler(android.os.Looper.getMainLooper())
 
-    /** When the overlay last went out of sight to wait ([leftWhileWaiting]), on the clock its checks run by. */
-    private var waitingSince = 0L
+    /** When the waiting overlay last checked ([leftWhileWaiting]), on the clock its checks run by. */
+    private var lastWaitCheck = 0L
+
+    /** How long the screen the overlay waits for has been out of sight, with the screen on, since the user left it. */
+    private var outOfSightFor = 0L
 
     /**
      * Whether Android says if a task is in sight (12L and newer), which [leftForAnotherTask] needs to decide anything.
@@ -105,8 +120,7 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
 
     /** This overlay's task as Android sees it now, with the screen on and unlocked; null otherwise. */
     private fun ownTaskWhileInUse(): android.app.TaskInfo? = runCatching {
-        if (getSystemService(android.os.PowerManager::class.java)?.isInteractive != true) return null
-        if (getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true) return null
+        if (!screenInUse()) return null
         getSystemService(android.app.ActivityManager::class.java).appTasks
             .firstOrNull { it.taskInfo?.taskId == taskId }?.taskInfo
     }.getOrNull()
@@ -123,11 +137,20 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
         return !task.isVisible && (task.topActivity != componentName || awaitingSpeech)
     }
 
-    /** Whether the screen this overlay waits for is in front of the user now, as far as Android says. */
-    private fun waitedForScreenInSight(): Boolean {
+    /**
+     * Whether the screen this overlay waits for is in front of the user now, as far as Android says; null with the
+     * screen off or locked, when nobody is looking at anything.
+     */
+    private fun waitedForScreenInSight(): Boolean? {
+        if (!screenInUse()) return null
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S_V2) return false
         return ownTaskWhileInUse()?.isVisible == true
     }
+
+    private fun screenInUse(): Boolean = runCatching {
+        getSystemService(android.os.PowerManager::class.java)?.isInteractive == true &&
+            getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked != true
+    }.getOrDefault(true)
 
     override fun onStart() {
         super.onStart()
@@ -164,7 +187,8 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
             if (isTopOfTask()) finishAndRemoveTask() else finish()
         } else if (!isChangingConfigurations && !isFinishing && (awaitingSpeech || awayGrantingAccess)) {
             waitWatch.removeCallbacks(leftWhileWaiting)
-            waitingSince = android.os.SystemClock.uptimeMillis()
+            lastWaitCheck = android.os.SystemClock.uptimeMillis()
+            outOfSightFor = 0L
             // Where checking can't tell when the user has left, it doesn't run every second for nothing.
             waitWatch.postDelayed(leftWhileWaiting, if (canTellTaskInSight) WAIT_CHECK_MS else WAIT_GIVE_UP_MS)
         }
@@ -185,6 +209,8 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
     override fun onResume() {
         super.onResume()
         settingsFingerprintAtResume = settingsFingerprint()
+        // Back from App info, say: a permission allowed there is no longer declined.
+        com.pixel.intelligentsearch.feature.settings.forgetDeclinesNowAllowed(this)
         if (checkAndForwardIfSearchOverlayDisabled()) return
     }
 
@@ -515,7 +541,15 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
             intent.action == com.pixel.intelligentsearch.core.data.GlobalSearchProvider.ACTION_OPEN_APP -> openAppFromSearch(intent)
             this is com.pixel.intelligentsearch.feature.search.SearchActivity -> return false
             intent.action == "com.pixel.intelligentsearch.LAUNCH_GEMINI_OVERLAY" ||
-                intent.getBooleanExtra("launch_gemini_overlay", false) -> launchGeminiCornerOverlay(this)
+                intent.getBooleanExtra("launch_gemini_overlay", false) -> {
+                // Its last fallback is this app's own voice search: run here, as the launcher's shortcut below does.
+                val ownVoice = com.pixel.intelligentsearch.feature.widget.ownVoiceSearchForAssistant(this)
+                if (ownVoice != null) {
+                    if (fresh) recognizeSpeechIfAsked(ownVoice)
+                    return false
+                }
+                launchGeminiCornerOverlay(this)
+            }
             intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS" -> launchLens(translate = false)
             intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS_TRANSLATE" -> launchLens(translate = true)
             intent.action == com.pixel.intelligentsearch.feature.widget.ACTION_SEARCH_WEB -> searchWebFromWidget(intent)

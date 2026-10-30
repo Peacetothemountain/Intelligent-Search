@@ -96,10 +96,11 @@ class SpellingSuggester(private val context: Context) : SpellCheckerSession.Spel
 
         /**
          * Whether [word] is a term a dictionary doesn't know but the app does, kept as typed: a zone abbreviation
-         * ("pst", not "post") or a unit or currency ("km", "ft2", "usd").
+         * ("pst", not "post") or a unit or currency ("km", "ft2", "usd"). So is any word with a digit in it, a time,
+         * model or code ("8am", "ps5", "covid19"): a checker's nearest word for it ("same", "past") is never meant.
          */
         fun isKnownTerm(word: String): Boolean =
-            WorldClock.isZoneAbbreviation(word) || MathematicalExpressionEngine.isUnitName(word)
+            word.any { it.isDigit() } || WorldClock.isZoneAbbreviation(word) || MathematicalExpressionEngine.isUnitName(word)
 
         /** [query] with each correction applied, or null when there is none or the result is the same. */
         fun applyCorrections(query: String, corrections: List<Correction>): String? {

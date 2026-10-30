@@ -486,6 +486,8 @@ fun SettingsScreensHub(
                     events.collect { }
                 } finally {
                     instantPop = false
+                    // The page that left handed this swipe the high refresh rate; cancelled, nothing else gives it back.
+                    com.pixel.intelligentsearch.core.ui.WindowFramePacing.restoreDefaultRefreshRate(context.findActivity())
                 }
                 handleExitBack()
                 return@PredictiveBackHandler

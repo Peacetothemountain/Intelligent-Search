@@ -134,6 +134,12 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Back from App info, say: a permission allowed there is no longer declined.
+        forgetDeclinesNowAllowed(this)
+    }
+
     override fun onPause() {
         super.onPause()
         try {

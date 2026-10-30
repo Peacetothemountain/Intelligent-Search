@@ -384,6 +384,13 @@ class NotificationIndexTest {
         }
         // A card's PIN is still a secret.
         assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your new card's PIN code is 4821"))
+        // Beside a shop's offer a letters-and-digits sign-in code was taken for a promo code and left searchable.
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your code is A1B2C3. Free shipping on orders over $50"))
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your code: K7P-2Q9. 20% off your next order"))
+        // The shop's own codes still are promo codes.
+        for (text in listOf("Use code SPRING2026 for 25% off", "Flash sale: code BF2026 saves you more", "Code 50OFF at checkout")) {
+            assertFalse(text, NotificationExtractor.looksLikeOneTimeCode(text))
+        }
         // A number in a phone number isn't a code beside "OTP".
         assertFalse(NotificationExtractor.looksLikeOneTimeCode("Questions about OTP? Call 555-12345678901"))
     }

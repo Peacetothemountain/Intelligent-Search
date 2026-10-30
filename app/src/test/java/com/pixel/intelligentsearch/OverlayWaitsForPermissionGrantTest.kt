@@ -1,7 +1,11 @@
 package com.pixel.intelligentsearch
 
+import android.app.ActivityManager
+import android.app.TaskInfo
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ApplicationProvider
@@ -32,7 +36,11 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadow.api.Shadow
+import org.robolectric.shadows.ShadowAppTask
 import org.robolectric.shadows.ShadowChoreographer
+import org.robolectric.shadows.ShadowLooper
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 /**
@@ -91,5 +99,41 @@ class OverlayWaitsForPermissionGrantTest {
         search.pause().stop()
         assertTrue(activity.isFinishing)
         search.destroy()
+    }
+
+    @Test
+    fun goingHomeFromAndroidsPageClosesTheWaitingOverlay() {
+        val search = Robolectric.buildActivity(SearchActivity::class.java, Intent(context, SearchActivity::class.java)).setup()
+        val activity = search.get()
+        assertTrue(openSettingsPageToGrant(activity, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)))
+        val usageAccess = ComponentName("com.android.settings", "com.android.settings.UsageAccess")
+        overlayTask(activity, top = usageAccess, onScreen = true)
+        search.pause().stop()
+        ShadowLooper.idleMainLooper(3, TimeUnit.SECONDS)
+        assertFalse("it waits while Android's page is up", activity.isFinishing)
+
+        // The screen turns off over Android's page: the user comes back to it, so the overlay still waits.
+        overlayTask(activity, top = usageAccess, onScreen = false)
+        shadowOf(context.getSystemService(PowerManager::class.java)).setIsInteractive(false)
+        ShadowLooper.idleMainLooper(3, TimeUnit.SECONDS)
+        assertFalse("the screen going off isn't leaving", activity.isFinishing)
+
+        // The user goes Home instead of Back: the overlay left behind would come up again later with the old search.
+        shadowOf(context.getSystemService(PowerManager::class.java)).setIsInteractive(true)
+        ShadowLooper.idleMainLooper(3, TimeUnit.SECONDS)
+        assertTrue(activity.isFinishing)
+        search.destroy()
+    }
+
+    /** Android's view of the overlay's task: [top] on top of it, on screen or not. */
+    private fun overlayTask(activity: android.app.Activity, top: ComponentName, onScreen: Boolean) {
+        val info = ActivityManager.RecentTaskInfo().apply {
+            taskId = activity.taskId
+            topActivity = top
+        }
+        TaskInfo::class.java.getDeclaredField("isVisible").apply { isAccessible = true }.setBoolean(info, onScreen)
+        val task = ShadowAppTask.newInstance()
+        Shadow.extract<ShadowAppTask>(task).setTaskInfo(info)
+        shadowOf(context.getSystemService(ActivityManager::class.java)).setAppTasks(listOf(task))
     }
 }

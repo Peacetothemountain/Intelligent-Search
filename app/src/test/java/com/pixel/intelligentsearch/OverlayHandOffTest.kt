@@ -1,6 +1,8 @@
 package com.pixel.intelligentsearch
 
 import android.app.Activity
+import android.app.ActivityManager
+import android.app.TaskInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -43,8 +45,12 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadow.api.Shadow
+import org.robolectric.shadows.ShadowAppTask
 import org.robolectric.shadows.ShadowChoreographer
+import org.robolectric.shadows.ShadowLooper
 import org.robolectric.shadows.ShadowToast
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 /**
@@ -146,6 +152,39 @@ class OverlayHandOffTest {
         assertNotNull(started)
         assertEquals(other, started.component)
         assertEquals("cats", started.getStringExtra(android.app.SearchManager.QUERY))
+    }
+
+    @Test
+    fun goingHomeFromTheRecognizerClosesTheWaitingOverlay() {
+        val recognizer = install("org.example.speech", IntentFilter(RecognizerIntent.ACTION_RECOGNIZE_SPEECH))
+        val shortcut = Intent(context, WidgetActivity::class.java).putExtra("auto_voice", true)
+        val controller = Robolectric.buildActivity(WidgetActivity::class.java, shortcut).setup()
+        val activity = controller.get()
+        assertNotNull(shadowOf(activity).nextStartedActivityForResult)
+
+        // The recognizer covers the overlay in its task: the overlay waits for the words.
+        overlayTask(activity, top = recognizer, onScreen = true)
+        controller.pause().stop()
+        ShadowLooper.idleMainLooper(3, TimeUnit.SECONDS)
+        assertFalse("it waits behind the recognizer", activity.isFinishing)
+
+        // The user goes Home from the recognizer: left behind, the overlay came up again under a later search.
+        overlayTask(activity, top = recognizer, onScreen = false)
+        ShadowLooper.idleMainLooper(3, TimeUnit.SECONDS)
+        assertTrue(activity.isFinishing)
+        controller.destroy()
+    }
+
+    /** Android's view of the overlay's task: [top] on top of it, on screen or not. */
+    private fun overlayTask(activity: Activity, top: ComponentName, onScreen: Boolean) {
+        val info = ActivityManager.RecentTaskInfo().apply {
+            taskId = activity.taskId
+            topActivity = top
+        }
+        TaskInfo::class.java.getDeclaredField("isVisible").apply { isAccessible = true }.setBoolean(info, onScreen)
+        val task = ShadowAppTask.newInstance()
+        Shadow.extract<ShadowAppTask>(task).setTaskInfo(info)
+        shadowOf(context.getSystemService(ActivityManager::class.java)).setAppTasks(listOf(task))
     }
 
     @Test

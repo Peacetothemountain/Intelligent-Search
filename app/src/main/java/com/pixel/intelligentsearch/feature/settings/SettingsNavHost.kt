@@ -197,11 +197,14 @@ fun SettingsScreensHub(
         // switched on and off as the user moves between Main and the sub-pages.
         val hasSubScreensInNavHost = currentBackStackEntry.let { navController.previousBackStackEntry != null }
         val onWidgetPage = currentBackStackEntry?.destination?.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization>() == true
-        val pageGlowStrength = androidx.compose.animation.core.animateFloatAsState(
-            targetValue = if (onWidgetPage) 0f else 1f,
-            animationSpec = tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing),
-            label = "page_glow"
-        )
+        // The glow fades out as Widget Customization comes in and back as it leaves; after a back swipe the picture of
+        // the page underneath already showed it at its own strength, so it is set at once rather than faded in again.
+        val pageGlowStrength = remember { Animatable(if (onWidgetPage) 0f else 1f) }
+        LaunchedEffect(onWidgetPage) {
+            val target = if (onWidgetPage) 0f else 1f
+            if (instantPop) pageGlowStrength.snapTo(target)
+            else pageGlowStrength.animateTo(target, tween(durationMillis = 280, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+        }
 
         val onBack: () -> Unit = onBack@{
             // A quick double tap would pop the sub-page, then see the root and exit Settings entirely.
@@ -249,6 +252,10 @@ fun SettingsScreensHub(
         val darkPage = MaterialTheme.colorScheme.background.luminance() < 0.5f
         val animationsOn by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
         var screenCorner by remember { mutableFloatStateOf(0f) }
+        // One drift for the glow behind the page and behind the picture of the page underneath, so the light is the
+        // same on both and never jumps as a back swipe starts or hands over. The picture is kept without the glow.
+        val glowClock = com.pixel.intelligentsearch.core.ui.rememberMeshClock(isPaused = onWidgetPage && !nativeBack.active)
+        var enteringGlow by remember { mutableFloatStateOf(1f) }
 
         /**
          * Hands over from the back animation to the real page underneath once [closing] has left: the picture stays
@@ -282,6 +289,8 @@ fun SettingsScreensHub(
                 Modifier
                     .fillMaxSize()
                     .backFrame(frame = { nativeBack.enteringFrame() }, cornerPx = { screenCorner })
+                    .background(MaterialTheme.colorScheme.background)
+                    .pageGlow(strength = { enteringGlow }, clock = glowClock)
                     .drawBehind {
                         nativeBack.entering?.let {
                             drawImage(it, dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt(), size.height.toInt()))
@@ -298,15 +307,16 @@ fun SettingsScreensHub(
                     cornerPx = { screenCorner },
                     alpha = { nativeBack.closingAlpha() }
                 )
-                // The page as drawn, kept so it can be shown underneath once another page opens over it.
+                .background(MaterialTheme.colorScheme.background)
+                // Every page but Widget Customization (whose previews carry their own colours) has the glow behind
+                // its title; it fades out as that page comes in and back as it leaves.
+                .pageGlow(strength = { pageGlowStrength.value }, clock = glowClock)
+                // The page as drawn, over its background and glow, kept so it can be shown underneath once another page
+                // opens over it. Kept without them: the glow drifts on, so a picture of it would be out of step.
                 .drawWithContent {
                     livePage.record { this@drawWithContent.drawContent() }
                     drawLayer(livePage)
                 }
-                .background(MaterialTheme.colorScheme.background)
-                // Every page but Widget Customization (whose previews carry their own colours) has the glow behind
-                // its title; it fades out as that page comes in and back as it leaves.
-                .pageGlow { pageGlowStrength.value }
                 .graphicsLayer {
                     val p = exitBackProgress.value
                     if (p > 0f) {
@@ -499,6 +509,7 @@ fun SettingsScreensHub(
                 events.collect { event ->
                     if (!started) {
                         screenCorner = com.pixel.intelligentsearch.core.ui.screenCornerRadius(view)
+                        enteringGlow = if (previous.destination.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization>()) 0f else 1f
                         nativeBack.begin(event, pageSnapshots[previous.id])
                         started = true
                     } else {

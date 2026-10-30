@@ -33,17 +33,20 @@ import org.intellij.lang.annotations.Language
  * fifths of the way down. Its colours are the theme's deep tones: the primary hue and the hues 20° either side of it,
  * each richer and much darker, as the morph's plates take theirs ([pageGlowTones]). So it follows each device's
  * wallpaper palette, and on a light page it sits at about half the strength, a soft tint rather than a stain. It's
- * drawn on the page background only, behind every container. [strength] fades it (0 hides it and stops its clock).
+ * drawn on the page background only, behind every container. [strength] fades it (0 hides it and stops its clock);
+ * [clock], when given, is the drift's time instead of its own ([rememberMeshClock]).
  * It stands still with animations removed, under severe thermal throttling and in the background ([rememberMeshClock]).
  */
 @Composable
-fun Modifier.pageGlow(strength: () -> Float = { 1f }): Modifier {
+fun Modifier.pageGlow(strength: () -> Float = { 1f }, clock: State<Float>? = null): Modifier {
     val scheme = MaterialTheme.colorScheme
     val dark = scheme.background.luminance() < 0.5f
     val tones = remember(scheme.primary) { pageGlowTones(scheme.primary) }
     val peak = if (dark) PAGE_GLOW_PEAK_DARK else PAGE_GLOW_PEAK_LIGHT
     val currentStrength by androidx.compose.runtime.rememberUpdatedState(strength)
-    val time = rememberMeshClock(isPaused = strength() <= 0f)
+    // A [clock] shared by two glows keeps them in step (a page and the picture of the page underneath it).
+    val ownTime = rememberMeshClock(isPaused = clock != null || strength() <= 0f)
+    val time = clock ?: ownTime
     // The configuration block runs in the draw phase, so the clock only invalidates drawing.
     val painter = remember(tones, peak) {
         androidx.compose.ui.graphics.MeshGradientPainter(rows = 2, columns = 2, hasBicubicColor = true) {

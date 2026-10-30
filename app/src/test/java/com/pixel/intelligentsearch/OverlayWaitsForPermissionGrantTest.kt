@@ -21,6 +21,8 @@ import com.pixel.intelligentsearch.core.system.openSettingsPageToGrant
 import com.pixel.intelligentsearch.feature.search.FakeDeviceSearchSources
 import com.pixel.intelligentsearch.feature.search.SearchActivity
 import com.pixel.intelligentsearch.feature.search.SearchViewModel
+import com.pixel.intelligentsearch.feature.settings.appDetailsSettings
+import com.pixel.intelligentsearch.feature.settings.declinedForGood
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -159,6 +161,73 @@ class OverlayWaitsForPermissionGrantTest {
         ShadowLooper.idleMainLooper(5, TimeUnit.MINUTES)
         assertFalse("the user is still on Android's page", activity.isFinishing)
         search.destroy()
+    }
+
+    @Test
+    fun stillOnAndroidsPageWhenTheScreenTimesOutItKeepsWaiting() {
+        val search = Robolectric.buildActivity(SearchActivity::class.java, Intent(context, SearchActivity::class.java)).setup()
+        val activity = search.get()
+        assertTrue(openSettingsPageToGrant(activity, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)))
+        val usageAccess = ComponentName("com.android.settings", "com.android.settings.UsageAccess")
+        overlayTask(activity, top = usageAccess, onScreen = true)
+        search.pause().stop()
+        ShadowLooper.idleMainLooper(130, TimeUnit.SECONDS)
+
+        // Over two minutes on Android's page, the screen times out. The overlay gave up a second later, so waking the
+        // phone, turning access on and going Back went Home, the search lost.
+        overlayTask(activity, top = usageAccess, onScreen = false)
+        shadowOf(context.getSystemService(PowerManager::class.java)).setIsInteractive(false)
+        ShadowLooper.idleMainLooper(5, TimeUnit.MINUTES)
+        assertFalse("the screen going off isn't leaving", activity.isFinishing)
+
+        shadowOf(context.getSystemService(PowerManager::class.java)).setIsInteractive(true)
+        overlayTask(activity, top = usageAccess, onScreen = true)
+        ShadowLooper.idleMainLooper(3, TimeUnit.MINUTES)
+        assertFalse("the user is back on Android's page", activity.isFinishing)
+        search.destroy()
+    }
+
+    @Test
+    fun theGiveUpCountsFromWhenTheUserLeftAndroidsPage() {
+        val search = Robolectric.buildActivity(SearchActivity::class.java, Intent(context, SearchActivity::class.java)).setup()
+        val activity = search.get()
+        assertTrue(openSettingsPageToGrant(activity, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)))
+        overlayTask(activity, top = ComponentName("com.android.settings", "com.android.settings.UsageAccess"), onScreen = true)
+        search.pause().stop()
+        ShadowLooper.idleMainLooper(3, TimeUnit.MINUTES)
+
+        // Three minutes on Android's page, then it is out of sight in a way that can't be told apart from the user
+        // still being on it (the page carried on in a task of its own). Counted from the overlay going out of sight,
+        // the time was already up and the overlay closed a second later.
+        overlayTask(activity, top = ComponentName(context, SearchActivity::class.java), onScreen = false)
+        ShadowLooper.idleMainLooper(1, TimeUnit.MINUTES)
+        assertFalse("the user left Android's page only a minute ago", activity.isFinishing)
+        ShadowLooper.idleMainLooper(90, TimeUnit.SECONDS)
+        assertTrue(activity.isFinishing)
+        search.destroy()
+    }
+
+    @Test
+    fun aPermissionAllowedOnAndroidsPageIsNoLongerDeclined() {
+        val location = android.Manifest.permission.ACCESS_COARSE_LOCATION
+        shadowOf(context as android.app.Application).denyPermissions(location)
+        val search = Robolectric.buildActivity(SearchActivity::class.java, Intent(context, SearchActivity::class.java)).setup()
+        val activity = search.get()
+        // Declined for good: a second "Don't allow", after which Android shows no reason flag.
+        shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(location, false)
+        assertTrue(declinedForGood(activity, location, rationaleBefore = true))
+
+        // "Open Settings" on Location Access Is Off; allowed on App info, then Back.
+        assertTrue(openSettingsPageToGrant(activity, appDetailsSettings(context.packageName)))
+        search.pause().stop()
+        shadowOf(context as android.app.Application).grantPermissions(location)
+        search.restart().resume()
+
+        // Later Android takes it back ("Ask every time", or an unused app's permissions reset) and asks afresh; the
+        // user only closes its prompt. That isn't a decline for good.
+        shadowOf(context as android.app.Application).denyPermissions(location)
+        assertFalse(declinedForGood(activity, location, rationaleBefore = false))
+        search.pause().stop().destroy()
     }
 
     /** Android 12 can't say whether a task is in sight, so a check every second could never decide anything. */

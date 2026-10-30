@@ -97,6 +97,16 @@ class AndroidSettingsSearchTest {
     }
 
     @Test
+    fun aSettingBetweenTheVerbAndTheSwitchFindsItsPage() {
+        // "turn bluetooth off" found nothing, where "turn off bluetooth" and "bluetooth off" did.
+        val search = everyPageResolves()
+        assertEquals("Bluetooth", titles(search, "turn bluetooth off").firstOrNull())
+        assertEquals("Wi-Fi", titles(search, "turn wifi on").firstOrNull())
+        assertEquals("Airplane Mode", titles(search, "switch airplane mode on").firstOrNull())
+        assertTrue(titles(search, "turn power off").none { it == "Battery" })
+    }
+
+    @Test
     fun powerOffIsNotTheBatteryPage() {
         // "off" was taken as a switch word, leaving "power", the Battery page.
         val search = everyPageResolves()

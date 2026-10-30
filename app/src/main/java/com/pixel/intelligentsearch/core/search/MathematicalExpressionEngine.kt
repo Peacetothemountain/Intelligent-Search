@@ -1,6 +1,13 @@
 package com.pixel.intelligentsearch.core.search
 
 import com.pixel.intelligentsearch.core.currency.CurrencyRates
+import java.math.BigDecimal
+import java.math.MathContext
+import java.math.RoundingMode
+import java.text.DecimalFormat
+import java.text.DecimalFormatSymbols
+import java.util.Currency
+import java.util.IllformedLocaleException
 import java.util.Locale
 import kotlin.math.*
 
@@ -35,7 +42,7 @@ object MathematicalExpressionEngine {
      * it doesn't list is converted with the built-in rates instead.
      */
     fun evaluate(rawQuery: String, currencyRates: () -> CurrencyRates = { CurrencyRates.BUILT_IN }): MathEvaluationResult? {
-        val query = rawQuery.trim()
+        val query = withoutQuestionWords(rawQuery)
         if (query.isEmpty()) return null
 
         // 1. Try Unit Conversion (e.g. "100 km to miles", "72 f in c", "100 usd to eur")
@@ -53,23 +60,60 @@ object MathematicalExpressionEngine {
         return null
     }
 
+    /**
+     * [raw] without the words and signs people put around a sum to ask for its answer: "what is 2+2", "what's 15% of
+     * 80?", "2+2=", "=2+2". What is left must still be a sum or conversion on its own, so "what is love" stays a search.
+     */
+    private fun withoutQuestionWords(raw: String): String =
+        raw.trim().trimEnd('?').trim().replace(REGEX_QUESTION_PREFIX, "").trim().trim('=').trim()
+
+    /**
+     * Whether [word] is a unit or currency the converter knows ("km", "ft2", "euros", "usd"), which a spell checker
+     * should leave as typed.
+     */
+    fun isUnitName(word: String): Boolean {
+        val unit = canonicalUnit(word)
+        return unit in CURRENCY_NAMES || unit in CurrencyRates.BUILT_IN.perBase || isTemperature(unit) || unitTables(Locale.US).any { unit in it } ||
+            unit in volumeUnitsImperial || unit in massUnitsMetricTon
+    }
+
     // ---------------------------------------------------------------------------------------------
     // SCIENTIFIC EXPRESSION PARSER
     // ---------------------------------------------------------------------------------------------
 
+    private val REGEX_QUESTION_PREFIX = Regex("^(?:what(?:'s|’s|s| is)|how much is|calculate|compute)\\s+", RegexOption.IGNORE_CASE)
+
     private val REGEX_MULTIPLICATION_X = Regex("(?<=[0-9)])(?:(?<!(?<![0-9.])0)\\s*[xX]|\\s+[xX])\\s*(?=[0-9(])")
     private val REGEX_ALLOWED_CHARS = Regex("^[0-9a-zA-Z.+\\-*/%^!()_,]+$")
-    private val REGEX_BASE_CONVERSION = Regex("^([0-9a-fA-FxXbBoO]+)\\s+(?:to|in)\\s+(hex|dec|bin|oct)$", RegexOption.IGNORE_CASE)
+    private val REGEX_BASE_CONVERSION = Regex(
+        "^([0-9a-fA-FxXbBoO]+)\\s+(?:to|in|into)\\s+(hex(?:adecimal)?|dec(?:imal)?|bin(?:ary)?|oct(?:al)?)$",
+        RegexOption.IGNORE_CASE
+    )
+    /** Hexadecimal digits without "0x", which only a letter among them shows aren't decimal: "ff in decimal". */
+    private val REGEX_BARE_HEX = Regex("^(?=.*[a-fA-F])[0-9a-fA-F]{1,16}$")
     private val REGEX_BITWISE = Regex("^([0-9a-fA-FxXbB]+)\\s+(AND|OR|XOR|SHL|SHR|USHR|<<|>>|>>>|&|\\|)\\s+([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
     private val REGEX_BITWISE_NOT = Regex("^(?:NOT|~)\\s*([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
-    private val REGEX_UNIT_CONVERSION = Regex("^([-+]?[0-9.,]+(?:[eE][-+]?[0-9]+)?)\\s*([a-zA-Z/_°]+)\\s*(?:to|in)\\s*([a-zA-Z/_°]+)$", RegexOption.IGNORE_CASE)
-    // Units written in two words, joined into their table names: "fl oz", "sq ft", "metric ton".
+    // A unit may end in digits, as "m2", "km2" and "m3" do.
+    private val REGEX_UNIT_CONVERSION = Regex(
+        "^([-+]?[0-9.,]+(?:[eE][-+]?[0-9]+)?)\\s*([a-zA-Z/_°][a-zA-Z0-9/_°]*)\\s*(?:to|in)\\s*([a-zA-Z/_°][a-zA-Z0-9/_°]*)$",
+        RegexOption.IGNORE_CASE
+    )
+    // Units written in two words, joined into their table names: "fl oz", "sq ft", "square meters", "metric ton".
     private val REGEX_FLUID_OUNCE = Regex("\\b(?:fl\\.?\\s*oz|fluid\\s+ounces?)\\b", RegexOption.IGNORE_CASE)
-    private val REGEX_SQUARE_UNIT = Regex("\\bsq\\.?\\s+(km|mi|ft|m)\\b", RegexOption.IGNORE_CASE)
+    private val REGEX_SQUARE_OR_CUBIC_UNIT = Regex(
+        "\\b(sq|square|cu|cubic)\\.?\\s+(kilomet(?:er|re)s?|km|miles?|mi|feet|foot|ft|yards?|yd|inch(?:es)?|in|" +
+            "centimet(?:er|re)s?|cm|met(?:er|re)s?|m)\\b",
+        RegexOption.IGNORE_CASE
+    )
+    /** "us gallon", "imperial pint", "uk fl oz": a measure named with the system it is from. */
+    private val REGEX_VOLUME_SYSTEM = Regex(
+        "(?<![a-zA-Z])(us|u\\.s\\.|american|imperial|imp|uk|british)\\s+(gallons?|gal|quarts?|qt|pints?|pt|fl_oz)\\b",
+        RegexOption.IGNORE_CASE
+    )
     private val REGEX_METRIC_TON = Regex("\\bmetric\\s+tons?\\b", RegexOption.IGNORE_CASE)
     private val REGEX_SHORT_OR_LONG_TON = Regex("\\b(short|long)\\s+tons?\\b", RegexOption.IGNORE_CASE)
-    /** Two currency codes with no amount, "usd to inr", which asks what one unit is worth. */
-    private val REGEX_BARE_CURRENCY_CONVERSION = Regex("^([a-zA-Z]{3})\\s+(?:to|in)\\s+([a-zA-Z]{3})$")
+    /** Two currencies with no amount, "usd to inr" or "euro to dollar", which asks what one unit is worth. */
+    private val REGEX_BARE_CURRENCY_CONVERSION = Regex("^([a-zA-Z]+)\\s+(?:to|in)\\s+([a-zA-Z]+)$")
     private val REGEX_SCIENTIFIC_NUMBER = Regex("^[+-]?[0-9]+(?:\\.[0-9]+)?[eE][+-]?[0-9]+$")
     // A number with only a sign in front ("+14155552671", "-5") has nothing to work out; answering it would
     // echo every international phone number back as a calculation, with a haptic on each keystroke.
@@ -87,6 +131,8 @@ object MathematicalExpressionEngine {
             "|^\\d{4}/\\d{1,2}/\\d{1,2}$" +          // 2024/12/25
             "|^\\+\\d{1,3}(?:-\\d{1,4}){2,4}$"      // +44-20-7946-0958
     )
+    // Digits joined by dashes and nothing else: a subtraction, or a phone number or ZIP+4 code ("94103-1234").
+    private val REGEX_DASHED_DIGITS = Regex("^\\d+(?:-\\d+)+$")
     // Thousands separators ("1,000") between digits, removed only from purely numeric expressions.
     private val REGEX_THOUSANDS_SEPARATOR = Regex("(?<=\\d),(?=\\d{3}(?!\\d))")
     // Where the decimal point is ",", "." groups thousands: "1.000" and "12.345.678", never "0.125" or "1.5".
@@ -96,10 +142,12 @@ object MathematicalExpressionEngine {
     private val REGEX_PERCENT_OFF = Regex("^(.+?)%\\s*off\\s+(.+)$", RegexOption.IGNORE_CASE)
     private val REGEX_CURRENCY_PREFIX = Regex("([$€£¥₹])\\s*([0-9.,]+)")
     private val REGEX_WHITESPACE = Regex("\\s+")
+    // "√16" is the square root of 16; the sign takes only the number right after it, as "sqrt" does.
+    private val REGEX_ROOT_OF_NUMBER = Regex("√\\s*([0-9.]+)")
     private val REGEX_FUNC_NO_PAREN = Regex("^(sqrt|cbrt|sin|cos|tan|asin|acos|atan|sinh|cosh|tanh|ln|log|log10|log2|abs|round|floor|ceil|rad|deg)\\s+([+-]?[0-9.]+(?:[eE][-+]?[0-9]+)?)$", RegexOption.IGNORE_CASE)
 
     private fun evaluateScientific(input: String): MathEvaluationResult.Computation? {
-        val trimmed = input.trim()
+        val trimmed = input.trim().replace(REGEX_ROOT_OF_NUMBER, "sqrt($1)").replace("√", "sqrt")
         val funcMatch = REGEX_FUNC_NO_PAREN.matchEntire(trimmed)
         val normalizedInput = if (funcMatch != null) {
             "${funcMatch.groupValues[1]}(${funcMatch.groupValues[2]})"
@@ -117,8 +165,8 @@ object MathematicalExpressionEngine {
 
         if (REGEX_SPACE_SEPARATED_NUMBERS.containsMatchIn(withNormalizedOperators)) return null
 
-        val compact = withNormalizedOperators.replace(" ", "")
-        val expr = if (compact.any { it.isLetter() }) compact else localNumbers(compact)
+        // Numbers inside functions are read the phone's way too: "sqrt(6,25)" where the decimal point is a comma.
+        val expr = localNumbers(withNormalizedOperators.replace(" ", ""))
 
         if (!isLikelyMathExpression(expr)) return null
 
@@ -143,11 +191,23 @@ object MathematicalExpressionEngine {
      * decimal point is "." ("1,000") and the decimal point where it is "," ("1,25"), where "1.000" is a thousand.
      */
     private fun localNumbers(text: String): String =
-        if (java.text.DecimalFormatSymbols.getInstance().decimalSeparator == ',') {
+        if (decimalComma()) {
             text.replace(REGEX_DOT_GROUPED_NUMBER) { it.value.replace(".", "") }.replace(',', '.')
         } else {
             text.replace(REGEX_THOUSANDS_SEPARATOR, "")
         }
+
+    /** Whether the phone writes the decimal point as a comma ("1,5"), so answers are written that way too. */
+    private fun decimalComma(): Boolean = DecimalFormatSymbols.getInstance().decimalSeparator == ','
+
+    /** A result this much smaller than what it was worked out from is binary rounding left over from a zero. */
+    private const val NEAR_ZERO = 1e-12
+
+    /** The significant digits of its larger operand a sum keeps: a double holds about 16, the last of them noise. */
+    private const val SUM_DIGITS = 14
+
+    /** [value], or 0 when it is only rounding next to [arg]: sin(pi) is 1.2e-16, cos(pi/2) 6.1e-17. */
+    private fun nearZeroIsZero(value: Double, arg: Double): Double = if (abs(value) < NEAR_ZERO * abs(arg)) 0.0 else value
 
     private fun isLikelyMathExpression(expr: String): Boolean {
         if (expr.isEmpty()) return false
@@ -155,6 +215,7 @@ object MathematicalExpressionEngine {
         if (REGEX_SCIENTIFIC_NUMBER.matches(lower)) return true
         if (REGEX_SIGNED_NUMBER.matches(lower)) return false
         if (REGEX_PHONE_OR_DATE.matches(lower)) return false
+        if (isDashedNumber(lower)) return false
 
         // Must contain at least one arithmetic operator or parenthesized function call;
         // bare constants ("pi", "e") or function names without arguments are not evaluated as math.
@@ -163,6 +224,22 @@ object MathematicalExpressionEngine {
 
         // Check for disallowed characters
         return REGEX_ALLOWED_CHARS.matches(expr)
+    }
+
+    /**
+     * Whether [expr], digits joined by dashes, reads as a phone number or ZIP+4 code rather than a subtraction:
+     * "030-12345678" and "0044-20-7946-0958" (a group starting with 0, as dialing and area codes do), "98765-43210" and
+     * "94103-1234" (a long group with 4 or more digits after the dash), "12-3456-7890" (three groups, 7 digits or more).
+     * Round amounts are sums ("12000-3500"), as are short ones ("10-3", "2024-1999", "100-20-5").
+     */
+    private fun isDashedNumber(expr: String): Boolean {
+        if (!REGEX_DASHED_DIGITS.matches(expr)) return false
+        val groups = expr.split('-')
+        if (groups.any { it.length > 1 && it.startsWith('0') }) return true
+        if (groups.any { it.endsWith("00") }) return false
+        if (groups.size > 2) return groups.sumOf { it.length } >= 7
+        val (left, right) = groups[0].length to groups[1].length
+        return left >= 3 && right >= 4 && maxOf(left, right) >= 5
     }
 
     private class ExpressionParser(private val str: String) {
@@ -200,8 +277,8 @@ object MathematicalExpressionEngine {
                 var x = parseTerm()
                 while (true) {
                     when {
-                        eat('+'.code) -> { val t = parseTerm(); x += if (termIsPercent) x * t else t }
-                        eat('-'.code) -> { val t = parseTerm(); x -= if (termIsPercent) x * t else t }
+                        eat('+'.code) -> { val t = parseTerm(); x = sum(x, if (termIsPercent) x * t else t) }
+                        eat('-'.code) -> { val t = parseTerm(); x = sum(x, -(if (termIsPercent) x * t else t)) }
                         else -> return x
                     }
                 }
@@ -210,13 +287,28 @@ object MathematicalExpressionEngine {
             }
         }
 
-        // Term = Factor (*, /, % Factor)*. "%" between two numbers is modulo ("10 % 3" = 1).
+        /**
+         * [a] + [b] to [SUM_DIGITS] significant digits of the larger: decimals aren't exact in binary, and what that
+         * leaves (about 1e-16 of the larger) is noise, not answer. So 0.1 + 0.2 - 0.3 is 0, not 5.55e-17, while
+         * 1e6 - 999999.9999999 is still 1e-7. Whole numbers add exactly and are left alone.
+         */
+        private fun sum(a: Double, b: Double): Double {
+            val s = a + b
+            if ((a % 1.0 == 0.0 && b % 1.0 == 0.0) || s == 0.0 || !s.isFinite()) return s
+            val larger = max(abs(a), abs(b))
+            val decimals = SUM_DIGITS - 1 - floor(log10(larger)).toInt()
+            return BigDecimal(s).setScale(decimals, RoundingMode.HALF_EVEN).toDouble()
+        }
+
+        // Term = Factor (*, /, % Factor)*. "%" between two numbers is modulo ("10 % 3" = 1). Side by side is times:
+        // "3(4+5)", "(2)(3)", "2pi".
         private fun parseTerm(): Double {
             var x = parseFactor()
             var percent = factorIsPercent
             while (true) {
                 when {
                     eat('*'.code) -> x *= parseFactor()
+                    ch == '('.code || ch in 'a'.code..'z'.code || ch in 'A'.code..'Z'.code -> x *= parseFactor()
                     eat('/'.code) -> {
                         val divisor = parseFactor()
                         if (divisor == 0.0 || divisor == -0.0) throw ArithmeticException("Division by zero")
@@ -299,9 +391,12 @@ object MathematicalExpressionEngine {
                             when (func) {
                                 "sqrt" -> sqrt(arg)
                                 "cbrt" -> cbrt(arg)
-                                "sin" -> sin(arg)
-                                "cos" -> cos(arg)
-                                "tan" -> tan(arg)
+                                // pi isn't exact in binary, so sin(pi) comes out as 1.2e-16: a zero.
+                                "sin" -> nearZeroIsZero(sin(arg), arg)
+                                "cos" -> nearZeroIsZero(cos(arg), arg)
+                                // tan(pi/2) is undefined, not the 1.6e16 that cos(pi/2)'s rounding gives.
+                                "tan" -> if (nearZeroIsZero(cos(arg), arg) == 0.0) throw ArithmeticException("tan is undefined here")
+                                    else nearZeroIsZero(tan(arg), arg)
                                 "asin" -> asin(arg)
                                 "acos" -> acos(arg)
                                 "atan" -> atan(arg)
@@ -365,9 +460,12 @@ object MathematicalExpressionEngine {
         val match = REGEX_BASE_CONVERSION.find(query.trim()) ?: return null
 
         val rawNum = match.groupValues[1]
-        val targetBase = match.groupValues[2].lowercase()
+        // "binary", "hexadecimal": the full words name the same bases as "bin" and "hex".
+        val targetBase = match.groupValues[2].lowercase(Locale.ROOT).take(3)
 
-        val parsedVal = parseAnyRadix(rawNum) ?: return null
+        val parsedVal = parseAnyRadix(rawNum)
+            ?: rawNum.takeIf { REGEX_BARE_HEX.matches(it) }?.let { java.lang.Long.parseUnsignedLong(it, 16) }
+            ?: return null
 
         val formattedHex = "0x" + java.lang.Long.toHexString(parsedVal).uppercase()
         val formattedBin = "0b" + java.lang.Long.toBinaryString(parsedVal)
@@ -516,8 +614,43 @@ object MathematicalExpressionEngine {
         "fl_oz" to 0.0295735, "floz" to 0.0295735,
         "tbsp" to 0.0147868, "tablespoon" to 0.0147868, "tablespoons" to 0.0147868,
         "tsp" to 0.00492892, "teaspoon" to 0.00492892, "teaspoons" to 0.00492892,
-        "m3" to 1000.0
+        "m3" to 1000.0, "cu_m" to 1000.0, "cm3" to 0.001, "cu_cm" to 0.001, "cc" to 0.001,
+        "ft3" to 28.316846592, "cu_ft" to 28.316846592, "in3" to 0.016387064, "cu_in" to 0.016387064,
+        // Named with their system ("us gallon", "imperial pint"), these are the same anywhere.
+        "us_gal" to 3.78541, "us_qt" to 0.946353, "us_pt" to 0.473176, "us_fl_oz" to 0.0295735,
+        "imp_gal" to 4.54609, "imp_qt" to 1.1365225, "imp_pt" to 0.56826125, "imp_fl_oz" to 0.0284130625
     )
+
+    /** Where a plain gallon, quart or pint is the imperial one: the UK and Ireland. */
+    private val imperialVolumeCountries = setOf("GB", "IE")
+    private val volumeUnitsImperial = volumeUnits + listOf("gal", "gallon", "gallons").associateWith { 4.54609 } +
+        listOf("qt", "quart", "quarts").associateWith { 1.1365225 } + listOf("pt", "pint", "pints").associateWith { 0.56826125 }
+
+    /** How the names [REGEX_VOLUME_SYSTEM] reads are written in the tables: "gallons" is "gal". */
+    private val volumeSystemUnits = mapOf(
+        "gallon" to "gal", "gallons" to "gal", "gal" to "gal", "quart" to "qt", "quarts" to "qt", "qt" to "qt",
+        "pint" to "pt", "pints" to "pt", "pt" to "pt", "fl_oz" to "fl_oz"
+    )
+
+    /** How the tables' system-named measures are shown: "us_gal" is "US gal". */
+    private fun unitLabel(unit: String): String = when {
+        unit.startsWith("us_") -> "US " + unit.removePrefix("us_").replace('_', ' ')
+        unit.startsWith("imp_") -> "imp " + unit.removePrefix("imp_").replace('_', ' ')
+        // Joined names read as written: "fl oz", "sq ft".
+        else -> unit.replace('_', ' ')
+    }
+
+    /** The short names of the lengths [REGEX_SQUARE_OR_CUBIC_UNIT] reads, for "sq_ft" and "cu_m". */
+    private fun shortLength(name: String): String = when {
+        name.startsWith("kilomet") -> "km"
+        name.startsWith("mile") -> "mi"
+        name == "feet" || name == "foot" -> "ft"
+        name.startsWith("yard") -> "yd"
+        name.startsWith("inch") -> "in"
+        name.startsWith("centimet") -> "cm"
+        name.startsWith("met") -> "m"
+        else -> name
+    }
 
     /** Ounces, which mean fluid ounces when converted to or from a volume ("8 oz to ml"). */
     private val ounceUnits = setOf("oz", "ounce", "ounces")
@@ -545,10 +678,14 @@ object MathematicalExpressionEngine {
         "km2" to 1e6, "sqkm" to 1e6, "sq_km" to 1e6,
         "ft2" to 0.092903, "sqft" to 0.092903, "sq_ft" to 0.092903,
         "mi2" to 2.58999e6, "sqmi" to 2.58999e6, "sq_mi" to 2.58999e6,
+        "yd2" to 0.83612736, "sq_yd" to 0.83612736, "in2" to 0.00064516, "sq_in" to 0.00064516,
+        "cm2" to 1e-4, "sq_cm" to 1e-4,
         "acre" to 4046.86, "acres" to 4046.86,
         "ha" to 10000.0, "hectare" to 10000.0, "hectares" to 10000.0
     )
 
+    // A year is the calendar's 365 days and a month a twelfth of it, 30.4167 days, as calculators and Google answer;
+    // the mean Gregorian year (365.2425 days) made "1 year to days" look wrong.
     private val timeUnits = mapOf(
         "ms" to 0.001, "millisecond" to 0.001, "milliseconds" to 0.001,
         "s" to 1.0, "sec" to 1.0, "second" to 1.0, "seconds" to 1.0,
@@ -556,9 +693,16 @@ object MathematicalExpressionEngine {
         "hr" to 3600.0, "h" to 3600.0, "hour" to 3600.0, "hours" to 3600.0,
         "d" to 86400.0, "day" to 86400.0, "days" to 86400.0,
         "wk" to 604800.0, "week" to 604800.0, "weeks" to 604800.0,
-        "mo" to 2629746.0, "month" to 2629746.0, "months" to 2629746.0,
-        "yr" to 31556952.0, "year" to 31556952.0, "years" to 31556952.0
+        "mo" to 2628000.0, "month" to 2628000.0, "months" to 2628000.0,
+        "yr" to 31536000.0, "year" to 31536000.0, "years" to 31536000.0
     )
+
+    /** The unit tables for [locale]: what a plain "ton" and a plain "gallon" are depends on the country. */
+    private fun unitTables(locale: Locale): List<Map<String, Double>> {
+        val massTable = if (locale.country == "US") massUnitsShortTon else massUnitsMetricTon
+        val volumeTable = if (locale.country in imperialVolumeCountries) volumeUnitsImperial else volumeUnits
+        return listOf(lengthUnits, massTable, speedUnits, digitalUnits, volumeTable, areaUnits, timeUnits, pressureUnits, energyUnits)
+    }
 
     /**
      * Lower-cases a unit, keeping the case distinctions that matter for data sizes: "B" is a byte, and an
@@ -583,8 +727,22 @@ object MathematicalExpressionEngine {
             .replace("¥", " jpy ")
             .replace("₹", " inr ")
             .replace(REGEX_WHITESPACE, " ")
+            .replace('²', '2')
+            .replace('³', '3')
+            .replace(REGEX_CURRENCY_PHRASE) { phrase ->
+                val name = phrase.value.lowercase(Locale.ROOT).replace(REGEX_WHITESPACE, " ")
+                CURRENCY_PHRASES[name] ?: CURRENCY_PHRASES[name.removeSuffix("s")] ?: phrase.value
+            }
             .replace(REGEX_FLUID_OUNCE, "fl_oz")
-            .replace(REGEX_SQUARE_UNIT, "sq_$1")
+            .replace(REGEX_SQUARE_OR_CUBIC_UNIT) { unit ->
+                val prefix = if (unit.groupValues[1].lowercase(Locale.ROOT).startsWith("s")) "sq_" else "cu_"
+                prefix + shortLength(unit.groupValues[2].lowercase(Locale.ROOT))
+            }
+            .replace(REGEX_VOLUME_SYSTEM) { unit ->
+                val system = unit.groupValues[1].lowercase(Locale.ROOT)
+                val prefix = if (system == "us" || system == "u.s." || system == "american") "us_" else "imp_"
+                prefix + volumeSystemUnits.getValue(unit.groupValues[2].lowercase(Locale.ROOT))
+            }
             .replace(REGEX_METRIC_TON, "tonne")
             .replace(REGEX_SHORT_OR_LONG_TON, "$1_ton")
             .trim()
@@ -613,27 +771,25 @@ object MathematicalExpressionEngine {
                 fromUnit = fromUnit.uppercase(Locale.ROOT),
                 toValue = converted,
                 toUnit = toUnit.uppercase(Locale.ROOT),
-                formatted = "${formatNumber(value)} ${fromUnit.uppercase(Locale.ROOT)} = ${formatNumber(converted)} ${toUnit.uppercase(Locale.ROOT)}"
+                formatted = "${formatNumber(value)} ${fromUnit.uppercase(Locale.ROOT)} = " +
+                    "${formatConverted(converted)} ${toUnit.uppercase(Locale.ROOT)}"
             )
         }
 
         // 2. Standard Unit Tables
-        val massTable = if (Locale.getDefault().country == "US") massUnitsShortTon else massUnitsMetricTon
-        val unitTables = listOf(lengthUnits, massTable, speedUnits, digitalUnits, volumeUnits, areaUnits, timeUnits, pressureUnits, energyUnits)
-        for (table in unitTables) {
+        for (table in unitTables(Locale.getDefault())) {
             if (table.containsKey(fromUnit) && table.containsKey(toUnit)) {
                 val base = value * table[fromUnit]!!
                 val result = base / table[toUnit]!!
                 if (!result.isFinite()) return null
-                // Joined names read as written: "fl oz", "sq ft".
-                val fromLabel = fromUnit.replace('_', ' ')
-                val toLabel = toUnit.replace('_', ' ')
+                val fromLabel = unitLabel(fromUnit)
+                val toLabel = unitLabel(toUnit)
                 return MathEvaluationResult.UnitConversion(
                     fromValue = value,
                     fromUnit = fromLabel,
                     toValue = result,
                     toUnit = toLabel,
-                    formatted = "${formatNumber(value)} $fromLabel = ${formatNumber(result)} $toLabel"
+                    formatted = "${formatNumber(value)} $fromLabel = ${formatConverted(result)} $toLabel"
                 )
             }
         }
@@ -642,34 +798,112 @@ object MathematicalExpressionEngine {
         return convertCurrency(value, fromUnit, toUnit, currencyRates)
     }
 
-    /** A currency conversion, with the live rates when they list both currencies, else the built-in ones. */
+    /**
+     * A currency conversion, with the live rates when they list both currencies, else the built-in ones. Either may be
+     * a code ("eur") or a name ("euros", "dollar", "yen").
+     */
     private fun convertCurrency(
         value: Double,
-        fromUnit: String,
-        toUnit: String,
+        fromName: String,
+        toName: String,
         currencyRates: () -> CurrencyRates
     ): MathEvaluationResult.UnitConversion? {
-        if (isCurrencyCode(fromUnit) && isCurrencyCode(toUnit)) {
-            val live = currencyRates()
-            val rates = if (fromUnit in live.perBase && toUnit in live.perBase) live else CurrencyRates.BUILT_IN
-            val result = rates.convert(value, fromUnit, toUnit) ?: return null
-            if (!result.isFinite()) return null
-            return MathEvaluationResult.UnitConversion(
-                fromValue = value,
-                fromUnit = fromUnit.uppercase(Locale.ROOT),
-                toValue = result,
-                toUnit = toUnit.uppercase(Locale.ROOT),
-                // Daily reference rates at best, so the result is an estimate rather than a dealing quote.
-                formatted = "${formatNumber(value)} ${fromUnit.uppercase(Locale.ROOT)} ≈ ${formatNumber(result)} ${toUnit.uppercase(Locale.ROOT)}",
-                currencyRates = rates
-            )
+        val fromUnit = CURRENCY_NAMES[fromName] ?: fromName.takeIf(::isCurrencyCode) ?: return null
+        val toUnit = CURRENCY_NAMES[toName] ?: toName.takeIf(::isCurrencyCode) ?: return null
+        val live = currencyRates()
+        val rates = if (fromUnit in live.perBase && toUnit in live.perBase) live else CurrencyRates.BUILT_IN
+        val result = rates.convert(value, fromUnit, toUnit) ?: return null
+        if (!result.isFinite()) return null
+        val from = fromUnit.uppercase(Locale.ROOT)
+        val to = toUnit.uppercase(Locale.ROOT)
+        return MathEvaluationResult.UnitConversion(
+            fromValue = value,
+            fromUnit = from,
+            toValue = result,
+            toUnit = to,
+            // Daily reference rates at best, so the result is an estimate rather than a dealing quote.
+            formatted = "${money(value, from, wholeAsTyped = true)} $from ≈ ${money(result, to, wholeAsTyped = false)} $to",
+            currencyRates = rates
+        )
+    }
+
+    /**
+     * [value] written as money in [code]: grouped the phone's way, in the digits 0 to 9 like every answer, with the
+     * currency's own decimals (2 for most, 0 for the yen and the won). An amount the user typed without decimals keeps
+     * none when [wholeAsTyped]: "100 USD", not "100.00 USD".
+     */
+    private fun money(value: Double, code: String, wholeAsTyped: Boolean): String {
+        val decimals = if (wholeAsTyped && value % 1.0 == 0.0) 0 else currencyDecimals(code)
+        val pattern = "#,##0" + if (decimals > 0) "." + "0".repeat(decimals) else ""
+        return DecimalFormat(pattern, latinSymbols()).apply { roundingMode = RoundingMode.HALF_UP }.format(value)
+    }
+
+    /** The decimals [code] is written with: 2 for most currencies, 0 for JPY and KRW; 2 when the phone doesn't know it. */
+    private fun currencyDecimals(code: String): Int =
+        try {
+            Currency.getInstance(code).defaultFractionDigits.takeIf { it >= 0 } ?: 2
+        } catch (_: IllegalArgumentException) {
+            2
         }
 
-        return null
+    /** The phone's number symbols as written with the digits 0 to 9 (Arabic's with Latin digits use "." and ","). */
+    private fun latinSymbols(): DecimalFormatSymbols {
+        val locale = Locale.getDefault()
+        val latin = try {
+            Locale.Builder().setLocale(locale).setUnicodeLocaleKeyword("nu", "latn").build()
+        } catch (_: IllformedLocaleException) {
+            locale
+        }
+        return DecimalFormatSymbols.getInstance(latin).apply { zeroDigit = '0' }
     }
 
     /** Three letters, the shape of an ISO 4217 code; nothing else is looked up in the rate tables. */
     private fun isCurrencyCode(u: String) = u.length == 3 && u.all { it in 'a'..'z' }
+
+    /** Currencies by the names people type for them ("50 euros in dollars"), each its ISO 4217 code. */
+    private val CURRENCY_NAMES: Map<String, String> = buildMap {
+        fun names(code: String, vararg words: String) = words.forEach { put(it, code) }
+        names("usd", "dollar", "dollars", "buck", "bucks")
+        names("eur", "euro", "euros")
+        names("gbp", "pound", "pounds", "quid", "sterling")
+        names("jpy", "yen")
+        names("cny", "yuan", "renminbi", "rmb")
+        names("inr", "rupee", "rupees")
+        names("krw", "won")
+        names("mxn", "peso", "pesos")
+        names("brl", "real", "reais")
+        names("chf", "franc", "francs")
+        names("rub", "ruble", "rubles", "rouble", "roubles")
+        names("try", "lira", "liras")
+        names("thb", "baht")
+        names("pln", "zloty", "zlotys")
+        names("ils", "shekel", "shekels")
+        names("zar", "rand")
+        names("aed", "dirham", "dirhams")
+        names("sar", "riyal", "riyals")
+        names("sek", "krona", "kronor")
+        names("nok", "krone", "kroner")
+        names("huf", "forint", "forints")
+        names("czk", "koruna")
+        names("myr", "ringgit")
+        names("idr", "rupiah")
+    }
+
+    /** Currencies named in more than one word, read before the units are: "canadian dollars" is "cad". */
+    private val CURRENCY_PHRASES: Map<String, String> = mapOf(
+        "us dollar" to "usd", "american dollar" to "usd", "canadian dollar" to "cad", "australian dollar" to "aud",
+        "new zealand dollar" to "nzd", "singapore dollar" to "sgd", "hong kong dollar" to "hkd",
+        "mexican peso" to "mxn", "swiss franc" to "chf", "british pound" to "gbp", "pound sterling" to "gbp",
+        "pounds sterling" to "gbp", "indian rupee" to "inr", "japanese yen" to "jpy", "chinese yuan" to "cny",
+        "south african rand" to "zar", "brazilian real" to "brl", "brazilian reais" to "brl",
+        "swedish krona" to "sek", "swedish kronor" to "sek", "norwegian krone" to "nok", "norwegian kroner" to "nok",
+        "danish krone" to "dkk", "danish kroner" to "dkk", "turkish lira" to "try", "russian ruble" to "rub",
+        "polish zloty" to "pln", "south korean won" to "krw", "korean won" to "krw"
+    )
+    private val REGEX_CURRENCY_PHRASE = Regex(
+        "(?<![a-zA-Z])(?:" + CURRENCY_PHRASES.keys.sortedByDescending { it.length }.joinToString("|") { it.replace(" ", "\\s+") } + ")s?\\b",
+        RegexOption.IGNORE_CASE
+    )
 
     private fun isTemperature(u: String) = u in listOf("c", "celsius", "f", "fahrenheit", "k", "kelvin")
 
@@ -686,20 +920,45 @@ object MathematicalExpressionEngine {
         }
     }
 
-    private fun formatNumber(value: Double): String {
-        if (!value.isFinite() || value == 0.0 || value == -0.0) return "0"
+    /**
+     * Significant digits a calculation is written with: enough that 1.00001 isn't shown as 1 and 1/3 reads as
+     * 0.3333333333, few enough that binary rounding (0.30000000000000004) never shows.
+     */
+    private const val CALCULATION_DIGITS = 10
+
+    /**
+     * Significant digits a unit conversion is written with: its factors are mostly given to about 6, so more would show
+     * their rounding ("1 gal to qt" as 3.999998), and 1 month is 30.4167 days as Google writes it.
+     */
+    private const val CONVERSION_DIGITS = 6
+
+    /** A converted amount, to [CONVERSION_DIGITS] and no decimals past them however large: "1000 gal" is 3785.41 l. */
+    private fun formatConverted(value: Double): String = formatNumber(value, CONVERSION_DIGITS, decimalsForLarge = 0)
+
+    /** Whole numbers below 2^63 are written out in full: 2^50 is 1125899906842624, not 1.1259e+15. */
+    private const val LARGEST_WRITTEN_OUT = 9.223372036854775807E18
+
+    /**
+     * [value] to [significantDigits], with trailing zeros dropped, the phone's decimal comma where it uses one ("2,5"),
+     * and scientific notation only below 0.0001 and from 10^15 for what isn't a whole number. A number with more whole
+     * digits than that keeps them all, and up to [decimalsForLarge] decimals as well (15 digits at most, about all a
+     * double holds): 1234567.891234 is 1234567.8912, not 1234567.891.
+     */
+    private fun formatNumber(value: Double, significantDigits: Int = CALCULATION_DIGITS, decimalsForLarge: Int = 4): String {
+        if (!value.isFinite() || value == 0.0) return "0"
         val absVal = abs(value)
-        return if (value % 1.0 == 0.0 && absVal < 1e15) {
-            val longVal = value.toLong()
-            if (longVal == 0L) "0" else longVal.toString()
+        val written = if (value % 1.0 == 0.0 && absVal < LARGEST_WRITTEN_OUT) {
+            value.toLong().toString()
         } else if (absVal < 1e-4 || absVal >= 1e15) {
             String.format(Locale.ROOT, "%.4e", value)
-        } else if (absVal < 1.0) {
-            // Four significant digits, not four decimals: 1/3000 is 0.0003333, not 0.0003.
-            java.math.BigDecimal(value).round(java.math.MathContext(4)).stripTrailingZeros().toPlainString()
         } else {
-            val formatted = String.format(Locale.ROOT, "%.4f", value).trimEnd('0').trimEnd('.')
-            if (formatted.isEmpty() || formatted == "-" || formatted == "-0") "0" else formatted
+            val wholeDigits = floor(log10(absVal)).toInt() + 1
+            val digits = max(significantDigits, min(wholeDigits + decimalsForLarge, MAX_DIGITS))
+            BigDecimal(value).round(MathContext(digits, RoundingMode.HALF_EVEN)).stripTrailingZeros().toPlainString()
         }
+        return if (decimalComma()) written.replace('.', ',') else written
     }
+
+    /** The most significant digits any answer is written with: a double holds about 15 exactly. */
+    private const val MAX_DIGITS = 15
 }

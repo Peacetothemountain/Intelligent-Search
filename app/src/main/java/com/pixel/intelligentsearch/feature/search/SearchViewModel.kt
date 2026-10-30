@@ -67,10 +67,18 @@ data class SearchUiState(
     val volumeSlider: com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider? = null,
     val directActions: List<DirectAction> = emptyList(),
     /**
-     * The action Enter runs instead of searching: a timer, alarm or reminder the query plainly asks for ("15 min",
-     * "7:30am", "set a timer for 10 minutes"). Null when there is none or it may be meant as a search ("7:30").
+     * The action Enter runs instead of searching: a timer, alarm or reminder the query plainly asks for, with nothing
+     * about it guessed ("15 min", "7:30am", "set a timer for 10 minutes", "remind me to call mom tomorrow at 5pm"; THE
+     * CERTAINTY RULE FOR ENTER in [com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser]). Null when there
+     * is none, when it may be meant as a search ("7:30"), or when its day or time is a guess ([guessedAction]).
      */
     val enterAction: DirectAction? = null,
+    /**
+     * A timer, alarm or reminder row the query reads as whose day or time was guessed ("remind me to call mom at 5",
+     * "wake me up at 7", "at 6"): shown with its day and time first, for the user to tap once they see when it is for,
+     * while Enter does what it does for any other query. Null when there is none, or Enter runs it ([enterAction]).
+     */
+    val guessedAction: DirectAction? = null,
     val calendarEvents: List<CalendarEvent> = emptyList(),
     val recentSearches: List<String> = emptyList(),
     val hasLockedPrivateSpace: Boolean = false,
@@ -105,12 +113,13 @@ data class SearchUiState(
 ) {
     /**
      * The provider the Ask row shows for, or null when there is no row: besides [aiOffer], the query must not already
-     * have an answer that would contradict it at the top, an action Enter runs ("ask sarah at 6pm" is a reminder) or
-     * a definition ("what does serendipity mean?" shows its meaning).
+     * have an answer that would contradict it at the top, a timer, alarm or reminder it reads as, whether Enter runs it
+     * or it waits for a tap ("ask sarah tomorrow at 6pm" and "ask sarah at 6pm" are reminders), or a definition ("what
+     * does serendipity mean?" shows its meaning).
      */
     val askAi: com.pixel.intelligentsearch.core.ai.AiProvider?
         get() = aiOffer?.takeIf {
-            enterAction == null &&
+            enterAction == null && guessedAction == null &&
                 (liveAnswer as? com.pixel.intelligentsearch.core.answers.LiveAnswer.Definition)?.query != query
         }
 }
@@ -682,6 +691,7 @@ class SearchViewModel @Inject constructor(
                 androidSettings = emptyList(),
                 directActions = if (settingsState.value.smartClipboardSuggestions) initialClipboardActions else emptyList(),
                 enterAction = null,
+                guessedAction = null,
                 mathResult = null,
                 instantAnswer = null,
                 systemToggle = null,
@@ -850,18 +860,25 @@ class SearchViewModel @Inject constructor(
                 }
             }
 
-            // Enter runs a timer, alarm or reminder the query asks for; calls, messages and the rest stay a tap away.
-            var enterAction: DirectAction? = when (unifiedResults.parsedIntent) {
-                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Timer,
-                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Alarm,
-                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Reminder -> directActions.firstOrNull()
-                else -> null
+            // Enter runs a timer, alarm or reminder the query asks for, and only when nothing about it was guessed (THE
+            // CERTAINTY RULE FOR ENTER): "remind me to call mom at 5" (today or tomorrow? 5 AM or PM?) is shown, its
+            // day and time first, for a tap, and Enter searches. Calls, messages and the rest stay a tap away.
+            val parsedRow = directActions.firstOrNull()
+            var enterAction: DirectAction? = null
+            var guessedAction: DirectAction? = null
+            when (val parsed = unifiedResults.parsedIntent) {
+                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Timer -> enterAction = parsedRow
+                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Alarm ->
+                    if (parsed.certain) enterAction = parsedRow else guessedAction = parsedRow
+                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Reminder ->
+                    if (parsed.certain) enterAction = parsedRow else guessedAction = parsedRow
+                else -> Unit
             }
             // The short phrasing ("15 min", "7:30am", "laundry in 2 hrs") is the top suggestion, above the results.
             unifiedResults.shortAction?.let { action ->
                 val row = DirectAction(action.title, action.subtitle, action.iconType, action.intent)
                 directActions.add(0, row)
-                if (action.runsOnEnter) enterAction = row
+                if (action.runsOnEnter) enterAction = row else guessedAction = row
             }
 
             if (queryLower in listOf("private", "private space", "hidden", "hidden apps", "locked space", "private apps") && _uiState.value.hasLockedPrivateSpace) {
@@ -1009,6 +1026,7 @@ class SearchViewModel @Inject constructor(
                     volumeSlider = unifiedResults.systemAction as? com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider,
                     directActions = directActions,
                     enterAction = enterAction,
+                    guessedAction = guessedAction,
                     lastQueryLatency = elapsed,
                     learnedPick = learnedPick
                 )
@@ -1209,7 +1227,11 @@ class SearchViewModel @Inject constructor(
         initialClipboardActions = initialClipboardActions.filter { it != action }
         _uiState.update { state ->
             // A dismissed action is no longer what Enter runs.
-            state.copy(directActions = state.directActions.filter { it != action }, enterAction = state.enterAction.takeIf { it != action })
+            state.copy(
+                directActions = state.directActions.filter { it != action },
+                enterAction = state.enterAction.takeIf { it != action },
+                guessedAction = state.guessedAction.takeIf { it != action }
+            )
         }
     }
 

@@ -112,7 +112,8 @@ class ShortActionPhrasingTest {
             assertEquals(query, expected.first, alarm.hour)
             assertEquals(query, expected.second, alarm.minute)
             assertEquals(query, expected.third, alarm.title)
-            assertTrue(query, alarm.runsOnEnter)
+            // "At 6" is AM or PM by a guess, so Enter leaves it for a tap (the certainty rule); the rest say which.
+            assertEquals(query, query != "at 6", alarm.runsOnEnter)
         }
     }
 
@@ -142,7 +143,11 @@ class ShortActionPhrasingTest {
     fun aTwentyFourHourClockReadsTheHourAsWrittenAndShowsIt() {
         assertEquals(7, parse("7:30", is24Hour = true)!!.hour)
         assertEquals("Set Alarm for 07:30", parse("7:30", is24Hour = true)!!.title)
-        assertEquals("Set Alarm for 06:00", parse("at 6", is24Hour = true)!!.title)
+        // A bare hour follows the one alarm rule on both clocks, the next of 6 AM and 6 PM (it was 06:00 as written),
+        // and is a guess Enter leaves for a tap; minutes are 24-hour notation, which Enter sets.
+        assertEquals("Set Alarm for 18:00", parse("at 6", is24Hour = true)!!.title)
+        assertFalse(parse("at 6", is24Hour = true)!!.runsOnEnter)
+        assertTrue(parse("at 7:30", is24Hour = true)!!.runsOnEnter)
         assertEquals("Set Alarm for 19:30", parse("7:30pm", is24Hour = true)!!.title)
     }
 
@@ -184,7 +189,13 @@ class ShortActionPhrasingTest {
             assertEquals(query, expected.first, reminder.triggerMillis)
             assertEquals(query, expected.second, reminder.title)
             assertEquals(query, "${expected.third} · Calendar Reminder", reminder.subtitle)
-            assertTrue(query, reminder.runsOnEnter)
+            // The certainty rule: Enter sets only a time from now, or a time that says itself on a day that is named.
+            // "Call mom at 5pm" (which day?), "dinner at 7" and "standup monday at 3" (AM or PM?) wait for a tap.
+            val certain = query in setOf(
+                "laundry in 2 hrs", "laundry in 90 minutes", "take out the bins in an hour", "pay rent tomorrow 9am",
+                "tomorrow 9am pay rent", "gym tonight at 8"
+            )
+            assertEquals(query, certain, reminder.runsOnEnter)
         }
     }
 
@@ -397,7 +408,9 @@ class ShortActionPhrasingTest {
         assertEquals(at(22, 19), parse("dinner at 7", is24Hour = true)?.triggerMillis)
         assertEquals("Today, 19:00 · Calendar Reminder", parse("dinner at 7", is24Hour = true)?.subtitle)
         assertEquals(at(23, 13), ShortActionPhrasing.parse("lunch at 1", at(22, 14), true, utc, Locale.US)?.triggerMillis)
-        assertEquals(at(22, 19, 30), parse("dinner at 7:30", is24Hour = true)?.triggerMillis)
+        // Minutes there are 24-hour notation, so "dinner at 7:30" is 07:30 as written, which no dinner is: none (it was
+        // 19:30).
+        assertNull(parse("dinner at 7:30", is24Hour = true))
         assertEquals(at(23, 19), parse("dinner tomorrow at 7", is24Hour = true)?.triggerMillis)
         assertEquals(at(22, 21), parse("gym tonight at 9", is24Hour = true)?.triggerMillis)
         // A leading zero, or an hour past 12, is as written.
@@ -427,7 +440,8 @@ class ShortActionPhrasingTest {
         fun at10(query: String) = ShortActionPhrasing.parse(query, at(22, 10), true, utc, Locale.US)?.triggerMillis
         // On a 24-hour phone each was the small hours, tomorrow, while "remind me to pick up kids at 3" was 3 PM.
         assertEquals(at(22, 15), at10("pick up kids at 3"))
-        assertEquals(at(22, 14, 30), at10("call mom at 2:30"))
+        // Minutes are 24-hour notation there, read as written: the next 02:30 (it was 14:30).
+        assertEquals(at(23, 2, 30), at10("call mom at 2:30"))
         assertEquals(at(23, 15), at10("pick up kids fri at 3"))
         assertEquals(at(23, 16), at10("call mom tmrw at 4"))
         assertEquals(at(23, 16), at10("dentist tomorrow at 4"))
@@ -458,5 +472,47 @@ class ShortActionPhrasingTest {
         }
         assertEquals("Remind: Call mom", parse("call mom @ 5pm")?.title)
         assertEquals(at(22, 17), parse("call mom @ 5pm")?.triggerMillis)
+    }
+
+    @Test
+    fun raceDistancesAndDecadesAreNoTimer() {
+        // Each started a timer on Enter: 13 hr 20 min for "800m", 1 min 30 sec for "90s".
+        for (query in listOf("800m", "400m", "100m", "200 m", "90s", "80s", "60s")) {
+            assertNull(query, parse(query))
+        }
+        // Lengths still are timers, and "timer" makes any amount one.
+        assertEquals(900, parse("15m")?.durationSeconds)
+        assertEquals(45, parse("45s")?.durationSeconds)
+        assertEquals(300, parse("300s")?.durationSeconds)
+        assertEquals(6_000, parse("100 min")?.durationSeconds)
+        assertEquals(48_000, parse("800m timer")?.durationSeconds)
+    }
+
+    @Test
+    fun enterRunsOnlyAReminderWhoseDayAndTimeAreSaid() {
+        // The certainty rule: a time that says itself on a day that is named. Each ran on Enter.
+        assertEquals(true, parse("call mom tomorrow 5pm")?.runsOnEnter)
+        assertEquals(true, parse("dentist tues 10am")?.runsOnEnter)
+        assertEquals(false, parse("call mom at 5pm")?.runsOnEnter)
+        assertEquals(false, parse("dentist friday at 10")?.runsOnEnter)
+        assertEquals(false, parse("at 3")?.runsOnEnter)
+        assertEquals(at(22, 15), parse("at 3")?.let { at(22, it.hour) })
+        // On a 24-hour phone minutes are as written, and said.
+        assertEquals(at(23, 6, 30), parse("gym tomorrow 6:30", is24Hour = true)?.triggerMillis)
+        assertEquals(true, parse("gym tomorrow 6:30", is24Hour = true)?.runsOnEnter)
+        assertEquals(at(23, 6, 30), parse("gym 6:30", is24Hour = true)?.triggerMillis)
+        assertEquals(false, parse("gym 6:30", is24Hour = true)?.runsOnEnter)
+    }
+
+    @Test
+    fun wordsTheShortReaderDoesntKnowAreNoReminder() {
+        // Each was a reminder Enter ran today: "nxt week", "mañana" and "everyday" in the task, and "half 5pm" at 5:00.
+        for (query in listOf("call mom nxt week 5pm", "call mom mañana 5pm", "gym everyday 6am", "call mum half 5pm")) {
+            assertNull(query, parse(query))
+        }
+        // A task that says its half of the day: "go to bed at 11" was 11 AM, "leave for work at 7" 7 PM.
+        assertEquals(at(22, 23), parse("go to bed at 11")?.triggerMillis)
+        assertEquals(at(23, 7), parse("leave for work at 7")?.triggerMillis)
+        assertEquals(false, parse("go to bed at 11")?.runsOnEnter)
     }
 }

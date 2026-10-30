@@ -103,6 +103,31 @@ class LiveAnswerParserTest {
     }
 
     @Test
+    fun aClockTimeInAWeatherQuestionIsNoPlace() {
+        // Each was the weather for a place called "5pm", "noon", "3" or "boston at 3pm".
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather at 5pm"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather at noon"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather at 3"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather today at 5"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather tonight at 8"))
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather tomorrow at 3"))
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather tomorrow at 3pm"))
+        assertEquals(Weather("boston", ForecastDay.TODAY), parse("weather in boston at 3pm"))
+        assertEquals(Weather("paris", ForecastDay.TODAY), parse("weather in paris at 5pm"))
+        // A postcode is still a place.
+        assertEquals(Weather("37601", ForecastDay.TODAY), parse("weather 37601"))
+    }
+
+    @Test
+    fun whatIsDoneInALanguageIsNoWordToTranslate() {
+        // "Taught in english" was a translation of "taught".
+        for (query in listOf("taught in english", "written in english", "fluent in french", "spoken in spanish")) {
+            assertNull(query, parse(query))
+        }
+        assertEquals(Translate("hola", "en", null), parse("hola in english"))
+    }
+
+    @Test
     fun weatherDayPartsAndScalesAreNotPlaces() {
         assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather tomorrow morning"))
         assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather for tomorrow"))

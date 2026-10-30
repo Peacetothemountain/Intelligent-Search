@@ -18,9 +18,16 @@ import java.util.TimeZone
  * is offered but Enter keeps searching. Queries the calculator, a converter or date maths answer never reach this
  * (the coordinator skips it then), and plain numbers, phone numbers and questions are never read as actions.
  *
+ * Enter also follows the full phrasing's certainty rule (THE CERTAINTY RULE FOR ENTER, [NaturalLanguageIntentParser]):
+ * it runs only a reading with nothing guessed. A timer read whole is certain; an alarm when its time says itself
+ * ("7:30am", "at 19:30", "at 7:30" on a 24-hour phone); a reminder when its time says itself and its day is named
+ * ("pay rent tomorrow 9am"), or when it is a time from now ("laundry in 2 hrs"). "At 6", "call mom at 5pm" (which
+ * day?) and "dinner at 7" are still offered, their day and time first in the row, for a tap.
+ *
  * A reminder follows the full phrasing's whole-phrase rule ([NaturalLanguageIntentParser.isPlainTask]): once the day
  * and time are read, the task must be plain words, so "call mom tomorrrow 5pm" or "dentist 15.11 at 3pm" is none. Its
- * bare hour is read by the full phrasing's rule too ([NaturalLanguageIntentParser.bareHour]), on either clock.
+ * bare hour is read by the full phrasing's rule too ([NaturalLanguageIntentParser.bareHour]), on either clock; on a
+ * 24-hour phone a time with minutes ("gym 6:30") is as written.
  */
 object ShortActionPhrasing {
 
@@ -32,7 +39,10 @@ object ShortActionPhrasing {
         val title: String,
         val subtitle: String,
         val intent: Intent,
-        /** False for a reading that may well be meant as a search, which Enter then still runs. */
+        /**
+         * False for a reading that may well be meant as a search, or whose day or time was guessed (THE CERTAINTY
+         * RULE FOR ENTER): Enter then searches, and the row is a tap away.
+         */
         val runsOnEnter: Boolean,
         val durationSeconds: Int = 0,
         val hour: Int = 0,
@@ -76,10 +86,12 @@ object ShortActionPhrasing {
     private val DAY_FIRST_REMINDER = Regex("^($DAY_WORD)\\s+(at\\s+)?(?:$TIME)\\s+(.+)$", RegexOption.IGNORE_CASE)
     /**
      * A task that ends in a word that bounds or rounds the time after it ("call mom around 5pm", "pay rent by 5pm",
-     * "lunch 12 - 1pm", "meeting from 2 to 3pm"): the time it says is no time to set a reminder for.
+     * "lunch 12 - 1pm", "meeting from 2 to 3pm"), or makes it another time ("call mum half 5pm" is 5:30 in Britain):
+     * the time it says is no time to set a reminder for.
      */
     private val ROUGH_BEFORE_TIME = Regex(
-        "\\b(?:around|about|approx\\.?|approximately|roughly|circa|by|before|after|until|till|til|between|from|to|and)\\s*$|[-–—]\\s*$",
+        "\\b(?:around|about|approx\\.?|approximately|roughly|circa|by|before|after|until|till|til|between|from|to|and|" +
+            "half|quarter|past)\\s*$|[-–—]\\s*$",
         RegexOption.IGNORE_CASE
     )
     private val WHITESPACE = Regex("\\s+")
@@ -163,11 +175,18 @@ object ShortActionPhrasing {
     // TIMERS: "15 min", "15m", "90 sec", "1h 30m", "1.5 hours", "10 minutes timer"
     // ---------------------------------------------------------------------------------------------
 
+    /**
+     * A duration alone. "800m", "400m" and "200 m" are as often a race and "90s" or "80s" a decade, so a lone amount
+     * in a bare "m" of 100 or more, or a bare "s" that is a decade (10s to 90s), is no timer without "timer" after it:
+     * "800m" started a 13 hour 20 minute timer on Enter. "15m", "45s", "300s" and "800 min" are still timers.
+     */
     private fun parseTimer(lower: String): Suggestion? {
         if (!DURATION.matches(lower)) return null
+        val parts = DURATION_PART.findAll(lower).toList()
+        if (!lower.endsWith("timer") && parts.size == 1 && readsAsDistanceOrDecade(parts.single(), lower)) return null
         var seconds = 0.0
         val seen = HashSet<Char>()
-        for (part in DURATION_PART.findAll(lower)) {
+        for (part in parts) {
             val amount = part.groupValues[1].replace(',', '.').toDoubleOrNull() ?: return null
             val unit = unitOf(part.groupValues[2])
             // "5m 5m" isn't a duration anyone types; refusing it keeps typos from becoming one.
@@ -184,6 +203,20 @@ object ShortActionPhrasing {
             runsOnEnter = true,
             durationSeconds = total
         )
+    }
+
+    /**
+     * Whether [part] of [lower], a lone amount and unit, is a distance in meters ("800m") or a decade ("90s")
+     * ([parseTimer]). The unit must end there: "90 sec" is no "90 s" decade.
+     */
+    private fun readsAsDistanceOrDecade(part: MatchResult, lower: String): Boolean {
+        if (lower.getOrNull(part.range.last + 1)?.isLetter() == true) return false
+        val amount = part.groupValues[1].toIntOrNull() ?: return false
+        return when (part.groupValues[2]) {
+            "m" -> amount >= 100
+            "s" -> amount in 10..90 && amount % 10 == 0
+            else -> false
+        }
     }
 
     private fun unitOf(unit: String): Char = when {
@@ -233,23 +266,32 @@ object ShortActionPhrasing {
             // The day and time first, as the region writes them, so a narrow row cuts the source, never when.
             subtitle = "${Durations.dayAndTime(rings.timeInMillis, nowMs, is24Hour, locale, zone.toZoneId())} · Clock Alarm",
             intent = NaturalLanguageIntentParser.alarmIntent(hour24, time.minute),
-            // "7:30" alone may be meant as a search; "7:30am", "at 7:30" and "7:30 alarm" can't be.
-            runsOnEnter = time.meridiem != null || time.explicitAt || alarmWord,
+            // "7:30" alone may be meant as a search; "7:30am", "at 7:30" and "7:30 alarm" can't be. "At 6" is AM or PM
+            // by a guess, so it is a tap away too.
+            runsOnEnter = (time.meridiem != null || time.explicitAt || alarmWord) && saysItself(time, is24Hour),
             hour = hour24,
             minute = time.minute
         )
     }
 
     /**
-     * The 24-hour hour [time] means for an alarm. With am/pm it is exact. Without, a leading zero ("07:00") or an hour
-     * past 12 reads as written, and so does any hour on a 24-hour clock; a 12-hour clock takes the next of its morning
-     * and evening times still ahead ("at 6" at 2 PM is 6 PM). A reminder's bare hour goes by
-     * [NaturalLanguageIntentParser.bareHour] instead.
+     * Whether [time] says which half of the day it is, so nothing about it is guessed (THE CERTAINTY RULE FOR ENTER):
+     * am/pm, a leading zero ("07:00"), an hour of 0 or past 12, or minutes on a 24-hour phone ("9:30").
+     */
+    private fun saysItself(time: ClockTime, is24Hour: Boolean): Boolean =
+        time.meridiem != null || time.zeroPadded || time.hour == 0 || time.hour > 12 || (is24Hour && time.hasMinutes)
+
+    /**
+     * The 24-hour hour [time] means for an alarm, by the one rule both readers' alarms share. With am/pm it is exact.
+     * Without, a leading zero ("07:00") or an hour of 0 or past 12 reads as written, and so do minutes on a 24-hour
+     * phone ("7:30"); a bare hour, on either clock, is the next of its morning and evening times still ahead ("at 6" at
+     * 2 PM is 6 PM), as the full phrasing's "set an alarm for 6" is. It was as written on a 24-hour phone (06:00). A
+     * reminder's bare hour goes by [NaturalLanguageIntentParser.bareHour] instead.
      */
     private fun resolveHour(time: ClockTime, now: Calendar, is24Hour: Boolean): Int {
         val meridiem = time.meridiem
         if (meridiem != null) return (time.hour % 12) + if (meridiem == "pm") 12 else 0
-        if (is24Hour || time.zeroPadded || time.hour == 0 || time.hour > 12) return time.hour
+        if (saysItself(time, is24Hour)) return time.hour
         val morning = time.hour % 12
         val nowMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
         val morningMinutes = morning * 60 + time.minute
@@ -314,27 +356,36 @@ object ShortActionPhrasing {
         // 1 to 4 the small hours after it, and 5 either, so no time), then a part of the day, then the full phrasing's
         // rule for any other bare hour ([NaturalLanguageIntentParser.bareHour]: "pick up kids at 3" is 3 PM). On a
         // 24-hour clock too: people there still say "dinner at 7" or "pick up kids at 3" for the evening and the
-        // afternoon, which read as written set a reminder for the small hours.
-        val bare = time.meridiem == null && !time.zeroPadded && time.hour in 1..12
+        // afternoon, which read as written set a reminder for the small hours. Minutes there are 24-hour notation
+        // ("gym 6:30" is 06:30, as the full phrasing reads it), unless the words say the other half ("dinner at 7:30").
+        val bare = time.meridiem == null && !saysItself(time, is24Hour) && time.hour in 1..12
+        if (time.meridiem == null && !time.zeroPadded && is24Hour && time.hasMinutes &&
+            NaturalLanguageIntentParser.wordsDisagreeWithWrittenHour(task, time.hour)
+        ) return null
         val said24 = if (bare) NaturalLanguageIntentParser.hourForWords(task, time.hour) else null
         // "Pack lunch at 7": the words say a half of the day the hour isn't in.
         if (bare && said24 == null && NaturalLanguageIntentParser.wordsDisagreeWithHour(task, time.hour)) return null
+        // THE CERTAINTY RULE FOR ENTER: only a time that says itself, or "tonight" at 6 to 11 or a part of the day,
+        // is certain; every other rule below is a guess.
+        var timeSaid = !bare
         val hour = when {
             said24 != null -> said24
             bare && night -> when (time.hour) {
                 12 -> 0
                 5 -> return null
-                in 6..11 -> time.hour + 12
+                in 6..11 -> { timeSaid = true; time.hour + 12 }
                 else -> time.hour
             }
-            bare && day.period == "morning" -> time.hour
-            bare && day.period != null -> if (time.hour == 12) 12 else time.hour + 12
+            bare && day.period == "morning" -> { timeSaid = true; time.hour }
+            bare && day.period != null -> { timeSaid = true; if (time.hour == 12) 12 else time.hour + 12 }
             bare -> NaturalLanguageIntentParser.bareHour(
                 time.hour, time.minute, dayNamed = namedDay != NamedDay.NONE && namedDay != NamedDay.TODAY,
                 nowMinutes = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
             )
             else -> resolveHour(time, now, is24Hour)
         }
+        // "This evening" names today; with no day named, "call mom at 5pm" may be today's or tomorrow's.
+        val dayNamed = namedDay != NamedDay.NONE || (day.period != null && !day.periodWithIn)
         at.set(Calendar.HOUR_OF_DAY, hour)
         at.set(Calendar.MINUTE, time.minute)
         if (night && said24 == null && hour < 6) at.add(Calendar.DAY_OF_YEAR, 1)
@@ -344,7 +395,7 @@ object ShortActionPhrasing {
             at.add(Calendar.DAY_OF_YEAR, 1)
         }
         if (at.timeInMillis <= nowMs) return null
-        return reminder(task, at, nowMs, is24Hour, zone, locale)
+        return reminder(task, at, nowMs, is24Hour, zone, locale, runsOnEnter = timeSaid && dayNamed)
     }
 
     /** [match]'s groups lowercased, for the time groups (the task keeps its case). */
@@ -376,7 +427,7 @@ object ShortActionPhrasing {
      * in the subtitle, so a long task or large text never hides it.
      */
     private fun reminder(
-        task: String, at: Calendar, nowMs: Long, is24Hour: Boolean, zone: TimeZone, locale: Locale, runsOnEnter: Boolean = true
+        task: String, at: Calendar, nowMs: Long, is24Hour: Boolean, zone: TimeZone, locale: Locale, runsOnEnter: Boolean
     ): Suggestion {
         val setFor = Durations.dayAndTime(at.timeInMillis, nowMs, is24Hour, locale, zone.toZoneId())
         return Suggestion(

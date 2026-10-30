@@ -6,6 +6,7 @@ import com.pixel.intelligentsearch.core.answers.DictionaryEntry
 import com.pixel.intelligentsearch.core.answers.LiveAnswer
 import com.pixel.intelligentsearch.core.search.ShortActionPhrasing
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -19,7 +20,7 @@ class AskAiOfferTest {
 
     @Test
     fun aQueryEnterRunsAsAReminderOffersNoAskRow() {
-        val query = "ask sarah at 6pm"
+        val query = "ask sarah tomorrow at 6pm"
         // It reads as an AI question ("ask ...") and as a reminder Enter sets: the reminder wins.
         assertNotNull(AiAnswers.questionIn(query))
         val reminder = ShortActionPhrasing.parse(query, 0L, false, TimeZone.getTimeZone("UTC"), Locale.US)
@@ -29,6 +30,19 @@ class AskAiOfferTest {
         val enter = DirectAction(reminder.title, reminder.subtitle, "calendar", reminder.intent)
         assertNull(SearchUiState(query = query, aiOffer = AiProvider.ANTHROPIC, enterAction = enter).askAi)
         assertEquals(AiProvider.ANTHROPIC, SearchUiState(query = query, aiOffer = AiProvider.ANTHROPIC).askAi)
+    }
+
+    @Test
+    fun aQueryThatReadsAsAGuessedReminderOffersNoAskRowEither() {
+        // "Ask sarah at 6pm" names no day, so Enter leaves the reminder for a tap (the certainty rule). The row is still
+        // the answer at the top, and the Ask row would say something else beside it.
+        val query = "ask sarah at 6pm"
+        val reminder = ShortActionPhrasing.parse(query, 0L, false, TimeZone.getTimeZone("UTC"), Locale.US)
+        assertEquals(ShortActionPhrasing.Kind.REMINDER, reminder?.kind)
+        assertFalse(reminder!!.runsOnEnter)
+
+        val guessed = DirectAction(reminder.title, reminder.subtitle, "calendar", reminder.intent)
+        assertNull(SearchUiState(query = query, aiOffer = AiProvider.ANTHROPIC, guessedAction = guessed).askAi)
     }
 
     @Test

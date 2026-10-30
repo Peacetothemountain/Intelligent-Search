@@ -759,7 +759,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         val contactLookup: ((String) -> ContactItem?)? = if (cachedContactSearchEnabled) {
             { target -> namedContact(target, searchContacts(target, limit = 10)) }
         } else null
-        val parsedIntent = NaturalLanguageIntentParser.parse(query, contactLookup = contactLookup)
+        val parsedIntent = NaturalLanguageIntentParser.parse(query, contactLookup = contactLookup, is24Hour = is24Hour)
         // Only what the full phrasings, the calculator, the converters, date maths and the clock and chance answers
         // leave: "15 min in seconds", "15 min + 5" and "random 1 to 10" stay theirs.
         val shortAction = if (parsedIntent == null && mathResult == null && dateAnswer == null && timeAnswer == null && randomAnswer == null) {

@@ -635,8 +635,9 @@ fun SearchOverlayScreen(
     }
 
     // The one way to "go" once the results are in, for Enter and for the voice check button (OverlayEnterKey): a
-    // bang goes to its site; otherwise the short phrasing's action runs, else the best match opens, then a typed web
-    // address, Quick Launch, and finally a web search.
+    // bang goes to its site; otherwise the timer, alarm or reminder the query asks for runs when nothing about it was
+    // guessed (enterAction; a guessed one waits for a tap), else the best match opens, then a typed web address, Quick
+    // Launch, and finally a web search.
     val submitQuery: (String, Boolean) -> Unit = submit@{ submittedQuery, fromVoice ->
         val outcome = OverlayEnterKey.decide(
             query = submittedQuery,
@@ -651,8 +652,9 @@ fun SearchOverlayScreen(
                 launchWebSearch(submittedQuery)
                 return@submit
             }
-            // "15 min", "7:30am", "set a timer for 10 minutes": the top action, which opens the clock or calendar to
-            // confirm. It is an action, not a search, so it isn't kept in the history. With no such app, a toast says so.
+            // "15 min", "7:30am", "set a timer for 10 minutes", "remind me to call mom tomorrow at 5pm": the top action,
+            // which opens the clock or calendar to confirm. It is an action, not a search, so it isn't kept in the
+            // history. With no such app, a toast says so.
             is EnterOutcome.RunAction -> {
                 ui.hasStartedTyping = false
                 openDirectAction(context, outcome.action)

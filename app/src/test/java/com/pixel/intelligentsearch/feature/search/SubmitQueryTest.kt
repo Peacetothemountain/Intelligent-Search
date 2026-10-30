@@ -177,6 +177,32 @@ class SubmitQueryTest {
     }
 
     @Test
+    fun aReminderWhoseTimeIsAGuessIsShownButEnterSearches() {
+        // "At 5" is 5 PM by a rule, not by the words, and no day is named: Enter opened the calendar for it.
+        showOverlay()
+        viewModel.onQueryChanged("remind me to call mom at 5")
+        compose.settle()
+        assertEquals("Set Reminder", viewModel.uiState.value.directActions.first().title)
+        assertEquals(null, viewModel.uiState.value.enterAction)
+
+        compose.onNode(hasSetTextAction()).performImeAction()
+        compose.settle()
+
+        val search = startedActivity()
+        assertTrue("expected a web search, got $search", search?.action == Intent.ACTION_WEB_SEARCH || search?.action == Intent.ACTION_VIEW)
+    }
+
+    @Test
+    fun enterSetsAReminderWhoseDayAndTimeAreSaid() {
+        showOverlay()
+        viewModel.onQueryChanged("remind me to call mom tomorrow at 5pm")
+        compose.settle()
+        compose.onNode(hasSetTextAction()).performImeAction()
+        compose.settle()
+        assertEquals(Intent.ACTION_INSERT, startedActivity()?.action)
+    }
+
+    @Test
     fun enterDialsTheBestMatchContactsWholeNumber() {
         prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).put(SettingsManager.CONTACT_DIRECT_CALL, true).commit()
         (sources as FakeDeviceSearchSources).contactBook = listOf(ContactItem("Voicemail", "*86#", "content://contacts/voicemail"))

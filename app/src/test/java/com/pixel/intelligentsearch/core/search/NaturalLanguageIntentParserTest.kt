@@ -257,7 +257,7 @@ class NaturalLanguageIntentParserTest {
 
     @Test
     fun aDotSeparatesHoursFromMinutes() {
-        val alarm = NaturalLanguageIntentParser.parse("alarm 6.30") as NaturalLanguageIntentParser.ParsedIntent.Alarm
+        val alarm = NaturalLanguageIntentParser.parse("alarm 6.30", currentTimeMs = at(5)) as NaturalLanguageIntentParser.ParsedIntent.Alarm
         assertEquals(6, alarm.hour)
         assertEquals(30, alarm.minute)
 
@@ -307,8 +307,8 @@ class NaturalLanguageIntentParserTest {
         // An alarm can't be set days ahead, and seconds are no hour.
         assertNull(NaturalLanguageIntentParser.parse("alarm 2 days", currentTimeMs = at(12)))
         assertNull(NaturalLanguageIntentParser.parse("alarm 5 seconds", currentTimeMs = at(12)))
-        // A bare hour is still a clock time.
-        assertEquals(7, alarm("alarm 7").hour)
+        // A bare hour is still a clock time: at noon, the next 7 o'clock is 7 PM.
+        assertEquals(19, alarm("alarm 7").hour)
     }
 
     @Test
@@ -316,7 +316,8 @@ class NaturalLanguageIntentParserTest {
         assertEquals(19, alarm("alarm 7 p.m.").hour)
         assertEquals(19, alarm("alarm 7 pm").hour)
         assertEquals(7, alarm("alarm 7 a.m.").hour)
-        val spaced = alarm("alarm 6 30")
+        // Said at 5 AM, the next 6:30 is the morning's (a bare hour is whichever of AM and PM comes first).
+        val spaced = alarm("alarm 6 30", now = at(5))
         assertEquals(6, spaced.hour)
         assertEquals(30, spaced.minute)
         val noon = alarm("alarm at noon")
@@ -1154,9 +1155,11 @@ class NaturalLanguageIntentParserTest {
         assertEquals(180, timerSeconds("timer 3 minutes for eggs"))
         assertEquals(300, timerSeconds("timer for 2 eggs 5 minutes"))
         assertEquals(600, timerSeconds("set a timer for 10 mins for the pasta"))
+        // An amount in words is read whole now ("twenty minutes" was no timer).
+        assertEquals(1_200, timerSeconds("set a timer for twenty minutes"))
         // A length read only in part is no timer rather than one of the wrong length.
         for (query in listOf(
-            "set a timer for twenty minutes", "set a timer for 3 to 4 minutes", "timer 1½ minutes",
+            "set a timer for a hundred minutes", "set a timer for 3 to 4 minutes", "timer 1½ minutes",
             "timer 5 minutes for eggs 3 minutes", "timer 45 minutes then 10"
         )) {
             assertNull(query, NaturalLanguageIntentParser.parse(query))
@@ -1316,5 +1319,210 @@ class NaturalLanguageIntentParserTest {
         val message = NaturalLanguageIntentParser.parse("text will it's done", contactLookup = lookup)
             as NaturalLanguageIntentParser.ParsedIntent.DirectMessage
         assertEquals("it's done", message.body)
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Enter runs only what is certain; words the reader didn't know give no action (audit round 8)
+    // ---------------------------------------------------------------------------------------------
+
+    /** [query] read at [now] (Thursday 29 October 2026, 10 AM, by default) on a phone in the US. */
+    private fun readAt(query: String, now: Long = thursday(10), is24Hour: Boolean = false, locale: java.util.Locale = java.util.Locale.US) =
+        NaturalLanguageIntentParser.parse(query, now, locale = locale, is24Hour = is24Hour)
+
+    /** When [query] is set for, and whether Enter may set it, as "2026-10-30 07:00 certain"; null for no action. */
+    private fun setFor(query: String, now: Long = thursday(10), is24Hour: Boolean = false): String? =
+        when (val parsed = readAt(query, now, is24Hour)) {
+            is NaturalLanguageIntentParser.ParsedIntent.Reminder -> "${shown(parsed.triggerMillis)} ${if (parsed.certain) "certain" else "guessed"}"
+            is NaturalLanguageIntentParser.ParsedIntent.CalendarEvent -> "${shown(parsed.startMillis)} ${if (parsed.certain) "certain" else "guessed"}"
+            is NaturalLanguageIntentParser.ParsedIntent.Alarm -> "${shown(parsed.ringsAtMillis)} ${if (parsed.certain) "certain" else "guessed"}"
+            null -> null
+            else -> "not a time: $parsed"
+        }
+
+    @Test
+    fun enterMaySetOnlyATimeThatSaysItselfOnADayThatIsNamed() {
+        val certain = mapOf(
+            "remind me to call mom tomorrow at 5pm" to "2026-10-30 17:00",
+            "remind me in 20 minutes to check the oven" to "2026-10-29 10:20",
+            "remind me in 2 days to call mom" to "2026-10-31 10:00",
+            "remind me in 2 days at 5pm to call mom" to "2026-10-31 17:00",
+            "remind me to call mom tomorrow evening at 7" to "2026-10-30 19:00",
+            "remind me to call mom tonight at 9" to "2026-10-29 21:00",
+            "remind me to call mom on friday at noon" to "2026-10-30 12:00",
+            "remind me to call mom tomorrow at 07:30" to "2026-10-30 07:30",
+            "meeting tomorrow at 15:00" to "2026-10-30 15:00",
+            "set an alarm for 7am" to "2026-10-30 07:00",
+            "alarm in 10 minutes" to "2026-10-29 10:10",
+            "alarm at 7 in the evening" to "2026-10-29 19:00",
+            "set alarm for 19:30" to "2026-10-29 19:30"
+        )
+        for ((query, at) in certain) assertEquals(query, "$at certain", setFor(query))
+        // A day or a half of the day the reader chose: still offered, its day and time first, but Enter searches.
+        val guessed = mapOf(
+            "remind me to call mom at 5pm" to "2026-10-29 17:00",
+            "remind me to call mom at 5" to "2026-10-29 17:00",
+            "remind me to call mom tomorrow at 5" to "2026-10-30 17:00",
+            "remind me to call mom tomorrow at 9" to "2026-10-30 09:00",
+            "remind me to take out the trash tonight" to "2026-10-29 20:00",
+            "remind me to call mom tomorrow" to "2026-10-30 10:00",
+            "remind me to buy milk" to "2026-10-29 10:00",
+            "remind me to call mom at 12 tonight" to "2026-10-30 00:00",
+            "remind me to call mom in the evening" to "2026-10-29 18:00",
+            "remind me to eat dinner tomorrow at 7" to "2026-10-30 19:00",
+            "set an alarm for 7" to "2026-10-29 19:00",
+            "wake me up at 6" to "2026-10-30 06:00",
+            "alarm for 1 tonight" to "2026-10-30 01:00"
+        )
+        for ((query, at) in guessed) assertEquals(query, "$at guessed", setFor(query))
+        assertTrue(readAt("set a timer for 10 minutes") is NaturalLanguageIntentParser.ParsedIntent.Timer)
+    }
+
+    @Test
+    fun aTimeWithMinutesOnA24HourPhoneIsAsWritten() {
+        // Each was the afternoon or evening: 16:30, 21:30 (the open owner question), and an alarm at 7:30 PM.
+        assertEquals("2026-10-30 04:30 guessed", setFor("remind me to call mom at 4:30", is24Hour = true))
+        assertEquals("2026-10-30 09:30 guessed", setFor("remind me to join the standup at 9:30", is24Hour = true))
+        assertEquals("2026-10-30 09:30 certain", setFor("remind me to join the standup tomorrow at 9:30", is24Hour = true))
+        assertEquals("2026-10-30 07:30 certain", setFor("set an alarm for 7:30", now = thursday(10), is24Hour = true))
+        // A bare hour still follows the one rule, and words that say the other half make it no action.
+        assertEquals("2026-10-29 14:00 guessed", setFor("remind me to pick up kids at 2", is24Hour = true))
+        assertNull(setFor("remind me to eat dinner at 7:30", is24Hour = true))
+    }
+
+    @Test
+    fun aTimerInWordsIsReadWholeOrNotAtAll() {
+        // "One and a half hours" was half an hour and "an hour thirty" an hour: the number words were taken as what the
+        // timer is for.
+        val read = mapOf(
+            "set a timer for one and a half hours" to 5_400, "set a timer for one and a half minutes" to 90,
+            "set a timer for two and a half minutes" to 150, "timer for three and a half minutes" to 210,
+            "set a timer for an hour thirty" to 5_400, "set a timer for an hour fifteen" to 4_500,
+            "set a timer for a minute thirty" to 90, "set a timer for one minute thirty" to 90,
+            "set a timer for ninety seconds" to 90, "set a timer for twenty five minutes" to 1_500,
+            "set a timer for twenty-five minutes" to 1_500, "set a timer for one hour and a half" to 5_400
+        )
+        for ((query, seconds) in read) assertEquals(query, seconds, timerSeconds(query))
+        for (query in listOf(
+            "set a timer for an hour and three quarters", "set a timer for a few seconds",
+            "set a timer for a couple of minutes", "set a timer for a hundred seconds"
+        )) {
+            assertNull(query, NaturalLanguageIntentParser.parse(query))
+        }
+    }
+
+    @Test
+    fun aZoneInManyWordsOrOffTheListIsNoAction() {
+        // Each was set at that hour here, read as the phone's own time.
+        for (query in listOf(
+            "remind me to call mom at 5 new york time", "meeting at 3pm new york time",
+            "remind me to join the call at 9am east coast time", "schedule call at 9am new delhi time",
+            "remind me to call the sydney office at 9am aet", "remind me to join the webinar at 2pm sgt",
+            "remind me to call at 10am hkt", "remind me to call moscow at 3pm msk", "remind me to call sao paulo at 9am brt",
+            "remind me to call halifax at 3pm ast", "remind me to call dad at 5 dad's time", "set an alarm for 7:30 new york time",
+            "remind me to call the office tomorrow at 3pm london", "remind me to call tomorrow at 2pm art"
+        )) {
+            assertNull(query, readAt(query))
+        }
+        // Everyday words after a time are still the task.
+        assertEquals("call mom with dad", usReminder("remind me to call mom tomorrow at 5pm with dad").task)
+        assertEquals("meet with john", usReminder("remind me to meet tomorrow at 3pm with john").task)
+    }
+
+    @Test
+    fun weeksSaidAnotherWayAreNoAction() {
+        // Each was set today or tomorrow, "nxt week" or "a week" in the task.
+        for (query in listOf(
+            "remind me to call mom nxt week", "remind me to call mom nxt week at 5", "remind me to call mom the following week at 5",
+            "remind me to call mum a week tomorrow", "remind me to call mum a week today at 5",
+            "remind me to call mum a week monday at 5", "set alarm for 6 nxt week", "remind me to pay rent midweek",
+            "remind me to pay rent mid-week at 5", "remind me to pay the bill by month end"
+        )) {
+            assertNull(query, readAt(query, locale = java.util.Locale.UK))
+        }
+        // A week read whole still is, and "next week's" names a thing.
+        assertEquals("2026-11-05 10:00 guessed", setFor("remind me to call mom next week"))
+        assertEquals("plan next week's agenda", usReminder("remind me to plan next week's agenda tomorrow at 9am").task)
+    }
+
+    @Test
+    fun aTaskThatSaysItsHalfOfTheDayIsSetInIt() {
+        // Each was in the other half: 11 AM, 10:30 AM, 7 PM, 6 PM, 7 PM, 7:30 PM, 6:45 PM.
+        val cases = mapOf(
+            "remind me to go to bed at 11" to "2026-10-29 23:00",
+            "remind me to wake up at 7" to "2026-10-30 07:00",
+            "remind me to get up at 6 tomorrow" to "2026-10-30 06:00",
+            "remind me to leave for work at 7 tomorrow" to "2026-10-30 07:00",
+            "remind me to take the kids to school at 7:30 tomorrow" to "2026-10-30 07:30",
+            "remind me to wake the kids at 6:45 tomorrow" to "2026-10-30 06:45",
+            "remind me to pick up the kids from school at 3" to "2026-10-29 15:00"
+        )
+        for ((query, at) in cases) assertEquals(query, "$at guessed", setFor(query))
+        assertEquals("2026-10-29 22:30 guessed", setFor("remind me to go to sleep at 10:30", now = thursday(9)))
+        // "Make the bed" is no night.
+        assertEquals("2026-10-29 21:00 guessed", setFor("remind me to make the bed at 9"))
+    }
+
+    @Test
+    fun whenWordsOffTheListAreNoAction() {
+        // Each was a reminder for now, today or the wrong time, the words left in its task.
+        for (query in listOf(
+            "remind me to take my pills everyday at 9", "remind me to take my vitamins everyday",
+            "remind me to take my pills twice a day", "remind me to take my pills once a day at 9",
+            "remind me to check every room at 5pm", "remind me to renew my passport this summer",
+            "remind me to clean the gutters this fall", "remind me to book flights next spring", "remind me to call mom this aft",
+            "remind me to call mom this avo", "remind me to call mom tomorrow eve", "remind me to call mom in the wee hours",
+            "remind me to call mom lunchtime tomorrow", "remind me to call mom over lunch", "remind me to call mom during lunch tomorrow",
+            "remind me to take my pills with dinner", "remind me to call mom after supper",
+            "remind me to call grandma after church on sunday", "remind me to buy milk when i get home",
+            "remind me to call mom mañana at 5", "remind me to call mum at half five tomorrow",
+            "remind me to call mom tomorrow ten past five", "remind me to leave twenty to six tomorrow", "remind me in fifteen to call mom",
+            "remind me in an hour thirty to move the car", "remind me in an hour fifteen to move the car",
+            "remind me to call mom on twelfth at 5", "remind me to call mom on nye at 8", "remind me to call mom on vday at 7",
+            "remind me to call mom on st patricks at 5", "remind me to pay the bill at month end"
+        )) {
+            assertNull(query, readAt(query))
+        }
+    }
+
+    @Test
+    fun anAlarmsBareHourIsTheNextOfItsMorningAndEvening() {
+        // Each rang in the small hours, the hour as written, while the short "at 3" on the same phone said 3 PM.
+        assertEquals("2026-10-29 15:00 guessed", setFor("set an alarm for 3 to pick up the kids from school"))
+        assertEquals("2026-10-29 18:00 guessed", setFor("set an alarm at 6 to start dinner"))
+        assertEquals("2026-10-29 14:30 guessed", setFor("set an alarm for 2:30 for the school pickup"))
+        assertEquals("2026-10-29 15:00 guessed", setFor("set an alarm for 3"))
+        // On the day named, the first of the two that falls on it.
+        assertEquals("2026-10-30 08:00 guessed", setFor("set an alarm for tomorrow at 8"))
+        // "Half 6" is 6:30 in Britain, not 6:00: no alarm rather than the wrong one.
+        assertNull(readAt("set an alarm for half 6"))
+        assertNull(readAt("wake me up at half 7"))
+    }
+
+    @Test
+    fun aMessageToTwoPeopleIsNoMessage() {
+        val dad = com.pixel.intelligentsearch.core.data.ContactItem("Dad", "+1 415 555 0101", "")
+        val lookup: (String) -> com.pixel.intelligentsearch.core.data.ContactItem? = { name ->
+            listOf(mom, dad).firstOrNull { NaturalLanguageIntentParser.namesContact(name, it.name) }
+        }
+        // Each was a message to Mom alone, "and dad that i landed" its words.
+        for (query in listOf("text mom and dad that i landed", "text mom & dad hi", "message mom or dad saying hi")) {
+            assertNull(query, NaturalLanguageIntentParser.parse(query, contactLookup = lookup))
+        }
+        val message = NaturalLanguageIntentParser.parse("text mom i love you and dad says hi", contactLookup = lookup)
+            as NaturalLanguageIntentParser.ParsedIntent.DirectMessage
+        assertEquals("Mom", message.recipientName)
+        assertEquals("i love you and dad says hi", message.body)
+    }
+
+    @Test
+    fun aTitleHoldsNoWordsOfWhen() {
+        // Titles were "call mom this", "call mom sharp" and "call mom this time".
+        assertEquals("call mom", usReminder("remind me to call mom this coming monday at 5").task)
+        assertEquals("2026-11-02 17:00", shown(usReminder("remind me to call mom this coming monday at 5").triggerMillis))
+        assertEquals("call mom", usReminder("remind me to call mom at 5 sharp").task)
+        assertEquals("call mom", usReminder("remind me to call mom this time tomorrow").task)
+        assertEquals("2026-10-30 10:00", shown(usReminder("remind me to call mom this time tomorrow").triggerMillis))
+        assertEquals("2026-11-05 10:00", shown(usReminder("remind me to call mom same time next week").triggerMillis))
+        assertNull(readAt("remind me to call mom this time"))
     }
 }

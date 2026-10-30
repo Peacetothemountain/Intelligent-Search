@@ -12,7 +12,10 @@ internal sealed interface EnterOutcome {
     /** Opens the result the arrow keys highlight. */
     data class OpenHighlighted(val target: NavTarget) : EnterOutcome
 
-    /** Runs the short phrasing's action ("15 min" starts the timer, "7:30am" sets the alarm). */
+    /**
+     * Runs the action the query asks for with nothing guessed ("15 min" starts the timer, "7:30am" sets the alarm,
+     * "remind me to call mom tomorrow at 5pm" the reminder).
+     */
     data class RunAction(val action: DirectAction) : EnterOutcome
 
     /** Opens the Best Match, a typed web address or the Quick Launch app, and otherwise searches the web. */
@@ -30,8 +33,11 @@ internal object OverlayEnterKey {
 
     /**
      * What Enter does, in order: the result the arrow keys [highlighted] opens; with nothing typed, nothing. A bang
-     * is an explicit request for its site, so it is searched. Otherwise the short phrasing's [phrasingAction] runs,
-     * else the top result opens.
+     * is an explicit request for its site, so it is searched. Otherwise the timer, alarm or reminder the query asks for
+     * runs ([phrasingAction], [SearchUiState.enterAction]), else the top result opens. That action is only ever one
+     * with nothing guessed (THE CERTAINTY RULE FOR ENTER): "remind me to call mom tomorrow at 5pm" sets it, while
+     * "remind me to call mom at 5", whose day and half of the day are a guess, is shown for a tap and Enter goes on to
+     * the top result or a search, as for any other query.
      */
     fun decide(
         query: String,

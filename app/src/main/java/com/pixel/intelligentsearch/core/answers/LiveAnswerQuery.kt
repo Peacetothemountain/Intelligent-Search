@@ -98,7 +98,11 @@ object LiveAnswerParser {
         "video", "videos", "book", "books", "novel", "novels", "story", "stories", "poem", "poems", "podcast",
         "podcasts", "radio", "channel", "channels", "cartoon", "cartoons", "anime", "episode", "episodes", "dubbed",
         "subtitles", "learn", "learning", "course", "courses", "class", "classes", "lesson", "lessons", "tutorial",
-        "tutorials", "typing", "keyboard", "app", "apps", "game", "games", "jobs", "website", "websites"
+        "tutorials", "typing", "keyboard", "app", "apps", "game", "games", "jobs", "website", "websites",
+        // What is done in a language, not a word of one: "taught in english" was "taught" to translate.
+        "taught", "teach", "teaching", "written", "spoken", "sung", "fluent", "available", "explained", "published",
+        "subtitled", "recorded", "filmed", "released", "printed", "proficient", "certified", "trained", "educated",
+        "schooled", "lectures", "conducted", "offered", "presented", "delivered"
     )
 
     /**
@@ -201,6 +205,15 @@ object LiveAnswerParser {
         "\\b(?:(?:near|around|at|in|for|close to) (?:me|here|my (?:current )?(?:area|location))|(?:my )?current location|" +
             "my (?:area|location)|right here|here|outside|nearby|near by|close by|where i am|where i live|" +
             "(?:at|near|around) (?:my )?home|(?:in|near|around|for) my (?:city|town|village|neighborhood|neighbourhood))\\b"
+    )
+
+    /**
+     * A clock time in a weather question: "at 5pm", "at noon", "at 3", "around 8", or "5pm" with its am/pm. A number
+     * with neither "at" nor am/pm is left alone, as it may be a postcode ("weather 90210").
+     */
+    private val WEATHER_CLOCK_TIME = Regex(
+        "(?:\\b(?:at|around|by)|@)\\s*(?:\\d{1,2}(?:[:.]\\d{2})?(?:\\s?[ap]\\.?m\\b\\.?)?|noon|midday|midnight)(?![\\p{L}\\p{N}])|" +
+            "(?<![\\p{L}\\p{N}])\\d{1,2}(?::\\d{2})?\\s?[ap]\\.?m\\b\\.?"
     )
 
     /** A scale the query asks the temperatures in. */
@@ -395,9 +408,11 @@ object LiveAnswerParser {
         val unit = WEATHER_UNIT.find(asked)?.let {
             if (it.groupValues[1] == "fahrenheit") TemperatureUnit.FAHRENHEIT else TemperatureUnit.CELSIUS
         }
-        // What's left once the scale and "near me" are out is the plain question: "weather near me tomorrow" is
-        // "weather tomorrow", here.
-        val q = asked.replace(WEATHER_UNIT, " ").replace(WEATHER_HERE, " ").replace(WHITESPACE, " ").trim()
+        // What's left once the scale, "near me" and a clock time are out is the plain question: "weather near me
+        // tomorrow" is "weather tomorrow", here, and "weather tomorrow at 3" too. The card shows the day's hours, so the
+        // time asks nothing more; it was the place, "Weather in 3".
+        val q = asked.replace(WEATHER_UNIT, " ").replace(WEATHER_HERE, " ").replace(WEATHER_CLOCK_TIME, " ")
+            .replace(WHITESPACE, " ").trim()
             .replace(WEATHER_FOR_DAY, "")
         WEATHER_ALONE.matchEntire(q)?.let { return LiveAnswerQuery.Weather(null, dayOf(it.groupValues[1]), unit) }
         WEATHER_OWNED.matchEntire(q)?.let { match ->

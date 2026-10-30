@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.feature.search
 import android.Manifest
 import android.app.Application
 import android.content.Context
+import android.content.Intent
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivityResultRegistryOwner
@@ -17,7 +18,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
@@ -188,6 +191,45 @@ class VoicePermissionTest {
         // Allowed some other time, without a tap asking: the microphone stays off until the user taps it.
         onAppInfo(allow = true)
         assertTrue("nothing listens: ${problems.drop(asked)}", !voice.active && problems.size == asked)
+    }
+
+    /**
+     * Allowed on App info, but instead of Back the user opens a new search (the Quick Settings tile, the notification
+     * shortcut, the assistant gesture from the lock screen): Android brings the waiting search back with that request,
+     * clearing App info off it, then resumes it. That search asked only for typing; it started listening.
+     */
+    @Test
+    fun aNewSearchOpenedInsteadOfBackNeverListensInAndroidsOrder() {
+        showInAndroidsOrder()
+        tapMic(allow = false) { androidShowsItsReason(true) }
+        assertEquals(true, tapMic(allow = false) { androidShowsItsReason(false) })
+        val asked = problems.size
+
+        search.registry.currentState = Lifecycle.State.CREATED
+        shadowOf(app).grantPermissions(mic)
+        compose.runOnUiThread {
+            InstrumentationRegistry.getInstrumentation().callActivityOnNewIntent(compose.activity, Intent("com.pixel.intelligentsearch.QUICK_TILE_LAUNCH"))
+        }
+        search.registry.currentState = Lifecycle.State.RESUMED
+        compose.waitForIdle()
+        assertFalse("nothing listens: ${problems.drop(asked)}", listening() || problems.size != asked)
+    }
+
+    /**
+     * App info opened beside the search instead of over it (desktop windows): the search stays in view while the user
+     * allows the microphone there. Minimized and restored later, it started listening, long after the tap that asked.
+     */
+    @Test
+    fun allowedOnAppInfoBesideTheSearchNoLaterReturnListensInAndroidsOrder() {
+        showInAndroidsOrder()
+        tapMic(allow = false) { androidShowsItsReason(true) }
+        assertEquals(true, tapMic(allow = false) { androidShowsItsReason(false) })
+        val asked = problems.size
+
+        shadowOf(app).grantPermissions(mic)
+        compose.waitForIdle()
+        onAppInfo(allow = true)
+        assertFalse("nothing listens: ${problems.drop(asked)}", listening() || problems.size != asked)
     }
 
     @Test

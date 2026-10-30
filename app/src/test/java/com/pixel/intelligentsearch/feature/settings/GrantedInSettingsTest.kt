@@ -20,15 +20,18 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityOptionsCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.platform.app.InstrumentationRegistry
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
+import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.feature.launch.FloatingSearchOverlays
 import com.pixel.intelligentsearch.feature.launch.NotificationShortcut
 import com.pixel.intelligentsearch.screenshots.confinedEffects
@@ -301,6 +304,32 @@ class GrantedInSettingsTest {
 
         openSettingsAndComeBack(Manifest.permission.ACCESS_COARSE_LOCATION, allow = true)
         assertEquals("the weather card asks for the forecast again", 1, lookedUp)
+    }
+
+    /**
+     * Allowed on App info, but the page was then brought back by a new request (opened again some other way) rather
+     * than Back: that isn't the user coming back, so what they were turning on stays theirs to turn on.
+     */
+    @Test
+    fun aNewRequestInsteadOfBackEndsTheWaitInAndroidsOrder() {
+        inAndroidsOrder = true
+        declinedBefore(Manifest.permission.READ_CONTACTS)
+        var host: android.app.Activity? = null
+        show {
+            host = LocalContext.current.findActivity()
+            SearchSourcesScreen({}, {})
+        }
+        compose.onNode(isToggleable() and hasContentDescription("Contacts")).performClick()
+        compose.waitForIdle()
+        tap("Allow")
+        tap("Open Settings")
+
+        page.registry.currentState = Lifecycle.State.CREATED
+        shadowOf(context).grantPermissions(Manifest.permission.READ_CONTACTS)
+        compose.runOnUiThread { InstrumentationRegistry.getInstrumentation().callActivityOnNewIntent(host!!, Intent()) }
+        page.registry.currentState = Lifecycle.State.RESUMED
+        compose.waitForIdle()
+        assertFalse(prefs[SettingsManager.SEARCH_CONTACTS])
     }
 
     @Test

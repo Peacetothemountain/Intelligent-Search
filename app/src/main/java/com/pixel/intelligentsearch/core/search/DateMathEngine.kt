@@ -237,6 +237,15 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
         }
     }
 
+    /** The names of the days [occasionOnOrAfter] knows: "christmas", "new year's eve", "thanksgiving", "easter". */
+    internal val occasionNames: Set<String> get() = NAMED_DAYS.keys + MOVABLE_DAYS.keys
+
+    /** The first day named [name] ("christmas", "thanksgiving") on or after [from], or null when it names none. */
+    internal fun occasionOnOrAfter(name: String, from: LocalDate): LocalDate? {
+        NAMED_DAYS[name]?.let { return onOrAfter(it, from) }
+        return MOVABLE_DAYS[name]?.let { movableOnOrAfter(Written.Movable(it), from) }
+    }
+
     /** The first [day] on or after [from]. */
     private fun movableOnOrAfter(day: Written.Movable, from: LocalDate): LocalDate? =
         (from.year..from.year + 1).asSequence().map(day.inYear).firstOrNull { it >= from }?.takeIf { it.year <= 9999 }
@@ -253,6 +262,14 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
         }
         NAMED_DAYS[text]?.let { return Written.Yearless(it) }
         MOVABLE_DAYS[text]?.let { return Written.Movable(it) }
+        // "christmas 2027", "easter, 2030": the day in that year.
+        OCCASION_YEAR_REGEX.matchEntire(text)?.let { match ->
+            val year = match.groupValues[2].toInt()
+            NAMED_DAYS[match.groupValues[1]]?.let { return written(it, year) }
+            MOVABLE_DAYS[match.groupValues[1]]?.let { inYear ->
+                return if (year in 1..9999) Written.Fixed(inYear(year)) else null
+            }
+        }
         ISO_DATE_REGEX.matchEntire(text)?.let { match ->
             val (year, month, day) = match.destructured
             return date(year.toInt(), month.toInt(), day.toInt())?.let(Written::Fixed)
@@ -403,6 +420,7 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
         )
 
         val ISO_DATE_REGEX = Regex("^(\\d{4})-(\\d{1,2})-(\\d{1,2})$")
+        val OCCASION_YEAR_REGEX = Regex("^(.+?),? (\\d{4})$")
         val MONTH_DAY_REGEX = Regex("^($MONTH)\\.? (\\d{1,2})$ORDINAL(?:,? (\\d{4}))?$")
         val DAY_MONTH_REGEX = Regex("^(?:the )?(\\d{1,2})$ORDINAL(?: of)? ($MONTH)\\.?(?:,? (\\d{4}))?$")
 

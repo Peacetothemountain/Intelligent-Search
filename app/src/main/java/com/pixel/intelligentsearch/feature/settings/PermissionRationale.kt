@@ -14,14 +14,19 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.content.edit
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation
 
 /**
@@ -52,6 +57,44 @@ internal fun PermissionRationaleDialog(
  */
 internal fun appDetailsSettings(packageName: String): Intent =
     Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
+
+/** A way to send the user to App info ([appDetailsSettings]) to allow a permission declined for good. */
+internal fun interface SettingsGrant {
+    fun open()
+}
+
+/**
+ * App info for allowing [permission] after it was declined for good, and the answer when the user comes back: as
+ * this screen comes back into view with [permission] allowed there, [onGranted] runs, so what they were turning on
+ * (a switch, the weather where they are) turns on without another tap. Only a return from the page [SettingsGrant.open]
+ * opened counts, and only once; a screen recreated meanwhile still hears it.
+ */
+@Composable
+internal fun rememberSettingsGrant(permission: String, onGranted: () -> Unit): SettingsGrant {
+    val context = LocalContext.current
+    val currentOnGranted by rememberUpdatedState(onGranted)
+    var awaitingGrant by rememberSaveable(permission) { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, permission) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && awaitingGrant) {
+                awaitingGrant = false
+                if (context.checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    forgetDecline(context, permission)
+                    currentOnGranted()
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return remember(context, permission) {
+        SettingsGrant {
+            awaitingGrant = true
+            if (!openSettingsPageToGrant(context, appDetailsSettings(context.packageName))) awaitingGrant = false
+        }
+    }
+}
 
 /** The permissions the user has declined at least once, kept apart from the settings (never backed up or shown). */
 private const val DECLINED_PERMISSIONS = "declined_permissions"
@@ -116,8 +159,9 @@ internal fun interface ContactsRequest {
 /**
  * The contacts, asked the one way the app asks for them (contact search, At a Glance's birthdays): when allowed
  * [onResult] hears yes at once; otherwise [CONTACTS_RATIONALE] shows, then Android's prompt. Declining once just
- * answers no; once Android won't ask again, the user is offered Android's settings instead, but not when they only
- * closed Android's prompt ([declinedForGood]). Shows its dialogs in place while they are up.
+ * answers no; once Android won't ask again, the user is offered Android's settings instead (allowed there, [onResult]
+ * hears yes on the way back, [rememberSettingsGrant]), but not when they only closed Android's prompt
+ * ([declinedForGood]). Shows its dialogs in place while they are up.
  */
 @Composable
 internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): ContactsRequest {
@@ -126,6 +170,7 @@ internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): Cont
     var showRationale by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var rationaleBefore by remember { mutableStateOf(false) }
+    val settingsGrant = rememberSettingsGrant(Manifest.permission.READ_CONTACTS) { currentOnResult(true) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
         val granted = results.values.isNotEmpty() && results.values.all { it }
         val activity = context.findActivity()
@@ -159,7 +204,7 @@ internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): Cont
             confirm = "Open Settings",
             onConfirm = {
                 showSettings = false
-                openSettingsPageToGrant(context, appDetailsSettings(context.packageName))
+                settingsGrant.open()
             },
             onDismiss = { showSettings = false }
         )
@@ -260,8 +305,8 @@ internal fun interface ApproximateLocationRequest {
  * Approximate location for weather answers, asked the one way the app asks for it: when it is already allowed
  * [onGranted] runs at once; otherwise the rationale ([LOCATION_RATIONALE]) shows, then Android's prompt, and
  * [onGranted] runs if the user allows it. Once Android won't ask again ("Allow" then answers no at once), the user
- * is offered Android's settings instead, as contacts do; not when they only closed Android's prompt
- * ([declinedForGood]). Shows its dialogs in place while they are up.
+ * is offered Android's settings instead, as contacts do, and [onGranted] runs on the way back if they allowed it there;
+ * not when they only closed Android's prompt ([declinedForGood]). Shows its dialogs in place while they are up.
  */
 @Composable
 internal fun rememberApproximateLocationRequest(onGranted: () -> Unit): ApproximateLocationRequest {
@@ -270,6 +315,7 @@ internal fun rememberApproximateLocationRequest(onGranted: () -> Unit): Approxim
     var showRationale by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var rationaleBefore by remember { mutableStateOf(false) }
+    val settingsGrant = rememberSettingsGrant(Manifest.permission.ACCESS_COARSE_LOCATION) { currentOnGranted() }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val activity = context.findActivity()
         if (granted) {
@@ -289,7 +335,7 @@ internal fun rememberApproximateLocationRequest(onGranted: () -> Unit): Approxim
             confirm = "Open Settings",
             onConfirm = {
                 showSettings = false
-                openSettingsPageToGrant(context, appDetailsSettings(context.packageName))
+                settingsGrant.open()
             },
             onDismiss = { showSettings = false }
         )

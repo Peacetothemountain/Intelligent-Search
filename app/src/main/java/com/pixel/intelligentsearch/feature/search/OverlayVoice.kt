@@ -2,12 +2,11 @@ package com.pixel.intelligentsearch.feature.search
 
 import android.Manifest
 import com.pixel.intelligentsearch.core.util.findActivity
-import com.pixel.intelligentsearch.core.system.openSettingsPageToGrant
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
-import com.pixel.intelligentsearch.feature.settings.appDetailsSettings
 import com.pixel.intelligentsearch.feature.settings.declinedForGood
 import com.pixel.intelligentsearch.feature.settings.forgetDecline
 import com.pixel.intelligentsearch.feature.settings.noteDecline
+import com.pixel.intelligentsearch.feature.settings.rememberSettingsGrant
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.edit
@@ -89,6 +88,8 @@ internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (S
     val dictation = remember { Dictation(context) }
     val begin = remember { { dictation.start(onFinished = { heard(it) }, onProblem = { problem(it) }) } }
     val asking = remember { MicRequest() }
+    // Allowed on App info after a decline for good: back on the search, it listens, as the tap that asked meant to.
+    val settingsGrant = rememberSettingsGrant(Manifest.permission.RECORD_AUDIO) { begin() }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val activity = context.findActivity()
         when {
@@ -99,7 +100,7 @@ internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (S
             // Denied for good (Android no longer shows its dialog): the app's settings page is the only way back.
             activity != null && declinedForGood(activity, Manifest.permission.RECORD_AUDIO, asking.rationaleBefore) -> {
                 problem("Turn on the microphone for Intelligent Search in Settings to search by voice.")
-                openSettingsPageToGrant(context, appDetailsSettings(context.packageName))
+                settingsGrant.open()
             }
             else -> problem("Allow the microphone to search by voice.")
         }

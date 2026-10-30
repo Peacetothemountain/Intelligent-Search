@@ -13,7 +13,9 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.core.app.ActivityOptionsCompat
 import androidx.core.content.edit
+import androidx.lifecycle.Lifecycle
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -106,6 +108,23 @@ class VoicePermissionTest {
         tapMic(allow = false) { androidShowsItsReason(true) }
         assertEquals(true, tapMic(allow = false) { androidShowsItsReason(false) })
         assertEquals("Turn on the microphone for Intelligent Search in Settings to search by voice.", problems.last())
+    }
+
+    @Test
+    fun allowedOnAppInfoItListensOnceTheSearchIsBack() {
+        show()
+        tapMic(allow = false) { androidShowsItsReason(true) }
+        assertEquals(true, tapMic(allow = false) { androidShowsItsReason(false) })
+
+        // Allowed on App info, then Back: the tap that asked meant to search by voice.
+        compose.activityRule.scenario.moveToState(Lifecycle.State.STARTED)
+        shadowOf(app).grantPermissions(mic)
+        compose.activityRule.scenario.moveToState(Lifecycle.State.RESUMED)
+        compose.waitForIdle()
+        assertTrue(
+            "listening starts: ${problems.last()}",
+            voice.active || problems.last() == "Speech recognition service unavailable on device."
+        )
     }
 
     @Test

@@ -128,6 +128,12 @@ internal fun forgetDecline(context: Context, permission: String) {
  * [forgetDecline] for every declined permission that is allowed now, however it was allowed: most often on the App
  * info page "Open Settings" leads to, where no prompt of the app's sees it. Run each time the search or Settings comes
  * back into view, so the grant is seen before Android can take it back.
+ *
+ * "Ask every time" on App info (location, the microphone) isn't allowing, so the decline is kept. Android asks again at
+ * the next request, and an allow or a decline there is read right. Only closing that prompt without answering reads
+ * as declined for good: Android sets no reason flag for "Ask every time" (it marks it one-time only), so it looks
+ * like a request Android answered by itself. Forgetting the decline on the way back instead would leave a user who
+ * changed nothing there with no way to Android's settings at all, which is worse.
  */
 internal fun forgetDeclinesNowAllowed(context: Context) {
     runCatching {

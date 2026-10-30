@@ -92,10 +92,14 @@ object MathematicalExpressionEngine {
     )
     /**
      * Hexadecimal digits without "0x", which only a letter among them shows aren't decimal: "ff in decimal". Letters
-     * alone must have no vowel, or be 8 or more ("deadbeef"), so a word spelled from a to f ("cafe", "add", "a") is
-     * never read as a number.
+     * alone must be two or more with no vowel ("ff", "cd"), 8 or more ("deadbeef"), or all six ("abcdef"), so a word
+     * spelled from a to f ("cafe", "add", "decade") is never read as a number, nor a letter ("b in binary" asks for the
+     * letter's code).
      */
-    private val REGEX_BARE_HEX = Regex("^(?=.*[a-fA-F])(?=.*[0-9]|[^aAeE]+$|.{8})[0-9a-fA-F]{1,16}$")
+    private val REGEX_BARE_HEX = Regex(
+        "^(?=.*[a-fA-F])(?:(?=.*[0-9])|(?=[^aAeE]{2,}$)|(?=.{8})|" +
+            "(?=.*[aA])(?=.*[bB])(?=.*[cC])(?=.*[dD])(?=.*[eE])(?=.*[fF]))[0-9a-fA-F]{1,16}$"
+    )
     private val REGEX_BITWISE = Regex("^([0-9a-fA-FxXbB]+)\\s+(AND|OR|XOR|SHL|SHR|USHR|<<|>>|>>>|&|\\|)\\s+([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
     private val REGEX_BITWISE_NOT = Regex("^(?:NOT|~)\\s*([0-9a-fA-FxXbB]+)$", RegexOption.IGNORE_CASE)
     // A unit may end in digits, as "m2", "km2" and "m3" do.
@@ -208,8 +212,13 @@ object MathematicalExpressionEngine {
             if (!result.isFinite()) return null
 
             // A whole number past 2^53 is more than a double holds exactly: it is written in full only when the sum
-            // can be worked out exactly ("123456789*987654321"), else its last digits would be wrong.
-            val exact = if (result % 1.0 == 0.0 && abs(result) >= EXACT_DOUBLE_LIMIT) ExactParser(expr).parse() else null
+            // can be worked out exactly ("123456789*987654321"), else its last digits would be wrong. A small answer
+            // worked out from numbers that large ("2^60+1-2^60") lost its last digits on the way, so it is shown only
+            // when it can be worked out exactly.
+            val whole = result % 1.0 == 0.0
+            val inFull = whole && abs(result) < EXACT_DOUBLE_LIMIT
+            val exact = if (whole && (!inFull || parser.lostDigits || parser.inexactNumber)) ExactParser(expr).parse() else null
+            if (exact == null && (parser.lostDigits || (inFull && parser.inexactNumber))) return null
             val formatted = if (exact != null && exact.abs() < LARGEST_EXACT) exact.toString() else formatNumber(result)
             MathEvaluationResult.Computation(
                 expression = input,
@@ -305,12 +314,24 @@ object MathematicalExpressionEngine {
 
         private fun peek(): Char? = str.getOrNull(pos)
 
+        /**
+         * [x], refused when it has more than [MAX_EXACT_DIGITS] digits before or after the point. Every number is
+         * checked as it is read and made, so none is ever large: the calculator runs on each keystroke, and
+         * "(1e10000000+1)^0*1e16" written out in full took seconds.
+         */
+        private fun capped(x: BigDecimal): BigDecimal {
+            if (x.precision() - x.scale() > MAX_EXACT_DIGITS || x.scale() > MAX_EXACT_DIGITS) {
+                throw IllegalArgumentException("Too long")
+            }
+            return x
+        }
+
         private fun expression(): BigDecimal {
             var x = term()
             while (true) {
                 x = when (peek()) {
-                    '+' -> { pos++; x.add(term()) }
-                    '-' -> { pos++; x.subtract(term()) }
+                    '+' -> { pos++; capped(x.add(term())) }
+                    '-' -> { pos++; capped(x.subtract(term())) }
                     else -> return x
                 }
             }
@@ -324,7 +345,7 @@ object MathematicalExpressionEngine {
                     '(' -> x.multiply(factor())
                     else -> return x
                 }
-                if (x.precision() > MAX_EXACT_DIGITS) throw IllegalArgumentException("Too long")
+                capped(x)
             }
         }
 
@@ -345,19 +366,21 @@ object MathematicalExpressionEngine {
             }
             while (peek() == '!') {
                 pos++
-                val n = x.toBigIntegerExact().toInt()
+                // intValueExact, not toInt: 4294967299 would wrap round to 3.
+                val n = x.toBigIntegerExact().intValueExact()
                 if (n !in 0..20) throw IllegalArgumentException("Factorial out of range")
                 x = (2..n).fold(BigDecimal.ONE) { product, i -> product.multiply(BigDecimal(i)) }
             }
             if (peek() == '%') throw IllegalArgumentException("Not exact")
             if (peek() == '^') {
                 pos++
-                val exponent = factor().toBigIntegerExact().toInt()
-                if (exponent !in 0..MAX_EXACT_DIGITS || (x.precision() - 1L) * exponent > MAX_EXACT_DIGITS) {
+                // 0^4294967296 wrapped round to 0^0, which is 1.
+                val exponent = factor().toBigIntegerExact().intValueExact()
+                val wholeDigits = x.precision() - x.scale()
+                if (exponent !in 0..MAX_EXACT_DIGITS || (wholeDigits - 1L) * exponent > MAX_EXACT_DIGITS) {
                     throw IllegalArgumentException("Not exact")
                 }
-                x = x.pow(exponent)
-                if (x.precision() > MAX_EXACT_DIGITS) throw IllegalArgumentException("Too long")
+                x = capped(x.pow(exponent))
             }
             depth--
             return if (negative) x.negate() else x
@@ -375,7 +398,7 @@ object MathematicalExpressionEngine {
                 // "2e" is 2 times e, a constant: not exact.
                 if (pos == digits) { pos = mark; throw IllegalArgumentException("Not exact") }
             }
-            return BigDecimal(str.substring(start, pos))
+            return capped(BigDecimal(str.substring(start, pos)))
         }
     }
 
@@ -430,6 +453,21 @@ object MathematicalExpressionEngine {
         private var factorIsPercent = false
         private var termIsPercent = false
 
+        /**
+         * Whether the answer may be off by more than its rounding: numbers past 2^53 (more than a double holds exactly)
+         * were added up to less than that ("2^60+1-2^60") or one was divided for its remainder ("(2^60+1)%7"). Such an
+         * answer is written only when [ExactParser] can work it out.
+         */
+        var lostDigits = false
+            private set
+
+        /**
+         * Whether a number was typed past 2^53 with digits a double can't hold ("9007199254740993"): close enough for
+         * scientific notation, but a whole answer written out in full would show the wrong last digit.
+         */
+        var inexactNumber = false
+            private set
+
         private fun nextChar() {
             ch = if (++pos < str.length) str[pos].code else -1
         }
@@ -474,6 +512,7 @@ object MathematicalExpressionEngine {
          */
         private fun sum(a: Double, b: Double): Double {
             val s = a + b
+            if (max(abs(a), abs(b)) >= EXACT_DOUBLE_LIMIT && abs(s) < EXACT_DOUBLE_LIMIT) lostDigits = true
             if ((a % 1.0 == 0.0 && b % 1.0 == 0.0) || s == 0.0 || !s.isFinite()) return s
             val larger = max(abs(a), abs(b))
             val decimals = SUM_DIGITS - 1 - floor(log10(larger)).toInt()
@@ -497,6 +536,7 @@ object MathematicalExpressionEngine {
                     eat('%'.code) -> {
                         val mod = parseFactor()
                         if (mod == 0.0 || mod == -0.0) throw ArithmeticException("Modulo by zero")
+                        if (max(abs(x), abs(mod)) >= EXACT_DOUBLE_LIMIT) lostDigits = true
                         x %= mod
                     }
                     else -> {
@@ -553,6 +593,9 @@ object MathematicalExpressionEngine {
                     }
                     val numStr = str.substring(startPos, pos)
                     x = numStr.toDoubleOrNull() ?: throw IllegalArgumentException("Invalid number: $numStr")
+                    if (abs(x) >= EXACT_DOUBLE_LIMIT && x.isFinite() && BigDecimal(x).compareTo(BigDecimal(numStr)) != 0) {
+                        inexactNumber = true
+                    }
                 } else if (ch in 'a'.code..'z'.code || ch in 'A'.code..'Z'.code) {
                     while (ch in 'a'.code..'z'.code || ch in 'A'.code..'Z'.code || ch in '0'.code..'9'.code) nextChar()
                     val func = str.substring(startPos, pos).lowercase(Locale.ROOT)
@@ -904,11 +947,12 @@ object MathematicalExpressionEngine {
         val prefixShifted = query.trim()
             .replace(REGEX_CURRENCY_PREFIX, "$2 $1")
 
+        // "$" and "¥" are read the phone's region's way when the conversion is worked out ([regionalCurrency]).
         val normalizedQuery = prefixShifted
-            .replace("$", " usd ")
+            .replace("$", " $DOLLAR_SIGN ")
             .replace("€", " eur ")
             .replace("£", " gbp ")
-            .replace("¥", " jpy ")
+            .replace("¥", " $YEN_SIGN ")
             .replace("₹", " inr ")
             .replace(REGEX_WHITESPACE, " ")
             .replace('²', '2')
@@ -984,7 +1028,7 @@ object MathematicalExpressionEngine {
 
     /**
      * A currency conversion, with the live rates when they list both currencies, else the built-in ones. Either may be
-     * a code ("eur") or a name ("euros", "dollar", "yen").
+     * a code ("eur") or a name ("euros", "dollar", "yen"). A currency into itself ("100 usd to usd") is no conversion.
      */
     private fun convertCurrency(
         value: Double,
@@ -992,8 +1036,11 @@ object MathematicalExpressionEngine {
         toName: String,
         currencyRates: () -> CurrencyRates
     ): MathEvaluationResult.UnitConversion? {
-        val fromUnit = CURRENCY_NAMES[fromName] ?: fromName.takeIf(::isCurrencyCode) ?: return null
-        val toUnit = CURRENCY_NAMES[toName] ?: toName.takeIf(::isCurrencyCode) ?: return null
+        val fromNamed = namedCurrency(fromName)
+        val toNamed = namedCurrency(toName)
+        val fromUnit = fromNamed ?: regionalCurrency(fromName, toNamed) ?: return null
+        val toUnit = toNamed ?: regionalCurrency(toName, fromUnit) ?: return null
+        if (fromUnit == toUnit) return null
         val live = currencyRates()
         val rates = if (fromUnit in live.perBase && toUnit in live.perBase) live else CurrencyRates.BUILT_IN
         val result = rates.convert(value, fromUnit, toUnit) ?: return null
@@ -1043,6 +1090,38 @@ object MathematicalExpressionEngine {
 
     /** Three letters, the shape of an ISO 4217 code; nothing else is looked up in the rate tables. */
     private fun isCurrencyCode(u: String) = u.length == 3 && u.all { it in 'a'..'z' }
+
+    /** The currency [name] names whatever the region: a code ("usd") or a name that is one country's ("euros"). */
+    private fun namedCurrency(name: String): String? =
+        if (name in REGIONAL_NAMES) null else CURRENCY_NAMES[name] ?: name.takeIf(::isCurrencyCode)
+
+    /**
+     * The currency "$", "dollars" or "¥" is where the phone is: "$" is the Australian dollar in Australia and the peso
+     * in Mexico (where "dollars" are still US dollars), "¥" the yuan in China. Elsewhere they are the US dollar and the
+     * yen. When that is the very currency asked for ([other], "$100 to aud" in Australia), the US dollar or yen is
+     * meant.
+     */
+    private fun regionalCurrency(name: String, other: String?): String? {
+        val country = Locale.getDefault().country
+        val (local, general) = when (name) {
+            DOLLAR_SIGN -> (DOLLAR_SIGN_COUNTRIES[country] ?: "usd") to "usd"
+            YEN_SIGN -> (if (country == "CN") "cny" else "jpy") to "jpy"
+            in DOLLAR_WORDS -> (DOLLAR_SIGN_COUNTRIES[country]?.takeIf { country != "MX" } ?: "usd") to "usd"
+            else -> return null
+        }
+        return if (local == other) general else local
+    }
+
+    /** What "$" and "¥" are read as, letters so the unit patterns take them. */
+    private const val DOLLAR_SIGN = "dollarsign"
+    private const val YEN_SIGN = "yensign"
+    private val DOLLAR_WORDS = setOf("dollar", "dollars", "buck", "bucks")
+    private val REGIONAL_NAMES = DOLLAR_WORDS + DOLLAR_SIGN + YEN_SIGN
+
+    /** Where "$" is the country's own currency, one the built-in rates list. */
+    private val DOLLAR_SIGN_COUNTRIES = mapOf(
+        "US" to "usd", "CA" to "cad", "AU" to "aud", "NZ" to "nzd", "SG" to "sgd", "HK" to "hkd", "MX" to "mxn"
+    )
 
     /** Currencies by the names people type for them ("50 euros in dollars"), each its ISO 4217 code. */
     private val CURRENCY_NAMES: Map<String, String> = buildMap {

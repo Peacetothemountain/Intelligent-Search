@@ -634,8 +634,14 @@ class SearchViewModel @Inject constructor(
         val query = _uiState.value.query
         if (query.isBlank()) return
         liveAnswerRequests.value = liveAnswerRequestFor(query)
-        if (settingsState.value.searchWeb) _remoteSearchQueryFlow.value = query
+        if (settingsState.value.searchWeb && suggestsFor(query)) _remoteSearchQueryFlow.value = query
     }
+
+    /**
+     * Whether [query] gets web suggestions. Not while a bang is typed ("!w android"): the engine would read "!w" as
+     * words ("with android phone"), and a suggestion tapped would search the engine rather than the bang's site.
+     */
+    private fun suggestsFor(query: String): Boolean = bangManager.parseBangQuery(query) == null
 
     /** [query]'s instant-answer question; one that asks a server only once the query is the user's own. */
     private fun liveAnswerRequestFor(query: String): LiveAnswerRequest? =
@@ -726,7 +732,7 @@ class SearchViewModel @Inject constructor(
         executeLocalSearch(newQuery, previousQuery)
 
         // TIER 2: Web suggestions, paced in init. A query handed in waits for the user (confirmQuery).
-        if (settingsState.value.searchWeb && _queryConfirmed.value) {
+        if (settingsState.value.searchWeb && _queryConfirmed.value && parsedBang == null) {
             _remoteSearchQueryFlow.value = newQuery
         } else {
             _remoteSearchQueryFlow.value = ""
@@ -919,7 +925,8 @@ class SearchViewModel @Inject constructor(
                 }
             }
 
-            val suggestionsEnabled = com.pixel.intelligentsearch.core.security.NetworkPolicy.webSuggestionsAllowed(customPrefs)
+            val suggestionsEnabled = com.pixel.intelligentsearch.core.security.NetworkPolicy.webSuggestionsAllowed(customPrefs) &&
+                suggestsFor(newQuery)
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
                 sources.cachedWebSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(1))

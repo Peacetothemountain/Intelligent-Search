@@ -81,8 +81,12 @@ class FakeDeviceSearchSources(val apps: List<AppItem> = DEFAULT_APPS) : DeviceSe
         holdCachedSuggestionLookup?.await(10, java.util.concurrent.TimeUnit.SECONDS)
         return null
     }
-    override suspend fun webSuggestions(query: String, engine: String) =
-        webSuggestions.filter { it.startsWith(query) }.map { com.pixel.intelligentsearch.core.data.WebSuggestion(it) }
+    /** Every query web suggestions were asked for, in order. */
+    val suggestionRequests: MutableList<String> = java.util.Collections.synchronizedList(mutableListOf())
+    override suspend fun webSuggestions(query: String, engine: String): List<com.pixel.intelligentsearch.core.data.WebSuggestion> {
+        suggestionRequests += query
+        return webSuggestions.filter { it.startsWith(query) }.map { com.pixel.intelligentsearch.core.data.WebSuggestion(it) }
+    }
 }
 
 /**
@@ -190,6 +194,24 @@ class SearchViewModelTest {
         viewModel.onQueryChanged("")
         val cleared = await("cleared") { it.query.isEmpty() && it.webSuggestions.isEmpty() }
         assertEquals("", cleared.query)
+    }
+
+    @Test
+    fun aQueryWithABangAsksForNoWebSuggestions() {
+        // The engine read "!w android" as "with android": its suggestions searched it, not the bang's site.
+        prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
+        device.webSuggestions = listOf("!w android phone", "android", "android auto")
+        start()
+        viewModel.onQueryChanged("!w android")
+        awaitLocalResults()
+        runOn()
+        assertEquals(emptyList<String>(), device.suggestionRequests.toList())
+        assertEquals(emptyList<String>(), viewModel.uiState.value.webSuggestions.map { it.query })
+
+        // Without the bang the same words are asked for as usual.
+        viewModel.onQueryChanged("android")
+        assertEquals(listOf("android", "android auto"), await("web suggestions") { it.webSuggestions.isNotEmpty() }.webSuggestions.map { it.query })
+        assertEquals(listOf("android"), device.suggestionRequests.toList())
     }
 
     /** Lets the main looper's clock and the IO threads run on a while, long past the suggestion pacing. */

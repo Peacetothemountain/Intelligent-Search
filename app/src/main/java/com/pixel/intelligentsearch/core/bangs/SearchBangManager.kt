@@ -30,6 +30,8 @@ class SearchBangManager @Inject constructor(
         /** The only app-link schemes dispatched, all from built-in bangs (YouTube, Maps, Play Store, Spotify). */
         private val BUILT_IN_APP_URI_SCHEMES = setOf("vnd.youtube", "geo", "market", "spotify")
 
+        private val WHITESPACE = Regex("\\s+")
+
         val BUILT_IN_BANGS = listOf(
             SearchBang(
                 prefix = "!g",
@@ -230,7 +232,36 @@ class SearchBangManager @Inject constructor(
             return null
         }
 
-        // Match against all available bangs without collection allocation
+        // A bang is a word of its own, ended by any space a keyboard types (a tab after "!g" too). The one typed first
+        // wins over one at the end, whatever order the bangs are listed in: "!yt cats !g" searches YouTube, and the
+        // second bang is dropped rather than searched for.
+        val firstEnd = trimmed.indexOfFirst { it.isWhitespace() }.let { if (it < 0) trimmed.length else it }
+        bangNamed(trimmed.substring(0, firstEnd), availableBangs, triggerSymbol)?.let { bang ->
+            return ParsedBangQuery(
+                bang = bang,
+                rawQuery = trimmed,
+                extractedQuery = withoutBangs(trimmed.substring(firstEnd), availableBangs, triggerSymbol),
+                isPrefix = true
+            )
+        }
+        val lastStart = trimmed.indexOfLast { it.isWhitespace() } + 1
+        if (lastStart > 0) {
+            bangNamed(trimmed.substring(lastStart), availableBangs, triggerSymbol)?.let { bang ->
+                return ParsedBangQuery(
+                    bang = bang,
+                    rawQuery = trimmed,
+                    extractedQuery = withoutBangs(trimmed.substring(0, lastStart), availableBangs, triggerSymbol),
+                    isPrefix = false
+                )
+            }
+        }
+
+        return null
+    }
+
+    /** The bang [word] calls, by any of the ways it can be typed, or null when it calls none. */
+    private fun bangNamed(word: String, availableBangs: List<SearchBang>, triggerSymbol: String): SearchBang? {
+        if (word.isEmpty() || word.first().isLetterOrDigit()) return null
         for (bang in availableBangs) {
             val bare = bang.prefix.trimStart { !it.isLetterOrDigit() }
             val p0 = bang.displayPrefix
@@ -238,43 +269,23 @@ class SearchBangManager @Inject constructor(
             val p2 = if (bare.isNotBlank()) "$triggerSymbol$bare".lowercase() else null
             val p3 = if (bare.isNotBlank()) "!$bare".lowercase() else null
 
-            val candidates = arrayOf(p0, p1, p2, p3)
-            for (p in candidates) {
+            for (p in arrayOf(p0, p1, p2, p3)) {
                 // A bang always starts with its trigger: a bare prefix ("wiki", from an older custom bang) would
                 // otherwise fire on ordinary words whenever the query happens to contain "!".
                 if (p.isNullOrBlank() || p.first().isLetterOrDigit()) continue
-                // Prefix check: query starts with "$p " or equals "$p"
-                if (trimmed.equals(p, ignoreCase = true)) {
-                    return ParsedBangQuery(
-                        bang = bang,
-                        rawQuery = trimmed,
-                        extractedQuery = "",
-                        isPrefix = true
-                    )
-                }
-                if (trimmed.startsWith("$p ", ignoreCase = true)) {
-                    val rawRemaining = trimmed.substring(p.length).trim()
-                    return ParsedBangQuery(
-                        bang = bang,
-                        rawQuery = trimmed,
-                        extractedQuery = rawRemaining,
-                        isPrefix = true
-                    )
-                }
-                // Suffix check: query ends with " $p"
-                if (trimmed.endsWith(" $p", ignoreCase = true)) {
-                    val rawLeading = trimmed.substring(0, trimmed.length - p.length).trim()
-                    return ParsedBangQuery(
-                        bang = bang,
-                        rawQuery = trimmed,
-                        extractedQuery = rawLeading,
-                        isPrefix = false
-                    )
-                }
+                if (word.equals(p, ignoreCase = true)) return bang
             }
         }
-
         return null
+    }
+
+    /** [text] with any further bang words taken out, trimmed: what the chosen bang searches for. */
+    private fun withoutBangs(text: String, availableBangs: List<SearchBang>, triggerSymbol: String): String {
+        val trimmed = text.trim()
+        if (!trimmed.contains(triggerSymbol) && !trimmed.contains("!")) return trimmed
+        val words = trimmed.split(WHITESPACE)
+        if (words.none { bangNamed(it, availableBangs, triggerSymbol) != null }) return trimmed
+        return words.filter { bangNamed(it, availableBangs, triggerSymbol) == null }.joinToString(" ")
     }
 
     fun getBangSuggestions(partialToken: String, availableBangs: List<SearchBang> = getAllBangsSync()): List<SearchBang> {

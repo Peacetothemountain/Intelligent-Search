@@ -33,6 +33,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+/** What turning on Smart Clipboard Suggestions gives the user, and when the app looks at what they copied. */
+internal const val SMART_CLIPBOARD_DIALOG_TEXT =
+    "Each time you open search, it offers a shortcut for what you last copied: open the link, call the number, or " +
+        "search the text or picture. It looks only while search is open, and passwords copied from a password " +
+        "manager are left out."
+
 /** Search Behavior: the overlay's layout and suggestions, then the Keyboard and At a Glance cards. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -101,14 +107,14 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 if (showClipboardWarning) {
                     AlertDialog(
                         onDismissRequest = { showClipboardWarning = false },
-                        title = { Text("Privacy Warning", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-                        text = { Text("Smart Clipboard requires a foreground lifecycle observer to monitor your clipboard due to Android 10+ restrictions. Do you want to enable this feature?", style = MaterialTheme.typography.bodyLarge) },
+                        title = { Text("Turn On Smart Clipboard?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
+                        text = { Text(SMART_CLIPBOARD_DIALOG_TEXT, style = MaterialTheme.typography.bodyLarge) },
                         confirmButton = {
                             TextButton(onClick = {
                                 smartClipboard = true
                                 showClipboardWarning = false
                             }) {
-                                Text("Enable", style = MaterialTheme.typography.labelLarge)
+                                Text("Turn On", style = MaterialTheme.typography.labelLarge)
                             }
                         },
                         dismissButton = {

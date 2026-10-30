@@ -46,6 +46,25 @@ class SpellingSuggesterTest {
     }
 
     @Test
+    fun zoneAbbreviationsAndUnitsAreNeverCorrected() {
+        // "3pm pst in ist" was answered and still offered "Did you mean 3pm post in ist".
+        assertNull(SpellingSuggester.applyCorrections("3pm pst in ist", listOf(Correction(4, 3, "post"))))
+        assertNull(SpellingSuggester.applyCorrections("5 km to mi", listOf(Correction(2, 2, "me"))))
+        assertNull(SpellingSuggester.applyCorrections("10 m2 to ft2", listOf(Correction(10, 3, "ft"))))
+        // Other words in the same query are still fixed.
+        assertEquals(
+            "time in pst now",
+            SpellingSuggester.applyCorrections("tiem in pst now", listOf(Correction(0, 4, "time"), Correction(8, 3, "post")))
+        )
+    }
+
+    @Test
+    fun aQueryAnsweredOnTheDeviceIsNotChecked() {
+        assertTrue(SpellingSuggester.shouldCheck("3pm pst in ist", "!", isWebAddress = false))
+        assertFalse(SpellingSuggester.shouldCheck("3pm pst in ist", "!", isWebAddress = false, answered = true))
+    }
+
+    @Test
     fun shortcutsAddressesSumsAndShortTextAreNotChecked() {
         assertTrue(SpellingSuggester.shouldCheck("wether tomorow", "!", isWebAddress = false))
         assertFalse(SpellingSuggester.shouldCheck("!yt cats", "!", isWebAddress = false))

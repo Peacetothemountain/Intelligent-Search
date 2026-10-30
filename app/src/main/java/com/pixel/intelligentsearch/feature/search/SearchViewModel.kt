@@ -132,6 +132,9 @@ internal fun SearchUiState.withoutPrivateProfile(): SearchUiState {
 /** How long typing must pause before a query is spell checked for "Did you mean". */
 private const val SPELLING_PAUSE_MS = 450L
 
+/** Instant answers the device works out from the query's own words, which a "Did you mean" could only get wrong. */
+private val COMPUTED_ANSWER_TYPES = setOf("currency", "conversion", "date", "time", "random")
+
 /**
  * The least time between two web suggestion requests: Chrome's omnibox default
  * (`kDefaultMinimumTimeBetweenSuggestQueriesMs`), measured from the last request rather than the last keystroke.
@@ -1002,12 +1005,14 @@ class SearchViewModel @Inject constructor(
             }
 
             // "Did you mean": once typing pauses (the next keystroke cancels this job, so it never runs mid-word),
-            // unless the query is plainly the start of an app or contact name, where a dictionary would "fix" it.
+            // unless the query is plainly the start of an app or contact name, where a dictionary would "fix" it, or the
+            // device already worked out an answer to it.
             val typed = newQuery.trim()
             val namingSomething = resolvedApps.any { it.name.startsWith(typed, ignoreCase = true) } ||
                 shownContacts.any { it.name.startsWith(typed, ignoreCase = true) }
+            val answered = mathStr != null || localInstantAnswer?.iconType in COMPUTED_ANSWER_TYPES
             val checkSpelling = !namingSomething &&
-                SpellingSuggester.shouldCheck(newQuery, bangManager.getTriggerSymbol(), looksLikeWebAddress(typed))
+                SpellingSuggester.shouldCheck(newQuery, bangManager.getTriggerSymbol(), looksLikeWebAddress(typed), answered)
             if (checkSpelling) {
                 delay(SPELLING_PAUSE_MS)
                 withContext(Dispatchers.Main) {

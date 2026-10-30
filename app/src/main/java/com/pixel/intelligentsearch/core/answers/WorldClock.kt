@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.core.answers
 import com.pixel.intelligentsearch.core.util.Durations
 import java.time.Clock
 import java.time.DateTimeException
+import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -17,17 +18,23 @@ import java.util.Locale
  * - "3pm PST in IST", "15:00 utc to est": a time of day moved to another zone, with the day it lands on
  *
  * A place is a city or country the phone's time zone database or [ALIASES] knows, or a zone abbreviation
- * ([ABBREVIATIONS]: PST, CET, IST for India, and so on, each its fixed offset; PT, ET, CT and MT follow daylight
- * saving). Anything else is left to ordinary search rather than answered with the wrong clock. [clock] says what time it
- * is and [locale] how times are written; both default to the phone's, read at each call, and are fixed in tests.
+ * ([ABBREVIATIONS]: PST, CET, IST for India, and so on). Anything else is left to ordinary search rather than answered
+ * with the wrong clock. [clock] says what time it is and [locale] how times are written; both default to the phone's,
+ * read at each call, and are fixed in tests.
  */
 class WorldClock(private val clock: Clock? = null, private val locale: Locale? = null) {
 
     /** An answer: [title] for the card's large line (a time), [subtitle] under it saying where and which day. */
     data class TimeAnswer(val title: String, val subtitle: String)
 
-    /** A zone a query named, with how its name is shown ("Tokyo", "PST"). */
-    private data class Place(val zone: ZoneId, val label: String)
+    /**
+     * A zone a query named, with how its name is shown ("Tokyo", "PST"). A zone abbreviation for a region that keeps
+     * daylight saving has [daylightLabel], the name its clock goes by in summer ("PDT"), shown whenever it is in force.
+     */
+    private data class Place(val zone: ZoneId, val label: String, val daylightLabel: String? = null) {
+        fun labelAt(instant: Instant): String =
+            if (daylightLabel != null && zone.rules.isDaylightSavings(instant)) daylightLabel else label
+    }
 
     /**
      * The answer to [rawQuery], or null when it isn't a time question or names no known place. [is24Hour] is the phone's
@@ -60,7 +67,7 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
             -1L -> " • Yesterday"
             else -> ""
         }
-        return TimeAnswer(time(there.toLocalTime(), is24Hour), "Current time in ${place.label}$day")
+        return TimeAnswer(time(there.toLocalTime(), is24Hour), "Current time in ${place.labelAt(now)}$day")
     }
 
     /** "3pm PST in IST", "15:00 utc to est", "9:30 am tokyo time to london": the time of day today in the first zone. */
@@ -78,7 +85,8 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
             -1L -> ", previous day"
             else -> return null
         }
-        return TimeAnswer(time(end.toLocalTime(), is24Hour), "In ${to.label}$day • ${time(timeOfDay, is24Hour)} ${from.label}")
+        val instant = start.toInstant()
+        return TimeAnswer(time(end.toLocalTime(), is24Hour), "In ${to.labelAt(instant)}$day • ${time(timeOfDay, is24Hour)} ${from.labelAt(instant)}")
     }
 
     /** "3pm", "3:30 pm", "15:00", "noon", "midnight"; a bare hour needs am or pm, so "5 days" isn't a time. */
@@ -112,7 +120,7 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
         val name = text.removeSuffix(" time").removeSuffix(" local").replace(NOT_LETTERS, "").trim()
             .replace(WHITESPACE, " ").removePrefix("the ")
         if (name.isEmpty() || name in NOT_PLACES) return null
-        ABBREVIATIONS[name]?.let { return Place(it, name.uppercase(Locale.ROOT)) }
+        ABBREVIATIONS[name]?.let { zone -> return Place(zone.zone, zone.standard ?: name.uppercase(Locale.ROOT), zone.daylight) }
         // A country spanning zones is answered for one city's, and the label names that city.
         MULTI_ZONE_COUNTRIES[name]?.let { (zone, label) -> return Place(ZoneId.of(zone), label) }
         // Asked as a place, a name the zone database gives to a lesser-known town means the famous one.
@@ -151,7 +159,7 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
         return plain.lowercase(Locale.ROOT).replace('’', '\'').replace(WHITESPACE, " ")
     }
 
-    private companion object {
+    internal companion object {
         const val MAX_QUERY_LENGTH = 80
         val WHITESPACE = Regex("\\s+")
         val NOT_LETTERS = Regex("[^a-z ]")
@@ -169,7 +177,7 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
         )
 
         /** Words of a place's name written in capitals. */
-        val ACRONYMS = setOf("uk", "uae", "usa", "nyc", "la", "dc")
+        val ACRONYMS = setOf("uk", "uae", "usa", "nyc", "la", "dc", "sf")
 
         val LOCAL_PHRASES = setOf(
             "time", "the time", "time now", "current time", "local time", "what time is it", "what time is it now",
@@ -257,18 +265,44 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
             put("kazakhstan", "Asia/Almaty" to "Kazakhstan (Almaty)")
         }
 
-        /** Zone abbreviations, each its fixed offset; the bare PT, ET, CT and MT follow daylight saving. IST is India's. */
-        val ABBREVIATIONS: Map<String, ZoneId> = buildMap {
-            fun fixed(name: String, hours: Int, minutes: Int = 0) = put(name, ZoneOffset.ofHoursMinutes(hours, minutes))
-            fixed("utc", 0); fixed("gmt", 0); fixed("wet", 0); fixed("west", 1)
-            fixed("bst", 1); fixed("cet", 1); fixed("cest", 2); fixed("eet", 2); fixed("eest", 3); fixed("msk", 3)
-            fixed("ist", 5, 30); fixed("sgt", 8); fixed("hkt", 8); fixed("awst", 8); fixed("jst", 9); fixed("kst", 9)
-            fixed("acst", 9, 30); fixed("aest", 10); fixed("aedt", 11); fixed("nzst", 12); fixed("nzdt", 13)
-            fixed("hst", -10); fixed("akst", -9); fixed("akdt", -8); fixed("pst", -8); fixed("pdt", -7)
-            fixed("mst", -7); fixed("mdt", -6); fixed("cst", -6); fixed("cdt", -5); fixed("est", -5); fixed("edt", -4)
-            put("pt", ZoneId.of("America/Los_Angeles")); put("mt", ZoneId.of("America/Denver"))
-            put("ct", ZoneId.of("America/Chicago")); put("et", ZoneId.of("America/New_York"))
+        /**
+         * A zone abbreviation's region clock, and for a region with daylight saving its [standard] and [daylight]
+         * names; null names show the abbreviation as typed.
+         */
+        class Abbreviation(val zone: ZoneId, val standard: String? = null, val daylight: String? = null)
+
+        /**
+         * Zone abbreviations, each the clock of the region that uses it. People type "PST" or "EST" for Pacific or
+         * Eastern time all year, so in summer "PST" is Los Angeles's clock, an hour off UTC-8, and is shown as "PDT"
+         * (the name of the time actually kept) rather than an hour wrong. UTC and GMT are UTC; IST is India's.
+         */
+        val ABBREVIATIONS: Map<String, Abbreviation> = buildMap {
+            fun region(zone: String, vararg names: String) = names.forEach { put(it, Abbreviation(ZoneId.of(zone))) }
+            fun seasonal(zone: String, standard: String, daylight: String) {
+                val abbreviation = Abbreviation(ZoneId.of(zone), standard.uppercase(Locale.ROOT), daylight.uppercase(Locale.ROOT))
+                put(standard, abbreviation)
+                put(daylight, abbreviation)
+            }
+            // GMT is said for UTC as often as for London's winter clock, so it stays UTC; BST is London's clock.
+            put("utc", Abbreviation(ZoneOffset.UTC)); put("gmt", Abbreviation(ZoneOffset.UTC))
+            put("bst", Abbreviation(ZoneId.of("Europe/London"), "GMT", "BST"))
+            seasonal("Europe/Lisbon", "wet", "west")
+            seasonal("Europe/Paris", "cet", "cest"); seasonal("Europe/Athens", "eet", "eest")
+            region("Europe/Moscow", "msk"); region("Asia/Kolkata", "ist"); region("Asia/Singapore", "sgt")
+            region("Asia/Hong_Kong", "hkt"); region("Australia/Perth", "awst"); region("Asia/Tokyo", "jst")
+            region("Asia/Seoul", "kst")
+            seasonal("Australia/Adelaide", "acst", "acdt"); seasonal("Australia/Sydney", "aest", "aedt")
+            seasonal("Pacific/Auckland", "nzst", "nzdt"); region("Pacific/Honolulu", "hst")
+            seasonal("America/Anchorage", "akst", "akdt"); seasonal("America/Los_Angeles", "pst", "pdt")
+            seasonal("America/Denver", "mst", "mdt"); seasonal("America/Chicago", "cst", "cdt")
+            seasonal("America/New_York", "est", "edt")
+            // The bare names are said for the region all year and are shown as typed.
+            region("America/Los_Angeles", "pt"); region("America/Denver", "mt")
+            region("America/Chicago", "ct"); region("America/New_York", "et")
         }
+
+        /** Whether [word] is a zone abbreviation ("pst", "IST"), which a spell checker should leave as typed. */
+        fun isZoneAbbreviation(word: String): Boolean = word.lowercase(Locale.ROOT) in ABBREVIATIONS
 
         /**
          * Places the zone database doesn't name by their own city ("india" is Asia/Kolkata's): countries, by their
@@ -327,7 +361,35 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
             "hanoi" to "Asia/Bangkok", "uae" to "Asia/Dubai", "abu dhabi" to "Asia/Dubai",
             "melbourne" to "Australia/Melbourne", "canberra" to "Australia/Sydney", "new zealand" to "Pacific/Auckland",
             "hawaii" to "Pacific/Honolulu", "alaska" to "America/Anchorage",
-            "christmas island" to "Indian/Christmas", "easter island" to "Pacific/Easter"
+            "christmas island" to "Indian/Christmas", "easter island" to "Pacific/Easter",
+            // More countries, by their capital's zone
+            "croatia" to "Europe/Zagreb", "serbia" to "Europe/Belgrade", "kosovo" to "Europe/Belgrade",
+            "bosnia" to "Europe/Sarajevo", "slovenia" to "Europe/Ljubljana", "slovakia" to "Europe/Bratislava",
+            "bulgaria" to "Europe/Sofia", "estonia" to "Europe/Tallinn", "latvia" to "Europe/Riga",
+            "lithuania" to "Europe/Vilnius", "belarus" to "Europe/Minsk", "moldova" to "Europe/Chisinau",
+            "albania" to "Europe/Tirane", "montenegro" to "Europe/Podgorica", "north macedonia" to "Europe/Skopje",
+            "macedonia" to "Europe/Skopje", "cyprus" to "Asia/Nicosia", "armenia" to "Asia/Yerevan",
+            "azerbaijan" to "Asia/Baku", "jordan" to "Asia/Amman", "lebanon" to "Asia/Beirut", "syria" to "Asia/Damascus",
+            "oman" to "Asia/Muscat", "yemen" to "Asia/Aden", "afghanistan" to "Asia/Kabul", "uzbekistan" to "Asia/Tashkent",
+            "myanmar" to "Asia/Yangon", "burma" to "Asia/Yangon", "cambodia" to "Asia/Phnom_Penh", "laos" to "Asia/Vientiane",
+            "mongolia" to "Asia/Ulaanbaatar", "north korea" to "Asia/Pyongyang", "bhutan" to "Asia/Thimphu",
+            "dominican republic" to "America/Santo_Domingo", "haiti" to "America/Port-au-Prince",
+            "honduras" to "America/Tegucigalpa", "nicaragua" to "America/Managua", "ecuador" to "America/Guayaquil",
+            "bolivia" to "America/La_Paz", "paraguay" to "America/Asuncion", "uruguay" to "America/Montevideo",
+            "algeria" to "Africa/Algiers", "tunisia" to "Africa/Tunis", "libya" to "Africa/Tripoli",
+            "sudan" to "Africa/Khartoum", "tanzania" to "Africa/Dar_es_Salaam", "uganda" to "Africa/Kampala",
+            "rwanda" to "Africa/Kigali", "zimbabwe" to "Africa/Harare", "zambia" to "Africa/Lusaka",
+            "angola" to "Africa/Luanda", "senegal" to "Africa/Dakar", "ivory coast" to "Africa/Abidjan",
+            "cameroon" to "Africa/Douala",
+            // More cities and islands sharing another city's zone
+            "bali" to "Asia/Makassar", "denpasar" to "Asia/Makassar", "sf" to "America/Los_Angeles",
+            "san jose" to "America/Los_Angeles", "san antonio" to "America/Chicago", "nashville" to "America/Chicago",
+            "st louis" to "America/Chicago", "saint louis" to "America/Chicago", "pittsburgh" to "America/New_York",
+            "baltimore" to "America/New_York", "cleveland" to "America/New_York", "wellington" to "Pacific/Auckland",
+            "goa" to "Asia/Kolkata", "pune" to "Asia/Kolkata", "phuket" to "Asia/Bangkok",
+            "saigon" to "Asia/Ho_Chi_Minh", "ho chi minh city" to "Asia/Ho_Chi_Minh", "mecca" to "Asia/Riyadh",
+            "krakow" to "Europe/Warsaw", "dubrovnik" to "Europe/Zagreb", "marrakech" to "Africa/Casablanca",
+            "zanzibar" to "Africa/Dar_es_Salaam"
         )
     }
 }

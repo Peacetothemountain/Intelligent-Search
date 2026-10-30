@@ -307,10 +307,27 @@ class DateMathEngineTest {
     }
 
     @Test
+    fun theDateItself() {
+        // "today", "tomorrow" and "date" had no answer; only "what day is tomorrow" did.
+        val today = DateMathEngine.DateAnswer("Tuesday, October 20, 2026", "Today", "Today is Tuesday, October 20, 2026")
+        for (query in listOf("today", "Today", "date", "the date", "what's the date", "What’s the date?", "today's date", "what is today's date", "what date is it")) {
+            assertEquals(query, today, on().evaluate(query))
+        }
+        val tomorrow = DateMathEngine.DateAnswer("Wednesday, October 21, 2026", "Tomorrow", "Tomorrow is Wednesday, October 21, 2026")
+        assertEquals(tomorrow, on().evaluate("tomorrow"))
+        assertEquals(tomorrow, on().evaluate("what's the date tomorrow"))
+        assertEquals("Yesterday was Monday, October 19, 2026", text("yesterday"))
+        assertEquals("Monday, October 19, 2026", on().evaluate("yesterday's date")?.title)
+        for (query in listOf("today show", "date night", "tomorrowland", "dates")) {
+            assertNull(query, on().evaluate(query))
+        }
+    }
+
+    @Test
     fun ordinarySearchesAreLeftAlone() {
         for (query in listOf(
             "28 days later", "500 days of summer", "days of our lives", "days until dawn", "days since the war",
-            "christmas", "christmas movies", "days", "today", "now", "how many days", "days until", "days since",
+            "christmas", "christmas movies", "days", "now", "how many days", "days until", "days since",
             "3 months", "90 days", "today + 90", "today 90 days", "the days until christmas", "days until christmas party",
             "90 days in weeks", "100 usd to eur", "12*4", "2027-01-01", "dec 25", "weather today", "time in tokyo",
             "days between", "days between mar 1", "days between mar 1 and", "days between monday and friday",

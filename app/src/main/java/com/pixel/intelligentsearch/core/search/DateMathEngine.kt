@@ -19,6 +19,7 @@ import kotlin.math.abs
 
 /**
  * Date arithmetic answers, worked out on the device:
+ * - "today", "what's the date", "tomorrow", "yesterday" (the date itself)
  * - "days until Dec 25", "days until christmas", "days until thanksgiving", "how many days until 2027-01-01"
  * - "days until friday" (the next Friday after today), "days since Jan 1"
  * - "what day is 2027-03-14", "what day of the week was christmas" (the weekday)
@@ -39,7 +40,7 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
     fun evaluate(rawQuery: String): DateAnswer? {
         val query = normalize(rawQuery) ?: return null
         return try {
-            countFromToday(query) ?: between(query) ?: offset(query) ?: weekday(query) ?: weekNumber(query)
+            plainDate(query) ?: countFromToday(query) ?: between(query) ?: offset(query) ?: weekday(query) ?: weekNumber(query)
         } catch (_: DateTimeException) {
             null
         } catch (_: ArithmeticException) {
@@ -50,6 +51,23 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
     // ---------------------------------------------------------------------------------------------
     // QUESTIONS
     // ---------------------------------------------------------------------------------------------
+
+    /** "today", "date", "what's the date", "tomorrow", "yesterday's date": the date itself. */
+    private fun plainDate(query: String): DateAnswer? {
+        val day = when (query) {
+            in TODAY_PHRASES -> "Today"
+            in TOMORROW_PHRASES -> "Tomorrow"
+            in YESTERDAY_PHRASES -> "Yesterday"
+            else -> return null
+        }
+        val date = when (day) {
+            "Tomorrow" -> today().plusDays(1)
+            "Yesterday" -> today().minusDays(1)
+            else -> today()
+        }
+        val full = full(date)
+        return DateAnswer(full, day, "$day ${if (day == "Yesterday") "was" else "is"} $full")
+    }
 
     /** "days until <date>" and "days since <date>". */
     private fun countFromToday(query: String): DateAnswer? {
@@ -366,6 +384,23 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
         }
 
         val WEEKDAYS: Map<String, DayOfWeek> = DayOfWeek.entries.associateBy { it.name.lowercase(Locale.ROOT) }
+
+        /** Asking for the date itself, today's, tomorrow's or yesterday's; the word alone asks too. */
+        val TODAY_PHRASES = setOf(
+            "today", "date", "the date", "today's date", "todays date", "date today", "current date", "the date today",
+            "what's the date", "whats the date", "what is the date", "what's the date today", "whats the date today",
+            "what is the date today", "what's today's date", "whats todays date", "what is today's date",
+            "what date is it", "what date is it today", "what is today", "what's today", "whats today"
+        )
+        val TOMORROW_PHRASES = setOf(
+            "tomorrow", "tomorrow's date", "tomorrows date", "date tomorrow", "what's the date tomorrow",
+            "whats the date tomorrow", "what is the date tomorrow", "what date is tomorrow", "what is tomorrow's date",
+            "what's tomorrow's date", "whats tomorrows date"
+        )
+        val YESTERDAY_PHRASES = setOf(
+            "yesterday", "yesterday's date", "yesterdays date", "date yesterday", "what was the date yesterday",
+            "what date was yesterday", "what was yesterday's date", "what was yesterdays date"
+        )
 
         val ISO_DATE_REGEX = Regex("^(\\d{4})-(\\d{1,2})-(\\d{1,2})$")
         val MONTH_DAY_REGEX = Regex("^($MONTH)\\.? (\\d{1,2})$ORDINAL(?:,? (\\d{4}))?$")

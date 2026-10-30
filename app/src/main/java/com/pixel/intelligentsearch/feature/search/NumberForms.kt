@@ -4,6 +4,7 @@ import java.math.BigDecimal
 import java.math.BigInteger
 import java.math.MathContext
 import java.math.RoundingMode
+import java.text.DecimalFormatSymbols
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -18,13 +19,15 @@ internal data class NumberForm(val label: String, val value: String, val copyVal
  * screens: a whole number grouped as [locale] groups digits, then in hexadecimal, binary and octal; a fraction as a
  * fraction (when a small one is exact), a percentage and in scientific notation. Nothing for an answer that isn't a
  * plain number (a conversion, a date), or for forms that would only repeat it. An answer the calculator already rounded
- * to scientific notation ("9.0072e+15") is only written in scientific notation: its digits past the fifth are gone, so
- * grouped or in another base it would look exact when it isn't.
+ * to scientific notation ("9.2234e+18") is only written in scientific notation: its digits past the fifth are gone, so
+ * grouped or in another base it would look exact when it isn't. [result] is written as the calculator writes it in
+ * [locale], with a decimal comma where the locale has one ("2,5").
  */
 internal fun numberForms(result: String, locale: Locale = Locale.getDefault()): List<NumberForm> {
-    val text = result.trim().removePrefix("=").trim()
+    val written = result.trim().removePrefix("=").trim()
+    val text = if (DecimalFormatSymbols.getInstance(locale).decimalSeparator == ',') written.replace(',', '.') else written
     val number = text.toBigDecimalOrNull() ?: return emptyList()
-    if (text.contains('e', ignoreCase = true) || number.abs() >= ROUNDED_FROM) {
+    if (text.contains('e', ignoreCase = true)) {
         return if (number.signum() == 0) emptyList() else listOf(NumberForm("Scientific", scientific(number)))
     }
     val forms = mutableListOf<NumberForm>()
@@ -53,8 +56,8 @@ internal fun numberForms(result: String, locale: Locale = Locale.getDefault()): 
     return forms
 }
 
-/** From here up the calculator writes an answer in scientific notation, rounded to five significant digits. */
-private val ROUNDED_FROM = BigDecimal("1e15")
+/** The significant digits the calculator writes an answer with. */
+private const val SIGNIFICANT_DIGITS = 10
 
 /** [number] as "1.2346 × 10⁵". */
 private fun scientific(number: BigDecimal): String {
@@ -78,15 +81,17 @@ private fun groupsOfFour(bits: String): String = bits.reversed().chunked(4).join
 
 /**
  * [number] as the simplest fraction with a denominator up to 100 that is it to the precision [shown] was written with
- * ("0.375" is "3/8", "1.3333" is "4/3", shown "1 1/3"), or null when no such fraction does. The calculator writes four
- * decimals from 1 up and four significant digits below 1, so a fraction counts only within half the last place it
- * kept: "1234.5678" is not "1234 3/5", and a tiny "0.0003333" has no fraction rather than "0/2".
+ * ("0.375" is "3/8", "1.333333333" is "4/3", shown "1 1/3"), or null when no such fraction does. The calculator writes
+ * ten significant digits, so a fraction counts only within half the last place it kept: an answer that ends before then
+ * is exact ("0.375"), one that fills them is a repeating decimal only when a small fraction matches every digit. So e
+ * (2.718281828) and √3 (1.732050808) have none, though "2 51/71" and "1 41/56" are close to their first four decimals.
  */
 private fun fraction(number: BigDecimal, shown: String): String? {
     if (number.signum() == 0) return null
     val magnitude = number.abs()
-    // The decimals the calculator kept: 4 from 1 up, 4 significant digits below (0.0003333 keeps 7).
-    val kept = if (magnitude >= BigDecimal.ONE) 4 else 3 - (magnitude.precision() - magnitude.scale() - 1)
+    // The decimals the calculator kept: ten significant digits, so 9 after the point from 1 up and more below it
+    // (0.0003333333333 keeps 13).
+    val kept = SIGNIFICANT_DIGITS - 1 - (magnitude.precision() - magnitude.scale() - 1)
     val decimals = maxOf(kept, shown.substringAfter('.', "").length)
     val tolerance = BigDecimal.ONE.movePointLeft(decimals).divide(BigDecimal(2))
     for (denominator in 2L..100L) {

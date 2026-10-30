@@ -175,10 +175,11 @@ class MathematicalExpressionEngineTest {
 
     @Test
     fun smallResultsKeepSignificantDigits() {
+        // Ten significant digits, not four: 1/3000 was 0.0003333 and 1/3 was 0.3333.
         val tiny = MathematicalExpressionEngine.evaluate("1/3000") as MathematicalExpressionEngine.MathEvaluationResult.Computation
-        assertEquals("0.0003333", tiny.formattedResult)
+        assertEquals("0.0003333333333", tiny.formattedResult)
         val third = MathematicalExpressionEngine.evaluate("1/3") as MathematicalExpressionEngine.MathEvaluationResult.Computation
-        assertEquals("0.3333", third.formattedResult)
+        assertEquals("0.3333333333", third.formattedResult)
         val sum = MathematicalExpressionEngine.evaluate("0.1+0.2") as MathematicalExpressionEngine.MathEvaluationResult.Computation
         assertEquals("0.3", sum.formattedResult)
     }
@@ -226,12 +227,12 @@ class MathematicalExpressionEngineTest {
     @Test
     fun aDotGroupsThousandsWhereTheCommaIsTheDecimalPoint() {
         inLocale(java.util.Locale.GERMANY) {
-            // "1.000" was read as 1.0, so "1.000 + 1" gave 2.
+            // "1.000" was read as 1.0, so "1.000 + 1" gave 2. Answers are written with the comma too.
             assertEquals("1001", computed("1.000 + 1"))
-            assertEquals("1234567.5", computed("1.234.567,5 * 1"))
-            assertEquals("2.5", computed("1,5 + 1"))
-            assertEquals("2.5", computed("1.5 + 1"))
-            assertEquals("0.25", computed("0.125 * 2"))
+            assertEquals("1234567,5", computed("1.234.567,5 * 1"))
+            assertEquals("2,5", computed("1,5 + 1"))
+            assertEquals("2,5", computed("1.5 + 1"))
+            assertEquals("0,25", computed("0.125 * 2"))
             assertEquals(1500.0, converted("1,5 km in m")!!.toValue, 1e-9)
             assertEquals(1_000_000.0, converted("1.000 km in m")!!.toValue, 1e-9)
         }
@@ -297,5 +298,178 @@ class MathematicalExpressionEngineTest {
         assertEquals(12.5, bits.toValue, 0.0001)
         val bytes = MathematicalExpressionEngine.evaluate("1 MB to kb") as MathematicalExpressionEngine.MathEvaluationResult.UnitConversion
         assertEquals(1000.0, bytes.toValue, 0.0001)
+    }
+
+    private fun bitwise(query: String) =
+        MathematicalExpressionEngine.evaluate(query) as? MathematicalExpressionEngine.MathEvaluationResult.Bitwise
+
+    @Test
+    fun basesCanBeNamedInFullAndBareHexIsRead() {
+        // Only "hex", "dec", "bin" and "oct" were understood: "0xff to binary" had no answer.
+        assertEquals("0xff to bin = 0b11111111", bitwise("0xff to binary")?.expression)
+        assertEquals("0b1010 to hex = 0xA", bitwise("0b1010 to hex")?.expression)
+        assertEquals("255 to bin = 0b11111111", bitwise("255 to binary")?.expression)
+        assertEquals("255 to hex = 0xFF", bitwise("255 in hexadecimal")?.expression)
+        assertEquals("8 to oct = 0o10", bitwise("8 to octal")?.expression)
+        assertEquals("ff to dec = 255", bitwise("ff in decimal")?.expression)
+        assertEquals("0x1F to dec = 31", bitwise("0x1F to decimal")?.expression)
+    }
+
+    @Test
+    fun currencyNamesConvertLikeCodes() {
+        // Only codes and symbols were understood: "50 euros in dollars" had no answer.
+        val euros = converted("50 euros in dollars")!!
+        assertEquals("EUR", euros.fromUnit)
+        assertEquals("USD", euros.toUnit)
+        assertEquals(50 / 0.92, euros.toValue, 1e-9)
+        assertEquals("USD", converted("50 dollars to euros")!!.fromUnit)
+        assertEquals("JPY", converted("100 yen to usd")!!.fromUnit)
+        assertEquals("GBP", converted("20 pounds to euro")!!.fromUnit)
+        assertEquals("CAD", converted("10 canadian dollars to us dollars")?.fromUnit)
+        assertEquals("USD", converted("10 canadian dollars to us dollars")?.toUnit)
+        assertEquals("EUR", converted("euro to dollar")?.fromUnit)
+        // A pound is still a weight beside one.
+        assertEquals(0.45359237, converted("1 pound to kg")!!.toValue, 1e-9)
+        assertNull(MathematicalExpressionEngine.evaluate("time to go"))
+    }
+
+    @Test
+    fun moneyHasTheCurrencysDecimalsAndGrouping() {
+        inLocale(java.util.Locale.US) {
+            // Written with 4 decimals and no grouping: "1000000 USD ≈ 155200000 JPY", "100 USD ≈ 92 EUR".
+            assertEquals("1,000,000 USD ≈ 155,200,000 JPY", converted("1000000 usd to jpy")!!.formatted)
+            assertEquals("100 USD ≈ 92.00 EUR", converted("100 usd to eur")!!.formatted)
+            assertEquals("1,234.50 USD ≈ 1,135.74 EUR", converted("1234.5 usd to eur")!!.formatted)
+            assertEquals("1 USD ≈ 1,370 KRW", converted("usd to krw")!!.formatted)
+        }
+        inLocale(java.util.Locale.GERMANY) {
+            assertEquals("1.234,50 USD ≈ 1.135,74 EUR", converted("1234,5 usd to eur")!!.formatted)
+        }
+    }
+
+    @Test
+    fun phoneNumbersAndZipCodesWithDashesAreNotSubtraction() {
+        for (query in listOf("030-12345678", "0171-1234567", "98765-43210", "020-7946-0958", "0044-20-7946-0958", "94103-1234", "555-1234", "1-800-555-0199")) {
+            assertNull(query, MathematicalExpressionEngine.evaluate(query))
+        }
+        // Sums with dashes still are.
+        assertEquals("7", computed("10-3"))
+        assertEquals("25", computed("2024-1999"))
+        assertEquals("75", computed("100-20-5"))
+        assertEquals("8500", computed("12000-3500"))
+    }
+
+    @Test
+    fun roundingLeftOverFromAZeroIsZeroAndSmallDifferencesShow() {
+        // sin(pi) showed 1.2246e-16, tan(pi/2) 1.6331e+16, 1.00001 showed as 1 and 2^50 as 1.1259e+15.
+        assertEquals("0", computed("sin(pi)"))
+        assertEquals("0", computed("cos(pi/2)"))
+        assertEquals("0", computed("0.1+0.2-0.3"))
+        assertEquals("0", computed("0.3-0.1-0.2"))
+        assertEquals("0", computed("tan(pi)"))
+        assertNull(computed("tan(pi/2)"))
+        assertEquals("1", computed("tan(pi/4)"))
+        assertEquals("0.5", computed("sin(pi/6)"))
+        assertEquals("1.00001", computed("1.00001*1"))
+        assertEquals("2.99999", computed("3-0.00001"))
+        assertEquals("1125899906842624", computed("2^50"))
+        assertEquals("1000000000000000", computed("999999999999999+1"))
+        assertEquals("4611686018427387904", computed("2^62"))
+        assertEquals("9.2234e+18", computed("2^63"))
+        // A real difference far below the numbers is still shown.
+        assertEquals("1.0000e-07", computed("1e6-999999.9999999"))
+        assertEquals("3.141592654", computed("pi*1"))
+    }
+
+    @Test
+    fun aYearIs365DaysAndAMonthATwelfthOfIt() {
+        // A year was 365.2425 days and a month 30.4369.
+        assertEquals("1 year = 365 days", converted("1 year to days")!!.formatted)
+        assertEquals("1 month = 30.4167 days", converted("1 month to days")!!.formatted)
+        assertEquals(12.0, converted("1 year to months")!!.toValue, 1e-9)
+    }
+
+    @Test
+    fun squareAndCubicUnitsWithDigitsOrWordsConvert() {
+        // "m2", "km2" and "m3" could never match: units had no digits.
+        assertEquals(10.7639, converted("1 m2 to ft2")!!.toValue, 1e-3)
+        assertEquals(100.0, converted("1 km2 to ha")!!.toValue, 1e-9)
+        assertEquals(1000.0, converted("1 m3 to l")!!.toValue, 1e-9)
+        assertEquals(1000.0, converted("1 m³ to l")!!.toValue, 1e-9)
+        assertEquals(10.7639, converted("1 sq m to sq ft")!!.toValue, 1e-3)
+        assertEquals(9.2903, converted("100 square feet to square meters")!!.toValue, 1e-3)
+        assertEquals(35.3147, converted("1 cubic meter to cubic feet")!!.toValue, 1e-3)
+        assertEquals("1 sq mi = 2.58999 km2", converted("1 square mile in km2")!!.formatted)
+    }
+
+    @Test
+    fun aDecimalCommaWorksInFunctionsAndIsWrittenInAnswers() {
+        inLocale(java.util.Locale.GERMANY) {
+            assertEquals("2,5", computed("sqrt(6,25)"))
+            assertEquals("7,853981634", computed("2,5*pi"))
+            assertEquals("125,125", computed("1001/8"))
+            assertEquals("1,5 km = 1500 m", converted("1,5 km in m")!!.formatted)
+        }
+        inLocale(java.util.Locale.FRANCE) {
+            assertEquals("2,5", computed("sqrt(6,25)"))
+        }
+        inLocale(java.util.Locale.US) {
+            assertEquals("1002", computed("1,000+2"))
+            assertEquals("125.125", computed("1001/8"))
+            assertEquals("31.6227766", computed("sqrt(1,000)"))
+            assertNull(computed("1,5+2,25"))
+        }
+    }
+
+    @Test
+    fun aPlainGallonOrPintIsImperialInTheUkAndIreland() {
+        inLocale(java.util.Locale.UK) {
+            // Under en-GB a gallon was the US one, 3.785 l.
+            assertEquals(4.54609, converted("1 gallon to liters")!!.toValue, 1e-9)
+            assertEquals(568.26125, converted("1 pint to ml")!!.toValue, 1e-6)
+            assertEquals(3.78541, converted("1 us gallon to liters")!!.toValue, 1e-9)
+        }
+        inLocale(java.util.Locale.forLanguageTag("en-IE")) {
+            assertEquals(4.54609, converted("1 gal to l")!!.toValue, 1e-9)
+        }
+        inLocale(java.util.Locale.US) {
+            assertEquals(3.78541, converted("1 gallon to liters")!!.toValue, 1e-9)
+            assertEquals(4.54609, converted("1 imperial gallon to liters")!!.toValue, 1e-9)
+            assertEquals(568.26125, converted("1 uk pint to ml")!!.toValue, 1e-6)
+            assertEquals("2 imp gal = 2.4019 US gal", converted("2 imperial gallons in us gallons")!!.formatted)
+            assertEquals(28.4130625, converted("1 imperial fl oz to ml")!!.toValue, 1e-6)
+        }
+    }
+
+    @Test
+    fun calculatorPhrasingsAreAnswered() {
+        // Each had no answer.
+        assertEquals("4", computed("2+2="))
+        assertEquals("4", computed("=2+2"))
+        assertEquals("4", computed("what is 2+2"))
+        assertEquals("4", computed("What is 2+2?"))
+        assertEquals("12", computed("what's 15% of 80"))
+        assertEquals("4", computed("√16"))
+        assertEquals("4", computed("√(16)"))
+        assertEquals("8", computed("2√16"))
+        assertEquals("27", computed("3(4+5)"))
+        assertEquals("6", computed("(2)(3)"))
+        assertEquals("7.283185307", computed("2pi+1"))
+        // Words that aren't a sum stay searches.
+        assertNull(MathematicalExpressionEngine.evaluate("what is love"))
+        assertNull(MathematicalExpressionEngine.evaluate("what is pi"))
+        assertNull(MathematicalExpressionEngine.evaluate("="))
+        assertNull(MathematicalExpressionEngine.evaluate("call 3 (555)"))
+        assertNull(MathematicalExpressionEngine.evaluate("(555) 1234"))
+    }
+
+    @Test
+    fun unitAndCurrencyNamesAreKnownToTheSpellChecker() {
+        for (word in listOf("km", "ft2", "m3", "usd", "euros", "yen", "kwh", "mph", "°F")) {
+            assertTrue(word, MathematicalExpressionEngine.isUnitName(word))
+        }
+        for (word in listOf("post", "pst", "hello")) {
+            assertFalse(word, MathematicalExpressionEngine.isUnitName(word))
+        }
     }
 }

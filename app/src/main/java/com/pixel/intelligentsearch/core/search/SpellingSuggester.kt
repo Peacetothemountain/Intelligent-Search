@@ -6,6 +6,7 @@ import android.view.textservice.SpellCheckerSession
 import android.view.textservice.SuggestionsInfo
 import android.view.textservice.TextInfo
 import android.view.textservice.TextServicesManager
+import com.pixel.intelligentsearch.core.answers.WorldClock
 import java.util.Locale
 
 /**
@@ -81,15 +82,24 @@ class SpellingSuggester(private val context: Context) : SpellCheckerSession.Spel
 
         /**
          * Whether [query] is worth spell checking: it has a real word of 3 or more letters, and it is not a
-         * shortcut ("!yt cats", or the user's own trigger), a web address or a calculation.
+         * shortcut ("!yt cats", or the user's own trigger), a web address or a calculation. Nor is a query already
+         * [answered] on the device (a sum, conversion, date or time): "3pm pst in ist" was understood, so offering
+         * "3pm post in ist" would only be wrong.
          */
-        fun shouldCheck(query: String, shortcutTrigger: String, isWebAddress: Boolean): Boolean {
+        fun shouldCheck(query: String, shortcutTrigger: String, isWebAddress: Boolean, answered: Boolean = false): Boolean {
             val q = query.trim()
-            if (q.length < 3 || isWebAddress) return false
+            if (q.length < 3 || isWebAddress || answered) return false
             if (q.startsWith("!") || (shortcutTrigger.isNotEmpty() && q.startsWith(shortcutTrigger))) return false
             if (q.contains(" !") || (shortcutTrigger.isNotEmpty() && q.contains(" $shortcutTrigger"))) return false
             return q.split(Regex("\\s+")).any { word -> word.length >= 3 && word.all { it.isLetter() || it == '\'' } }
         }
+
+        /**
+         * Whether [word] is a term a dictionary doesn't know but the app does, kept as typed: a zone abbreviation
+         * ("pst", not "post") or a unit or currency ("km", "ft2", "usd").
+         */
+        fun isKnownTerm(word: String): Boolean =
+            WorldClock.isZoneAbbreviation(word) || MathematicalExpressionEngine.isUnitName(word)
 
         /** [query] with each correction applied, or null when there is none or the result is the same. */
         fun applyCorrections(query: String, corrections: List<Correction>): String? {
@@ -99,6 +109,7 @@ class SpellingSuggester(private val context: Context) : SpellCheckerSession.Spel
             for (c in corrections.sortedByDescending { it.offset }) {
                 if (c.offset < 0 || c.offset + c.length > result.length || c.replacement.isBlank()) continue
                 val original = result.substring(c.offset, c.offset + c.length)
+                if (isKnownTerm(original)) continue
                 result.replace(c.offset, c.offset + c.length, matchCase(original, c.replacement))
             }
             val corrected = result.toString()

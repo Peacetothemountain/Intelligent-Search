@@ -40,7 +40,25 @@ class NumberFormsTest {
         assertEquals("3/8", forms["Fraction"])
         assertEquals("37.5%", forms["Percentage"])
         assertEquals("3.75 × 10⁻¹", forms["Scientific"])
-        assertEquals("1 1/3", forms("1.3333")["Fraction"])
+        // The calculator writes 4/3 to ten significant digits (it was "1.3333" at four decimals).
+        assertEquals("1 1/3", forms("1.333333333")["Fraction"])
+        assertEquals("1/3", forms("0.3333333333")["Fraction"])
+    }
+
+    @Test
+    fun anIrrationalAnswerHasNoFraction() {
+        // e was offered as "2 51/71", √3 as "1 41/56", √5 as "2 17/72", φ as "1 55/89" and √2/2 as "70/99".
+        for (shown in listOf("2.718281828", "1.732050808", "2.236067977", "1.618033989", "0.7071067812", "2.7183", "1.7321", "0.7071")) {
+            assertTrue(shown, "Fraction" !in forms(shown))
+        }
+        assertTrue("Fraction" !in forms("1.3333"))
+    }
+
+    @Test
+    fun anAnswerWithADecimalCommaHasItsOtherForms() {
+        val forms = forms("2,5", Locale.GERMANY)
+        assertEquals("2 1/2", forms["Fraction"])
+        assertEquals("250%", forms["Percentage"])
     }
 
     @Test
@@ -63,10 +81,13 @@ class NumberFormsTest {
 
     @Test
     fun anAnswerTheCalculatorAlreadyRoundedIsOnlyWrittenInScientificNotation() {
-        // 2^53 is shown as 9.0072e+15; grouped or in hex it looked exact (9,007,200,000,000,000).
+        // 2^53 was shown as 9.0072e+15; grouped or in hex it looked exact (9,007,200,000,000,000). 2^63 still is.
         assertEquals(mapOf("Scientific" to "9.0072 × 10¹⁵"), forms("9.0072e+15"))
+        assertEquals(mapOf("Scientific" to "9.2234 × 10¹⁸"), forms("9.2234e+18"))
         assertEquals(mapOf("Scientific" to "1.5 × 10⁻⁵"), forms("1.5000e-05"))
-        assertEquals(listOf("Scientific"), forms("1000000000000000").keys.toList())
+        // Whole numbers below 2^63 are now written out in full (10^15 was "1.0000e+15"), so they have every form.
+        assertEquals("1,000,000,000,000,000", forms("1000000000000000")["Grouped"])
+        assertEquals("0x4000000000000", forms("1125899906842624")["Hexadecimal"])
     }
 
     @Test

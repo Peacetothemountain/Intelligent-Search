@@ -293,7 +293,8 @@ class SearchViewModelTest {
         // Nothing has been fetched here, so the built-in rates answer and the card says so.
         val answer = await("currency answer") { it.instantAnswer != null }.instantAnswer!!
         assertEquals("currency", answer.iconType)
-        assertEquals("100 USD ≈ 92 EUR", answer.title)
+        // Money is written with its currency's decimals.
+        assertEquals("100 USD ≈ 92.00 EUR", answer.title)
         assertEquals("Built-in rates", answer.subtitle)
     }
 

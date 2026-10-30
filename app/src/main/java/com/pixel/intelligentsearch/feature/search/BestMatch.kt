@@ -32,9 +32,26 @@ internal object BestMatch {
      * "google  maps" is "Google Maps" as they are in the results. Punctuation stays: "c++" is not "c".
      */
     private fun fold(text: String): String {
-        val plain = if (text.all { it.code < 0x80 }) text else Normalizer.normalize(text, Normalizer.Form.NFD).replace(ACCENTS, "")
+        val plain = if (text.all { it.code < 0x80 }) {
+            text
+        } else {
+            Normalizer.normalize(text, Normalizer.Form.NFD).replace(ACCENTS, "").let { decomposed ->
+                if (decomposed.all { it.code < 0x80 }) decomposed else buildString {
+                    for (c in decomposed) append(UNDECOMPOSED[c] ?: c)
+                }
+            }
+        }
         return plain.lowercase(Locale.ROOT).replace(WORDS, " ").trim()
     }
+
+    /**
+     * Letters with no accent to take off, written as people type them without the key: "oresund" is "Øresund" and
+     * "strasse" is "Straße".
+     */
+    private val UNDECOMPOSED = mapOf(
+        'ø' to "o", 'Ø' to "O", 'ß' to "ss", 'æ' to "ae", 'Æ' to "Ae", 'œ' to "oe", 'Œ' to "Oe", 'ł' to "l", 'Ł' to "L",
+        'đ' to "d", 'Đ' to "D", 'ð' to "d", 'Ð' to "D", 'þ' to "th", 'Þ' to "Th", 'ı' to "i"
+    )
 
     fun find(query: String, domains: List<Domain<*>>, learnedPick: String? = null): Any? {
         val q = fold(query)

@@ -81,6 +81,15 @@ class BestMatchTest {
     }
 
     @Test
+    fun lettersWithNoAccentToTakeOffMatchAsTyped() {
+        // "oresund" didn't find "Øresund Guide", nor "strasse" "Straße".
+        val d = domains(listOf("Øresund Guide", "Straße Map", "Łódź Bus"), emptyList(), emptyList())
+        assertEquals(Item("app", "Øresund Guide"), BestMatch.find("oresund", d))
+        assertEquals(Item("app", "Straße Map"), BestMatch.find("strasse", d))
+        assertEquals(Item("app", "Łódź Bus"), BestMatch.find("lodz", d))
+    }
+
+    @Test
     fun disabledDomainsAreSkipped() {
         val d = domains(listOf("Maps"), listOf("Maps"), emptyList(), enabled = Triple(false, true, true))
         assertEquals(Item("contact", "Maps"), BestMatch.find("maps", d))

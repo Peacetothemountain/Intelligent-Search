@@ -90,6 +90,20 @@ class WorldClockTest {
     }
 
     @Test
+    fun countriesAndCitiesThatAreAlsoEverydayWordsAreZonesOnlyWhenAskedAsAPlace() {
+        // "turkey time" was Istanbul's time, "jordan time" Amman's and "west time" Lisbon's (its summer WEST).
+        for (query in listOf(
+            "turkey time", "jordan time", "west time", "time in the west", "cayenne time", "chihuahua time",
+            "regina time", "darwin time"
+        )) {
+            assertNull("\"$query\" should not be a time answer", answer(query))
+        }
+        assertEquals(time("Europe/Istanbul"), answer("time in turkey")?.title)
+        assertEquals(time("Asia/Amman"), answer("what time is it in jordan")?.title)
+        assertEquals(time("Australia/Darwin"), answer("time in darwin")?.title)
+    }
+
+    @Test
     fun anAmbiguousPlaceAskedForIsTheOnePeopleMean() {
         // The zone database's Petersburg is in Indiana, its Jersey the Channel Island and its Cordoba in Argentina.
         assertEquals(WorldClock.TimeAnswer(time("Europe/Moscow"), "Current time in St Petersburg • Tomorrow"), answer("time in petersburg"))

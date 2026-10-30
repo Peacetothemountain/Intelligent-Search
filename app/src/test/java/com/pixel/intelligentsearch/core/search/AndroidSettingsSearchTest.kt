@@ -97,6 +97,14 @@ class AndroidSettingsSearchTest {
     }
 
     @Test
+    fun powerOffIsNotTheBatteryPage() {
+        // "off" was taken as a switch word, leaving "power", the Battery page.
+        val search = everyPageResolves()
+        assertTrue(titles(search, "power off").none { it == "Battery" })
+        assertTrue(titles(search, "power on").none { it == "Battery" })
+    }
+
+    @Test
     fun typosStillFindThePage() {
         val search = everyPageResolves()
         assertEquals("Battery", titles(search, "batery").first())

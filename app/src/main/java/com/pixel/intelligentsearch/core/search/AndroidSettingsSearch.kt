@@ -141,7 +141,8 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
         var words = query.split(' ')
         SWITCH_LEADS.firstOrNull { lead -> words.size > lead.size && words.subList(0, lead.size) == lead }
             ?.let { lead -> words = words.drop(lead.size) }
-        if (words.size > 1 && words.last() in SWITCH_ENDS) words = words.dropLast(1)
+        // "power off" and "power on" are switching the phone itself, not the Battery page's "power".
+        if (words.size > 1 && words.last() in SWITCH_ENDS && words.dropLast(1) !in NOT_SWITCHED) words = words.dropLast(1)
         return words.joinToString(" ")
     }
 
@@ -299,6 +300,9 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
 
         /** How a query ends when it asks to switch a setting: "wifi off". */
         private val SWITCH_ENDS = setOf("on", "off")
+
+        /** What "on" or "off" after which is a phrase of its own, not a setting switched. */
+        private val NOT_SWITCHED = setOf(listOf("power"))
 
         /**
          * One-word keywords that mean the setting whatever else is around, so typing one names its page outright

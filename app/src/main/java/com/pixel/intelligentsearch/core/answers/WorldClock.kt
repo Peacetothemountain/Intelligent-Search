@@ -113,20 +113,21 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
 
     /**
      * The zone [text] names, or null. A trailing "time" ("tokyo time", "pacific time") is part of how it's said, and a
-     * leading "the" ("the us") too. Unless the query was [explicit] ("time in davis"), a zone city that is also an
+     * leading "the" ("the us") too. Unless the query was [explicit] ("time in davis"), a place that is also an
      * everyday word or name ([EVERYDAY_ZONE_WORDS]: "wake", "center", "davis") isn't taken for the place.
      */
     private fun resolve(text: String, explicit: Boolean): Place? {
         val name = text.removeSuffix(" time").removeSuffix(" local").replace(NOT_LETTERS, "").trim()
             .replace(WHITESPACE, " ").removePrefix("the ")
         if (name.isEmpty() || name in NOT_PLACES) return null
+        if (!explicit && name in EVERYDAY_ZONE_WORDS) return null
         ABBREVIATIONS[name]?.let { zone -> return Place(zone.zone, zone.standard ?: name.uppercase(Locale.ROOT), zone.daylight) }
         // A country spanning zones is answered for one city's, and the label names that city.
         MULTI_ZONE_COUNTRIES[name]?.let { (zone, label) -> return Place(ZoneId.of(zone), label) }
         // Asked as a place, a name the zone database gives to a lesser-known town means the famous one.
         if (explicit) BETTER_KNOWN[name]?.let { (zone, label) -> return Place(ZoneId.of(zone), label) }
         val zoneId = ALIASES[name] ?: US_STATES[name]
-            ?: name.takeIf { explicit || it !in EVERYDAY_ZONE_WORDS }?.let { city ->
+            ?: name.let { city ->
                 ZoneId.getAvailableZoneIds().firstOrNull { id ->
                     isCityZone(id) && id.substringAfterLast('/').replace('_', ' ').lowercase(Locale.ROOT) == city
                 }
@@ -197,11 +198,14 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
             "^(?:convert )?(noon|midnight|\\d{1,2}(?::\\d{2})? ?(?:$MERIDIEM)?) $PLACE (?:in|to|into) $PLACE$"
         )
 
-        /** Zone names typed for a place, not timekeeping: Christmas Island's zone is only "christmas" in the database. */
-        val NOT_PLACES = setOf("christmas", "easter")
+        /**
+         * Zone names typed for a place, not timekeeping: Christmas Island's zone is only "christmas" in the database,
+         * and "west" (Lisbon's summer abbreviation, WEST) is a direction: "west time", "time in the west".
+         */
+        val NOT_PLACES = setOf("christmas", "easter", "west")
 
         /**
-         * Zone cities whose name is also an everyday word, a person's name or a better-known place ("wake", "center",
+         * Zone places whose name is also an everyday word, a person's name or a better-known place ("wake", "center",
          * "davis", "jersey", "petersburg"): "wake time" is about waking, so these are places only when asked as one,
          * "time in wake".
          */
@@ -209,7 +213,9 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
             "wake", "midway", "center", "davis", "casey", "mawson", "vostok", "troll", "palmer", "rothera", "macquarie",
             "chatham", "johnston", "knox", "beulah", "new salem", "marengo", "vincennes", "winamac", "petersburg",
             "tell city", "vevay", "monticello", "stanley", "jersey", "victoria", "reunion", "resolute", "virgin", "oral",
-            "norfolk", "canary", "dawson", "creston", "currie", "wallis", "yap", "truk", "cordoba", "lindeman"
+            "norfolk", "canary", "dawson", "creston", "currie", "wallis", "yap", "truk", "cordoba", "lindeman",
+            // Countries and cities that are also a bird, a name, a pepper or a dog: "turkey time" is about roasting.
+            "turkey", "jordan", "cayenne", "chihuahua", "regina", "darwin"
         )
 
         /**

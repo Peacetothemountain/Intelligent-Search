@@ -112,8 +112,23 @@ fun settingsTopBarColors(): TopAppBarColors =
 fun SettingsPageTitle(
     text: String,
     style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.headlineSmall,
-    fontWeight: FontWeight = FontWeight.Bold
+    fontWeight: FontWeight = FontWeight.Bold,
+    onFitsInBar: ((Boolean) -> Unit)? = null
 ) {
+    if (onFitsInBar != null) {
+        // A bar crowded with buttons can leave less room than the title needs even at its smallest size; one line
+        // would then cut it to its first word. It's left out of the bar, and the page shows it under the bar
+        // ([SettingsPageTitleBelowBar]).
+        BoxWithConstraints {
+            val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+            val smallest = style.copy(fontSize = oneLineMinFontSize(style), fontWeight = fontWeight)
+            val fits = measurer.measure(text, smallest, maxLines = 1, softWrap = false).size.width <= constraints.maxWidth
+            val report by rememberUpdatedState(onFitsInBar)
+            LaunchedEffect(fits) { report(fits) }
+            if (fits) SettingsPageTitle(text, style, fontWeight)
+        }
+        return
+    }
     Text(
         text,
         style = style,
@@ -124,6 +139,31 @@ fun SettingsPageTitle(
             heading()
             paneTitle = text
         }
+    )
+}
+
+/**
+ * A page's title on its own line under its top bar, for when [SettingsPageTitle] found no room in the bar: it wraps
+ * between words and shrinks a word too wide for a line rather than split it, and it's the page's heading and pane
+ * title in the bar's place.
+ */
+@Composable
+fun SettingsPageTitleBelowBar(
+    text: String,
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.headlineSmall,
+    fontWeight: FontWeight = FontWeight.Bold
+) {
+    com.pixel.intelligentsearch.core.ui.WholeWordText(
+        text,
+        // Under the bar it no longer takes the bar's content color.
+        style = style.copy(fontWeight = fontWeight, color = MaterialTheme.colorScheme.onSurface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .semantics {
+                heading()
+                paneTitle = text
+            }
     )
 }
 
@@ -1000,10 +1040,65 @@ fun performClickHaptic(context: android.content.Context) {
 fun oneLineAutoSize(style: androidx.compose.ui.text.TextStyle): androidx.compose.foundation.text.TextAutoSize {
     // Steps run up from the minimum, so the minimum sits a whole number of steps below the normal size; otherwise
     // the largest size reachable would fall just short of it and fitting text would render a little small.
-    val step = 0.25f
+    return androidx.compose.foundation.text.TextAutoSize.StepBased(
+        minFontSize = oneLineMinFontSize(style),
+        maxFontSize = style.fontSize,
+        stepSize = ONE_LINE_AUTO_SIZE_STEP.sp
+    )
+}
+
+private const val ONE_LINE_AUTO_SIZE_STEP = 0.25f
+
+/**
+ * A selector's label (a profile chip, a design pill): one line, shrinking to fit ([oneLineAutoSize]). Where even its
+ * smallest size overflows the line, as at the largest text in a narrow chip, it wraps between its words instead
+ * ([com.pixel.intelligentsearch.core.ui.WholeWordText]) rather than be cut off or spill over the chip's outline. Where
+ * even a single word can't fit whole (five profile chips on the narrowest phone at the largest text), it shows
+ * [shortText] instead ("1" for "Profile 1"), still read out as [text].
+ */
+@Composable
+internal fun OneLineLabel(
+    text: String,
+    style: androidx.compose.ui.text.TextStyle,
+    fontWeight: FontWeight,
+    modifier: Modifier = Modifier,
+    shortText: String? = null
+) {
+    var wraps by remember(text, style) { mutableStateOf(false) }
+    var short by remember(text, style) { mutableStateOf(false) }
+    val wrapped = style.copy(fontWeight = fontWeight, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    if (short && shortText != null) {
+        Text(
+            shortText,
+            style = wrapped,
+            maxLines = 1,
+            modifier = modifier.semantics { contentDescription = text }
+        )
+    } else if (wraps) {
+        com.pixel.intelligentsearch.core.ui.WholeWordText(
+            text,
+            style = wrapped,
+            modifier = modifier,
+            onTextLayout = { if (shortText != null && com.pixel.intelligentsearch.core.ui.splitsAWord(text, it)) short = true }
+        )
+    } else {
+        Text(
+            text,
+            style = style,
+            fontWeight = fontWeight,
+            maxLines = 1,
+            autoSize = oneLineAutoSize(style),
+            onTextLayout = { if (it.hasVisualOverflow) wraps = true },
+            modifier = modifier
+        )
+    }
+}
+
+/** The smallest size [oneLineAutoSize] shrinks [style]'s text to. */
+fun oneLineMinFontSize(style: androidx.compose.ui.text.TextStyle): androidx.compose.ui.unit.TextUnit {
+    val step = ONE_LINE_AUTO_SIZE_STEP
     val max = style.fontSize.value
-    val min = max - kotlin.math.floor(max * 0.4f / step) * step
-    return androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = min.sp, maxFontSize = max.sp, stepSize = step.sp)
+    return (max - kotlin.math.floor(max * 0.4f / step) * step).sp
 }
 
 /**

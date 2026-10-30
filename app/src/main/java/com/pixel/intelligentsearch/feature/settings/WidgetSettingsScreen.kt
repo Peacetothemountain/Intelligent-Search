@@ -456,9 +456,19 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         )
     }
 
+    // At large text the bar's buttons leave the title too little room; it then has a line of its own under the bar.
+    var titleFitsInBar by remember { mutableStateOf(true) }
+
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
-                title = { SettingsPageTitle("Widget Customization", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Normal) },
+                title = {
+                    SettingsPageTitle(
+                        "Widget Customization",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Normal,
+                        onFitsInBar = { titleFitsInBar = it }
+                    )
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
                     IconButton(onClick = handleBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
@@ -491,11 +501,25 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             )
         }
     ) { padding ->
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(padding)) {
+        // Where the preview, profiles and selectors pinned at the top would leave the tab little or no room (a phone
+        // on its side), the whole page scrolls as one instead, so every control can be reached.
+        val scrollsAsOne = maxHeight < WIDGET_EDITOR_PINNED_MIN_HEIGHT
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .then(
+                    if (scrollsAsOne) Modifier.verticalScroll(rememberScrollState(), enabled = draggingSlotKey == null)
+                    else Modifier
+                )
         ) {
+            if (!titleFitsInBar) {
+                SettingsPageTitleBelowBar(
+                    "Widget Customization",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Normal
+                )
+            }
             // Live Preview Card (Pinned at the top for real-time visual feedback), on the preview stage (the page's own
             // color in dark, the lightest surface in light), with only the matte grain added.
             val previewShellLook = com.pixel.intelligentsearch.core.ui.expressive.rememberMatteShellLook(
@@ -727,11 +751,10 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     itemHeight = 44.dp,
                     indicatorShape = RoundedCornerShape(24.dp)
                 ) { option, isSel ->
-                    Text(
+                    // Wraps between its words at large text rather than spill out of its half.
+                    OneLineLabel(
                         if (option == "System Default") "System Design" else "Material Design",
                         style = MaterialTheme.typography.labelLarge,
-                        maxLines = 1,
-                        autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge),
                         fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal
                     )
                 }
@@ -793,16 +816,18 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 }
             }
 
-            // Scrollable Content for Active Tab
+            // Scrollable Content for Active Tab: its own scroll under the pinned top, or part of the page's.
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f)
+                    .then(if (scrollsAsOne) Modifier else Modifier.weight(1f))
             ) {
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .verticalScroll(rememberScrollState(), enabled = draggingSlotKey == null)
+                        .then(
+                            if (scrollsAsOne) Modifier.fillMaxWidth()
+                            else Modifier.fillMaxSize().verticalScroll(rememberScrollState(), enabled = draggingSlotKey == null)
+                        )
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -829,8 +854,16 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
             WidgetEditorDialogs(fields = fields, ui = ui, colors = colors, shortcutOptions = shortcutOptions, prefs = prefs)
         }
+        }
     }
 }
+
+/**
+ * The least height Widget Customization keeps its preview, profiles and selectors pinned at the top in. Below it (the
+ * window height Material counts as compact: a phone on its side) they would leave the tab under them no room, so the
+ * page scrolls as one.
+ */
+private val WIDGET_EDITOR_PINNED_MIN_HEIGHT = 480.dp
 
 /**
  * The live preview's backdrop, drawn as the widget draws its own: the outline (the Material design's rim) filling the

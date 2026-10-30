@@ -197,12 +197,18 @@ private const val WHOLE_WORD_MIN_SCALE = 0.6f
  * ([WholeWordAutoSize]), so it follows every width it's laid out at (a rotation, a resized window).
  */
 @Composable
-internal fun WholeWordText(text: String, style: TextStyle, modifier: Modifier = Modifier) {
+internal fun WholeWordText(
+    text: String,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    onTextLayout: ((androidx.compose.ui.text.TextLayoutResult) -> Unit)? = null
+) {
     val base = style.wholeWords()
     Text(
         text = text,
         style = base,
         modifier = modifier,
+        onTextLayout = onTextLayout,
         autoSize = if (base.fontSize.isSpecified) remember(base.fontSize) { WholeWordAutoSize(base.fontSize) } else null
     )
 }

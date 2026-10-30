@@ -80,11 +80,16 @@ fun AlwaysWithinReachSection() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // Android's reason flag as the request starts, so only a decline for good, not a closed prompt, says it's off.
+    var notificationRationaleBefore by remember { mutableStateOf(false) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         canPost = NotificationShortcut.canPost(context)
+        val activity = context.findActivity()
+        // Asked only where the permission exists (Android 13+), which this check also tells lint.
+        if (granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) forgetDecline(context, Manifest.permission.POST_NOTIFICATIONS)
         if (granted && canPost) {
             notification = true
-        } else if (!granted && context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) == false) {
+        } else if (!granted && activity != null && declinedForGood(activity, Manifest.permission.POST_NOTIFICATIONS, notificationRationaleBefore)) {
             // Declined for good: only Android's settings can allow it now.
             showNotificationSettings = true
         }
@@ -133,7 +138,10 @@ fun AlwaysWithinReachSection() {
             onConfirm = {
                 showNotificationRationale = false
                 // Only shown where it is needed (Android 13+), which this check also tells lint.
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationRationaleBefore = rationaleShown(context, Manifest.permission.POST_NOTIFICATIONS)
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
             },
             onDismiss = { showNotificationRationale = false }
         )

@@ -213,6 +213,20 @@ class ShortActionPhrasingTest {
         }
     }
 
+    @Test
+    fun openingHoursSearchesAreNoReminder() {
+        // Each was a reminder Enter ran, opening the calendar instead of searching.
+        for (query in listOf(
+            "restaurants open at 7pm", "stores open at 9", "costco hours at 10", "bars open till 2am", "happy hour at 5",
+            "pharmacy closes at 9pm"
+        )) {
+            assertNull(query, parse(query))
+        }
+        // A task still is one.
+        assertEquals(Kind.REMINDER, parse("dinner at 8pm")?.kind)
+        assertEquals(Kind.REMINDER, parse("close the garage at 9pm")?.kind)
+    }
+
     // ---------------------------------------------------------------------------------------------
     // In the search: the full phrasings, the calculator, converters and date maths come first
     // ---------------------------------------------------------------------------------------------

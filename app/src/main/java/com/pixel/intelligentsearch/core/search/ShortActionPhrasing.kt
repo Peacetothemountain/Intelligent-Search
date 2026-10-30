@@ -83,6 +83,14 @@ object ShortActionPhrasing {
     )
 
     /**
+     * Words anywhere in a task that make it a search for when a place is open ("restaurants open at 7pm", "costco hours
+     * at 10", "bars open till 2am", "happy hour at 5"): read as a reminder, Enter opened the calendar instead of searching.
+     */
+    private val OPENING_HOURS_WORDS = setOf(
+        "open", "opens", "opening", "closes", "closing", "closed", "hours", "hour", "till", "until", "near", "nearby"
+    )
+
+    /**
      * The action [rawQuery] reads as at [nowMs], or null when it reads as none. [is24Hour] is the phone's clock
      * setting: it decides how a bare hour ("at 6") is read and how times are shown.
      */
@@ -270,6 +278,7 @@ object ShortActionPhrasing {
         if (words.size > 8) return null
         val first = words.first().lowercase(Locale.ROOT)
         if (first in NOT_A_TASK) return null
+        if (words.any { it.lowercase(Locale.ROOT) in OPENING_HOURS_WORDS }) return null
         // What is left after the time must not itself be a calculation or conversion ("15 min in", "5 + 3").
         if (task.any { it in "+*/=^%" }) return null
         return task.replaceFirstChar { it.titlecase(Locale.ROOT) }

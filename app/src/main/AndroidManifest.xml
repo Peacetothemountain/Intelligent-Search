@@ -494,6 +494,20 @@
             </intent-filter>
         </service>
 
+        <!-- WorkManager starts when the app first asks for it (App is its Configuration.Provider), not with the
+             process: a process Android starts while the phone is still locked after a reboot (the assistant, the
+             widgets) can't open WorkManager's storage yet, and its start-up check then crashed the app. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
         <provider
             android:name="com.pixel.intelligentsearch.core.data.GlobalSearchProvider"
             android:authorities="com.pixel.intelligentsearch.globalsearch"

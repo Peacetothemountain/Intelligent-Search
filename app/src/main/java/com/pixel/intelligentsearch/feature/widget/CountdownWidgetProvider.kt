@@ -18,7 +18,6 @@ import androidx.core.graphics.ColorUtils
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -26,6 +25,7 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.widget.CountdownEvent
 import com.pixel.intelligentsearch.core.data.widget.CountdownEventStore
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
+import com.pixel.intelligentsearch.core.system.workManagerOnceUnlocked
 import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.Companion.WidgetDesignConfig
@@ -85,7 +85,7 @@ class CountdownWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onDisabled(context: Context) {
-        runCatching { WorkManager.getInstance(context.applicationContext).cancelUniqueWork(MIDNIGHT_WORK) }
+        runCatching { context.workManagerOnceUnlocked()?.cancelUniqueWork(MIDNIGHT_WORK) }
     }
 
     /**
@@ -177,13 +177,16 @@ class CountdownWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        /** Arranges the redraw just after the next local midnight, replacing any arranged before. */
+        /**
+         * Arranges the redraw just after the next local midnight, replacing any arranged before. Skipped before the
+         * first unlock after a restart (see [workManagerOnceUnlocked]); the redraw at the unlock arranges it.
+         */
         fun scheduleMidnight(context: Context) {
             val current = now()
             val delayMs = Duration.between(current, CountdownEventStore.nextMidnight(current)).toMillis() + AFTER_MIDNIGHT_MS
             val request = OneTimeWorkRequestBuilder<CountdownMidnightWorker>().setInitialDelay(delayMs, TimeUnit.MILLISECONDS).build()
             runCatching {
-                WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(MIDNIGHT_WORK, ExistingWorkPolicy.REPLACE, request)
+                context.workManagerOnceUnlocked()?.enqueueUniqueWork(MIDNIGHT_WORK, ExistingWorkPolicy.REPLACE, request)
             }.onFailure { Log.w(TAG, "Couldn't schedule the midnight redraw", it) }
         }
 

@@ -175,6 +175,26 @@ class OverlayHandOffTest {
         controller.destroy()
     }
 
+    @Test
+    fun aRecognizerThatClosesItselfOnHomeStillLetsTheWaitingOverlayClose() {
+        val recognizer = install("org.example.speech", IntentFilter(RecognizerIntent.ACTION_RECOGNIZE_SPEECH))
+        val shortcut = Intent(context, WidgetActivity::class.java).putExtra("auto_voice", true)
+        val controller = Robolectric.buildActivity(WidgetActivity::class.java, shortcut).setup()
+        val activity = controller.get()
+        assertNotNull(shadowOf(activity).nextStartedActivityForResult)
+        overlayTask(activity, top = recognizer, onScreen = true)
+        controller.pause().stop()
+        ShadowLooper.idleMainLooper(3, TimeUnit.SECONDS)
+        assertFalse("it waits behind the recognizer", activity.isFinishing)
+
+        // Home: the recognizer closes itself as it loses the screen, leaving the overlay on top of its task, out of
+        // sight and still waiting for words that never come. It stayed behind, checking every second for good.
+        overlayTask(activity, top = ComponentName(context, WidgetActivity::class.java), onScreen = false)
+        ShadowLooper.idleMainLooper(3, TimeUnit.SECONDS)
+        assertTrue(activity.isFinishing)
+        controller.destroy()
+    }
+
     /** Android's view of the overlay's task: [top] on top of it, on screen or not. */
     private fun overlayTask(activity: Activity, top: ComponentName, onScreen: Boolean) {
         val info = ActivityManager.RecentTaskInfo().apply {

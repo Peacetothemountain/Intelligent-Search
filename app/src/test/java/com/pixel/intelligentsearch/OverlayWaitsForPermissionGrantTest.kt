@@ -5,7 +5,12 @@ import android.app.TaskInfo
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Handler
+import android.os.Looper
+import android.os.Message
+import android.os.MessageQueue
 import android.os.PowerManager
+import android.os.SystemClock
 import android.provider.Settings
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ApplicationProvider
@@ -124,6 +129,77 @@ class OverlayWaitsForPermissionGrantTest {
         assertTrue(activity.isFinishing)
         search.destroy()
     }
+
+    @Test
+    fun aPermissionPageInATaskOfItsOwnStillEndsTheWait() {
+        val search = Robolectric.buildActivity(SearchActivity::class.java, Intent(context, SearchActivity::class.java)).setup()
+        val activity = search.get()
+        assertTrue(openSettingsPageToGrant(activity, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)))
+        // Android's settings opened the page in a task of their own (two panes on a large screen), so the overlay's
+        // task holds only the overlay, out of sight, whether the user is on that page or has gone Home.
+        overlayTask(activity, top = ComponentName(context, SearchActivity::class.java), onScreen = false)
+        search.pause().stop()
+        ShadowLooper.idleMainLooper(1, TimeUnit.MINUTES)
+        assertFalse("the user may still be turning it on", activity.isFinishing)
+
+        // It waited, checking every second, for as long as the app lived.
+        ShadowLooper.idleMainLooper(2, TimeUnit.MINUTES)
+        assertTrue(activity.isFinishing)
+        assertFalse(stillChecking(activity))
+        search.destroy()
+    }
+
+    @Test
+    fun stillOnAndroidsPageItKeepsWaitingPastTheGiveUpTime() {
+        val search = Robolectric.buildActivity(SearchActivity::class.java, Intent(context, SearchActivity::class.java)).setup()
+        val activity = search.get()
+        assertTrue(openSettingsPageToGrant(activity, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)))
+        overlayTask(activity, top = ComponentName("com.android.settings", "com.android.settings.UsageAccess"), onScreen = true)
+        search.pause().stop()
+        ShadowLooper.idleMainLooper(5, TimeUnit.MINUTES)
+        assertFalse("the user is still on Android's page", activity.isFinishing)
+        search.destroy()
+    }
+
+    /** Android 12 can't say whether a task is in sight, so a check every second could never decide anything. */
+    @Test
+    @Config(sdk = [31])
+    fun onAndroid12TheOverlayChecksOnceAndGivesUpInTheEnd() {
+        // Android 12 checks androidx's receiver permission against the test manifest.
+        shadowOf(context as android.app.Application).grantPermissions("${context.packageName}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION")
+        val search = Robolectric.buildActivity(SearchActivity::class.java, Intent(context, SearchActivity::class.java)).setup()
+        val activity = search.get()
+        assertTrue(openSettingsPageToGrant(activity, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)))
+        search.pause().stop()
+        val nextCheck = nextCheckInMs(activity)
+        assertTrue("the next check is in $nextCheck ms; it ran every second for good", nextCheck != null && nextCheck > 60_000)
+
+        ShadowLooper.idleMainLooper(1, TimeUnit.MINUTES)
+        assertFalse("the user may still be turning it on", activity.isFinishing)
+        ShadowLooper.idleMainLooper(2, TimeUnit.MINUTES)
+        assertTrue(activity.isFinishing)
+        assertFalse(stillChecking(activity))
+        search.destroy()
+    }
+
+    /** Whether the overlay's check (MainActivity.leftWhileWaiting) is still scheduled. */
+    private fun stillChecking(activity: MainActivity): Boolean = waitCheck(activity).let { (handler, check) -> handler.hasCallbacks(check) }
+
+    /** In how many milliseconds the overlay's check next runs, or null when it isn't scheduled. */
+    private fun nextCheckInMs(activity: MainActivity): Long? {
+        val check = waitCheck(activity).second
+        fun field(owner: Class<*>, name: String) = owner.getDeclaredField(name).apply { isAccessible = true }
+        var message = field(MessageQueue::class.java, "mMessages").get(Looper.getMainLooper().queue) as Message?
+        while (message != null) {
+            if (message.callback === check) return field(Message::class.java, "when").getLong(message) - SystemClock.uptimeMillis()
+            message = field(Message::class.java, "next").get(message) as Message?
+        }
+        return null
+    }
+
+    private fun waitCheck(activity: MainActivity): Pair<Handler, Runnable> =
+        MainActivity::class.java.getDeclaredField("waitWatch").apply { isAccessible = true }.get(activity) as Handler to
+            MainActivity::class.java.getDeclaredField("leftWhileWaiting").apply { isAccessible = true }.get(activity) as Runnable
 
     /** Android's view of the overlay's task: [top] on top of it, on screen or not. */
     private fun overlayTask(activity: android.app.Activity, top: ComponentName, onScreen: Boolean) {

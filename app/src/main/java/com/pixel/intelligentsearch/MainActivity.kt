@@ -75,29 +75,59 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
      * it in its task, checks now and then that the user is still there. Gone Home or to another app instead of Back,
      * the waiting overlay would stay behind (a search opened from the launcher's bar came up over it, and Back showed
      * the old search), so it closes then, and that screen with it.
+     *
+     * Where that can't be told (Android 12, a permission page that opened in a task of its own, the screen off), the
+     * overlay gives up after [WAIT_GIVE_UP_MS] out of sight instead of waiting and checking for good. Only the overlay
+     * closes then, unless it is the top of its task: the user may still come back to the screen it waited for.
      */
     private val leftWhileWaiting = object : Runnable {
         override fun run() {
             if (isFinishing || (!awaitingSpeech && !awayGrantingAccess)) return
-            if (leftForAnotherTask()) finishAndRemoveTask() else waitWatch.postDelayed(this, WAIT_CHECK_MS)
+            when {
+                leftForAnotherTask() -> finishAndRemoveTask()
+                android.os.SystemClock.uptimeMillis() - waitingSince >= WAIT_GIVE_UP_MS && !waitedForScreenInSight() ->
+                    if (isTopOfTask()) finishAndRemoveTask() else finish()
+                else -> waitWatch.postDelayed(this, WAIT_CHECK_MS)
+            }
         }
     }
 
     private val waitWatch = android.os.Handler(android.os.Looper.getMainLooper())
 
+    /** When the overlay last went out of sight to wait ([leftWhileWaiting]), on the clock its checks run by. */
+    private var waitingSince = 0L
+
+    /**
+     * Whether Android says if a task is in sight (12L and newer), which [leftForAnotherTask] needs to decide anything.
+     * Android 12 doesn't, so there the overlay only gives up in the end.
+     */
+    private val canTellTaskInSight get() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2
+
+    /** This overlay's task as Android sees it now, with the screen on and unlocked; null otherwise. */
+    private fun ownTaskWhileInUse(): android.app.TaskInfo? = runCatching {
+        if (getSystemService(android.os.PowerManager::class.java)?.isInteractive != true) return null
+        if (getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true) return null
+        getSystemService(android.app.ActivityManager::class.java).appTasks
+            .firstOrNull { it.taskInfo?.taskId == taskId }?.taskInfo
+    }.getOrNull()
+
     /**
      * Whether the user has left this overlay's task for another while it waits: the task is out of sight with the
-     * screen it waits for still on top. The screen turning off or locking isn't leaving; the user comes back to it.
-     * Android 12 doesn't say whether a task is in sight, so there the overlay waits as before.
+     * screen it waits for still on top, or, for a speech recognizer, with the overlay itself on top. A recognizer
+     * started for its words always opens in this task, and many close themselves as they lose the screen, so then
+     * nothing is left to come back from. The screen turning off or locking isn't leaving; the user comes back to it.
      */
-    private fun leftForAnotherTask(): Boolean = runCatching {
+    private fun leftForAnotherTask(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S_V2) return false
-        if (getSystemService(android.os.PowerManager::class.java)?.isInteractive != true) return false
-        if (getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true) return false
-        val task = getSystemService(android.app.ActivityManager::class.java).appTasks
-            .firstOrNull { it.taskInfo?.taskId == taskId }?.taskInfo ?: return false
-        task.topActivity != componentName && !task.isVisible
-    }.getOrDefault(false)
+        val task = ownTaskWhileInUse() ?: return false
+        return !task.isVisible && (task.topActivity != componentName || awaitingSpeech)
+    }
+
+    /** Whether the screen this overlay waits for is in front of the user now, as far as Android says. */
+    private fun waitedForScreenInSight(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S_V2) return false
+        return ownTaskWhileInUse()?.isVisible == true
+    }
 
     override fun onStart() {
         super.onStart()
@@ -134,7 +164,9 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
             if (isTopOfTask()) finishAndRemoveTask() else finish()
         } else if (!isChangingConfigurations && !isFinishing && (awaitingSpeech || awayGrantingAccess)) {
             waitWatch.removeCallbacks(leftWhileWaiting)
-            waitWatch.postDelayed(leftWhileWaiting, WAIT_CHECK_MS)
+            waitingSince = android.os.SystemClock.uptimeMillis()
+            // Where checking can't tell when the user has left, it doesn't run every second for nothing.
+            waitWatch.postDelayed(leftWhileWaiting, if (canTellTaskInSight) WAIT_CHECK_MS else WAIT_GIVE_UP_MS)
         }
     }
 
@@ -606,6 +638,12 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
 
         /** How often a waiting overlay checks the user is still on the screen it waits for ([leftWhileWaiting]). */
         const val WAIT_CHECK_MS = 1000L
+
+        /**
+         * How long a waiting overlay stays out of sight before it gives up where it can't tell that the user has left
+         * ([leftWhileWaiting]): longer than turning on a permission or saying a search takes.
+         */
+        const val WAIT_GIVE_UP_MS = 2 * 60 * 1000L
     }
 
     private fun checkAndForwardIfSearchOverlayDisabled(): Boolean {

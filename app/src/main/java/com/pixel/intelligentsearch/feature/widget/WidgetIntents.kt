@@ -41,6 +41,20 @@ const val EXTRA_RECOGNIZE_SPEECH = "com.pixel.intelligentsearch.extra.RECOGNIZE_
 
 private const val ACTION_RECOGNIZE_SPEECH_IN_SEARCH = "com.pixel.intelligentsearch.RECOGNIZE_SPEECH"
 
+/**
+ * Asks the private [WidgetActivity] to search the web for [query] in another app the moment it's tapped, saying so if
+ * none can, and show nothing itself: for a doodle drawn while no other app could search the web.
+ */
+fun webSearchFromWidgetIntent(context: Context, query: String): Intent =
+    Intent(context, WidgetActivity::class.java).apply {
+        action = ACTION_SEARCH_WEB
+        putExtra(android.app.SearchManager.QUERY, query)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+    }
+
+/** [webSearchFromWidgetIntent]'s action. */
+const val ACTION_SEARCH_WEB = "com.pixel.intelligentsearch.SEARCH_WEB"
+
 /** The phone's plain speech recognizer, to start for a result, or null when none is installed. */
 fun speechRecognizerIntent(context: Context): Intent? {
     val speech = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)

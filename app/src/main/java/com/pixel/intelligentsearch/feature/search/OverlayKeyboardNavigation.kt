@@ -395,9 +395,13 @@ internal fun runDirectAction(context: Context, viewModel: SearchViewModel, actio
     }
 }
 
-/** Opens [action]'s intent, else its fallback (another maps app, a text); false when neither opened. */
+/**
+ * Opens [action]'s intent, else its fallback (another maps app, a text); false when neither opened. Searching the
+ * copied text is a web search like any other ([launchWebSearch]): it never reopens this app with the text.
+ */
 internal fun launchDirectActionIntent(context: Context, action: DirectAction): Boolean {
     val intent = action.intent ?: return false
+    if (action.iconType == "search") return launchWebSearch(context, intent, action.subtitle)
     return launchSafeIntent(context, intent) || action.fallbackIntent?.let { launchSafeIntent(context, it) } == true
 }
 
@@ -420,6 +424,7 @@ internal fun directActionMissingAppMessage(action: DirectAction): String = when 
     "message" -> "Install a messaging app to send texts."
     "navigation" -> "Install a maps app to get directions."
     "media" -> "Install a music app to play this."
+    "search" -> NO_WEB_SEARCH_APP_MESSAGE
     else -> "No app on this phone can open this."
 }
 

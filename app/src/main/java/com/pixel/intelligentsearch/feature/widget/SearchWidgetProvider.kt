@@ -14,6 +14,7 @@ import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
 import com.pixel.intelligentsearch.core.occasion.Occasion
 import com.pixel.intelligentsearch.core.security.SafeWebLaunch
 import com.pixel.intelligentsearch.feature.search.webSearchLaunch
+import com.pixel.intelligentsearch.feature.search.webSearchTarget
 import android.app.PendingIntent
 import android.app.SearchManager
 import android.appwidget.AppWidgetManager
@@ -985,12 +986,14 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         /**
          * Tapping a doodle opens the web search for its day straight away, as tapping one of Google's does, with the
          * search engine chosen in settings. If that can't open (Tor without Tor Browser), the search bar opens with
-         * the day typed in instead.
+         * the day typed in instead. With no other app to search the web in, the tap asks again when tapped
+         * ([webSearchFromWidgetIntent]) rather than reopening the search with the day.
          */
         internal fun doodleSearchIntent(context: Context, prefs: SharedPreferences, appWidgetId: Int, doodle: Occasion): Intent {
             val day = context.getString(doodle.title)
             val launch = webSearchLaunch(context, prefs[SettingsManager.SEARCH_ENGINE], prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL], day)
-            return (launch as? SafeWebLaunch.Launch.Open)?.intent ?: mainSearchIntent(context, prefs, appWidgetId, day)
+            val intent = (launch as? SafeWebLaunch.Launch.Open)?.intent ?: return mainSearchIntent(context, prefs, appWidgetId, day)
+            return webSearchTarget(context, intent, day) ?: webSearchFromWidgetIntent(context, day)
         }
 
         /**

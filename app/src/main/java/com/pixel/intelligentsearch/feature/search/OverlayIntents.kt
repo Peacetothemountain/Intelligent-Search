@@ -108,25 +108,48 @@ internal fun externalWebSearchIntent(context: Context, query: String): Intent? {
     return intent.setClassName(others.first().activityInfo.packageName, others.first().activityInfo.name)
 }
 
+/** What the user is told when nothing but this app could search the web. */
+internal const val NO_WEB_SEARCH_APP_MESSAGE = "No app available to search the web."
+
+/** The system web search addressed to no app, which this app answers too: sent to another one by name instead. */
+private fun isAnyAppWebSearch(intent: Intent): Boolean =
+    intent.action == Intent.ACTION_WEB_SEARCH && intent.component == null && intent.`package` == null
+
 /**
  * Opens [intent], a web search for [query] from [webSearchLaunch], else the system web search in another app
  * ([externalWebSearchIntent]). False when neither opens, so the caller can say so; an intent this app would answer
- * itself counts as not opening, as it would only bring the search back.
+ * itself counts as not opening, as it would only bring the search back. Every web search [webSearchLaunch] makes
+ * opens through here, as its last resort is that same system web search.
  */
 internal fun launchWebSearch(context: Context, intent: Intent, query: String): Boolean {
-    // The system web search addressed to no app goes to another one by name instead.
-    val anyApp = intent.action == Intent.ACTION_WEB_SEARCH && intent.component == null && intent.`package` == null
-    if (!anyApp) {
+    if (!isAnyAppWebSearch(intent)) {
         val target = context.packageManager.resolveActivity(intent, 0)?.activityInfo?.packageName
         if (target != context.packageName && launchSafeIntent(context, intent)) return true
+        // A search meant for Tor Browser goes nowhere else: another app would see the query and the user's address.
+        if (intent.`package` in com.pixel.intelligentsearch.core.security.SafeWebLaunch.TOR_BROWSER_PACKAGES) return false
     }
     return externalWebSearchIntent(context, query)?.let { launchSafeIntent(context, it) } == true
 }
 
 /**
+ * What [launchWebSearch] would open for [intent], decided before the search is asked for (a widget's tap is set up
+ * when the widget is drawn): [intent] itself when another app answers it, else the system web search in another
+ * app. Null when only this app would answer.
+ */
+internal fun webSearchTarget(context: Context, intent: Intent, query: String): Intent? {
+    if (!isAnyAppWebSearch(intent)) {
+        val target = context.packageManager.resolveActivity(intent, 0)?.activityInfo?.packageName
+        if (target != null && target != context.packageName) return intent
+    }
+    return externalWebSearchIntent(context, query)
+}
+
+/**
  * How to search the web for [query] with the chosen engine. Named engines open in an app that can show them and
  * fall back to the system web search; a custom address is re-validated on every search (https only, browsable
- * activities only); Tor never falls back to a normal browser, it asks for Tor Browser instead.
+ * activities only); Tor never falls back to a normal browser, it asks for Tor Browser instead. Open it with
+ * [launchWebSearch] (or [webSearchTarget] ahead of time): this app answers the system web search too, so started
+ * as is, that fallback would only reopen the search with the query.
  */
 internal fun webSearchLaunch(context: Context, engine: String, customUrl: String, query: String): com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch {
     val safe = com.pixel.intelligentsearch.core.security.SafeWebLaunch

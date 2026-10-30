@@ -120,7 +120,8 @@ class SystemActionRouter @Inject constructor(
                         subtitle = systemToggleManager.getBluetoothStatusText(isBt),
                         iconType = "bluetooth",
                         isEnabled = isBt,
-                        onToggle = { systemToggleManager.toggleBluetooth(it) },
+                        // Apps can't switch Bluetooth themselves ([SystemToggleManager.checkBluetoothEnabled]).
+                        onToggle = { systemToggleManager.openBluetoothSettings() },
                         onOpenSettings = { systemToggleManager.openBluetoothSettings() }
                     )
                 )

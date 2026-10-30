@@ -1,12 +1,15 @@
 package com.pixel.intelligentsearch.feature.search
 
 import android.app.Application
+import android.content.ComponentName
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.pm.ResolveInfo
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser
 import com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent
+import com.pixel.intelligentsearch.core.security.SafeWebLaunch
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -103,6 +106,32 @@ class DirectActionFallbackTest {
         val reminder = NaturalLanguageIntentParser.parse("remind me to stretch in 1 hour") as ParsedIntent.Reminder
         assertFalse(openDirectAction(context, DirectAction("Set Reminder", reminder.task, "calendar", reminder.intent)))
         assertEquals("Install a calendar app to add events and reminders.", ShadowToast.getTextOfLatestToast())
+    }
+
+    @Test
+    fun searchingCopiedTextWithNothingToSearchInSaysSoInsteadOfReopeningTheSearch() {
+        // No Google app and no browser: the chip's search fell back to the system web search, which only this app
+        // answers, and the search reopened with the copied text.
+        val launch = webSearchLaunch(context, "DuckDuckGo", "", "cats") as SafeWebLaunch.Launch.Open
+        val chip = DirectAction("Search Copied Text", "cats", "search", launch.intent)
+        assertFalse(openDirectAction(context, chip))
+        assertNull(shadowOf(context).nextStartedActivity)
+        assertEquals("No app available to search the web.", ShadowToast.getTextOfLatestToast())
+    }
+
+    @Test
+    fun searchingCopiedTextOpensAnotherAppThatSearchesTheWeb() {
+        val other = ComponentName("org.example.search", "org.example.search.Main")
+        shadowOf(context.packageManager).apply {
+            addActivityIfNotPresent(other)
+            addIntentFilterForActivity(other, IntentFilter(Intent.ACTION_WEB_SEARCH).apply { addCategory(Intent.CATEGORY_DEFAULT) })
+        }
+        val launch = webSearchLaunch(context, "DuckDuckGo", "", "cats") as SafeWebLaunch.Launch.Open
+        assertTrue(openDirectAction(context, DirectAction("Search Copied Text", "cats", "search", launch.intent)))
+        val started = shadowOf(context).nextStartedActivity
+        assertEquals(other, started.component)
+        assertEquals("cats", started.getStringExtra(android.app.SearchManager.QUERY))
+        assertEquals(0, ShadowToast.shownToastCount())
     }
 
     @Test

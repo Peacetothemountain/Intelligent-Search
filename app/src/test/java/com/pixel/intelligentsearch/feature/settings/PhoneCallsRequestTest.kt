@@ -48,24 +48,28 @@ class PhoneCallsRequestTest {
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
     private val asked = mutableListOf<Any?>()
 
-    /** Android's prompt, answering [allow]. */
-    private fun owner(allow: Boolean) = object : ActivityResultRegistryOwner {
+    /** Android's prompt, answering [allow], after [whileAsking] (what Android changes as the user answers). */
+    private fun owner(allow: Boolean, whileAsking: () -> Unit = {}) = object : ActivityResultRegistryOwner {
         override val activityResultRegistry = object : ActivityResultRegistry() {
             override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
                 asked += input
+                whileAsking()
                 @Suppress("UNCHECKED_CAST")
                 dispatchResult(requestCode, allow as O)
             }
         }
     }
 
+    private fun androidShowsItsReason(shown: Boolean) =
+        shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.CALL_PHONE, shown)
+
     @Before fun setUp() {
         hilt.inject()
         prefs.edit().clear().commit()
     }
 
-    private fun turnOnDirectCall(allow: Boolean = false) {
-        val registry = owner(allow)
+    private fun turnOnDirectCall(allow: Boolean = false, whileAsking: () -> Unit = {}) {
+        val registry = owner(allow, whileAsking)
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) {
                 CompositionLocalProvider(LocalActivityResultRegistryOwner provides registry) {
@@ -88,6 +92,34 @@ class PhoneCallsRequestTest {
         assertEquals(listOf<Any?>(Manifest.permission.CALL_PHONE), asked)
         // Declined, it stays on: a tap opens the dialer instead.
         assertTrue(prefs[SettingsManager.CONTACT_DIRECT_CALL])
+    }
+
+    @Test
+    fun declinedForGoodItOffersAndroidSettings() {
+        shadowOf(context).denyPermissions(Manifest.permission.CALL_PHONE)
+        // Declined once before; this time the user picks Don't Allow, and Android stops showing its reason.
+        androidShowsItsReason(true)
+        turnOnDirectCall { androidShowsItsReason(false) }
+        compose.onNodeWithText("Allow").performClick()
+        compose.waitForIdle()
+        // "Allow" did nothing visible from then on; now it offers the one place calls can still be allowed.
+        compose.onNodeWithText("Phone Calls Are Off").assertExists()
+        compose.onNodeWithText("Open Settings").performClick()
+        compose.waitForIdle()
+        val opened = shadowOf(context).nextStartedActivity
+        assertEquals(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, opened?.action)
+        assertEquals(context.packageName, opened?.data?.schemeSpecificPart)
+        assertTrue(prefs[SettingsManager.CONTACT_DIRECT_CALL])
+    }
+
+    @Test
+    fun decliningOnceOffersNoSettings() {
+        shadowOf(context).denyPermissions(Manifest.permission.CALL_PHONE)
+        // Android shows its reason after a first decline: it will ask again next time.
+        turnOnDirectCall { androidShowsItsReason(true) }
+        compose.onNodeWithText("Allow").performClick()
+        compose.waitForIdle()
+        compose.onNodeWithText("Phone Calls Are Off").assertDoesNotExist()
     }
 
     @Test

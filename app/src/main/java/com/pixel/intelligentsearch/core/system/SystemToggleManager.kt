@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.core.system
 
 import com.pixel.intelligentsearch.core.data.SettingsManager
-import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.app.UiModeManager
 import android.bluetooth.BluetoothAdapter
@@ -21,7 +20,6 @@ import android.net.NetworkRequest
 import android.net.Uri
 import android.net.wifi.WifiManager
 import android.nfc.NfcAdapter
-import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import android.util.Log
@@ -286,6 +284,8 @@ class SystemToggleManager @Inject constructor(
     /**
      * Whether Bluetooth is on. Reading it needs no permission on Android 12 and later (the app's minimum); only
      * turning it on or off needs Nearby Devices, which the app never asks for, so the card read "off" whenever it was on.
+     * The card's switch opens Bluetooth settings: apps can't turn Bluetooth on or off from Android 13, and on 12 it
+     * would take Nearby Devices, which also lets an app find and connect to devices, to save one tap.
      */
     private fun checkBluetoothEnabled(): Boolean = try {
         bluetoothAdapter?.isEnabled == true
@@ -296,29 +296,6 @@ class SystemToggleManager @Inject constructor(
     }
 
     fun isBluetoothEnabled(): Boolean = _isBluetoothEnabled.value
-
-    @SuppressLint("MissingPermission")
-    fun toggleBluetooth(enabled: Boolean) {
-        try {
-            // Android 13+ (API 33+) disables direct adapter toggle for third-party apps
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                openBluetoothSettings()
-                return
-            }
-            if (context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                openBluetoothSettings()
-                return
-            }
-            @Suppress("DEPRECATION")
-            if (enabled) bluetoothAdapter?.enable() else bluetoothAdapter?.disable()
-        } catch (se: SecurityException) {
-            Log.w(TAG, "Direct bluetooth toggle restricted; opening settings", se)
-            openBluetoothSettings()
-        } catch (e: Exception) {
-            Log.w(TAG, "Direct bluetooth toggle unsupported; opening settings", e)
-            openBluetoothSettings()
-        }
-    }
 
     fun getBluetoothStatusText(enabled: Boolean): String {
         return if (enabled) "Bluetooth is on" else "Bluetooth is off"

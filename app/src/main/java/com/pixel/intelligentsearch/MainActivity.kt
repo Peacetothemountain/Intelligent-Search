@@ -70,8 +70,38 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
         }
     }
 
+    /**
+     * While the overlay waits out of sight behind a speech recognizer or one of Android's permission pages opened over
+     * it in its task, checks now and then that the user is still there. Gone Home or to another app instead of Back,
+     * the waiting overlay would stay behind (a search opened from the launcher's bar came up over it, and Back showed
+     * the old search), so it closes then, and that screen with it.
+     */
+    private val leftWhileWaiting = object : Runnable {
+        override fun run() {
+            if (isFinishing || (!awaitingSpeech && !awayGrantingAccess)) return
+            if (leftForAnotherTask()) finishAndRemoveTask() else waitWatch.postDelayed(this, WAIT_CHECK_MS)
+        }
+    }
+
+    private val waitWatch = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Whether the user has left this overlay's task for another while it waits: the task is out of sight with the
+     * screen it waits for still on top. The screen turning off or locking isn't leaving; the user comes back to it.
+     * Android 12 doesn't say whether a task is in sight, so there the overlay waits as before.
+     */
+    private fun leftForAnotherTask(): Boolean = runCatching {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S_V2) return false
+        if (getSystemService(android.os.PowerManager::class.java)?.isInteractive != true) return false
+        if (getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true) return false
+        val task = getSystemService(android.app.ActivityManager::class.java).appTasks
+            .firstOrNull { it.taskInfo?.taskId == taskId }?.taskInfo ?: return false
+        task.topActivity != componentName && !task.isVisible
+    }.getOrDefault(false)
+
     override fun onStart() {
         super.onStart()
+        waitWatch.removeCallbacks(leftWhileWaiting)
         awayInOwnSettings = false
         awayGrantingAccess = false
         frameMetricsMonitor.attach(this)
@@ -79,6 +109,7 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
     }
 
     override fun onDestroy() {
+        waitWatch.removeCallbacks(leftWhileWaiting)
         try {
             unregisterReceiver(dismissOverlayReceiver)
         } catch (_: Exception) {}
@@ -101,6 +132,9 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
             // The whole task only when this overlay is its top: another overlay entry opened over it in the same task
             // (the singleTask entries share one affinity) must not go with it.
             if (isTopOfTask()) finishAndRemoveTask() else finish()
+        } else if (!isChangingConfigurations && !isFinishing && (awaitingSpeech || awayGrantingAccess)) {
+            waitWatch.removeCallbacks(leftWhileWaiting)
+            waitWatch.postDelayed(leftWhileWaiting, WAIT_CHECK_MS)
         }
     }
 
@@ -452,6 +486,7 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
                 intent.getBooleanExtra("launch_gemini_overlay", false) -> launchGeminiCornerOverlay(this)
             intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS" -> launchLens(translate = false)
             intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS_TRANSLATE" -> launchLens(translate = true)
+            intent.action == com.pixel.intelligentsearch.feature.widget.ACTION_SEARCH_WEB -> searchWebFromWidget(intent)
             // The launcher's "Voice search" shortcut. With no recognizer installed, the overlay opens instead.
             intent.getBooleanExtra("auto_voice", false) -> {
                 val voice = com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent(this)
@@ -486,6 +521,26 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
         val message = if (translate) "To translate with your camera, install Google Lens or the Google app."
         else "To search with your camera, install Google Lens or the Google app."
         android.widget.Toast.makeText(applicationContext, message, android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    /**
+     * Searches the web for a doodle's day, tapped while no other app could when the widget was drawn
+     * ([com.pixel.intelligentsearch.feature.widget.webSearchFromWidgetIntent]): one may have been installed since.
+     * Never in this app, which would only reopen the search with the day; with nothing to search in, a toast says so.
+     */
+    private fun searchWebFromWidget(intent: Intent) {
+        val query = intent.getStringExtra(SearchManager.QUERY)?.take(512)?.takeIf { it.isNotBlank() } ?: return
+        val prefs = SettingsManager.storedPrefs(this)
+        val launch = com.pixel.intelligentsearch.feature.search.webSearchLaunch(
+            this, prefs[SettingsManager.SEARCH_ENGINE], prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL], query
+        )
+        val opened = (launch as? com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open)?.intent
+            ?.let { com.pixel.intelligentsearch.feature.search.launchWebSearch(this, it, query) } == true
+        if (!opened) {
+            android.widget.Toast.makeText(
+                applicationContext, com.pixel.intelligentsearch.feature.search.NO_WEB_SEARCH_APP_MESSAGE, android.widget.Toast.LENGTH_SHORT
+            ).show()
+        }
     }
 
     /**
@@ -548,6 +603,9 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
     private companion object {
         /** Every extra a query can arrive in ([SearchManager.QUERY] is also the plain "query" extra). */
         val QUERY_EXTRAS = listOf(SearchManager.QUERY, Intent.EXTRA_TEXT)
+
+        /** How often a waiting overlay checks the user is still on the screen it waits for ([leftWhileWaiting]). */
+        const val WAIT_CHECK_MS = 1000L
     }
 
     private fun checkAndForwardIfSearchOverlayDisabled(): Boolean {

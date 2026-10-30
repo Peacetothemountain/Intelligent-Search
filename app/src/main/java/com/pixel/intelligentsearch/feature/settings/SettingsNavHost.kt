@@ -76,6 +76,28 @@ internal val SETTINGS_TUTORIAL_STEPS = mapOf(
     )
 )
 
+/**
+ * A page leaving at the end of a back swipe, taken off the back stack by [pop] once its animation ([job]) has played,
+ * or at once by [finishNow] when the next swipe starts first.
+ */
+private class LeavingPage(private val pop: () -> Unit) {
+    var job: kotlinx.coroutines.Job? = null
+    private var left = false
+
+    /** Takes the page off the back stack, however often it is asked. */
+    fun leave() {
+        if (left) return
+        left = true
+        pop()
+    }
+
+    /** The page leaves now, as at the end of its animation, which stops. */
+    fun finishNow() {
+        leave()
+        job?.cancel()
+    }
+}
+
 @Composable
 fun SettingsScreensHub(
     initialRoute: com.pixel.intelligentsearch.core.navigation.Route = com.pixel.intelligentsearch.core.navigation.Route.Main,
@@ -109,6 +131,8 @@ fun SettingsScreensHub(
         val navScope = rememberCoroutineScope()
         // Set while a page leaves at the end of the back animation, which has already moved it: no transition then.
         var instantPop by remember { mutableStateOf(false) }
+        // The page a let-go back swipe is sending away while its animation plays, until it has left.
+        val leavingPage = remember { mutableStateOf<LeavingPage?>(null) }
 
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
             navScope.launch {
@@ -410,11 +434,29 @@ fun SettingsScreensHub(
         // Back between pages, with Android's own animation. Registered after the NavHost's own handler, so it takes
         // the gesture first; with animations removed the NavHost's handler plays its plain transition instead.
         androidx.activity.compose.PredictiveBackHandler(enabled = hasSubScreensInNavHost && animationsOn) { events ->
-            val previous = navController.previousBackStackEntry ?: return@PredictiveBackHandler
+            // A swipe started while the last one's page is still leaving (its animation plays on after the finger
+            // lets go): that page leaves now, as at the end of its animation, so this swipe goes back from the page
+            // under it and two quick swipes go back two pages.
+            leavingPage.value?.let {
+                leavingPage.value = null
+                it.finishNow()
+                nativeBack.end()
+            }
+            val previous = navController.previousBackStackEntry
+            if (previous == null) {
+                // The page that just left was the last sub-page: this swipe leaves Settings, as a swipe on Main does.
+                try {
+                    events.collect { }
+                } finally {
+                    instantPop = false
+                }
+                handleExitBack()
+                return@PredictiveBackHandler
+            }
             val act = context.findActivity()
             com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(act)
+            var started = false
             try {
-                var started = false
                 events.collect { event ->
                     if (!started) {
                         screenCorner = com.pixel.intelligentsearch.core.ui.screenCornerRadius(view)
@@ -424,25 +466,48 @@ fun SettingsScreensHub(
                         nativeBack.track(event)
                     }
                 }
-                if (started) nativeBack.commit()
-                instantPop = started
-                navController.popBackStack()
-                if (started) {
-                    // Keep the picture until the real page has taken its place, then hand over.
-                    snapshotFlow { navController.currentBackStackEntry?.id }.first { it == previous.id }
-                    withFrameNanos { }
-                    withFrameNanos { }
-                    nativeBack.end()
-                }
-                instantPop = false
             } catch (e: kotlinx.coroutines.CancellationException) {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                     if (nativeBack.active) nativeBack.cancel()
                     instantPop = false
+                    com.pixel.intelligentsearch.core.ui.WindowFramePacing.restoreDefaultRefreshRate(act)
                 }
                 throw e
-            } finally {
+            }
+            if (!started) {
+                instantPop = false
+                navController.popBackStack()
                 com.pixel.intelligentsearch.core.ui.WindowFramePacing.restoreDefaultRefreshRate(act)
+                return@PredictiveBackHandler
+            }
+            // Let go: the page leaves in a job of its own, as Android cancels this gesture's job when the next swipe
+            // starts, and cancelled mid-animation the page stayed. The next swipe finishes it instead (above).
+            val closing = navController.currentBackStackEntry
+            val leaving = LeavingPage {
+                // Unless the page has already gone another way meanwhile (the top bar's back arrow).
+                if (navController.currentBackStackEntry == closing) {
+                    instantPop = true
+                    navController.popBackStack()
+                }
+            }
+            leavingPage.value = leaving
+            leaving.job = navScope.launch {
+                try {
+                    nativeBack.commit()
+                    leaving.leave()
+                    // Keep the picture until the real page has taken its place, then hand over.
+                    snapshotFlow { navController.currentBackStackEntry?.id }.first { it != closing?.id }
+                    withFrameNanos { }
+                    withFrameNanos { }
+                    nativeBack.end()
+                    instantPop = false
+                } finally {
+                    // Finished early by the next swipe, that swipe has the pages and the refresh rate now.
+                    if (leavingPage.value === leaving) {
+                        leavingPage.value = null
+                        com.pixel.intelligentsearch.core.ui.WindowFramePacing.restoreDefaultRefreshRate(act)
+                    }
+                }
             }
         }
         }

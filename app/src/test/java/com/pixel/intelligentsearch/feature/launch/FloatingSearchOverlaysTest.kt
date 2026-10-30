@@ -96,6 +96,25 @@ class FloatingSearchOverlaysTest {
         assertEquals("right", stored[SettingsManager.FLOATING_BUTTON_EDGE])
     }
 
+    /**
+     * Out of touch mode (a key press anywhere) Android gives focus to the first view that takes it and draws its focus
+     * highlight, a gray square over the whole window around the round button. Nothing in the window takes focus.
+     */
+    @Test
+    fun nothingInTheButtonsWindowTakesFocusSoNoSquareIsDrawnAroundIt() {
+        ShadowSettings.setCanDrawOverlays(true)
+        prefs.edit().put(SettingsManager.FLOATING_SEARCH_BUTTON, true).commit()
+        FloatingSearchOverlays.sync(context)
+        val view = FloatingSearchOverlays.buttonView!!
+        // A key press, and what Android then does to the window: focus its first view that takes it.
+        androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().setInTouchMode(false)
+        shadowOf(Looper.getMainLooper()).idle()
+        assertFalse(view.isInTouchMode)
+        assertFalse(view.restoreDefaultFocus())
+        assertFalse(view.hasFocus())
+        assertFalse(view.isFocused)
+    }
+
     @Test
     fun hiddenUntilUnlockItHearsAnUnlockSentBySystemUi() {
         ShadowSettings.setCanDrawOverlays(true)

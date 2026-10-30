@@ -105,6 +105,12 @@ internal class FloatingSearchButtonView(context: Context, private val host: Host
         contentDescription = "Search"
         isClickable = true
         isLongClickable = true
+        // The window never takes the keyboard, so nothing in it needs keyboard focus. Clickable, the button could
+        // still take it once the screen left touch mode (a key press anywhere), and Android then drew its focus
+        // highlight, a faint gray square, over the whole window around the circle.
+        isFocusable = false
+        defaultFocusHighlightEnabled = false
+        descendantFocusability = FOCUS_BLOCK_DESCENDANTS
         setOnClickListener {
             PixelHapticEngine.get(context).performPredictiveBackHaptic(this)
             host.open()

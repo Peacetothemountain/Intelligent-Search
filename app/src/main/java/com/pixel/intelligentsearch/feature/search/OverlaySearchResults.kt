@@ -147,12 +147,13 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val inlineShortcutsFirst = isBottomResults && windowHeight >= SHORT_WINDOW_HEIGHT
     // With the rows after the results, results that come in after them would land above the row the list keeps in
     // place, out of view; a list still at its top stays at its top, so the best match shows as it arrives.
-    if (!inlineShortcutsFirst) {
-        val atTop = androidx.compose.runtime.snapshots.Snapshot.withoutReadObservation {
-            searchResultsListState.firstVisibleItemIndex == 0 && searchResultsListState.firstVisibleItemScrollOffset == 0
-        }
-        if (atTop) searchResultsListState.requestScrollToItem(0)
+    // Where the list is is followed outside composition (it changes every frame of a scroll) and only read here.
+    val listPosition = remember { ListTopFlag() }
+    LaunchedEffect(searchResultsListState) {
+        snapshotFlow { searchResultsListState.firstVisibleItemIndex == 0 && searchResultsListState.firstVisibleItemScrollOffset == 0 }
+            .collect { listPosition.atTop = it }
     }
+    if (!inlineShortcutsFirst && listPosition.atTop) searchResultsListState.requestScrollToItem(0)
     // The keyboard's highlight is scrolled into view as it moves.
     val highlightedKey = s.ui.highlightedKey
     val animationsOn by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
@@ -771,6 +772,11 @@ internal fun OverlaySearchResults(s: OverlayScope) {
 
 /** Below this window height (the height Material counts as compact: a phone on its side) a window is short. */
 private val SHORT_WINDOW_HEIGHT = 480.dp
+
+/** Whether the results list was last seen at its very top; a plain field, so reading it recomposes nothing. */
+private class ListTopFlag {
+    var atTop = true
+}
 
 /** The tap-through answer card for [instantAnswer] (a conversion, a word, an address, the date, time or weather). */
 @Composable

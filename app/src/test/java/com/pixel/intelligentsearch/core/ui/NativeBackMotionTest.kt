@@ -61,6 +61,20 @@ class NativeBackMotionTest {
     }
 
     @Test
+    fun anOrdinarySwipeIsLetGoAtAFewProgressPerSecondSoTheReleaseDipsOnlyALittle() {
+        val state = NativeBackState()
+        // Half the way in a quarter of a second, a frame every 16 ms.
+        for (frame in 0..15) {
+            val event = androidx.activity.BackEventCompat(frame * 20f, 900f, frame / 30f, androidx.activity.BackEventCompat.EDGE_LEFT, 1_000L + frame * 16L)
+            if (frame == 0) state.begin(event, underneath = null) else state.track(event)
+        }
+        val speed = state.releaseSpeed()
+        assertTrue("progress per second, not per millisecond: $speed", speed in 0.5f..20f)
+        // Well short of the spring's limit, which every release used to hit.
+        assertTrue(NativeBackMotion.flingVelocity(speed, 0.5f, edgeSwipe = true) > -NativeBackMotion.MAX_FLING_VELOCITY)
+    }
+
+    @Test
     fun theClosingPageIsGoneWithinTheFirstFifthOfTheRelease() {
         assertEquals(1f, NativeBackMotion.postCommitClosingAlpha(0f), 0f)
         assertEquals(0.5f, NativeBackMotion.postCommitClosingAlpha(0.1f), 1e-4f)

@@ -16,6 +16,15 @@ class BrowserHistoryResolverTest {
         BrowserHistoryResolver.resolve(engine, custom, { it in installed }, { browser })
 
     @Test
+    fun theLastAnswerIsRememberedForTheSameSettingsOnly() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val found = BrowserHistoryResolver.forContext(context, "Bing", "")
+        // Settings coming back shows these words at once instead of a placeholder that changes a moment later.
+        assertEquals(found, BrowserHistoryResolver.lastFound("Bing", ""))
+        assertEquals(null, BrowserHistoryResolver.lastFound("Google", ""))
+    }
+
+    @Test
     fun accountEnginesOpenTheirHistoryPages() {
         assertEquals("www.bing.com", (resolve("Bing") as Destination.WebPage).uri.host)
         assertEquals("myactivity.google.com", (resolve("Google") as Destination.WebPage).uri.host)

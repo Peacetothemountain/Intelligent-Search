@@ -160,7 +160,8 @@ fun MainSettingsScreen(
                 val customEngineUrl = prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL]
                 // Resolved off the main thread (it asks PackageManager which browsers are installed and default).
                 val historyDestination by produceState<com.pixel.intelligentsearch.core.search.BrowserHistoryResolver.Destination?>(
-                    initialValue = null, searchEngine, customEngineUrl
+                    initialValue = com.pixel.intelligentsearch.core.search.BrowserHistoryResolver.lastFound(searchEngine, customEngineUrl),
+                    searchEngine, customEngineUrl
                 ) {
                     value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                         com.pixel.intelligentsearch.core.search.BrowserHistoryResolver.forContext(context, searchEngine, customEngineUrl)

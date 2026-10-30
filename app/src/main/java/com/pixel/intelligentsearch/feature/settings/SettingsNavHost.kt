@@ -495,9 +495,13 @@ fun SettingsScreensHub(
                 try {
                     nativeBack.commit()
                     leaving.leave()
-                    // Keep the picture until the real page has taken its place, then hand over.
+                    // Keep the picture until the real page has taken its place and the page that left is gone, then
+                    // hand over. The page that left is still drawn, whole, until its (empty) exit transition is done:
+                    // handing over before that flashed it over the page underneath for a frame.
                     snapshotFlow { navController.currentBackStackEntry?.id }.first { it != closing?.id }
-                    withFrameNanos { }
+                    kotlinx.coroutines.withTimeoutOrNull(1_000L) {
+                        closing?.lifecycle?.currentStateFlow?.first { it == androidx.lifecycle.Lifecycle.State.DESTROYED }
+                    }
                     withFrameNanos { }
                     nativeBack.end()
                     instantPop = false

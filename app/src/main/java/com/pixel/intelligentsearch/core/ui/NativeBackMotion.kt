@@ -195,14 +195,20 @@ internal class NativeBackState {
         velocity.addDataPoint(time, progress)
     }
 
+    /**
+     * How fast the eased progress was moving as the finger let go, in progress per second (the velocity tracker already
+     * counts per second). It sizes the release spring's dip: an extra factor of a thousand once made every release dip
+     * as far as the spring allows, shrinking the page underneath to about two thirds before it jumped to full size.
+     */
+    internal fun releaseSpeed(): Float = runCatching { velocity.calculateVelocity() }.getOrDefault(0f)
+
     /** Plays the post-commit animation to its end; the caller then shows the page underneath and calls [end]. */
     suspend fun commit() {
         val w = size.width.toFloat()
         val h = size.height.toFloat()
         commitClosing = closingDuringGesture(w, h)
         commitEntering = enteringDuringGesture(w, h)
-        val speed = runCatching { velocity.calculateVelocity() * 1000f }.getOrDefault(0f)
-        val flingStart = NativeBackMotion.flingVelocity(speed, progress, edgeSwipe)
+        val flingStart = NativeBackMotion.flingVelocity(releaseSpeed(), progress, edgeSwipe)
         postCommit.snapTo(0f)
         fling.snapTo(NativeBackMotion.SPRING_SCALE)
         committing = true

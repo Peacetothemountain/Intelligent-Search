@@ -9,6 +9,7 @@ import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.ActivityResultRegistryOwner
 import androidx.activity.result.contract.ActivityResultContract
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -83,15 +84,24 @@ class GrantedInSettingsTest {
         FloatingSearchOverlays.sync(context)
     }
 
+    /**
+     * Whether Android's prompt pauses the page and resumes it around its answer, as on a phone: the prompt is a screen
+     * of its own over the page, the answer comes as the page resumes, and the resume follows it even when the answer
+     * has just opened App info, which only covers the page after that.
+     */
+    private var inAndroidsOrder = false
+
     /** Android's prompt: "Don't allow" a second time, after which Android won't ask again. */
     private val declinedForGood = object : ActivityResultRegistryOwner {
         override val activityResultRegistry = object : ActivityResultRegistry() {
             override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
                 val permissions = if (input is Array<*>) input.map { it as String } else listOf(input as String)
+                if (inAndroidsOrder) page.registry.currentState = Lifecycle.State.STARTED
                 permissions.forEach { shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(it, false) }
                 @Suppress("UNCHECKED_CAST")
                 val result: Any = if (input is Array<*>) permissions.associateWith { false } else false
                 dispatchResult(requestCode, result as O)
+                if (inAndroidsOrder) page.registry.currentState = Lifecycle.State.RESUMED
             }
         }
     }
@@ -129,6 +139,14 @@ class GrantedInSettingsTest {
         page.registry.currentState = Lifecycle.State.RESUMED
         compose.waitForIdle()
         return opened
+    }
+
+    /** App info, already open over the page: allowing [permission] there or not, and Back. */
+    private fun onAppInfo(permission: String, allow: Boolean) {
+        page.registry.currentState = Lifecycle.State.CREATED
+        if (allow) shadowOf(context).grantPermissions(permission)
+        page.registry.currentState = Lifecycle.State.RESUMED
+        compose.waitForIdle()
     }
 
     @Test
@@ -206,6 +224,95 @@ class GrantedInSettingsTest {
         assertEquals(Settings.ACTION_APP_NOTIFICATION_SETTINGS, opened?.action)
         assertEquals("opened over Launch Portal, so Back comes back to it", 0, opened!!.flags and Intent.FLAG_ACTIVITY_NEW_TASK)
         assertTrue(NotificationShortcut.canPost(context))
+        assertTrue("the shortcut the user turned on is on", prefs[SettingsManager.NOTIFICATION_SHORTCUT])
+    }
+
+    // The same trips in Android's order ([inAndroidsOrder]). Finish Setting Up opens App info from the prompt's answer,
+    // so the page resumes once before App info covers it; that resume, with contacts still off, ended the wait.
+
+    @Test
+    fun contactsAllowedOnAppInfoFinishThatSetupStepInAndroidsOrder() {
+        inAndroidsOrder = true
+        declinedBefore(Manifest.permission.READ_CONTACTS)
+        show { SetupChecklistScreen(prefs, {}, {}) }
+        shadowOf(context).clearNextStartedActivities()
+        tap("Contacts")
+        assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, shadowOf(context).nextStartedActivity?.action)
+
+        onAppInfo(Manifest.permission.READ_CONTACTS, allow = true)
+        assertTrue("contact search is on", prefs[SettingsManager.SEARCH_CONTACTS])
+    }
+
+    @Test
+    fun setupContactsAllowedLaterWithoutTheTripStayOffInAndroidsOrder() {
+        inAndroidsOrder = true
+        declinedBefore(Manifest.permission.READ_CONTACTS)
+        show { SetupChecklistScreen(prefs, {}, {}) }
+        tap("Contacts")
+        onAppInfo(Manifest.permission.READ_CONTACTS, allow = false)
+        assertFalse(prefs[SettingsManager.SEARCH_CONTACTS])
+
+        // Allowed some other time, without the user asking here: contact search is theirs to turn on.
+        onAppInfo(Manifest.permission.READ_CONTACTS, allow = true)
+        assertFalse(prefs[SettingsManager.SEARCH_CONTACTS])
+    }
+
+    @Test
+    fun contactsAllowedOnAppInfoTurnTheSearchSourcesSwitchOnInAndroidsOrder() {
+        inAndroidsOrder = true
+        declinedBefore(Manifest.permission.READ_CONTACTS)
+        show { SearchSourcesScreen({}, {}) }
+        compose.onNode(isToggleable() and hasContentDescription("Contacts")).performClick()
+        compose.waitForIdle()
+        tap("Allow")
+        assertFalse(prefs[SettingsManager.SEARCH_CONTACTS])
+
+        openSettingsAndComeBack(Manifest.permission.READ_CONTACTS, allow = true)
+        assertTrue("the switch the user turned on is on", prefs[SettingsManager.SEARCH_CONTACTS])
+    }
+
+    @Test
+    fun contactsAllowedOnAppInfoTurnAtAGlanceBirthdaysOnInAndroidsOrder() {
+        inAndroidsOrder = true
+        declinedBefore(Manifest.permission.READ_CONTACTS)
+        show { Column { AtAGlanceSettingsCard() } }
+        compose.onNode(isToggleable() and hasText("Birthdays")).performClick()
+        compose.waitForIdle()
+        tap("Allow")
+        assertFalse(prefs[SettingsManager.GLANCE_BIRTHDAYS])
+
+        openSettingsAndComeBack(Manifest.permission.READ_CONTACTS, allow = true)
+        assertTrue("the birthdays the user turned on show", prefs[SettingsManager.GLANCE_BIRTHDAYS])
+        assertTrue("with the contact search they need", prefs[SettingsManager.SEARCH_CONTACTS])
+    }
+
+    @Test
+    fun locationAllowedOnAppInfoLooksTheWeatherUpAgainInAndroidsOrder() {
+        inAndroidsOrder = true
+        declinedBefore(Manifest.permission.ACCESS_COARSE_LOCATION)
+        var lookedUp = 0
+        show {
+            val location = rememberApproximateLocationRequest { lookedUp++ }
+            TextButton(onClick = location::request) { Text("Use Approximate Location") }
+        }
+        tap("Use Approximate Location")
+        tap("Allow")
+        assertEquals(0, lookedUp)
+
+        openSettingsAndComeBack(Manifest.permission.ACCESS_COARSE_LOCATION, allow = true)
+        assertEquals("the weather card asks for the forecast again", 1, lookedUp)
+    }
+
+    @Test
+    fun notificationsAllowedInSettingsTurnTheNotificationShortcutOnInAndroidsOrder() {
+        inAndroidsOrder = true
+        declinedBefore(Manifest.permission.POST_NOTIFICATIONS)
+        show { LaunchPortalScreen(prefs) {} }
+        compose.onNode(isToggleable() and hasText("Notification Shortcut")).performScrollTo().performClick()
+        compose.waitForIdle()
+        tap("Allow")
+
+        openSettingsAndComeBack(Manifest.permission.POST_NOTIFICATIONS, allow = true)
         assertTrue("the shortcut the user turned on is on", prefs[SettingsManager.NOTIFICATION_SHORTCUT])
     }
 }

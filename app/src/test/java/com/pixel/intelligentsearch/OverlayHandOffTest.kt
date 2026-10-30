@@ -222,6 +222,57 @@ class OverlayHandOffTest {
         assertTrue(activity.isFinishing)
     }
 
+    /**
+     * Voice search from the launcher's shortcut with Search Overlay off, the app closed to free memory while the
+     * recognizer listens, then answered with [answer] and [said]. Recreated, the search didn't know it was waiting: it
+     * handed an empty search to the Google app and closed, so the words came back to nothing.
+     */
+    private fun voiceRecreatedWhileListeningWithTheOverlayOff(answer: Int, said: String?): Activity {
+        context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(SettingsManager.SEARCH_OVERLAY_ENABLED.name, false).commit()
+        install("org.example.speech", IntentFilter(RecognizerIntent.ACTION_RECOGNIZE_SPEECH))
+        install(GoogleApps.GOOGLE_APP, IntentFilter("android.search.action.GLOBAL_SEARCH"))
+        val shortcut = Intent(context, WidgetActivity::class.java).putExtra("auto_voice", true)
+        val first = Robolectric.buildActivity(WidgetActivity::class.java, shortcut).setup()
+        val started = shadowOf(first.get()).nextStartedActivityForResult
+        assertNotNull("the recognizer is started for its words", started)
+        val saved = android.os.Bundle()
+        first.pause().stop().saveInstanceState(saved).destroy()
+        val app = ApplicationProvider.getApplicationContext<android.app.Application>()
+        shadowOf(app).clearNextStartedActivities()
+
+        // Back from the recognizer, Android recreates the search and hands it the answer before it resumes.
+        val again = Robolectric.buildActivity(WidgetActivity::class.java, shortcut).create(saved).start()
+            .restoreInstanceState(saved).postCreate(saved)
+        assertNull("nothing is handed on while the recognizer listens", shadowOf(app).nextStartedActivity)
+        assertFalse("the search waits for the words", again.get().isFinishing)
+        again.get().activityResultRegistry.dispatchResult(
+            started.requestCode, answer,
+            said?.let { Intent().putStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS, arrayListOf(it)) }
+        )
+        again.resume()
+        return again.get()
+    }
+
+    @Test
+    fun withTheOverlayOffWordsSaidAsTheAppWasClosedStillGoToAndroidsSearch() {
+        val activity = voiceRecreatedWhileListeningWithTheOverlayOff(Activity.RESULT_OK, "weather in paris")
+
+        val searched = shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity
+        assertEquals("android.search.action.GLOBAL_SEARCH", searched?.action)
+        assertEquals("weather in paris", searched.getStringExtra(android.app.SearchManager.QUERY))
+        assertNull("handed on once", shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity)
+        assertTrue(activity.isFinishing)
+    }
+
+    @Test
+    fun withTheOverlayOffNothingSaidAsTheAppWasClosedJustCloses() {
+        val activity = voiceRecreatedWhileListeningWithTheOverlayOff(Activity.RESULT_CANCELED, null)
+
+        assertNull(shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).nextStartedActivity)
+        assertTrue(activity.isFinishing)
+    }
+
     @Test
     fun anAppRowFromAndroidsSearchOpensTheApp() {
         val notes = install("org.example.notes", IntentFilter(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) })

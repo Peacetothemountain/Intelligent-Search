@@ -68,17 +68,27 @@ internal fun interface SettingsGrant {
  * this screen comes back into view with [permission] allowed there, [onGranted] runs, so what they were turning on
  * (a switch, the weather where they are) turns on without another tap. Only a return from the page [SettingsGrant.open]
  * opened counts, and only once; a screen recreated meanwhile still hears it.
+ *
+ * A return is the screen coming back after it was left. Opened from Android's answer to its own prompt (Finish
+ * Setting Up, the search's microphone), App info starts while the screen is still behind that prompt, and Android
+ * brings the screen back once before App info covers it, with the permission still off. Counted, that ended the wait,
+ * so allowing it on App info then turned nothing on.
  */
 @Composable
 internal fun rememberSettingsGrant(permission: String, onGranted: () -> Unit): SettingsGrant {
     val context = LocalContext.current
     val currentOnGranted by rememberUpdatedState(onGranted)
     var awaitingGrant by rememberSaveable(permission) { mutableStateOf(false) }
+    // Whether the screen has been left since App info was opened, so only coming back from it answers.
+    var leftForGrant by rememberSaveable(permission) { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, permission) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && awaitingGrant) {
+            if (!awaitingGrant) return@LifecycleEventObserver
+            if (event == Lifecycle.Event.ON_PAUSE) leftForGrant = true
+            if (event == Lifecycle.Event.ON_RESUME && leftForGrant) {
                 awaitingGrant = false
+                leftForGrant = false
                 if (context.checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
                     forgetDecline(context, permission)
                     currentOnGranted()
@@ -91,6 +101,7 @@ internal fun rememberSettingsGrant(permission: String, onGranted: () -> Unit): S
     return remember(context, permission) {
         SettingsGrant {
             awaitingGrant = true
+            leftForGrant = false
             if (!openSettingsPageToGrant(context, appDetailsSettings(context.packageName))) awaitingGrant = false
         }
     }

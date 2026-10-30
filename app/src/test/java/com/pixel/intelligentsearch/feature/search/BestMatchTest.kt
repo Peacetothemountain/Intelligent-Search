@@ -70,6 +70,17 @@ class BestMatchTest {
     }
 
     @Test
+    fun accentsAndExtraSpacesDoNotStopAMatch() {
+        val d = domains(listOf("Café Finder", "Google Maps", "Keep Notes"), emptyList(), emptyList())
+        assertEquals(Item("app", "Café Finder"), BestMatch.find("cafe", d))
+        assertEquals(Item("app", "Café Finder"), BestMatch.find("CAFÉ fin", d))
+        assertEquals(Item("app", "Google Maps"), BestMatch.find("google  maps", d))
+        assertEquals(Item("app", "Keep Notes"), BestMatch.find("keep\tnotes", d))
+        // Punctuation still counts: "c++" is not a name starting with "c".
+        assertNull(BestMatch.find("c++", domains(listOf("Calculator"), emptyList(), emptyList())))
+    }
+
+    @Test
     fun disabledDomainsAreSkipped() {
         val d = domains(listOf("Maps"), listOf("Maps"), emptyList(), enabled = Triple(false, true, true))
         assertEquals(Item("contact", "Maps"), BestMatch.find("maps", d))

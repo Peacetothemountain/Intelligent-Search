@@ -79,6 +79,24 @@ class AndroidSettingsSearchTest {
     }
 
     @Test
+    fun everydayPhrasingsOfASettingFindItsPage() {
+        val search = everyPageResolves()
+        val expected = mapOf(
+            "blue light filter" to "Night Light", "turn on bluetooth" to "Bluetooth", "screen timeout" to "Display",
+            "dark mode" to "Display", "power saving mode" to "Battery Saver", "wifi password" to "Wi-Fi",
+            "app permissions" to "Privacy", "turn off wifi" to "Wi-Fi", "enable dark mode" to "Display",
+            "bluetooth on" to "Bluetooth", "night light off" to "Night Light", "switch on airplane mode" to "Airplane Mode"
+        )
+        for ((query, title) in expected) {
+            assertEquals("first result for \"$query\"", title, titles(search, query).firstOrNull())
+        }
+        // Naming the setting outright, they are strong matches, lifted like "bluetooth" is.
+        assertTrue(search.search("turn on bluetooth").first().isStrongMatch)
+        // The switch words alone name no page.
+        assertEquals(emptyList<String>(), titles(search, "turn on"))
+    }
+
+    @Test
     fun typosStillFindThePage() {
         val search = everyPageResolves()
         assertEquals("Battery", titles(search, "batery").first())

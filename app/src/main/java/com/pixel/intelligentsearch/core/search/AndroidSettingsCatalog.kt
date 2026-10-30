@@ -41,7 +41,7 @@ object AndroidSettingsCatalog {
     val pages: List<Page> = buildList {
         // Network & connections
         add(page("wifi", "Wi-Fi", Settings.ACTION_WIFI_SETTINGS, "wifi",
-            "wifi", "wi fi", "wireless", "wlan", "networks", "wifi networks"))
+            "wifi", "wi fi", "wireless", "wlan", "networks", "wifi networks", "wifi password", "wi fi password"))
         add(page("network", "Network & Internet", Settings.ACTION_WIRELESS_SETTINGS, "network",
             "network", "internet", "hotspot", "tethering", "wifi hotspot", "portable hotspot", "mobile hotspot", "hot spot",
             "data saver", "private dns"))
@@ -64,16 +64,18 @@ object AndroidSettingsCatalog {
         add(page("battery", "Battery", Intent.ACTION_POWER_USAGE_SUMMARY, "battery",
             "battery", "battery usage", "battery percentage", "battery health", "power", "charging"))
         add(page("battery_saver", "Battery Saver", Settings.ACTION_BATTERY_SAVER_SETTINGS, "battery_saver",
-            "battery saver", "power saver", "low power mode", "extreme battery saver"))
+            "battery saver", "power saver", "low power mode", "extreme battery saver", "power saving mode", "power saving",
+            "battery saving mode", "battery saver mode"))
         add(page("battery_optimization", "Battery Optimization", Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS, "battery",
             "battery optimization", "battery optimisation", "background usage", "unrestricted battery"))
 
         // Display & sound
         add(page("display", "Display", Settings.ACTION_DISPLAY_SETTINGS, "display",
             "display", "screen", "brightness", "screen brightness", "adaptive brightness", "dark mode", "dark theme", "light mode",
-            "screen timeout", "font size", "text size", "display size", "refresh rate", "smooth display"))
+            "screen timeout", "screen time out", "screen off time", "font size", "text size", "display size", "refresh rate",
+            "smooth display"))
         add(page("night_light", "Night Light", Settings.ACTION_NIGHT_DISPLAY_SETTINGS, "night_light",
-            "night light", "blue light", "eye comfort", "night mode", "warm screen"))
+            "night light", "blue light", "blue light filter", "eye comfort", "night mode", "night shift", "warm screen"))
         add(page("auto_rotate", "Auto-Rotate Screen", Settings.ACTION_AUTO_ROTATE_SETTINGS, "auto_rotate",
             "auto rotate", "autorotate", "rotation", "screen rotation", "rotate"))
         add(page("wallpaper", "Wallpaper & Style", Intent.ACTION_SET_WALLPAPER, "wallpaper",
@@ -116,7 +118,7 @@ object AndroidSettingsCatalog {
         add(page("location", "Location", Settings.ACTION_LOCATION_SOURCE_SETTINGS, "location",
             "location", "gps", "location services", "location access"))
         add(page("privacy", "Privacy", Settings.ACTION_PRIVACY_SETTINGS, "privacy",
-            "privacy", "permissions", "permission manager", "microphone access", "privacy dashboard"))
+            "privacy", "permissions", "permission manager", "app permissions", "microphone access", "privacy dashboard"))
         add(page("security", "Security", Settings.ACTION_SECURITY_SETTINGS, "security",
             "security", "screen lock", "lock screen", "pin", "password", "pattern", "fingerprint", "face unlock",
             "biometrics", "find my device"))

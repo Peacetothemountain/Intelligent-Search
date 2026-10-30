@@ -16,8 +16,11 @@ sealed interface LiveAnswerQuery {
      */
     data class Define(val word: String, val explicit: Boolean) : LiveAnswerQuery
 
-    /** The forecast for [day] in [place], or at the user's home location when [place] is null. */
-    data class Weather(val place: String?, val day: ForecastDay) : LiveAnswerQuery
+    /**
+     * The forecast for [day] in [place], or at the user's home location when [place] is null, in the [unit] the query
+     * named ("weather in celsius"); null uses the scale of the phone's region.
+     */
+    data class Weather(val place: String?, val day: ForecastDay, val unit: TemperatureUnit? = null) : LiveAnswerQuery
 
     /**
      * Translate [text] into [targetLanguage], one of [TranslationLanguages.CODES] (null: the phone's language), from
@@ -81,7 +84,34 @@ object LiveAnswerParser {
     private val TRANSLATE_TO = Regex("^translate (.+?) (?:to|into|in) ([\\p{L} ]+)$")
     private val TRANSLATE_ONLY = Regex("^translate (.+)$")
     private val HOW_DO_YOU_SAY = Regex("^how (?:do|would|can) (?:you|i) say (.+?) in ([\\p{L} ]+)$")
-    private val WHAT_IS_IN = Regex("^(?:what(?:'s| is) )?(.+?) in ([\\p{L} ]+)$")
+    private val MEANING_IN = Regex("^(.+?) (?:meaning|translation) in ([\\p{L} ]+)$")
+    private val WHAT_IS_IN = Regex("^what(?:'s| is) (.+?) in ([\\p{L} ]+)$")
+    private val BARE_IN = Regex("^(.+?) in ([\\p{L} ]+)$")
+
+    /**
+     * Words that make "X in <language>" a search for things in that language ("songs in spanish", "learn python in
+     * english", "news in hindi") rather than words to translate.
+     */
+    private val NOT_TRANSLATABLE = setOf(
+        "song", "songs", "music", "lyrics", "movie", "movies", "film", "films", "show", "shows", "series", "tv", "news",
+        "video", "videos", "book", "books", "novel", "novels", "story", "stories", "poem", "poems", "podcast",
+        "podcasts", "radio", "channel", "channels", "cartoon", "cartoons", "anime", "episode", "episodes", "dubbed",
+        "subtitles", "learn", "learning", "course", "courses", "class", "classes", "lesson", "lessons", "tutorial",
+        "tutorials", "typing", "keyboard", "app", "apps", "game", "games", "jobs", "website", "websites"
+    )
+
+    /**
+     * Words that mark a phrase someone wants said in another language: people, questions, greetings and courtesies
+     * ("thank you", "where is the station", "good morning"). A run of other words is more often a name or a title
+     * ("harry potter in hindi"), so the bare "X in <language>" form needs one of these when X is longer than a word.
+     */
+    private val PHRASE_WORDS = setOf(
+        "i", "i'm", "me", "my", "you", "your", "he", "she", "it", "it's", "we", "they", "him", "her", "us", "them",
+        "our", "their", "this", "that", "is", "are", "am", "was", "were", "be", "do", "does", "did", "don't", "can",
+        "could", "would", "will", "have", "has", "not", "what", "what's", "where", "where's", "when", "why", "who",
+        "how", "which", "let's", "please", "thank", "thanks", "sorry", "excuse", "hello", "hi", "goodbye", "bye",
+        "good", "happy", "merry", "welcome", "love", "cheers", "congratulations", "yes", "no"
+    )
 
     /** Longest text a query offers to translate; anything longer is better pasted into a translator. */
     const val MAX_TRANSLATE_CHARS = 500
@@ -90,8 +120,34 @@ object LiveAnswerParser {
     // WEATHER
     // ---------------------------------------------------------------------------------------------
 
-    private val DAY_WORD = "(today|tonight|tomorrow|now|right now)"
-    private val WEATHER_LEAD = Regex("^(?:what(?:'s| is) the |how(?:'s| is) the |the )")
+    /** When a forecast is for: the day, with the part of it people add ("tomorrow morning", "this evening"). */
+    private val DAY_WORD = "((?:today|tomorrow)(?: (?:morning|afternoon|evening|night))?|tonight|now|right now|" +
+        "this (?:morning|afternoon|evening)|later(?: today)?)"
+    private val WEATHER_LEAD = Regex("^(?:what(?:'s| is|s) the |how(?:'s| is|s) the |the )")
+    private val WEATHER_WORD = Regex("\\b(?:weather|forecast)\\b")
+
+    /**
+     * Words that mean where the user is, not a place to look up: "near me", "here", "outside", "in my area", "at my
+     * location", "nearby". Geocoding them finds villages called "Me" and suburbs called "Outside".
+     */
+    private val WEATHER_HERE = Regex(
+        "\\b(?:(?:near|around|at|in|for|close to) (?:me|here|my (?:current )?(?:area|location))|(?:my )?current location|" +
+            "my (?:area|location)|right here|here|outside|nearby|near by|close by|where i am)\\b"
+    )
+
+    /** A scale the query asks the temperatures in. */
+    private val WEATHER_UNIT = Regex("\\b(?:in )?(celsius|centigrade|fahrenheit)\\b")
+
+    /**
+     * A stretch of days ("10 day forecast", "this weekend", "next 7 days"): more than the card's one day shows, so
+     * those stay searches, as "weather 10 day" always has, rather than being read as a place.
+     */
+    private val WEATHER_SPAN = Regex(
+        "\\b(?:(?:\\d+|three|five|seven|ten|fourteen)[ -]?days?|next (?:few |couple of )?days|weeks?|weekends?|weekly)\\b"
+    )
+
+    /** "for" or "on" before the day ("weather for tomorrow"), which would otherwise read as a place called "tomorrow". */
+    private val WEATHER_FOR_DAY = Regex("\\b(?:for|on) (?=$DAY_WORD$)")
     private val WEATHER_LIKE = Regex("\\bweather like\\b")
     private val WEATHER_ALONE = Regex("^(?:weather|forecast|weather forecast)(?: $DAY_WORD)?$")
     private val WEATHER_OWNED = Regex("^(today'?s|todays|tonight'?s|tomorrow'?s|tomorrows|current|local|my) (?:weather|forecast|weather forecast)$")
@@ -169,11 +225,28 @@ object LiveAnswerParser {
             val target = TranslationLanguages.codeFor(match.groupValues[2])
             if (target != null) return translation(original, match.groups[1]!!.range, target, null)
         }
-        WHAT_IS_IN.matchEntire(sentence)?.let { match ->
+        (MEANING_IN.matchEntire(sentence) ?: WHAT_IS_IN.matchEntire(sentence))?.let { match ->
             val target = TranslationLanguages.codeFor(match.groupValues[2])
             if (target != null) return translation(original, match.groups[1]!!.range, target, null)
         }
+        BARE_IN.matchEntire(sentence)?.let { match ->
+            val target = TranslationLanguages.codeFor(match.groupValues[2])
+            if (target != null && readsAsPhrase(match.groupValues[1])) {
+                return translation(original, match.groups[1]!!.range, target, null)
+            }
+        }
         return null
+    }
+
+    /**
+     * Whether [text], from a bare "X in <language>" with nothing else asking for a translation, reads as words to
+     * translate: a single word ("hola in english") or a phrase with a person, question or courtesy in it, and never a
+     * search for songs, films or lessons in that language.
+     */
+    private fun readsAsPhrase(text: String): Boolean {
+        val words = text.trim().trim(*QUOTES).split(' ').map { it.trim(*QUOTES, ',', '.', '!', '?') }
+        if (words.any { it in NOT_TRANSLATABLE }) return false
+        return words.size == 1 || words.any { it in PHRASE_WORDS }
     }
 
     /**
@@ -200,28 +273,36 @@ object LiveAnswerParser {
     // ---------------------------------------------------------------------------------------------
 
     private fun parseWeather(sentence: String): LiveAnswerQuery.Weather? {
-        val q = sentence.replace(WEATHER_LEAD, "").replace(WEATHER_LIKE, "weather")
-        WEATHER_ALONE.matchEntire(q)?.let { return LiveAnswerQuery.Weather(null, dayOf(it.groupValues[1])) }
+        val asked = sentence.replace(WEATHER_LEAD, "").replace(WEATHER_LIKE, "weather")
+        if (!WEATHER_WORD.containsMatchIn(asked) || WEATHER_SPAN.containsMatchIn(asked)) return null
+        val unit = WEATHER_UNIT.find(asked)?.let {
+            if (it.groupValues[1] == "fahrenheit") TemperatureUnit.FAHRENHEIT else TemperatureUnit.CELSIUS
+        }
+        // What's left once the scale and "near me" are out is the plain question: "weather near me tomorrow" is
+        // "weather tomorrow", here.
+        val q = asked.replace(WEATHER_UNIT, " ").replace(WEATHER_HERE, " ").replace(WHITESPACE, " ").trim()
+            .replace(WEATHER_FOR_DAY, "")
+        WEATHER_ALONE.matchEntire(q)?.let { return LiveAnswerQuery.Weather(null, dayOf(it.groupValues[1]), unit) }
         WEATHER_OWNED.matchEntire(q)?.let { match ->
-            val owner = match.groupValues[1]
-            return LiveAnswerQuery.Weather(null, if (owner.startsWith("tomorrow")) ForecastDay.TOMORROW else ForecastDay.TODAY)
+            return LiveAnswerQuery.Weather(null, dayOf(match.groupValues[1]), unit)
         }
         WEATHER_DAY_IN.matchEntire(q)?.let { match ->
-            return place(match.groupValues[2])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[1])) }
+            return place(match.groupValues[2])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[1]), unit) }
         }
         WEATHER_IN.matchEntire(q)?.let { match ->
-            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2])) }
+            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2]), unit) }
         }
         WEATHER_PLACE_FIRST.matchEntire(q)?.let { match ->
-            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2])) }
+            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2]), unit) }
         }
         WEATHER_BARE_PLACE.matchEntire(q)?.let { match ->
-            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, ForecastDay.TODAY) }
+            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, ForecastDay.TODAY, unit) }
         }
         return null
     }
 
-    private fun dayOf(word: String): ForecastDay = if (word == "tomorrow") ForecastDay.TOMORROW else ForecastDay.TODAY
+    /** "tomorrow", "tomorrow morning", "tomorrow's": tomorrow; every other day word is today. */
+    private fun dayOf(word: String): ForecastDay = if (word.startsWith("tomorrow")) ForecastDay.TOMORROW else ForecastDay.TODAY
 
     private fun place(raw: String): String? {
         val place = raw.trim().trim(',', '.').trim()

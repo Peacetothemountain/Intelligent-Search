@@ -156,19 +156,28 @@ class AiAnswers internal constructor(
 
     companion object {
         /**
-         * The question in [query], or null when it isn't one: it ends with "?" ("how tall is everest?") or starts with
-         * "ask " ("ask why the sky is blue", sent without the "ask"). A bare "?" or "ask" asks nothing.
+         * The question in [query], or null when it isn't one: it ends with a question mark ("how tall is everest?",
+         * "你好吗？") or starts with "ask " ("ask why the sky is blue", sent without the "ask"). A bare "?" or "ask"
+         * asks nothing.
          */
         fun questionIn(query: String): String? {
             val trimmed = query.trim()
             val lower = trimmed.lowercase(Locale.ROOT)
             val question = when {
                 lower.startsWith("ask ") -> trimmed.substring(4).trim()
-                trimmed.endsWith("?") -> trimmed
+                trimmed.lastOrNull()?.let { it in QUESTION_MARKS } == true -> trimmed
                 else -> return null
             }
-            return question.takeIf { q -> q.trimEnd('?').count { it.isLetterOrDigit() } >= 2 && q.length <= MAX_QUESTION_LENGTH }
+            return question.takeIf { q ->
+                q.trimEnd(*QUESTION_MARKS).count { it.isLetterOrDigit() } >= 2 && q.length <= MAX_QUESTION_LENGTH
+            }
         }
+
+        /**
+         * The marks languages end a question with: ASCII's, the full-width one Chinese and Japanese keyboards type,
+         * Arabic's, Armenian's, Ethiopic's, the small form and the interrobang.
+         */
+        private val QUESTION_MARKS = charArrayOf('?', '？', '؟', '՞', '፧', '﹖', '‽')
 
         const val MAX_QUESTION_LENGTH = 500
 

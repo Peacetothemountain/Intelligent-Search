@@ -89,6 +89,43 @@ class LiveAnswerParserTest {
     }
 
     @Test
+    fun weatherNearMeAndItsLikesAreTheForecastForHereNotAPlace() {
+        for (query in listOf(
+            "weather near me", "weather here", "weather outside", "weather around me", "weather in my area",
+            "weather at my location", "weather nearby", "nearby weather", "what's the weather like outside",
+            "weather around here", "whats the weather near me", "weather close to me", "weather at my current location"
+        )) {
+            assertEquals(query, Weather(null, ForecastDay.TODAY), parse(query))
+        }
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather near me tomorrow"))
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather tomorrow near me"))
+        assertEquals(Weather("london", ForecastDay.TODAY), parse("weather here in london"))
+    }
+
+    @Test
+    fun weatherDayPartsAndScalesAreNotPlaces() {
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather tomorrow morning"))
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather for tomorrow"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather this evening"))
+        assertEquals(Weather("paris", ForecastDay.TOMORROW), parse("weather in paris tomorrow night"))
+        assertEquals(Weather(null, ForecastDay.TODAY, TemperatureUnit.CELSIUS), parse("weather in celsius"))
+        assertEquals(Weather(null, ForecastDay.TODAY, TemperatureUnit.CELSIUS), parse("weather celsius"))
+        assertEquals(Weather(null, ForecastDay.TODAY, TemperatureUnit.FAHRENHEIT), parse("weather in fahrenheit"))
+        assertEquals(Weather("paris", ForecastDay.TODAY, TemperatureUnit.CELSIUS), parse("weather in paris in celsius"))
+    }
+
+    @Test
+    fun weatherOverManyDaysStaysASearchRatherThanAPlace() {
+        // The card shows one day, so a stretch of days is left to the web search, as "weather 10 day" is.
+        for (query in listOf(
+            "weather 10 day forecast", "weather the weekend", "weather for the weekend", "weather next 7 days",
+            "weather this week", "weather in paris this weekend", "10 day weather forecast"
+        )) {
+            assertNull(query, parse(query))
+        }
+    }
+
+    @Test
     fun weatherThingsThatAreNotPlacesStaySearches() {
         for (query in listOf(
             "weather radar", "weather channel", "the weather channel", "weather app", "weather underground",
@@ -137,6 +174,22 @@ class LiveAnswerParserTest {
         assertNull(parse("translate"))
         assertNull(parse("translate english"))
         assertNull(parse("translate hello to klingon").let { it as? Translate }?.targetLanguage)
+    }
+
+    @Test
+    fun searchesForThingsInALanguageAreNotTranslations() {
+        for (query in listOf(
+            "harry potter in hindi", "songs in spanish", "movies in tamil", "learn python in english",
+            "news in hindi", "best places to eat in italian", "cartoons in french"
+        )) {
+            assertNull(query, parse(query))
+        }
+        // Asking for a translation in so many words still translates them.
+        assertEquals(Translate("harry potter", "hi", null), parse("translate harry potter to hindi"))
+        assertEquals(Translate("songs", "es", null), parse("what is songs in spanish"))
+        assertEquals(Translate("love", "hi", null), parse("love meaning in hindi"))
+        assertEquals(Translate("good morning", "es", null), parse("good morning in spanish"))
+        assertEquals(Translate("i love you", "ko", null), parse("i love you in korean"))
     }
 
     @Test

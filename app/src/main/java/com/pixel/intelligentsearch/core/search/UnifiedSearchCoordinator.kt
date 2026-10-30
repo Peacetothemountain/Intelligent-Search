@@ -66,7 +66,7 @@ class UnifiedSearchCoordinator @Inject constructor(
     /**
      * The last chance answer drawn and the query it was drawn for. The same query runs again when the cursor moves, a
      * pin changes or the index finishes, and the coin or die must not land again each time: it is redrawn only once
-     * the query's text has changed.
+     * the query's text has changed or the field was cleared ([forgetChanceDraw]).
      */
     @Volatile
     private var lastRandomAnswer: Pair<String, com.pixel.intelligentsearch.core.answers.RandomAnswers.RandomAnswer?>? = null
@@ -74,6 +74,14 @@ class UnifiedSearchCoordinator @Inject constructor(
     private fun randomAnswer(query: String): com.pixel.intelligentsearch.core.answers.RandomAnswers.RandomAnswer? {
         lastRandomAnswer?.let { (drawnFor, answer) -> if (drawnFor == query) return answer }
         return randomAnswers.evaluate(query).also { lastRandomAnswer = query to it }
+    }
+
+    /**
+     * Lets the next chance answer land anew. The coordinator outlives the overlay, so without this a coin flipped
+     * again after clearing the field, or in the next session, would land the same way every time.
+     */
+    fun forgetChanceDraw() {
+        lastRandomAnswer = null
     }
 
     data class RankedSearchResult(
@@ -716,6 +724,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         val query = rawQuery.trim()
 
         if (query.isEmpty()) {
+            // A cleared field ends the query: the same chance question asked again is a new draw.
+            forgetChanceDraw()
             return UnifiedSearchResults(query = query)
         }
 
@@ -798,7 +808,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         val appCandidateCount = candidates.count { it.domain == SearchScoringEngine.EntityDomain.APPLICATION }
         if (cachedFuzzySearchEnabled && appCandidateCount < 8 && query.length >= 3) {
             cancellationCheck?.invoke()
-            val fuzzyResults = appRadixTree.searchFuzzy(query, maxDistance = SearchScoringEngine.fuzzyEditsFor(query.length), limit = 20)
+            val fuzzyResults = appRadixTree.searchFuzzy(query, maxDistance = SearchScoringEngine.fuzzyEditsFor(query), limit = 20)
             for (f in fuzzyResults) {
                 candidates.add(f.value)
             }

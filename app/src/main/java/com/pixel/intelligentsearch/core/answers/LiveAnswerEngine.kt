@@ -110,7 +110,7 @@ class LiveAnswerEngine internal constructor(
     private suspend fun FlowCollector<LiveAnswer>.weather(question: LiveAnswerQuery.Weather, query: String) {
         val settings = prefs()
         if (!NetworkPolicy.webAnswersAllowed(settings)) return
-        val unit = TemperatureUnit.forLocale(locale())
+        val unit = question.unit ?: TemperatureUnit.forLocale(locale())
         var debounced = false
         suspend fun once() {
             if (!debounced) delay(debounceMs)

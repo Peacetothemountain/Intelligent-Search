@@ -74,6 +74,25 @@ class UnifiedSearchCoordinatorTest {
     }
 
     @Test
+    fun clearingTheFieldLetsTheSameChanceQuestionLandAnew() {
+        // The coordinator outlives the overlay: flipping again after clearing the field used to land the same way.
+        val coordinator = coordinator()
+        val query = "random 1 to 999999999999"
+        val afterEmptyQuery = (1..4).map {
+            coordinator.executeSearchSync("")
+            coordinator.executeSearchSync(query).randomAnswer
+        }
+        assertTrue("a cleared field draws again: $afterEmptyQuery", afterEmptyQuery.toSet().size > 1)
+
+        // The overlay clears the field without searching it, and calls this directly.
+        val afterForgetting = (1..4).map {
+            coordinator.forgetChanceDraw()
+            coordinator.executeSearchSync(query).randomAnswer
+        }
+        assertTrue("a forgotten draw draws again: $afterForgetting", afterForgetting.toSet().size > 1)
+    }
+
+    @Test
     fun aShortPrefixRanksTheMostUsedAppFirstHoweverManyOthersShareIt() {
         // More apps start with "Sa" than the candidate lookup used to keep, and they were indexed first.
         val filler = (1..45).map { app("Sa App $it", "org.example.sa$it") }
@@ -85,5 +104,38 @@ class UnifiedSearchCoordinatorTest {
 
         assertEquals("Spotify", coordinator.executeTier0Search("s").apps.first().name)
         assertEquals("Spotify", coordinator.executeSearchSync("s").apps.first().name)
+    }
+
+    @Test
+    fun aNumberFindsNoAppItIsOneDigitFrom() {
+        val coordinator = coordinator()
+        coordinator.bulkIndexApps(listOf(app("2048", "com.example.game2048"), app("Calculator", "com.example.calc")))
+        assertEquals(emptyList<String>(), coordinator.executeSearchSync("210").apps.map { it.name })
+        assertEquals(emptyList<String>(), coordinator.executeTier0Search("210").apps.map { it.name })
+        // The number itself, or its start, still finds it; and a name with a digit in it keeps its slips.
+        assertEquals("2048", coordinator.executeSearchSync("204").apps.first().name)
+        assertEquals("Calculator", coordinator.executeSearchSync("calcul8").apps.first().name)
+        // Longer words keep their typo tolerance.
+        assertEquals("Calculator", coordinator.executeSearchSync("calculater").apps.first().name)
+    }
+
+    @Test
+    fun aQueryWithANumberInItMatchesNoContactByTheSoundOfItsWords() {
+        // Sounds are read from letters only: "call 5551234567" sounded like "Kyle", "$50 to eur" like "Dr.".
+        val kyle = ContactItem("Kyle Shotwell", "(212) 555-0100", "content://contacts/kyle")
+        val office = ContactItem("Dr. Miller's Office", "(212) 555-0199", "content://contacts/office")
+        val coordinator = coordinator().apply { replaceContacts(listOf(kyle, office)) }
+        assertEquals(emptyList<ContactItem>(), coordinator.executeSearchSync("call 5551234567").contacts)
+        assertEquals(emptyList<ContactItem>(), coordinator.executeSearchSync("$50 to eur").contacts)
+        // Without a number, a name that sounds the same is still found.
+        assertEquals(listOf(kyle), coordinator.executeSearchSync("kile").contacts)
+    }
+
+    @Test
+    fun accentsAndExtraSpacesFindTheApp() {
+        val coordinator = coordinator()
+        coordinator.bulkIndexApps(listOf(app("Café Finder", "com.example.cafe"), app("Google Maps", "com.google.maps")))
+        assertEquals("Café Finder", coordinator.executeSearchSync("cafe").apps.first().name)
+        assertEquals("Google Maps", coordinator.executeSearchSync("google  maps").apps.first().name)
     }
 }

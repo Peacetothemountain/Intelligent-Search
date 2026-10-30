@@ -171,6 +171,22 @@ class SearchPillsScreenTest {
         assertEquals(listOf("a.​b"), texts.map { it.text })
     }
 
+    /**
+     * Profile 1's starting pills are the app's suggestions: one this phone doesn't have (Files by Google, say) isn't
+     * listed as a bare package name with no icon. One the user picked stays, so they can see it and remove it.
+     */
+    @Test
+    fun aDefaultAppThePhoneDoesntHaveIsNotListed() {
+        shadowOf(context.packageManager).installPackage(android.content.pm.PackageInfo().apply {
+            packageName = "com.android.chrome"
+            applicationInfo = ApplicationInfo().apply { packageName = "com.android.chrome"; nonLocalizedLabel = "Chrome" }
+        })
+        show()
+        compose.onNode(hasText("com.google.android.apps.nbu.files".breakableAtDots())).assertDoesNotExist()
+        compose.onNode(hasText("com.google.android.youtube".breakableAtDots())).assertDoesNotExist()
+        compose.onNode(hasText("Chrome")).assertExists()
+    }
+
     @Test
     fun talkBackCanMoveAPillUp() {
         prefs.edit().put(SettingsManager.SEARCH_PILLS, "a.b,c.d").commit()

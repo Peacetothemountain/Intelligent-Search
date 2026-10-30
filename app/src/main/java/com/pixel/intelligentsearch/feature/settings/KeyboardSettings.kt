@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.runtime.Composable
@@ -10,8 +11,9 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 
 /**
- * Search Behavior's Keyboard card: whether the assistant gesture opens search listening instead of typing, and whether
- * the keyboard comes up when search opens. Enter opens the top result (OverlayEnterKey).
+ * Search Behavior's Keyboard card: whether the assistant gesture opens search listening instead of typing, whether
+ * the keyboard comes up when search opens, and whether Enter opens the first app when nothing is the Best Match.
+ * Enter opens the top result (OverlayEnterKey).
  */
 @Composable
 internal fun KeyboardSettingsCard() {
@@ -34,6 +36,16 @@ internal fun KeyboardSettingsCard() {
             icon = Icons.Outlined.Keyboard,
             isChecked = showKeyboard,
             onCheckedChange = { showKeyboard = it },
+            showDivider = true
+        )
+        // Quick Launch: with no Best Match, Enter opens the first app listed rather than searching the web.
+        var quickLaunch by rememberSetting(SettingsManager.APP_QUICK_LAUNCH)
+        SettingsRowToggle(
+            title = "Enter Opens the First App",
+            subtitle = "When Nothing Is the Best Match, Enter Opens the First App in the Results Instead of Searching the Web.",
+            icon = Icons.AutoMirrored.Outlined.KeyboardReturn,
+            isChecked = quickLaunch,
+            onCheckedChange = { quickLaunch = it },
             showDivider = false
         )
     }

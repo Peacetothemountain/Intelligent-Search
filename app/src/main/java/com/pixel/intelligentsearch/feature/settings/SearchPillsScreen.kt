@@ -91,8 +91,9 @@ fun SearchPillsScreen(
     val context = LocalContext.current
     val profiles = remember(prefs) { SearchPillProfiles(prefs) }
     var activeProfile by remember { mutableIntStateOf(profiles.activeProfile) }
+    fun shown(pills: List<String>) = withoutMissingDefaults(context, pills)
     // One state object, so drag handlers never write a stale copy.
-    var localPillList by remember { mutableStateOf(profiles.pills()) }
+    var localPillList by remember { mutableStateOf(shown(profiles.pills())) }
     var resetCounter by remember { mutableIntStateOf(0) }
     // Pills Reset brought back, each with how many times: a new key gives each a fresh card that slides in.
     var revived by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
@@ -128,7 +129,7 @@ fun SearchPillsScreen(
         if (id == activeProfile) return
         flushLeaving()
         enteringPills = emptyMap()
-        localPillList = profiles.switchTo(id)
+        localPillList = shown(profiles.switchTo(id))
         activeProfile = id
         resetCounter++
     }
@@ -262,7 +263,7 @@ fun SearchPillsScreen(
                                 // that were missing (swiped away, or still flying off) slide back in; the rest stay put.
                                 val shown = (localPillList - leavingPills.toSet()).toSet()
                                 leavingPills.clear()
-                                val saved = profiles.resetToSaved()
+                                val saved = shown(profiles.resetToSaved())
                                 val missing = saved.filter { it !in shown }
                                 revived = revived + missing.associateWith { (revived[it] ?: 0) + 1 }
                                 localPillList = saved
@@ -887,6 +888,17 @@ fun SearchPillsScreen(
             }
         }
     }
+}
+
+/**
+ * [pills] without the default apps (Profile 1's starting pills) this phone doesn't have. Those are the app's
+ * suggestions, not the user's picks, so one that isn't installed would only show as a bare package name with no icon.
+ * An app the user added stays listed even once it's gone, so they can see it and remove it.
+ */
+internal fun withoutMissingDefaults(context: Context, pills: List<String>): List<String> {
+    val defaults = SearchPillProfiles.DEFAULT_PILLS.split(",").toSet()
+    val pm = context.packageManager
+    return pills.filter { pkg -> pkg !in defaults || runCatching { pm.getApplicationInfo(pkg, 0) }.isSuccess }
 }
 
 /** A package name that may wrap after any dot (zero-width spaces), so narrow screens never split it mid-word. */

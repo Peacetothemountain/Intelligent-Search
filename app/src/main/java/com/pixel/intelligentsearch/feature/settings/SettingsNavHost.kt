@@ -57,6 +57,25 @@ val LocalSettingsState = compositionLocalOf<com.pixel.intelligentsearch.core.dat
     null
 }
 
+/**
+ * The tutorial's last two steps, shown over Settings. The page is hidden behind the tutorial's backdrop while they
+ * show, so they say what Settings holds and what Got it opens rather than point at rows the user can't see.
+ */
+internal val SETTINGS_TUTORIAL_STEPS = mapOf(
+    3 to TutorialStepInfo(
+        "Settings & Features",
+        "Settings is where you make Intelligent Search your own: its look, your widget and how search works.",
+        Alignment.Center,
+        showArrow = false
+    ),
+    4 to TutorialStepInfo(
+        "Make It Yours",
+        "Tap Got it to see every category and fine-tune Intelligent Search to the way you search. You're all set!",
+        Alignment.Center,
+        showArrow = false
+    )
+)
+
 @Composable
 fun SettingsScreensHub(
     initialRoute: com.pixel.intelligentsearch.core.navigation.Route = com.pixel.intelligentsearch.core.navigation.Route.Main,
@@ -382,10 +401,7 @@ fun SettingsScreensHub(
                 }
                 TutorialSpotlightOverlay(
                     prefs = prefs,
-                    stepsInfo = mapOf(
-                        3 to TutorialStepInfo("Settings & Features", "Here you can personalize your experience by customizing your widget and search controls.", Alignment.Center, showArrow = false),
-                        4 to TutorialStepInfo("Make it Yours", "Explore all the categories below to fine-tune Intelligent Search perfectly to your workflow. You're all set!", Alignment.Center, showArrow = false)
-                    ),
+                    stepsInfo = SETTINGS_TUTORIAL_STEPS,
                     onComplete = { showTutorial = false }
                 )
             }

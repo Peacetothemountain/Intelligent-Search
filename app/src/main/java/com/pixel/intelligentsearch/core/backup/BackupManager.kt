@@ -62,7 +62,16 @@ class BackupManager @Inject constructor(
         /** A real backup has at most a passkey and a passphrase slot; more is not one of ours. */
         private const val MAX_KEY_SLOTS = 8
 
-        /** Backup preferencesMap names mapped to the DataStore keys they restore. */
+        /**
+         * What a restore says when the passphrase typed isn't the backup's: what went wrong in the user's words, not
+         * the cipher's. It names the passphrase, so the page asks for it again (shouldAskForPassphrase).
+         */
+        internal const val WRONG_PASSPHRASE = "Incorrect passphrase. It isn't the one this backup was made with."
+
+        /**
+         * Backup preferencesMap names mapped to the DataStore keys they restore. A name not listed, like a removed
+         * setting's in an older file ("shortcutInline", "adaptiveIconShape", "dynamicIconMasking"), is skipped.
+         */
         private val BOOLEAN_SETTING_KEYS = mapOf(
             "searchApps" to SettingsManager.SEARCH_APPS,
             "searchContacts" to SettingsManager.SEARCH_CONTACTS,
@@ -76,11 +85,9 @@ class BackupManager @Inject constructor(
             "bottomSearchResult" to SettingsManager.BOTTOM_SEARCH_RESULT,
             "appQuickLaunch" to SettingsManager.APP_QUICK_LAUNCH,
             "contactDirectCall" to SettingsManager.CONTACT_DIRECT_CALL,
-            "shortcutInline" to SettingsManager.SHORTCUT_INLINE,
             "appFuzzySearch" to SettingsManager.APP_FUZZY_SEARCH,
             "quickSearchHorizontal" to SettingsManager.QUICK_SEARCH_HORIZONTAL,
-            "searchPreviousSearches" to SettingsManager.SEARCH_PREVIOUS_SEARCHES,
-            "dynamicIconMasking" to SettingsManager.DYNAMIC_ICON_MASKING
+            "searchPreviousSearches" to SettingsManager.SEARCH_PREVIOUS_SEARCHES
         )
         private val INT_SETTING_KEYS = mapOf(
             "backgroundBlur" to SettingsManager.BACKGROUND_BLUR,
@@ -97,8 +104,7 @@ class BackupManager @Inject constructor(
             "customSearchEngineUrl" to SettingsManager.CUSTOM_SEARCH_ENGINE_URL,
             "searchPills" to SettingsManager.SEARCH_PILLS,
             "activeIconPack" to SettingsManager.ACTIVE_ICON_PACK,
-            "customIconPills" to SettingsManager.CUSTOM_ICON_PILLS,
-            "adaptiveIconShape" to SettingsManager.ADAPTIVE_ICON_SHAPE
+            "customIconPills" to SettingsManager.CUSTOM_ICON_PILLS
         )
 
         private fun isBlockedInternalKey(key: String): Boolean {
@@ -193,7 +199,6 @@ class BackupManager @Inject constructor(
         prefsMap["searchPills"] = currentSettings.searchPills
         prefsMap["appQuickLaunch"] = currentSettings.appQuickLaunch.toString()
         prefsMap["contactDirectCall"] = currentSettings.contactDirectCall.toString()
-        prefsMap["shortcutInline"] = currentSettings.shortcutInline.toString()
         prefsMap["appFuzzySearch"] = currentSettings.appFuzzySearch.toString()
         prefsMap["quickSearchHorizontal"] = currentSettings.quickSearchHorizontal.toString()
         prefsMap["webResultsCount"] = currentSettings.webResultsCount.toString()
@@ -203,8 +208,6 @@ class BackupManager @Inject constructor(
         prefsMap["activeIconPack"] = currentSettings.activeIconPack
         prefsMap["customIconPills"] = currentSettings.customIconPills
         prefsMap["searchPreviousSearches"] = currentSettings.searchPreviousSearches.toString()
-        prefsMap["adaptiveIconShape"] = currentSettings.adaptiveIconShape
-        prefsMap["dynamicIconMasking"] = currentSettings.dynamicIconMasking.toString()
 
         // 2. Comprehensive capture of ALL customizations from PREFERENCES_CUSTOMISATIONS with type fidelity
         val sharedPrefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
@@ -568,7 +571,7 @@ class BackupManager @Inject constructor(
                 } finally {
                     com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
                 }
-                decryptKeySlot(backup, slot, key, "Incorrect passphrase. Authentication tag mismatch.")
+                decryptKeySlot(backup, slot, key, WRONG_PASSPHRASE)
             } else if (envelope.kdf != null) {
                 if (passphrase.isNullOrBlank()) {
                     throw IllegalArgumentException("Passphrase required to decrypt this backup")
@@ -587,9 +590,9 @@ class BackupManager @Inject constructor(
                 try {
                     BackupCryptoEngine.decryptPayload(cipherBytes, key, iv)
                 } catch (e: javax.crypto.AEADBadTagException) {
-                    throw SecurityException("Incorrect passphrase. Authentication tag mismatch.")
+                    throw SecurityException(WRONG_PASSPHRASE)
                 } catch (e: Throwable) {
-                    throw SecurityException("Failed to decrypt: ${e.message ?: "Invalid passphrase"}")
+                    throw SecurityException("This backup could not be decrypted. It may be corrupt.", e)
                 }
             } else if (envelope.isHardwareBacked) {
                 // Never create or purge the key here: a fresh key can't decrypt the file, and purging a

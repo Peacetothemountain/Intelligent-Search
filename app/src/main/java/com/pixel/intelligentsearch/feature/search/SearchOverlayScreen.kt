@@ -86,6 +86,20 @@ private const val BACK_EXIT_MS = 200
  */
 internal fun keyboardUpOnOpen(prefs: android.content.SharedPreferences): Boolean = prefs[SettingsManager.SHOW_KEYBOARD_ON_OPEN]
 
+/**
+ * The engine's name as the search bar and "Search …" show it. A custom engine goes by the Search App Name the user
+ * gave it in Web Search, or, left at its default, by its address's site name; until its address is valid, searches
+ * go to Google, and so does the name.
+ */
+internal fun searchProviderName(engine: String, customUrl: String, customName: String): String = when (engine) {
+    "DuckDuckGo", "Bing", "Google" -> engine
+    "Custom" -> com.pixel.intelligentsearch.core.security.CustomSearchUrl.displayName(customUrl)?.let { fromAddress ->
+        com.pixel.intelligentsearch.core.security.CustomSearchUrl.sanitizeEngineName(customName).trim()
+            .takeIf { it.isNotBlank() && it != SettingsManager.CUSTOM_SEARCH_ENGINE_NAME.default } ?: fromAddress
+    } ?: "Google"
+    else -> engine.ifBlank { "Google" }
+}
+
 /** The first-run tutorial's steps on the overlay; Settings carries on from step 3. */
 internal val OverlayTutorialSteps = mapOf(
     0 to TutorialStepInfo("Welcome!", "Hello! Thank you for installing Intelligent Search. Please follow the tutorial to show you around. [bugdroid]", Alignment.Center, showArrow = false),
@@ -115,14 +129,9 @@ fun SearchOverlayScreen(
     val contactWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_CONTACTS)
     val fileWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_FILES)
     val suggestionsEnabled by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
-    val searchProviderName = remember(settingsState.searchEngine, settingsState.customSearchEngineUrl) {
-        when (settingsState.searchEngine) {
-            "DuckDuckGo" -> "DuckDuckGo"
-            "Bing" -> "Bing"
-            "Google" -> "Google"
-            "Custom" -> com.pixel.intelligentsearch.core.security.CustomSearchUrl.displayName(settingsState.customSearchEngineUrl) ?: "Google"
-            else -> if (settingsState.searchEngine.isNotBlank()) settingsState.searchEngine else "Google"
-        }
+    val customEngineName by rememberSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_NAME)
+    val searchProviderName = remember(settingsState.searchEngine, settingsState.customSearchEngineUrl, customEngineName) {
+        searchProviderName(settingsState.searchEngine, settingsState.customSearchEngineUrl, customEngineName)
     }
     // State the overlay's sections share; the screen binds it under the same names so its code reads the same.
     val savedHasStartedTyping = rememberSaveable { mutableStateOf(false) }

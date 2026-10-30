@@ -37,7 +37,7 @@ internal object BackupPreferenceSchema {
             "BOOLEAN",
             "app.fuzzy.search", "app_fuzzy_search", "app_quick_launch", "bottom_search",
             "bottom_search_result", "contact.direct.call", "contact_direct_call", "context_aware_quick_apps",
-            "diagnostics_overlay_enabled", "dynamic_icon_masking", "force_tutorial", "g_icon_enabled", "live_currency_rates",
+            "diagnostics_overlay_enabled", "force_tutorial", "g_icon_enabled", "live_currency_rates",
             "matrix_animation_enabled", "never_show_icon_pack_warning", "quick.search.horizontal",
             "quick_search_horizontal", "quick_search_maps", "quick_search_play_store", "quick_search_wikipedia",
             "quick_search_youtube", "search.apps", "search.background.show.wall", "search.calculator",
@@ -46,7 +46,7 @@ internal object BackupPreferenceSchema {
             "search_calculator", "search_contacts", "search_files", "search_files_hidden_files",
             "search_files_thumbnails", "search_overlay_enabled", "search_previous_searches",
             "search_shortcuts", "search_web", "settings.bottom.search", "settings.bottom.search.result",
-            "settings_back_to_search_overlay", "shortcut.inline", "shortcut_inline", "show.wallpaper",
+            "settings_back_to_search_overlay", "show.wallpaper",
             "show_wallpaper", "smart_clipboard_suggestions", "tutorial_completed", "vibration_enabled",
             "widget_custom_keep_system_g", "widget_custom_sync_colors", "widget_material_custom_color_hct",
             "widget_material_custom_keep_system_g", "widget_system_custom_color_hct",
@@ -78,7 +78,7 @@ internal object BackupPreferenceSchema {
         )
         typed(
             "STRING",
-            "active_icon_pack", "adaptive_icon_shape", "custom_bangs_json", "custom_icon_packs_order",
+            "active_icon_pack", "custom_bangs_json", "custom_icon_packs_order",
             "custom_icon_pills", "custom_search_engine_url", "night.mode", "search.engine", "search.pills",
             "search_pills", "search_sections_config_json", "theme", "web_shortcut_trigger_symbol",
             "widget.theme.style", "widget_action_icon", "widget_material_action_icon", "widget_material_g_icon",

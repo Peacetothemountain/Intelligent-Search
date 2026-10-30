@@ -19,9 +19,9 @@ object AppSettingsCatalog {
             "app theme", "theme", "wallpaper", "background blur", "transparency", "pill opacity", "vibration",
             "haptics", "matrix animation", "morph animation", "microphone button"),
         page("search_sources", "Search Sources", "is_sources",
-            "sources", "what to search", "calendar search"),
+            "sources", "what to search"),
         page("search_behavior", "Search Behavior", "is_behavior",
-            "keyboard", "at a glance", "quick app panel", "bottom search bar", "clipboard suggestions"),
+            "keyboard", "at a glance", "quick app panel", "bottom search bar", "clipboard suggestions", "enter key"),
         page("widget", "Widget Customization", "is_widget",
             "widget", "widgets", "search bar widget", "color studio", "widget shortcuts", "g icon"),
         page("launch_portal", "Launch Portal", "is_launch",
@@ -35,7 +35,7 @@ object AppSettingsCatalog {
         page("web_search", "Web Search", "is_web",
             "search engine", "web suggestions", "quick web shortcuts", "bangs", "custom search engine", "tor"),
         page("contact_search", "Contact Search", "is_contacts",
-            "direct call", "contact actions"),
+            "direct call"),
         page("file_search", "File Search", "is_files",
             "search folders", "photos and videos", "documents"),
         page("custom_icons", "Custom Icons", "is_icons",
@@ -45,6 +45,6 @@ object AppSettingsCatalog {
         page("ai_answers", "AI Answers", "is_ai",
             "ai", "api key", "claude", "chatgpt", "gemini", "openai"),
         page("setup", "Finish Setting Up", "is_setup",
-            "setup", "set up", "digital assistant", "default assistant", "permissions"),
+            "setup", "set up", "permissions", "calendar search"),
     )
 }

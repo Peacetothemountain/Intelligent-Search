@@ -67,6 +67,16 @@ internal fun declinedForGood(activity: Activity, permission: String, rationaleBe
     return !rationaleNow && everDeclined
 }
 
+/**
+ * Forgets that [permission] was declined ([declinedForGood]), once it is seen allowed. Android can take it back later
+ * and ask afresh (a one-time grant lapsing, the permissions of an app left unused being reset); only closing that
+ * prompt then mustn't read as declined for good.
+ */
+internal fun forgetDecline(context: Context, permission: String) {
+    val declined = context.getSharedPreferences(DECLINED_PERMISSIONS, Context.MODE_PRIVATE)
+    if (declined.contains(permission)) declined.edit { remove(permission) }
+}
+
 /** Android's reason flag for [permission] right now, read as a request starts, for [declinedForGood]. */
 internal fun rationaleShown(context: Context, permission: String): Boolean =
     context.findActivity()?.shouldShowRequestPermissionRationale(permission) == true
@@ -84,8 +94,8 @@ internal fun interface ContactsRequest {
 /**
  * The contacts, asked the one way the app asks for them (contact search, At a Glance's birthdays): when allowed
  * [onResult] hears yes at once; otherwise [CONTACTS_RATIONALE] shows, then Android's prompt. Declining once just
- * answers no; once Android won't ask again, the user is offered Android's settings instead. Shows its dialogs in
- * place while they are up.
+ * answers no; once Android won't ask again, the user is offered Android's settings instead, but not when they only
+ * closed Android's prompt ([declinedForGood]). Shows its dialogs in place while they are up.
  */
 @Composable
 internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): ContactsRequest {
@@ -93,11 +103,14 @@ internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): Cont
     val currentOnResult by rememberUpdatedState(onResult)
     var showRationale by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var rationaleBefore by remember { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
         val granted = results.values.isNotEmpty() && results.values.all { it }
+        val activity = context.findActivity()
+        if (granted) forgetDecline(context, Manifest.permission.READ_CONTACTS)
         currentOnResult(granted)
         // Declined for good: only Android's settings can allow it now.
-        if (!granted && context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS) == false) {
+        if (!granted && activity != null && declinedForGood(activity, Manifest.permission.READ_CONTACTS, rationaleBefore)) {
             showSettings = true
         }
     }
@@ -108,6 +121,7 @@ internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): Cont
             confirm = "Allow",
             onConfirm = {
                 showRationale = false
+                rationaleBefore = rationaleShown(context, Manifest.permission.READ_CONTACTS)
                 permission.launch(arrayOf(Manifest.permission.READ_CONTACTS))
             },
             onDismiss = {
@@ -130,7 +144,12 @@ internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): Cont
     }
     return remember(context) {
         ContactsRequest {
-            if (contactsAllowed(context)) currentOnResult(true) else showRationale = true
+            if (contactsAllowed(context)) {
+                forgetDecline(context, Manifest.permission.READ_CONTACTS)
+                currentOnResult(true)
+            } else {
+                showRationale = true
+            }
         }
     }
 }
@@ -163,7 +182,8 @@ internal fun rememberPhoneCallsRequest(): PhoneCallsRequest {
     var rationaleBefore by remember { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val activity = context.findActivity()
-        if (!granted && activity != null && declinedForGood(activity, Manifest.permission.CALL_PHONE, rationaleBefore)) {
+        if (granted) forgetDecline(context, Manifest.permission.CALL_PHONE)
+        else if (activity != null && declinedForGood(activity, Manifest.permission.CALL_PHONE, rationaleBefore)) {
             showSettings = true
         }
     }
@@ -195,7 +215,11 @@ internal fun rememberPhoneCallsRequest(): PhoneCallsRequest {
     }
     return remember(context) {
         PhoneCallsRequest {
-            if (!com.pixel.intelligentsearch.feature.search.ContactActions.canCallDirectly(context)) showRationale = true
+            if (com.pixel.intelligentsearch.feature.search.ContactActions.canCallDirectly(context)) {
+                forgetDecline(context, Manifest.permission.CALL_PHONE)
+            } else {
+                showRationale = true
+            }
         }
     }
 }
@@ -226,7 +250,10 @@ internal fun rememberApproximateLocationRequest(onGranted: () -> Unit): Approxim
     var rationaleBefore by remember { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         val activity = context.findActivity()
-        if (granted) currentOnGranted()
+        if (granted) {
+            forgetDecline(context, Manifest.permission.ACCESS_COARSE_LOCATION)
+            currentOnGranted()
+        }
         // Declined for good: only Android's settings can allow it now.
         else if (activity != null && declinedForGood(activity, Manifest.permission.ACCESS_COARSE_LOCATION, rationaleBefore)) {
             showSettings = true
@@ -260,7 +287,12 @@ internal fun rememberApproximateLocationRequest(onGranted: () -> Unit): Approxim
     }
     return remember(context) {
         ApproximateLocationRequest {
-            if (AndroidDeviceLocation(context).permitted()) currentOnGranted() else showRationale = true
+            if (AndroidDeviceLocation(context).permitted()) {
+                forgetDecline(context, Manifest.permission.ACCESS_COARSE_LOCATION)
+                currentOnGranted()
+            } else {
+                showRationale = true
+            }
         }
     }
 }

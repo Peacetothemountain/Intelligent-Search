@@ -116,18 +116,25 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
             context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         }
     }
+    // Android's reason flag as each request starts, so only a decline for good, not a closed prompt, sends the user
+    // to Android's settings ([declinedForGood]).
+    var contactsRationaleBefore by remember { mutableStateOf(false) }
+    var calendarRationaleBefore by remember { mutableStateOf(false) }
     val contactsLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
+            forgetDecline(context, Manifest.permission.READ_CONTACTS)
             prefs.edit { put(SettingsManager.SEARCH_CONTACTS, true) }
             viewModel?.reindexContacts()
-        } else if (context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS) == false) {
+        } else if (context.findActivity()?.let { declinedForGood(it, Manifest.permission.READ_CONTACTS, contactsRationaleBefore) } == true) {
             Toast.makeText(context, "Contacts access was declined. You can allow it in Android settings.", Toast.LENGTH_LONG).show()
             openAppSettings()
         }
         revision++
     }
     val calendarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (!granted && context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.READ_CALENDAR) == false) {
+        if (granted) {
+            forgetDecline(context, Manifest.permission.READ_CALENDAR)
+        } else if (context.findActivity()?.let { declinedForGood(it, Manifest.permission.READ_CALENDAR, calendarRationaleBefore) } == true) {
             Toast.makeText(context, "Calendar access was declined. You can allow it in Android settings.", Toast.LENGTH_LONG).show()
             openAppSettings()
         }
@@ -214,9 +221,19 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                         onClick = {
                             when (step) {
                                 SetupStep.CONTACTS ->
-                                    if (isDone) onNavigate(Route.ContactSearch) else contactsLauncher.launch(Manifest.permission.READ_CONTACTS)
+                                    if (isDone) {
+                                        onNavigate(Route.ContactSearch)
+                                    } else {
+                                        contactsRationaleBefore = rationaleShown(context, Manifest.permission.READ_CONTACTS)
+                                        contactsLauncher.launch(Manifest.permission.READ_CONTACTS)
+                                    }
                                 SetupStep.CALENDAR ->
-                                    if (isDone) openAppSettings() else calendarLauncher.launch(Manifest.permission.READ_CALENDAR)
+                                    if (isDone) {
+                                        openAppSettings()
+                                    } else {
+                                        calendarRationaleBefore = rationaleShown(context, Manifest.permission.READ_CALENDAR)
+                                        calendarLauncher.launch(Manifest.permission.READ_CALENDAR)
+                                    }
                                 SetupStep.NOTIFICATIONS ->
                                     if (isDone) openSettingsPage(context, *NotificationAccess.settingsIntents(context).toTypedArray()) else notificationAccess.request()
                                 SetupStep.FILES -> onNavigate(Route.FileSearch)

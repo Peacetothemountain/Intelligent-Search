@@ -6,7 +6,8 @@ import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 
 /**
  * Google's apps the search hands off to, named once: the Google app (search, voice, Discover, and its Lens and weather
- * pages), Google Lens, Pixel Weather and Google Translate, with the one way each Lens and weather hand-off is chosen.
+ * pages), Google Lens, Pixel Weather, Google Translate and Gemini, with the one way each Lens and weather hand-off is
+ * chosen.
  * A hand-off opens the other app; nothing is sent by this app.
  */
 object GoogleApps {
@@ -18,6 +19,8 @@ object GoogleApps {
     const val WEATHER_APP = "com.google.android.apps.weather"
     /** Google Translate. */
     const val TRANSLATE_APP = "com.google.android.apps.translate"
+    /** The Gemini app. */
+    const val GEMINI_APP = "com.google.android.apps.bard"
 
     /** The Google app's Lens entry, for a Lens without the standalone app. */
     const val LENS_DEEPLINK_ACTIVITY = "com.google.android.apps.search.lens.deeplink.LensDeeplink"

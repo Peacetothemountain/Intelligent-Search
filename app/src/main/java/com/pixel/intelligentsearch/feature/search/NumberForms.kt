@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.math.MathContext
@@ -7,6 +8,7 @@ import java.math.RoundingMode
 import java.text.DecimalFormatSymbols
 import java.text.NumberFormat
 import java.util.Locale
+import kotlin.math.abs
 
 /**
  * One other way of writing a calculator answer: what it is ("Hexadecimal"), the answer written that way and what a tap
@@ -21,9 +23,10 @@ internal data class NumberForm(val label: String, val value: String, val copyVal
  * plain number (a conversion, a date), or for forms that would only repeat it. An answer the calculator already rounded
  * to scientific notation ("9.2234e+18") is only written in scientific notation: its digits past the fifth are gone, so
  * grouped or in another base it would look exact when it isn't. [result] is written as the calculator writes it in
- * [locale], with a decimal comma where the locale has one ("2,5").
+ * [locale], with a decimal comma where the locale has one ("2,5"). [value] is the answer as the calculator worked it
+ * out, to the double's precision, when known: a fraction must then match it too, not just the digits shown.
  */
-internal fun numberForms(result: String, locale: Locale = Locale.getDefault()): List<NumberForm> {
+internal fun numberForms(result: String, locale: Locale = Locale.getDefault(), value: Double? = null): List<NumberForm> {
     val written = result.trim().removePrefix("=").trim()
     val text = if (DecimalFormatSymbols.getInstance(locale).decimalSeparator == ',') written.replace(',', '.') else written
     val number = text.toBigDecimalOrNull() ?: return emptyList()
@@ -48,13 +51,21 @@ internal fun numberForms(result: String, locale: Locale = Locale.getDefault()): 
         }
         if (whole.abs() >= BigInteger.valueOf(1_000_000)) forms += NumberForm("Scientific", scientific(number))
     } else {
-        fraction(number, text)?.let { forms += NumberForm("Fraction", it) }
+        fraction(number, text, value?.takeIf { it.isFinite() })?.let { forms += NumberForm("Fraction", it) }
         val percent = number.movePointRight(2).round(MathContext(6, RoundingMode.HALF_EVEN)).stripTrailingZeros()
         forms += NumberForm("Percentage", percent.toPlainString() + "%")
         forms += NumberForm("Scientific", scientific(number))
     }
     return forms
 }
+
+/**
+ * The value the calculator worked out for [query], whose answer is written [shown], for [numberForms]; null when the
+ * query is no calculation or isn't the one shown.
+ */
+internal fun mathValue(query: String, shown: String): Double? =
+    (MathematicalExpressionEngine.evaluate(query) as? MathematicalExpressionEngine.MathEvaluationResult.Computation)
+        ?.takeIf { it.formattedResult == shown }?.numericValue
 
 /** The significant digits the calculator writes an answer with. */
 private const val SIGNIFICANT_DIGITS = 10
@@ -70,6 +81,13 @@ private const val MAX_DIGITS = 15
  * 4, about one irrational in three lands within reach of some fraction up to /100 by chance.
  */
 private const val MIN_DECIMALS_FOR_REPEATING = 6
+
+/**
+ * How near, as a share of itself, an answer's worked-out value must be to a fraction to be it: a double holds about 16
+ * digits and a few steps of a calculation round the last of them, while 1000000·√80 is off its near fraction by
+ * 1e-13 of itself.
+ */
+private const val VALUE_MATCH = 2e-14
 
 /** [number] as "1.2346 × 10⁵". */
 private fun scientific(number: BigDecimal): String {
@@ -97,8 +115,12 @@ private fun groupsOfFour(bits: String): String = bits.reversed().chunked(4).join
  * ten significant digits, so a fraction counts only within half the last place it kept: an answer that ends before then
  * is exact ("0.375"), one that fills them is a repeating decimal only when a small fraction matches every digit. So e
  * (2.718281828) and √3 (1.732050808) have none, though "2 51/71" and "1 41/56" are close to their first four decimals.
+ *
+ * With the answer's [value] as worked out, a fraction must also be it to within [VALUE_MATCH]: a rounded irrational's
+ * shown digits can end on a fraction ("8944271.91" for 1000000·√80, 8944271.909999...), its value never does. That
+ * also tells a repeating decimal with few shown decimals from a rounded one: 100000/3 is "33333 1/3".
  */
-private fun fraction(number: BigDecimal, shown: String): String? {
+private fun fraction(number: BigDecimal, shown: String, value: Double?): String? {
     if (number.signum() == 0) return null
     val magnitude = number.abs()
     val exponent = magnitude.precision() - magnitude.scale() - 1
@@ -108,7 +130,7 @@ private fun fraction(number: BigDecimal, shown: String): String? {
     val decimals = maxOf(kept, shown.substringAfter('.', "").length)
     // With fewer kept decimals than that, a fraction matches a rounded irrational by chance ("2236067 87/89" for
     // 1000000·√5, 2236067.9775), so only a fraction the shown number is exactly counts ("1234567.25" is 1234567 1/4).
-    val exactOnly = kept < MIN_DECIMALS_FOR_REPEATING
+    val exactOnly = value == null && kept < MIN_DECIMALS_FOR_REPEATING
     val tolerance = BigDecimal.ONE.movePointLeft(decimals).divide(BigDecimal(2))
     for (denominator in 2L..100L) {
         val d = BigDecimal.valueOf(denominator)
@@ -118,6 +140,7 @@ private fun fraction(number: BigDecimal, shown: String): String? {
         // |numerator / d - number| < tolerance, kept exact by multiplying through by d.
         val off = numerator.subtract(scaled).abs()
         if (if (exactOnly) off.signum() != 0 else off >= tolerance.multiply(d)) continue
+        if (value != null && abs(numerator.toDouble() / denominator - value) > abs(value) * VALUE_MATCH) continue
         val n = numerator.toBigInteger().abs()
         val wholePart = n.divide(BigInteger.valueOf(denominator))
         val rest = n.mod(BigInteger.valueOf(denominator))

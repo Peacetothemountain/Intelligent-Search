@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.SystemClock
 import android.provider.AlarmClock
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
@@ -164,7 +165,8 @@ internal class NotificationExtractor(
             postedAt = sbn.postTime,
             notification = sbn.notification ?: return null,
             clockPackages = clockPackages,
-            lockscreenVisibilityOverride = lockscreenVisibilityOverride(sbn.key)
+            lockscreenVisibilityOverride = lockscreenVisibilityOverride(sbn.key),
+            bootTime = System.currentTimeMillis() - SystemClock.elapsedRealtime()
         )
     }
 
@@ -190,6 +192,7 @@ internal class NotificationExtractor(
          * children are indexed), media players (Media Controls show those), one-time sign-in codes whatever their
          * visibility ([looksLikeOneTimeCode]) and notifications with no words or timer. Other private notifications
          * (every notification's default) are indexed: that only hides their content on a lock screen set to hide it.
+         * [bootTime] is the wall-clock time the phone started, to place a timer Android 17 counts in time since boot.
          */
         fun fromNotification(
             key: String,
@@ -198,7 +201,8 @@ internal class NotificationExtractor(
             postedAt: Long,
             notification: Notification,
             clockPackages: Set<String>,
-            lockscreenVisibilityOverride: Int = NotificationListenerService.Ranking.VISIBILITY_NO_OVERRIDE
+            lockscreenVisibilityOverride: Int = NotificationListenerService.Ranking.VISIBILITY_NO_OVERRIDE,
+            bootTime: Long = 0L
         ): IndexedNotification? {
             if (notification.visibility == Notification.VISIBILITY_SECRET) return null
             if (lockscreenVisibilityOverride == Notification.VISIBILITY_SECRET) return null
@@ -206,9 +210,12 @@ internal class NotificationExtractor(
             val extras = notification.extras ?: Bundle.EMPTY
             if (extras.containsKey(Notification.EXTRA_MEDIA_SESSION)) return null
             val messages = messagesOf(extras)
+            val chronometer = chronometerOf(notification, packageName, clockPackages, bootTime)
+            // Android 17's Clock posts no title: the timer's name ("10m Timer") is the label of its time.
             val title = (extras.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE)
                 ?: extras.getCharSequence(Notification.EXTRA_TITLE_BIG)
-                ?: extras.getCharSequence(Notification.EXTRA_TITLE))?.toString()?.trim().orEmpty()
+                ?: extras.getCharSequence(Notification.EXTRA_TITLE)
+                ?: chronometer?.let { timerMetricOf(extras)?.getCharSequence(METRIC_LABEL) })?.toString()?.trim().orEmpty()
             val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.joinToString("\n").orEmpty()
             val body = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: extras.getCharSequence(Notification.EXTRA_TEXT))
                 ?.toString().orEmpty()
@@ -219,7 +226,6 @@ internal class NotificationExtractor(
             }.trim().take(MAX_TEXT)
             // Codes are often posted only as private, which hides them on the lock screen but not from search.
             if (looksLikeOneTimeCode("$title\n$text")) return null
-            val chronometer = chronometerOf(notification, packageName, clockPackages)
             if (title.isEmpty() && text.isEmpty() && chronometer == null) return null
             return IndexedNotification(
                 key = key,
@@ -234,9 +240,24 @@ internal class NotificationExtractor(
             )
         }
 
-        /** A code: 4 to 8 digits, 3-3 or 4-4 grouped, or Google's "G-123456"; not part of a longer number. */
-        private val CODE = Regex("(?<![\\p{N}-])(?:G-\\d{5,8}|\\d{3}[ -]\\d{3}|\\d{4}[ -]\\d{4}|\\d{4,8})(?![\\p{N}])")
-        private val GOOGLE_CODE = Regex("(?<![\\p{L}\\p{N}])G-\\d{5,8}(?![\\p{N}])")
+        /**
+         * A code's digits, in any script ("482913", Arabic "٤٨٢٩١٣", Hindi "४८२९१३"): 4 to 8 of them, grouped 3-3,
+         * 4-4, 2-2-2 or one by one ("1 2 3 4 5 6"), or Google's "G-123456".
+         */
+        private const val DIGITS = "(?:G-\\p{Nd}{5,8}|\\p{Nd}{3}[ -]\\p{Nd}{3}|\\p{Nd}{4}[ -]\\p{Nd}{4}|" +
+            "\\p{Nd}{2} \\p{Nd}{2} \\p{Nd}{2}|\\p{Nd}(?: \\p{Nd}){3,7}|\\p{Nd}{4,8})"
+        /** A code not part of a longer number; a word may run into it ("OTP-482913"), a number can't ("555-1234"). */
+        private val CODE = Regex("(?<!\\p{N})(?<!\\p{N}-)$DIGITS(?!\\p{N})")
+        private val GOOGLE_CODE = Regex("(?<![\\p{L}\\p{N}])G-\\p{Nd}{5,8}(?![\\p{N}])")
+        /** "Enter 482913 to sign in": a code that names no code word but says what it's for. */
+        private val SIGN_IN_PROMPT = Regex(
+            "(?<!\\p{L})(?:enter|use|type)\\s+$DIGITS(?!\\p{N})\\s+to\\s+(?:sign|log)[- ]?in(?!\\p{L})",
+            RegexOption.IGNORE_CASE
+        )
+        /** A code of capital letters and digits ("K7P-2Q9", "4X7QF"); one only right after its word ([LABEL_REACH]). */
+        private val LETTERS_CODE = Regex(
+            "(?<![\\p{L}\\p{N}-])(?=[A-Z\\d-]*\\d)(?=[A-Z\\d-]*[A-Z])(?:[A-Z\\d]{4,8}|[A-Z\\d]{3,4}-[A-Z\\d]{3,4})(?![\\p{L}\\p{N}-])"
+        )
         /**
          * A word saying a number is a code, in the languages most phones use. A word may end in code ("Codes",
          * German "Bestätigungscode", Dutch "verificatiecode", Turkish "kodu", Spanish "código"); Chinese, Japanese and
@@ -244,36 +265,53 @@ internal class NotificationExtractor(
          */
         private val CODE_WORD = Regex(
             "(?<![\\p{L}\\p{M}\\p{N}])(?:" +
-                "otp|passcode|verification|verify|one[- ]?time|2fa|two[- ]factor|pin|clave|" +
+                "otp|passcode|verification|verify|one[- ]?time|2fa|two[- ]factor|pin|clave|token|authentication|" +
+                "temporary password|einmalpasswort|m[ãa] x[áa]c (?:th[ựu]c|nh[ậa]n|minh)|(?:ה)?קוד|" +
                 "mot de passe [àa] usage unique|do[ğg]rulama|(?:ال)?رمز(?:ك|كم)?|كود|कोड|ओटीपी|код(?:а|у|ом|ы)?|" +
                 "\\p{L}*(?:codes?|kod(?:u|y|e|em|un|um|unuz)?|codic[ei]|c[oó]digos?)" +
                 ")(?![\\p{L}\\p{M}\\p{N}])" +
                 "|验证码|驗證碼|校验码|校驗碼|动态码|動態碼|認証コード|確認コード|認証番号|確認番号|인증\\s?(?:번호|코드)",
             RegexOption.IGNORE_CASE
         )
-        /** Words ending in code that aren't a sign-in code: "barcode", "postcode", "unicode". */
-        private val NOT_SIGN_IN_CODE_WORD = Regex(
-            "(?:bar|post|zip|promo|qr|uni|en|de|area|dress|country|source)codes?",
+        /**
+         * Codes that aren't a sign-in code, joined or not: "barcode", "zip code", "dress code", "source code", and
+         * India's postal "pincode".
+         */
+        private val NOT_SIGN_IN_CODE = Regex(
+            "(?<![\\p{L}\\p{N}])(?:(?:bar|post(?:al)?|zip|promo|qr|area|dress|country|source|discount|coupon|voucher|gift|pin)[ -]?" +
+                "|uni|en|de)codes?(?![\\p{L}\\p{N}])",
             RegexOption.IGNORE_CASE
         )
+        /** "PIN code" is a card's PIN too, so it's a postal code only beside a word about a delivery or address. */
+        private val PIN_CODE = Regex("(?<![\\p{L}\\p{N}])pin[ -]codes?(?![\\p{L}\\p{N}])", RegexOption.IGNORE_CASE)
+        private val DELIVERY_WORD = Regex("(?<!\\p{L})(?:deliver\\p{L}*|address\\p{L}*|courier|shipping|parcel|postal)(?!\\p{L})", RegexOption.IGNORE_CASE)
         /** How far apart a code and its word may be and still be one sign-in code. */
         private const val CODE_WORD_REACH = 40
+        /** How far after its word a letters-and-digits code may start: "code: K7P-2Q9", "code is A1B2C3". */
+        private const val LABEL_REACH = 6
 
         /**
          * Whether [text] holds a one-time sign-in code: a code ("482913", "482 913", "G-482913") within
-         * [CODE_WORD_REACH] characters of a word saying so ([CODE_WORD]: code, OTP, verification, código, код, 验证码...).
-         * Kept narrow so "Your order 123456 has shipped" is still found.
+         * [CODE_WORD_REACH] characters of a word saying so ([CODE_WORD]: code, OTP, verification, código, код, 验证码...),
+         * a letters-and-digits code right after one ("code: K7P-2Q9"), or "Enter 482913 to sign in". Kept narrow so
+         * "Your order 123456 has shipped", "Your zip code 94103" and a delivery's "pincode 560001" are still found.
          */
         internal fun looksLikeOneTimeCode(text: String): Boolean {
             if (text.isEmpty()) return false
-            if (GOOGLE_CODE.containsMatchIn(text)) return true
-            val words = CODE_WORD.findAll(text).filterNot { NOT_SIGN_IN_CODE_WORD.matches(it.value) }.map { it.range }.toList()
+            if (GOOGLE_CODE.containsMatchIn(text) || SIGN_IN_PROMPT.containsMatchIn(text)) return true
+            val postal = DELIVERY_WORD.containsMatchIn(text)
+            val notSignIn = NOT_SIGN_IN_CODE.findAll(text).map { it.range }
+                .filter { range -> postal || !PIN_CODE.matches(text.substring(range)) }.toList()
+            val words = CODE_WORD.findAll(text).map { it.range }.filterNot { word -> notSignIn.any { word.first in it } }.toList()
             if (words.isEmpty()) return false
-            return CODE.findAll(text).any { code ->
+            val digits = CODE.findAll(text).any { code ->
                 words.any { word ->
                     val gap = if (word.first > code.range.last) word.first - code.range.last else code.range.first - word.last
                     gap <= CODE_WORD_REACH
                 }
+            }
+            return digits || LETTERS_CODE.findAll(text).any { code ->
+                words.any { word -> word.last < code.range.first && code.range.first - word.last <= LABEL_REACH }
             }
         }
 
@@ -284,16 +322,55 @@ internal class NotificationExtractor(
             return parcels.mapNotNull { (it as? Bundle)?.getCharSequence("text")?.toString() }.takeLast(MESSAGES_KEPT)
         }
 
-        /** A clock app's running timer (counting down) or stopwatch (counting up), read from its chronometer. */
-        fun chronometerOf(notification: Notification, packageName: String, clockPackages: Set<String>): IndexedNotification.Chronometer? {
+        /**
+         * A clock app's running timer (counting down) or stopwatch (counting up). Read from its chronometer, or, on
+         * Android 17, from its MetricStyle time ([timerMetricOf]), which may count in time since boot: [bootTime] is
+         * the wall-clock time the phone started. A paused timer has no running time and is left out, as before.
+         */
+        fun chronometerOf(
+            notification: Notification,
+            packageName: String,
+            clockPackages: Set<String>,
+            bootTime: Long = 0L
+        ): IndexedNotification.Chronometer? {
             val extras = notification.extras ?: return null
-            if (!extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER)) return null
             val fromClock = packageName in clockPackages || notification.category == Notification.CATEGORY_STOPWATCH
             if (!fromClock) return null
-            return IndexedNotification.Chronometer(
-                countDown = extras.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN),
-                baseTime = notification.`when`
-            )
+            if (extras.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER)) {
+                return IndexedNotification.Chronometer(
+                    countDown = extras.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN),
+                    baseTime = notification.`when`
+                )
+            }
+            val time = timerMetricOf(extras)?.getBundle(METRIC_VALUE) ?: return null
+            val baseTime = if (time.containsKey(TIME_ZERO)) time.getLong(TIME_ZERO) else bootTime + time.getLong(TIME_ZERO_ELAPSED)
+            return IndexedNotification.Chronometer(countDown = time.getBoolean(TIME_COUNT_DOWN), baseTime = baseTime)
         }
+
+        /**
+         * The running time among a MetricStyle notification's metrics, the one it marks most important first.
+         * Android 17's Clock posts its timer this way with no chronometer, as
+         * `android.metrics=[Bundle{label=10m Timer, value=Bundle{zeroElapsedRealtime=6895293, countDown=true, ...}}]`;
+         * paused, the value holds `pausedDuration` instead.
+         */
+        private fun timerMetricOf(extras: Bundle): Bundle? {
+            @Suppress("DEPRECATION")
+            val metrics = runCatching { extras.getParcelableArrayList<Bundle>(EXTRA_METRICS) }.getOrNull() ?: return null
+            val critical = metrics.getOrNull(extras.getInt(EXTRA_CRITICAL_METRIC, -1))
+            return (listOfNotNull(critical) + metrics).firstOrNull { metric ->
+                val time = runCatching { metric.getBundle(METRIC_VALUE) }.getOrNull() ?: return@firstOrNull false
+                time.containsKey(TIME_COUNT_DOWN) && (time.containsKey(TIME_ZERO) || time.containsKey(TIME_ZERO_ELAPSED))
+            }
+        }
+
+        // Android 17's MetricStyle extras (Notification.Metric and Metric.TimeDifference), read as plain bundles.
+        private const val EXTRA_METRICS = "android.metrics"
+        private const val EXTRA_CRITICAL_METRIC = "android.metrics.criticalIndex"
+        private const val METRIC_LABEL = "label"
+        private const val METRIC_VALUE = "value"
+        /** When the time reaches zero (or a stopwatch started): wall-clock or since-boot milliseconds. */
+        private const val TIME_ZERO = "zeroTime"
+        private const val TIME_ZERO_ELAPSED = "zeroElapsedRealtime"
+        private const val TIME_COUNT_DOWN = "countDown"
     }
 }

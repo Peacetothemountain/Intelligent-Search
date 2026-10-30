@@ -350,6 +350,90 @@ class NotificationIndexTest {
     }
 
     @Test
+    fun aOneTimeCodeIsKnownInMoreShapesAndPostalCodesAreNot() {
+        // These were indexed and found by searching the code.
+        for (text in listOf(
+            "Your temporary password: 48291756",
+            "Enter 482913 to sign in",
+            "Your OTP-482913",
+            "Your token is 123456",
+            "Your authentication number is 482913",
+            "Ihr Einmalpasswort: 123456",
+            "Your verification code is 12 34 56",
+            "Your code is 1 2 3 4 5 6",
+            "Your code: K7P-2Q9",
+            "Steam Guard code: 4X7QF",
+            "Your code is A1B2C3",
+            "رمز التحقق ١٢٣٤٥٦",
+            "आपका ओटीपी १२३४५६ है",
+            "Mã xác thực của bạn là 482913",
+            "קוד האימות שלך הוא 482913"
+        )) {
+            assertTrue(text, NotificationExtractor.looksLikeOneTimeCode(text))
+        }
+        // These were hidden from search as if they were sign-in codes.
+        for (text in listOf(
+            "Please enter the pincode 560001 for delivery",
+            "Your PIN code 560001 is not serviceable for delivery",
+            "Your zip code 94103 is in the delivery area",
+            "Dress code: black tie. Doors open at 2000",
+            "Read the source code at github.com/x/1234",
+            "Use promo code SAVE20 by 2026"
+        )) {
+            assertFalse(text, NotificationExtractor.looksLikeOneTimeCode(text))
+        }
+        // A card's PIN is still a secret.
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your new card's PIN code is 4821"))
+        // A number in a phone number isn't a code beside "OTP".
+        assertFalse(NotificationExtractor.looksLikeOneTimeCode("Questions about OTP? Call 555-12345678901"))
+    }
+
+    @Test
+    fun androidSeventeensClockTimerIsATimer() {
+        // As Android 17's Clock posts a running 10-minute timer: MetricStyle, no title and no chronometer; its time
+        // counts down to zeroElapsedRealtime, in time since boot (captured from a Pixel with dumpsys notification).
+        fun clockTimer(value: Bundle, label: String) = Notification.Builder(context, "Timers v2").build().apply {
+            extras.putBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false)
+            extras.putString(Notification.EXTRA_TEMPLATE, "android.app.Notification\$MetricStyle")
+            extras.putInt("android.metrics.criticalIndex", 0)
+            extras.putParcelableArrayList(
+                "android.metrics",
+                arrayListOf(Bundle().apply { putCharSequence("label", label); putBundle("value", value); putInt("semanticStyle", 0) })
+            )
+        }
+        val running = clockTimer(
+            Bundle().apply { putLong("zeroElapsedRealtime", 6_895_293L); putInt("format", 2); putInt("_type", 1); putBoolean("countDown", true) },
+            "10m Timer"
+        )
+        val bootTime = 1_793_314_000_000L
+        val clock = setOf("com.google.android.deskclock")
+        val entry = NotificationExtractor.fromNotification(
+            "t", "com.google.android.deskclock", "Clock", 0L, running, clock, bootTime = bootTime
+        )
+        assertEquals(IndexedNotification.Chronometer(countDown = true, baseTime = bootTime + 6_895_293L), entry?.chronometer)
+        assertEquals("10m Timer", entry?.title)
+        val timer = timersFrom(listOfNotNull(entry)).single()
+        assertEquals(GlanceTimer.Kind.Timer, timer.kind)
+        assertEquals("10m Timer", timer.label)
+        // Not from a clock: not a timer.
+        assertNull(NotificationExtractor.chronometerOf(running, "com.example.game", clock, bootTime))
+
+        // A paused timer has no running time, as it had none before.
+        val paused = clockTimer(
+            Bundle().apply { putLong("pausedDuration", 479_224L); putInt("format", 2); putInt("_type", 1); putBoolean("countDown", true) },
+            "Timer paused"
+        )
+        assertNull(NotificationExtractor.chronometerOf(paused, "com.google.android.deskclock", clock, bootTime))
+
+        // A stopwatch counting up from a wall-clock zero time.
+        val stopwatch = clockTimer(Bundle().apply { putLong("zeroTime", 5_000L); putBoolean("countDown", false) }, "Stopwatch")
+        assertEquals(
+            IndexedNotification.Chronometer(countDown = false, baseTime = 5_000L),
+            NotificationExtractor.chronometerOf(stopwatch, "com.google.android.deskclock", clock, bootTime)
+        )
+    }
+
+    @Test
     fun onlyAClockAppsChronometerIsATimer() {
         val timer = Notification.Builder(context, "c")
             .setContentTitle("5 min timer")

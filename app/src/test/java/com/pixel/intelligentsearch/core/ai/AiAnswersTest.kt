@@ -73,6 +73,11 @@ class AiAnswersTest {
         assertNull(answers.offerFor("?"))
         assertNull(answers.offerFor("ask"))
         assertEquals("why the sky is blue", AiAnswers.questionIn("Ask why the sky is blue"))
+        // Other languages' question marks ask too: full-width (Chinese, Japanese) and Arabic.
+        assertEquals("你好吗？", AiAnswers.questionIn("你好吗？"))
+        assertEquals(AiProvider.ANTHROPIC, answers.offerFor("これは何ですか？"))
+        assertEquals("كيف حالك؟", AiAnswers.questionIn("كيف حالك؟"))
+        assertNull(answers.offerFor("？"))
         // Offering never sends anything.
         assertTrue(transport.requests.isEmpty())
     }

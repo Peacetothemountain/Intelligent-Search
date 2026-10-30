@@ -69,6 +69,23 @@ class SubmitQueryTest {
         TutorialManager.completeTutorial(prefs)
         // Live web suggestions come from the network; these tests must not depend on them.
         prefs.edit().put(SettingsManager.SEARCH_WEB_SUGGESTIONS, false).commit()
+        // A phone with a browser: a web search is handed to another app, never back to this one.
+        installBrowser()
+    }
+
+    private fun installBrowser() {
+        val browser = android.content.ComponentName("com.example.browser", "com.example.browser.Search")
+        val packages = shadowOf(context.packageManager)
+        packages.addActivityIfNotPresent(browser)
+        packages.addIntentFilterForActivity(browser, android.content.IntentFilter(Intent.ACTION_WEB_SEARCH).apply { addCategory(Intent.CATEGORY_DEFAULT) })
+        packages.addIntentFilterForActivity(
+            browser,
+            android.content.IntentFilter(Intent.ACTION_VIEW).apply {
+                addCategory(Intent.CATEGORY_DEFAULT)
+                addCategory(Intent.CATEGORY_BROWSABLE)
+                addDataScheme("https")
+            }
+        )
     }
 
     private fun showOverlay() {

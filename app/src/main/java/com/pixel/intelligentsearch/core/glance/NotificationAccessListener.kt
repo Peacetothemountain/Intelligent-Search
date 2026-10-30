@@ -273,6 +273,8 @@ internal class NotificationExtractor(
             RegexOption.IGNORE_CASE
         )
         private val PLAIN_CODE_WORD = Regex("codes?", RegexOption.IGNORE_CASE)
+        /** A shop's code: letters then digits, or digits then letters, as "SAVE20", "FALL2026" and "50OFF" are. */
+        private val PROMO_CODE = Regex("[A-Z]+\\d+|\\d+[A-Z]+")
         /** "Dropped pin": a place on a map, not a PIN. */
         private val DROPPED_PIN = Regex("(?<!\\p{L})dropped\\s+pin(?!\\p{L})", RegexOption.IGNORE_CASE)
         private val GOOGLE_CODE = Regex("(?<![\\p{L}\\p{N}])G-\\p{Nd}{5,8}(?![\\p{N}])")
@@ -354,10 +356,13 @@ internal class NotificationExtractor(
                     gap <= CODE_WORD_REACH && !(runIntoWord && isPromoWord(match))
                 }
             }
+            // A promo code is a word and a number ("FALL2026", "BF2026"); one that mixes them ("A1B2C3") is a sign-in
+            // code even beside a shop's offer.
             return digits || LETTERS_CODE.findAll(text).any { code ->
                 words.any { match ->
                     val word = match.range
-                    !isPromoWord(match) && word.last < code.range.first && code.range.first - word.last <= LABEL_REACH
+                    !(isPromoWord(match) && PROMO_CODE.matches(code.value)) && word.last < code.range.first &&
+                        code.range.first - word.last <= LABEL_REACH
                 }
             }
         }

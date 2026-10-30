@@ -8,8 +8,8 @@ import java.util.Locale
 /** The other ways the detail pane writes a calculator answer. */
 class NumberFormsTest {
 
-    private fun forms(result: String, locale: Locale = Locale.US) =
-        numberForms(result, locale).associate { it.label to it.value }
+    private fun forms(result: String, locale: Locale = Locale.US, value: Double? = null) =
+        numberForms(result, locale, value).associate { it.label to it.value }
 
     @Test
     fun aWholeNumberShowsInTheOtherBases() {
@@ -64,6 +64,23 @@ class NumberFormsTest {
         // A fraction the shown number is exactly is still offered.
         assertEquals("1234567 1/4", forms("1234567.25")["Fraction"])
         assertEquals("12345 1/2", forms("12345.5")["Fraction"])
+    }
+
+    @Test
+    fun anIrrationalWhoseShownDigitsEndOnAFractionHasNone() {
+        // The digits shown end on a fraction, the value worked out doesn't: these were "8944271 91/100", "11180339
+        // 71/80", "12569805 9/100" and "9433 52/53".
+        for (query in listOf("sqrt(80)*1000000", "sqrt(125)*1000000", "sqrt(158)*1000000", "sqrt(89)*1000")) {
+            val shown = (com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.evaluate(query)
+                as com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Computation).formattedResult
+            val forms = numberForms(shown, Locale.US, value = mathValue(query, shown)).associate { it.label to it.value }
+            assertTrue("$query = $shown", "Fraction" !in forms)
+        }
+        // Known exactly, a repeating decimal with few decimals shown has its fraction (it had none).
+        assertEquals("33333 1/3", forms("33333.33333", value = 100000.0 / 3)["Fraction"])
+        assertEquals("308641 3/4", forms("308641.75", value = 1234567.0 / 4)["Fraction"])
+        assertEquals("1/3", forms("0.3333333333", value = 1.0 / 3)["Fraction"])
+        assertEquals("2/3", forms("0.6666666667", value = 1.0 / 3 + 1.0 / 3)["Fraction"])
     }
 
     @Test

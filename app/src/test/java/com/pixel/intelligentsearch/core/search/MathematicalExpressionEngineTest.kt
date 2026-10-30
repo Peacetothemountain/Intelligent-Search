@@ -582,6 +582,80 @@ class MathematicalExpressionEngineTest {
     }
 
     @Test
+    fun aSmallAnswerFromNumbersPast2To53IsExactOrNone() {
+        // A double can't hold these operands, and each showed a wrong answer that looked exact.
+        assertEquals("9007199254740992", computed("9007199254740993-1"))
+        assertEquals("1", computed("2^60+1-2^60"))
+        assertEquals("1", computed("(2^53+1)-2^53"))
+        assertEquals("1", computed("10000000000000001-10000000000000000"))
+        assertEquals("1", computed("20!-2432902008176639999"))
+        // A remainder of one can't be worked out exactly, so it isn't shown rather than shown wrong (it was 1, not 2).
+        assertNull(computed("(2^60+1)%7"))
+        // 0^4294967296 was worked out as 0^0, so this showed 2^60 + 1.
+        assertNotEquals("1152921504606846977", computed("0^4294967296+2^60"))
+        // Large operands with nothing lost are still answered.
+        assertEquals("1024", computed("2^60/2^50"))
+        assertEquals("2", computed("1e20-1e20+2"))
+    }
+
+    @Test
+    fun noCalculationTakesLongOnTheMainThread() {
+        // The calculator runs on every keystroke; "(1e10000000+1)^0*1e16" wrote out a ten-million-digit number and took
+        // 4.6 s, past the point the phone reports the app as not responding.
+        for (query in listOf(
+            "0^4294967296+2^60", "1^1e400*2^60", "(1e1000+1)^0*1e16", "(1e1000000+1)^0*1e16", "(1e3000000+1)^0*1e16",
+            "(1e10000000+1)^0*1e16", "(1e30000000+1)^0*1e16", "(1e10000000+1)^0*1e16*2", "1e10000000^0*1e16",
+            "(1e10000000*1)^0*1e16", "(1e10000000-1e10000000+3)*2^60", "1^(1e1000000)*2^60", "(1e999999999+1)^0*1e16",
+            "(1e400-1e400+1)^1e9", "1e10000000-1e10000000+2^60", "9^9^9", "1000!", "2^1000", "123456789^30", "(10^20)^15"
+        )) {
+            val start = System.nanoTime()
+            MathematicalExpressionEngine.evaluate(query)
+            val ms = (System.nanoTime() - start) / 1_000_000
+            assertTrue("$query took $ms ms", ms < 200)
+        }
+        // Raised to 0, anything is 1.
+        assertEquals("1.0000e+16", computed("(1e10000000+1)^0*1e16"))
+    }
+
+    @Test
+    fun dollarsAndYenAreThePhonesRegions() {
+        // "$" and "dollars" were US dollars and "¥" yen everywhere.
+        val cases = mapOf(
+            Triple("en-AU", "$100 to eur", "AUD") to "EUR", Triple("en-CA", "$100 to eur", "CAD") to "EUR",
+            Triple("en-AU", "100 dollars to eur", "AUD") to "EUR", Triple("en-NZ", "100 bucks in gbp", "NZD") to "GBP",
+            Triple("es-MX", "$100 to usd", "MXN") to "USD", Triple("zh-CN", "¥100 to usd", "CNY") to "USD",
+            Triple("ja-JP", "¥100 to usd", "JPY") to "USD", Triple("en-US", "$100 to eur", "USD") to "EUR",
+            Triple("en-GB", "$100 to gbp", "USD") to "GBP",
+            // In Mexico "dollars" are still US dollars; "$" is the peso.
+            Triple("es-MX", "100 dollars to mxn", "USD") to "MXN",
+            // "$100 to aud" in Australia can only mean US dollars.
+            Triple("en-AU", "$100 to aud", "USD") to "AUD", Triple("zh-CN", "¥100 to cny", "JPY") to "CNY",
+            // A code said outright is that currency anywhere.
+            Triple("en-AU", "100 usd to eur", "USD") to "EUR"
+        )
+        for ((case, to) in cases) {
+            val (tag, query, from) = case
+            val conversion = inLocale(java.util.Locale.forLanguageTag(tag)) { converted(query) }
+            assertEquals("$tag $query", from to to, conversion?.fromUnit to conversion?.toUnit)
+        }
+        // A currency into itself is no conversion ("100 USD ≈ 100.00 USD").
+        assertNull(inLocale(java.util.Locale.US) { converted("100 usd to usd") })
+        assertNull(inLocale(java.util.Locale.US) { converted("100 euros in eur") })
+    }
+
+    @Test
+    fun aLetterAloneIsNoHexNumber() {
+        // "b in binary" was 0b1011: it asks for the letter's code, as "a in binary" does.
+        for (query in listOf("b in binary", "c in binary", "d in binary", "f in binary", "decade to binary", "faded in hex")) {
+            assertNull(query, MathematicalExpressionEngine.evaluate(query))
+        }
+        // All six hex letters can only be a number; it had no answer.
+        assertEquals("abcdef to dec = 11259375", bitwise("abcdef to decimal")?.expression)
+        assertEquals("0xb to bin = 0b1011", bitwise("0xb in binary")?.expression)
+        assertEquals("ff to bin = 0b11111111", bitwise("ff in binary")?.expression)
+    }
+
+    @Test
     fun unitAndCurrencyNamesAreKnownToTheSpellChecker() {
         for (word in listOf("km", "ft2", "m3", "usd", "euros", "yen", "kwh", "mph", "°F")) {
             assertTrue(word, MathematicalExpressionEngine.isUnitName(word))

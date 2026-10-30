@@ -287,6 +287,16 @@ class DateMathEngineTest {
     }
 
     @Test
+    fun aNamedDayWithItsYearIsThatYearsDay() {
+        // Each had no answer.
+        assertEquals("Saturday, December 25, 2027 is a Saturday", text("what day of the week is christmas 2027"))
+        assertEquals("Sunday, March 28, 2027 is a Sunday", text("what day is easter 2027"))
+        assertEquals("Thursday, December 25, 2025 was a Thursday", text("what day was christmas, 2025"))
+        assertEquals("66 days until Sunday, December 25, 2033", text("days until christmas 2033", today = "2033-10-20"))
+        assertNull(on().evaluate("what day is pizza 2027"))
+    }
+
+    @Test
     fun theIsoWeekNumber() {
         // October 20, 2026 is in ISO week 43, which starts on Monday, October 19.
         val answer = on().evaluate("week number")!!

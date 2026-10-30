@@ -133,7 +133,8 @@ internal fun OverlayDetailPane(s: OverlayScope, modifier: Modifier = Modifier) {
                     // other forms it falls back to the card so the pane isn't empty.
                     ResultListKeys.MATH -> {
                         val result = s.uiState.mathResult.orEmpty()
-                        val forms = remember(result) { numberForms(result) }
+                        val query = s.uiState.query
+                        val forms = remember(result, query) { numberForms(result, value = mathValue(query, result)) }
                         if (forms.isNotEmpty()) {
                             NumberFormsCard(forms)
                         } else {

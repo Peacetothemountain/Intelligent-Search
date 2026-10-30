@@ -141,6 +141,8 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
         var words = query.split(' ')
         SWITCH_LEADS.firstOrNull { lead -> words.size > lead.size && words.subList(0, lead.size) == lead }
             ?.let { lead -> words = words.drop(lead.size) }
+        // "turn bluetooth off": the verb before the setting and the switch after it.
+        if (words.size > 2 && words.first() in SWITCH_VERBS && words.last() in SWITCH_ENDS) words = words.drop(1)
         // "power off" and "power on" are switching the phone itself, not the Battery page's "power".
         if (words.size > 1 && words.last() in SWITCH_ENDS && words.dropLast(1) !in NOT_SWITCHED) words = words.dropLast(1)
         return words.joinToString(" ")
@@ -300,6 +302,9 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
 
         /** How a query ends when it asks to switch a setting: "wifi off". */
         private val SWITCH_ENDS = setOf("on", "off")
+
+        /** The verbs of [SWITCH_LEADS] that may also come before the setting with the switch after it. */
+        private val SWITCH_VERBS = setOf("turn", "switch")
 
         /** What "on" or "off" after which is a phrase of its own, not a setting switched. */
         private val NOT_SWITCHED = setOf(listOf("power"))

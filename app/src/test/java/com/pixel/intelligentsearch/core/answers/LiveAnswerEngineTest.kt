@@ -211,6 +211,26 @@ class LiveAnswerEngineTest {
     }
 
     @Test
+    fun aScaleTheQueryNamesWinsOverTheLocales() {
+        allowWebAnswers()
+        prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "36.31,-82.35;Johnson City, Tennessee").commit()
+        val answer = answers(engine(), "weather in celsius").single() as LiveAnswer.Weather
+        assertEquals(TemperatureUnit.CELSIUS, answer.report.unit)
+        assertTrue("still the forecast for here", answer.here)
+        assertFalse(http.requests.single(), "temperature_unit=fahrenheit" in http.requests.single())
+    }
+
+    @Test
+    fun weatherNearMeIsTheForecastForHereAndLooksNoPlaceUp() {
+        allowWebAnswers()
+        prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "36.31,-82.35;Johnson City, Tennessee").commit()
+        val answer = answers(engine(), "weather near me").single() as LiveAnswer.Weather
+        assertEquals("Johnson City, Tennessee", answer.report.placeName)
+        assertTrue(answer.here)
+        assertTrue(http.requests.toString(), http.requests.none { it.startsWith("https://geocoding-api.open-meteo.com/") })
+    }
+
+    @Test
     fun weatherForANamedPlaceLooksThePlaceUpFirst() {
         allowWebAnswers()
         val engine = engine()

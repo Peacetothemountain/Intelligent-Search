@@ -10,6 +10,7 @@ import android.view.PixelCopy
 import android.view.Window
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.createBitmap
 
 /**
  * Takes a picture of a page as another page opens over it (the back animation shows it underneath): a copy of the
@@ -47,7 +48,7 @@ internal class PageSnapshotter(private val window: () -> Window?) {
         val dest = runCatching {
             if (released) return deliver(null, onPicture)
             scratch?.takeIf { it.width == bounds.width() && it.height == bounds.height() }
-                ?: Bitmap.createBitmap(bounds.width(), bounds.height(), Bitmap.Config.ARGB_8888).also {
+                ?: createBitmap(bounds.width(), bounds.height()).also {
                     scratch?.recycle()
                     scratch = it
                 }

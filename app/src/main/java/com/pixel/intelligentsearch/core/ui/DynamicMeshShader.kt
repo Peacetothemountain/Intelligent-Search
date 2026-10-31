@@ -120,10 +120,18 @@ private fun androidx.compose.ui.graphics.MeshGradientScope.configurePageGlow(t: 
  * waits [MESH_FRAME_GAP_MS] after each tick and then takes the next frame: about 30 redraws a second at 60, 90 or
  * 120 Hz. It stands still while [isPaused] or [extraPause], in the background, under severe thermal throttling and,
  * when [stopsWithAnimationsRemoved], while the user has removed animations. Time is taken from frame timestamps, so
- * a late frame doesn't slow it. It can be set, to carry a drift on from a moment pictured earlier.
+ * a late frame doesn't slow it.
  */
 @Composable
 internal fun rememberMeshClock(
+    isPaused: Boolean,
+    extraPause: Boolean = false,
+    stopsWithAnimationsRemoved: Boolean = true
+): State<Float> = rememberSettableMeshClock(isPaused, extraPause, stopsWithAnimationsRemoved)
+
+/** [rememberMeshClock] as a clock that can be set, to carry a drift on from a moment pictured earlier. */
+@Composable
+internal fun rememberSettableMeshClock(
     isPaused: Boolean,
     extraPause: Boolean = false,
     stopsWithAnimationsRemoved: Boolean = true

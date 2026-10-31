@@ -159,7 +159,7 @@ fun SettingsScreensHub(
         // glow as it was when taken; as the real page takes the picture's place, the drift is set back to that moment,
         // so the light carries on from the picture and never jumps. It stands still on Widget Customization, which
         // has no glow, except while a back swipe shows the page underneath.
-        val glowClock = com.pixel.intelligentsearch.core.ui.rememberMeshClock(isPaused = onWidgetPage && !nativeBack.active)
+        val glowClock = com.pixel.intelligentsearch.core.ui.rememberSettableMeshClock(isPaused = onWidgetPage && !nativeBack.active)
         var enteringGlow by remember { mutableFloatStateOf(1f) }
         // The glow's moment in the picture of the page underneath a back swipe, until the real page has taken over.
         var enteringGlowTime by remember { mutableStateOf<Float?>(null) }

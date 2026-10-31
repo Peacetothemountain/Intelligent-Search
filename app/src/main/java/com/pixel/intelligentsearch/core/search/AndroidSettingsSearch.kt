@@ -29,14 +29,16 @@ class AndroidSettingResult(
     val iconType: String,
     val intent: Intent,
     val app: AppItem? = null,
-    val isStrongMatch: Boolean = false
+    val isStrongMatch: Boolean = false,
+    /** For one of Intelligent Search's own pages ([AppSettingsCatalog]), its route key: it opens there, not in Settings. */
+    val appRoute: String? = null
 ) {
     /** What TalkBack reads for the row, e.g. "Battery settings" or "App info for Chrome". */
     val spokenLabel: String get() = if (app != null) "App info for ${app.name}" else "$title settings"
 
     override fun equals(other: Any?): Boolean =
         other is AndroidSettingResult && id == other.id && title == other.title && subtitle == other.subtitle &&
-            iconType == other.iconType && app == other.app && isStrongMatch == other.isStrongMatch
+            iconType == other.iconType && app == other.app && isStrongMatch == other.isStrongMatch && appRoute == other.appRoute
 
     override fun hashCode(): Int = id.hashCode()
 
@@ -61,7 +63,7 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
 
     private class IndexedPage(val page: AndroidSettingsCatalog.Page, val terms: List<Term>)
 
-    private val index: List<IndexedPage> = AndroidSettingsCatalog.pages.map { page ->
+    private val index: List<IndexedPage> = (AndroidSettingsCatalog.pages + AppSettingsCatalog.pages).map { page ->
         val texts = (listOf(page.title) + page.keywords).map(QueryNormalizer::normalize).filter { it.isNotEmpty() }
         IndexedPage(page, texts.distinct().map { Term(it, isTitle = it == QueryNormalizer.normalize(page.title)) })
     }
@@ -111,11 +113,12 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
     /** Catalogue page [id] as a result, if it opens on this phone: for pinned pages. */
     fun page(id: String): AndroidSettingResult? {
         val page = index.firstOrNull { it.page.id == id }?.page ?: return null
-        if (!isAvailable(page.id) { Intent(page.action) }) return null
-        return AndroidSettingResult(page.id, page.title, SUBTITLE, page.iconType, Intent(page.action))
+        if (!isAvailable(page)) return null
+        return resultFor(page, isStrongMatch = false)
     }
 
-    private fun pageResults(query: String): List<AndroidSettingResult> {
+    private fun pageResults(typed: String): List<AndroidSettingResult> {
+        val query = withoutSwitchWords(typed)
         if (query in unlisted || query in TOO_GENERIC) return emptyList()
         val queryWords = query.split(' ')
         val queryMetaphone = DoubleMetaphone.encode(query)
@@ -124,21 +127,41 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
             .sortedByDescending { it.second }
             .asSequence()
             .map { it.first }
-            .filter { isAvailable(it.page.id) { Intent(it.page.action) } }
+            .filter { isAvailable(it.page) }
             .take(MAX_PAGES)
-            .map { indexed ->
-                val page = indexed.page
-                AndroidSettingResult(
-                    id = page.id,
-                    title = page.title,
-                    subtitle = SUBTITLE,
-                    iconType = page.iconType,
-                    intent = Intent(page.action),
-                    isStrongMatch = indexed.terms.any { namesOutright(query, it) }
-                )
-            }
+            .map { indexed -> resultFor(indexed.page, isStrongMatch = indexed.terms.any { namesOutright(query, it) }) }
             .toList()
     }
+
+    /**
+     * [query] without the words that say what to do with a setting rather than which: "turn on bluetooth" and
+     * "bluetooth off" both mean the Bluetooth page. A query that is only those words is left as it is.
+     */
+    private fun withoutSwitchWords(query: String): String {
+        var words = query.split(' ')
+        SWITCH_LEADS.firstOrNull { lead -> words.size > lead.size && words.subList(0, lead.size) == lead }
+            ?.let { lead -> words = words.drop(lead.size) }
+        // "turn bluetooth off": the verb before the setting and the switch after it.
+        if (words.size > 2 && words.first() in SWITCH_VERBS && words.last() in SWITCH_ENDS) words = words.drop(1)
+        // "power off" and "power on" are switching the phone itself, not the Battery page's "power".
+        if (words.size > 1 && words.last() in SWITCH_ENDS && words.dropLast(1) !in NOT_SWITCHED) words = words.dropLast(1)
+        return words.joinToString(" ")
+    }
+
+    /** [page] as a result row: one of the phone's Settings pages, or one of the app's own ([AppSettingsCatalog]). */
+    private fun resultFor(page: AndroidSettingsCatalog.Page, isStrongMatch: Boolean) = AndroidSettingResult(
+        id = page.id,
+        title = page.title,
+        subtitle = if (page.appRoute != null) APP_PAGE_SUBTITLE else SUBTITLE,
+        iconType = page.iconType,
+        intent = Intent(page.action),
+        isStrongMatch = isStrongMatch,
+        appRoute = page.appRoute
+    )
+
+    /** Whether [page] opens here: the app's own pages always do; a Settings page if its action resolves. */
+    private fun isAvailable(page: AndroidSettingsCatalog.Page): Boolean =
+        page.appRoute != null || isAvailable(page.id) { Intent(page.action) }
 
     /**
      * Whether [query] names the page of [term] outright: it is the page's title, a keyword of several words ("dark
@@ -154,7 +177,7 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
         for (term in indexed.terms) {
             // Under three letters only a whole keyword counts ("bt", "dnd" is three): "b" alone would list half the catalogue.
             if (query.length < MIN_PARTIAL_QUERY && term.text != query) continue
-            if (!isPlausible(query, queryWords, term)) continue
+            if (!isPlausible(query, queryWords, term, slips = indexed.page.appRoute == null)) continue
             val match = SearchScoringEngine.evaluateScore(
                 query = query,
                 targetTitle = term.text,
@@ -178,15 +201,20 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
      * - a keyword's initials must be typed whole;
      * - a multi-word query must match the term word for word, so "system update" isn't "system language" for
      *   sharing its first word, and a slip or sound-alike counts only within its own word;
-     * - a single word gets typos and sound-alikes against titles from five letters, but against keywords, which are
+     * - the app's own pages get no typos or sound-alikes at all;
+ * - a single word gets typos and sound-alikes against titles from five letters, but against keywords, which are
      *   often everyday words, only one slip in seven letters or more ("hotpsot"), or in five for a settings word
      *   nobody types for anything else ("wifii"), and no sound-alikes.
      */
-    private fun isPlausible(query: String, queryWords: List<String>, term: Term): Boolean {
+    private fun isPlausible(query: String, queryWords: List<String>, term: Term, slips: Boolean = true): Boolean {
         if (term.text == query) return true
         if (term.text.startsWith(query) && (term.isTitle || query.length >= MIN_WORD_PREFIX)) return true
         if (query.length >= MIN_WORD_PREFIX && term.words.any { it.startsWith(query) }) return true
         if (term.words.size > 1 && (if (term.isTitle) term.initials.startsWith(query) else term.initials == query)) return true
+        // The app's own pages are found by what they're called, never by a slip or a sound-alike: "contacts" is the
+        // Contacts app's, not Contact Search's.
+        if (!slips) return queryWords.size > 1 && term.words.size >= queryWords.size &&
+            queryWords.indices.all { i -> term.words[i] == queryWords[i] || (i == queryWords.lastIndex && term.words[i].startsWith(queryWords[i])) }
         if (queryWords.size > 1) {
             if (queryWords.size != term.words.size) return false
             return queryWords.indices.all { i ->
@@ -263,9 +291,23 @@ class AndroidSettingsSearch @Inject constructor(@param:ApplicationContext privat
         private const val KEYWORD_WEIGHT = 0.9f
         private const val SUBTITLE = "Settings"
         private const val APP_INFO_SUBTITLE = "Settings › Apps"
+        private const val APP_PAGE_SUBTITLE = "Intelligent Search Settings"
         internal const val APP_INFO_ID = "app_info"
 
         private val SETTINGS_WORDS = setOf("settings", "setting")
+
+        /** How a query starts when it asks to switch a setting: "turn on bluetooth", "enable dark mode". */
+        private val SWITCH_LEADS = listOf("turn on", "turn off", "switch on", "switch off", "enable", "disable")
+            .map { it.split(' ') }
+
+        /** How a query ends when it asks to switch a setting: "wifi off". */
+        private val SWITCH_ENDS = setOf("on", "off")
+
+        /** The verbs of [SWITCH_LEADS] that may also come before the setting with the switch after it. */
+        private val SWITCH_VERBS = setOf("turn", "switch")
+
+        /** What "on" or "off" after which is a phrase of its own, not a setting switched. */
+        private val NOT_SWITCHED = setOf(listOf("power"))
 
         /**
          * One-word keywords that mean the setting whatever else is around, so typing one names its page outright

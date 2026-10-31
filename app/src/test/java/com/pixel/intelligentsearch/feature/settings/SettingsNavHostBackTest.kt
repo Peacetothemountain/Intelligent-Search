@@ -112,6 +112,52 @@ class SettingsNavHostBackTest {
     }
 
     @Test
+    fun aSwipeLetGoOnASubPagePlaysTheReleaseThenReturnsToMain() {
+        compose.mainClock.autoAdvance = false
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Appearance").performClick()
+        compose.settle(steps = 5)
+
+        val dispatcher = compose.activity.onBackPressedDispatcher
+        compose.runOnIdle {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 900f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(300f, 1000f, 0.7f, BackEventCompat.EDGE_LEFT))
+        }
+        compose.settle(steps = 2)
+        // Mid-swipe the page is still Appearance, only moved.
+        compose.onNodeWithText("Search Overlay").assertExists()
+
+        compose.runOnIdle { dispatcher.onBackPressed() }
+        compose.settle(steps = 10)
+
+        compose.onNodeWithText("Launch Portal").assertExists()
+        compose.onNodeWithText("Search Overlay").assertDoesNotExist()
+        assertFalse(compose.activity.isFinishing)
+    }
+
+    @Test
+    fun aCancelledSwipeOnASubPageStaysThere() {
+        compose.mainClock.autoAdvance = false
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Appearance").performClick()
+        compose.settle(steps = 5)
+        val section = compose.onNodeWithText("Search Overlay")
+        val before = section.fetchSemanticsNode().boundsInRoot
+
+        val dispatcher = compose.activity.onBackPressedDispatcher
+        compose.runOnIdle {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 900f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(300f, 900f, 0.6f, BackEventCompat.EDGE_LEFT))
+        }
+        compose.settle(steps = 2)
+        compose.runOnIdle { dispatcher.dispatchOnBackCancelled() }
+        compose.settle(steps = 10)
+
+        assertEquals(before, section.fetchSemanticsNode().boundsInRoot)
+        compose.onNodeWithText("Launch Portal").assertDoesNotExist()
+    }
+
+    @Test
     fun backOnMainLeavesThroughTheExitHandlerAfterASettingChangedOnASubPage() {
         compose.mainClock.autoAdvance = false
         compose.settle(steps = 5)

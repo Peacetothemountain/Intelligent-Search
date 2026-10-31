@@ -170,10 +170,15 @@ fun rememberBugdroidPlayer(clip: BugdroidClip, enabled: Boolean = true, autoPlay
 }
 
 /**
- * Draws [player]'s video with the black background keyed out, standing on shadows cast from its own silhouette.
+ * Draws [player]'s video with the black background keyed out, standing on the shadow its first frame casts.
  * The frame is scaled to fill the view like the original 16:9 render (times [scaleFactor]), with the cropped clip
  * offset back to its place in that frame. Until the video's first frame is on screen the clip's poster stands in
  * for it, so the bugdroid is there as soon as the page is.
+ *
+ * The shadow is cast once, from the poster (the clip's first frame), in a layer of its own that never changes, so
+ * Android works it out once and keeps it; the video above it is only keyed. Cast from every video frame, its three
+ * blurs made each frame of the page that holds it (Main) take 21-27 ms, so scrolling and moving between pages there
+ * ran at about 45 frames a second instead of 120.
  */
 @Composable
 fun BugdroidPlayer(
@@ -202,7 +207,22 @@ fun BugdroidPlayer(
         onDispose { player?.removeListener(listener) }
     }
 
-    Box(modifier = modifier.graphicsLayer { renderEffect = effects.forSize(size) }) {
+    Box(modifier = modifier) {
+        // The still shadow: the poster, drawn only through the shadow effect, which keeps none of the poster itself.
+        if (bugdroidShaders != null) {
+            val poster = ImageBitmap.imageResource(clip.posterRes)
+            Canvas(modifier = Modifier.fillMaxSize().graphicsLayer { renderEffect = effects.shadowForSize(size) }) {
+                if (!effects.hasShadow) return@Canvas
+                val rect = clip.videoRectInView(size.width, size.height, scaleFactor)
+                drawImage(
+                    image = poster,
+                    dstOffset = IntOffset(rect.left.roundToInt(), rect.top.roundToInt()),
+                    dstSize = IntSize(rect.width().roundToInt(), rect.height().roundToInt()),
+                    filterQuality = FilterQuality.Medium
+                )
+            }
+        }
+        Box(modifier = Modifier.fillMaxSize().graphicsLayer { renderEffect = effects.key }) {
         AndroidView(
             factory = { ctx ->
                 TextureView(ctx).apply {
@@ -240,6 +260,7 @@ fun BugdroidPlayer(
                     filterQuality = FilterQuality.Medium
                 )
             }
+        }
         }
     }
 }
@@ -384,16 +405,22 @@ internal fun shadowStrengths(dark: Boolean): FloatArray = floatArrayOf(
 /** Blur of each shadow part as a Gaussian sigma in frame pixels, softer the further it falls from the feet. */
 private val SHADOW_SIGMAS = floatArrayOf(10f, 42f, 16f)
 
-/**
- * The key, over the shadows the keyed bugdroid casts in a [vw] x [vh] view. Both are worked out from the same
- * layer every frame, so the shadows follow every move of the arms, key and balloon.
- */
-private fun bugdroidEffect(clip: BugdroidClip, vw: Float, vh: Float, scaleFactor: Float, dark: Boolean, edgeFade: Float): RenderEffect? {
+/** The key alone: the frame's black background keyed out, nothing else. */
+private fun bugdroidKey(): RenderEffect? {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
     val shaders = bugdroidShaders ?: return null
+    return runCatching { RenderEffect.createRuntimeShaderEffect(shaders.key, "content") }.getOrNull()
+}
+
+/**
+ * The shadows the keyed bugdroid casts in a [vw] x [vh] view, faded towards its edges, and nothing of the frame
+ * itself: drawn under the keyed video. Null where there is no shadow to cast (no shaders, no size).
+ */
+private fun bugdroidShadow(clip: BugdroidClip, vw: Float, vh: Float, scaleFactor: Float, dark: Boolean, edgeFade: Float): RenderEffect? {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
+    val shaders = bugdroidShaders ?: return null
+    if (vw <= 0f || vh <= 0f) return null
     return runCatching {
-        val key = RenderEffect.createRuntimeShaderEffect(shaders.key, "content")
-        if (vw <= 0f || vh <= 0f) return@runCatching key
         val k = clip.viewPixelsPerFramePixel(vw, vh, scaleFactor)
         val strengths = shadowStrengths(dark)
         val parts = (0..2).map { part ->
@@ -406,27 +433,30 @@ private fun bugdroidEffect(clip: BugdroidClip, vw: Float, vh: Float, scaleFactor
         // Black over black: source-over adds the parts up as 1 - (1 - a)(1 - b), so they deepen where they overlap.
         val shadows = parts.reduce { below, above -> RenderEffect.createBlendModeEffect(below, above, BlendMode.SRC_OVER) }
         shaders.edgeFade.setEdgeFadeUniforms(vw, vh, edgeFade)
-        val faded = RenderEffect.createChainEffect(RenderEffect.createRuntimeShaderEffect(shaders.edgeFade, "content"), shadows)
-        RenderEffect.createBlendModeEffect(faded, key, BlendMode.SRC_OVER)
+        RenderEffect.createChainEffect(RenderEffect.createRuntimeShaderEffect(shaders.edgeFade, "content"), shadows)
     }.getOrNull()
 }
 
-/** The effect for the last size asked for, rebuilt only when the size changes. */
+/** The key, and the shadow for the last size asked for, rebuilt only when the size changes. */
 private class BugdroidEffects(
     private val clip: BugdroidClip,
     private val scaleFactor: Float,
     private val dark: Boolean,
     private val edgeFade: Float
 ) {
+    val key: androidx.compose.ui.graphics.RenderEffect? = bugdroidKey()?.asComposeRenderEffect()
     private var size = Size.Unspecified
-    private var effect: androidx.compose.ui.graphics.RenderEffect? = null
+    private var shadow: androidx.compose.ui.graphics.RenderEffect? = null
 
-    fun forSize(size: Size): androidx.compose.ui.graphics.RenderEffect? {
+    /** Whether there is a shadow to draw; without one the poster under the video must not show. */
+    val hasShadow: Boolean get() = shadow != null
+
+    fun shadowForSize(size: Size): androidx.compose.ui.graphics.RenderEffect? {
         if (size != this.size) {
             this.size = size
-            effect = bugdroidEffect(clip, size.width, size.height, scaleFactor, dark, edgeFade)?.asComposeRenderEffect()
+            shadow = bugdroidShadow(clip, size.width, size.height, scaleFactor, dark, edgeFade)?.asComposeRenderEffect()
         }
-        return effect
+        return shadow
     }
 }
 

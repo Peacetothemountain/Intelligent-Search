@@ -65,20 +65,25 @@ object QueryNormalizer {
         return sb.toString()
     }
 
+    /**
+     * [text] with the letters that have no accent to take off written as they're typed without the key: "ß" as "ss",
+     * "ø" as "o", "æ" as "a". NFD leaves them whole, so "strasse" would never find "Straße".
+     */
+    fun foldLetters(text: String): String = text
+        .replace("ß", "ss").replace("ẞ", "ss")
+        .replace("œ", "oe").replace("Œ", "oe")
+        .replace('æ', 'a').replace('Æ', 'a')
+        .replace('ø', 'o').replace('Ø', 'o')
+        .replace('ł', 'l').replace('Ł', 'l')
+        .replace('đ', 'd').replace('Đ', 'd')
+        .replace('þ', 't').replace('Þ', 't')
+        .replace('ð', 'd').replace('Ð', 'd')
+
     fun normalize(input: String?): String {
         if (input.isNullOrBlank()) return ""
         if (isCanonicalAscii(input)) return input
         if (isPureAscii(input)) return normalizeAscii(input)
-        val preCleaned = input
-            .replace("ß", "ss").replace("ẞ", "ss")
-            .replace("œ", "oe").replace("Œ", "oe")
-            .replace('æ', 'a').replace('Æ', 'a')
-            .replace('ø', 'o').replace('Ø', 'o')
-            .replace('ł', 'l').replace('Ł', 'l')
-            .replace('đ', 'd').replace('Đ', 'd')
-            .replace('þ', 't').replace('Þ', 't')
-            .replace('ð', 'd').replace('Ð', 'd')
-        val decomposed = Normalizer.normalize(preCleaned, Normalizer.Form.NFD)
+        val decomposed = Normalizer.normalize(foldLetters(input), Normalizer.Form.NFD)
         val withoutAccents = DIACRITICS_PATTERN.matcher(decomposed).replaceAll("")
         val stripped = PUNCTUATION_PATTERN.matcher(withoutAccents.lowercase(java.util.Locale.ROOT)).replaceAll(" ")
         // Recompose what NFD split apart (Hangul syllables, kana with voicing marks) so keys match typed text.

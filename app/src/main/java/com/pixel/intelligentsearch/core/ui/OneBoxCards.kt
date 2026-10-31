@@ -386,7 +386,7 @@ fun MathResultOneBox(
             ) {
                 AnimatedCopyChip(
                     textToCopy = result,
-                    label = "Copy result",
+                    label = "Copy Result",
                     copiedLabel = "Copied!",
                     clipLabel = "Calculation"
                 )

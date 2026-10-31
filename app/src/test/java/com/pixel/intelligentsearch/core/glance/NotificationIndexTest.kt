@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Bundle
+import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -242,6 +243,239 @@ class NotificationIndexTest {
         assertNull(NotificationExtractor.fromNotification("m", "p", "App", 0L, player, emptySet()))
         val empty = Notification.Builder(context, "c").build().apply { extras = Bundle() }
         assertNull(NotificationExtractor.fromNotification("e", "p", "App", 0L, empty, emptySet()))
+    }
+
+    @Test
+    fun secretNotificationsAreNeverIndexed() {
+        fun code(visibility: Int) = Notification.Builder(context, "c")
+            .setContentTitle("Your bank")
+            .setContentText("Your statement is ready")
+            .setVisibility(visibility)
+            .build()
+        assertNull(NotificationExtractor.fromNotification("s", "com.example.bank", "Bank", 0L, code(Notification.VISIBILITY_SECRET), emptySet()))
+        // Kept off the lock screen by its channel or the user rather than by the app.
+        assertNull(
+            NotificationExtractor.fromNotification(
+                "c", "com.example.bank", "Bank", 0L, code(Notification.VISIBILITY_PUBLIC), emptySet(),
+                lockscreenVisibilityOverride = Notification.VISIBILITY_SECRET
+            )
+        )
+        // Private is every notification's default; it only hides the content on a lock screen set to.
+        assertEquals("Your statement is ready", NotificationExtractor.fromNotification("p", "com.example.bank", "Bank", 0L, code(Notification.VISIBILITY_PRIVATE), emptySet())?.text)
+        assertEquals(
+            "Your statement is ready",
+            NotificationExtractor.fromNotification(
+                "o", "com.example.bank", "Bank", 0L, code(Notification.VISIBILITY_PRIVATE), emptySet(),
+                lockscreenVisibilityOverride = NotificationListenerService.Ranking.VISIBILITY_NO_OVERRIDE
+            )?.text
+        )
+    }
+
+    @Test
+    fun aOneTimeCodeIsNeverIndexedEvenWhenOnlyPrivate() {
+        fun posted(title: String, text: String) = NotificationExtractor.fromNotification(
+            "k", "com.example.bank", "Bank", 0L,
+            Notification.Builder(context, "c").setContentTitle(title).setContentText(text)
+                .setVisibility(Notification.VISIBILITY_PRIVATE).build(),
+            emptySet()
+        )
+        // Posted as private, the default, these were indexed and found by searching the code or the bank.
+        for ((title, text) in listOf(
+            "Your bank" to "Code 482913",
+            "Messages" to "Your verification code is 482913. Don't share it.",
+            "Acme" to "482913 is your Acme security code",
+            "Sign in" to "Use 482 913 as your one-time passcode",
+            "Login" to "OTP: 4829-1300",
+            "Google" to "G-482913 is your Google verification code.",
+            "Your login code" to "4829",
+            "2FA" to "Enter 48291300 to sign in"
+        )) {
+            assertNull("$title: $text", posted(title, text))
+        }
+        // A number with no word saying it's a code, or one far from such a word, is still found.
+        for ((title, text) in listOf(
+            "Shop" to "Your order 123456 has shipped",
+            "Bank" to "You paid 1250 to Sam",
+            "Delivery" to "Parcel 123456 arrives today. Questions about the delivery or how to return it? Enter your code online."
+        )) {
+            assertEquals(text, posted(title, text)?.text)
+        }
+    }
+
+    @Test
+    fun aOneTimeCodeIsKnownInOtherLanguages() {
+        // Only English whole words were known, so these were indexed and found by searching the code.
+        for (text in listOf(
+            "Tu código de verificación es 482913",
+            "Tu clave de acceso: 482913",
+            "Seu código é 482913",
+            "Ihr Bestätigungscode lautet 482913",
+            "Sicherheitscode: 482913",
+            "Votre code est 482913",
+            "482913 est votre mot de passe à usage unique",
+            "Il tuo codice è 482913",
+            "Uw verificatiecode is 482913",
+            "Ваш код подтверждения: 482913",
+            "Ваш код: 482913",
+            "Twój kod weryfikacyjny to 482913",
+            "Doğrulama kodunuz 482913",
+            "Kode verifikasi Anda 482913",
+            "Kod pengesahan anda ialah 482913",
+            "您的验证码是482913",
+            "您的驗證碼為482913",
+            "校验码：482913",
+            "認証コードは482913です",
+            "確認コード：482913",
+            "인증번호 [482913]",
+            "인증 코드는 482913입니다",
+            "رمز التحقق الخاص بك هو 482913",
+            "आपका कोड 482913 है",
+            "ओटीपी 482913"
+        )) {
+            assertTrue(text, NotificationExtractor.looksLikeOneTimeCode(text))
+        }
+        for (text in listOf(
+            "Your order 123456 has shipped",
+            "Su pedido 123456 ha sido enviado",
+            "Ihre Bestellung 123456 wurde versandt",
+            "Votre commande 123456 a été expédiée",
+            "您的订单123456已发货",
+            "Scan the barcode 12345678 at the till",
+            "Postcode 10115, Berlin",
+            "Episode 1234 is out now",
+            "Kodak 2024 calendar"
+        )) {
+            assertFalse(text, NotificationExtractor.looksLikeOneTimeCode(text))
+        }
+    }
+
+    @Test
+    fun aOneTimeCodeIsKnownInMoreShapesAndPostalCodesAreNot() {
+        // These were indexed and found by searching the code.
+        for (text in listOf(
+            "Your temporary password: 48291756",
+            "Enter 482913 to sign in",
+            "Your OTP-482913",
+            "Your token is 123456",
+            "Your authentication number is 482913",
+            "Ihr Einmalpasswort: 123456",
+            "Your verification code is 12 34 56",
+            "Your code is 1 2 3 4 5 6",
+            "Your code: K7P-2Q9",
+            "Steam Guard code: 4X7QF",
+            "Your code is A1B2C3",
+            "رمز التحقق ١٢٣٤٥٦",
+            "आपका ओटीपी १२३४५६ है",
+            "Mã xác thực của bạn là 482913",
+            "קוד האימות שלך הוא 482913"
+        )) {
+            assertTrue(text, NotificationExtractor.looksLikeOneTimeCode(text))
+        }
+        // These were hidden from search as if they were sign-in codes.
+        for (text in listOf(
+            "Please enter the pincode 560001 for delivery",
+            "Your PIN code 560001 is not serviceable for delivery",
+            "Your zip code 94103 is in the delivery area",
+            "Dress code: black tie. Doors open at 2000",
+            "Read the source code at github.com/x/1234",
+            "Use promo code SAVE20 by 2026"
+        )) {
+            assertFalse(text, NotificationExtractor.looksLikeOneTimeCode(text))
+        }
+        // A card's PIN is still a secret.
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your new card's PIN code is 4821"))
+        // Beside a shop's offer a letters-and-digits sign-in code was taken for a promo code and left searchable.
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your code is A1B2C3. Free shipping on orders over $50"))
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your code: K7P-2Q9. 20% off your next order"))
+        // The shop's own codes still are promo codes.
+        // "GET20OFF" (a word, its amount and OFF) was hidden as a sign-in code.
+        for (text in listOf(
+            "Use code SPRING2026 for 25% off", "Flash sale: code BF2026 saves you more", "Code 50OFF at checkout",
+            "Use code GET20OFF at checkout"
+        )) {
+            assertFalse(text, NotificationExtractor.looksLikeOneTimeCode(text))
+        }
+        // A number in a phone number isn't a code beside "OTP".
+        assertFalse(NotificationExtractor.looksLikeOneTimeCode("Questions about OTP? Call 555-12345678901"))
+    }
+
+    @Test
+    fun promoCodesPinsOnAMapAndAddressesAreNotSignInCodes() {
+        // These were hidden from search as if they were sign-in codes.
+        for (text in listOf(
+            "Use code FALL2026 at checkout for 20% off",
+            "Use code SUMMER2026 for free shipping",
+            "Dropped pin near 2045 Oak Ave",
+            "Dropped pin https://maps.google.com/?q=37.4219,-122.0840",
+            "Pin 1234 Main St to your map",
+            "Error code 50058 when signing in? Try again",
+            "Please verify your address: 1600 Amphitheatre Pkwy",
+            "Course code CS1010 starts Monday",
+            "Your tax code 1257L has changed",
+            "Meeting at 1400 in room 2300, bring the verification forms"
+        )) {
+            assertFalse(text, NotificationExtractor.looksLikeOneTimeCode(text))
+        }
+        // A code of digits alone beside a shop's words, or named outright, is still one.
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Use code 482913 to complete checkout"))
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your verification code for checkout is 482913"))
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your PIN is 4821. Do not share it"))
+    }
+
+    @Test
+    fun aParcelLockerOrDeliveryPinCodeIsAnAccessCode() {
+        // These were taken for India's postal PIN code because "parcel" or "delivery" was near.
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Your PIN code for the parcel locker is 1234"))
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("Share this PIN code 4821 with the delivery agent"))
+        // As before: the Packstation PIN and a postal PIN code.
+        assertTrue(NotificationExtractor.looksLikeOneTimeCode("DHL: Your Packstation PIN is 4821"))
+        assertFalse(NotificationExtractor.looksLikeOneTimeCode("Your PIN code 560001 is not serviceable for delivery"))
+        assertFalse(NotificationExtractor.looksLikeOneTimeCode("Deliver to PIN code 560 001, Bengaluru"))
+    }
+
+    @Test
+    fun androidSeventeensClockTimerIsATimer() {
+        // As Android 17's Clock posts a running 10-minute timer: MetricStyle, no title and no chronometer; its time
+        // counts down to zeroElapsedRealtime, in time since boot (captured from a Pixel with dumpsys notification).
+        fun clockTimer(value: Bundle, label: String) = Notification.Builder(context, "Timers v2").build().apply {
+            extras.putBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false)
+            extras.putString(Notification.EXTRA_TEMPLATE, "android.app.Notification\$MetricStyle")
+            extras.putInt("android.metrics.criticalIndex", 0)
+            extras.putParcelableArrayList(
+                "android.metrics",
+                arrayListOf(Bundle().apply { putCharSequence("label", label); putBundle("value", value); putInt("semanticStyle", 0) })
+            )
+        }
+        val running = clockTimer(
+            Bundle().apply { putLong("zeroElapsedRealtime", 6_895_293L); putInt("format", 2); putInt("_type", 1); putBoolean("countDown", true) },
+            "10m Timer"
+        )
+        val bootTime = 1_793_314_000_000L
+        val clock = setOf("com.google.android.deskclock")
+        val entry = NotificationExtractor.fromNotification(
+            "t", "com.google.android.deskclock", "Clock", 0L, running, clock, bootTime = bootTime
+        )
+        assertEquals(IndexedNotification.Chronometer(countDown = true, baseTime = bootTime + 6_895_293L), entry?.chronometer)
+        assertEquals("10m Timer", entry?.title)
+        val timer = timersFrom(listOfNotNull(entry)).single()
+        assertEquals(GlanceTimer.Kind.Timer, timer.kind)
+        assertEquals("10m Timer", timer.label)
+        // Not from a clock: not a timer.
+        assertNull(NotificationExtractor.chronometerOf(running, "com.example.game", clock, bootTime))
+
+        // A paused timer has no running time, as it had none before.
+        val paused = clockTimer(
+            Bundle().apply { putLong("pausedDuration", 479_224L); putInt("format", 2); putInt("_type", 1); putBoolean("countDown", true) },
+            "Timer paused"
+        )
+        assertNull(NotificationExtractor.chronometerOf(paused, "com.google.android.deskclock", clock, bootTime))
+
+        // A stopwatch counting up from a wall-clock zero time.
+        val stopwatch = clockTimer(Bundle().apply { putLong("zeroTime", 5_000L); putBoolean("countDown", false) }, "Stopwatch")
+        assertEquals(
+            IndexedNotification.Chronometer(countDown = false, baseTime = 5_000L),
+            NotificationExtractor.chronometerOf(stopwatch, "com.google.android.deskclock", clock, bootTime)
+        )
     }
 
     @Test

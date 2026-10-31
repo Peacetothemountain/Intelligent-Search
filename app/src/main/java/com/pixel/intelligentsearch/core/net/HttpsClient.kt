@@ -106,7 +106,7 @@ class HttpsTimeoutException : IOException("The request took too long")
  * exchange [totalTimeoutMs], so a server sending a byte at a time can't hold it open. The request is the same from
  * every phone: a fixed [USER_AGENT] in place of Android's default (which names the phone model and build), and no
  * cookies, account or identifier. [accept] names the kind of document a GET wants (the rates are XML; instant
- * answers ask for JSON).
+ * answers and web suggestions ask for JSON, result pictures for images).
  */
 class HttpsClient internal constructor(
     private val timeoutMs: Int,
@@ -215,6 +215,7 @@ class HttpsClient internal constructor(
 
         const val ACCEPT_XML = "application/xml, text/xml"
         const val ACCEPT_JSON = "application/json"
+        const val ACCEPT_IMAGE = "image/*"
 
         private const val MAX_ERROR_BYTES = 8 * 1024
 

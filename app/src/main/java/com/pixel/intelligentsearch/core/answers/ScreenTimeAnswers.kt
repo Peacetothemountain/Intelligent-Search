@@ -34,8 +34,18 @@ object ScreenTimeCalculator {
 
     class Event(val packageName: String, val type: Int, val timeMs: Long, val className: String? = null)
 
-    /** Foreground time per package between [startMs] and [endMs], leaving out [excluded] packages (the home screen). */
-    fun perApp(events: List<Event>, startMs: Long, endMs: Long, excluded: Set<String> = emptySet()): Map<String, Long> {
+    /**
+     * Foreground time per package between [startMs] and [endMs], leaving out [excluded] packages (the home screen).
+     * [eventsFromMs] is when [events] begin: read from before [startMs], an app open at the start shows its resume,
+     * so a pause with none before it (an app handing over to its next screen) is nothing, not "open since the start".
+     */
+    fun perApp(
+        events: List<Event>,
+        startMs: Long,
+        endMs: Long,
+        excluded: Set<String> = emptySet(),
+        eventsFromMs: Long = startMs
+    ): Map<String, Long> {
         val totals = HashMap<String, Long>()
         // Open activities, by package and class: an app with two activities resumed at once is counted once.
         val openSince = HashMap<String, Long>()
@@ -59,9 +69,12 @@ object ScreenTimeCalculator {
                 PAUSED, STOPPED -> {
                     val activities = openByPackage[event.packageName]
                     if (event.packageName !in seenAny) {
-                        // Open since before the window started: count from its start.
+                        // Open since before the events begin: count from the window's start. Events from before the
+                        // window would have shown that resume, so then it wasn't open (Chrome's first screen pauses
+                        // before its next resumes: counted from midnight, that was 20 hours for 2 seconds).
                         seenAny += event.packageName
-                        if (event.packageName !in excluded) totals.merge(event.packageName, (at - startMs).coerceAtLeast(0L), Long::plus)
+                        val openAtStart = eventsFromMs >= startMs
+                        if (openAtStart && event.packageName !in excluded) totals.merge(event.packageName, (at - startMs).coerceAtLeast(0L), Long::plus)
                     } else if (activities != null) {
                         activities -= event.className.orEmpty()
                         if (activities.isEmpty()) close(event.packageName, at)
@@ -112,7 +125,9 @@ class ScreenTimeRepository(private val context: Context) {
         val midnight = Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault()).toLocalDate()
             .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
         val events = ArrayList<ScreenTimeCalculator.Event>()
-        val raw = runCatching { usage.queryEvents(midnight, nowMs) }.getOrNull() ?: return null
+        // Read from a day before midnight, so an app open at midnight shows its resume and a stray pause doesn't.
+        val eventsFrom = midnight - LOOK_BACK_MS
+        val raw = runCatching { usage.queryEvents(eventsFrom, nowMs) }.getOrNull() ?: return null
         val event = UsageEvents.Event()
         while (raw.hasNextEvent()) {
             raw.getNextEvent(event)
@@ -120,7 +135,7 @@ class ScreenTimeRepository(private val context: Context) {
         }
         // The home screen isn't screen time to anyone; Digital Wellbeing leaves it out too.
         val excluded = setOfNotNull(homePackage(), "com.android.systemui")
-        val perApp = ScreenTimeCalculator.perApp(events, midnight, nowMs, excluded)
+        val perApp = ScreenTimeCalculator.perApp(events, midnight, nowMs, excluded, eventsFromMs = eventsFrom)
         val pm = context.packageManager
         return ScreenTimeCalculator.report(perApp) { pkg ->
             runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() }.getOrNull()
@@ -131,4 +146,8 @@ class ScreenTimeRepository(private val context: Context) {
         context.packageManager.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
             ?.activityInfo?.packageName
     }.getOrNull()
+
+    private companion object {
+        const val LOOK_BACK_MS = 24 * 60 * 60 * 1000L
+    }
 }

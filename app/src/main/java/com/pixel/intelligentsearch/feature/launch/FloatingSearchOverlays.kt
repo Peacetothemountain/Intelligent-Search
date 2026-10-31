@@ -82,6 +82,9 @@ object FloatingSearchOverlays {
     /** Whether the button's window is up (for tests and the settings page). */
     internal val isButtonShowing: Boolean get() = button != null
 
+    /** The button's view while it shows, for tests that act on it as TalkBack would. */
+    internal val buttonView: View? get() = button?.view
+
     /**
      * Brings the button in line with the settings: it shows while its switch is on and the permission granted, and
      * follows a changed edge or position.
@@ -168,8 +171,9 @@ object FloatingSearchOverlays {
                     refreshVisibility()
                 }
             }
-            // Only Android sends USER_PRESENT; system broadcasts reach receivers that aren't exported.
-            ContextCompat.registerReceiver(app, receiver, IntentFilter(Intent.ACTION_USER_PRESENT), ContextCompat.RECEIVER_NOT_EXPORTED)
+            // Exported: Android 17 sends USER_PRESENT from System UI, which can't reach a receiver that isn't. Safe, as
+            // it's a protected broadcast: only Android itself may send it.
+            ContextCompat.registerReceiver(app, receiver, IntentFilter(Intent.ACTION_USER_PRESENT), ContextCompat.RECEIVER_EXPORTED)
             unlockReceiver = receiver
         }
 

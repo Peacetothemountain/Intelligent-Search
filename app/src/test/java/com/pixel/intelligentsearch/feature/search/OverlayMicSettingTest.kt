@@ -83,7 +83,7 @@ class OverlayMicSettingTest {
         compose.onAllNodesWithContentDescription("Search by voice").assertCountEquals(0)
         // The rest of the bar stays.
         compose.onNodeWithContentDescription("Settings").assertIsDisplayed()
-        compose.onNodeWithText("Search...").assertIsDisplayed()
+        compose.onNodeWithText("Search…").assertIsDisplayed()
     }
 
     @Test

@@ -90,7 +90,7 @@ class WidgetEditorAccessibilityTest {
         openEditor()
 
         compose.onNodeWithText("Appearance").assertIsSelected()
-        compose.onNodeWithText("Widget Shortcuts").assertIsNotSelected()
+        compose.onNodeWithText("Shortcuts").assertIsNotSelected()
         // The tab's icon repeated its label, so TalkBack read "Appearance, Appearance".
         compose.onAllNodesWithContentDescription("Appearance").assertCountEquals(0)
     }
@@ -189,7 +189,7 @@ class WidgetEditorAccessibilityTest {
             .putString(SettingsManager.WIDGET_THEME_STYLE.name, "Material You (Minimal)")
             .commit()
         openEditor()
-        tap("Widget Shortcuts")
+        tap("Shortcuts")
         tap("System Design")
 
         compose.onNode(hasText("Widget Shortcuts") and isHeading).assertExists()
@@ -215,7 +215,7 @@ class WidgetEditorAccessibilityTest {
     @Test
     fun shortcutsSectionHeaderIsAHeading() {
         openEditor()
-        tap("Widget Shortcuts")
+        tap("Shortcuts")
 
         compose.onNode(hasText("Widget Shortcuts") and isHeading).assert(isHeading)
     }
@@ -223,25 +223,35 @@ class WidgetEditorAccessibilityTest {
     @Test
     fun slotsAreNumberedByPosition() {
         openEditor()
-        tap("Widget Shortcuts")
+        tap("Shortcuts")
 
         // Default order: shortcut1, mic, shortcut2, shortcut3.
-        compose.onNodeWithText("Microphone Slot:").assertDoesNotExist()
-        compose.onNodeWithText("Microphone Slot: 2").assertExists()
-        compose.onNodeWithText("Shortcut Slot: 1").assertExists()
-        compose.onNodeWithText("Shortcut Slot: 3").assertExists()
+        compose.onNodeWithText("Slot 1 · Google Lens").assertExists()
+        compose.onNodeWithText("Slot 2 · Voice Search").assertExists()
+        compose.onNodeWithText("Slot 3 · Empty").assertExists()
+        compose.onNodeWithText("Slot 4 · Empty").assertExists()
+    }
+
+    @Test
+    fun emptySlotsOfferAddNotDelete() {
+        openEditor()
+        tap("Shortcuts")
+
+        // Default shortcuts 2 and 3 are empty: tapping one picks a shortcut, so its icon says Add.
+        compose.onAllNodesWithContentDescription("Add Shortcut", useUnmergedTree = true).assertCountEquals(2)
+        compose.onAllNodesWithText("Tap to Add a Shortcut", useUnmergedTree = true).assertCountEquals(2)
     }
 
     @OptIn(ExperimentalTestApi::class)
     @Test
     fun slotsCanBeMovedWithoutDragging() {
         openEditor()
-        tap("Widget Shortcuts")
+        tap("Shortcuts")
 
         // The first slot can only move down.
-        compose.onNode(hasText("Google Lens") and hasCustomAction("Move down")).assertExists()
-        compose.onNode(hasText("Google Lens") and hasCustomAction("Move up")).assertDoesNotExist()
-        compose.onNodeWithText("Voice Search").performCustomAccessibilityActionWithLabel("Move up")
+        compose.onNode(hasText("Slot 1 · Google Lens") and hasCustomAction("Move down")).assertExists()
+        compose.onNode(hasText("Slot 1 · Google Lens") and hasCustomAction("Move up")).assertDoesNotExist()
+        compose.onNodeWithText("Slot 2 · Voice Search").performCustomAccessibilityActionWithLabel("Move up")
         compose.settle(steps = 5)
         compose.onNodeWithText("Save").performClick()
         compose.settle(steps = 5)
@@ -252,7 +262,7 @@ class WidgetEditorAccessibilityTest {
     @Test
     fun dragHandleIsAFullSizeTouchTarget() {
         openEditor()
-        tap("Widget Shortcuts")
+        tap("Shortcuts")
 
         compose.onAllNodesWithContentDescription("Drag to reorder")[0]
             .assertHeightIsAtLeast(48.dp)

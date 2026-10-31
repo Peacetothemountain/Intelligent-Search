@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.forgetHeldListeners
 import com.pixel.intelligentsearch.core.data.settings.put
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
@@ -211,6 +212,26 @@ class LiveAnswerEngineTest {
     }
 
     @Test
+    fun aScaleTheQueryNamesWinsOverTheLocales() {
+        allowWebAnswers()
+        prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "36.31,-82.35;Johnson City, Tennessee").commit()
+        val answer = answers(engine(), "weather in celsius").single() as LiveAnswer.Weather
+        assertEquals(TemperatureUnit.CELSIUS, answer.report.unit)
+        assertTrue("still the forecast for here", answer.here)
+        assertFalse(http.requests.single(), "temperature_unit=fahrenheit" in http.requests.single())
+    }
+
+    @Test
+    fun weatherNearMeIsTheForecastForHereAndLooksNoPlaceUp() {
+        allowWebAnswers()
+        prefs.edit().put(SettingsManager.WEATHER_HOME_LOCATION, "36.31,-82.35;Johnson City, Tennessee").commit()
+        val answer = answers(engine(), "weather near me").single() as LiveAnswer.Weather
+        assertEquals("Johnson City, Tennessee", answer.report.placeName)
+        assertTrue(answer.here)
+        assertTrue(http.requests.toString(), http.requests.none { it.startsWith("https://geocoding-api.open-meteo.com/") })
+    }
+
+    @Test
     fun weatherForANamedPlaceLooksThePlaceUpFirst() {
         allowWebAnswers()
         val engine = engine()
@@ -308,6 +329,21 @@ class LiveAnswerEngineTest {
         assertEquals(1, filesIn(dir, "dictionary"))
 
         prefs.edit().put(SettingsManager.SEARCH_WEB, false).commit()
+        assertEquals(0, filesIn(dir, "dictionary"))
+    }
+
+    @Test
+    fun switchingWebSuggestionsOffForgetsWhatWasKeptWithoutAListenerToKeep() {
+        // In the release build the separate listener that cleared the kept answers could be garbage collected, so
+        // turning Web Suggestions off left definitions and forecasts on the phone until the next start.
+        val dir = folder.newFolder("answers")
+        allowWebAnswers()
+        val engine = diskEngine(dir)
+        forgetHeldListeners(engine)
+        answers(engine, "define serendipity")
+        assertEquals(1, filesIn(dir, "dictionary"))
+
+        prefs.edit().put(SettingsManager.SEARCH_WEB_SUGGESTIONS, false).commit()
         assertEquals(0, filesIn(dir, "dictionary"))
     }
 

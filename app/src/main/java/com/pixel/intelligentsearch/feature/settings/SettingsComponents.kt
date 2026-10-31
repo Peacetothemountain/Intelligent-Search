@@ -95,13 +95,77 @@ fun androidx.compose.foundation.layout.ColumnScope.AttachedRows(
 }
 
 /**
- * A settings page's top bar colors: the page's own ([androidx.compose.material3.ColorScheme.background]), so the bar
- * never shows as a band of another surface over the page it heads.
+ * A settings page's top bar colors: none of its own, so the page and its glow run unbroken from the top of the screen
+ * down, and the bar never shows as a band cut off from the page it heads.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun settingsTopBarColors(): TopAppBarColors =
-    TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+    TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent)
+
+/**
+ * A settings page's title in its top bar: one line, shrinking to fit, and both the page's heading and its pane title,
+ * so TalkBack names the page as it opens (the pages share one window, which alone announces nothing) and a heading
+ * jump lands on it.
+ */
+@Composable
+fun SettingsPageTitle(
+    text: String,
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.headlineSmall,
+    fontWeight: FontWeight = FontWeight.Bold,
+    onFitsInBar: ((Boolean) -> Unit)? = null
+) {
+    if (onFitsInBar != null) {
+        // A bar crowded with buttons can leave less room than the title needs even at its smallest size; one line
+        // would then cut it to its first word. It's left out of the bar, and the page shows it under the bar
+        // ([SettingsPageTitleBelowBar]).
+        BoxWithConstraints {
+            val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+            val smallest = style.copy(fontSize = oneLineMinFontSize(style), fontWeight = fontWeight)
+            val fits = measurer.measure(text, smallest, maxLines = 1, softWrap = false).size.width <= constraints.maxWidth
+            val report by rememberUpdatedState(onFitsInBar)
+            LaunchedEffect(fits) { report(fits) }
+            if (fits) SettingsPageTitle(text, style, fontWeight)
+        }
+        return
+    }
+    Text(
+        text,
+        style = style,
+        fontWeight = fontWeight,
+        maxLines = 1,
+        autoSize = oneLineAutoSize(style),
+        modifier = Modifier.semantics {
+            heading()
+            paneTitle = text
+        }
+    )
+}
+
+/**
+ * A page's title on its own line under its top bar, for when [SettingsPageTitle] found no room in the bar: it wraps
+ * between words and shrinks a word too wide for a line rather than split it, and it's the page's heading and pane
+ * title in the bar's place.
+ */
+@Composable
+fun SettingsPageTitleBelowBar(
+    text: String,
+    style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.headlineSmall,
+    fontWeight: FontWeight = FontWeight.Bold
+) {
+    com.pixel.intelligentsearch.core.ui.WholeWordText(
+        text,
+        // Under the bar it no longer takes the bar's content color.
+        style = style.copy(fontWeight = fontWeight, color = MaterialTheme.colorScheme.onSurface),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp)
+            .semantics {
+                heading()
+                paneTitle = text
+            }
+    )
+}
 
 @Composable
 fun SettingsSectionHeader(text: String, modifier: Modifier = Modifier) {
@@ -561,8 +625,22 @@ fun SettingsAppRow(
                     )
                 }
             }
+            // Selection shows as a check too, not by the tint alone, which some people can't tell apart.
+            androidx.compose.animation.AnimatedVisibility(
+                visible = selected,
+                enter = androidx.compose.animation.scaleIn(initialScale = 0.6f) + androidx.compose.animation.fadeIn(),
+                exit = androidx.compose.animation.scaleOut(targetScale = 0.6f) + androidx.compose.animation.fadeOut()
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = null, // the row says it's selected
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = 12.dp).size(24.dp)
+                )
+            }
         }
-        if (showDivider) {
+        // The highlight is its own pill: a divider under a selected row would cut across it.
+        if (showDivider && !selected) {
             HorizontalDivider(
                 modifier = Modifier.padding(start = 56.dp, end = 16.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f),
@@ -661,41 +739,44 @@ fun SettingsSliderRow(
 }
 
 /**
- * The "<label> Results: N" block shared by the Contact, File and Web search screens: title with a reset button
- * (back to [defaultCount]) and a 1 to 20 slider. The title uses the settings row title style, like
- * [PrioritySetting] below it.
+ * The "<label> Results" block shared by the Contact, File and Web search screens: title with the count and a reset
+ * button (back to [defaultCount]) at its end, as [SettingsSliderRow] shows its value, and a 1 to 20 slider. The title
+ * uses the settings row title style, like [PrioritySetting] below it.
  */
 @Composable
 fun ResultsCountSetting(key: com.pixel.intelligentsearch.core.data.settings.SettingKey<Int>, label: String, defaultCount: Int) {
     val context = LocalContext.current
     var count by com.pixel.intelligentsearch.core.data.settings.rememberSetting(key)
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        TitleWithTrailing {
             Text(
-                text = "$label Results: $count",
+                text = "$label Results",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
+                color = MaterialTheme.colorScheme.onSurface
             )
-            // Material's own IconButton: the click haptic below is this button's one haptic.
-            androidx.compose.material3.IconButton(
-                onClick = {
-                    performClickHaptic(context)
-                    count = defaultCount
-                },
-                modifier = Modifier.size(32.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.RestartAlt,
-                    contentDescription = "Reset $label Results",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "$count",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
                 )
+                // Material's own IconButton: the click haptic below is this button's one haptic.
+                androidx.compose.material3.IconButton(
+                    onClick = {
+                        performClickHaptic(context)
+                        count = defaultCount
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.RestartAlt,
+                        contentDescription = "Reset $label Results",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
         }
         Android17Slider(
@@ -730,9 +811,11 @@ fun Android17Slider(
     val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
     
     val infiniteTransition = rememberInfiniteTransition(label = "squiggle")
+    // With animations turned off the wave is drawn still, and dragging doesn't roll it either.
+    val animationsEnabled by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
     // Kept as State and read only inside the Canvas below: reading it here recomposed the slider (and its
     // semantics and gesture setup) on every frame for as long as the screen was open.
-    val phase: State<Float> = if (isSquiggly && showTrack) {
+    val phase: State<Float> = if (isSquiggly && showTrack && animationsEnabled) {
         infiniteTransition.animateFloat(
             initialValue = 0f,
             targetValue = 2f * Math.PI.toFloat(),
@@ -749,7 +832,8 @@ fun Android17Slider(
     val dragPhaseOffset = remember { mutableFloatStateOf(0f) }
 
     val activeColor = MaterialTheme.colorScheme.primary
-    val inactiveColor = MaterialTheme.colorScheme.surfaceVariant
+    // Outline, slightly softened: at least 3:1 against the card in both themes, where surfaceVariant all but vanished.
+    val inactiveColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.85f)
     val thumbColor = MaterialTheme.colorScheme.primary
 
     val view = androidx.compose.ui.platform.LocalView.current
@@ -830,7 +914,7 @@ fun Android17Slider(
                     onDragStart = { processChange(fractionAt(it.x)) },
                     onHorizontalDrag = { change, dragAmount ->
                         change.consume()
-                        dragPhaseOffset.floatValue += dragAmount * 0.04f
+                        if (animationsEnabled) dragPhaseOffset.floatValue += dragAmount * 0.04f
                         processChange(fractionAt(change.position.x))
                     },
                     onDragEnd = { currentOnValueChangeFinished?.invoke() },
@@ -956,10 +1040,65 @@ fun performClickHaptic(context: android.content.Context) {
 fun oneLineAutoSize(style: androidx.compose.ui.text.TextStyle): androidx.compose.foundation.text.TextAutoSize {
     // Steps run up from the minimum, so the minimum sits a whole number of steps below the normal size; otherwise
     // the largest size reachable would fall just short of it and fitting text would render a little small.
-    val step = 0.25f
+    return androidx.compose.foundation.text.TextAutoSize.StepBased(
+        minFontSize = oneLineMinFontSize(style),
+        maxFontSize = style.fontSize,
+        stepSize = ONE_LINE_AUTO_SIZE_STEP.sp
+    )
+}
+
+private const val ONE_LINE_AUTO_SIZE_STEP = 0.25f
+
+/**
+ * A selector's label (a profile chip, a design pill): one line, shrinking to fit ([oneLineAutoSize]). Where even its
+ * smallest size overflows the line, as at the largest text in a narrow chip, it wraps between its words instead
+ * ([com.pixel.intelligentsearch.core.ui.WholeWordText]) rather than be cut off or spill over the chip's outline. Where
+ * even a single word can't fit whole (five profile chips on the narrowest phone at the largest text), it shows
+ * [shortText] instead ("1" for "Profile 1"), still read out as [text].
+ */
+@Composable
+internal fun OneLineLabel(
+    text: String,
+    style: androidx.compose.ui.text.TextStyle,
+    fontWeight: FontWeight,
+    modifier: Modifier = Modifier,
+    shortText: String? = null
+) {
+    var wraps by remember(text, style) { mutableStateOf(false) }
+    var short by remember(text, style) { mutableStateOf(false) }
+    val wrapped = style.copy(fontWeight = fontWeight, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    if (short && shortText != null) {
+        Text(
+            shortText,
+            style = wrapped,
+            maxLines = 1,
+            modifier = modifier.semantics { contentDescription = text }
+        )
+    } else if (wraps) {
+        com.pixel.intelligentsearch.core.ui.WholeWordText(
+            text,
+            style = wrapped,
+            modifier = modifier,
+            onTextLayout = { if (shortText != null && com.pixel.intelligentsearch.core.ui.splitsAWord(text, it)) short = true }
+        )
+    } else {
+        Text(
+            text,
+            style = style,
+            fontWeight = fontWeight,
+            maxLines = 1,
+            autoSize = oneLineAutoSize(style),
+            onTextLayout = { if (it.hasVisualOverflow) wraps = true },
+            modifier = modifier
+        )
+    }
+}
+
+/** The smallest size [oneLineAutoSize] shrinks [style]'s text to. */
+fun oneLineMinFontSize(style: androidx.compose.ui.text.TextStyle): androidx.compose.ui.unit.TextUnit {
+    val step = ONE_LINE_AUTO_SIZE_STEP
     val max = style.fontSize.value
-    val min = max - kotlin.math.floor(max * 0.4f / step) * step
-    return androidx.compose.foundation.text.TextAutoSize.StepBased(minFontSize = min.sp, maxFontSize = max.sp, stepSize = step.sp)
+    return (max - kotlin.math.floor(max * 0.4f / step) * step).sp
 }
 
 /**
@@ -968,7 +1107,7 @@ fun oneLineAutoSize(style: androidx.compose.ui.text.TextStyle): androidx.compose
  * part is always measured against the whole row, never squeezed into what's left beside the title.
  */
 @Composable
-private fun TitleWithTrailing(content: @Composable () -> Unit) {
+internal fun TitleWithTrailing(content: @Composable () -> Unit) {
     androidx.compose.ui.layout.Layout(content = content, modifier = Modifier.fillMaxWidth()) { measurables, constraints ->
         val loose = constraints.copy(minWidth = 0, minHeight = 0)
         // Measured once, at the row's full width: never squeezed into the space beside the title.

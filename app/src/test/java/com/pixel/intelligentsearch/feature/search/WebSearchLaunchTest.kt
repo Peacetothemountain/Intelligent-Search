@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.security.SafeWebLaunch
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -89,6 +90,22 @@ class WebSearchLaunchTest {
             assertEquals(Intent.ACTION_VIEW, intent.action)
             assertEquals("https://www.google.com/search?q=cats", intent.dataString)
         }
+    }
+
+    @Test
+    fun aTorBrowserSearchThatCantOpenGoesToNoOtherApp() {
+        // Tor Browser can't be started by the time the search opens; another app that searches the web is installed.
+        val app = context as android.app.Application
+        shadowOf(app).checkActivities(true)
+        val other = ComponentName("org.example.search", "org.example.search.Main")
+        shadowOf(context.packageManager).apply {
+            addActivityIfNotPresent(other)
+            addIntentFilterForActivity(other, IntentFilter(Intent.ACTION_WEB_SEARCH).apply { addCategory(Intent.CATEGORY_DEFAULT) })
+        }
+        val tor = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://example.onion/?q=cats"))
+            .setPackage(SafeWebLaunch.TOR_BROWSER_PACKAGES.first())
+        assertFalse(launchWebSearch(context, tor, "cats"))
+        assertNull(shadowOf(app).nextStartedActivity)
     }
 
     @Test

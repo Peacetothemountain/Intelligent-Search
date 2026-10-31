@@ -34,12 +34,10 @@ class AuditRegressionTest {
     }
 
     @Test
-    fun outOfRangeClockTimeIsClampedInsteadOfRollingIntoAnotherDay() {
+    fun outOfRangeClockTimeIsRejectedInsteadOfRollingIntoAnotherDay() {
+        // Clamping it to 23:59 still set the event at a time nobody asked for; it is no event at all.
         val base = Calendar.getInstance().apply { set(2026, Calendar.OCTOBER, 7, 9, 0, 0) }
-        val start = startOf(NaturalLanguageIntentParser.parse("meeting review at 27:90", base.timeInMillis))
-        assertEquals(7, start.get(Calendar.DAY_OF_MONTH))
-        assertEquals(23, start.get(Calendar.HOUR_OF_DAY))
-        assertEquals(59, start.get(Calendar.MINUTE))
+        assertNull(NaturalLanguageIntentParser.parse("meeting review at 27:90", base.timeInMillis))
     }
 
     @Test
@@ -105,9 +103,8 @@ class AuditRegressionTest {
     @Test
     fun nlpTimeBoundaryAndPhoneCallValidation() {
         val base = Calendar.getInstance().apply { set(2026, Calendar.OCTOBER, 7, 9, 0, 0) }
-        val reminder = NaturalLanguageIntentParser.parse("remind me to meet 10 americans at 3pm", base.timeInMillis)
-            as NaturalLanguageIntentParser.ParsedIntent.Reminder
-        assertEquals("meet 10 americans", reminder.task)
+        // "10" is no time; under the whole-phrase rule a number left in the task makes no reminder at all.
+        assertNull(NaturalLanguageIntentParser.parse("remind me to meet 10 americans at 3pm", base.timeInMillis))
 
         // "phone settings" without digits or matched contact should not produce a broken PhoneCall intent
         assertNull(NaturalLanguageIntentParser.parse("phone settings", base.timeInMillis))

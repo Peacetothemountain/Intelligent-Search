@@ -373,7 +373,7 @@ fun BackupRestoreScreen(
                             dialogPassphrase = it
                             dialogErrorMessage = null
                         },
-                        placeholder = { Text("Enter passphrase", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, fontSize = 14.sp) },
+                        placeholder = { Text("Enter Passphrase", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, fontSize = 14.sp) },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Outlined.Lock,
@@ -493,7 +493,7 @@ fun BackupRestoreScreen(
         topBar = {
             TopAppBar(
                 colors = settingsTopBarColors(),
-                title = { Text("Encrypted Backup", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
+                title = { SettingsPageTitle("Encrypted Backup") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
@@ -526,7 +526,7 @@ fun BackupRestoreScreen(
                     onValueChange = { passphrase = it },
                     placeholder = {
                         Text(
-                            if (isPassphraseSavedOnChip) "Saved to $keyHolder · type to replace" else "Enter passphrase (optional)",
+                            if (isPassphraseSavedOnChip) "Saved to $keyHolder · Type to Replace" else "Enter Passphrase (Optional)",
                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                             fontSize = 14.sp
                         )

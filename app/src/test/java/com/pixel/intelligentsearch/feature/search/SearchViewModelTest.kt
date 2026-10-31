@@ -81,8 +81,12 @@ class FakeDeviceSearchSources(val apps: List<AppItem> = DEFAULT_APPS) : DeviceSe
         holdCachedSuggestionLookup?.await(10, java.util.concurrent.TimeUnit.SECONDS)
         return null
     }
-    override suspend fun webSuggestions(query: String, engine: String) =
-        webSuggestions.filter { it.startsWith(query) }.map { com.pixel.intelligentsearch.core.data.WebSuggestion(it) }
+    /** Every query web suggestions were asked for, in order. */
+    val suggestionRequests: MutableList<String> = java.util.Collections.synchronizedList(mutableListOf())
+    override suspend fun webSuggestions(query: String, engine: String): List<com.pixel.intelligentsearch.core.data.WebSuggestion> {
+        suggestionRequests += query
+        return webSuggestions.filter { it.startsWith(query) }.map { com.pixel.intelligentsearch.core.data.WebSuggestion(it) }
+    }
 }
 
 /**
@@ -193,6 +197,85 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun aQueryWithABangAsksForNoWebSuggestions() {
+        // The engine read "!w android" as "with android": its suggestions searched it, not the bang's site.
+        prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
+        device.webSuggestions = listOf("!w android phone", "android", "android auto")
+        start()
+        viewModel.onQueryChanged("!w android")
+        awaitLocalResults()
+        runOn()
+        assertEquals(emptyList<String>(), device.suggestionRequests.toList())
+        assertEquals(emptyList<String>(), viewModel.uiState.value.webSuggestions.map { it.query })
+
+        // Without the bang the same words are asked for as usual.
+        viewModel.onQueryChanged("android")
+        assertEquals(listOf("android", "android auto"), await("web suggestions") { it.webSuggestions.isNotEmpty() }.webSuggestions.map { it.query })
+        assertEquals(listOf("android"), device.suggestionRequests.toList())
+    }
+
+    /** Lets the main looper's clock and the IO threads run on a while, long past the suggestion pacing. */
+    private fun runOn() {
+        repeat(10) {
+            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(50))
+            Thread.sleep(25)
+        }
+    }
+
+    @Test
+    fun aHandedInQueryIsSearchedOnThePhoneOnlyUntilTheUserPressesEnter() {
+        prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
+        start()
+        // Selected text, a share or another app's search, as MainActivity hands it in.
+        viewModel.seedQuery("weather")
+        val local = awaitLocalResults()
+        runOn()
+        assertEquals(false, viewModel.queryConfirmed.value)
+        // The tap-through weather card is the phone's own; the forecast and the suggestions would ask a server.
+        assertEquals("weather", local.instantAnswer?.iconType)
+        assertEquals(emptyList<String>(), viewModel.uiState.value.webSuggestions.map { it.query })
+        assertNull(viewModel.uiState.value.liveAnswer)
+
+        // A cursor move hands the same text back; it is no edit.
+        viewModel.onQueryChanged("weather")
+        runOn()
+        assertEquals(false, viewModel.queryConfirmed.value)
+        assertEquals(emptyList<String>(), viewModel.uiState.value.webSuggestions.map { it.query })
+
+        viewModel.confirmQuery()
+        assertEquals(listOf("weather today", "weather tomorrow"), await("web suggestions") { it.webSuggestions.isNotEmpty() }.webSuggestions.map { it.query })
+        // No location is set or allowed here, so the forecast asks for one rather than going out.
+        assertEquals(com.pixel.intelligentsearch.core.answers.LiveAnswer.WeatherNeedsLocation("weather"), await("forecast") { it.liveAnswer != null }.liveAnswer)
+    }
+
+    @Test
+    fun editingAHandedInQueryMakesItTheUsersOwn() {
+        prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
+        start()
+        viewModel.seedQuery("weather")
+        awaitLocalResults()
+        runOn()
+        assertEquals(emptyList<String>(), viewModel.uiState.value.webSuggestions.map { it.query })
+
+        viewModel.onQueryChanged("weather t")
+        assertEquals(true, viewModel.queryConfirmed.value)
+        assertEquals(listOf("weather today", "weather tomorrow"), await("web suggestions") { it.webSuggestions.isNotEmpty() }.webSuggestions.map { it.query })
+    }
+
+    @Test
+    fun aHandedInQueryStillGetsThePhonesOwnResults() {
+        start()
+        viewModel.seedQuery("cal")
+        assertEquals("Calendar", await("app results") { it.filteredApps.isNotEmpty() }.filteredApps.first().name)
+        viewModel.seedQuery("translate hello to spanish")
+        // Translations are handed to Google Translate only when tapped, so the card shows at once.
+        assertEquals(
+            com.pixel.intelligentsearch.core.answers.LiveAnswer.Translation("translate hello to spanish", "hello", null, "es"),
+            await("translation") { it.liveAnswer != null }.liveAnswer
+        )
+    }
+
+    @Test
     fun suggestionsThatArriveBeforeTheLocalResultsAreKept() {
         prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
         // The local search is held at its cached-suggestion lookup until the engine's answer has landed.
@@ -232,7 +315,8 @@ class SearchViewModelTest {
         // Nothing has been fetched here, so the built-in rates answer and the card says so.
         val answer = await("currency answer") { it.instantAnswer != null }.instantAnswer!!
         assertEquals("currency", answer.iconType)
-        assertEquals("100 USD ≈ 92 EUR", answer.title)
+        // Money is written with its currency's decimals.
+        assertEquals("100 USD ≈ 92.00 EUR", answer.title)
         assertEquals("Built-in rates", answer.subtitle)
     }
 
@@ -254,6 +338,59 @@ class SearchViewModelTest {
     }
 
     private fun uniqueWork(name: String) = WorkManager.getInstance(ApplicationProvider.getApplicationContext()).getWorkInfosForUniqueWork(name).get()
+
+    @Test
+    fun aTimeInAnotherZoneIsAnsweredOnTheClockCard() {
+        start()
+        viewModel.onQueryChanged("time in jst")
+        val answer = await("time answer") { it.instantAnswer != null }.instantAnswer!!
+        assertEquals("time", answer.iconType)
+        assertTrue(answer.subtitle, answer.subtitle.startsWith("Current time in JST"))
+    }
+
+    @Test
+    fun aCoinFlipIsAnsweredInline() {
+        start()
+        viewModel.onQueryChanged("flip a coin")
+        val answer = await("coin answer") { it.instantAnswer != null }.instantAnswer!!
+        assertEquals("random", answer.iconType)
+        assertTrue(answer.title, answer.title == "Heads" || answer.title == "Tails")
+    }
+
+    @Test
+    fun chanceAnswersFollowTheCalculatorSwitch() {
+        prefs.edit().put(SettingsManager.SEARCH_CALCULATOR, false).commit()
+        start()
+        viewModel.onQueryChanged("roll a die")
+        assertNull(awaitLocalResults().instantAnswer)
+    }
+
+    @Test
+    fun eventReminderAndAlarmRowsSayWhenTheyAreSet() {
+        // The rows said only "call mom", "Meeting" and "7:00 AM": not the day Enter would set them for. The day and time
+        // come first, so a long task or large text cuts the task, never when.
+        start()
+        fun row(query: String, title: String): DirectAction {
+            viewModel.onQueryChanged(query)
+            return await(title) { state -> state.directActions.any { it.title == title } }.directActions.first { it.title == title }
+        }
+        assertEquals("Tomorrow, 9:00 AM · call mom", row("remind me to call mom tomorrow at 9am", "Set Reminder").subtitle)
+        assertEquals("Tomorrow, 3:00 PM · Meeting", row("meeting tomorrow at 3pm", "Add Calendar Event").subtitle)
+        val alarm = row("set alarm for 7am", "Set Alarm").subtitle
+        assertTrue(alarm, alarm == "Today, 7:00 AM" || alarm == "Tomorrow, 7:00 AM")
+    }
+
+    @Test
+    fun playOffersAMediaAction() {
+        start()
+        viewModel.onQueryChanged("play jazz on spotify")
+        val action = await("media action") { state -> state.directActions.any { it.iconType == "media" } }
+            .directActions.first { it.iconType == "media" }
+        assertEquals("Play jazz", action.title)
+        assertEquals("Spotify", action.subtitle)
+        assertEquals("com.spotify.music", action.intent?.`package`)
+        assertNull(action.fallbackIntent?.`package`)
+    }
 
     @Test
     fun dateAnswersFollowTheCalculatorSwitch() {
@@ -436,6 +573,53 @@ class SearchViewModelTest {
         // Never the system web search, which would hand the copied text to Google whatever the chosen engine.
         assertEquals(Intent.ACTION_VIEW, search.intent?.action)
         assertEquals("duckduckgo.com", search.intent?.data?.host)
+    }
+
+    /** Serves a contact card as text to whoever opens it, as the Contacts provider does for an app allowed to read it. */
+    class CardProvider : android.content.ContentProvider() {
+        override fun onCreate() = true
+        override fun getType(uri: android.net.Uri) = "text/x-vcard"
+        override fun openTypedAssetFile(uri: android.net.Uri, mimeTypeFilter: String, opts: android.os.Bundle?): android.content.res.AssetFileDescriptor {
+            val card = java.io.File.createTempFile("card", ".vcf").apply { writeText("BEGIN:VCARD FN:Ada Lovelace TEL:+15550100 END:VCARD") }
+            val descriptor = android.os.ParcelFileDescriptor.open(card, android.os.ParcelFileDescriptor.MODE_READ_ONLY)
+            return android.content.res.AssetFileDescriptor(descriptor, 0, android.content.res.AssetFileDescriptor.UNKNOWN_LENGTH)
+        }
+        override fun query(uri: android.net.Uri, projection: Array<String>?, selection: String?, selectionArgs: Array<String>?, sortOrder: String?) = null
+        override fun insert(uri: android.net.Uri, values: android.content.ContentValues?) = null
+        override fun delete(uri: android.net.Uri, selection: String?, selectionArgs: Array<String>?) = 0
+        override fun update(uri: android.net.Uri, values: android.content.ContentValues?, selection: String?, selectionArgs: Array<String>?) = 0
+    }
+
+    @Test
+    fun aCopiedContentAddressIsNeverReadThroughTheApp() {
+        prefs.edit().put(SettingsManager.SMART_CLIPBOARD_SUGGESTIONS, true).put(SettingsManager.SEARCH_ENGINE, "DuckDuckGo").commit()
+        installBrowser()
+        org.robolectric.Robolectric.setupContentProvider(CardProvider::class.java, "com.example.cards")
+        // Another app's clip pointing at a contact's card, which this app could open with its own permission.
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.getSystemService(ClipboardManager::class.java).setPrimaryClip(
+            ClipData.newUri(context.contentResolver, "contact", android.net.Uri.parse("content://com.example.cards/ada"))
+        )
+        start()
+        kotlinx.coroutines.runBlocking { viewModel.refreshClipboardActions() }
+        assertEquals(emptyList<DirectAction>(), viewModel.uiState.value.directActions)
+    }
+
+    @Test
+    fun aLongClipIsCutLikeAnyQuery() {
+        prefs.edit().put(SettingsManager.SMART_CLIPBOARD_SUGGESTIONS, true).put(SettingsManager.SEARCH_ENGINE, "DuckDuckGo").commit()
+        installBrowser()
+        copy("cats ".repeat(1_000))
+        start()
+        kotlinx.coroutines.runBlocking { viewModel.refreshClipboardActions() }
+        val search = viewModel.uiState.value.directActions.single { it.title == "Search Copied Text" }
+        assertTrue("was ${search.subtitle.length}", search.subtitle.length <= MAX_CLIP_CHARS)
+        assertTrue(search.subtitle.startsWith("cats cats"))
+
+        // A link cut short would open some other page, so a link longer than that is not offered as one.
+        copy("https://example.com/" + "a".repeat(MAX_CLIP_CHARS))
+        kotlinx.coroutines.runBlocking { viewModel.refreshClipboardActions() }
+        assertTrue(viewModel.uiState.value.directActions.none { it.title == "Open Link" })
     }
 
     @Test

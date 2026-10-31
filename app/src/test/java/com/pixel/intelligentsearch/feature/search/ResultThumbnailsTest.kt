@@ -5,11 +5,14 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import com.pixel.intelligentsearch.core.net.HttpsClient
+import com.pixel.intelligentsearch.core.net.HttpsGet
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,11 +30,13 @@ class ResultThumbnailsTest {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
     private val originalDownload = ResultThumbnails.download
+    private val originalHttp = ResultThumbnails.http
 
     @Before fun startEmpty() = ResultThumbnails.clear()
 
     @After fun restore() {
         ResultThumbnails.download = originalDownload
+        ResultThumbnails.http = originalHttp
         ResultThumbnails.clear()
         ShadowMediaMetadataRetriever.reset()
     }
@@ -55,6 +60,18 @@ class ResultThumbnailsTest {
         assertNotNull(ResultThumbnails.peek(source, 80))
         ResultThumbnails.load(context, source, px = 80)
         assertEquals(1, fetches.get())
+    }
+
+    @Test
+    fun anEntityPictureIsFetchedWithTheAppsHttpsClientUpToHalfAMegabyte() = runBlocking {
+        // No redirects, a fixed User-Agent and a deadline for the whole download, as for every other request.
+        assertTrue(ResultThumbnails.http is HttpsClient)
+        val asked = mutableListOf<Pair<String, Int>>()
+        val bytes = png(80, 80)
+        ResultThumbnails.http = HttpsGet { url, maxBytes, _ -> asked += url to maxBytes; bytes }
+        val url = "https://encrypted-tbn0.gstatic.com/images?q=tbn:client"
+        assertNotNull(ResultThumbnails.load(context, ThumbnailSource.Web(url), px = 80))
+        assertEquals(listOf(url to 512 * 1024), asked)
     }
 
     @Test

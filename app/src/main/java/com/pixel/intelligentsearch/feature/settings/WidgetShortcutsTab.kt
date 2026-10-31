@@ -91,21 +91,29 @@ internal fun WidgetShortcutsTab(
                 val swipeOffsetX = remember { androidx.compose.animation.core.Animatable(0f) }
 
                 val currentPositionIndex = currentOrderList.indexOf(slotKey)
-                val cardTitle = when (slotKey) {
-                    "mic" -> "Microphone Slot: ${currentPositionIndex + 1}"
-                    else -> "Shortcut Slot: ${currentPositionIndex + 1}"
-                }
-
-                val cardSubtext = when (slotKey) {
+                val isMic = slotKey == "mic"
+                val actionName = when (slotKey) {
                     "mic" -> if (localShowVoice) "Voice Search" else "None"
                     "shortcut1" -> localShortcut1
                     "shortcut2" -> localShortcut2
                     else -> localShortcut3
                 }
+                val isEmpty = actionName == "None"
+                // "Slot 1 · Google Lens": the position, then what the slot does. Under it, what kind of slot it is,
+                // or for an empty one, what tapping it adds.
+                val cardTitle = "Slot ${currentPositionIndex + 1} · ${if (isEmpty) "Empty" else actionName}"
+                val cardSubtext = when {
+                    isEmpty && isMic -> "Tap to Add Voice Search"
+                    isEmpty -> "Tap to Add a Shortcut"
+                    isMic -> "Microphone"
+                    else -> "Shortcut"
+                }
 
-                val cardIcon = when (slotKey) {
-                    "mic" -> if (localShowVoice) Icons.Default.Mic else Icons.Default.Close
-                    else -> shortcutOptions.find { it.first == cardSubtext }?.second ?: Icons.Default.Close
+                // An empty slot shows Add, which is what tapping it does; an X there read as delete.
+                val cardIcon = when {
+                    isEmpty -> Icons.Outlined.Add
+                    isMic -> Icons.Default.Mic
+                    else -> shortcutOptions.find { it.first == actionName }?.second ?: Icons.Default.Close
                 }
 
                 val cardModifier = if (isDragging) {
@@ -231,9 +239,14 @@ internal fun WidgetShortcutsTab(
                             ) {
                                 Icon(
                                     imageVector = cardIcon,
-                                    contentDescription = cardSubtext,
+                                    // A filled slot's action is named in its title right beside the icon.
+                                    contentDescription = when {
+                                        isEmpty && isMic -> "Add Voice Search"
+                                        isEmpty -> "Add Shortcut"
+                                        else -> null
+                                    },
                                     modifier = Modifier.size(36.dp),
-                                    tint = if (cardSubtext == "None") MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary
+                                    tint = if (isEmpty) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f) else MaterialTheme.colorScheme.primary
                                 )
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column {

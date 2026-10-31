@@ -2,8 +2,10 @@ package com.pixel.intelligentsearch.feature.widget
 
 import android.app.Activity
 import android.app.SearchManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import android.content.pm.ResolveInfo
 import android.view.View
@@ -106,13 +108,37 @@ class WidgetDoodlesTest {
         }
     }
 
+    /** Another app that answers the system web search, as this app does too. */
+    private fun installWebSearchApp(): ComponentName {
+        val other = ComponentName("org.example.search", "org.example.search.Main")
+        shadowOf(context.packageManager).apply {
+            addActivityIfNotPresent(other)
+            addIntentFilterForActivity(other, IntentFilter(Intent.ACTION_WEB_SEARCH).apply { addCategory(Intent.CATEGORY_DEFAULT) })
+        }
+        return other
+    }
+
     @Test
     fun tappingADoodleOpensTheDaysWebSearchStraightAway() {
         prefs.edit().put(SettingsManager.SEARCH_ENGINE, "Google").commit()
+        // A phone with an app that searches the web: a web search never comes back to this app.
+        val other = installWebSearchApp()
         val intent = SearchWidgetProvider.doodleSearchIntent(context, prefs, appWidgetId = 7, doodle = Occasion.HALLOWEEN)
 
-        // No Google app here, so the system's own web search answers it.
+        // No Google app here, so the system's own web search answers it, in the other app.
         assertEquals(Intent.ACTION_WEB_SEARCH, intent.action)
+        assertEquals("Halloween", intent.getStringExtra(SearchManager.QUERY))
+        assertEquals(other, intent.component)
+    }
+
+    @Test
+    fun aDoodleWithNothingElseToSearchInNeverReopensTheSearchWithTheDay() {
+        prefs.edit().put(SettingsManager.SEARCH_ENGINE, "Google").commit()
+        // No Google app, no browser: only this app answers the system web search, which the tap opened.
+        val intent = SearchWidgetProvider.doodleSearchIntent(context, prefs, appWidgetId = 7, doodle = Occasion.HALLOWEEN)
+
+        assertEquals(WidgetActivity::class.java.name, intent.component?.className)
+        assertEquals(ACTION_SEARCH_WEB, intent.action)
         assertEquals("Halloween", intent.getStringExtra(SearchManager.QUERY))
     }
 

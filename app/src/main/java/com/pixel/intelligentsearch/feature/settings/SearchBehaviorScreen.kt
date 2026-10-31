@@ -11,7 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.AccessTime
+import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.AlignVerticalBottom
 import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.VerticalAlignBottom
@@ -33,6 +33,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+/** What turning on Smart Clipboard Suggestions gives the user, and when the app looks at what they copied. */
+internal const val SMART_CLIPBOARD_DIALOG_TEXT =
+    "Each time you open search, it offers a shortcut for what you last copied: open the link, call the number, or " +
+        "search the text or picture. It looks only while search is open, and passwords copied from a password " +
+        "manager are left out."
+
 /** Search Behavior: the overlay's layout and suggestions, then the Keyboard and At a Glance cards. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,7 +48,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 colors = settingsTopBarColors(),
-                title = { Text("Search Behavior", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
+                title = { SettingsPageTitle("Search Behavior") },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
@@ -57,6 +63,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            SettingsSectionHeader("Layout and Suggestions")
             SettingsCard {
                 var bottomSearch by rememberSetting(SettingsManager.BOTTOM_SEARCH)
                 SettingsRowToggle(
@@ -89,7 +96,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Context Aware Quick Apps",
                     subtitle = "Dynamically Chosen Apps Based on User's App Opening Cycles.",
-                    icon = Icons.Outlined.AccessTime,
+                    icon = Icons.Outlined.Insights,
                     isChecked = contextAwareApps,
                     onCheckedChange = { contextAwareApps = it },
                     showDivider = true
@@ -100,14 +107,14 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 if (showClipboardWarning) {
                     AlertDialog(
                         onDismissRequest = { showClipboardWarning = false },
-                        title = { Text("Privacy Warning", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-                        text = { Text("Smart Clipboard requires a foreground lifecycle observer to monitor your clipboard due to Android 10+ restrictions. Do you want to enable this feature?", style = MaterialTheme.typography.bodyLarge) },
+                        title = { Text("Turn On Smart Clipboard?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
+                        text = { Text(SMART_CLIPBOARD_DIALOG_TEXT, style = MaterialTheme.typography.bodyLarge) },
                         confirmButton = {
                             TextButton(onClick = {
                                 smartClipboard = true
                                 showClipboardWarning = false
                             }) {
-                                Text("Enable", style = MaterialTheme.typography.labelLarge)
+                                Text("Turn On", style = MaterialTheme.typography.labelLarge)
                             }
                         },
                         dismissButton = {

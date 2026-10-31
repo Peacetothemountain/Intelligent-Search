@@ -91,8 +91,9 @@ fun SearchPillsScreen(
     val context = LocalContext.current
     val profiles = remember(prefs) { SearchPillProfiles(prefs) }
     var activeProfile by remember { mutableIntStateOf(profiles.activeProfile) }
+    fun shown(pills: List<String>) = withoutMissingDefaults(context, pills)
     // One state object, so drag handlers never write a stale copy.
-    var localPillList by remember { mutableStateOf(profiles.pills()) }
+    var localPillList by remember { mutableStateOf(shown(profiles.pills())) }
     var resetCounter by remember { mutableIntStateOf(0) }
     // Pills Reset brought back, each with how many times: a new key gives each a fresh card that slides in.
     var revived by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
@@ -128,7 +129,7 @@ fun SearchPillsScreen(
         if (id == activeProfile) return
         flushLeaving()
         enteringPills = emptyMap()
-        localPillList = profiles.switchTo(id)
+        localPillList = shown(profiles.switchTo(id))
         activeProfile = id
         resetCounter++
     }
@@ -209,11 +210,11 @@ fun SearchPillsScreen(
                 colors = settingsTopBarColors(),
                 title = {
                     if (showAppPicker && multiSelectMode) {
-                        Text("${selectedApps.size} Selected", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
+                        SettingsPageTitle("${selectedApps.size} Selected")
                     } else if (showAppPicker) {
-                        Text("Add Applications", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
+                        SettingsPageTitle("Add Applications")
                     } else {
-                        Text("Application Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall))
+                        SettingsPageTitle("Application Search")
                     }
                 },
                 navigationIcon = {
@@ -262,7 +263,7 @@ fun SearchPillsScreen(
                                 // that were missing (swiped away, or still flying off) slide back in; the rest stay put.
                                 val shown = (localPillList - leavingPills.toSet()).toSet()
                                 leavingPills.clear()
-                                val saved = profiles.resetToSaved()
+                                val saved = shown(profiles.resetToSaved())
                                 val missing = saved.filter { it !in shown }
                                 revived = revived + missing.associateWith { (revived[it] ?: 0) + 1 }
                                 localPillList = saved
@@ -344,6 +345,8 @@ fun SearchPillsScreen(
                                 subtitle = when {
                                     isAlreadyAdded -> "Already in Quick Launch."
                                     com.pixel.intelligentsearch.core.bangs.AiAssistants.forPackage(packageName) != null -> "AI Assistant. Its Pill Asks It Your Search."
+                                    // An app without a label of its own is already titled by its package name.
+                                    appItem.label == packageName -> ""
                                     else -> packageName.breakableAtDots()
                                 },
                                 icon = appIcon ?: Icons.Outlined.Apps,
@@ -374,8 +377,13 @@ fun SearchPillsScreen(
                                         selectedApps = setOf(packageName)
                                     }
                                 },
-                                showDivider = index < filteredApps.size - 1
+                                // Nor over the selected row below it.
+                                showDivider = index < filteredApps.size - 1 &&
+                                    filteredApps[index + 1].packageName !in selectedApps
                             )
+                        }
+                        if (filteredApps.isEmpty() && appSearchQuery.isNotBlank()) {
+                            item(key = "no_match") { NoAppsMatch(appSearchQuery) }
                         }
                     }
                     }
@@ -692,12 +700,16 @@ fun SearchPillsScreen(
                                                             fontWeight = FontWeight.Medium,
                                                             color = MaterialTheme.colorScheme.onSurface
                                                         )
-                                                        Text(
-                                                            text = packageName.breakableAtDots(),
-                                                            style = MaterialTheme.typography.bodySmall,
-                                                            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
-                                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                                        )
+                                                        // Without a label (the app's gone) the title is already the
+                                                        // package name, so it isn't repeated under it.
+                                                        if (appName != packageName) {
+                                                            Text(
+                                                                text = packageName.breakableAtDots(),
+                                                                style = MaterialTheme.typography.bodySmall,
+                                                                fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                            )
+                                                        }
                                                     }
                                                 }
 
@@ -878,5 +890,16 @@ fun SearchPillsScreen(
     }
 }
 
+/**
+ * [pills] without the default apps (Profile 1's starting pills) this phone doesn't have. Those are the app's
+ * suggestions, not the user's picks, so one that isn't installed would only show as a bare package name with no icon.
+ * An app the user added stays listed even once it's gone, so they can see it and remove it.
+ */
+internal fun withoutMissingDefaults(context: Context, pills: List<String>): List<String> {
+    val defaults = SearchPillProfiles.DEFAULT_PILLS.split(",").toSet()
+    val pm = context.packageManager
+    return pills.filter { pkg -> pkg !in defaults || runCatching { pm.getApplicationInfo(pkg, 0) }.isSuccess }
+}
+
 /** A package name that may wrap after any dot (zero-width spaces), so narrow screens never split it mid-word. */
-private fun String.breakableAtDots(): String = replace(".", ".\u200B")
+internal fun String.breakableAtDots(): String = replace(".", ".\u200B")

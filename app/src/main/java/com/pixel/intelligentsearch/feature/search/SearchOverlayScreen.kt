@@ -86,6 +86,20 @@ private const val BACK_EXIT_MS = 200
  */
 internal fun keyboardUpOnOpen(prefs: android.content.SharedPreferences): Boolean = prefs[SettingsManager.SHOW_KEYBOARD_ON_OPEN]
 
+/**
+ * The engine's name as the search bar and "Search …" show it. A custom engine goes by the Search App Name the user
+ * gave it in Web Search, or, left at its default, by its address's site name; until its address is valid, searches
+ * go to Google, and so does the name.
+ */
+internal fun searchProviderName(engine: String, customUrl: String, customName: String): String = when (engine) {
+    "DuckDuckGo", "Bing", "Google" -> engine
+    "Custom" -> com.pixel.intelligentsearch.core.security.CustomSearchUrl.displayName(customUrl)?.let { fromAddress ->
+        com.pixel.intelligentsearch.core.security.CustomSearchUrl.sanitizeEngineName(customName).trim()
+            .takeIf { it.isNotBlank() && it != SettingsManager.CUSTOM_SEARCH_ENGINE_NAME.default } ?: fromAddress
+    } ?: "Google"
+    else -> engine.ifBlank { "Google" }
+}
+
 /** The first-run tutorial's steps on the overlay; Settings carries on from step 3. */
 internal val OverlayTutorialSteps = mapOf(
     0 to TutorialStepInfo("Welcome!", "Hello! Thank you for installing Intelligent Search. Please follow the tutorial to show you around. [bugdroid]", Alignment.Center, showArrow = false),
@@ -115,14 +129,9 @@ fun SearchOverlayScreen(
     val contactWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_CONTACTS)
     val fileWeight by rememberSetting(SettingsManager.SEARCH_WEIGHT_FILES)
     val suggestionsEnabled by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
-    val searchProviderName = remember(settingsState.searchEngine, settingsState.customSearchEngineUrl) {
-        when (settingsState.searchEngine) {
-            "DuckDuckGo" -> "DuckDuckGo"
-            "Bing" -> "Bing"
-            "Google" -> "Google"
-            "Custom" -> com.pixel.intelligentsearch.core.security.CustomSearchUrl.displayName(settingsState.customSearchEngineUrl) ?: "Google"
-            else -> if (settingsState.searchEngine.isNotBlank()) settingsState.searchEngine else "Google"
-        }
+    val customEngineName by rememberSetting(SettingsManager.CUSTOM_SEARCH_ENGINE_NAME)
+    val searchProviderName = remember(settingsState.searchEngine, settingsState.customSearchEngineUrl, customEngineName) {
+        searchProviderName(settingsState.searchEngine, settingsState.customSearchEngineUrl, customEngineName)
     }
     // State the overlay's sections share; the screen binds it under the same names so its code reads the same.
     val savedHasStartedTyping = rememberSaveable { mutableStateOf(false) }
@@ -392,15 +401,14 @@ fun SearchOverlayScreen(
         if (intent == null) return@launchWebSearch
         viewModel.addSearchHistory(searchQuery)
         viewModel.onQueryChanged("")
-        if (!launchSafeIntent(context, intent)) {
-            // A failed Tor launch must not fall back to a normal browser search.
-            if (com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(engine)) {
-                showTorInstallPopup = true
-                return@launchWebSearch
-            }
-            if (!launchSafeIntent(context, systemWebSearchIntent(searchQuery))) {
-                Toast.makeText(context, "No app available to search the web.", Toast.LENGTH_SHORT).show()
-            }
+        // A failed Tor launch must not fall back to a normal browser search.
+        if (com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(engine)) {
+            if (!launchSafeIntent(context, intent)) showTorInstallPopup = true
+            return@launchWebSearch
+        }
+        // With no Google app and no browser, the system web search came back to this app, reopening the search.
+        if (!launchWebSearch(context, intent, searchQuery)) {
+            Toast.makeText(context, NO_WEB_SEARCH_APP_MESSAGE, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -467,7 +475,9 @@ fun SearchOverlayScreen(
             if (event == Lifecycle.Event.ON_PAUSE) {
                 hasStartedTyping = false
             } else if (event == Lifecycle.Event.ON_RESUME) {
-                hasStartedTyping = false
+                // What was typed is still there after a permission prompt or page the user comes back from (it is
+                // cleared once search is left for good), and the engine's name stays under it as while typing.
+                hasStartedTyping = viewModel.uiState.value.query.isNotEmpty()
                 // Resuming into a voice request (the assistant gesture) keeps the keyboard down, and so does Show
                 // Keyboard When Search Opens being off (the field may still hold focus from before: it lets go).
                 if (!voice.active) isKeyboardDismissedByUser = !keyboardUpOnOpen(prefs)
@@ -625,8 +635,9 @@ fun SearchOverlayScreen(
     }
 
     // The one way to "go" once the results are in, for Enter and for the voice check button (OverlayEnterKey): a
-    // bang goes to its site; otherwise the short phrasing's action runs, else the best match opens, then a typed web
-    // address, Quick Launch, and finally a web search.
+    // bang goes to its site; otherwise the timer, alarm or reminder the query asks for runs when nothing about it was
+    // guessed (enterAction; a guessed one waits for a tap), else the best match opens, then a typed web address, Quick
+    // Launch, and finally a web search.
     val submitQuery: (String, Boolean) -> Unit = submit@{ submittedQuery, fromVoice ->
         val outcome = OverlayEnterKey.decide(
             query = submittedQuery,
@@ -641,11 +652,12 @@ fun SearchOverlayScreen(
                 launchWebSearch(submittedQuery)
                 return@submit
             }
-            // "15 min", "7:30am", "set a timer for 10 minutes": the top action, which opens the clock or calendar to
-            // confirm. It is an action, not a search, so it isn't kept in the history.
+            // "15 min", "7:30am", "set a timer for 10 minutes", "remind me to call mom tomorrow at 5pm": the top action,
+            // which opens the clock or calendar to confirm. It is an action, not a search, so it isn't kept in the
+            // history. With no such app, a toast says so.
             is EnterOutcome.RunAction -> {
                 ui.hasStartedTyping = false
-                outcome.action.intent?.let { launchSafeIntent(context, android.content.Intent(it)) }
+                openDirectAction(context, outcome.action)
                 return@submit
             }
             EnterOutcome.OpenTopResult -> Unit
@@ -656,8 +668,8 @@ fun SearchOverlayScreen(
         when (val match = bestMatch) {
             is ContactItem -> {
                 viewModel.recordOpened(match)
-                // A spoken name can be misheard, so voice opens the contact rather than dialling straight away.
-                launchSafeIntent(context, ContactActions.openIntent(match, directCall = settingsState.contactDirectCall && !fromVoice))
+                // A spoken name can be misheard, so voice opens the contact rather than calling straight away.
+                ContactActions.open(context, match, directCall = settingsState.contactDirectCall && !fromVoice)
             }
             is AppItem -> performAppLaunch(match, LaunchSource.keyboard(LaunchIconKeys.BEST_MATCH, LaunchIconKeys.app(match)))
             is FileItem -> {
@@ -1055,14 +1067,15 @@ fun SearchOverlayScreen(
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(56.dp)
+                    // At least 56dp, taller when large text wraps the message onto a second line.
+                    .heightIn(min = 56.dp)
                     // Announced when it appears, so TalkBack users learn the history went and that Undo is there.
                     .semantics { liveRegion = LiveRegionMode.Polite }
             ) {
                 Row(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 20.dp),
+                        .fillMaxWidth()
+                        .padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
@@ -1070,7 +1083,8 @@ fun SearchOverlayScreen(
                         text = "Search History Cleared",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f, fill = false).padding(end = 8.dp)
                     )
                     TextButton(
                         onClick = {

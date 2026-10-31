@@ -10,6 +10,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -19,6 +22,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 
 /**
  * Modernized Material 3 Expressive Fluid Spotlight Pulse Ring.
@@ -33,6 +37,13 @@ internal fun FluidSpotlightPulseRing(
     tertiaryColor: Color,
     modifier: Modifier = Modifier
 ) {
+    val animate by rememberAnimationsEnabled()
+    if (!animate) {
+        // Animations off: the resting frame, the focal ring and its glow, still.
+        val still = remember { mutableFloatStateOf(1f) }
+        PulseRingCanvas(targetCenter, targetRadius, primaryColor, tertiaryColor, still, still, still, modifier)
+        return
+    }
     val infiniteTransition = rememberInfiniteTransition(label = "fluid_pulse_transition")
 
     val rippleWave1 = infiniteTransition.animateFloat(
@@ -68,7 +79,21 @@ internal fun FluidSpotlightPulseRing(
         ),
         label = "breathing"
     )
+    PulseRingCanvas(targetCenter, targetRadius, primaryColor, tertiaryColor, rippleWave1, rippleWave2, breathingFactor, modifier)
+}
 
+/** The ring drawn at the waves' [rippleWave1], [rippleWave2] and [breathingFactor]; a wave at 1 has faded out. */
+@Composable
+private fun PulseRingCanvas(
+    targetCenter: Offset,
+    targetRadius: Float,
+    primaryColor: Color,
+    tertiaryColor: Color,
+    rippleWave1: State<Float>,
+    rippleWave2: State<Float>,
+    breathingFactor: State<Float>,
+    modifier: Modifier
+) {
     val auraColors = remember(primaryColor) {
         listOf(
             primaryColor.copy(alpha = 0.25f),

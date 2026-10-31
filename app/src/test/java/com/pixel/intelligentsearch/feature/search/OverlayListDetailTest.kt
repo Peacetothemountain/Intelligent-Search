@@ -116,6 +116,17 @@ class OverlayListDetailTest {
     }
 
     @Test
+    fun aCalculationsPaneShowsOnlyItsOtherFormsNotTheListsCardAgain() {
+        showOverlay("12*12")
+        inPane("Other Forms").assertExists()
+        inPane("Hexadecimal").assertExists()
+        // The calculator card is the list's; the pane doesn't repeat it.
+        inPane("= 144").assertDoesNotExist()
+        inPane("Open Calculator").assertDoesNotExist()
+        compose.onNode(hasText("= 144"), useUnmergedTree = true).assertExists()
+    }
+
+    @Test
     fun withNothingTypedThePaneSaysWhatWillShowThere() {
         showOverlay("")
         inPane("Type to See the Top Result Here. Use the Arrow Keys to Move Through the Results.").assertExists()

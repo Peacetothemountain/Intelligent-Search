@@ -12,6 +12,17 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.platform.testTag
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -90,12 +101,19 @@ internal const val KEYBOARD_WAIT_MS = 220L
 private const val FLASH_MILLIS = 450
 private val FlashDecay = Easing { t -> ((1f - exp(-t * 4.1f)) / (1f - exp(-4.1f))) }
 
-/** The pill: 48dp tall, 16dp from the page's sides, 12dp above the keyboard (or the navigation bar). */
-private val PILL_HEIGHT = 48.dp
+/**
+ * The pill is the search overlay's own bar in size: 72dp tall (its 48dp buttons and 12dp above and below them), 14dp
+ * from the screen's sides (the overlay panel's 4dp and the bar's 10dp), with the bar's 24dp inside and 20sp text. It
+ * sits 12dp above the keyboard (or the navigation bar).
+ */
+private val PILL_HEIGHT = 72.dp
+private val PILL_SIDE = 14.dp
+private val PILL_INSIDE = 24.dp
+private val PILL_TEXT = 20.sp
 private val PILL_MARGIN = 12.dp
 
 /** How much of the list's bottom edge dissolves into the pill while search is open, and how strongly. */
-internal val PILL_BLUR_EDGE = 96.dp
+internal val PILL_BLUR_EDGE = 120.dp
 internal val PILL_BLUR_MAX = 16.dp
 
 /** Room a list needs at its bottom so its last row can scroll clear of the pill. */
@@ -194,7 +212,7 @@ internal fun BottomSearchPill(
         contentAlignment = Alignment.CenterStart,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = PILL_SIDE)
             .height(PILL_HEIGHT)
             .offset { IntOffset(0, -(lift + margin)) }
             .manifestingPill({ reveal.value }, { fade.value }, { flash.value }, body, light)
@@ -203,19 +221,19 @@ internal fun BottomSearchPill(
             contentAlignment = Alignment.CenterStart,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = PILL_INSIDE)
                 // The text shows only once the pill has formed.
                 .graphicsLayer { alpha = fade.value * smoothStep(0.82f, 1f, reveal.value) }
         ) {
             val onPill = MaterialTheme.colorScheme.onSurfaceVariant
             if (query.isEmpty()) {
-                Text(placeholder, color = onPill.copy(alpha = 0.6f), fontSize = 14.sp, maxLines = 1)
+                Text(placeholder, color = onPill.copy(alpha = 0.6f), fontSize = PILL_TEXT, fontFamily = GoogleSansFlex, maxLines = 1)
             }
             BasicTextField(
                 value = query,
                 onValueChange = onQueryChange,
                 singleLine = true,
-                textStyle = TextStyle(color = onPill, fontSize = 14.sp, fontFamily = GoogleSansFlex),
+                textStyle = TextStyle(color = onPill, fontSize = PILL_TEXT, fontFamily = GoogleSansFlex),
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focus)
@@ -258,7 +276,7 @@ private fun Modifier.manifestingPill(
     light: Color
 ): Modifier = drawWithCache {
     val shader = bottomSearchShader
-    val brush = shader?.let { ShaderBrush(it) }
+    val brush = if (shader != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) ShaderBrush(shader) else null
     val pad = PILL_GLOW_PAD.toPx()
     val corner = CornerRadius(size.height / 2f)
     onDrawBehind {
@@ -382,3 +400,55 @@ half4 main(float2 p) {
     return half4(col, a) * uAlpha;
 }
 """
+
+/**
+ * What a searched app list shows when nothing matches: a crossed-out magnifier, "No Apps Match" and the search
+ * itself, centered in the room the list would have used, so it reads as an answer rather than an empty card.
+ */
+@Composable
+internal fun NoAppsMatch(query: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 40.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier.size(56.dp).background(MaterialTheme.colorScheme.secondaryContainer, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.SearchOff,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "No Apps Match",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+        )
+        if (query.isNotBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Nothing Installed Matches “${query.trim()}”.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+/** The list's place while the apps load: a spinner centered where the rows will be. */
+@Composable
+internal fun AppsLoading(modifier: Modifier = Modifier) {
+    Box(modifier = modifier.fillMaxWidth().padding(vertical = 48.dp), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(
+            modifier = Modifier.testTag(com.pixel.intelligentsearch.core.ui.LOADING_INDICATOR_TAG).semantics {
+                contentDescription = "Loading Apps"
+            }
+        )
+    }
+}

@@ -35,7 +35,7 @@ class AnimatedCopyChipTest {
     fun copyingSaysWhatWasCopied() {
         compose.setContent { MathResultOneBox(expression = "2+2", result = "4") }
 
-        compose.onNodeWithText("Copy result").performClick()
+        compose.onNodeWithText("Copy Result").performClick()
         compose.waitForIdle()
 
         assertEquals("Calculation copied", ShadowToast.getTextOfLatestToast())

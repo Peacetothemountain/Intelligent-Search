@@ -45,10 +45,14 @@ class SearchSourcesPermissionTest {
     private val context: Context get() = ApplicationProvider.getApplicationContext()
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
 
+    /** Whether Android shows its reason after the user's "Don't allow": after a first decline, not after the last. */
+    private var androidWillAskAgain = true
+
     /** Answers every permission request with a denial, as the system dialog would after "Don't allow". */
     private val denyingOwner = object : ActivityResultRegistryOwner {
         override val activityResultRegistry = object : ActivityResultRegistry() {
             override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
+                shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS, androidWillAskAgain)
                 @Suppress("UNCHECKED_CAST")
                 dispatchResult(requestCode, mapOf(Manifest.permission.READ_CONTACTS to false) as O)
             }
@@ -62,7 +66,10 @@ class SearchSourcesPermissionTest {
     }
 
     private fun turnOnContactsAndDecline(androidWillAskAgain: Boolean) {
-        shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS, androidWillAskAgain)
+        // Declined once before, so Android shows its reason as it asks; whether it still does after this decline
+        // tells a decline for good from one more. Only closing the prompt, never declined, isn't for good.
+        shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS, true)
+        this.androidWillAskAgain = androidWillAskAgain
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) {
                 CompositionLocalProvider(LocalActivityResultRegistryOwner provides denyingOwner) {

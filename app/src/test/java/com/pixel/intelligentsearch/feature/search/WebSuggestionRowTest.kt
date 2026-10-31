@@ -88,14 +88,14 @@ class WebSuggestionRowTest {
         cachePicture(ThumbnailSource.Web(obamaPicture), SUGGESTION_LEADING_SIZE)
         showRow(obama, showThumbnail = true, isRecent = true)
         compose.onAllNodesWithTag(RESULT_THUMBNAIL_TAG, useUnmergedTree = true).assertCountEquals(0)
-        compose.onNodeWithContentDescription("Remove").assertExists()
+        compose.onNodeWithContentDescription("Remove obama from history").assertExists()
     }
 
     @Test
     fun theArrowFillsTheSuggestionIn() {
         var filled = 0
         showRow(WebSuggestion("obama library"), showThumbnail = true) { filled++ }
-        compose.onNodeWithContentDescription("Insert query").performClick()
+        compose.onNodeWithContentDescription("Edit search obama library").performClick()
         assertEquals(1, filled)
     }
 

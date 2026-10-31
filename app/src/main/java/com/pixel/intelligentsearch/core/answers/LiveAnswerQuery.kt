@@ -16,8 +16,11 @@ sealed interface LiveAnswerQuery {
      */
     data class Define(val word: String, val explicit: Boolean) : LiveAnswerQuery
 
-    /** The forecast for [day] in [place], or at the user's home location when [place] is null. */
-    data class Weather(val place: String?, val day: ForecastDay) : LiveAnswerQuery
+    /**
+     * The forecast for [day] in [place], or at the user's home location when [place] is null, in the [unit] the query
+     * named ("weather in celsius"); null uses the scale of the phone's region.
+     */
+    data class Weather(val place: String?, val day: ForecastDay, val unit: TemperatureUnit? = null) : LiveAnswerQuery
 
     /**
      * Translate [text] into [targetLanguage], one of [TranslationLanguages.CODES] (null: the phone's language), from
@@ -80,8 +83,103 @@ object LiveAnswerParser {
     private val TRANSLATE_FROM_TO = Regex("^translate (.+?) from ([\\p{L} ]+?) (?:to|into) ([\\p{L} ]+)$")
     private val TRANSLATE_TO = Regex("^translate (.+?) (?:to|into|in) ([\\p{L} ]+)$")
     private val TRANSLATE_ONLY = Regex("^translate (.+)$")
-    private val HOW_DO_YOU_SAY = Regex("^how (?:do|would|can) (?:you|i) say (.+?) in ([\\p{L} ]+)$")
-    private val WHAT_IS_IN = Regex("^(?:what(?:'s| is) )?(.+?) in ([\\p{L} ]+)$")
+    // "how do you say thank you in japanese", and "how to say ..." as it is often typed.
+    private val HOW_DO_YOU_SAY = Regex("^how (?:(?:do|would|can|should) (?:you|i|we) |to )say (.+?) in ([\\p{L} ]+)$")
+    private val MEANING_IN = Regex("^(.+?) (?:meaning|translation) in ([\\p{L} ]+)$")
+    private val WHAT_IS_IN = Regex("^what(?:'s| is) (.+?) in ([\\p{L} ]+)$")
+    private val BARE_IN = Regex("^(.+?) in ([\\p{L} ]+)$")
+
+    /**
+     * Words that make "X in <language>" a search for things in that language ("songs in spanish", "learn python in
+     * english", "news in hindi") rather than words to translate.
+     */
+    private val NOT_TRANSLATABLE = setOf(
+        "song", "songs", "music", "lyrics", "movie", "movies", "film", "films", "show", "shows", "series", "tv", "news",
+        "video", "videos", "book", "books", "novel", "novels", "story", "stories", "poem", "poems", "podcast",
+        "podcasts", "radio", "channel", "channels", "cartoon", "cartoons", "anime", "episode", "episodes", "dubbed",
+        "subtitles", "learn", "learning", "course", "courses", "class", "classes", "lesson", "lessons", "tutorial",
+        "tutorials", "typing", "keyboard", "app", "apps", "game", "games", "jobs", "website", "websites",
+        // What is done in a language, not a word of one: "taught in english" was "taught" to translate.
+        "taught", "teach", "teaching", "written", "spoken", "sung", "fluent", "available", "explained", "published",
+        "subtitled", "recorded", "filmed", "released", "printed", "proficient", "certified", "trained", "educated",
+        "schooled", "lectures", "conducted", "offered", "presented", "delivered"
+    )
+
+    /**
+     * Words that mark a phrase someone wants said in another language: people, questions, greetings and courtesies
+     * ("thank you", "where is the station", "good morning"). A run of other words is more often a name or a title
+     * ("harry potter in hindi"), so the bare "X in <language>" form needs one of these when X is longer than a word.
+     */
+    private val PHRASE_WORDS = setOf(
+        "i", "i'm", "me", "my", "you", "your", "he", "she", "it", "it's", "we", "they", "him", "her", "us", "them",
+        "our", "their", "this", "that", "is", "are", "am", "was", "were", "be", "do", "does", "did", "don't", "can",
+        "could", "would", "will", "have", "has", "not", "what", "what's", "where", "where's", "when", "why", "who",
+        "how", "which", "let's", "please", "thank", "thanks", "sorry", "excuse", "hello", "hi", "goodbye", "bye",
+        "good", "happy", "merry", "welcome", "love", "cheers", "congratulations", "yes", "no"
+    )
+
+    /** Words that make "what is X" a question of its own ("what is your name"), not a word asked about. */
+    private val PRONOUNS = setOf(
+        "i", "me", "my", "you", "your", "he", "him", "his", "she", "her", "it", "we", "us", "our", "they", "them",
+        "their", "this", "that"
+    )
+
+    /**
+     * How-to searches: "how to make tea in hindi" asks for the recipe in Hindi, as "how do i lose weight in tamil" asks
+     * for the advice in Tamil, not for the words translated.
+     */
+    private val HOW_TO = Regex("^how (?:to|do i|do we|can i|can we|should i|does)\\b")
+
+    /**
+     * A question put to someone, "how can i help you", "how may i help you": words to say in the language, not a
+     * how-to. A "how to" never is one ("how to make you happy").
+     */
+    private val SAID_TO_SOMEONE = Regex("^how (?:can|may|could) (?:i|we) .*\\byou\\b")
+
+    /**
+     * The everyday words people most often ask for in another language on their own ("water in hindi", "cat in
+     * french", "beautiful in spanish"). A lone word outside these and [PHRASE_WORDS] is left to the web search, which
+     * still answers a word; "translate x to <language>" and "x meaning in <language>" translate any word.
+     */
+    private val EVERYDAY_WORDS = setOf(
+        // People and family
+        "mother", "mom", "mum", "mommy", "father", "dad", "daddy", "brother", "sister", "son", "daughter", "baby",
+        "child", "children", "kid", "kids", "family", "friend", "friends", "boyfriend", "girlfriend", "husband", "wife",
+        "grandma", "grandmother", "grandpa", "grandfather", "uncle", "aunt", "cousin", "man", "woman", "boy", "girl",
+        "people", "person", "teacher", "doctor", "king", "queen", "god",
+        // Animals
+        "cat", "dog", "bird", "fish", "horse", "cow", "pig", "chicken", "duck", "rabbit", "mouse", "lion", "tiger",
+        "bear", "elephant", "monkey", "snake", "butterfly", "bee", "sheep", "goat", "frog", "turtle", "wolf", "fox",
+        // Food and drink
+        "water", "food", "bread", "milk", "rice", "egg", "eggs", "meat", "fruit", "apple", "banana", "orange", "mango",
+        "grape", "grapes", "strawberry", "lemon", "tomato", "potato", "onion", "garlic", "carrot", "vegetable",
+        "vegetables", "cheese", "butter", "sugar", "salt", "pepper", "honey", "coffee", "tea", "juice", "beer", "wine",
+        "cake", "chocolate", "soup", "breakfast", "lunch", "dinner",
+        // Home and things
+        "house", "home", "room", "kitchen", "bathroom", "toilet", "bed", "door", "window", "table", "chair", "book",
+        "pen", "paper", "phone", "computer", "car", "bus", "train", "plane", "bike", "bicycle", "money", "key", "bag",
+        "shoes", "shirt", "dress", "hat", "clothes", "gift", "ball", "school", "hospital", "street", "city", "country",
+        "shop", "store", "church", "beach", "island", "mountain", "river", "lake", "sea", "ocean", "forest", "garden",
+        // Nature, time and weather
+        "sun", "moon", "star", "stars", "sky", "rain", "snow", "wind", "cloud", "fire", "earth", "world", "tree",
+        "flower", "flowers", "rose", "grass", "weather", "time", "day", "night", "morning", "evening", "afternoon",
+        "today", "tomorrow", "yesterday", "week", "month", "year", "birthday", "summer", "winter", "spring", "autumn",
+        "fall", "christmas",
+        // Body
+        "head", "hair", "eye", "eyes", "ear", "nose", "mouth", "hand", "hands", "foot", "feet", "heart", "face",
+        // Colors and numbers
+        "red", "blue", "green", "yellow", "black", "white", "pink", "purple", "brown", "gray", "grey", "color", "colour",
+        "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "hundred", "thousand",
+        // Feelings, describing words and doings
+        "beautiful", "pretty", "cute", "ugly", "big", "small", "little", "hot", "cold", "new", "old", "young", "nice",
+        "bad", "great", "best", "delicious", "sad", "angry", "tired", "hungry", "thirsty", "sick", "funny", "strong",
+        "smart", "crazy", "friendship", "life", "death", "peace", "hope", "dream", "smile", "kiss", "hug", "beauty",
+        "eat", "drink", "sleep", "go", "come", "run", "walk", "dance", "sing", "speak", "help", "stop", "wait", "miss",
+        "like", "want", "need", "know", "understand", "see", "work", "play", "learn", "name", "word", "language",
+        "freedom", "goodnight", "okay", "ok"
+    )
+
+    private const val ENGLISH = "en"
 
     /** Longest text a query offers to translate; anything longer is better pasted into a translator. */
     const val MAX_TRANSLATE_CHARS = 500
@@ -90,15 +188,55 @@ object LiveAnswerParser {
     // WEATHER
     // ---------------------------------------------------------------------------------------------
 
-    private val DAY_WORD = "(today|tonight|tomorrow|now|right now)"
-    private val WEATHER_LEAD = Regex("^(?:what(?:'s| is) the |how(?:'s| is) the |the )")
+    /**
+     * When a forecast is for: the day, with the part of it people add ("tomorrow morning", "this evening", "in the
+     * afternoon", "at night").
+     */
+    private val DAY_WORD = "((?:today|tomorrow)(?: (?:morning|afternoon|evening|night))?|tonight|now|right now|" +
+        "this (?:morning|afternoon|evening)|in the (?:morning|afternoon|evening)|at night|later(?: today)?)"
+    private val WEATHER_LEAD = Regex("^(?:what(?:'s| is|s) the |how(?:'s| is|s) the |the )")
+    private val WEATHER_WORD = Regex("\\b(?:weather|forecast)\\b")
+
+    /**
+     * Words that mean where the user is, not a place to look up: "near me", "here", "outside", "in my area", "at my
+     * location", "nearby". Geocoding them finds villages called "Me" and suburbs called "Outside".
+     */
+    private val WEATHER_HERE = Regex(
+        "\\b(?:(?:near|around|at|in|for|close to) (?:me|here|my (?:current )?(?:area|location))|(?:my )?current location|" +
+            "my (?:area|location)|right here|here|outside|nearby|near by|close by|where i am|where i live|" +
+            "(?:at|near|around) (?:my )?home|(?:in|near|around|for) my (?:city|town|village|neighborhood|neighbourhood))\\b"
+    )
+
+    /**
+     * A clock time in a weather question: "at 5pm", "at noon", "at 3", "around 8", or "5pm" with its am/pm. A number
+     * with neither "at" nor am/pm is left alone, as it may be a postcode ("weather 90210").
+     */
+    private val WEATHER_CLOCK_TIME = Regex(
+        "(?:\\b(?:at|around|by)|@)\\s*(?:\\d{1,2}(?:[:.]\\d{2})?(?:\\s?[ap]\\.?m\\b\\.?)?|noon|midday|midnight)(?![\\p{L}\\p{N}])|" +
+            "(?<![\\p{L}\\p{N}])\\d{1,2}(?::\\d{2})?\\s?[ap]\\.?m\\b\\.?"
+    )
+
+    /** A scale the query asks the temperatures in. */
+    private val WEATHER_UNIT = Regex("\\b(?:in )?(celsius|centigrade|fahrenheit)\\b")
+
+    /**
+     * A stretch of days ("10 day forecast", "this weekend", "next 7 days"): more than the card's one day shows, so
+     * those stay searches, as "weather 10 day" always has, rather than being read as a place.
+     */
+    private val WEATHER_SPAN = Regex(
+        "\\b(?:(?:\\d+|three|five|seven|ten|fourteen)[ -]?days?|next (?:few |couple of )?days|weeks?|weekends?|weekly)\\b"
+    )
+
+    /** "for" or "on" before the day ("weather for tomorrow"), which would otherwise read as a place called "tomorrow". */
+    private val WEATHER_FOR_DAY = Regex("\\b(?:for|on) (?=$DAY_WORD$)")
     private val WEATHER_LIKE = Regex("\\bweather like\\b")
     private val WEATHER_ALONE = Regex("^(?:weather|forecast|weather forecast)(?: $DAY_WORD)?$")
     private val WEATHER_OWNED = Regex("^(today'?s|todays|tonight'?s|tomorrow'?s|tomorrows|current|local|my) (?:weather|forecast|weather forecast)$")
     private val WEATHER_IN = Regex("^(?:weather|forecast|weather forecast) (?:in|for|at|near) (.+?)(?: $DAY_WORD)?$")
     private val WEATHER_DAY_IN = Regex("^(?:weather|forecast|weather forecast) $DAY_WORD (?:in|for|at|near) (.+)$")
     private val WEATHER_PLACE_FIRST = Regex("^(.+?) (?:weather|forecast|weather forecast)(?: $DAY_WORD)?$")
-    private val WEATHER_BARE_PLACE = Regex("^(?:weather|forecast) (.+)$")
+    // "weather boston tomorrow": the day after the place, as after "in" ([WEATHER_IN]).
+    private val WEATHER_BARE_PLACE = Regex("^(?:weather|forecast) (.+?)(?: $DAY_WORD)?$")
 
     /** A place name: letters, digits (postcodes), spaces and the punctuation place names use. */
     private val PLACE = Regex("^[\\p{L}\\p{N}][\\p{L}\\p{N} .,'\\-]{0,59}$")
@@ -109,6 +247,42 @@ object LiveAnswerParser {
         "underground", "network", "station", "widget", "forecast", "today", "tomorrow", "tonight", "now", "live",
         "update", "updates", "hourly", "weekly", "10 day", "10-day", "7 day", "7-day", "this week", "next week",
         "weekend", "this weekend", "the", "a", "bad", "good", "nice", "cold", "hot", "the weather channel"
+    )
+    /** [NOT_A_PLACE]'s words for weather that are towns too, named as places after "in": "weather in nice" is Nice. */
+    private val TOWNS_AFTER_IN = setOf("nice", "bad", "good", "cold", "hot")
+
+    /**
+     * Words that make what's beside "weather" something other than a place, wherever they sit in it. A day other than
+     * today or tomorrow ("weather friday", "weather sunday in london") asks for a forecast the card doesn't show, and
+     * "home", "work" and "school" are places only the user knows. Geocoded, each found a real town: Thursday Island,
+     * Friday Harbor, Homyel, Worksop.
+     */
+    private val NOT_A_PLACE_WORDS = setOf(
+        "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "yesterday", "home", "work",
+        "office", "school", "vs", "versus"
+    )
+
+    /**
+     * Things said with "weather" ("weather man", "weather balloon", "weather the storm"), not places, in a place of
+     * one or two words; a longer name may hold one ("isle of man", "las vegas strip").
+     */
+    private val WEATHER_THINGS = setOf(
+        "man", "men", "woman", "women", "girl", "girls", "boy", "guy", "lady", "presenter", "anchor", "balloon",
+        "balloons", "vane", "vanes", "stripping", "strip", "proof", "proofing", "resistant", "storm", "climate", "change",
+        "pattern", "patterns"
+    )
+    private val MONTHS = setOf(
+        "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november",
+        "december"
+    )
+    private val MONTH_LEADS = setOf("in", "this", "next", "last", "during", "for", "of", "early", "late", "mid")
+    private val MONTH_INS = setOf("in", "during")
+
+    /** The second word of a place named for something else: Friday Harbor, Storm Lake, Thursday Island, June Lake. */
+    private val PLACE_FEATURES = setOf(
+        "harbor", "harbour", "lake", "lakes", "river", "island", "islands", "isle", "bay", "beach", "falls", "springs",
+        "valley", "creek", "point", "mountain", "mountains", "hills", "heights", "park", "port", "cove", "peak", "city",
+        "town", "village", "county"
     )
 
     /** What [rawQuery] asks to be answered inline, or null for an ordinary search. */
@@ -169,11 +343,40 @@ object LiveAnswerParser {
             val target = TranslationLanguages.codeFor(match.groupValues[2])
             if (target != null) return translation(original, match.groups[1]!!.range, target, null)
         }
-        WHAT_IS_IN.matchEntire(sentence)?.let { match ->
+        MEANING_IN.matchEntire(sentence)?.let { match ->
             val target = TranslationLanguages.codeFor(match.groupValues[2])
             if (target != null) return translation(original, match.groups[1]!!.range, target, null)
         }
+        WHAT_IS_IN.matchEntire(sentence)?.let { match ->
+            val target = TranslationLanguages.codeFor(match.groupValues[2])
+            // "what is love in spanish" asks for "love"; "what is your name in japanese" is the question to be said.
+            val asked = match.groups[1]!!.range
+            val whole = match.groupValues[1].split(' ').any { it in PRONOUNS }
+            if (target != null) return translation(original, if (whole) 0..asked.last else asked, target, null)
+        }
+        BARE_IN.matchEntire(sentence)?.let { match ->
+            val target = TranslationLanguages.codeFor(match.groupValues[2])
+            if (target != null && readsAsPhrase(match.groupValues[1], target)) {
+                return translation(original, match.groups[1]!!.range, target, null)
+            }
+        }
         return null
+    }
+
+    /**
+     * Whether [text], from a bare "X in <language>" with nothing else asking for a translation, reads as words to
+     * translate into [target]: a phrase with a person, question or courtesy in it, and never a search for songs, films
+     * or lessons in that language. A single word is a title or a name as often as a word ("avengers in hindi",
+     * "netflix in korean"), so it needs to be an everyday word ([EVERYDAY_WORDS]), or a word being brought into English
+     * ("hola in english"), which a title rarely is.
+     */
+    private fun readsAsPhrase(text: String, target: String): Boolean {
+        val words = text.trim().trim(*QUOTES).split(' ').map { it.trim(*QUOTES, ',', '.', '!', '?') }
+        if (words.any { it in NOT_TRANSLATABLE }) return false
+        if (HOW_TO.containsMatchIn(text) && !SAID_TO_SOMEONE.containsMatchIn(text)) return false
+        if (words.size > 1) return words.any { it in PHRASE_WORDS }
+        val word = words.single()
+        return target == ENGLISH || word in PHRASE_WORDS || word in EVERYDAY_WORDS
     }
 
     /**
@@ -200,32 +403,57 @@ object LiveAnswerParser {
     // ---------------------------------------------------------------------------------------------
 
     private fun parseWeather(sentence: String): LiveAnswerQuery.Weather? {
-        val q = sentence.replace(WEATHER_LEAD, "").replace(WEATHER_LIKE, "weather")
-        WEATHER_ALONE.matchEntire(q)?.let { return LiveAnswerQuery.Weather(null, dayOf(it.groupValues[1])) }
+        val asked = sentence.replace(WEATHER_LEAD, "").replace(WEATHER_LIKE, "weather")
+        if (!WEATHER_WORD.containsMatchIn(asked) || WEATHER_SPAN.containsMatchIn(asked)) return null
+        val unit = WEATHER_UNIT.find(asked)?.let {
+            if (it.groupValues[1] == "fahrenheit") TemperatureUnit.FAHRENHEIT else TemperatureUnit.CELSIUS
+        }
+        // What's left once the scale, "near me" and a clock time are out is the plain question: "weather near me
+        // tomorrow" is "weather tomorrow", here, and "weather tomorrow at 3" too. The card shows the day's hours, so the
+        // time asks nothing more; it was the place, "Weather in 3".
+        val q = asked.replace(WEATHER_UNIT, " ").replace(WEATHER_HERE, " ").replace(WEATHER_CLOCK_TIME, " ")
+            .replace(WHITESPACE, " ").trim()
+            .replace(WEATHER_FOR_DAY, "")
+        WEATHER_ALONE.matchEntire(q)?.let { return LiveAnswerQuery.Weather(null, dayOf(it.groupValues[1]), unit) }
         WEATHER_OWNED.matchEntire(q)?.let { match ->
-            val owner = match.groupValues[1]
-            return LiveAnswerQuery.Weather(null, if (owner.startsWith("tomorrow")) ForecastDay.TOMORROW else ForecastDay.TODAY)
+            return LiveAnswerQuery.Weather(null, dayOf(match.groupValues[1]), unit)
         }
         WEATHER_DAY_IN.matchEntire(q)?.let { match ->
-            return place(match.groupValues[2])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[1])) }
+            return place(match.groupValues[2])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[1]), unit) }
         }
         WEATHER_IN.matchEntire(q)?.let { match ->
-            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2])) }
+            return place(match.groupValues[1], afterIn = true)?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2]), unit) }
         }
         WEATHER_PLACE_FIRST.matchEntire(q)?.let { match ->
-            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2])) }
+            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2]), unit) }
         }
         WEATHER_BARE_PLACE.matchEntire(q)?.let { match ->
-            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, ForecastDay.TODAY) }
+            return place(match.groupValues[1])?.let { LiveAnswerQuery.Weather(it, dayOf(match.groupValues[2]), unit) }
         }
         return null
     }
 
-    private fun dayOf(word: String): ForecastDay = if (word == "tomorrow") ForecastDay.TOMORROW else ForecastDay.TODAY
+    /** "tomorrow", "tomorrow morning", "tomorrow's": tomorrow; every other day word is today. */
+    private fun dayOf(word: String): ForecastDay = if (word.startsWith("tomorrow")) ForecastDay.TOMORROW else ForecastDay.TODAY
 
-    private fun place(raw: String): String? {
+    /** [raw] as a place to look up, or null when it names something else. [afterIn]: it came after "in", "for" or "at". */
+    private fun place(raw: String, afterIn: Boolean = false): String? {
         val place = raw.trim().trim(',', '.').trim()
-        if (place.isEmpty() || place in NOT_A_PLACE || !PLACE.matches(place) || place.split(' ').size > 5) return null
+        if (place.isEmpty() || (place in NOT_A_PLACE && !(afterIn && place in TOWNS_AFTER_IN)) || !PLACE.matches(place) ||
+            place.split(' ').size > 5
+        ) return null
+        val words = place.split(' ', ',').filter { it.isNotEmpty() }
+        // A word before "harbor", "lake" or "river" is part of a town's name: Friday Harbor, Storm Lake, Sunday River.
+        fun named(i: Int) = words.getOrNull(i + 1) in PLACE_FEATURES
+        if (words.indices.any { words[it] in NOT_A_PLACE_WORDS && !named(it) }) return null
+        if (words.size <= 2 && words.indices.any { words[it] in WEATHER_THINGS && !named(it) }) return null
+        // "weather in july", "weather this may": a month, not the towns called May or July. "May" in a longer name
+        // ("weather mayfield", "isle of may") is still a place.
+        if (words.last() in MONTHS && words.dropLast(1).all { it in MONTH_LEADS }) return null
+        // "weather in july in rome", "weather in rome in may": a month's weather, which the card doesn't show.
+        if (words.indices.any { words[it] in MONTHS && !named(it) && (it == 0 || words[it - 1] in MONTH_INS) }) {
+            return null
+        }
         return place
     }
 }

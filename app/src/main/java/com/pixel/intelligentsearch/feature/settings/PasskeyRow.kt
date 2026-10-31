@@ -51,9 +51,9 @@ internal fun PasskeyRow(
     if (!supported) return
     androidx.compose.foundation.layout.Column(modifier = Modifier.testTag("backup_passkey")) {
         if (!passkeySetUp) {
-            Button(
+            FilledTonalButton(
                 onClick = {
-                    val activity = context.findActivity() ?: return@Button
+                    val activity = context.findActivity() ?: return@FilledTonalButton
                     creating = true
                     scope.launch {
                         try {

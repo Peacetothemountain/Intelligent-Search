@@ -1,21 +1,29 @@
 package com.pixel.intelligentsearch.core.search
 
+import com.pixel.intelligentsearch.core.occasion.OccasionCalendar
 import java.text.NumberFormat
 import java.time.Clock
 import java.time.DateTimeException
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.MonthDay
 import java.time.format.DateTimeFormatter
 import java.time.format.DecimalStyle
 import java.time.format.FormatStyle
+import java.time.format.TextStyle
 import java.time.temporal.ChronoUnit
+import java.time.temporal.IsoFields
+import java.time.temporal.TemporalAdjusters
 import java.util.Locale
 import kotlin.math.abs
 
 /**
  * Date arithmetic answers, worked out on the device:
- * - "days until Dec 25", "days until christmas", "how many days until 2027-01-01"
- * - "days since Jan 1"
+ * - "today", "what's the date", "tomorrow", "yesterday" (the date itself)
+ * - "days until Dec 25", "days until christmas", "days until thanksgiving", "how many days until 2027-01-01"
+ * - "days until friday" (the next Friday after today), "days since Jan 1"
+ * - "what day is 2027-03-14", "what day of the week was christmas" (the weekday)
+ * - "week number", "what week is it", "week number of mar 14" (the ISO week)
  * - "today + 90 days", "90 days from now", "2 weeks from today", "3 months ago", "2 weeks before christmas"
  * - "how many days between Mar 1 and Jun 30"
  *
@@ -32,7 +40,7 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
     fun evaluate(rawQuery: String): DateAnswer? {
         val query = normalize(rawQuery) ?: return null
         return try {
-            countFromToday(query) ?: between(query) ?: offset(query)
+            plainDate(query) ?: countFromToday(query) ?: between(query) ?: offset(query) ?: weekday(query) ?: weekNumber(query)
         } catch (_: DateTimeException) {
             null
         } catch (_: ArithmeticException) {
@@ -44,12 +52,31 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
     // QUESTIONS
     // ---------------------------------------------------------------------------------------------
 
+    /** "today", "date", "what's the date", "tomorrow", "yesterday's date": the date itself. */
+    private fun plainDate(query: String): DateAnswer? {
+        val day = when (query) {
+            in TODAY_PHRASES -> "Today"
+            in TOMORROW_PHRASES -> "Tomorrow"
+            in YESTERDAY_PHRASES -> "Yesterday"
+            else -> return null
+        }
+        val date = when (day) {
+            "Tomorrow" -> today().plusDays(1)
+            "Yesterday" -> today().minusDays(1)
+            else -> today()
+        }
+        val full = full(date)
+        return DateAnswer(full, day, "$day ${if (day == "Yesterday") "was" else "is"} $full")
+    }
+
     /** "days until <date>" and "days since <date>". */
     private fun countFromToday(query: String): DateAnswer? {
         val match = COUNT_REGEX.matchEntire(query) ?: return null
         val forward = match.groupValues[1] != "since"
         val today = today()
-        val date = parseDate(match.groupValues[2], today, if (forward) Lean.FORWARD else Lean.BACKWARD) ?: return null
+        val date = nearestWeekday(match.groupValues[2], today, forward)
+            ?: parseDate(match.groupValues[2], today, if (forward) Lean.FORWARD else Lean.BACKWARD)
+            ?: return null
         val days = ChronoUnit.DAYS.between(today, date)
         val full = full(date)
         return when {
@@ -77,9 +104,14 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
                 secondWritten is Written.Fixed && secondWritten.yearWritten -> onOrBefore(firstWritten.monthDay, secondWritten.date)
                 else -> resolve(firstWritten.monthDay, today, Lean.THIS_YEAR)
             } ?: return null
+            is Written.Movable -> when {
+                secondWritten is Written.Fixed && secondWritten.yearWritten -> movableOnOrBefore(firstWritten, secondWritten.date)
+                else -> firstWritten.inYear(today.year)
+            } ?: return null
         }
         val second = when (secondWritten) {
             is Written.Fixed -> secondWritten.date
+            is Written.Movable -> movableOnOrAfter(secondWritten, first) ?: return null
             is Written.Yearless -> {
                 val next = onOrAfter(secondWritten.monthDay, first) ?: return null
                 // Only Feb 29 can be more than a year on; then the first date is read in the same leap year.
@@ -118,6 +150,43 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
         return null
     }
 
+    /**
+     * "what day is 2027-03-14", "what day of the week is christmas", "what day was jan 1 2000", "what day is it". A date
+     * without a year is the next time it comes round, or the last time when asked with "was" or "did".
+     */
+    private fun weekday(query: String): DateAnswer? {
+        val match = WEEKDAY_REGEX.matchEntire(query) ?: return null
+        val past = match.groupValues[1] == "was" || match.groupValues[1] == "did"
+        val today = today()
+        val text = match.groupValues[2].let { if (it == "it") "today" else it }
+        val date = parseDate(text, today, if (past) Lean.BACKWARD else Lean.FORWARD) ?: return null
+        val day = date.dayOfWeek.getDisplayName(TextStyle.FULL, locale())
+        val full = full(date)
+        val sentence = when {
+            date < today -> "$full was a $day"
+            date > today -> "$full is a $day"
+            else -> "Today is $full"
+        }
+        return DateAnswer(day, full, sentence)
+    }
+
+    /** "week number", "what week is it", "week number of mar 14", "what week is 2027-01-01": the ISO 8601 week. */
+    private fun weekNumber(query: String): DateAnswer? {
+        val today = today()
+        val date = if (query in THIS_WEEK_PHRASES) {
+            today
+        } else {
+            val text = (WEEK_OF_REGEX.matchEntire(query) ?: return null).groupValues[1]
+            parseDate(if (text == "it") "today" else text, today, Lean.THIS_YEAR) ?: return null
+        }
+        val week = number(date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR).toLong())
+        val weekYear = date.get(IsoFields.WEEK_BASED_YEAR)
+        // Late December can fall in next year's week 1, early January in last year's week 52 or 53.
+        val ofYear = if (weekYear == date.year) "" else " of ${year(weekYear)}"
+        val monday = date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+        return DateAnswer("Week $week$ofYear", "Starting ${full(monday)}", "${full(date)} is in week $week$ofYear")
+    }
+
     private fun relativeToToday(today: LocalDate, amount: Long, unit: ChronoUnit, back: Boolean): DateAnswer? {
         val result = shift(today, amount, unit, back) ?: return null
         val description = "${quantity(amount, unit)} ${if (back) "ago" else "from today"}"
@@ -144,13 +213,46 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
     private sealed interface Written {
         data class Fixed(val date: LocalDate, val yearWritten: Boolean = true) : Written
         data class Yearless(val monthDay: MonthDay) : Written
+        /** A day whose date moves from year to year, such as Easter: [inYear] is its date in a year. */
+        class Movable(val inYear: (Int) -> LocalDate) : Written
+    }
+
+    /**
+     * The next [text] weekday after today ("days until friday"), or the last one before it when not [forward]; naming
+     * today's weekday means a week away. Null when [text] isn't a weekday.
+     */
+    private fun nearestWeekday(text: String, today: LocalDate, forward: Boolean): LocalDate? {
+        val day = WEEKDAYS[text] ?: return null
+        return today.with(if (forward) TemporalAdjusters.next(day) else TemporalAdjusters.previous(day))
     }
 
     private fun parseDate(text: String, today: LocalDate, lean: Lean): LocalDate? = when (val written = read(text, today)) {
         null -> null
         is Written.Fixed -> written.date
         is Written.Yearless -> resolve(written.monthDay, today, lean)
+        is Written.Movable -> when (lean) {
+            Lean.FORWARD -> movableOnOrAfter(written, today)
+            Lean.BACKWARD -> movableOnOrBefore(written, today)
+            Lean.THIS_YEAR -> written.inYear(today.year)
+        }
     }
+
+    /** The names of the days [occasionOnOrAfter] knows: "christmas", "new year's eve", "thanksgiving", "easter". */
+    internal val occasionNames: Set<String> get() = NAMED_DAYS.keys + MOVABLE_DAYS.keys
+
+    /** The first day named [name] ("christmas", "thanksgiving") on or after [from], or null when it names none. */
+    internal fun occasionOnOrAfter(name: String, from: LocalDate): LocalDate? {
+        NAMED_DAYS[name]?.let { return onOrAfter(it, from) }
+        return MOVABLE_DAYS[name]?.let { movableOnOrAfter(Written.Movable(it), from) }
+    }
+
+    /** The first [day] on or after [from]. */
+    private fun movableOnOrAfter(day: Written.Movable, from: LocalDate): LocalDate? =
+        (from.year..from.year + 1).asSequence().map(day.inYear).firstOrNull { it >= from }?.takeIf { it.year <= 9999 }
+
+    /** The last [day] on or before [until]. */
+    private fun movableOnOrBefore(day: Written.Movable, until: LocalDate): LocalDate? =
+        (until.year downTo until.year - 1).asSequence().map(day.inYear).firstOrNull { it <= until }?.takeIf { it.year >= 1 }
 
     private fun read(text: String, today: LocalDate): Written? {
         when (text) {
@@ -159,6 +261,15 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
             "yesterday" -> return Written.Fixed(today.minusDays(1), yearWritten = false)
         }
         NAMED_DAYS[text]?.let { return Written.Yearless(it) }
+        MOVABLE_DAYS[text]?.let { return Written.Movable(it) }
+        // "christmas 2027", "easter, 2030": the day in that year.
+        OCCASION_YEAR_REGEX.matchEntire(text)?.let { match ->
+            val year = match.groupValues[2].toInt()
+            NAMED_DAYS[match.groupValues[1]]?.let { return written(it, year) }
+            MOVABLE_DAYS[match.groupValues[1]]?.let { inYear ->
+                return if (year in 1..9999) Written.Fixed(inYear(year)) else null
+            }
+        }
         ISO_DATE_REGEX.matchEntire(text)?.let { match ->
             val (year, month, day) = match.destructured
             return date(year.toInt(), month.toInt(), day.toInt())?.let(Written::Fixed)
@@ -224,6 +335,10 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
 
     private fun number(value: Long): String = NumberFormat.getIntegerInstance(locale()).format(value)
 
+    /** A year in the locale's digits, without the grouping a count gets ("2026", not "2,026"). */
+    private fun year(value: Int): String =
+        NumberFormat.getIntegerInstance(locale()).apply { isGroupingUsed = false }.format(value.toLong())
+
     private fun dayCount(days: Long): String = "${number(days)} ${if (days == 1L) "day" else "days"}"
 
     private fun quantity(amount: Long, unit: ChronoUnit): String {
@@ -275,13 +390,57 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
             put("halloween", MonthDay.of(10, 31))
             for (name in listOf("valentines", "valentine's", "valentines day", "valentine's day")) put(name, MonthDay.of(2, 14))
             for (name in listOf("st patricks day", "st. patrick's day", "st patrick's day")) put(name, MonthDay.of(3, 17))
+            put("boxing day", MonthDay.of(12, 26))
         }
 
+        /**
+         * Days whose date moves: US Thanksgiving (the fourth Thursday of November), Black Friday the day after it, and
+         * Western Easter.
+         */
+        val MOVABLE_DAYS: Map<String, (Int) -> LocalDate> = buildMap {
+            val thanksgiving = { year: Int -> OccasionCalendar.nth(year, 11, DayOfWeek.THURSDAY, 4) }
+            for (name in listOf("thanksgiving", "thanksgiving day")) put(name, thanksgiving)
+            put("black friday") { year: Int -> thanksgiving(year).plusDays(1) }
+            val easter = { year: Int -> OccasionCalendar.easter(year) }
+            for (name in listOf("easter", "easter sunday", "easter day")) put(name, easter)
+        }
+
+        val WEEKDAYS: Map<String, DayOfWeek> = DayOfWeek.entries.associateBy { it.name.lowercase(Locale.ROOT) }
+
+        /** Asking for the date itself, today's, tomorrow's or yesterday's; the word alone asks too. */
+        val TODAY_PHRASES = setOf(
+            "today", "date", "the date", "today's date", "todays date", "date today", "current date", "the date today",
+            "what's the date", "whats the date", "what is the date", "what's the date today", "whats the date today",
+            "what is the date today", "what's today's date", "whats todays date", "what is today's date",
+            "what date is it", "what date is it today", "what is today", "what's today", "whats today"
+        )
+        val TOMORROW_PHRASES = setOf(
+            "tomorrow", "tomorrow's date", "tomorrows date", "date tomorrow", "what's the date tomorrow",
+            "whats the date tomorrow", "what is the date tomorrow", "what date is tomorrow", "what is tomorrow's date",
+            "what's tomorrow's date", "whats tomorrows date"
+        )
+        val YESTERDAY_PHRASES = setOf(
+            "yesterday", "yesterday's date", "yesterdays date", "date yesterday", "what was the date yesterday",
+            "what date was yesterday", "what was yesterday's date", "what was yesterdays date"
+        )
+
         val ISO_DATE_REGEX = Regex("^(\\d{4})-(\\d{1,2})-(\\d{1,2})$")
+        val OCCASION_YEAR_REGEX = Regex("^(.+?),? (\\d{4})$")
         val MONTH_DAY_REGEX = Regex("^($MONTH)\\.? (\\d{1,2})$ORDINAL(?:,? (\\d{4}))?$")
         val DAY_MONTH_REGEX = Regex("^(?:the )?(\\d{1,2})$ORDINAL(?: of)? ($MONTH)\\.?(?:,? (\\d{4}))?$")
 
         val COUNT_REGEX = Regex("^(?:how many )?days (?:left |are there )?(until|till|til|to|before|since) (.+)$")
+        val WEEKDAY_REGEX = Regex(
+            "^(?:what|which) day(?: of the week)? (is|was|will|does|did) (.+?)(?: (?:be on|be|fall on|land on|fall|land|on))?$"
+        )
+        val THIS_WEEK_PHRASES = setOf(
+            "week number", "week no", "current week", "current week number", "week number today", "this week number",
+            "iso week", "iso week number", "what week is it", "what week is this", "which week is it", "what week number is it",
+            "what week of the year is it", "what is the week number", "what's the week number", "whats the week number",
+            "what is the current week", "what's the current week", "whats the current week", "what week are we in",
+            "week of the year", "today's week number", "todays week number"
+        )
+        val WEEK_OF_REGEX = Regex("^(?:what |which )?(?:iso )?week(?: number| no)?(?: of the year)? (?:of|for|on|is|was) (.+)$")
         val BETWEEN_REGEX = Regex("^(?:how many )?days (?:are there )?(?:between|from) (.+?) (?:and|to|until|till) (.+)$")
 
         private const val AMOUNT = "(\\d{1,6}|a|an|one)"

@@ -69,6 +69,23 @@ class SubmitQueryTest {
         TutorialManager.completeTutorial(prefs)
         // Live web suggestions come from the network; these tests must not depend on them.
         prefs.edit().put(SettingsManager.SEARCH_WEB_SUGGESTIONS, false).commit()
+        // A phone with a browser: a web search is handed to another app, never back to this one.
+        installBrowser()
+    }
+
+    private fun installBrowser() {
+        val browser = android.content.ComponentName("com.example.browser", "com.example.browser.Search")
+        val packages = shadowOf(context.packageManager)
+        packages.addActivityIfNotPresent(browser)
+        packages.addIntentFilterForActivity(browser, android.content.IntentFilter(Intent.ACTION_WEB_SEARCH).apply { addCategory(Intent.CATEGORY_DEFAULT) })
+        packages.addIntentFilterForActivity(
+            browser,
+            android.content.IntentFilter(Intent.ACTION_VIEW).apply {
+                addCategory(Intent.CATEGORY_DEFAULT)
+                addCategory(Intent.CATEGORY_BROWSABLE)
+                addDataScheme("https")
+            }
+        )
     }
 
     private fun showOverlay() {
@@ -134,6 +151,18 @@ class SubmitQueryTest {
     }
 
     @Test
+    fun enterOnATimerWithNoClockAppSaysSo() {
+        // Only installed apps open: there is no clock. Enter used to leave the overlay as it was, with no word why.
+        shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).checkActivities(true)
+        showOverlay()
+        viewModel.onQueryChanged("set a timer for 10 minutes")
+        compose.settle()
+        compose.onNode(hasSetTextAction()).performImeAction()
+        compose.settle()
+        assertEquals("Install a clock app to set timers.", org.robolectric.shadows.ShadowToast.getTextOfLatestToast())
+    }
+
+    @Test
     fun aBareClockTimeOffersAnAlarmButEnterStillSearches() {
         showOverlay()
         viewModel.onQueryChanged("7:30")
@@ -145,6 +174,32 @@ class SubmitQueryTest {
 
         val search = startedActivity()
         assertTrue("expected a web search, got $search", search?.action == Intent.ACTION_WEB_SEARCH || search?.action == Intent.ACTION_VIEW)
+    }
+
+    @Test
+    fun aReminderWhoseTimeIsAGuessIsShownButEnterSearches() {
+        // "At 5" is 5 PM by a rule, not by the words, and no day is named: Enter opened the calendar for it.
+        showOverlay()
+        viewModel.onQueryChanged("remind me to call mom at 5")
+        compose.settle()
+        assertEquals("Set Reminder", viewModel.uiState.value.directActions.first().title)
+        assertEquals(null, viewModel.uiState.value.enterAction)
+
+        compose.onNode(hasSetTextAction()).performImeAction()
+        compose.settle()
+
+        val search = startedActivity()
+        assertTrue("expected a web search, got $search", search?.action == Intent.ACTION_WEB_SEARCH || search?.action == Intent.ACTION_VIEW)
+    }
+
+    @Test
+    fun enterSetsAReminderWhoseDayAndTimeAreSaid() {
+        showOverlay()
+        viewModel.onQueryChanged("remind me to call mom tomorrow at 5pm")
+        compose.settle()
+        compose.onNode(hasSetTextAction()).performImeAction()
+        compose.settle()
+        assertEquals(Intent.ACTION_INSERT, startedActivity()?.action)
     }
 
     @Test

@@ -166,7 +166,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         topBar = {
             TopAppBar(
                 colors = settingsTopBarColors(),
-                title = { Text("Custom Icons", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
+                title = { SettingsPageTitle("Custom Icons") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")

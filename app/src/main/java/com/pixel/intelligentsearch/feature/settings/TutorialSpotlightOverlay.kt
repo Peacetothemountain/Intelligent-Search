@@ -47,7 +47,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -92,6 +94,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
+import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import kotlinx.coroutines.delay
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -117,17 +120,20 @@ internal data class TutorialCardColors(val container: Color, val content: Color,
 /**
  * [dark] is the app's theme, not the system's, so the card matches the screen it covers. The light card is an
  * inverse (dark) surface, so its label takes the inverse primary, which is made to be read on it.
+ *
+ * The card is opaque: see-through, the search results behind it ran into its text, and on the Settings steps what lay
+ * behind it showed as a faint box inside it.
  */
 internal fun tutorialCardColors(scheme: androidx.compose.material3.ColorScheme, dark: Boolean): TutorialCardColors =
     if (dark) {
         TutorialCardColors(
-            container = scheme.surfaceContainerHighest.copy(alpha = 0.94f),
+            container = scheme.surfaceContainerHighest,
             content = scheme.onSurface,
             stepLabel = scheme.primary
         )
     } else {
         TutorialCardColors(
-            container = scheme.inverseSurface.copy(alpha = 0.92f),
+            container = scheme.inverseSurface,
             content = scheme.inverseOnSurface,
             stepLabel = scheme.inversePrimary
         )
@@ -203,26 +209,35 @@ fun TutorialSpotlightOverlay(
         )
     }
 
-    // Draw-phase infinite transitions: state reads are scoped strictly to onDraw/graphicsLayer
-    val infiniteTransition = rememberInfiniteTransition(label = "tutorial_transition")
-    val slitherPhase = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = (Math.PI * 2).toFloat(),
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "slither"
-    )
-    val colorPhase = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2400, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "color"
-    )
+    // Draw-phase infinite transitions: state reads are scoped strictly to onDraw/graphicsLayer. With animations
+    // off the arrow rests still at the loops' start.
+    val loopsOn by rememberAnimationsEnabled()
+    val slitherPhase: State<Float>
+    val colorPhase: State<Float>
+    if (loopsOn) {
+        val infiniteTransition = rememberInfiniteTransition(label = "tutorial_transition")
+        slitherPhase = infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = (Math.PI * 2).toFloat(),
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "slither"
+        )
+        colorPhase = infiniteTransition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(2400, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "color"
+        )
+    } else {
+        slitherPhase = remember { mutableFloatStateOf(0f) }
+        colorPhase = slitherPhase
+    }
 
     val rawTargetRect = TutorialManager.getTargetState(currentStep).rect
     val localTargetRect = remember(rawTargetRect, overlayRootOffset) {
@@ -456,9 +471,9 @@ fun TutorialSpotlightOverlay(
                     topPad to botPad
                 }
             } else {
-                // A centred card keeps clear of the search bar, so on a small screen with large text it never sits
-                // over the bar (the card is slightly translucent). The room is kept on both sides so the card stays
-                // centred where it always was; on normal screens it never grows tall enough to reach it.
+                // A centered card keeps clear of the search bar, so on a small screen with large text it never hides
+                // the bar. The room is kept on both sides so the card stays centered where it always was; on normal
+                // screens it never grows tall enough to reach it.
                 val topPad = (statusBarTopPadding + 16.dp).coerceAtLeast(16.dp) + SEARCH_BAR_RESERVE
                 val botPad = (navBarBottomPadding + 24.dp).coerceAtLeast(24.dp) + SEARCH_BAR_RESERVE
                 topPad to botPad

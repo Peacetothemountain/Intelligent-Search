@@ -14,6 +14,9 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -191,7 +194,11 @@ fun ManageHiddenAppsScreen(
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall),
-                    modifier = Modifier.weight(1f, fill = false)
+                    // The page's heading and pane title, as SettingsPageTitle makes the other pages'.
+                    modifier = Modifier.weight(1f, fill = false).semantics {
+                        heading()
+                        paneTitle = "Manage Hidden Apps"
+                    }
                 )
                 // Enable All hides every app in the list; checked again, it shows them all.
                 if (isAuthenticated && shownPackages.isNotEmpty()) {
@@ -257,7 +264,8 @@ fun ManageHiddenAppsScreen(
 
                         SettingsRowToggle(
                             title = app.name,
-                            subtitle = app.packageName,
+                            // Breakable after each dot, so a long package name wraps there instead of mid-word.
+                            subtitle = app.packageName.breakableAtDots(),
                             icon = row.icon,
                             isChecked = isHidden,
                             onCheckedChange = { hide ->
@@ -267,21 +275,9 @@ fun ManageHiddenAppsScreen(
                         )
                     }
                     if (installedApps.isEmpty()) {
-                        item {
-                            Text(
-                                "Loading apps...",
-                                modifier = Modifier.padding(16.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        item(key = "loading") { AppsLoading() }
                     } else if (filteredApps.isEmpty()) {
-                        item {
-                            Text(
-                                "No Apps Match",
-                                modifier = Modifier.padding(16.dp),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        item(key = "no_match") { NoAppsMatch(searchQuery) }
                     }
                 }
             }

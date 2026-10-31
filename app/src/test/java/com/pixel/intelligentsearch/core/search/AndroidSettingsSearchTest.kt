@@ -9,6 +9,7 @@ import android.provider.Settings
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.core.profile.MultiProfileManager
 import com.pixel.intelligentsearch.core.system.SystemToggleManager
 import com.pixel.intelligentsearch.feature.search.resultSectionOrder
@@ -75,6 +76,42 @@ class AndroidSettingsSearchTest {
         assertEquals("About Phone", titles(search, "build number").first())
         assertEquals("Battery", titles(search, "batt").first())
         assertTrue("Night Light" in titles(search, "blue light"))
+    }
+
+    @Test
+    fun everydayPhrasingsOfASettingFindItsPage() {
+        val search = everyPageResolves()
+        val expected = mapOf(
+            "blue light filter" to "Night Light", "turn on bluetooth" to "Bluetooth", "screen timeout" to "Display",
+            "dark mode" to "Display", "power saving mode" to "Battery Saver", "wifi password" to "Wi-Fi",
+            "app permissions" to "Privacy", "turn off wifi" to "Wi-Fi", "enable dark mode" to "Display",
+            "bluetooth on" to "Bluetooth", "night light off" to "Night Light", "switch on airplane mode" to "Airplane Mode"
+        )
+        for ((query, title) in expected) {
+            assertEquals("first result for \"$query\"", title, titles(search, query).firstOrNull())
+        }
+        // Naming the setting outright, they are strong matches, lifted like "bluetooth" is.
+        assertTrue(search.search("turn on bluetooth").first().isStrongMatch)
+        // The switch words alone name no page.
+        assertEquals(emptyList<String>(), titles(search, "turn on"))
+    }
+
+    @Test
+    fun aSettingBetweenTheVerbAndTheSwitchFindsItsPage() {
+        // "turn bluetooth off" found nothing, where "turn off bluetooth" and "bluetooth off" did.
+        val search = everyPageResolves()
+        assertEquals("Bluetooth", titles(search, "turn bluetooth off").firstOrNull())
+        assertEquals("Wi-Fi", titles(search, "turn wifi on").firstOrNull())
+        assertEquals("Airplane Mode", titles(search, "switch airplane mode on").firstOrNull())
+        assertTrue(titles(search, "turn power off").none { it == "Battery" })
+    }
+
+    @Test
+    fun powerOffIsNotTheBatteryPage() {
+        // "off" was taken as a switch word, leaving "power", the Battery page.
+        val search = everyPageResolves()
+        assertTrue(titles(search, "power off").none { it == "Battery" })
+        assertTrue(titles(search, "power on").none { it == "Battery" })
     }
 
     @Test
@@ -445,5 +482,45 @@ class AndroidSettingsSearchTest {
         // "pay" and "phone" alone still don't reach for them.
         assertEquals(emptyList<String>(), titles(search, "pay"))
         assertTrue("Contactless Payments" !in titles(search, "phone"))
+    }
+
+    @Test
+    fun theAppsOwnSettingsPagesAreFoundAndOpenInTheApp() {
+        val search = everyPageResolves()
+        for ((query, title) in mapOf(
+            "hidden apps" to "Manage Hidden Apps", "icon pack" to "Custom Icons", "api key" to "AI Answers",
+            "appearance" to "Appearance", "widget customization" to "Widget Customization", "backup" to "Encrypted Backup"
+        )) {
+            val result = search.search(query).firstOrNull { it.title == title }
+            requireNotNull(result) { "\"$query\" didn't offer $title" }
+            assertEquals("Intelligent Search Settings", result.subtitle)
+            assertTrue("$title opens in the app", result.appRoute != null)
+            assertEquals(title, Route.fromKey(result.appRoute).let { titleOf(it) })
+        }
+    }
+
+    @Test
+    fun anOwnPageNamedOutrightIsAStrongMatch() {
+        val search = everyPageResolves()
+        assertTrue(search.search("manage hidden apps").first { it.appRoute != null }.isStrongMatch)
+    }
+
+    @Test
+    fun aPinnedOwnPageComesBackById() {
+        val search = everyPageResolves()
+        val page = search.page(AppSettingsCatalog.ID_PREFIX + "appearance")
+        assertEquals("Appearance", page?.title)
+        assertEquals("appearance", page?.appRoute)
+    }
+
+    /** The page title each route's screen shows. */
+    private fun titleOf(route: Route): String = when (route) {
+        Route.ManageHiddenApps -> "Manage Hidden Apps"
+        Route.CustomIcons -> "Custom Icons"
+        Route.AiAnswers -> "AI Answers"
+        Route.Appearance -> "Appearance"
+        Route.WidgetCustomization -> "Widget Customization"
+        Route.BackupRestore -> "Encrypted Backup"
+        else -> route.toString()
     }
 }

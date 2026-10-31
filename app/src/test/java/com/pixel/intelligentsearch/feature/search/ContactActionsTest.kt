@@ -325,6 +325,46 @@ class ContactActionsTest {
         assertTrue(ContactActionTargets.resolve(context).available.isEmpty())
     }
 
+    @Test
+    fun directCallPlacesTheCallOnlyWhenPhoneCallsAreAllowed() {
+        // Direct Call only ever opened the dialer, where the user still had to press Call.
+        val call = ContactActions.openIntent(alex, directCall = true, callAllowed = true)
+        assertEquals(Intent.ACTION_CALL, call.action)
+        assertEquals("(415) 555-2671", call.data!!.schemeSpecificPart)
+        assertEquals(Intent.ACTION_DIAL, ContactActions.openIntent(alex, directCall = true, callAllowed = false).action)
+        assertEquals(Intent.ACTION_VIEW, ContactActions.openIntent(alex, directCall = false, callAllowed = true).action)
+    }
+
+    @Test
+    fun tappingAContactCallsWhenAllowedElseOpensTheDialer() {
+        val app = context as android.app.Application
+        shadowOf(app).grantPermissions(android.Manifest.permission.CALL_PHONE)
+        assertTrue(ContactActions.open(context, alex, directCall = true))
+        assertEquals(Intent.ACTION_CALL, shadowOf(app).nextStartedActivity.action)
+
+        shadowOf(app).denyPermissions(android.Manifest.permission.CALL_PHONE)
+        assertTrue(ContactActions.open(context, alex, directCall = true))
+        assertEquals(Intent.ACTION_DIAL, shadowOf(app).nextStartedActivity.action)
+    }
+
+    @Test
+    fun aCallThatCantBePlacedOpensTheDialer() {
+        // A tablet without phone service: only a dialer answers.
+        val app = context as android.app.Application
+        shadowOf(app).grantPermissions(android.Manifest.permission.CALL_PHONE)
+        shadowOf(app).checkActivities(true)
+        install("com.android.dialer", IntentFilter(Intent.ACTION_DIAL).apply { addDataScheme("tel") })
+        assertTrue(ContactActions.open(context, alex, directCall = true))
+        assertEquals(Intent.ACTION_DIAL, shadowOf(app).nextStartedActivity.action)
+    }
+
+    @Test
+    fun directCallIsDeclared() {
+        val declared = context.packageManager
+            .getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_PERMISSIONS).requestedPermissions.orEmpty()
+        assertTrue(declared.contains(android.Manifest.permission.CALL_PHONE))
+    }
+
     private fun install(packageName: String, filter: IntentFilter) {
         val component = ComponentName(packageName, "$packageName.Main")
         val pm = shadowOf(context.packageManager)

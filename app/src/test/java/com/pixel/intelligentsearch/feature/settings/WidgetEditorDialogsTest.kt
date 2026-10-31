@@ -192,8 +192,8 @@ class WidgetEditorDialogsTest {
             addIntentFilterForActivity(installed, IntentFilter(Intent.ACTION_MAIN).apply { addCategory(Intent.CATEGORY_LAUNCHER) })
         }
         openEditor()
-        tap("Widget Shortcuts")
-        tap("Shortcut Slot: 1")
+        tap("Shortcuts")
+        tap("Slot 1 · Google Lens")
         tap("Weather")
         tap("Custom App (APK)")
 

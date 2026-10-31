@@ -189,7 +189,7 @@ class BackupRestoreScreenTest {
         }
         FakeVerifyPrompt.approve = false
         showPage()
-        compose.onNodeWithText("Saved to Hardware Keystore · type to replace", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("Saved to Hardware Keystore · Type to Replace", useUnmergedTree = true).assertExists()
 
         typePassphrase("a newer passphrase")
         compose.onNodeWithText("Save to Hardware Keystore").performClick()
@@ -198,8 +198,8 @@ class BackupRestoreScreenTest {
 
         compose.onNodeWithContentDescription("Clear").performClick()
         compose.settle(steps = 3)
-        compose.onNodeWithText("Saved to Hardware Keystore · type to replace", useUnmergedTree = true).assertDoesNotExist()
-        compose.onNodeWithText("Enter passphrase (optional)", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("Saved to Hardware Keystore · Type to Replace", useUnmergedTree = true).assertDoesNotExist()
+        compose.onNodeWithText("Enter Passphrase (Optional)", useUnmergedTree = true).assertExists()
     }
 
     @Test

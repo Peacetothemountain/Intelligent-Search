@@ -40,8 +40,10 @@ import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import com.pixel.intelligentsearch.core.net.HttpsCall
+import com.pixel.intelligentsearch.core.net.HttpsClient
+import com.pixel.intelligentsearch.core.net.HttpsGet
 import kotlinx.coroutines.withContext
-import java.net.HttpURLConnection
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -79,12 +81,21 @@ internal object ResultThumbnails {
 
     private const val RETRY_AFTER_MS = 60_000L
     private const val TIMEOUT_MS = 2_500
+    private const val TOTAL_TIMEOUT_MS = 5_000L
     /** Entity thumbnails are a few KB; anything far larger isn't a thumbnail. */
-    private const val MAX_DOWNLOAD_BYTES = 1 shl 20
-
-    /** Fetches an https image's bytes; tests stand in for the network. */
     @VisibleForTesting
-    internal var download: (String) -> ByteArray? = ::httpsBytes
+    internal const val MAX_DOWNLOAD_BYTES = 512 * 1024
+
+    /**
+     * The app's HTTPS client: no redirects, nothing cached, the same User-Agent from every phone, and the whole
+     * download held to [TOTAL_TIMEOUT_MS]. Tests stand in for it.
+     */
+    @VisibleForTesting
+    internal var http: HttpsGet = HttpsClient(timeoutMs = TIMEOUT_MS, totalTimeoutMs = TOTAL_TIMEOUT_MS, accept = HttpsClient.ACCEPT_IMAGE)
+
+    /** Fetches an https image's bytes, blocking (load calls it on the IO dispatcher); tests stand in for the network. */
+    @VisibleForTesting
+    internal var download: (String) -> ByteArray? = { url -> http.get(url, MAX_DOWNLOAD_BYTES, HttpsCall()) }
 
     private fun cacheKey(source: ThumbnailSource, px: Int) = "${source.key}@$px"
 
@@ -137,29 +148,6 @@ internal object ResultThumbnails {
             else -> null
         } ?: return null
         return com.pixel.intelligentsearch.core.ui.decodeSampledBitmap(bytes, px)
-    }
-
-    private fun httpsBytes(url: String): ByteArray? {
-        val connection = java.net.URI.create(url).toURL().openConnection() as HttpURLConnection
-        return try {
-            connection.connectTimeout = TIMEOUT_MS
-            connection.readTimeout = TIMEOUT_MS
-            connection.instanceFollowRedirects = true
-            if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
-            connection.inputStream.use { input ->
-                val out = java.io.ByteArrayOutputStream()
-                val buffer = ByteArray(8 * 1024)
-                while (true) {
-                    val read = input.read(buffer)
-                    if (read < 0) break
-                    out.write(buffer, 0, read)
-                    if (out.size() > MAX_DOWNLOAD_BYTES) return null
-                }
-                out.toByteArray()
-            }
-        } finally {
-            connection.disconnect()
-        }
     }
 
     /**

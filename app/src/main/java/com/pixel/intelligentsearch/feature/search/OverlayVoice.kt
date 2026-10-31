@@ -2,6 +2,11 @@ package com.pixel.intelligentsearch.feature.search
 
 import android.Manifest
 import com.pixel.intelligentsearch.core.util.findActivity
+import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
+import com.pixel.intelligentsearch.feature.settings.declinedForGood
+import com.pixel.intelligentsearch.feature.settings.forgetDecline
+import com.pixel.intelligentsearch.feature.settings.noteDecline
+import com.pixel.intelligentsearch.feature.settings.rememberSettingsGrant
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.core.content.edit
@@ -18,9 +23,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
@@ -81,19 +88,19 @@ internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (S
     val dictation = remember { Dictation(context) }
     val begin = remember { { dictation.start(onFinished = { heard(it) }, onProblem = { problem(it) }) } }
     val asking = remember { MicRequest() }
+    // Allowed on App info after a decline for good: back on the search, it listens, as the tap that asked meant to.
+    val settingsGrant = rememberSettingsGrant(Manifest.permission.RECORD_AUDIO) { begin() }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val activity = context.findActivity()
         when {
-            granted -> begin()
+            granted -> {
+                forgetDecline(context, Manifest.permission.RECORD_AUDIO)
+                begin()
+            }
             // Denied for good (Android no longer shows its dialog): the app's settings page is the only way back.
-            isPermanentDenial(asking.askedBefore, asking.rationaleBefore, rationaleAfter = context.micRationale()) -> {
+            activity != null && declinedForGood(activity, Manifest.permission.RECORD_AUDIO, asking.rationaleBefore) -> {
                 problem("Turn on the microphone for Intelligent Search in Settings to search by voice.")
-                runCatching {
-                    context.startActivity(
-                        android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                            .setData(android.net.Uri.fromParts("package", context.packageName, null))
-                            .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    )
-                }
+                settingsGrant.open()
             }
             else -> problem("Allow the microphone to search by voice.")
         }
@@ -101,14 +108,13 @@ internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (S
     val voice = remember {
         OverlayVoice(dictation, askPermission = {
             asking.rationaleBefore = context.micRationale()
-            asking.askedBefore = micAskedBefore(context)
             permission.launch(Manifest.permission.RECORD_AUDIO)
-            noteMicAsked(context)
         }, begin = begin)
     }
     voice.permissionGranted = {
         ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
     }
+    LaunchedEffect(Unit) { moveOldMicRecord(context, voice.permissionGranted()) }
     DisposableEffect(Unit) { onDispose { dictation.cancel() } }
     // Leaving the screen (home, another app, the screen turning off) lets go of the microphone; cancelling also drops
     // the callbacks, so nothing heard is searched later. Not on pause: the permission dialog pauses the screen too.
@@ -117,37 +123,28 @@ internal fun rememberOverlayVoice(onHeard: (text: String) -> Unit, onProblem: (S
 }
 
 /** What was known just before the microphone was last asked for, read when the answer comes back. */
-private class MicRequest(var askedBefore: Boolean = false, var rationaleBefore: Boolean = false)
+private class MicRequest(var rationaleBefore: Boolean = false)
 
 /** Whether Android wants the app to explain why it needs the microphone: true after one denial, until a second. */
 private fun Context.micRationale(): Boolean =
     findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) == true
 
 /**
- * Where it is noted that the microphone has been asked for: a file of its own, since the settings file goes into
- * backups and its changes redraw the widgets, and this is neither a setting nor anything to carry to another phone.
+ * The microphone's own "asked before" record, kept until the microphone shared the other permissions' decline record
+ * ([declinedForGood]). It was never cleared, so a lapsed "Only this time" grant then a closed prompt read as declined
+ * for good. Moved over once, as a decline only while the microphone is off, then deleted.
  */
-private const val VOICE_PERMISSION_PREFS = "voice_permission_state"
-private const val KEY_MIC_ASKED = "mic_asked"
+private const val OLD_VOICE_PERMISSION_PREFS = "voice_permission_state"
+private const val OLD_KEY_MIC_ASKED = "mic_asked"
 
-/** Whether the microphone has been asked for before. Unreadable before the first unlock, when search never shows. */
-private fun micAskedBefore(context: Context): Boolean = runCatching {
-    context.getSharedPreferences(VOICE_PERMISSION_PREFS, Context.MODE_PRIVATE).getBoolean(KEY_MIC_ASKED, false)
-}.getOrDefault(false)
-
-private fun noteMicAsked(context: Context) {
-    runCatching { context.getSharedPreferences(VOICE_PERMISSION_PREFS, Context.MODE_PRIVATE).edit { putBoolean(KEY_MIC_ASKED, true) } }
+private fun moveOldMicRecord(context: Context, micAllowed: Boolean) {
+    runCatching {
+        val old = context.getSharedPreferences(OLD_VOICE_PERMISSION_PREFS, Context.MODE_PRIVATE)
+        if (!old.contains(OLD_KEY_MIC_ASKED)) return
+        if (old.getBoolean(OLD_KEY_MIC_ASKED, false) && !micAllowed) noteDecline(context, Manifest.permission.RECORD_AUDIO)
+        old.edit { clear() }
+    }
 }
-
-/**
- * Whether a refused microphone request means Android won't show its dialog again, so App Info is the only way back.
- * Android says so only indirectly, by no longer asking the app to explain why it needs the microphone
- * ([rationaleAfter] false). That alone also fits a first request the user dismissed without answering, which must just
- * ask again next time, so it counts only when the request could have been the final one: the user had already denied
- * it once ([rationaleBefore]), or the microphone had been asked for before ([askedBefore]).
- */
-internal fun isPermanentDenial(askedBefore: Boolean, rationaleBefore: Boolean, rationaleAfter: Boolean): Boolean =
-    !rationaleAfter && (rationaleBefore || askedBefore)
 
 /**
  * The search bar's listening animation, matched frame by frame to Gboard's Rambler strip. A field of light in the
@@ -171,11 +168,17 @@ internal fun Modifier.listeningGlow(active: Boolean, level: () -> Float, cornerR
     }
     // Nothing runs while the field is away: no clock, no drawing.
     if (!showing) return@composed this
-    // The clock behind the waves. Their speeds are whole multiples of this loop, so it repeats without a jump.
-    val clock = rememberInfiniteTransition(label = "listening-field").animateFloat(
-        initialValue = 0f, targetValue = LOOP_SECONDS,
-        animationSpec = infiniteRepeatable(tween((LOOP_SECONDS * 1000).toInt(), easing = LinearEasing)), label = "time",
-    )
+    // The clock behind the waves. Their speeds are whole multiples of this loop, so it repeats without a jump. With
+    // animations off it stays at the loop's start: the field rests still, rising only with the voice.
+    val loopsOn by rememberAnimationsEnabled()
+    val clock = if (loopsOn) {
+        rememberInfiniteTransition(label = "listening-field").animateFloat(
+            initialValue = 0f, targetValue = LOOP_SECONDS,
+            animationSpec = infiniteRepeatable(tween((LOOP_SECONDS * 1000).toInt(), easing = LinearEasing)), label = "time",
+        )
+    } else {
+        remember { mutableFloatStateOf(0f) }
+    }
     drawWithCache {
         val w = size.width
         val h = size.height

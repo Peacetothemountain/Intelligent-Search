@@ -19,19 +19,22 @@ import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Why a question got no answer, each with what the card says. */
-enum class AiProblem(val message: String) {
-    OFF("AI Answers is off."),
-    TOR("AI Answers is off while Tor is your search engine."),
-    WEB_OFF("AI Answers needs Web on in Search Sources."),
-    NO_KEY("Add your API key in Settings to ask."),
-    BAD_KEY("The API key was refused. Check it in Settings."),
+/**
+ * Why a question got no answer, each with what the card says, the settings page that fixes it ([settingsPage], a
+ * [com.pixel.intelligentsearch.core.navigation.Route] key) and whether asking again could work ([retryable]).
+ */
+enum class AiProblem(val message: String, val settingsPage: String? = null, val retryable: Boolean = false) {
+    OFF("AI Answers is off.", settingsPage = "ai_answers"),
+    TOR("AI Answers is off while Tor is your search engine.", settingsPage = "web_search"),
+    WEB_OFF("AI Answers needs Web on in Search Sources.", settingsPage = "search_sources"),
+    NO_KEY("Add your API key in AI Answers to ask.", settingsPage = "ai_answers"),
+    BAD_KEY("The API key was refused. Check it in AI Answers.", settingsPage = "ai_answers"),
     QUOTA("Your key's rate limit or quota is used up. Try again later."),
-    OFFLINE("No connection. Check your internet and try again."),
-    TIMEOUT("The answer took too long. Try again."),
-    MODEL("This model isn't available to your key. Pick another in Settings."),
+    OFFLINE("No connection. Check your internet and try again.", retryable = true),
+    TIMEOUT("The answer took too long. Try again.", retryable = true),
+    MODEL("This model isn't available to your key. Pick another in AI Answers.",settingsPage = "ai_answers"),
     REFUSED("The provider declined to answer this."),
-    PROVIDER("The provider couldn't answer right now. Try again later.")
+    PROVIDER("The provider couldn't answer right now. Try again later.", retryable = true)
 }
 
 /** One question's answer as it arrives. */
@@ -153,19 +156,28 @@ class AiAnswers internal constructor(
 
     companion object {
         /**
-         * The question in [query], or null when it isn't one: it ends with "?" ("how tall is everest?") or starts with
-         * "ask " ("ask why the sky is blue", sent without the "ask"). A bare "?" or "ask" asks nothing.
+         * The question in [query], or null when it isn't one: it ends with a question mark ("how tall is everest?",
+         * "你好吗？") or starts with "ask " ("ask why the sky is blue", sent without the "ask"). A bare "?" or "ask"
+         * asks nothing.
          */
         fun questionIn(query: String): String? {
             val trimmed = query.trim()
             val lower = trimmed.lowercase(Locale.ROOT)
             val question = when {
                 lower.startsWith("ask ") -> trimmed.substring(4).trim()
-                trimmed.endsWith("?") -> trimmed
+                trimmed.lastOrNull()?.let { it in QUESTION_MARKS } == true -> trimmed
                 else -> return null
             }
-            return question.takeIf { q -> q.trimEnd('?').count { it.isLetterOrDigit() } >= 2 && q.length <= MAX_QUESTION_LENGTH }
+            return question.takeIf { q ->
+                q.trimEnd(*QUESTION_MARKS).count { it.isLetterOrDigit() } >= 2 && q.length <= MAX_QUESTION_LENGTH
+            }
         }
+
+        /**
+         * The marks languages end a question with: ASCII's, the full-width one Chinese and Japanese keyboards type,
+         * Arabic's, Armenian's, Ethiopic's, the small form and the interrobang.
+         */
+        private val QUESTION_MARKS = charArrayOf('?', '？', '؟', '՞', '፧', '﹖', '‽')
 
         const val MAX_QUESTION_LENGTH = 500
 

@@ -1,132 +1,82 @@
 package com.pixel.intelligentsearch.core.ui
 
 import android.graphics.Bitmap
-import android.graphics.ColorSpace
-import android.graphics.HardwareRenderer
-import android.graphics.PixelFormat
-import android.graphics.RenderNode
-import android.hardware.HardwareBuffer
-import android.media.ImageReader
+import android.graphics.Rect
+import android.os.Build
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
+import android.view.PixelCopy
+import android.view.Window
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.ContentDrawScope
-import androidx.compose.ui.graphics.drawscope.draw
 
 /**
- * Takes a picture of a page as another page opens over it (the back animation shows it underneath). Asked for with
- * [arm], the page's next draw is recorded into a render node ([record]), and the picture is made from it by one
- * renderer kept for as long as the page is, then handed to [arm]'s callback.
+ * Takes a picture of a page as another page opens over it (the back animation shows it underneath): a copy of the
+ * window as it was last drawn, made by Android's own [PixelCopy], as the system takes its screenshots.
  *
- * Nothing here ever waits for the picture. Waiting for the renderer to finish, from the main thread while Android's
- * render thread was busy with the window's own frame, froze the app until Android called it not responding (three
- * times on the owner's phone, in Settings). So the picture is asked for after the page's draw is done, and arrives a
- * few milliseconds later on its own. Only that one draw is recorded: recording every frame doubled the work of each
- * frame. Making a renderer for each picture, as Compose's own GraphicsLayer.toImageBitmap does, held every tap.
+ * Nothing here ever waits on the main thread. A renderer of the app's own, drawing the page again into a buffer of its
+ * own, froze the app on the owner's phone: waiting for it held the main thread until Android called the app not
+ * responding, and not waiting, its first draw into a fresh buffer timed out after four seconds, in which no frame was
+ * drawn. The copy is asked for from a thread of its own, which waits the few milliseconds the render thread takes to
+ * make it, keeps it in graphics memory and hands it over on the main thread.
  */
-internal class PageSnapshotter {
-    private val node = RenderNode("SettingsPage")
+internal class PageSnapshotter(private val window: () -> Window?) {
+    private val thread = HandlerThread("PagePicture").apply { start() }
+    private val worker = Handler(thread.looper)
     private val main = Handler(Looper.getMainLooper())
-    private var renderer: HardwareRenderer? = null
-    private var reader: ImageReader? = null
-    // Off for good once recording or a picture has failed (a test environment without a GPU), so the page still draws.
-    private var broken = false
-    private var armed: ((ImageBitmap?) -> Unit)? = null
-    private var waiting: ((ImageBitmap?) -> Unit)? = null
+    // The copy's destination, kept from one picture to the next (16 MB at the owner's phone's size); the worker's only.
+    private var scratch: Bitmap? = null
+    @Volatile private var released = false
+    // Robolectric's PixelCopy draws the views itself, on the thread that asks, which Compose can't have off the main
+    // thread: no pictures there, as there were none from the renderer before it.
+    private val pictureless = Build.FINGERPRINT == "robolectric"
 
-    /** Asks for a picture of the page's next draw, handed to [onPicture] (null when none could be made). */
-    fun arm(onPicture: (ImageBitmap?) -> Unit) {
-        armed = onPicture
+    /**
+     * Takes a picture of [bounds] (in window coordinates) of the window as it was last drawn, handed to [onPicture] on
+     * the main thread a few milliseconds later (null when none could be made).
+     */
+    fun take(bounds: Rect, onPicture: (ImageBitmap?) -> Unit) {
+        val window = window()
+        if (window == null || bounds.isEmpty || released || pictureless) return onPicture(null)
+        val copyOf = Rect(bounds)
+        worker.post { copy(window, copyOf, onPicture) }
     }
 
-    /** When a picture was asked for, records what [scope] draws as its content, beside drawing it as usual. */
-    fun record(scope: ContentDrawScope) {
-        val onPicture = armed ?: return
-        armed = null
-        val width = scope.size.width.toInt()
-        val height = scope.size.height.toInt()
-        if (broken || width <= 0 || height <= 0) return onPicture(null)
-        runCatching {
-            node.setPosition(0, 0, width, height)
-            val canvas = node.beginRecording(width, height)
-            try {
-                scope.draw(scope, scope.layoutDirection, androidx.compose.ui.graphics.Canvas(canvas), scope.size) {
-                    scope.drawContent()
+    private fun copy(window: Window, bounds: Rect, onPicture: (ImageBitmap?) -> Unit) {
+        val dest = runCatching {
+            if (released) return deliver(null, onPicture)
+            scratch?.takeIf { it.width == bounds.width() && it.height == bounds.height() }
+                ?: Bitmap.createBitmap(bounds.width(), bounds.height(), Bitmap.Config.ARGB_8888).also {
+                    scratch?.recycle()
+                    scratch = it
                 }
-            } finally {
-                node.endRecording()
-            }
-        }.onFailure {
-            broken = true
-            return onPicture(null)
-        }
-        // Asked for once the window's frame is drawn, never from inside it.
-        main.post { render(onPicture) }
-    }
-
-    private fun render(onPicture: (ImageBitmap?) -> Unit) {
-        val width = node.width
-        val height = node.height
+        }.getOrNull() ?: return deliver(null, onPicture)
         runCatching {
-            if (reader?.let { it.width != width || it.height != height } != false) newReader(width, height)
-            // A picture still on its way is dropped for the newer one.
-            waiting?.invoke(null)
-            waiting = onPicture
-            renderer?.createRenderRequest()?.setWaitForPresent(false)?.syncAndDraw()
-        }.onFailure {
-            broken = true
-            waiting = null
-            onPicture(null)
-        }
-    }
-
-    /** The picture has been drawn into [imageReader]: hands a copy of it to whoever asked. */
-    private fun deliver(imageReader: ImageReader) {
-        val onPicture = waiting ?: return run { runCatching { imageReader.acquireLatestImage()?.close() } }
-        waiting = null
-        val picture = runCatching {
-            val image = imageReader.acquireLatestImage() ?: return@runCatching null
-            try {
-                val buffer = image.hardwareBuffer ?: return@runCatching null
-                try {
-                    val shown = Bitmap.wrapHardwareBuffer(buffer, ColorSpace.get(ColorSpace.Named.SRGB)) ?: return@runCatching null
-                    // A copy of its own, so the next picture, drawn into the same buffers, can't paint over this one.
-                    (shown.copy(Bitmap.Config.HARDWARE, false) ?: shown.copy(Bitmap.Config.ARGB_8888, false))?.asImageBitmap()
-                } finally {
-                    buffer.close()
+            PixelCopy.request(window, bounds, dest, { result ->
+                // Back on the worker once the render thread has made the copy.
+                val picture = if (result == PixelCopy.SUCCESS && !released) {
+                    // A copy of its own, in graphics memory: the next picture is made in the same bitmap.
+                    runCatching { dest.copy(Bitmap.Config.HARDWARE, false)?.asImageBitmap() }.getOrNull()
+                } else {
+                    null
                 }
-            } finally {
-                image.close()
-            }
-        }.getOrNull()
-        onPicture(picture)
+                deliver(picture, onPicture)
+            }, worker)
+        }.onFailure { deliver(null, onPicture) }
     }
 
-    private fun newReader(width: Int, height: Int) {
-        reader?.close()
-        renderer?.destroy()
-        val newReader = ImageReader.newInstance(
-            width, height, PixelFormat.RGBA_8888, 2,
-            HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE or HardwareBuffer.USAGE_GPU_COLOR_OUTPUT
-        )
-        newReader.setOnImageAvailableListener(::deliver, main)
-        reader = newReader
-        renderer = HardwareRenderer().apply {
-            setSurface(newReader.surface)
-            setContentRoot(node)
-            isOpaque = false
-        }
+    private fun deliver(picture: ImageBitmap?, onPicture: (ImageBitmap?) -> Unit) {
+        main.post { onPicture(picture) }
     }
 
     fun release() {
+        released = true
         main.removeCallbacksAndMessages(null)
-        waiting = null
-        armed = null
-        renderer?.destroy()
-        renderer = null
-        reader?.close()
-        reader = null
-        node.discardDisplayList()
+        worker.post {
+            scratch?.recycle()
+            scratch = null
+            thread.quitSafely()
+        }
     }
 }

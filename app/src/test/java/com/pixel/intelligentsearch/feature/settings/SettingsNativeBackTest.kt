@@ -92,6 +92,20 @@ class SettingsNativeBackTest {
         compose.onNodeWithText("Search Overlay").assertDoesNotExist()
     }
 
+    /**
+     * A tap on a row opens its page at once: it is there two frames on (one for the navigation's own state, one for
+     * the page). Opening used to wait two more frames first, for the page to be drawn once more into its picture; the
+     * picture is now a copy of the window as already drawn, taken alongside.
+     */
+    @Test
+    fun aTapOpensItsPageAtOnce() {
+        compose.mainClock.autoAdvance = false
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Appearance").performClick()
+        repeat(2) { compose.mainClock.advanceTimeByFrame() }
+        compose.onNodeWithText("Search Overlay").assertExists()
+    }
+
     @Test
     fun aSwipeGoesBackOnePage() {
         openCustomIcons()

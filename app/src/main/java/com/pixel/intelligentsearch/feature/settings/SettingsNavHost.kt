@@ -41,6 +41,9 @@ import com.pixel.intelligentsearch.core.ui.pageGlow
 import com.pixel.intelligentsearch.core.ui.backFrame
 import com.pixel.intelligentsearch.core.ui.backScrim
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
+import kotlin.math.roundToInt
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -82,6 +85,9 @@ internal val SETTINGS_TUTORIAL_STEPS = mapOf(
  * A page ([closing]) leaving at the end of a back swipe, taken off the back stack by [pop] once its animation ([job])
  * has played, or at once by [finishNow] when the next swipe starts first.
  */
+/** A page as last seen before another opened over it, with the glow's moment in it. */
+private class PagePicture(val image: androidx.compose.ui.graphics.ImageBitmap, val glowTime: Float)
+
 private class LeavingPage(val closing: androidx.navigation.NavBackStackEntry?, private val pop: () -> Unit) {
     var job: kotlinx.coroutines.Job? = null
     private var left = false
@@ -128,29 +134,50 @@ fun SettingsScreensHub(
         // Android's own back animation between pages: each page is remembered as it was last seen when another opens
         // over it, so a back swipe can show it underneath as the system shows the activity underneath.
         val nativeBack = remember { com.pixel.intelligentsearch.core.ui.NativeBackState() }
-        val pageSnapshots = remember { mutableStateMapOf<String, androidx.compose.ui.graphics.ImageBitmap>() }
-        val pagePicture = remember { com.pixel.intelligentsearch.core.ui.PageSnapshotter() }
+        val pageSnapshots = remember { mutableStateMapOf<String, PagePicture>() }
+        val pagePicture = remember { com.pixel.intelligentsearch.core.ui.PageSnapshotter { context.findActivity()?.window } }
         DisposableEffect(pagePicture) { onDispose { pagePicture.release() } }
-        // Read while drawing the page, so asking for a picture draws it once more, into the picture.
-        var pictureRequests by remember { mutableIntStateOf(0) }
+        // Where the pages are in the window, for their pictures.
+        val pageBounds = remember { android.graphics.Rect() }
         val navScope = rememberCoroutineScope()
         // Set while a page leaves at the end of the back animation, which has already moved it: no transition then.
         var instantPop by remember { mutableStateOf(false) }
         // The page a let-go back swipe is sending away while its animation plays, until it has left.
         val leavingPage = remember { mutableStateOf<LeavingPage?>(null) }
 
+        val currentBackStackEntry by navController.currentBackStackEntryAsState()
+        // A page back on top is shown live again: its picture is taken anew when another page next opens over it.
+        LaunchedEffect(currentBackStackEntry) {
+            currentBackStackEntry?.id?.let { pageSnapshots.remove(it) }
+        }
+        // Reading the current entry makes the shell recompose on every navigation, so the exit gesture below is
+        // switched on and off as the user moves between Main and the sub-pages.
+        val hasSubScreensInNavHost = currentBackStackEntry.let { navController.previousBackStackEntry != null }
+        val onWidgetPage = currentBackStackEntry?.destination?.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization>() == true
+
+        // One drift for the glow behind the page and behind the picture of the page underneath. The picture has the
+        // glow as it was when taken; as the real page takes the picture's place, the drift is set back to that moment,
+        // so the light carries on from the picture and never jumps. It stands still on Widget Customization, which
+        // has no glow, except while a back swipe shows the page underneath.
+        val glowClock = com.pixel.intelligentsearch.core.ui.rememberMeshClock(isPaused = onWidgetPage && !nativeBack.active)
+        var enteringGlow by remember { mutableFloatStateOf(1f) }
+        // The glow's moment in the picture of the page underneath a back swipe, until the real page has taken over.
+        var enteringGlowTime by remember { mutableStateOf<Float?>(null) }
+        fun carryGlowOnFromPicture() {
+            enteringGlowTime?.let { glowClock.floatValue = it }
+            enteringGlowTime = null
+        }
+
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
             val leaving = navController.currentBackStackEntry
-            // The picture arrives a few milliseconds later on its own; nothing waits for it.
-            pagePicture.arm { snapshot -> if (leaving != null && snapshot != null) pageSnapshots[leaving.id] = snapshot }
-            pictureRequests++
-            navScope.launch {
-                // The page draws once more, into the picture, and the new page opens on the frame after: two frames.
-                withFrameNanos { }
-                withFrameNanos { }
-                navController.navigate(route) {
-                    launchSingleTop = true
-                }
+            val glowTime = glowClock.floatValue
+            // The picture is of the page as last drawn, so it is taken now, before the new page draws over it; it
+            // arrives a few milliseconds later on its own and nothing waits for it.
+            pagePicture.take(pageBounds) { picture ->
+                if (leaving != null && picture != null) pageSnapshots[leaving.id] = PagePicture(picture, glowTime)
+            }
+            navController.navigate(route) {
+                launchSingleTop = true
             }
         }
 
@@ -195,15 +222,6 @@ fun SettingsScreensHub(
             }
         }
 
-        val currentBackStackEntry by navController.currentBackStackEntryAsState()
-        // A page back on top is shown live again: its picture is taken anew when another page next opens over it.
-        LaunchedEffect(currentBackStackEntry) {
-            currentBackStackEntry?.id?.let { pageSnapshots.remove(it) }
-        }
-        // Reading the current entry makes the shell recompose on every navigation, so the exit gesture below is
-        // switched on and off as the user moves between Main and the sub-pages.
-        val hasSubScreensInNavHost = currentBackStackEntry.let { navController.previousBackStackEntry != null }
-        val onWidgetPage = currentBackStackEntry?.destination?.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization>() == true
         // The glow fades out as Widget Customization comes in and back as it leaves; after a back swipe the picture of
         // the page underneath already showed it at its own strength, so it is set at once rather than faded in again.
         val pageGlowStrength = remember { Animatable(if (onWidgetPage) 0f else 1f) }
@@ -259,10 +277,6 @@ fun SettingsScreensHub(
         val darkPage = MaterialTheme.colorScheme.background.luminance() < 0.5f
         val animationsOn by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
         var screenCorner by remember { mutableFloatStateOf(0f) }
-        // One drift for the glow behind the page and behind the picture of the page underneath, so the light is the
-        // same on both and never jumps as a back swipe starts or hands over. The picture is kept without the glow.
-        val glowClock = com.pixel.intelligentsearch.core.ui.rememberMeshClock(isPaused = onWidgetPage && !nativeBack.active)
-        var enteringGlow by remember { mutableFloatStateOf(1f) }
 
         /**
          * Hands over from the back animation to the real page underneath once [closing] has left: the picture stays
@@ -281,6 +295,7 @@ fun SettingsScreensHub(
 
         suspend fun handOver(closing: androidx.navigation.NavBackStackEntry?) {
             awaitLeft(closing)
+            carryGlowOnFromPicture()
             nativeBack.end()
         }
 
@@ -292,6 +307,10 @@ fun SettingsScreensHub(
                     nativeBack.size = it
                     nativeBack.marginPx = with(density) { com.pixel.intelligentsearch.core.ui.NativeBackMotion.MARGIN_DP.dp.toPx() }
                     nativeBack.offsetPx = with(density) { com.pixel.intelligentsearch.core.ui.NativeBackMotion.ENTERING_OFFSET_DP.dp.toPx() }
+                }
+                .onGloballyPositioned {
+                    val bounds = it.boundsInWindow()
+                    pageBounds.set(bounds.left.roundToInt(), bounds.top.roundToInt(), bounds.right.roundToInt(), bounds.bottom.roundToInt())
                 }
         ) {
         if (nativeBack.active && !nativeBack.liveEntering) {
@@ -329,12 +348,6 @@ fun SettingsScreensHub(
                 // Every page but Widget Customization (whose previews carry their own colours) has the glow behind
                 // its title; it fades out as that page comes in and back as it leaves.
                 .pageGlow(strength = { pageGlowStrength.value }, clock = glowClock)
-                // The page as drawn, over its background and glow, kept so it can be shown underneath once another page
-                // opens over it. Kept without them: the glow drifts on, so a picture of it would be out of step.
-                .drawWithContent {
-                    drawContent()
-                    if (pictureRequests > 0) pagePicture.record(this)
-                }
                 .graphicsLayer {
                     val p = exitBackProgress.value
                     if (p > 0f) {
@@ -532,8 +545,12 @@ fun SettingsScreensHub(
                 events.collect { event ->
                     if (!started) {
                         screenCorner = com.pixel.intelligentsearch.core.ui.screenCornerRadius(view)
-                        enteringGlow = if (previous.destination.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization>()) 0f else 1f
-                        nativeBack.begin(event, pageSnapshots[previous.id])
+                        val picture = pageSnapshots[previous.id]
+                        // The picture has its page's glow in it; without one, the glow is drawn live in its place.
+                        val widgetPage = previous.destination.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization>()
+                        enteringGlow = if (picture != null || widgetPage) 0f else 1f
+                        enteringGlowTime = picture?.glowTime
+                        nativeBack.begin(event, picture?.image)
                         started = true
                     } else {
                         nativeBack.track(event)
@@ -542,6 +559,7 @@ fun SettingsScreensHub(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                     if (nativeBack.active) nativeBack.cancel()
+                    enteringGlowTime = null
                     instantPop = false
                     com.pixel.intelligentsearch.core.ui.WindowFramePacing.restoreDefaultRefreshRate(act)
                 }
@@ -574,6 +592,7 @@ fun SettingsScreensHub(
                         snapshotFlow { nativeBack.closingAlpha() <= 0f }.first { it }
                         leaving.leave()
                         awaitLeft(closing)
+                        carryGlowOnFromPicture()
                         nativeBack.goLive()
                         settling.join()
                     }

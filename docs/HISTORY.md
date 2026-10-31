@@ -54,6 +54,7 @@ were never on GitHub.
 | 9.5 | 128 | the commit that sets versionCode 128 ("Release 9.5 (128)") | 2026-10-26 |
 | 9.5.1 | 129 | the commit tagged `v9.5.1-129` | 2026-10-26 |
 | 9.5.2 | 130 | the commit that sets versionCode 130 ("Release 9.5.2 (130)") | 2026-10-30 |
+| 9.5.3 | 131 | the commit that sets versionCode 131 ("Release 9.5.3 (131)") | 2026-10-30 |
 
 Some codes that reached Google Play were never committed with their number: 9.06 (105), 9.1.1 (109), and 111, 117 and
 119. A crash report from one of them belongs to the code between the tags either side of it: 105 sits between

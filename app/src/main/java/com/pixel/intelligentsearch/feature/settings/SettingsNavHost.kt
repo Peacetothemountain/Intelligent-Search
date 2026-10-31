@@ -141,14 +141,13 @@ fun SettingsScreensHub(
 
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
             val leaving = navController.currentBackStackEntry
-            pagePicture.arm()
+            // The picture arrives a few milliseconds later on its own; nothing waits for it.
+            pagePicture.arm { snapshot -> if (leaving != null && snapshot != null) pageSnapshots[leaving.id] = snapshot }
             pictureRequests++
             navScope.launch {
                 // The page draws once more, into the picture, and the new page opens on the frame after: two frames.
                 withFrameNanos { }
                 withFrameNanos { }
-                val snapshot = pagePicture.take()
-                if (leaving != null && snapshot != null) pageSnapshots[leaving.id] = snapshot
                 navController.navigate(route) {
                     launchSingleTop = true
                 }

@@ -7,6 +7,8 @@ import android.graphics.PixelFormat
 import android.graphics.RenderNode
 import android.hardware.HardwareBuffer
 import android.media.ImageReader
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.ContentDrawScope
@@ -14,37 +16,37 @@ import androidx.compose.ui.graphics.drawscope.draw
 
 /**
  * Takes a picture of a page as another page opens over it (the back animation shows it underneath). Asked for with
- * [arm], the page's next draw is recorded into a render node and pictured at once ([record]), then [take]n. Only that
- * one draw is recorded: recording every frame doubled the work of each frame, and on Main, under the bugdroid's
- * shadows, frames missed their time. The picture is made by one renderer kept for as long as the page is: making a
- * renderer for each picture (as Compose's own GraphicsLayer.toImageBitmap does) held every tap that opened a page.
+ * [arm], the page's next draw is recorded into a render node ([record]), and the picture is made from it by one
+ * renderer kept for as long as the page is, then handed to [arm]'s callback.
+ *
+ * Nothing here ever waits for the picture. Waiting for the renderer to finish, from the main thread while Android's
+ * render thread was busy with the window's own frame, froze the app until Android called it not responding (three
+ * times on the owner's phone, in Settings). So the picture is asked for after the page's draw is done, and arrives a
+ * few milliseconds later on its own. Only that one draw is recorded: recording every frame doubled the work of each
+ * frame. Making a renderer for each picture, as Compose's own GraphicsLayer.toImageBitmap does, held every tap.
  */
 internal class PageSnapshotter {
     private val node = RenderNode("SettingsPage")
+    private val main = Handler(Looper.getMainLooper())
     private var renderer: HardwareRenderer? = null
     private var reader: ImageReader? = null
     // Off for good once recording or a picture has failed (a test environment without a GPU), so the page still draws.
     private var broken = false
-    private var armed = false
-    private var taken: ImageBitmap? = null
+    private var armed: ((ImageBitmap?) -> Unit)? = null
+    private var waiting: ((ImageBitmap?) -> Unit)? = null
 
-    /** Asks for a picture of the page's next draw. */
-    fun arm() {
-        armed = true
-        taken = null
+    /** Asks for a picture of the page's next draw, handed to [onPicture] (null when none could be made). */
+    fun arm(onPicture: (ImageBitmap?) -> Unit) {
+        armed = onPicture
     }
 
-    /** The picture asked for with [arm], once the page has drawn; null when none could be made. */
-    fun take(): ImageBitmap? = taken.also { taken = null }
-
-    /** When a picture was asked for, records what [scope] draws as its content (beside drawing it as usual) and pictures it. */
+    /** When a picture was asked for, records what [scope] draws as its content, beside drawing it as usual. */
     fun record(scope: ContentDrawScope) {
-        if (!armed) return
-        armed = false
-        if (broken) return
+        val onPicture = armed ?: return
+        armed = null
         val width = scope.size.width.toInt()
         val height = scope.size.height.toInt()
-        if (width <= 0 || height <= 0) return
+        if (broken || width <= 0 || height <= 0) return onPicture(null)
         runCatching {
             node.setPosition(0, 0, width, height)
             val canvas = node.beginRecording(width, height)
@@ -55,19 +57,35 @@ internal class PageSnapshotter {
             } finally {
                 node.endRecording()
             }
-        }.onFailure { broken = true }
-        taken = capture()
+        }.onFailure {
+            broken = true
+            return onPicture(null)
+        }
+        // Asked for once the window's frame is drawn, never from inside it.
+        main.post { render(onPicture) }
     }
 
-    /** A picture of the page as last recorded, or null when none can be made. */
-    private fun capture(): ImageBitmap? {
-        if (broken) return null
+    private fun render(onPicture: (ImageBitmap?) -> Unit) {
         val width = node.width
         val height = node.height
-        if (width <= 0 || height <= 0) return null
-        return runCatching {
-            val imageReader = reader?.takeIf { it.width == width && it.height == height } ?: newReader(width, height)
-            renderer?.createRenderRequest()?.setWaitForPresent(true)?.syncAndDraw()
+        runCatching {
+            if (reader?.let { it.width != width || it.height != height } != false) newReader(width, height)
+            // A picture still on its way is dropped for the newer one.
+            waiting?.invoke(null)
+            waiting = onPicture
+            renderer?.createRenderRequest()?.setWaitForPresent(false)?.syncAndDraw()
+        }.onFailure {
+            broken = true
+            waiting = null
+            onPicture(null)
+        }
+    }
+
+    /** The picture has been drawn into [imageReader]: hands a copy of it to whoever asked. */
+    private fun deliver(imageReader: ImageReader) {
+        val onPicture = waiting ?: return run { runCatching { imageReader.acquireLatestImage()?.close() } }
+        waiting = null
+        val picture = runCatching {
             val image = imageReader.acquireLatestImage() ?: return@runCatching null
             try {
                 val buffer = image.hardwareBuffer ?: return@runCatching null
@@ -81,26 +99,30 @@ internal class PageSnapshotter {
             } finally {
                 image.close()
             }
-        }.onFailure { broken = true }.getOrNull()
+        }.getOrNull()
+        onPicture(picture)
     }
 
-    private fun newReader(width: Int, height: Int): ImageReader {
+    private fun newReader(width: Int, height: Int) {
         reader?.close()
         renderer?.destroy()
         val newReader = ImageReader.newInstance(
             width, height, PixelFormat.RGBA_8888, 2,
             HardwareBuffer.USAGE_GPU_SAMPLED_IMAGE or HardwareBuffer.USAGE_GPU_COLOR_OUTPUT
         )
+        newReader.setOnImageAvailableListener(::deliver, main)
         reader = newReader
         renderer = HardwareRenderer().apply {
             setSurface(newReader.surface)
             setContentRoot(node)
             isOpaque = false
         }
-        return newReader
     }
 
     fun release() {
+        main.removeCallbacksAndMessages(null)
+        waiting = null
+        armed = null
         renderer?.destroy()
         renderer = null
         reader?.close()

@@ -13,10 +13,11 @@ import androidx.compose.ui.graphics.drawscope.ContentDrawScope
 import androidx.compose.ui.graphics.drawscope.draw
 
 /**
- * Keeps what a page draws, so a picture of it can be taken the moment another page opens over it (the back animation
- * shows it underneath). The page is recorded into a render node as it draws, and the picture is made by one renderer
- * kept for as long as the page is: making a renderer for each picture (as Compose's own GraphicsLayer.toImageBitmap
- * does) held every tap that opened a page for a noticeable moment.
+ * Takes a picture of a page as another page opens over it (the back animation shows it underneath). Asked for with
+ * [arm], the page's next draw is recorded into a render node and pictured at once ([record]), then [take]n. Only that
+ * one draw is recorded: recording every frame doubled the work of each frame, and on Main, under the bugdroid's
+ * shadows, frames missed their time. The picture is made by one renderer kept for as long as the page is: making a
+ * renderer for each picture (as Compose's own GraphicsLayer.toImageBitmap does) held every tap that opened a page.
  */
 internal class PageSnapshotter {
     private val node = RenderNode("SettingsPage")
@@ -24,9 +25,22 @@ internal class PageSnapshotter {
     private var reader: ImageReader? = null
     // Off for good once recording or a picture has failed (a test environment without a GPU), so the page still draws.
     private var broken = false
+    private var armed = false
+    private var taken: ImageBitmap? = null
 
-    /** Records what [scope] draws as its content, beside drawing it as usual. */
+    /** Asks for a picture of the page's next draw. */
+    fun arm() {
+        armed = true
+        taken = null
+    }
+
+    /** The picture asked for with [arm], once the page has drawn; null when none could be made. */
+    fun take(): ImageBitmap? = taken.also { taken = null }
+
+    /** When a picture was asked for, records what [scope] draws as its content (beside drawing it as usual) and pictures it. */
     fun record(scope: ContentDrawScope) {
+        if (!armed) return
+        armed = false
         if (broken) return
         val width = scope.size.width.toInt()
         val height = scope.size.height.toInt()
@@ -42,10 +56,11 @@ internal class PageSnapshotter {
                 node.endRecording()
             }
         }.onFailure { broken = true }
+        taken = capture()
     }
 
-    /** A picture of the page as last drawn, or null when none can be made. */
-    fun capture(): ImageBitmap? {
+    /** A picture of the page as last recorded, or null when none can be made. */
+    private fun capture(): ImageBitmap? {
         if (broken) return null
         val width = node.width
         val height = node.height

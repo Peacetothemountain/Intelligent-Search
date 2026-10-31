@@ -131,6 +131,8 @@ fun SettingsScreensHub(
         val pageSnapshots = remember { mutableStateMapOf<String, androidx.compose.ui.graphics.ImageBitmap>() }
         val pagePicture = remember { com.pixel.intelligentsearch.core.ui.PageSnapshotter() }
         DisposableEffect(pagePicture) { onDispose { pagePicture.release() } }
+        // Read while drawing the page, so asking for a picture draws it once more, into the picture.
+        var pictureRequests by remember { mutableIntStateOf(0) }
         val navScope = rememberCoroutineScope()
         // Set while a page leaves at the end of the back animation, which has already moved it: no transition then.
         var instantPop by remember { mutableStateOf(false) }
@@ -138,12 +140,18 @@ fun SettingsScreensHub(
         val leavingPage = remember { mutableStateOf<LeavingPage?>(null) }
 
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
-            // Taken as the tap lands and the page opens in the same moment: no waiting for a later frame.
             val leaving = navController.currentBackStackEntry
-            val snapshot = pagePicture.capture()
-            if (leaving != null && snapshot != null) pageSnapshots[leaving.id] = snapshot
-            navController.navigate(route) {
-                launchSingleTop = true
+            pagePicture.arm()
+            pictureRequests++
+            navScope.launch {
+                // The page draws once more, into the picture, and the new page opens on the frame after: two frames.
+                withFrameNanos { }
+                withFrameNanos { }
+                val snapshot = pagePicture.take()
+                if (leaving != null && snapshot != null) pageSnapshots[leaving.id] = snapshot
+                navController.navigate(route) {
+                    launchSingleTop = true
+                }
             }
         }
 
@@ -326,7 +334,7 @@ fun SettingsScreensHub(
                 // opens over it. Kept without them: the glow drifts on, so a picture of it would be out of step.
                 .drawWithContent {
                     drawContent()
-                    pagePicture.record(this)
+                    if (pictureRequests > 0) pagePicture.record(this)
                 }
                 .graphicsLayer {
                     val p = exitBackProgress.value

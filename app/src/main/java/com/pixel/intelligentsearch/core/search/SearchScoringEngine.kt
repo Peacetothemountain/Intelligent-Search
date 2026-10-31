@@ -53,6 +53,8 @@ object SearchScoringEngine {
     private const val SCORE_PHONETIC_MATCH = 250.0f
     private const val SCORE_FUZZY_BASE = 200.0f
     private const val PENALTY_PER_EDIT_DISTANCE = 90.0f
+    /** The shortest partly typed name a slip is allowed in. */
+    private const val MIN_PARTIAL_SLIP_LENGTH = 4
 
     // Frequency & Recency Parameters
     private const val FREQUENCY_WEIGHT = 120.0f
@@ -262,24 +264,27 @@ object SearchScoringEngine {
             return SCORE_SUBSTRING_MAX * lengthRatio
         }
 
-        // E. Phonetic Match via Double Metaphone
-        val queryMetaphone = precomputedQueryMetaphone ?: DoubleMetaphone.encode(query)
-        val titleMetaphone = precomputedTargetMetaphone ?: DoubleMetaphone.encode(title)
-        if (queryMetaphone.matches(titleMetaphone)) {
-            return SCORE_PHONETIC_MATCH
-        }
+        // E. Phonetic Match via Double Metaphone. Sounds are read from letters only, so a query with a number in it
+        // would be matched on its words alone: "call 5551234567" sounds like "Kyle", "$50 to eur" like "Dr.".
+        if (query.none(Char::isDigit)) {
+            val queryMetaphone = precomputedQueryMetaphone ?: DoubleMetaphone.encode(query)
+            val titleMetaphone = precomputedTargetMetaphone ?: DoubleMetaphone.encode(title)
+            if (queryMetaphone.matches(titleMetaphone)) {
+                return SCORE_PHONETIC_MATCH
+            }
 
-        // Check phonetic match across individual words (e.g. contact first/last name)
-        for (w in words) {
-            val wordMetaphone = DoubleMetaphone.encode(w)
-            if (queryMetaphone.matches(wordMetaphone)) {
-                return SCORE_PHONETIC_MATCH * 0.9f
+            // Check phonetic match across individual words (e.g. contact first/last name)
+            for (w in words) {
+                val wordMetaphone = DoubleMetaphone.encode(w)
+                if (queryMetaphone.matches(wordMetaphone)) {
+                    return SCORE_PHONETIC_MATCH * 0.9f
+                }
             }
         }
 
         // F. Typo-tolerant edit distance, with more slips allowed as the query grows (none under 3 letters, where
-        // a guess would match almost anything). Swapped letters count as one slip.
-        val allowedEdits = fuzzyEditsFor(query.length)
+        // a guess would match almost anything, and none in a number). Swapped letters count as one slip.
+        val allowedEdits = fuzzyEditsFor(query)
         if (allowedEdits > 0) {
             val editDistance = LevenshteinDistance.computeDistance(query, title, maxDistance = allowedEdits)
             if (editDistance <= allowedEdits) {
@@ -292,6 +297,8 @@ object SearchScoringEngine {
                 }
             }
             // G. A partly typed name with a slip ("yuotu", "gogle ma"): close to the start of the title or a word.
+            // Three letters with a slip are two right, which starts too many names to mean any one of them.
+            if (query.length < MIN_PARTIAL_SLIP_LENGTH) return 0.0f
             val prefixDist = minOf(
                 LevenshteinDistance.prefixDistance(query, title, maxDistance = allowedEdits),
                 words.minOfOrNull { LevenshteinDistance.prefixDistance(query, it, maxDistance = allowedEdits) } ?: Int.MAX_VALUE
@@ -313,6 +320,13 @@ object SearchScoringEngine {
         length <= 5 -> 1
         else -> 2
     }
+
+    /**
+     * How many slips [query] may contain: as [fuzzyEditsFor] its length, but none in a number, where one wrong
+     * digit is another number ("210" is not "2048"). A name with a digit in it ("calcul8") still gets its slips.
+     */
+    fun fuzzyEditsFor(query: String): Int =
+        if (query.any(Char::isDigit) && query.none(Char::isLetter)) 0 else fuzzyEditsFor(query.length)
 
     private fun matchesAcronym(query: String, rawTitle: String): Boolean {
         if (query.length < 2 || rawTitle.isEmpty()) return false

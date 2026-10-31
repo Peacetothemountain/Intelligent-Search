@@ -25,17 +25,47 @@ fun getVoiceSearchIntent(context: Context): Intent {
     if (context.packageManager.resolveActivityCompat(webSearch) != null) {
         return webSearch
     }
-    val speech = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    }
-    if (context.packageManager.resolveActivityCompat(speech) != null) {
-        return speech
-    }
-    // No recognizer at all: open the overlay so the user can type instead.
+    return ownVoiceSearchIntent(context)
+}
+
+/**
+ * This app's own voice search. A plain recognizer hands the words back only to whoever started it: the search starts
+ * it and searches them. No recognizer at all: the search opens so the user can type instead.
+ */
+private fun ownVoiceSearchIntent(context: Context): Intent {
     return Intent(context, WidgetActivity::class.java).apply {
+        if (speechRecognizerIntent(context) != null) {
+            action = ACTION_RECOGNIZE_SPEECH_IN_SEARCH
+            putExtra(EXTRA_RECOGNIZE_SPEECH, true)
+        }
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_NO_ANIMATION)
     }
+}
+
+/** Asks the search to start [speechRecognizerIntent] and search what is said. */
+const val EXTRA_RECOGNIZE_SPEECH = "com.pixel.intelligentsearch.extra.RECOGNIZE_SPEECH"
+
+private const val ACTION_RECOGNIZE_SPEECH_IN_SEARCH = "com.pixel.intelligentsearch.RECOGNIZE_SPEECH"
+
+/**
+ * Asks the private [WidgetActivity] to search the web for [query] in another app the moment it's tapped, saying so if
+ * none can, and show nothing itself: for a doodle drawn while no other app could search the web.
+ */
+fun webSearchFromWidgetIntent(context: Context, query: String): Intent =
+    Intent(context, WidgetActivity::class.java).apply {
+        action = ACTION_SEARCH_WEB
+        putExtra(android.app.SearchManager.QUERY, query)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+    }
+
+/** [webSearchFromWidgetIntent]'s action. */
+const val ACTION_SEARCH_WEB = "com.pixel.intelligentsearch.SEARCH_WEB"
+
+/** The phone's plain speech recognizer, to start for a result, or null when none is installed. */
+fun speechRecognizerIntent(context: Context): Intent? {
+    val speech = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+    return speech.takeIf { context.packageManager.resolveActivityCompat(it) != null }
 }
 
 fun getShortcutIconRes(shortcut: String, isMaterialYou: Boolean = true): Int {
@@ -92,12 +122,10 @@ fun getLensTranslateIntent(context: Context): Intent =
 fun launchGeminiCornerOverlay(context: Context): Boolean {
     // launchAssist shows whichever app holds the assistant role. When that is Intelligent Search itself, it would only
     // open this app's own search, so Gemini is reached through the fallbacks below instead.
-    val isTheAssistant = runCatching {
-        context.getSystemService(android.app.role.RoleManager::class.java)?.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT) == true
-    }.getOrDefault(false)
+    val isTheAssistant = holdsAssistantRole(context)
     try {
         val searchManager = context.getSystemService(Context.SEARCH_SERVICE) as? android.app.SearchManager
-        val launchAssist = searchManager?.javaClass?.methods?.find { it.name == "launchAssist" && it.parameterTypes.size == 1 }
+        val launchAssist = launchAssistMethod(searchManager)
         if (launchAssist != null && !isTheAssistant) {
             val args = android.os.Bundle().apply {
                 putInt("invocation_type", 1) // INVOCATION_TYPE_GESTURE: the corner swipe
@@ -109,12 +137,7 @@ fun launchGeminiCornerOverlay(context: Context): Boolean {
     } catch (e: Throwable) {
         android.util.Log.w("SearchWidgetProvider", "SearchManager.launchAssist failed", e)
     }
-    val fallbacks = listOfNotNull(
-        Intent(Intent.ACTION_VOICE_COMMAND).setPackage(GoogleApps.GOOGLE_APP),
-        context.packageManager.getLaunchIntentForPackage("com.google.android.apps.bard"),
-        getVoiceSearchIntent(context)
-    )
-    for (fallback in fallbacks) {
+    for (fallback in assistantFallbacks(context, isTheAssistant)) {
         try {
             if (context.packageManager.resolveActivityCompat(fallback) == null) continue
             context.startActivity(fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -124,6 +147,45 @@ fun launchGeminiCornerOverlay(context: Context): Boolean {
         }
     }
     return false
+}
+
+private fun holdsAssistantRole(context: Context): Boolean = runCatching {
+    context.getSystemService(android.app.role.RoleManager::class.java)?.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT) == true
+}.getOrDefault(false)
+
+/** SearchManager's hidden launchAssist(Bundle), or null where Android doesn't offer it. */
+private fun launchAssistMethod(searchManager: android.app.SearchManager?): java.lang.reflect.Method? = runCatching {
+    searchManager?.javaClass?.methods?.find { it.name == "launchAssist" && it.parameterTypes.size == 1 }
+}.getOrNull()
+
+/**
+ * This app's own voice search when that is where [launchGeminiCornerOverlay] would open the assistant (this app is the
+ * assistant and neither Gemini nor the Google app is there), else null. The search that handles the button runs it in
+ * place instead: started from there, that search would close right after, and a recognizer gives its words back only
+ * to a search still open to search them.
+ */
+fun ownVoiceSearchForAssistant(context: Context): Intent? {
+    val isTheAssistant = holdsAssistantRole(context)
+    val searchManager = context.getSystemService(Context.SEARCH_SERVICE) as? android.app.SearchManager
+    if (!isTheAssistant && launchAssistMethod(searchManager) != null) return null
+    return assistantFallbacks(context, isTheAssistant)
+        .firstOrNull { context.packageManager.resolveActivityCompat(it) != null }
+        ?.takeIf { it.component?.packageName == context.packageName }
+}
+
+/**
+ * Where [launchGeminiCornerOverlay] opens the assistant without launchAssist, in order; the first that is installed
+ * opens. While Intelligent Search [isTheAssistant], the Google app's voice command only forwards to Android's "Default
+ * digital assistant app" page, as Google isn't the assistant, so then the button opens Gemini itself, else the Google
+ * app's voice search, else this app's own.
+ */
+internal fun assistantFallbacks(context: Context, isTheAssistant: Boolean): List<Intent> {
+    val gemini = context.packageManager.getLaunchIntentForPackage(GoogleApps.GEMINI_APP)
+    if (!isTheAssistant) {
+        return listOfNotNull(Intent(Intent.ACTION_VOICE_COMMAND).setPackage(GoogleApps.GOOGLE_APP), gemini, getVoiceSearchIntent(context))
+    }
+    val googleVoice = Intent(Intent.ACTION_MAIN).setClassName(GoogleApps.GOOGLE_APP, GoogleApps.VOICE_SEARCH_ACTIVITY)
+    return listOfNotNull(gemini, googleVoice, ownVoiceSearchIntent(context))
 }
 
 fun getVoiceActionIntent(context: Context): Intent {
@@ -147,6 +209,7 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
             ?: Intent(Intent.ACTION_VIEW, Uri.parse(GoogleTranslate.WEB_HOME)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "Translate (camera)" -> getLensTranslateIntent(context)
         "Weather" -> getCustomIntentOrDefault(context, "Weather") {
+            torTopicSearch(context, "Weather")?.let { return@getCustomIntentOrDefault it }
             val intentWeatherApp = context.packageManager.getLaunchIntentForPackage("com.google.android.apps.weather")
             if (intentWeatherApp != null) {
                 intentWeatherApp.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
@@ -166,6 +229,7 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
             }
         }
         "Sports" -> getCustomIntentOrDefault(context, "Sports") {
+            torTopicSearch(context, "Sports")?.let { return@getCustomIntentOrDefault it }
             val intent = Intent(Intent.ACTION_WEB_SEARCH).apply {
                 putExtra("query", "Sports")
                 setPackage(GoogleApps.GOOGLE_APP)
@@ -191,12 +255,31 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
             intent?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
                 ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.labs.language.tailwind")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         }
-        "Finance" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/finance")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        "Finance" -> torTopicSearch(context, "Finance")
+            ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/finance")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "Saved" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://google.com/save")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-        "News" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://news.google.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        "News" -> torTopicSearch(context, "News")
+            ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://news.google.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "Calculator" -> getCalculatorIntent(context)
         "Discover" -> getDiscoverIntent(context)
         else -> getLensSearchIntent(context)
+    }
+}
+
+/**
+ * With Tor as the search engine, the shortcuts that would open Google's pages or apps (News, Sports, Finance, Weather)
+ * search their [topic] through Tor Browser instead, as the bar's web searches do, so nothing goes around Tor; without
+ * Tor Browser they open its Play Store page. Null when Tor isn't the engine.
+ */
+internal fun torTopicSearch(context: Context, topic: String): Intent? {
+    val prefs = com.pixel.intelligentsearch.core.data.SettingsManager.storedPrefs(context)
+    if (!com.pixel.intelligentsearch.core.security.NetworkPolicy.torSelected(prefs)) return null
+    return when (val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.torSearch(context, topic)) {
+        is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open -> launch.intent
+        else -> Intent(
+            Intent.ACTION_VIEW,
+            "market://details?id=${com.pixel.intelligentsearch.core.security.SafeWebLaunch.TOR_BROWSER_PACKAGES.first()}".toUri()
+        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 }
 

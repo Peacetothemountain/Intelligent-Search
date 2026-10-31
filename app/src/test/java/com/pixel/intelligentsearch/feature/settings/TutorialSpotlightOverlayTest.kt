@@ -55,6 +55,17 @@ class TutorialSpotlightOverlayTest {
         }
     }
 
+    /**
+     * See-through, the card let the search results behind it run into its text, and on the Settings steps what lay
+     * behind it showed as a faint box inside it.
+     */
+    @Test
+    fun theCardIsOpaqueInBothThemes() {
+        for ((scheme, dark) in listOf(lightColorScheme() to false, darkColorScheme() to true)) {
+            assertEquals("dark=$dark", 1f, tutorialCardColors(scheme, dark).container.alpha, 0f)
+        }
+    }
+
     @Test
     fun advancingAStepIsReadByTheCardAloneUnderAFixedPaneTitle() {
         disableHandRolledAnimations()

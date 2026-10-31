@@ -30,6 +30,8 @@ class SearchBangManager @Inject constructor(
         /** The only app-link schemes dispatched, all from built-in bangs (YouTube, Maps, Play Store, Spotify). */
         private val BUILT_IN_APP_URI_SCHEMES = setOf("vnd.youtube", "geo", "market", "spotify")
 
+        private val WHITESPACE = Regex("\\s+")
+
         val BUILT_IN_BANGS = listOf(
             SearchBang(
                 prefix = "!g",
@@ -156,56 +158,39 @@ class SearchBangManager @Inject constructor(
 
     private fun getPrefs(): SharedPreferences = settingsManager.prefs
 
-    private val prefChangeListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == null || key == SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL.name ||
-            key == SettingsManager.CUSTOM_BANGS_JSON.name || key == SettingsManager.DISABLED_WEB_SHORTCUTS.name
-        ) {
-            cachedTriggerSymbol = null
-            cachedSyncBangs = null
-        }
-        if (key == null || key == SettingsManager.SEARCH_QUICK_SHORTCUTS.name) cachedQuickShortcutsEnabled = null
-    }
-
-    init {
-        try {
-            getPrefs().registerOnSharedPreferenceChangeListener(prefChangeListener)
-        } catch (_: Exception) {}
-    }
-
-    @Volatile
-    private var cachedTriggerSymbol: String? = null
-
-    fun getTriggerSymbol(): String =
-        cachedTriggerSymbol ?: getPrefs()[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL].ifBlank { "!" }
-            .also { cachedTriggerSymbol = it }
-
-    @Volatile
-    private var cachedQuickShortcutsEnabled: Boolean? = null
+    fun getTriggerSymbol(): String = getPrefs()[SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL].ifBlank { "!" }
 
     /**
      * The "Enable Quick Web Shortcuts" switch. While it's off no query is read as a shortcut and none are
      * suggested, so "!yt cats" is searched as typed; the editor still lists the shortcuts through [bangsFlow].
      */
-    private fun quickShortcutsEnabled(): Boolean =
-        cachedQuickShortcutsEnabled ?: getPrefs()[SettingsManager.SEARCH_QUICK_SHORTCUTS]
-            .also { cachedQuickShortcutsEnabled = it }
+    private fun quickShortcutsEnabled(): Boolean = getPrefs()[SettingsManager.SEARCH_QUICK_SHORTCUTS]
 
     val bangsFlow: Flow<List<SearchBang>> = settingsManager.settingsFlow.map { settings ->
-        val trigger = settings.webShortcutTriggerSymbol.ifBlank { "!" }
-        cachedTriggerSymbol = trigger
-        buildBangs(trigger, settings.customBangsJson, settings.disabledWebShortcuts).also { cachedSyncBangs = it }
+        bangsFor(settings.webShortcutTriggerSymbol.ifBlank { "!" }, settings.customBangsJson, settings.disabledWebShortcuts)
     }
 
+    /** The shortcuts last built, with the stored values they were built from. */
+    private class BuiltBangs(val trigger: String, val customBangsJson: String, val disabled: Set<String>, val bangs: List<SearchBang>)
+
+    /**
+     * Kept with what it was built from and checked against the stored values at each use, not cleared by a change
+     * listener: SharedPreferences keeps its listeners weakly, and the release build's shrinker can drop the field that
+     * holds one, which left the trigger symbol and the shortcuts as they were when the app started.
+     */
     @Volatile
-    private var cachedSyncBangs: List<SearchBang>? = null
+    private var builtBangs: BuiltBangs? = null
     private val mutex = Mutex()
 
-    fun getAllBangsSync(): List<SearchBang> = cachedSyncBangs ?: getPrefs().let { prefs ->
-        buildBangs(
-            getTriggerSymbol(),
-            prefs[SettingsManager.CUSTOM_BANGS_JSON],
-            prefs[SettingsManager.DISABLED_WEB_SHORTCUTS]
-        ).also { cachedSyncBangs = it }
+    fun getAllBangsSync(): List<SearchBang> = getPrefs().let { prefs ->
+        bangsFor(getTriggerSymbol(), prefs[SettingsManager.CUSTOM_BANGS_JSON], prefs[SettingsManager.DISABLED_WEB_SHORTCUTS])
+    }
+
+    private fun bangsFor(trigger: String, customBangsJson: String, disabled: Set<String>): List<SearchBang> {
+        builtBangs?.takeIf { it.trigger == trigger && it.customBangsJson == customBangsJson && it.disabled == disabled }
+            ?.let { return it.bangs }
+        return buildBangs(trigger, customBangsJson, disabled)
+            .also { builtBangs = BuiltBangs(trigger, customBangsJson, disabled, it) }
     }
 
     /** Custom bangs first, then the built-ins that aren't disabled, re-prefixed when the trigger isn't "!". */
@@ -230,7 +215,36 @@ class SearchBangManager @Inject constructor(
             return null
         }
 
-        // Match against all available bangs without collection allocation
+        // A bang is a word of its own, ended by any space a keyboard types (a tab after "!g" too). The one typed first
+        // wins over one at the end, whatever order the bangs are listed in: "!yt cats !g" searches YouTube, and the
+        // second bang is dropped rather than searched for.
+        val firstEnd = trimmed.indexOfFirst { it.isWhitespace() }.let { if (it < 0) trimmed.length else it }
+        bangNamed(trimmed.substring(0, firstEnd), availableBangs, triggerSymbol)?.let { bang ->
+            return ParsedBangQuery(
+                bang = bang,
+                rawQuery = trimmed,
+                extractedQuery = withoutBangs(trimmed.substring(firstEnd), availableBangs, triggerSymbol),
+                isPrefix = true
+            )
+        }
+        val lastStart = trimmed.indexOfLast { it.isWhitespace() } + 1
+        if (lastStart > 0) {
+            bangNamed(trimmed.substring(lastStart), availableBangs, triggerSymbol)?.let { bang ->
+                return ParsedBangQuery(
+                    bang = bang,
+                    rawQuery = trimmed,
+                    extractedQuery = withoutBangs(trimmed.substring(0, lastStart), availableBangs, triggerSymbol),
+                    isPrefix = false
+                )
+            }
+        }
+
+        return null
+    }
+
+    /** The bang [word] calls, by any of the ways it can be typed, or null when it calls none. */
+    private fun bangNamed(word: String, availableBangs: List<SearchBang>, triggerSymbol: String): SearchBang? {
+        if (word.isEmpty() || word.first().isLetterOrDigit()) return null
         for (bang in availableBangs) {
             val bare = bang.prefix.trimStart { !it.isLetterOrDigit() }
             val p0 = bang.displayPrefix
@@ -238,43 +252,23 @@ class SearchBangManager @Inject constructor(
             val p2 = if (bare.isNotBlank()) "$triggerSymbol$bare".lowercase() else null
             val p3 = if (bare.isNotBlank()) "!$bare".lowercase() else null
 
-            val candidates = arrayOf(p0, p1, p2, p3)
-            for (p in candidates) {
+            for (p in arrayOf(p0, p1, p2, p3)) {
                 // A bang always starts with its trigger: a bare prefix ("wiki", from an older custom bang) would
                 // otherwise fire on ordinary words whenever the query happens to contain "!".
                 if (p.isNullOrBlank() || p.first().isLetterOrDigit()) continue
-                // Prefix check: query starts with "$p " or equals "$p"
-                if (trimmed.equals(p, ignoreCase = true)) {
-                    return ParsedBangQuery(
-                        bang = bang,
-                        rawQuery = trimmed,
-                        extractedQuery = "",
-                        isPrefix = true
-                    )
-                }
-                if (trimmed.startsWith("$p ", ignoreCase = true)) {
-                    val rawRemaining = trimmed.substring(p.length).trim()
-                    return ParsedBangQuery(
-                        bang = bang,
-                        rawQuery = trimmed,
-                        extractedQuery = rawRemaining,
-                        isPrefix = true
-                    )
-                }
-                // Suffix check: query ends with " $p"
-                if (trimmed.endsWith(" $p", ignoreCase = true)) {
-                    val rawLeading = trimmed.substring(0, trimmed.length - p.length).trim()
-                    return ParsedBangQuery(
-                        bang = bang,
-                        rawQuery = trimmed,
-                        extractedQuery = rawLeading,
-                        isPrefix = false
-                    )
-                }
+                if (word.equals(p, ignoreCase = true)) return bang
             }
         }
-
         return null
+    }
+
+    /** [text] with any further bang words taken out, trimmed: what the chosen bang searches for. */
+    private fun withoutBangs(text: String, availableBangs: List<SearchBang>, triggerSymbol: String): String {
+        val trimmed = text.trim()
+        if (!trimmed.contains(triggerSymbol) && !trimmed.contains("!")) return trimmed
+        val words = trimmed.split(WHITESPACE)
+        if (words.none { bangNamed(it, availableBangs, triggerSymbol) != null }) return trimmed
+        return words.filter { bangNamed(it, availableBangs, triggerSymbol) == null }.joinToString(" ")
     }
 
     fun getBangSuggestions(partialToken: String, availableBangs: List<SearchBang> = getAllBangsSync()): List<SearchBang> {
@@ -403,7 +397,6 @@ class SearchBangManager @Inject constructor(
             val custom = parseCustomBangs(prefs[SettingsManager.CUSTOM_BANGS_JSON]).toMutableList()
             val disabled = prefs[SettingsManager.DISABLED_WEB_SHORTCUTS].toMutableSet()
             edit(custom, disabled)
-            cachedSyncBangs = null
             prefs.edit()
                 .put(SettingsManager.CUSTOM_BANGS_JSON, serializeCustomBangs(custom))
                 .put(SettingsManager.DISABLED_WEB_SHORTCUTS, disabled.toSet())

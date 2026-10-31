@@ -33,32 +33,14 @@ private fun looksLikeWebAddress(text: String): Boolean {
     return '.' in host && host.substringAfterLast('.').lowercase() !in FILE_EXTENSIONS
 }
 
-/** Common places whose time zone is not named after them in the tz database (e.g. Asia/Kolkata). */
-private val TIME_ZONE_ALIASES = mapOf(
-    "utc" to "UTC", "gmt" to "GMT",
-    "san francisco" to "America/Los_Angeles", "seattle" to "America/Los_Angeles", "la" to "America/Los_Angeles",
-    "california" to "America/Los_Angeles", "las vegas" to "America/Los_Angeles", "portland" to "America/Los_Angeles",
-    "boston" to "America/New_York", "miami" to "America/New_York", "washington" to "America/New_York",
-    "atlanta" to "America/New_York", "philadelphia" to "America/New_York", "nyc" to "America/New_York",
-    "dallas" to "America/Chicago", "houston" to "America/Chicago", "austin" to "America/Chicago",
-    "salt lake city" to "America/Denver", "montreal" to "America/Toronto",
-    "beijing" to "Asia/Shanghai", "china" to "Asia/Shanghai", "japan" to "Asia/Tokyo",
-    "india" to "Asia/Kolkata", "delhi" to "Asia/Kolkata", "new delhi" to "Asia/Kolkata",
-    "mumbai" to "Asia/Kolkata", "bangalore" to "Asia/Kolkata", "bengaluru" to "Asia/Kolkata",
-    "uk" to "Europe/London", "england" to "Europe/London", "france" to "Europe/Paris",
-    "germany" to "Europe/Berlin", "spain" to "Europe/Madrid", "italy" to "Europe/Rome",
-    "korea" to "Asia/Seoul", "south korea" to "Asia/Seoul", "vietnam" to "Asia/Ho_Chi_Minh",
-    "hanoi" to "Asia/Bangkok", "uae" to "Asia/Dubai", "abu dhabi" to "Asia/Dubai",
-    "melbourne" to "Australia/Melbourne", "canberra" to "Australia/Sydney", "new zealand" to "Pacific/Auckland",
-    "hawaii" to "Pacific/Honolulu", "alaska" to "America/Anchorage"
-)
-
 @androidx.compose.runtime.Immutable
 data class DirectAction(
     val title: String,
     val subtitle: String,
     val iconType: String,
-    val intent: android.content.Intent?
+    val intent: android.content.Intent?,
+    /** Opened instead when no app takes [intent]: any maps app when Google Maps is missing, a text without WhatsApp. */
+    val fallbackIntent: android.content.Intent? = null
 )
 
 @androidx.compose.runtime.Immutable
@@ -85,10 +67,18 @@ data class SearchUiState(
     val volumeSlider: com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider? = null,
     val directActions: List<DirectAction> = emptyList(),
     /**
-     * The action Enter runs instead of searching: a timer, alarm or reminder the query plainly asks for ("15 min",
-     * "7:30am", "set a timer for 10 minutes"). Null when there is none or it may be meant as a search ("7:30").
+     * The action Enter runs instead of searching: a timer, alarm or reminder the query plainly asks for, with nothing
+     * about it guessed ("15 min", "7:30am", "set a timer for 10 minutes", "remind me to call mom tomorrow at 5pm"; THE
+     * CERTAINTY RULE FOR ENTER in [com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser]). Null when there
+     * is none, when it may be meant as a search ("7:30"), or when its day or time is a guess ([guessedAction]).
      */
     val enterAction: DirectAction? = null,
+    /**
+     * A timer, alarm or reminder row the query reads as whose day or time was guessed ("remind me to call mom at 5",
+     * "wake me up at 7", "at 6"): shown with its day and time first, for the user to tap once they see when it is for,
+     * while Enter does what it does for any other query. Null when there is none, or Enter runs it ([enterAction]).
+     */
+    val guessedAction: DirectAction? = null,
     val calendarEvents: List<CalendarEvent> = emptyList(),
     val recentSearches: List<String> = emptyList(),
     val hasLockedPrivateSpace: Boolean = false,
@@ -123,12 +113,13 @@ data class SearchUiState(
 ) {
     /**
      * The provider the Ask row shows for, or null when there is no row: besides [aiOffer], the query must not already
-     * have an answer that would contradict it at the top, an action Enter runs ("ask sarah at 6pm" is a reminder) or
-     * a definition ("what does serendipity mean?" shows its meaning).
+     * have an answer that would contradict it at the top, a timer, alarm or reminder it reads as, whether Enter runs it
+     * or it waits for a tap ("ask sarah tomorrow at 6pm" and "ask sarah at 6pm" are reminders), or a definition ("what
+     * does serendipity mean?" shows its meaning).
      */
     val askAi: com.pixel.intelligentsearch.core.ai.AiProvider?
         get() = aiOffer?.takeIf {
-            enterAction == null &&
+            enterAction == null && guessedAction == null &&
                 (liveAnswer as? com.pixel.intelligentsearch.core.answers.LiveAnswer.Definition)?.query != query
         }
 }
@@ -150,6 +141,9 @@ internal fun SearchUiState.withoutPrivateProfile(): SearchUiState {
 /** How long typing must pause before a query is spell checked for "Did you mean". */
 private const val SPELLING_PAUSE_MS = 450L
 
+/** Instant answers the device works out from the query's own words, which a "Did you mean" could only get wrong. */
+private val COMPUTED_ANSWER_TYPES = setOf("currency", "conversion", "date", "time", "random")
+
 /**
  * The least time between two web suggestion requests: Chrome's omnibox default
  * (`kDefaultMinimumTimeBetweenSuggestQueriesMs`), measured from the last request rather than the last keystroke.
@@ -162,6 +156,14 @@ internal fun suggestRequestDelay(sinceLastRequestMs: Long): Long =
 
 /** The debug menu's Simulate Web Latency delay before web suggestions are fetched. */
 private const val SIMULATED_LATENCY_MS = 2_000L
+
+/** The longest clipboard text read for its suggestion, as for every other way text reaches the search. */
+internal const val MAX_CLIP_CHARS = 512
+
+/** Whether answering [question] asks a server (definitions, forecasts); the rest are worked out on the phone. */
+private fun asksServer(question: com.pixel.intelligentsearch.core.answers.LiveAnswerQuery): Boolean =
+    question is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Define ||
+        question is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Weather
 
 /** A load of quick apps and events younger than this counts as fresh when the overlay comes back into view. */
 private const val RELOAD_GRACE_MS = 1_000L
@@ -224,6 +226,14 @@ class SearchViewModel @Inject constructor(
 
     private val _remoteSearchQueryFlow = MutableStateFlow("")
 
+    private val _queryConfirmed = MutableStateFlow(true)
+    /**
+     * Whether the query is the user's own. False while it is text another app handed in ([seedQuery]: selected or
+     * shared text, another app's search), which is searched on the phone only: web suggestions and the instant answers
+     * that ask a server wait until the user edits it or presses Enter ([confirmQuery]).
+     */
+    val queryConfirmed: StateFlow<Boolean> = _queryConfirmed.asStateFlow()
+
     /** A query's instant-answer question; [attempt] changes to ask again (after a permission grant). */
     private data class LiveAnswerRequest(
         val query: String,
@@ -272,6 +282,8 @@ class SearchViewModel @Inject constructor(
     init {
         // initialize() already indexes contacts (when permitted); loadInitialData() refreshes them if stale.
         corpusIndexManager.initialize()
+        // A new overlay is a new session: the last one's coin or die doesn't carry over.
+        unifiedSearchCoordinator.forgetChanceDraw()
 
         // A query handed in with the launch (another app's search, a widget, the assistant) may arrive before the
         // index is built; search it again the moment the index is ready.
@@ -581,11 +593,16 @@ class SearchViewModel @Inject constructor(
                 return clipboardActions
             }
             if (!isSensitive && clipboard?.hasPrimaryClip() == true && clipboard.primaryClipDescription != null) {
-                val item = clipboard.primaryClip?.getItemAt(0)
-                val text = item?.text?.toString() ?: item?.coerceToText(context)?.toString()
-                if (!text.isNullOrBlank()) {
+                // Only the text the clip itself carries. Another app's content: URI would be read with this app's
+                // permissions (a contact's card) or could stream without end; a long clip is cut like any query.
+                val clip: CharSequence = clipboard.primaryClip?.getItemAt(0)?.text ?: ""
+                var end = minOf(clip.length, MAX_CLIP_CHARS)
+                if (end < clip.length && Character.isHighSurrogate(clip[end - 1])) end--
+                val text = clip.subSequence(0, end).toString()
+                if (text.isNotBlank()) {
                     val trimmed = text.trim()
-                    if (android.util.Patterns.WEB_URL.matcher(trimmed).matches()) {
+                    // A link cut short would open some other page.
+                    if (end == clip.length && android.util.Patterns.WEB_URL.matcher(trimmed).matches()) {
                         // Same rules as a typed address: http(s) only, browsable apps only, Tor Browser under Tor.
                         val launch = com.pixel.intelligentsearch.core.security.SafeWebLaunch.forAddress(context, trimmed, engine)
                         if (launch is com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open) {
@@ -607,7 +624,44 @@ class SearchViewModel @Inject constructor(
         return clipboardActions
     }
 
+    /** The user typed or picked [newQuery]. An edit makes the query theirs; the same text again (a cursor move) doesn't. */
     fun onQueryChanged(newQuery: String) {
+        if (newQuery != _uiState.value.query || newQuery.isBlank()) _queryConfirmed.value = true
+        updateQuery(newQuery)
+    }
+
+    /**
+     * Types in [query] handed in from outside the overlay (selected or shared text, another app's search, a widget),
+     * unconfirmed: it is searched on the phone only until the user edits it or presses Enter ([queryConfirmed]).
+     */
+    fun seedQuery(query: String) {
+        _queryConfirmed.value = query.isBlank()
+        updateQuery(query)
+    }
+
+    /** The user accepts the query as it stands (Enter): what waited for [queryConfirmed] goes out now. */
+    fun confirmQuery() {
+        if (_queryConfirmed.value) return
+        _queryConfirmed.value = true
+        val query = _uiState.value.query
+        if (query.isBlank()) return
+        liveAnswerRequests.value = liveAnswerRequestFor(query)
+        if (settingsState.value.searchWeb && suggestsFor(query)) _remoteSearchQueryFlow.value = query
+    }
+
+    /**
+     * Whether [query] gets web suggestions. Not while a bang is typed ("!w android"): the engine would read "!w" as
+     * words ("with android phone"), and a suggestion tapped would search the engine rather than the bang's site.
+     */
+    private fun suggestsFor(query: String): Boolean = bangManager.parseBangQuery(query) == null
+
+    /** [query]'s instant-answer question; one that asks a server only once the query is the user's own. */
+    private fun liveAnswerRequestFor(query: String): LiveAnswerRequest? =
+        com.pixel.intelligentsearch.core.answers.LiveAnswerParser.parse(query)
+            ?.takeIf { _queryConfirmed.value || !asksServer(it) }
+            ?.let { LiveAnswerRequest(query, it) }
+
+    private fun updateQuery(newQuery: String) {
         val previousQuery = _uiState.value.query
         // Suggestions fetched for another query no longer count as this one's answer.
         if (newQuery != previousQuery) {
@@ -621,13 +675,14 @@ class SearchViewModel @Inject constructor(
             if (newQuery != previousQuery) it.copy(query = newQuery, liveAnswer = liveAnswer, aiAnswer = null)
             else it.copy(query = newQuery, liveAnswer = liveAnswer)
         }
-        liveAnswerRequests.value = com.pixel.intelligentsearch.core.answers.LiveAnswerParser.parse(newQuery)
-            ?.let { LiveAnswerRequest(newQuery, it) }
-        
+        liveAnswerRequests.value = liveAnswerRequestFor(newQuery)
+
         if (newQuery.isBlank()) {
             _remoteSearchQueryFlow.value = ""
             liveAnswerRequests.value = null
             searchJob?.cancel()
+            // Clearing the field (or closing the overlay) ends the query: a coin flipped again lands anew.
+            unifiedSearchCoordinator.forgetChanceDraw()
             _uiState.update { it.copy(
                 filteredApps = emptyList(),
                 contacts = emptyList(),
@@ -636,6 +691,7 @@ class SearchViewModel @Inject constructor(
                 androidSettings = emptyList(),
                 directActions = if (settingsState.value.smartClipboardSuggestions) initialClipboardActions else emptyList(),
                 enterAction = null,
+                guessedAction = null,
                 mathResult = null,
                 instantAnswer = null,
                 systemToggle = null,
@@ -688,8 +744,8 @@ class SearchViewModel @Inject constructor(
         // TIER 1: ZERO-DEBOUNCE (0ms) Immediate Local Execution across all corpuses
         executeLocalSearch(newQuery, previousQuery)
 
-        // TIER 2: Web suggestions, paced in init
-        if (settingsState.value.searchWeb) {
+        // TIER 2: Web suggestions, paced in init. A query handed in waits for the user (confirmQuery).
+        if (settingsState.value.searchWeb && _queryConfirmed.value && parsedBang == null) {
             _remoteSearchQueryFlow.value = newQuery
         } else {
             _remoteSearchQueryFlow.value = ""
@@ -744,23 +800,28 @@ class SearchViewModel @Inject constructor(
             val directActions = mutableListOf<DirectAction>()
             val queryLower = newQuery.lowercase()
 
+            // An event, reminder or alarm row says the day and time it is set for ("Tomorrow, 7:00 AM"), so the user
+            // sees what Enter will set. It comes first in the subtitle: a long title or large text cuts the words after
+            // it, never when.
+            val is24Hour = android.text.format.DateFormat.is24HourFormat(context)
+            fun setFor(atMs: Long) = com.pixel.intelligentsearch.core.util.Durations.dayAndTime(atMs, System.currentTimeMillis(), is24Hour)
             unifiedResults.parsedIntent?.let { intent ->
                 when (intent) {
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.CalendarEvent -> {
-                        directActions.add(DirectAction("Add Calendar Event", intent.title, "calendar", intent.intent))
+                        directActions.add(DirectAction("Add Calendar Event", "${setFor(intent.startMillis)} · ${intent.title}", "calendar", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Alarm -> {
-                        directActions.add(DirectAction("Set Alarm", com.pixel.intelligentsearch.core.util.Durations.timeOfDay(intent.hour, intent.minute, android.text.format.DateFormat.is24HourFormat(context)), "alarm", intent.intent))
+                        directActions.add(DirectAction("Set Alarm", setFor(intent.ringsAtMillis), "alarm", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Timer -> {
                         directActions.add(DirectAction("Set Timer", intent.label, "timer", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Reminder -> {
-                        directActions.add(DirectAction("Set Reminder", intent.task, "calendar", intent.intent))
+                        directActions.add(DirectAction("Set Reminder", "${setFor(intent.triggerMillis)} · ${intent.task}", "calendar", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.DirectMessage -> {
                         val app = if (intent.isWhatsApp) "WhatsApp" else "SMS"
-                        directActions.add(DirectAction("Message ${intent.recipientName} ($app)", intent.body, "message", intent.intent))
+                        directActions.add(DirectAction("Message ${intent.recipientName} ($app)", intent.body, "message", intent.intent, intent.fallbackIntent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.PhoneCall -> {
                         var callIntent = intent.intent
@@ -791,23 +852,33 @@ class SearchViewModel @Inject constructor(
                         directActions.add(DirectAction("Call $displayName", displaySubtitle, "phone", callIntent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Navigation -> {
-                        directActions.add(DirectAction("Navigate to ${intent.destination}", intent.destination, "navigation", intent.intent))
+                        directActions.add(DirectAction("Navigate to ${intent.destination}", intent.destination, "navigation", intent.intent, intent.fallbackIntent))
+                    }
+                    is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.MediaPlay -> {
+                        directActions.add(DirectAction("Play ${intent.query}", intent.appName ?: "Media app", "media", intent.intent, intent.fallbackIntent))
                     }
                 }
             }
 
-            // Enter runs a timer, alarm or reminder the query asks for; calls, messages and the rest stay a tap away.
-            var enterAction: DirectAction? = when (unifiedResults.parsedIntent) {
-                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Timer,
-                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Alarm,
-                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Reminder -> directActions.firstOrNull()
-                else -> null
+            // Enter runs a timer, alarm or reminder the query asks for, and only when nothing about it was guessed (THE
+            // CERTAINTY RULE FOR ENTER): "remind me to call mom at 5" (today or tomorrow? 5 AM or PM?) is shown, its
+            // day and time first, for a tap, and Enter searches. Calls, messages and the rest stay a tap away.
+            val parsedRow = directActions.firstOrNull()
+            var enterAction: DirectAction? = null
+            var guessedAction: DirectAction? = null
+            when (val parsed = unifiedResults.parsedIntent) {
+                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Timer -> enterAction = parsedRow
+                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Alarm ->
+                    if (parsed.certain) enterAction = parsedRow else guessedAction = parsedRow
+                is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Reminder ->
+                    if (parsed.certain) enterAction = parsedRow else guessedAction = parsedRow
+                else -> Unit
             }
             // The short phrasing ("15 min", "7:30am", "laundry in 2 hrs") is the top suggestion, above the results.
             unifiedResults.shortAction?.let { action ->
                 val row = DirectAction(action.title, action.subtitle, action.iconType, action.intent)
                 directActions.add(0, row)
-                if (action.runsOnEnter) enterAction = row
+                if (action.runsOnEnter) enterAction = row else guessedAction = row
             }
 
             if (queryLower in listOf("private", "private space", "hidden", "hidden apps", "locked space", "private apps") && _uiState.value.hasLockedPrivateSpace) {
@@ -879,7 +950,8 @@ class SearchViewModel @Inject constructor(
                 }
             }
 
-            val suggestionsEnabled = com.pixel.intelligentsearch.core.security.NetworkPolicy.webSuggestionsAllowed(customPrefs)
+            val suggestionsEnabled = com.pixel.intelligentsearch.core.security.NetworkPolicy.webSuggestionsAllowed(customPrefs) &&
+                suggestsFor(newQuery)
             val engine = settings.searchEngine
             val cachedWebSuggestions = if (suggestionsEnabled) {
                 sources.cachedWebSuggestions(newQuery, engine)?.take(settings.webResultsCount.coerceAtLeast(1))
@@ -897,8 +969,12 @@ class SearchViewModel @Inject constructor(
                 else InstantAnswer(unitConv.formatted, "Unit Conversion", "conversion")
             } else if (dateAnswer != null) {
                 InstantAnswer(dateAnswer.title, dateAnswer.subtitle, "date")
-            } else if (q == "time" || q.startsWith("time in ")) {
-                buildTimeAnswer(q.removePrefix("time").removePrefix(" in ").trim())
+            } else if (unifiedResults.timeAnswer != null) {
+                // "time", "tokyo time", "time in PST", "3pm PST in IST": unknown places get no answer, not the local time.
+                unifiedResults.timeAnswer.let { InstantAnswer(it.title, it.subtitle, "time") }
+            } else if (unifiedResults.randomAnswer != null && settings.searchCalculator) {
+                // A coin, dice or a random number: drawn like a calculation, so it follows the Calculator switch too.
+                unifiedResults.randomAnswer.let { InstantAnswer(it.title, it.subtitle, "random") }
             } else if (question is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Weather) {
                 // The tap-through stands until (or unless) a live forecast replaces it: Web Suggestions off, Tor, offline.
                 val title = question.place?.let { "Weather in ${it.toDisplayPlaceName()}" } ?: "Weather"
@@ -950,6 +1026,7 @@ class SearchViewModel @Inject constructor(
                     volumeSlider = unifiedResults.systemAction as? com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider,
                     directActions = directActions,
                     enterAction = enterAction,
+                    guessedAction = guessedAction,
                     lastQueryLatency = elapsed,
                     learnedPick = learnedPick
                 )
@@ -962,12 +1039,14 @@ class SearchViewModel @Inject constructor(
             }
 
             // "Did you mean": once typing pauses (the next keystroke cancels this job, so it never runs mid-word),
-            // unless the query is plainly the start of an app or contact name, where a dictionary would "fix" it.
+            // unless the query is plainly the start of an app or contact name, where a dictionary would "fix" it, or the
+            // device already worked out an answer to it.
             val typed = newQuery.trim()
             val namingSomething = resolvedApps.any { it.name.startsWith(typed, ignoreCase = true) } ||
                 shownContacts.any { it.name.startsWith(typed, ignoreCase = true) }
+            val answered = mathStr != null || localInstantAnswer?.iconType in COMPUTED_ANSWER_TYPES
             val checkSpelling = !namingSomething &&
-                SpellingSuggester.shouldCheck(newQuery, bangManager.getTriggerSymbol(), looksLikeWebAddress(typed))
+                SpellingSuggester.shouldCheck(newQuery, bangManager.getTriggerSymbol(), looksLikeWebAddress(typed), answered)
             if (checkSpelling) {
                 delay(SPELLING_PAUSE_MS)
                 withContext(Dispatchers.Main) {
@@ -1004,31 +1083,8 @@ class SearchViewModel @Inject constructor(
         is com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.UnitConversion -> null
     }
 
-    /**
-     * Answers "time" with the local time and "time in <place>" with that place's time when the place maps
-     * to a known time zone; unknown places return null so the query falls through to web search instead
-     * of mislabelling the local time.
-     */
-    private fun buildTimeAnswer(place: String): InstantAnswer? {
-        val zone = if (place.isEmpty()) java.util.TimeZone.getDefault() else resolveTimeZone(place) ?: return null
-        val format = android.text.format.DateFormat.getTimeFormat(context).apply { timeZone = zone }
-        val label = if (place.isEmpty()) "your location" else place.toDisplayPlaceName()
-        return InstantAnswer(format.format(java.util.Date()), "Current time in $label", "time")
-    }
-
     private fun String.toDisplayPlaceName(): String =
         split(' ').filter { it.isNotEmpty() }.joinToString(" ") { word -> word.replaceFirstChar { it.titlecase() } }
-
-    private fun resolveTimeZone(place: String): java.util.TimeZone? {
-        val normalized = place.lowercase().replace(Regex("[^a-z ]"), "").trim().replace(Regex("\\s+"), " ")
-        if (normalized.isEmpty()) return null
-        val zoneId = TIME_ZONE_ALIASES[normalized]
-            ?: java.time.ZoneId.getAvailableZoneIds().firstOrNull { id ->
-                id.contains('/') && id.substringAfterLast('/').replace('_', ' ').lowercase() == normalized
-            }
-            ?: return null
-        return java.util.TimeZone.getTimeZone(zoneId)
-    }
 
     private suspend fun fetchRemoteWebSuggestions(query: String) {
         if (query.isBlank()) return
@@ -1171,7 +1227,11 @@ class SearchViewModel @Inject constructor(
         initialClipboardActions = initialClipboardActions.filter { it != action }
         _uiState.update { state ->
             // A dismissed action is no longer what Enter runs.
-            state.copy(directActions = state.directActions.filter { it != action }, enterAction = state.enterAction.takeIf { it != action })
+            state.copy(
+                directActions = state.directActions.filter { it != action },
+                enterAction = state.enterAction.takeIf { it != action },
+                guessedAction = state.guessedAction.takeIf { it != action }
+            )
         }
     }
 

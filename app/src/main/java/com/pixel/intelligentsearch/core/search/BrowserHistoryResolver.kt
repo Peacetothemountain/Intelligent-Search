@@ -115,8 +115,21 @@ object BrowserHistoryResolver {
             customTemplate,
             isInstalled = { pkg -> pm.getLaunchIntentForPackage(pkg) != null },
             defaultBrowser = { defaultBrowser(pm) }
-        )
+        ).also { last = Remembered(searchEngine, customTemplate, it) }
     }
+
+    /** The last answer from [forContext] and the settings it was for. */
+    private class Remembered(val searchEngine: String, val customTemplate: String, val destination: Destination)
+
+    @Volatile private var last: Remembered? = null
+
+    /**
+     * The destination last found for [searchEngine] and [customTemplate], if any, to show while it is looked up again:
+     * the Settings page coming back (a back swipe hands over from its picture of the page) then shows the same words
+     * it showed before, instead of a placeholder that changes a moment later.
+     */
+    fun lastFound(searchEngine: String, customTemplate: String): Destination? =
+        last?.takeIf { it.searchEngine == searchEngine && it.customTemplate == customTemplate }?.destination
 
     /** The default browser's package and label, or null when none is set (the chooser would appear). */
     private fun defaultBrowser(pm: PackageManager): Pair<String, String>? {

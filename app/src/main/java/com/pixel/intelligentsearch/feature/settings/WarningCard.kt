@@ -1,9 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,14 +18,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Constraints
+import com.pixel.intelligentsearch.core.ui.wholeWords
 import androidx.compose.ui.unit.dp
 
 /**
  * The app's warning card: an amber warning icon, a title and what will happen, then "Don't show this again" on the far
- * left and Discard and the accept button on the right. Widget Customization's unsaved-changes card, Max Quick Panel
+ * left and Discard and the accept button on the right, on lines of their own where they don't fit side by side
+ * ([WarningCardButtons]). Widget Customization's unsaved-changes card, Max Quick Panel
  * Apps' remove-apps card and Manage Hidden Apps' unsaved-changes card all use it, so they look and read alike.
  *
  * [onDontShowAgain] is the caller's to define (it should also remember the choice); [onDismissRequest] is a tap
@@ -72,22 +73,18 @@ internal fun WarningCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(24.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    TextButton(onClick = onDontShowAgain, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                        Text(
-                            text = "Don't show this again",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                WarningCardButtons(
+                    dontShowAgain = {
+                        TextButton(onClick = onDontShowAgain, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                            Text(
+                                text = "Don't show this again",
+                                // At the largest text it may need two lines: they break between words.
+                                style = MaterialTheme.typography.labelMedium.wholeWords(),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
+                    discard = {
                         TextButton(onClick = onDiscard, contentPadding = PaddingValues(horizontal = 8.dp)) {
                             Text(
                                 text = "Discard",
@@ -95,6 +92,8 @@ internal fun WarningCard(
                                 color = MaterialTheme.colorScheme.error
                             )
                         }
+                    },
+                    accept = {
                         Button(
                             onClick = onAccept,
                             shape = RoundedCornerShape(20.dp),
@@ -107,7 +106,63 @@ internal fun WarningCard(
                             Text(text = acceptLabel, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                         }
                     }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * [WarningCard]'s three buttons, each label kept whole on one line. They share a row ([dontShowAgain] at the start,
+ * [discard] and [accept] at the end) where they fit at their full width; otherwise Discard and the accept button keep
+ * their row and "Don't show this again" moves to a line under them; and where even those two don't fit, as at the
+ * largest text sizes, each button gets a line of its own at the end, the accept button on top. A button is never
+ * squeezed into what the others leave, which turned "Save" into one letter per line.
+ */
+@Composable
+private fun WarningCardButtons(
+    dontShowAgain: @Composable () -> Unit,
+    discard: @Composable () -> Unit,
+    accept: @Composable () -> Unit
+) {
+    Layout(
+        contents = listOf(dontShowAgain, discard, accept),
+        modifier = Modifier.fillMaxWidth()
+    ) { (dontShowAgainMeasurables, discardMeasurables, acceptMeasurables), constraints ->
+        val width = constraints.maxWidth
+        val gap = 8.dp.roundToPx()
+        val lineGap = 4.dp.roundToPx()
+        val dontShow = dontShowAgainMeasurables.single()
+        val discardButton = discardMeasurables.single()
+        val acceptButton = acceptMeasurables.single()
+        // Each button's width with its label on one line.
+        val dontShowWidth = dontShow.maxIntrinsicWidth(Constraints.Infinity)
+        val pairWidth = discardButton.maxIntrinsicWidth(Constraints.Infinity) + gap + acceptButton.maxIntrinsicWidth(Constraints.Infinity)
+        val loose = Constraints(maxWidth = width)
+        val d = dontShow.measure(loose)
+        val x = discardButton.measure(loose)
+        val a = acceptButton.measure(loose)
+        when {
+            dontShowWidth + gap + pairWidth <= width -> {
+                val height = maxOf(d.height, x.height, a.height)
+                layout(width, height) {
+                    d.placeRelative(0, (height - d.height) / 2)
+                    a.placeRelative(width - a.width, (height - a.height) / 2)
+                    x.placeRelative(width - a.width - gap - x.width, (height - x.height) / 2)
                 }
+            }
+            pairWidth <= width -> {
+                val pairHeight = maxOf(x.height, a.height)
+                layout(width, pairHeight + lineGap + d.height) {
+                    a.placeRelative(width - a.width, (pairHeight - a.height) / 2)
+                    x.placeRelative(width - a.width - gap - x.width, (pairHeight - x.height) / 2)
+                    d.placeRelative(0, pairHeight + lineGap)
+                }
+            }
+            else -> layout(width, a.height + x.height + d.height + 2 * lineGap) {
+                a.placeRelative(width - a.width, 0)
+                x.placeRelative(width - x.width, a.height + lineGap)
+                d.placeRelative(width - d.width, a.height + x.height + 2 * lineGap)
             }
         }
     }

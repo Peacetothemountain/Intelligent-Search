@@ -74,6 +74,22 @@ internal fun AndroidSettingRow(result: AndroidSettingResult, modifier: Modifier 
 
 /** The Material Symbols icon for a catalogue page's icon type. */
 internal fun androidSettingIcon(iconType: String): ImageVector = when (iconType) {
+    // The app's own pages (AppSettingsCatalog), with the icons its settings list shows them by.
+    "is_appearance" -> Icons.Outlined.Palette
+    "is_sources" -> Icons.Outlined.ZoomIn
+    "is_behavior" -> Icons.Outlined.Tune
+    "is_widget" -> Icons.Outlined.Widgets
+    "is_launch" -> Icons.Outlined.RocketLaunch
+    "is_apps" -> Icons.Outlined.Apps
+    "is_pills" -> Icons.Outlined.AppRegistration
+    "is_hidden" -> Icons.Outlined.VisibilityOff
+    "is_web" -> Icons.Outlined.TravelExplore
+    "is_contacts" -> Icons.Outlined.Contacts
+    "is_files" -> Icons.Outlined.FolderOpen
+    "is_icons" -> Icons.Outlined.Interests
+    "is_backup" -> Icons.Outlined.Shield
+    "is_ai" -> Icons.Outlined.AutoAwesome
+    "is_setup" -> Icons.Outlined.Checklist
     "wifi" -> Icons.Outlined.Wifi
     "network" -> Icons.Outlined.Language
     "mobile_network" -> Icons.Outlined.SignalCellularAlt

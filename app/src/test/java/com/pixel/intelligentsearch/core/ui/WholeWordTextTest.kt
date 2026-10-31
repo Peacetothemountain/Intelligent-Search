@@ -1,0 +1,89 @@
+package com.pixel.intelligentsearch.core.ui
+
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.GraphicsMode
+
+/**
+ * Short labels at the largest text sizes: they wrap between words, and a word too wide for its room shrinks until it
+ * fits rather than splitting mid-word ("Definitio/ns").
+ */
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+class WholeWordTextTest {
+
+    @get:Rule val compose = createComposeRule()
+
+    private fun layoutOf(text: String): TextLayoutResult {
+        val results = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText(text).fetchSemanticsNode().config
+            .getOrNull(SemanticsActions.GetTextLayoutResult)?.action?.invoke(results)
+        return results.single()
+    }
+
+    /** How tall [layout]'s first line is: it follows the size the text was drawn at. */
+    private fun lineHeight(layout: TextLayoutResult) = layout.getLineBottom(0) - layout.getLineTop(0)
+
+    @Test
+    fun aWordTooWideForItsRoomShrinksInsteadOfSplitting() {
+        compose.setContent {
+            Column {
+                Box(Modifier.width(110.dp)) { WholeWordText("More Definitions", TextStyle(fontSize = 32.sp)) }
+                Box(Modifier.width(600.dp)) { WholeWordText("Full Definitions", TextStyle(fontSize = 32.sp)) }
+            }
+        }
+        compose.waitForIdle()
+        val narrow = layoutOf("More Definitions")
+        assertFalse("a word was split", splitsAWord("More Definitions", narrow))
+        assertTrue("it shrank to fit", lineHeight(narrow) < lineHeight(layoutOf("Full Definitions")))
+    }
+
+    @Test
+    fun wordsThatFitKeepTheirSizeAndWrapBetweenWords() {
+        compose.setContent {
+            Column {
+                Box(Modifier.width(160.dp)) { WholeWordText("Open Digital Wellbeing", TextStyle(fontSize = 16.sp)) }
+                Box(Modifier.width(600.dp)) { WholeWordText("Open Wellbeing", TextStyle(fontSize = 16.sp)) }
+            }
+        }
+        compose.waitForIdle()
+        val wrapped = layoutOf("Open Digital Wellbeing")
+        assertFalse(splitsAWord("Open Digital Wellbeing", wrapped))
+        assertEquals(lineHeight(layoutOf("Open Wellbeing")), lineHeight(wrapped), 0.5f)
+    }
+
+    @Test
+    fun moreRoomBringsAShrunkLabelBackToFullSize() {
+        var width by mutableStateOf(110.dp)
+        compose.setContent {
+            Box(Modifier.width(width)) { WholeWordText("More Definitions", TextStyle(fontSize = 32.sp)) }
+        }
+        compose.waitForIdle()
+        val shrunk = lineHeight(layoutOf("More Definitions"))
+
+        // A rotation or a wider split-screen window.
+        width = 600.dp
+        compose.waitForIdle()
+        assertTrue("it grew back", lineHeight(layoutOf("More Definitions")) > shrunk)
+    }
+}

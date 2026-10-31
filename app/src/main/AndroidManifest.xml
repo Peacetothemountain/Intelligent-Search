@@ -12,9 +12,11 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
-    
+    <!-- Set Timer and Set Alarm: the Clock app only takes a timer or an alarm to confirm from apps that declare this.
+         Granted at install; the Clock still opens for the user to confirm each one. -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+
     <!-- System Toggles & Hardware Permissions -->
-    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" tools:ignore="ProtectedPermissions" />
@@ -24,14 +26,19 @@
     <!-- Search Data Source Permissions -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <!-- Direct Call: tapping a contact places the call. Asked for only when the switch is turned on; without it the
+         dialer opens with the number ready. -->
+    <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Weather answers for "here", only if the user picks Use Approximate Location; asked for when turned on. Never precise. -->
+    <!-- Weather answers for "here", only if the user taps Use Approximate Location on the weather card; asked for then. Never precise. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- Optional Hardware Features to Support Maximum Devices on Google Play -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- Phone calls would otherwise make Play hide the app from tablets without phone service. -->
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
@@ -226,6 +233,13 @@
                 <action android:name="com.google.android.apps.nexuslauncher.SEARCH" />
                 <action android:name="com.android.launcher3.action.SEARCH" />
                 <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <!-- An app row in Android's own search (GlobalSearchProvider) opens that app through here. It only ever opens
+                 the app's launcher screen, which any app may open. -->
+            <intent-filter>
+                <action android:name="com.pixel.intelligentsearch.action.OPEN_APP" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="package" />
             </intent-filter>
             <meta-data
                 android:name="android.app.searchable"
@@ -452,9 +466,9 @@
             android:exported="true">
         </service>
 
-        <!-- The app's one notification listener, so one Notification Access grant covers Search Your Notifications
+        <!-- The app's one notification listener, so one Notification Access grant covers notification search
              (and At a Glance's timers) and At a Glance's Media Controls. Reads notifications into memory only while
-             Search Your Notifications is on, and unbinds itself while it is off. See NotificationAccessListener for
+             the user grants Notification Access, and forgets them once it's turned off. See NotificationAccessListener for
              the Play policy justification. -->
         <service
             android:name=".core.glance.NotificationAccessListener"
@@ -479,6 +493,20 @@
                 <action android:name="android.app.appfunctions.AppFunctionService" />
             </intent-filter>
         </service>
+
+        <!-- WorkManager starts when the app first asks for it (App is its Configuration.Provider), not with the
+             process: a process Android starts while the phone is still locked after a reboot (the assistant, the
+             widgets) can't open WorkManager's storage yet, and its start-up check then crashed the app. -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
 
         <provider
             android:name="com.pixel.intelligentsearch.core.data.GlobalSearchProvider"

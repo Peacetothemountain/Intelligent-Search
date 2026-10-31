@@ -53,7 +53,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
             topBar = {
                 TopAppBar(
                     colors = settingsTopBarColors(),
-                    title = { Text("Search Sources", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
+                    title = { SettingsPageTitle("Search Sources") },
                     navigationIcon = {
                         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                     }

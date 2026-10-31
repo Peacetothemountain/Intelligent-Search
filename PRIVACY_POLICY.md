@@ -63,8 +63,8 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Processing & Security**: Intelligent Search records nothing itself and stores no audio. Speech is turned into text by your device's speech recognizer. The on-device recognizer is used when available; on devices without one, Android's speech recognition service (for example Google's) handles the audio under its own privacy policy.
 * **User Control**: The microphone permission is requested at runtime and can be revoked in Android System Settings.
 
-### I. Bluetooth & Secure Settings (`BLUETOOTH_CONNECT`, `WRITE_SECURE_SETTINGS`)
-* **Purpose**: `BLUETOOTH_CONNECT` lets the Bluetooth quick toggle show and change Bluetooth state. `WRITE_SECURE_SETTINGS` cannot be granted by installing the app; it only works if you grant it yourself over ADB, and is then used only to register Intelligent Search as the device's search engine choice.
+### I. Secure Settings (`WRITE_SECURE_SETTINGS`)
+* **Purpose**: `WRITE_SECURE_SETTINGS` cannot be granted by installing the app; it only works if you grant it yourself over ADB, and is then used only to register Intelligent Search as the device's search engine choice. (The Bluetooth quick toggle needs no permission: it shows whether Bluetooth is on and opens Bluetooth settings to change it.)
 * **Processing & Security**: Read and applied locally only when you use these features.
 
 ### J. Approximate Location (`android.permission.ACCESS_COARSE_LOCATION`)

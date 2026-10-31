@@ -62,7 +62,6 @@ data class IntelligentSearchSettings(
     val hiddenApps: Set<String> = SettingsManager.HIDDEN_APPS.default,
     val appQuickLaunch: Boolean = SettingsManager.APP_QUICK_LAUNCH.default,
     val contactDirectCall: Boolean = SettingsManager.CONTACT_DIRECT_CALL.default,
-    val shortcutInline: Boolean = SettingsManager.SHORTCUT_INLINE.default,
     val appFuzzySearch: Boolean = SettingsManager.APP_FUZZY_SEARCH.default,
     val quickSearchHorizontal: Boolean = SettingsManager.QUICK_SEARCH_HORIZONTAL.default,
     val webResultsCount: Int = SettingsManager.WEB_RESULTS_COUNT.default,
@@ -78,8 +77,6 @@ data class IntelligentSearchSettings(
     val searchPreviousSearches: Boolean = SettingsManager.SEARCH_PREVIOUS_SEARCHES.default,
     val customBangsJson: String = SettingsManager.CUSTOM_BANGS_JSON.default,
     val webShortcutTriggerSymbol: String = SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL.default,
-    val adaptiveIconShape: String = SettingsManager.ADAPTIVE_ICON_SHAPE.default,
-    val dynamicIconMasking: Boolean = SettingsManager.DYNAMIC_ICON_MASKING.default,
     val matrixAnimationEnabled: Boolean = SettingsManager.MATRIX_ANIMATION_ENABLED.default,
     val backToSearchOverlay: Boolean = SettingsManager.BACK_TO_SEARCH_OVERLAY.default,
     val disabledWebShortcuts: Set<String> = SettingsManager.DISABLED_WEB_SHORTCUTS.default,
@@ -166,7 +163,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val HIDDEN_APPS = StringSetSetting("hidden_apps", emptySet())
         val APP_QUICK_LAUNCH = BooleanSetting("app_quick_launch", false)
         val CONTACT_DIRECT_CALL = BooleanSetting("contact_direct_call", false, "contact.direct.call")
-        val SHORTCUT_INLINE = BooleanSetting("shortcut.inline", true, "shortcut_inline")
         val APP_FUZZY_SEARCH = BooleanSetting("app.fuzzy.search", true, "app_fuzzy_search")
         /** The overlay's quick-app panel; switched from Search Behavior and from App & Shortcut Search. */
         val QUICK_SEARCH_HORIZONTAL = BooleanSetting("quick_search_horizontal", false, "quick.search.horizontal")
@@ -194,8 +190,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val WEB_SHORTCUT_TRIGGER_SYMBOL = StringSetting("web_shortcut_trigger_symbol", "!")
         val SEARCH_QUICK_SHORTCUTS = BooleanSetting("search_quick_shortcuts", true)
         val SHOW_AVAILABLE_DIRECT_SHORTCUTS = BooleanSetting("search_show_available_direct_shortcuts", true)
-        val ADAPTIVE_ICON_SHAPE = StringSetting("adaptive_icon_shape", "SYSTEM_DEFAULT")
-        val DYNAMIC_ICON_MASKING = BooleanSetting("dynamic_icon_masking", true)
         val DIAGNOSTICS_OVERLAY_ENABLED = BooleanSetting("diagnostics_overlay_enabled", false)
         val MATRIX_ANIMATION_ENABLED = BooleanSetting("matrix_animation_enabled", true)
         /** "Don't show again" on the card warning that a lower Max Quick Panel Apps removes chosen apps. */
@@ -289,14 +283,14 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             BOTTOM_SEARCH, BOTTOM_SEARCH_RESULT, TUTORIAL_COMPLETED, FORCE_TUTORIAL, TUTORIAL_STEP, G_ICON_ENABLED,
             WIDGET_SHOW_VOICE, WIDGET_SHOW_GEMINI, QUICK_SEARCH_YOUTUBE, QUICK_SEARCH_WIKIPEDIA,
             QUICK_SEARCH_PLAY_STORE, QUICK_SEARCH_MAPS, SEARCH_PILLS, WIDGET_THEME_STYLE, HIDDEN_APPS,
-            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, SHORTCUT_INLINE, APP_FUZZY_SEARCH,
+            APP_QUICK_LAUNCH, CONTACT_DIRECT_CALL, APP_FUZZY_SEARCH,
             QUICK_SEARCH_HORIZONTAL, WEB_RESULTS_COUNT, CONTACT_RESULTS_COUNT, FILE_RESULTS_COUNT,
             SHORTCUT_RESULTS_COUNT, SEARCH_WEIGHT_APPS, SEARCH_WEIGHT_CONTACTS, SEARCH_WEIGHT_FILES,
             SEARCH_WEIGHT_WEB, CONTEXT_AWARE_QUICK_APPS, SMART_CLIPBOARD_SUGGESTIONS, ASSISTANT_STARTS_WITH_VOICE,
             ACTIVE_ICON_PACK,
             SEARCH_OVERLAY_ENABLED, CUSTOM_ICON_PILLS, NEVER_SHOW_ICON_PACK_WARNING, CUSTOM_BANGS_JSON,
             WEB_SHORTCUT_TRIGGER_SYMBOL, SEARCH_QUICK_SHORTCUTS, SHOW_AVAILABLE_DIRECT_SHORTCUTS,
-            ADAPTIVE_ICON_SHAPE, DYNAMIC_ICON_MASKING, DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
+            DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
             QUICK_PANEL_TRIM_WARNING_DISMISSED, HIDDEN_APPS_UNSAVED_WARNING_DISMISSED,
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, OVERLAY_SHOW_MIC, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
             SHOW_KEYBOARD_ON_OPEN,
@@ -334,8 +328,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * favourite apps and media rows (removed; the Quick App Panel opens favourite apps), At a Glance's battery and
          * Enter Key Action (removed), and the switches folded into others: Dictionary and Weather Answers and Use
          * Approximate Location (Web Suggestions and the weather card decide now), Contact Actions and File Types, and
-         * the Calendar, Notifications and Android Settings sources (Android's permissions decide). A value an older
-         * build stored is dropped at every start, and backups never restore one.
+         * the Calendar, Notifications and Android Settings sources (Android's permissions decide), App Animations, and
+         * the switchless icon shape, icon masking and inline Lens, Voice and Assistant rows. A value an older build
+         * stored is dropped at every start, and backups never restore one.
          */
         val REMOVED_NAMES: Set<String> = setOf(
             "search_from_selected_text", "glance.codes", "on_device_translation", "saved_links_json",
@@ -357,7 +352,10 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             // now (the calendar, notification access) or is always on (Android Settings pages).
             "search.calendar", "search_calendar", "search.notifications", "search.android.settings",
             // App Animations, removed: apps opened from search always grow out of their icon.
-            "app_animations", "app.animation"
+            "app_animations", "app.animation",
+            // An icon shape and icon masking no screen ever offered or read, and the switch for the Lens, Voice and
+            // Assistant rows under results, which had no place in settings: the rows always show.
+            "adaptive_icon_shape", "dynamic_icon_masking", "shortcut.inline", "shortcut_inline"
         )
 
         /**
@@ -466,7 +464,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         hiddenApps = sp[HIDDEN_APPS],
         appQuickLaunch = sp[APP_QUICK_LAUNCH],
         contactDirectCall = sp[CONTACT_DIRECT_CALL],
-        shortcutInline = sp[SHORTCUT_INLINE],
         appFuzzySearch = sp[APP_FUZZY_SEARCH],
         quickSearchHorizontal = sp[QUICK_SEARCH_HORIZONTAL],
         webResultsCount = sp[WEB_RESULTS_COUNT],
@@ -482,8 +479,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         searchPreviousSearches = sp[SEARCH_PREVIOUS_SEARCHES],
         customBangsJson = sp[CUSTOM_BANGS_JSON],
         webShortcutTriggerSymbol = sp[WEB_SHORTCUT_TRIGGER_SYMBOL],
-        adaptiveIconShape = sp[ADAPTIVE_ICON_SHAPE],
-        dynamicIconMasking = sp[DYNAMIC_ICON_MASKING],
         matrixAnimationEnabled = sp[MATRIX_ANIMATION_ENABLED],
         backToSearchOverlay = sp[BACK_TO_SEARCH_OVERLAY],
         disabledWebShortcuts = sp[DISABLED_WEB_SHORTCUTS],

@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -16,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.pixel.intelligentsearch.core.data.ContactItem
+import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -102,17 +104,36 @@ internal object ContactActions {
 
     fun callIntent(number: String): Intent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", number, null))
 
+    /** Places the call to [number] at once, for Direct Call. Only opens once the user has allowed phone calls. */
+    fun directCallIntent(number: String): Intent = Intent(Intent.ACTION_CALL, Uri.fromParts("tel", number, null))
+
+    /** Whether Direct Call may place calls itself; without it, the dialer opens with the number ready. */
+    fun canCallDirectly(context: Context): Boolean =
+        context.checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
+
     /**
-     * What tapping [contact] itself opens: the dialler with its number when [directCall] is on (the Direct Call
-     * setting) or when it has no card to show, else its card in Contacts, else the Contacts app. Numbers go through
-     * [callIntent], so "*86#" reaches the dialler whole instead of being cut at the "#".
+     * What tapping [contact] itself opens: with [directCall] on (the Direct Call setting), the call itself when
+     * [callAllowed] (the user allowed phone calls), else the dialer with its number; with it off, its card in
+     * Contacts, the dialer when it has no card, else the Contacts app. Numbers go through [callIntent] and
+     * [directCallIntent], so "*86#" reaches the dialer whole instead of being cut at the "#".
      */
-    fun openIntent(contact: ContactItem, directCall: Boolean): Intent = when {
-        directCall && contact.phoneNumber.isNotBlank() -> callIntent(contact.phoneNumber)
+    fun openIntent(contact: ContactItem, directCall: Boolean, callAllowed: Boolean = false): Intent = when {
+        directCall && contact.phoneNumber.isNotBlank() ->
+            if (callAllowed) directCallIntent(contact.phoneNumber) else callIntent(contact.phoneNumber)
         // Contacts reads the lookup URI with its own permission; no grant needed.
         contact.lookupUri.isNotBlank() -> Intent(Intent.ACTION_VIEW, contact.lookupUri.toUri())
         contact.phoneNumber.isNotBlank() -> callIntent(contact.phoneNumber)
         else -> Intent(Intent.ACTION_VIEW, android.provider.ContactsContract.Contacts.CONTENT_URI)
+    }
+
+    /**
+     * Opens [contact] as tapping it does ([openIntent]), placing the call when Direct Call is on and phone calls are
+     * allowed. A call that can't be placed (a tablet with no phone service, say) opens the dialer instead.
+     */
+    fun open(context: Context, contact: ContactItem, directCall: Boolean): Boolean {
+        val intent = openIntent(contact, directCall, callAllowed = directCall && canCallDirectly(context))
+        return launchSafeIntent(context, intent) ||
+            (intent.action == Intent.ACTION_CALL && launchSafeIntent(context, callIntent(contact.phoneNumber)))
     }
 
     fun messageIntent(number: String): Intent = Intent(Intent.ACTION_SENDTO, Uri.fromParts("smsto", number, null))

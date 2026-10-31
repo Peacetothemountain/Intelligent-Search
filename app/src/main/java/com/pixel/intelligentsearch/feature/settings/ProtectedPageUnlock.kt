@@ -5,6 +5,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import android.os.Build
 import android.os.SystemClock
+import android.view.View
 import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -35,7 +36,8 @@ private const val RELOCK_AFTER_MS = 30_000L
  * once via [onBack]. Devices without a screen
  * lock can't prompt, so the page opens directly.
  *
- * While the page is on screen its window blocks screenshots, screen recording and the Recents thumbnail. If
+ * While the page is on screen its window blocks screenshots, screen recording and the Recents thumbnail, and (Android
+ * 14 and up) accessibility services other than assistive tools can't read it. If
  * the app is left for more than [RELOCK_AFTER_MS], the content is hidden and the prompt shown again on return.
  * Activity results (a file picked for export) arrive before that check, so a picker round-trip completes first.
  *
@@ -62,10 +64,17 @@ fun rememberProtectedPageUnlock(
         // auto-granted permission; if it were ever missing the page must still open.
         runCatching { activity?.window?.setHideOverlayWindows(true) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) activity?.setRecentsScreenshotEnabled(false)
+        // Only accessibility services that are tools for people with disabilities (screen readers, Switch Access)
+        // may read or act on the page; others, which can read any screen, see nothing of it. Android 14 and up; a
+        // window already marked so (by a page underneath) is left as it is.
+        val root = activity?.window?.decorView
+        val markedHere = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && root != null && !root.isAccessibilityDataSensitive
+        if (markedHere) root?.setAccessibilityDataSensitive(View.ACCESSIBILITY_DATA_SENSITIVE_YES)
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
             runCatching { activity?.window?.setHideOverlayWindows(false) }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) activity?.setRecentsScreenshotEnabled(true)
+            if (markedHere) root?.setAccessibilityDataSensitive(View.ACCESSIBILITY_DATA_SENSITIVE_AUTO)
         }
     }
 

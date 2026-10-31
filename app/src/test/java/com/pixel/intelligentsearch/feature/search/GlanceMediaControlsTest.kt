@@ -11,7 +11,9 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
@@ -90,6 +92,15 @@ class GlanceMediaControlsTest {
         compose.onNodeWithContentDescription("Pause").performClick()
         compose.onNodeWithContentDescription("Next Track").performClick()
         assertEquals(listOf("previous", "pause", "next"), controls.calls)
+    }
+
+    @Test
+    fun thePillSits8dpUnderTheTimes() {
+        show(media(RecordingControls()))
+        val timesBottom = compose.onNodeWithText("0:50", useUnmergedTree = true).getBoundsInRoot().bottom
+        // The tag sits inside the pill's own 2dp of vertical padding, so its edge is 2dp under the pill's.
+        val pillTop = compose.onNodeWithTag(GLANCE_TRANSPORT_TAG).getBoundsInRoot().top - 2.dp
+        assertEquals(8f, (pillTop - timesBottom).value, 0.5f)
     }
 
     @Test

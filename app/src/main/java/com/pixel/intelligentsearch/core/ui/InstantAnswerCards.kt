@@ -7,7 +7,6 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,8 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -45,6 +42,7 @@ import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.AssistChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,6 +52,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
@@ -64,9 +63,16 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.isSpecified
 import com.pixel.intelligentsearch.core.answers.DictionaryEntry
 import com.pixel.intelligentsearch.core.answers.ForecastDay
 import com.pixel.intelligentsearch.core.answers.LiveAnswer
@@ -120,11 +126,9 @@ internal fun AnswerHeader(icon: ImageVector, label: String, title: String, subti
                 letterSpacing = 0.8.sp
             )
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
+            WholeWordText(
                 text = title,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = scheme.onSurface,
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, color = scheme.onSurface),
                 modifier = Modifier.semantics { heading() }
             )
             if (subtitle != null) {
@@ -161,7 +165,9 @@ internal fun AnswerChip(label: String, icon: ImageVector, emphasized: Boolean = 
     AssistChip(
         onClick = onClick,
         // The padding keeps a label that wraps (large text, narrow screen) off the chip's edges; one line stays 32dp.
-        label = { Text(label, fontWeight = FontWeight.Medium, modifier = Modifier.padding(vertical = 6.dp)) },
+        label = {
+            WholeWordText(label, style = LocalTextStyle.current.copy(fontWeight = FontWeight.Medium), modifier = Modifier.padding(vertical = 6.dp))
+        },
         leadingIcon = { Icon(imageVector = icon, contentDescription = null, modifier = Modifier.size(16.dp)) },
         // The same pill as the other cards' chips at one line; a chip grown taller keeps rounded corners rather
         // than becoming a circle that cuts its label off.
@@ -175,6 +181,66 @@ internal fun AnswerChip(label: String, icon: ImageVector, emphasized: Boolean = 
     )
 }
 
+/**
+ * [this] breaking lines only between words, with no hyphen and no rebalancing, so a short label ("Open Digital
+ * Wellbeing", an app's name) doesn't come out as "Wellbe-ing" at large text sizes, where the theme hyphenates.
+ */
+internal fun TextStyle.wholeWords(): TextStyle = copy(hyphens = Hyphens.None, lineBreak = LineBreak.Simple)
+
+/** The smallest share of its size [WholeWordText] shrinks to before it lets a word break after all. */
+private const val WHOLE_WORD_MIN_SCALE = 0.6f
+
+/**
+ * [text] in [style] wrapping only between words ([wholeWords]); a single word too wide for its room even on a line
+ * of its own ("Definitions" in a chip at the largest text size on a narrow phone) shrinks the text step by step
+ * until it fits, rather than splitting mid-word. The size is chosen while measuring, for the room actually given
+ * ([WholeWordAutoSize]), so it follows every width it's laid out at (a rotation, a resized window).
+ */
+@Composable
+internal fun WholeWordText(
+    text: String,
+    style: TextStyle,
+    modifier: Modifier = Modifier,
+    onTextLayout: ((androidx.compose.ui.text.TextLayoutResult) -> Unit)? = null
+) {
+    val base = style.wholeWords()
+    Text(
+        text = text,
+        style = base,
+        modifier = modifier,
+        onTextLayout = onTextLayout,
+        autoSize = if (base.fontSize.isSpecified) remember(base.fontSize) { WholeWordAutoSize(base.fontSize) } else null
+    )
+}
+
+/**
+ * [full] size, or 10% steps smaller (down to [WHOLE_WORD_MIN_SCALE] of it) until no line breaks inside a word.
+ */
+private class WholeWordAutoSize(private val full: androidx.compose.ui.unit.TextUnit) : androidx.compose.foundation.text.TextAutoSize {
+    override fun androidx.compose.foundation.text.modifiers.TextAutoSizeLayoutScope.getFontSize(
+        constraints: Constraints,
+        text: androidx.compose.ui.text.AnnotatedString
+    ): androidx.compose.ui.unit.TextUnit {
+        var scale = 1f
+        while (scale > WHOLE_WORD_MIN_SCALE) {
+            if (!splitsAWord(text.text, performLayout(constraints, text, full * scale))) return full * scale
+            scale = (scale * 0.9f).coerceAtLeast(WHOLE_WORD_MIN_SCALE)
+        }
+        return full * WHOLE_WORD_MIN_SCALE
+    }
+
+    override fun equals(other: Any?): Boolean = other is WholeWordAutoSize && other.full == full
+
+    override fun hashCode(): Int = full.hashCode()
+}
+
+/** Whether [layout] breaks a line inside a word of [text] rather than at a space. */
+internal fun splitsAWord(text: String, layout: androidx.compose.ui.text.TextLayoutResult): Boolean =
+    (0 until layout.lineCount - 1).any { line ->
+        val end = layout.getLineEnd(line)
+        end in 1 until text.length && !text[end - 1].isWhitespace() && !text[end].isWhitespace()
+    }
+
 /** A row of chips that flows onto a second line on narrow screens and at large text sizes. */
 @Composable
 internal fun AnswerChips(content: @Composable () -> Unit) {
@@ -182,7 +248,9 @@ internal fun AnswerChips(content: @Composable () -> Unit) {
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        // A chip's touch area is already 48dp around its 32dp pill, so wrapped rows need no gap of their own: they
+        // sit 16dp apart, as far as the chips are from the text above.
+        verticalArrangement = Arrangement.Top,
         itemVerticalAlignment = Alignment.CenterVertically
     ) { content() }
 }
@@ -347,23 +415,21 @@ fun WeatherOneBox(
         }
         if (report.hours.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
-            // Scrolls sideways when six hours don't fit (narrow screens, large text) rather than squeezing them.
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+            // Six hours in a row, each 56dp wide where there's room; when they don't fit even at their own width
+            // (large text) they wrap into even rows of three or two, so every hour shows whole rather than cut off at
+            // the card's edge.
+            EvenRows(modifier = Modifier.fillMaxWidth(), minSlot = 56.dp, rowGap = 8.dp) {
                 report.hours.forEach { hour ->
                     val time = hour.time.format(hourFormat)
                     Column(
                         modifier = Modifier
-                            .widthIn(min = 52.dp)
                             .padding(horizontal = 2.dp)
                             .semantics(mergeDescendants = true) {
                                 contentDescription = "$time, ${degrees(hour.temperature)}, ${WeatherCodes.describe(hour.code)}"
                             },
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(text = time, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+                        Text(text = time, style = MaterialTheme.typography.labelMedium.wholeWords(), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                         Spacer(modifier = Modifier.height(4.dp))
                         Icon(
                             imageVector = weatherIcon(hour.code, hour.isDay),
@@ -498,10 +564,9 @@ fun ScreenTimeOneBox(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         itemVerticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(
+                        WholeWordText(
                             text = app.label,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            style = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
                             modifier = Modifier.padding(end = 8.dp)
                         )
                         Text(text = duration, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -558,6 +623,37 @@ private fun ScreenTimeAppIcon(packageName: String, label: String) {
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+/**
+ * [content]'s items side by side in slots as wide as the widest (and [minSlot] while all of them fit at that), spread
+ * across the width like [Arrangement.SpaceBetween]. When they don't all fit they wrap into rows of an even count (six
+ * as three and three, or as pairs), so the columns line up and no row is left with one stray item. Rows are [rowGap]
+ * apart.
+ */
+@Composable
+private fun EvenRows(modifier: Modifier = Modifier, minSlot: Dp, rowGap: Dp, content: @Composable () -> Unit) {
+    Layout(content = content, modifier = modifier) { measurables, constraints ->
+        if (measurables.isEmpty()) return@Layout layout(constraints.minWidth, 0) {}
+        val widths = measurables.map { it.maxIntrinsicWidth(Constraints.Infinity) }
+        val total = if (constraints.hasBoundedWidth) constraints.maxWidth else widths.sum()
+        val roomy = minOf(minSlot.roundToPx(), total / measurables.size)
+        val slot = maxOf(widths.max(), roomy).coerceIn(1, total.coerceAtLeast(1))
+        val fits = (total / slot).coerceIn(1, measurables.size)
+        val rows = (measurables.size + fits - 1) / fits
+        val perRow = (measurables.size + rows - 1) / rows
+        val placeables = measurables.map { it.measure(Constraints.fixedWidth(slot)) }.chunked(perRow)
+        val gap = if (perRow > 1) (total - perRow * slot) / (perRow - 1) else 0
+        val rowHeights = placeables.map { row -> row.maxOf { it.height } }
+        val gapPx = rowGap.roundToPx()
+        layout(total, rowHeights.sum() + gapPx * (rowHeights.size - 1)) {
+            var y = 0
+            placeables.forEachIndexed { r, row ->
+                row.forEachIndexed { i, placeable -> placeable.placeRelative(i * (slot + gap), y) }
+                y += rowHeights[r] + gapPx
+            }
         }
     }
 }

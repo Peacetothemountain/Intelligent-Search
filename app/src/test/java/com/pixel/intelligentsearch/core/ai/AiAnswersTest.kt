@@ -73,6 +73,11 @@ class AiAnswersTest {
         assertNull(answers.offerFor("?"))
         assertNull(answers.offerFor("ask"))
         assertEquals("why the sky is blue", AiAnswers.questionIn("Ask why the sky is blue"))
+        // Other languages' question marks ask too: full-width (Chinese, Japanese) and Arabic.
+        assertEquals("你好吗？", AiAnswers.questionIn("你好吗？"))
+        assertEquals(AiProvider.ANTHROPIC, answers.offerFor("これは何ですか？"))
+        assertEquals("كيف حالك؟", AiAnswers.questionIn("كيف حالك؟"))
+        assertNull(answers.offerFor("？"))
         // Offering never sends anything.
         assertTrue(transport.requests.isEmpty())
     }
@@ -209,5 +214,15 @@ class AiAnswersTest {
             assertTrue("cancelling didn't end the request", released.await(5, java.util.concurrent.TimeUnit.SECONDS))
             job.join()
         }
+    }
+
+    @Test
+    fun aProblemNamesThePageItsFixChipOpens() {
+        // The chip says "Open AI Answers", so the message points there too, not at Settings in general.
+        for (problem in AiProblem.entries.filter { it.settingsPage == "ai_answers" && it != AiProblem.OFF }) {
+            assertTrue(problem.message, problem.message.contains("in AI Answers"))
+            assertFalse(problem.message, problem.message.contains("Settings"))
+        }
+        assertEquals("Add your API key in AI Answers to ask.", AiProblem.NO_KEY.message)
     }
 }

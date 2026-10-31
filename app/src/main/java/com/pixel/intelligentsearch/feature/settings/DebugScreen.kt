@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.*
 
 import androidx.compose.ui.semantics.*
+import androidx.compose.ui.text.font.FontWeight
 
 import com.pixel.intelligentsearch.core.data.SettingsManager
 
@@ -29,7 +30,7 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: () -> Unit) {
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
-                title = { Text("Developer Settings") },
+                title = { SettingsPageTitle("Developer Settings", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Normal) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")

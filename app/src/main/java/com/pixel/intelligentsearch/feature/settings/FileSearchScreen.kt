@@ -175,7 +175,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     Scaffold(containerColor = Color.Transparent, topBar = {
             TopAppBar(
                 colors = settingsTopBarColors(),
-                title = { Text("File Search", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
+                title = { SettingsPageTitle("File Search") },
                 navigationIcon = {
                     IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }

@@ -21,6 +21,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import android.content.res.Configuration
+import com.pixel.intelligentsearch.core.theme.isDark
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -109,7 +117,7 @@ fun ShortcutRow(iconRes: Int, title: String, onClick: () -> Unit) {
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Image(painter = painterResource(id = iconRes), contentDescription = null, modifier = Modifier.size(24.dp))
+        Image(painter = themedPainterResource(iconRes), contentDescription = null, modifier = Modifier.size(24.dp))
         Spacer(modifier = Modifier.width(16.dp))
         Text(
             text = title,
@@ -119,4 +127,25 @@ fun ShortcutRow(iconRes: Int, title: String, onClick: () -> Unit) {
             fontFamily = GoogleSansFlex
         )
     }
+}
+
+/**
+ * [painterResource] resolved in the overlay's own light or dark, not the phone's. The shortcut icons' colors are
+ * night-qualified resources, so with App Theme set against the phone's mode they'd come out in the other theme's
+ * tones: dark blue on the dark overlay.
+ */
+@Composable
+private fun themedPainterResource(id: Int): Painter {
+    val dark = MaterialTheme.colorScheme.isDark
+    val context = LocalContext.current
+    val base = LocalConfiguration.current
+    val vector = remember(context, base, dark, id) {
+        val config = Configuration(base).apply {
+            uiMode = (uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or
+                (if (dark) Configuration.UI_MODE_NIGHT_YES else Configuration.UI_MODE_NIGHT_NO)
+        }
+        val themed = context.createConfigurationContext(config)
+        ImageVector.vectorResource(themed.theme, themed.resources, id)
+    }
+    return rememberVectorPainter(vector)
 }

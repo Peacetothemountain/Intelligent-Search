@@ -80,13 +80,14 @@ fun AiAnswersScreen(onBack: () -> Unit) {
             topBar = {
                 TopAppBar(
                     colors = settingsTopBarColors(),
-                    title = { Text("AI Answers", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.headlineSmall)) },
+                    title = { SettingsPageTitle("AI Answers") },
                     navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") } }
                 )
             }
         ) { padding ->
             CardsAboveMorphAnimation(morphAnimationEnabled = morphAnimationEnabled, modifier = Modifier.fillMaxSize().padding(padding)) {
                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    SettingsSectionHeader("Answers in Search")
                     SettingsCard {
                         SettingsRowToggle(
                             title = "AI Answers",

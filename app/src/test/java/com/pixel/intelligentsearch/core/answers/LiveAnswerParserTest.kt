@@ -89,6 +89,82 @@ class LiveAnswerParserTest {
     }
 
     @Test
+    fun weatherNearMeAndItsLikesAreTheForecastForHereNotAPlace() {
+        for (query in listOf(
+            "weather near me", "weather here", "weather outside", "weather around me", "weather in my area",
+            "weather at my location", "weather nearby", "nearby weather", "what's the weather like outside",
+            "weather around here", "whats the weather near me", "weather close to me", "weather at my current location"
+        )) {
+            assertEquals(query, Weather(null, ForecastDay.TODAY), parse(query))
+        }
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather near me tomorrow"))
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather tomorrow near me"))
+        assertEquals(Weather("london", ForecastDay.TODAY), parse("weather here in london"))
+    }
+
+    @Test
+    fun aClockTimeInAWeatherQuestionIsNoPlace() {
+        // Each was the weather for a place called "5pm", "noon", "3" or "boston at 3pm".
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather at 5pm"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather at noon"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather at 3"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather today at 5"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather tonight at 8"))
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather tomorrow at 3"))
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather tomorrow at 3pm"))
+        assertEquals(Weather("boston", ForecastDay.TODAY), parse("weather in boston at 3pm"))
+        assertEquals(Weather("paris", ForecastDay.TODAY), parse("weather in paris at 5pm"))
+        // A postcode is still a place.
+        assertEquals(Weather("37601", ForecastDay.TODAY), parse("weather 37601"))
+    }
+
+    @Test
+    fun whatIsDoneInALanguageIsNoWordToTranslate() {
+        // "Taught in english" was a translation of "taught".
+        for (query in listOf("taught in english", "written in english", "fluent in french", "spoken in spanish")) {
+            assertNull(query, parse(query))
+        }
+        assertEquals(Translate("hola", "en", null), parse("hola in english"))
+    }
+
+    @Test
+    fun weatherDayPartsAndScalesAreNotPlaces() {
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather tomorrow morning"))
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("weather for tomorrow"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather this evening"))
+        assertEquals(Weather("paris", ForecastDay.TOMORROW), parse("weather in paris tomorrow night"))
+        assertEquals(Weather(null, ForecastDay.TODAY, TemperatureUnit.CELSIUS), parse("weather in celsius"))
+        assertEquals(Weather(null, ForecastDay.TODAY, TemperatureUnit.CELSIUS), parse("weather celsius"))
+        assertEquals(Weather(null, ForecastDay.TODAY, TemperatureUnit.FAHRENHEIT), parse("weather in fahrenheit"))
+        assertEquals(Weather("paris", ForecastDay.TODAY, TemperatureUnit.CELSIUS), parse("weather in paris in celsius"))
+    }
+
+    @Test
+    fun aDayAfterThePlaceOrAPartOfTheDayIsNoPartOfThePlace() {
+        // These looked up places called "boston tomorrow" and "the morning", and "weather in nice" no place at all.
+        assertEquals(Weather("boston", ForecastDay.TOMORROW), parse("weather boston tomorrow"))
+        assertEquals(Weather("10001", ForecastDay.TOMORROW), parse("weather 10001 tomorrow"))
+        assertEquals(Weather("seattle", ForecastDay.TODAY), parse("weather seattle tonight"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather in the morning"))
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("weather at night"))
+        assertEquals(Weather("nice", ForecastDay.TODAY), parse("weather in nice"))
+        // "Nice weather" and "weather nice" are still no place.
+        assertNull(parse("nice weather"))
+        assertNull(parse("weather nice"))
+    }
+
+    @Test
+    fun weatherOverManyDaysStaysASearchRatherThanAPlace() {
+        // The card shows one day, so a stretch of days is left to the web search, as "weather 10 day" is.
+        for (query in listOf(
+            "weather 10 day forecast", "weather the weekend", "weather for the weekend", "weather next 7 days",
+            "weather this week", "weather in paris this weekend", "10 day weather forecast"
+        )) {
+            assertNull(query, parse(query))
+        }
+    }
+
+    @Test
     fun weatherThingsThatAreNotPlacesStaySearches() {
         for (query in listOf(
             "weather radar", "weather channel", "the weather channel", "weather app", "weather underground",
@@ -137,6 +213,99 @@ class LiveAnswerParserTest {
         assertNull(parse("translate"))
         assertNull(parse("translate english"))
         assertNull(parse("translate hello to klingon").let { it as? Translate }?.targetLanguage)
+    }
+
+    @Test
+    fun searchesForThingsInALanguageAreNotTranslations() {
+        for (query in listOf(
+            "harry potter in hindi", "songs in spanish", "movies in tamil", "learn python in english",
+            "news in hindi", "best places to eat in italian", "cartoons in french"
+        )) {
+            assertNull(query, parse(query))
+        }
+        // Asking for a translation in so many words still translates them.
+        assertEquals(Translate("harry potter", "hi", null), parse("translate harry potter to hindi"))
+        assertEquals(Translate("songs", "es", null), parse("what is songs in spanish"))
+        assertEquals(Translate("love", "hi", null), parse("love meaning in hindi"))
+        assertEquals(Translate("good morning", "es", null), parse("good morning in spanish"))
+        assertEquals(Translate("i love you", "ko", null), parse("i love you in korean"))
+    }
+
+    @Test
+    fun aLoneTitleOrNameInALanguageIsNotATranslation() {
+        // Each was offered as a Translate card.
+        for (query in listOf(
+            "avengers in hindi", "pushpa in hindi", "bahubali in tamil", "frozen in spanish", "netflix in korean",
+            "restaurants in turkish"
+        )) {
+            assertNull(query, parse(query))
+        }
+        // Everyday words still translate on their own, and any word does when asked for in so many words.
+        assertEquals(Translate("water", "hi", null), parse("water in hindi"))
+        assertEquals(Translate("beautiful", "es", null), parse("beautiful in spanish"))
+        assertEquals(Translate("hello", "fr", null), parse("hello in french"))
+        assertEquals(Translate("danke", "en", null), parse("danke in english"))
+        assertEquals(Translate("frozen", "es", null), parse("translate frozen to spanish"))
+        assertEquals(Translate("frozen", "es", null), parse("frozen meaning in spanish"))
+    }
+
+    @Test
+    fun weatherForADayTheCardDoesntShowOrAPlaceOnlyTheUserKnowsStaysASearch() {
+        // Each was a forecast for a real place: Thursday Island, Friday Harbor, Saturdaygua, Worksop, Manila.
+        for (query in listOf(
+            "weather thursday", "thursday weather", "weather friday", "weather saturday", "saturday weather",
+            "what's the weather on friday", "weather this saturday", "weather sunday in london", "weather monday in paris",
+            "weather yesterday", "weather in july", "weather at work", "weather man", "weather girl", "weather balloon",
+            "weather vane", "weather stripping", "weather proof", "weather the storm", "weather vs climate"
+        )) {
+            assertNull(query, parse(query))
+        }
+        // Home and the user's own city or town are here ("weather at home" found Homyel, Belarus).
+        for (query in listOf("weather at home", "weather in my city", "weather in my town", "weather where i live")) {
+            assertEquals(query, Weather(null, ForecastDay.TODAY), parse(query))
+        }
+        // Real places with those words in a longer name are still places.
+        assertEquals(Weather("isle of man", ForecastDay.TODAY), parse("weather isle of man"))
+        assertEquals(Weather("mayfield", ForecastDay.TODAY), parse("weather mayfield"))
+    }
+
+    @Test
+    fun aTownNamedForADayOrAWeatherWordIsAPlace() {
+        // These real towns got no card: "friday", "storm" and "sunday" are blocked on their own.
+        assertEquals(Weather("friday harbor", ForecastDay.TODAY), parse("weather in friday harbor"))
+        assertEquals(Weather("storm lake", ForecastDay.TODAY), parse("weather in storm lake"))
+        assertEquals(Weather("sunday river", ForecastDay.TODAY), parse("weather in sunday river"))
+        // A month's weather somewhere is still no place ("july in rome" was looked up as one).
+        assertNull(parse("weather in july in rome"))
+        assertNull(parse("weather in marseille in march"))
+        assertEquals(Weather("isle of may", ForecastDay.TODAY), parse("weather isle of may"))
+    }
+
+    @Test
+    fun aQuestionToTranslateKeepsItsQuestionWords() {
+        // This translated "your name".
+        assertEquals(Translate("what is your name", "ja", null), parse("what is your name in japanese"))
+        assertEquals(Translate("what's this", "es", null), parse("what's this in spanish"))
+        assertEquals(Translate("love", "es", null), parse("what is love in spanish"))
+    }
+
+    @Test
+    fun aHowToSearchInALanguageIsNoTranslation() {
+        // Each offered to translate the whole search: it asks for the answer in that language.
+        for (query in listOf("how to make tea in hindi", "how to lose weight in hindi", "how to earn money in tamil", "how do i cook rice in telugu")) {
+            assertNull(query, parse(query))
+        }
+        assertEquals(Translate("how are you", "hi", null), parse("how are you in hindi"))
+    }
+
+    @Test
+    fun howToSayAndAQuestionPutToSomeoneAreTranslated() {
+        // The how-to rule took these for searches and gave no card.
+        assertEquals(Translate("thank you", "ja", null), parse("how to say thank you in japanese"))
+        assertEquals(Translate("good morning", "hi", null), parse("how to say good morning in hindi"))
+        assertEquals(Translate("how can i help you", "es", null), parse("how can i help you in spanish"))
+        // A how-to with no one spoken to is still a search.
+        assertNull(parse("how can i learn english in hindi"))
     }
 
     @Test

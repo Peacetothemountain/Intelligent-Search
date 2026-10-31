@@ -109,7 +109,7 @@ internal fun AutoBackupCard(passkeySetUp: Boolean = false, obtainPassphrase: (on
         )
         Spacer(modifier = Modifier.height(4.dp))
         if (!enabled) {
-            Button(
+            FilledTonalButton(
                 onClick = {
                     obtainPassphrase { chosen ->
                         if (chosen == null && passkeySetUp) {

@@ -69,11 +69,11 @@ class WidgetScreenGoldenTest(private val case: String, private val taps: List<St
         @JvmStatic
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0} dark={2}")
         fun parameters(): List<Array<Any>> = listOf(
-            "system_shortcuts" to listOf("Widget Shortcuts"),
+            "system_shortcuts" to listOf("Shortcuts"),
             "system_custom_appearance" to listOf("Custom"),
             "system_color_studio" to listOf("Custom", "Color Studio"),
             "material_appearance" to listOf("Material Design"),
-            "material_shortcuts" to listOf("Material Design", "Widget Shortcuts"),
+            "material_shortcuts" to listOf("Material Design", "Shortcuts"),
         ).flatMap { (case, taps) -> listOf(arrayOf<Any>(case, taps, false), arrayOf<Any>(case, taps, true)) }
     }
 }

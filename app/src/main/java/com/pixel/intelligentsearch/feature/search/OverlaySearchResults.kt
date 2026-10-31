@@ -84,6 +84,7 @@ internal fun directActionIcon(type: String): androidx.compose.ui.graphics.vector
     "timer" -> Icons.Default.Timer
     "alarm" -> Icons.Default.Alarm
     "navigation" -> Icons.Default.Directions
+    "media" -> Icons.Default.PlayArrow
     "private_space" -> Icons.Default.Lock
     ClipboardLens.ICON_TYPE -> Icons.Default.ImageSearch
     else -> Icons.Default.ContentPaste
@@ -137,6 +138,22 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     }
 
     val isBottomResults = settingsState.bottomSearch && settingsState.bottomSearchResult
+    // With results over a bottom bar, the Lens, Voice and Assistant rows head the list. In a short window (a phone on
+    // its side) those three rows alone fill it, and the best match would open below the fold, so there they follow
+    // the results instead, by the bar.
+    val windowHeight = with(androidx.compose.ui.platform.LocalDensity.current) {
+        androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height.toDp()
+    }
+    val inlineShortcutsFirst = isBottomResults && windowHeight >= SHORT_WINDOW_HEIGHT
+    // With the rows after the results, results that come in after them would land above the row the list keeps in
+    // place, out of view; a list still at its top stays at its top, so the best match shows as it arrives.
+    // Where the list is is followed outside composition (it changes every frame of a scroll) and only read here.
+    val listPosition = remember { ListTopFlag() }
+    LaunchedEffect(searchResultsListState) {
+        snapshotFlow { searchResultsListState.firstVisibleItemIndex == 0 && searchResultsListState.firstVisibleItemScrollOffset == 0 }
+            .collect { listPosition.atTop = it }
+    }
+    if (!inlineShortcutsFirst && listPosition.atTop) searchResultsListState.requestScrollToItem(0)
     // The keyboard's highlight is scrolled into view as it moves.
     val highlightedKey = s.ui.highlightedKey
     val animationsOn by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
@@ -164,7 +181,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         verticalArrangement = if (isBottomResults) Arrangement.Bottom else Arrangement.Top
     ) {
         val renderInlineShortcuts = {
-            if (settingsState.shortcutInline && uiState.query.isNotEmpty()) {
+            if (uiState.query.isNotEmpty()) {
                 item(key = "inline_shortcuts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                 item(key = "lens_shortcut", contentType = "shortcut") {
                     ShortcutRow(
@@ -202,7 +219,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             }
         }
 
-        if (isBottomResults) {
+        if (inlineShortcutsFirst) {
             renderInlineShortcuts()
         }
 
@@ -311,7 +328,12 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         if (aiAnswer != null) {
             item(key = ResultListKeys.AI_ANSWER, contentType = "ai_answer") {
                 HighlightedCard(s, ResultListKeys.AI_ANSWER) {
-                    AiAnswerCard(aiAnswer, model = aiAnswer.provider.model(aiModel)) {
+                    AiAnswerCard(
+                        aiAnswer,
+                        model = aiAnswer.provider.model(aiModel),
+                        onOpenSettings = { page -> onOpenSettings(page) },
+                        onRetry = { viewModel.askAi() }
+                    ) {
                         hasStartedTyping = false
                         launchSafeIntent(context, com.pixel.intelligentsearch.core.bangs.AiAssistants.launchIntent(context, aiAnswer.provider.assistant, aiAnswer.question))
                     }
@@ -572,7 +594,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     hasStartedTyping = false
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
-                                    openAndroidSetting(context, setting)
+                                    // The app's own pages open in its settings, with the overlay's own transition.
+                                    setting.appRoute?.let(onOpenSettings) ?: openAndroidSetting(context, setting)
                                 }
                             }
                         }
@@ -598,8 +621,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         suggestion = suggestion,
                                         typed = uiState.query,
                                         isRecent = isRecent,
-                                        // The Show Thumbnails switch covers pictures of people, songs and videos too.
-                                        showThumbnail = settingsState.filesThumbnails,
+                                        // Pictures of people, songs and videos always show: File Search's Show
+                                        // Thumbnails switch is about the user's own files only.
+                                        showThumbnail = true,
                                         onLongClick = openMenu,
                                         highlighted = { s.ui.highlightedKey == ResultListKeys.suggestion(query) },
                                         onSearch = {
@@ -639,7 +663,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         .expressiveRowClickable(onLongClick = openMenu) {
                                             hasStartedTyping = false
                                             viewModel.recordOpened(contact)
-                                            launchSafeIntent(context, ContactActions.openIntent(contact, isDirectCall))
+                                            ContactActions.open(context, contact, isDirectCall)
                                         }
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically
@@ -655,9 +679,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                     }
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(contact.name, color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp, fontFamily = GoogleSansFlex)
-                                        Text(contact.phoneNumber, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
+                                        Text(contact.detail, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
                                         if (contactActions.isNotEmpty()) {
-                                            Spacer(modifier = Modifier.height(4.dp))
+                                            // The buttons' 48dp touch areas keep the circles 4dp under the number.
                                             // Pulled back by the touch target's margin so the first circle lines up with the name.
                                             ContactActionButtons(contactActions, settingsState.activeIconPack, Modifier.offset(x = (-4).dp)) {
                                                 hasStartedTyping = false
@@ -665,8 +689,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                             }
                                         }
                                     }
-                                    // The action buttons include Call; without them the row keeps its own call button.
-                                    if (contactActions.isEmpty()) IconButton(
+                                    // The action buttons include Call; without them the row keeps its own call button,
+                                    // when there's a number to call.
+                                    if (contactActions.isEmpty() && contact.phoneNumber.isNotBlank()) IconButton(
                                         onClick = {
                                             if (contact.phoneNumber.isNotBlank()) {
                                                 hasStartedTyping = false
@@ -740,10 +765,18 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             highlight = { entry -> Modifier.keyboardHighlight(s, ResultListKeys.notification(entry), ResultHighlightRowShape) }
         ) { hasStartedTyping = false }
 
-        if (!isBottomResults) {
+        if (!inlineShortcutsFirst) {
             renderInlineShortcuts()
         }
     }
+}
+
+/** Below this window height (the height Material counts as compact: a phone on its side) a window is short. */
+private val SHORT_WINDOW_HEIGHT = 480.dp
+
+/** Whether the results list was last seen at its very top; a plain field, so reading it recomposes nothing. */
+private class ListTopFlag {
+    var atTop = true
 }
 
 /** The tap-through answer card for [instantAnswer] (a conversion, a word, an address, the date, time or weather). */

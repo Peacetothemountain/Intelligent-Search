@@ -71,6 +71,30 @@ class DebugDiagnosticsPageTest {
     }
 
     @Test
+    fun theGraphsStandStillWithAnimationsTurnedOff() {
+        // The waves rolled and the points pulsed forever whatever Remove animations said.
+        assertEquals(1, frameChanges(animationsEnabled = false).size)
+    }
+
+    @Test
+    fun theGraphsMoveWithAnimationsOn() {
+        assertTrue(frameChanges(animationsEnabled = true).size > 10)
+    }
+
+    /** The distinct (wave phase, point pulse) frames over two thirds of a second. */
+    private fun frameChanges(animationsEnabled: Boolean): Set<Pair<Float, Float>> {
+        compose.mainClock.autoAdvance = false
+        lateinit var motion: DiagnosticsMotion
+        compose.setContent { motion = rememberDiagnosticsMotion(animationsEnabled) }
+        val frames = mutableSetOf<Pair<Float, Float>>()
+        repeat(40) {
+            compose.mainClock.advanceTimeBy(16)
+            frames += motion.wavePhase.value to motion.pointPulse.value
+        }
+        return frames
+    }
+
+    @Test
     fun aPluggedInPhoneShowsItsChargingStatusNotAnUnratedHealth() {
         // Pixels stop rating battery health while plugged in, which left the card's status chip on "Not reported".
         val status = ChargingStatus.status(

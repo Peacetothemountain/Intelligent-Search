@@ -77,7 +77,9 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
                     .keyboardHighlight(s, ResultListKeys.recent(recentQuery), pillShape)
                     .moreOptions(openMenu)
                     .bouncyClickable(onLongClick = openMenu) { launchWebSearch(recentQuery) }
-                    .padding(horizontal = 16.dp, vertical = 11.dp),
+                    // The buttons' 48dp touch areas set the height: 7dp above and below keeps the pill 62dp, and
+                    // the end's 12dp keeps the last icon where it sat.
+                    .padding(start = 16.dp, end = 12.dp, top = 7.dp, bottom = 7.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -97,13 +99,11 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                IconButton(
-                    onClick = { viewModel.removeSearchHistory(recentQuery) },
-                    modifier = Modifier.size(32.dp)
-                ) {
+                // M3's own 48dp touch area each, side by side without sharing one, as the web suggestions' buttons.
+                IconButton(onClick = { viewModel.removeSearchHistory(recentQuery) }) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Remove",
+                        contentDescription = "Remove $recentQuery from history",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         modifier = Modifier.size(16.dp)
                     )
@@ -116,12 +116,11 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
                             selection = androidx.compose.ui.text.TextRange(recentQuery.length)
                         )
                         viewModel.onQueryChanged(recentQuery)
-                    },
-                    modifier = Modifier.size(32.dp)
+                    }
                 ) {
                     Icon(
                         imageVector = Icons.Default.NorthWest,
-                        contentDescription = "Insert query",
+                        contentDescription = "Edit search $recentQuery",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )

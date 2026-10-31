@@ -1,6 +1,9 @@
 package com.pixel.intelligentsearch.core.util
 
+import android.icu.text.RelativeDateTimeFormatter
+import java.time.Instant
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.chrono.IsoChronology
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeFormatterBuilder
@@ -9,7 +12,8 @@ import java.util.Locale
 
 /**
  * How the app writes spans of time and times of day, one style everywhere: "1 hr 30 min", "45 sec", "In 6 hr 20 min",
- * "5 min ago", a stopwatch's "1:02:03", and the phone's own time format ("7:30 AM", or "07:30" on a 24-hour clock).
+ * "5 min ago", a stopwatch's "1:02:03", the phone's own time format ("7:30 AM", or "07:30" on a 24-hour clock), and
+ * when an action is set for ("Tomorrow, 7:00 AM").
  */
 object Durations {
 
@@ -69,14 +73,59 @@ object Durations {
         return formatter(is24Hour, locale).format(time)
     }
 
+    /**
+     * When something set for [atMs] happens, as seen at [nowMs] in [zone]: "Today, 7:00 AM", "Tomorrow, 7:00 AM", "Fri,
+     * Nov 13, 2:00 PM", and the year too when it isn't this one. An action's row says it, so the user sees what Enter
+     * will set before setting it. The day is written as the phone's region writes it ("Fr., 13. Nov." in Germany,
+     * "Heute" and "Morgen" for today and tomorrow), the time on its 12- or 24-hour clock ([is24Hour]).
+     */
+    fun dayAndTime(atMs: Long, nowMs: Long, is24Hour: Boolean, locale: Locale = Locale.getDefault(), zone: ZoneId = ZoneId.systemDefault()): String {
+        val at = Instant.ofEpochMilli(atMs).atZone(zone)
+        val today = Instant.ofEpochMilli(nowMs).atZone(zone).toLocalDate()
+        val day = when (at.toLocalDate()) {
+            today -> relativeDay(tomorrow = false, locale) ?: "Today"
+            today.plusDays(1) -> relativeDay(tomorrow = true, locale) ?: "Tomorrow"
+            else -> dateFormatter(withYear = at.year != today.year, locale).format(at)
+        }
+        return "$day, ${timeOfDay(at.hour, at.minute, is24Hour, locale)}"
+    }
+
+    /**
+     * "Today" or "Tomorrow" in [locale]'s words, capitalized as a row starts. Typed nullable: in plain JVM tests the
+     * stubbed formatter gives null, and the English words stand in.
+     */
+    private fun relativeDay(tomorrow: Boolean, locale: Locale): String? {
+        val formatter: RelativeDateTimeFormatter? = RelativeDateTimeFormatter.getInstance(locale)
+        val word: String? = formatter?.format(
+            if (tomorrow) RelativeDateTimeFormatter.Direction.NEXT else RelativeDateTimeFormatter.Direction.THIS,
+            RelativeDateTimeFormatter.AbsoluteUnit.DAY
+        )
+        return word?.takeIf { it.isNotBlank() }?.replaceFirstChar { it.titlecase(locale) }
+    }
+
+    /** A weekday, month and day (and [withYear], the year) in the order and words [locale]'s region uses. */
+    private fun dateFormatter(withYear: Boolean, locale: Locale): DateTimeFormatter {
+        val pattern: String? = android.text.format.DateFormat.getBestDateTimePattern(locale, if (withYear) "EEEMMMdy" else "EEEMMMd")
+        return pattern?.let { runCatching { DateTimeFormatter.ofPattern(it, locale) }.getOrNull() }
+            ?: DateTimeFormatter.ofPattern(if (withYear) "EEE, MMM d, yyyy" else "EEE, MMM d", locale)
+    }
+
     private fun formatter(is24Hour: Boolean, locale: Locale): DateTimeFormatter {
         val localized = DateTimeFormatterBuilder.getLocalizedDateTimePattern(null, FormatStyle.SHORT, IsoChronology.INSTANCE, locale)
         val usesTwelveHours = localized.contains('h') || localized.contains('K')
-        val pattern = when {
-            is24Hour && usesTwelveHours -> "HH:mm"
-            !is24Hour && !usesTwelveHours -> "h:mm a"
-            else -> localized
-        }
-        return DateTimeFormatter.ofPattern(pattern, locale)
+        if (is24Hour != usesTwelveHours) return DateTimeFormatter.ofPattern(localized, locale)
+        return otherClockFormatter(is24Hour, locale)
+            ?: DateTimeFormatter.ofPattern(if (is24Hour) "HH:mm" else "h:mm a", locale)
+    }
+
+    /**
+     * The time on the clock [locale] doesn't use by default, as its region writes it: Japanese 12-hour time puts the
+     * period first ("午後11:30"), where a fixed "h:mm a" wrote "11:30 午後". Android's narrow space before the period
+     * becomes a plain one, as on every other time the app writes. Null where Android has no pattern (plain JVM tests) or
+     * java.time can't read it.
+     */
+    private fun otherClockFormatter(is24Hour: Boolean, locale: Locale): DateTimeFormatter? {
+        val pattern: String? = android.text.format.DateFormat.getBestDateTimePattern(locale, if (is24Hour) "Hm" else "hm")
+        return pattern?.let { runCatching { DateTimeFormatter.ofPattern(it.replace(' ', ' '), locale) }.getOrNull() }
     }
 }

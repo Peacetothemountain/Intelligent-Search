@@ -435,19 +435,10 @@ internal fun BatteryAndMemoryDiagnosticsPage(
         }
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "diagPulseTransition")
-    val wavePhase by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Restart),
-        label = "diagWavePhase"
-    )
-    val pointPulse by infiniteTransition.animateFloat(
-        initialValue = 3.dp.value,
-        targetValue = 5.5.dp.value,
-        animationSpec = infiniteRepeatable(tween(1000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pointPulse"
-    )
+    val animationsEnabled by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
+    val motion = rememberDiagnosticsMotion(animationsEnabled)
+    val wavePhase by motion.wavePhase
+    val pointPulse by motion.pointPulse
 
     val scheme = MaterialTheme.colorScheme
     Column(
@@ -679,6 +670,37 @@ private fun DiagnosticsHeroRow(
 }
 
 /** The battery level as a gently rolling wave of Material You colour. */
+/** The graphs' motion: the battery and memory waves' phase and the app points' pulse radius, in dp. */
+internal class DiagnosticsMotion(val wavePhase: State<Float>, val pointPulse: State<Float>)
+
+/**
+ * The waves rolling and the points pulsing for as long as the page is open, or a still frame while animations are
+ * turned off ([animationsEnabled], Remove animations), as the settings slider's wave does.
+ */
+@Composable
+internal fun rememberDiagnosticsMotion(animationsEnabled: Boolean): DiagnosticsMotion {
+    if (!animationsEnabled) {
+        return remember { DiagnosticsMotion(mutableFloatStateOf(0f), mutableFloatStateOf(POINT_PULSE_MAX)) }
+    }
+    val infiniteTransition = rememberInfiniteTransition(label = "diagPulseTransition")
+    val wavePhase = infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = (2f * Math.PI).toFloat(),
+        animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Restart),
+        label = "diagWavePhase"
+    )
+    val pointPulse = infiniteTransition.animateFloat(
+        initialValue = POINT_PULSE_MIN,
+        targetValue = POINT_PULSE_MAX,
+        animationSpec = infiniteRepeatable(tween(1000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "pointPulse"
+    )
+    return remember(wavePhase, pointPulse) { DiagnosticsMotion(wavePhase, pointPulse) }
+}
+
+private const val POINT_PULSE_MIN = 3f
+private const val POINT_PULSE_MAX = 5.5f
+
 @Composable
 private fun BatteryLevelWave(batteryLevel: Int, wavePhase: Float, modifier: Modifier) {
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()

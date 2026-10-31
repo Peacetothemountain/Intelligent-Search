@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
@@ -159,6 +160,31 @@ class SearchPillsScreenTest {
         show()
         openPicker()
         compose.onNodeWithText("Alpha Notes").assertExists()
+    }
+
+    @Test
+    fun anUnlabeledPillShowsItsPackageNameOnce() {
+        // Neither app is installed, so each pill is titled by its package name, with no copy of it underneath.
+        prefs.edit().put(SettingsManager.SEARCH_PILLS, "a.b,c.d").commit()
+        show()
+        val texts = compose.onNode(hasText("a.​b")).fetchSemanticsNode().config[SemanticsProperties.Text]
+        assertEquals(listOf("a.​b"), texts.map { it.text })
+    }
+
+    /**
+     * Profile 1's starting pills are the app's suggestions: one this phone doesn't have (Files by Google, say) isn't
+     * listed as a bare package name with no icon. One the user picked stays, so they can see it and remove it.
+     */
+    @Test
+    fun aDefaultAppThePhoneDoesntHaveIsNotListed() {
+        shadowOf(context.packageManager).installPackage(android.content.pm.PackageInfo().apply {
+            packageName = "com.android.chrome"
+            applicationInfo = ApplicationInfo().apply { packageName = "com.android.chrome"; nonLocalizedLabel = "Chrome" }
+        })
+        show()
+        compose.onNode(hasText("com.google.android.apps.nbu.files".breakableAtDots())).assertDoesNotExist()
+        compose.onNode(hasText("com.google.android.youtube".breakableAtDots())).assertDoesNotExist()
+        compose.onNode(hasText("Chrome")).assertExists()
     }
 
     @Test

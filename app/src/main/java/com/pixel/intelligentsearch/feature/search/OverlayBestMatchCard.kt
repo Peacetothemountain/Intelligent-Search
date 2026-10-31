@@ -104,7 +104,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
-                        text = "Press ↵ to open",
+                        text = "Press Enter to Open",
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
@@ -127,7 +127,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                     focusManager.clearFocus(force = true)
                                     keyboardController?.hide()
                                     s.viewModel.recordOpened(match)
-                                    launchSafeIntent(context, ContactActions.openIntent(match, settingsState.contactDirectCall))
+                                    ContactActions.open(context, match, settingsState.contactDirectCall)
                                 }
                                 .padding(vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -157,16 +157,17 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                     fontFamily = GoogleSansFlex
                                 )
                                 Text(
-                                    match.phoneNumber,
+                                    match.detail,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     fontSize = 13.sp,
                                     fontFamily = GoogleSansFlex
                                 )
                             }
-                            val isDirectCall = settingsState.contactDirectCall
+                            // A contact with only an email address opens its card, Direct Call or not.
+                            val isDirectCall = settingsState.contactDirectCall && match.phoneNumber.isNotBlank()
                             Icon(
                                 imageVector = if (isDirectCall) Icons.Default.Call else Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = if (isDirectCall) "Call" else "Open",
+                                contentDescription = if (isDirectCall) "Call ${match.name}" else "Open ${match.name}",
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -219,7 +220,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                 }
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = "Open",
+                                    contentDescription = "Open ${match.name}",
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -306,7 +307,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                         }
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = "Open",
+                            contentDescription = "Open ${match.name}",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )

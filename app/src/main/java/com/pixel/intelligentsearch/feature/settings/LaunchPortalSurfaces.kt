@@ -5,7 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import com.pixel.intelligentsearch.core.system.GoogleApps
 import androidx.compose.runtime.produceState
 import com.pixel.intelligentsearch.core.system.openOverlayPermission
-import com.pixel.intelligentsearch.core.system.openSettingsPage
+import com.pixel.intelligentsearch.core.system.openSettingsPageToGrant
 import android.Manifest
 import android.content.Intent
 import android.os.Build
@@ -53,6 +53,8 @@ fun AlwaysWithinReachSection() {
     var canDraw by remember { mutableStateOf(FloatingSearchOverlays.canDraw(context)) }
     // Sent to Android's "Display over other apps" page for the button, so coming back with it granted switches it on.
     var pendingOverlay by rememberSaveable { mutableStateOf(false) }
+    // The same for the Notification Shortcut, sent to the app's notification settings after notifications were declined.
+    var pendingNotification by rememberSaveable { mutableStateOf(false) }
     var showNotificationRationale by remember { mutableStateOf(false) }
     var showNotificationSettings by remember { mutableStateOf(false) }
     var showOverlayRationale by remember { mutableStateOf(false) }
@@ -71,6 +73,8 @@ fun AlwaysWithinReachSection() {
             // Back from Android's "Display over other apps" page: switch the button on, if it was allowed.
             if (pendingOverlay && canDraw) button = true
             pendingOverlay = false
+            if (pendingNotification && canPost) notification = true
+            pendingNotification = false
             // Follow a revoked permission downward, as Search Sources does, so it can't come back on unasked.
             if (!canPost && notification) notification = false
             if (!canDraw && button) button = false
@@ -80,11 +84,16 @@ fun AlwaysWithinReachSection() {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    // Android's reason flag as the request starts, so only a decline for good, not a closed prompt, says it's off.
+    var notificationRationaleBefore by remember { mutableStateOf(false) }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         canPost = NotificationShortcut.canPost(context)
+        val activity = context.findActivity()
+        // Asked only where the permission exists (Android 13+), which this check also tells lint.
+        if (granted && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) forgetDecline(context, Manifest.permission.POST_NOTIFICATIONS)
         if (granted && canPost) {
             notification = true
-        } else if (!granted && context.findActivity()?.shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS) == false) {
+        } else if (!granted && activity != null && declinedForGood(activity, Manifest.permission.POST_NOTIFICATIONS, notificationRationaleBefore)) {
             // Declined for good: only Android's settings can allow it now.
             showNotificationSettings = true
         }
@@ -133,7 +142,10 @@ fun AlwaysWithinReachSection() {
             onConfirm = {
                 showNotificationRationale = false
                 // Only shown where it is needed (Android 13+), which this check also tells lint.
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    notificationRationaleBefore = rationaleShown(context, Manifest.permission.POST_NOTIFICATIONS)
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
             },
             onDismiss = { showNotificationRationale = false }
         )
@@ -145,7 +157,11 @@ fun AlwaysWithinReachSection() {
             confirm = "Open Settings",
             onConfirm = {
                 showNotificationSettings = false
-                openSettingsPage(context, Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+                // Opened over this page, so Back from Android's page comes back here.
+                pendingNotification = openSettingsPageToGrant(
+                    context,
+                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                )
             },
             onDismiss = { showNotificationSettings = false }
         )

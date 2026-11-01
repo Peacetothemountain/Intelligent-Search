@@ -393,6 +393,17 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         leftProfiles.clear()
     }
 
+    // The Doodles switch applies at once to the profile on the widget: the doodle goes from (or comes back to) the
+    // search bar as the switch moves, and stays that way with no Save. Its old way, a draft until Save, read as the
+    // switch turning itself back on. On another profile it is part of that profile's draft, like any other change.
+    val applyDoodlesNow: (Boolean) -> Unit = { show ->
+        if (activeProfile == widgetProfile) {
+            widgetStore.saveShowDoodles(if (isSystem) WidgetDesign.SYSTEM else WidgetDesign.MATERIAL, show)
+            if (isSystem) savedSystem = savedSystem.copy(showDoodles = show) else savedMaterial = savedMaterial.copy(showDoodles = show)
+            updateWidgets(context)
+        }
+    }
+
     // Adding the widget from here: the launcher previews, and places, the saved design, so the design in the preview
     // is saved first. With unsaved changes the user is asked ([SaveBeforePinDialog]) rather than saved silently.
     var showSaveBeforePinDialog by remember { mutableStateOf(false) }
@@ -843,7 +854,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 when (activeTabName) {
                     "Appearance" -> WidgetAppearanceTab(
                         fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState,
-                        view = view, hapticEngine = hapticEngine
+                        view = view, hapticEngine = hapticEngine, onShowDoodlesChanged = applyDoodlesNow
                     )
 
                     "Color Studio" -> {

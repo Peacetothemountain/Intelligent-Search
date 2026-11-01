@@ -3,7 +3,6 @@ import com.pixel.intelligentsearch.core.search.SpellingSuggester
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.ContactItem
-import com.pixel.intelligentsearch.core.data.CalendarEvent
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.HistoryEntity
@@ -79,7 +78,6 @@ data class SearchUiState(
      * while Enter does what it does for any other query. Null when there is none, or Enter runs it ([enterAction]).
      */
     val guessedAction: DirectAction? = null,
-    val calendarEvents: List<CalendarEvent> = emptyList(),
     val recentSearches: List<String> = emptyList(),
     val hasLockedPrivateSpace: Boolean = false,
     val lastQueryLatency: Long = 0,
@@ -506,8 +504,8 @@ class SearchViewModel @Inject constructor(
     private var lastInitialLoadAtMs: Long? = null
 
     /**
-     * Brings quick-app predictions, upcoming events and contacts up to date each time the overlay comes back into
-     * view; loaded once, they went stale on every reopen. The first open's load, started as this view model was
+     * Brings quick-app predictions and contacts up to date each time the overlay comes back into view; loaded once,
+     * they went stale on every reopen. (Calendar events are At a Glance's, read as it comes into view.) The first open's load, started as this view model was
      * created, is only moments old then, so a load younger than [RELOAD_GRACE_MS] isn't repeated.
      */
     fun reloadOnResume() {
@@ -527,9 +525,6 @@ class SearchViewModel @Inject constructor(
                 // The provider already tries Pixel Launcher predictions first, then usage stats. (Re-querying the
                 // launcher here returned apps outside the indexed list, which skipped the hidden-app filtering.)
                 val launcherPredictedDeferred = async { nativeAppPredictionProvider.getPredictedApps() }
-                // Read whenever Android allows the calendar; without the permission the source returns nothing.
-                val eventsDeferred = async { sources.upcomingEvents() }
-
                 // Indexing belongs to CorpusIndexManager (serialized there); indexing this list here too raced it
                 // and could re-add an app uninstalled in between.
                 val allApps = appsDeferred.await()
@@ -544,12 +539,9 @@ class SearchViewModel @Inject constructor(
                     if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + standardRecents).distinctBy { it.packageName } else standardRecents
                 }.filter { it.packageName !in hiddenApps } // launcher predictions know nothing about hidden apps
 
-                val events = eventsDeferred.await()
-
                 _uiState.update { it.copy(
                     allApps = allApps,
-                    recentApps = recentApps,
-                    calendarEvents = events
+                    recentApps = recentApps
                 ) }
                 refreshPinned()
             } catch (e: Exception) {
@@ -1232,12 +1224,6 @@ class SearchViewModel @Inject constructor(
                 enterAction = state.enterAction.takeIf { it != action },
                 guessedAction = state.guessedAction.takeIf { it != action }
             )
-        }
-    }
-
-    fun dismissCalendarEvent(event: CalendarEvent) {
-        _uiState.update { state ->
-            state.copy(calendarEvents = state.calendarEvents.filter { it != event })
         }
     }
 

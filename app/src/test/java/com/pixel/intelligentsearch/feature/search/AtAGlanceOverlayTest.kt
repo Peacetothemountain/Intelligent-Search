@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.search
 
+import android.Manifest
+import android.app.Application
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -15,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.HiltTestActivity
+import com.pixel.intelligentsearch.core.data.CalendarEvent
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.glance.GlanceAlarm
@@ -65,8 +68,16 @@ class AtAGlanceOverlayTest {
 
     private val snapshot = GlanceSnapshot(
         alarm = GlanceAlarm(System.currentTimeMillis() + 2 * 60 * 60 * 1000L),
+        events = listOf(CalendarEvent("Dentist", "9:30", eventId = 7, beginMillis = System.currentTimeMillis() + 60 * 60 * 1000L)),
         birthdays = listOf(GlanceBirthday(7, "lk", "Ana Lima", 0, LocalDate.now(), turning = null))
     )
+
+    private val dentist get() = compose.onNodeWithText("Dentist")
+
+    private fun allowCalendar(allowed: Boolean) {
+        val app = shadowOf(ApplicationProvider.getApplicationContext<Application>())
+        if (allowed) app.grantPermissions(Manifest.permission.READ_CALENDAR) else app.denyPermissions(Manifest.permission.READ_CALENDAR)
+    }
 
     private val alarmRow get() = compose.onNodeWithText("Alarm · ", substring = true)
 
@@ -183,6 +194,66 @@ class AtAGlanceOverlayTest {
         showOverlay()
         compose.onNodeWithTag(GLANCE_HEADER_TAG).assertDoesNotExist()
         assertEquals(0, collecting.get())
+    }
+
+    /**
+     * With Calendar Events on and the calendar allowed, the next events are rows in the At a Glance card, under what's
+     * playing and above birthdays, in the card's own width; a tap opens the event in the calendar app.
+     */
+    @Test
+    fun calendarEventsShowInsideAtAGlance() {
+        allowCalendar(true)
+        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).put(SettingsManager.GLANCE_CALENDAR, true).commit()
+        showOverlay(history = listOf("weather tomorrow"))
+        val heading = compose.onNodeWithTag(GLANCE_HEADER_TAG).getUnclippedBoundsInRoot()
+        val alarm = alarmRow.getUnclippedBoundsInRoot()
+        val event = dentist.getUnclippedBoundsInRoot()
+        val birthday = compose.onNodeWithText("Ana Lima's Birthday").getUnclippedBoundsInRoot()
+        val recent = compose.onNodeWithText("Recent").getUnclippedBoundsInRoot()
+        assertTrue("heading, alarm, event, birthday, then Recent", heading.top < alarm.top && alarm.top < event.top && event.top < birthday.top && birthday.top < recent.top)
+        assertTrue("in the card, not a full-width row of its own", event.right < 300.dp)
+        compose.onNodeWithText("Today · ", substring = true).assertExists()
+
+        dentist.performClick()
+        compose.settle(steps = 3)
+        val started = shadowOf(compose.activity.application).nextStartedActivity
+        assertEquals(android.content.ContentUris.withAppendedId(android.provider.CalendarContract.Events.CONTENT_URI, 7), started?.data)
+    }
+
+    @Test
+    fun calendarEventsStayHiddenWithTheirSwitchOff() {
+        allowCalendar(true)
+        showOverlay()
+        alarmRow.assertExists()
+        dentist.assertDoesNotExist()
+    }
+
+    /** The calendar taken back on App info: the events go, though Calendar Events is still on. */
+    @Test
+    fun calendarEventsNeedTheCalendar() {
+        allowCalendar(false)
+        prefs.edit().put(SettingsManager.GLANCE_CALENDAR, true).commit()
+        showOverlay()
+        alarmRow.assertExists()
+        dentist.assertDoesNotExist()
+    }
+
+    /**
+     * Calendar events are At a Glance's alone now: with the calendar allowed and an event on it, but At a Glance off,
+     * no list of events shows anywhere (the search showed its own above the results).
+     */
+    @Test
+    fun calendarEventsHaveNoSectionOutsideAtAGlance() {
+        allowCalendar(true)
+        com.pixel.intelligentsearch.core.glance.AndroidGlanceSourceTest.CalendarProvider.titles = listOf("Dentist")
+        org.robolectric.Robolectric.setupContentProvider(
+            com.pixel.intelligentsearch.core.glance.AndroidGlanceSourceTest.CalendarProvider::class.java,
+            android.provider.CalendarContract.AUTHORITY
+        )
+        prefs.edit().put(SettingsManager.GLANCE_CALENDAR, true).put(SettingsManager.GLANCE_ENABLED, false).commit()
+        showOverlay()
+        compose.onNodeWithTag(GLANCE_HEADER_TAG).assertDoesNotExist()
+        dentist.assertDoesNotExist()
     }
 
     /** The card is about 62% of the list, 232 to 340 dp, wider with larger text, and the whole width where that won't fit. */

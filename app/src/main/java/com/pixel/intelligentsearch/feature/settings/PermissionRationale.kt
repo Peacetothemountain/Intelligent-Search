@@ -263,6 +263,85 @@ internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): Cont
 internal fun contactsAllowed(context: android.content.Context): Boolean =
     context.checkSelfPermission(Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
+/** What At a Glance's Calendar Events says before Android asks for the calendar. */
+internal const val CALENDAR_RATIONALE =
+    "Intelligent Search needs your calendar to show your events for the next day in At a Glance. Your calendar " +
+        "stays on your phone."
+
+/** A way to ask for the calendar: [request] answers at once when allowed, else explains first. */
+internal fun interface CalendarRequest {
+    fun request()
+}
+
+/**
+ * The calendar, asked for the one way the app asks, and only as At a Glance's Calendar Events is turned on (setup
+ * no longer asks for it): when allowed [onGranted] runs at once; otherwise [CALENDAR_RATIONALE] shows, then
+ * Android's prompt, and [onGranted] runs if the user allows it. Declining once just leaves things off; once Android
+ * won't ask again, the user is offered Android's settings instead, as contacts and location do, and [onGranted]
+ * runs on the way back if they allowed it there ([rememberSettingsGrant]); not when they only closed Android's
+ * prompt ([declinedForGood]). Shows its dialogs in place while they are up.
+ */
+@Composable
+internal fun rememberCalendarRequest(onGranted: () -> Unit): CalendarRequest {
+    val context = LocalContext.current
+    val currentOnGranted by rememberUpdatedState(onGranted)
+    var showRationale by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
+    var rationaleBefore by remember { mutableStateOf(false) }
+    val settingsGrant = rememberSettingsGrant(Manifest.permission.READ_CALENDAR) { currentOnGranted() }
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val activity = context.findActivity()
+        if (granted) {
+            forgetDecline(context, Manifest.permission.READ_CALENDAR)
+            currentOnGranted()
+        }
+        // Declined for good: only Android's settings can allow it now.
+        else if (activity != null && declinedForGood(activity, Manifest.permission.READ_CALENDAR, rationaleBefore)) {
+            showSettings = true
+        }
+    }
+    if (showRationale) {
+        PermissionRationaleDialog(
+            title = "Allow Calendar Access?",
+            text = CALENDAR_RATIONALE,
+            confirm = "Allow",
+            onConfirm = {
+                showRationale = false
+                rationaleBefore = rationaleShown(context, Manifest.permission.READ_CALENDAR)
+                permission.launch(Manifest.permission.READ_CALENDAR)
+            },
+            onDismiss = { showRationale = false }
+        )
+    }
+    if (showSettings) {
+        PermissionRationaleDialog(
+            title = "Calendar Access Is Off",
+            text = "Calendar access for Intelligent Search is turned off. Allow it in Android settings to see your " +
+                "upcoming events in At a Glance.",
+            confirm = "Open Settings",
+            onConfirm = {
+                showSettings = false
+                settingsGrant.open()
+            },
+            onDismiss = { showSettings = false }
+        )
+    }
+    return remember(context) {
+        CalendarRequest {
+            if (calendarAllowed(context)) {
+                forgetDecline(context, Manifest.permission.READ_CALENDAR)
+                currentOnGranted()
+            } else {
+                showRationale = true
+            }
+        }
+    }
+}
+
+/** Whether the calendar may be read. */
+internal fun calendarAllowed(context: Context): Boolean =
+    context.checkSelfPermission(Manifest.permission.READ_CALENDAR) == android.content.pm.PackageManager.PERMISSION_GRANTED
+
 /** What Direct Call says before Android asks to let the app make phone calls. */
 internal const val PHONE_CALLS_RATIONALE =
     "Direct Call places the call as soon as you tap a contact. Allow phone calls for that; otherwise tapping a " +

@@ -21,7 +21,7 @@ object AppSettingsCatalog {
         page("search_sources", "Search Sources", "is_sources",
             "sources", "what to search"),
         page("search_behavior", "Search Behavior", "is_behavior",
-            "keyboard", "at a glance", "quick app panel", "bottom search bar", "clipboard suggestions", "enter key"),
+            "keyboard", "at a glance", "calendar events", "quick app panel", "bottom search bar", "clipboard suggestions", "enter key"),
         page("widget", "Widget Customization", "is_widget",
             "widget", "widgets", "search bar widget", "color studio", "widget shortcuts", "g icon"),
         page("launch_portal", "Launch Portal", "is_launch",
@@ -45,6 +45,6 @@ object AppSettingsCatalog {
         page("ai_answers", "AI Answers", "is_ai",
             "ai", "api key", "claude", "chatgpt", "gemini", "openai"),
         page("setup", "Finish Setting Up", "is_setup",
-            "setup", "set up", "permissions", "calendar search"),
+            "setup", "set up", "permissions"),
     )
 }

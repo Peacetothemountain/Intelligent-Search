@@ -265,4 +265,15 @@ class OverlayKeyboardNavTest {
         // The list draws each notification under the same key, so the ring and the scroll find it.
         assertEquals("notification_n1", ResultListKeys.notification(note))
     }
+
+    /** Calendar events, now At a Glance rows, are stops of their own in its card, which Enter opens like a tap. */
+    @Test
+    fun calendarEventsAreStopsInTheAtAGlanceCard() {
+        val alarm = com.pixel.intelligentsearch.core.glance.GlanceItem.Alarm(com.pixel.intelligentsearch.core.glance.GlanceAlarm(1_000L))
+        val event = com.pixel.intelligentsearch.core.glance.GlanceItem.Event(com.pixel.intelligentsearch.core.data.CalendarEvent("Dentist", "9:30", eventId = 7, beginMillis = 5_000L))
+        val rows = NavSources(glance = listOf(alarm, event)).rows().map { it.single() }
+        assertEquals(listOf(alarm.key, event.key), rows.map { it.key })
+        assertEquals(NavTarget.Glance(event), rows[1].target)
+        assertEquals(listOf(ResultListKeys.GLANCE, ResultListKeys.GLANCE), rows.map { it.listKey })
+    }
 }

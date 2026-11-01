@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.data.widget
 
+import androidx.core.content.edit
 import android.content.SharedPreferences
 import android.graphics.Color
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -193,6 +194,14 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
     /** Whether [design] draws the day's doodle with its G: the G is shown and doodles are on. */
     fun showsDoodle(design: WidgetDesign): Boolean =
         showsGIcon(design) && prefs.getBoolean("${design.prefix}_show_doodles", true)
+
+    /**
+     * Turns [design]'s doodles on or off straight away, leaving the rest of the design as last saved: the editor's
+     * Doodles switch applies at once rather than waiting for Save.
+     */
+    fun saveShowDoodles(design: WidgetDesign, show: Boolean) {
+        prefs.edit { putBoolean("${design.prefix}_show_doodles", show) }
+    }
 
     /** Writes [settings] for [design] into [editor] and marks the design saved; the caller applies the edit. */
     fun save(design: WidgetDesign, settings: WidgetDesignSettings, editor: SharedPreferences.Editor) {

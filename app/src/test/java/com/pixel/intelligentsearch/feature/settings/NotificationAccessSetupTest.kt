@@ -79,13 +79,15 @@ class NotificationAccessSetupTest {
         assertTrue(SetupChecklist.isDone(context, prefs, SetupStep.NOTIFICATIONS))
     }
 
+    /** The calendar is asked for only as At a Glance's Calendar Events is turned on, not while setting up. */
     @Test
-    fun theCalendarStepIsDoneWithThePermissionAlone() {
-        val app = shadowOf(ApplicationProvider.getApplicationContext<Application>())
-        app.denyPermissions(android.Manifest.permission.READ_CALENDAR)
-        assertFalse(SetupChecklist.isDone(context, prefs, SetupStep.CALENDAR))
-        app.grantPermissions(android.Manifest.permission.READ_CALENDAR)
-        assertTrue(SetupChecklist.isDone(context, prefs, SetupStep.CALENDAR))
+    fun finishSettingUpNoLongerAsksForTheCalendar() {
+        shadowOf(ApplicationProvider.getApplicationContext<Application>()).denyPermissions(android.Manifest.permission.READ_CALENDAR)
+        assertFalse(SetupStep.entries.any { it.name == "CALENDAR" })
+        showSetup()
+        compose.onNodeWithText("Calendar").assertDoesNotExist()
+        compose.onNodeWithText("See Upcoming Events", substring = true).assertDoesNotExist()
+        compose.onNodeWithText("Contacts").assertExists()
     }
 
     @Test

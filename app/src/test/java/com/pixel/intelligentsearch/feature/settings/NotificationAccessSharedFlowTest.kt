@@ -79,7 +79,7 @@ class NotificationAccessSharedFlowTest {
     fun atAGlanceHasASwitchForEachItemAndShowClock() {
         grant(true)
         showGlanceSettings()
-        val switches = listOf("At a Glance", "Timers & Stopwatch", "Next Alarm", "Media Controls", "Birthdays", "Show Clock")
+        val switches = listOf("At a Glance", "Timers & Stopwatch", "Next Alarm", "Media Controls", "Calendar Events", "Birthdays", "Show Clock")
         compose.onAllNodes(isToggleable()).assertCountEquals(switches.size)
         for (title in switches) compose.onNode(isToggleable() and hasText(title)).assertExists()
         // The battery was removed at the owner's request and stays gone.

@@ -5,19 +5,26 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.database.ContentObserver
 import android.graphics.Bitmap
 import android.media.MediaMetadata
 import android.media.session.MediaController
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
+import android.provider.CalendarContract
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.scale
+import com.pixel.intelligentsearch.core.data.CalendarEvent
+import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 import com.pixel.intelligentsearch.core.system.openPendingOrApp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
@@ -32,9 +39,10 @@ fun interface GlanceSource {
 
 /**
  * At a Glance from the phone: the next alarm (AlarmManager), media sessions (MediaSessionManager, which Android opens
- * only to an app with notification access), contacts' birthdays (with the contacts permission), and the timers in
- * the [index]. Only what [GlanceToggles] allows is read, every receiver and listener is removed when collection
- * stops, and nothing touches the network or the disk beyond the contacts provider.
+ * only to an app with notification access), the next day's calendar events and contacts' birthdays (each with its
+ * permission), and the timers in the [index]. Only what [GlanceToggles] allows is read, every receiver and listener
+ * is removed when collection stops, and nothing touches the network or the disk beyond the calendar and contacts
+ * providers.
  */
 class AndroidGlanceSource(private val context: Context, private val index: NotificationIndex) : GlanceSource {
 
@@ -49,10 +57,29 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
         val timers = if (toggles.timersOn) timerFlow(hiddenApps) else flowOf(emptyList())
         val alarm = if (toggles.alarmOn) alarmFlow() else flowOf(null)
         val media = if (toggles.mediaOn) mediaFlow(hiddenApps) else flowOf(null)
-        return combine(alarm, media, birthdays, timers) { a, m, days, t ->
-            GlanceSnapshot(alarm = a, timers = t, media = m, birthdays = days)
+        val events = if (toggles.calendarOn) eventFlow() else flowOf(emptyList())
+        return combine(alarm, media, events, birthdays, timers) { a, m, e, days, t ->
+            GlanceSnapshot(alarm = a, timers = t, media = m, events = e, birthdays = days)
         }
     }
+
+    /**
+     * The next day's events, read as the search comes into view and again whenever the calendar changes while it is
+     * on screen (an event synced or edited), so the card never shows one the user has just moved.
+     */
+    private fun eventFlow(): Flow<List<CalendarEvent>> = callbackFlow {
+        val changes = object : ContentObserver(Handler(Looper.getMainLooper())) {
+            override fun onChange(selfChange: Boolean) {
+                trySend(Unit)
+            }
+        }
+        // Android refuses to watch a provider the phone doesn't have (no calendar installed); the first read stands.
+        val watching = runCatching {
+            context.contentResolver.registerContentObserver(CalendarContract.CONTENT_URI, true, changes)
+        }.isSuccess
+        trySend(Unit)
+        awaitClose { if (watching) context.contentResolver.unregisterContentObserver(changes) }
+    }.conflate().map { SystemDataProvider.getUpcomingEvents(context) }.distinctUntilChanged().flowOn(Dispatchers.IO)
 
     private fun timerFlow(hiddenApps: Set<String>): Flow<List<GlanceTimer>> = index.entries
         .onStart {

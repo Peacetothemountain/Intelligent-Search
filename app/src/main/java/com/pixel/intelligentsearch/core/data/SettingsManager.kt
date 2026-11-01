@@ -225,6 +225,12 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val GLANCE_TIMERS = BooleanSetting("glance.timers", false)
         /** At a Glance's Media Controls, read from media sessions (needs notification access). */
         val GLANCE_MEDIA = BooleanSetting("glance.media", false)
+        /**
+         * Upcoming calendar events in the next day (needs the calendar permission). Off by default like the other
+         * items, and more so here: the calendar is no longer asked for at setup, only when this switch is turned on,
+         * so a default of on would show an item that can't show until the user goes looking for why.
+         */
+        val GLANCE_CALENDAR = BooleanSetting("glance.calendar", false)
         /** Contacts' birthdays this week (needs contact search and the contacts permission). */
         val GLANCE_BIRTHDAYS = BooleanSetting("glance.birthdays", false)
         /** The clock in the At a Glance card's corner. */
@@ -296,7 +302,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             SHOW_KEYBOARD_ON_OPEN,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
             DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, GLANCE_ENABLED, GLANCE_ALARM,
-            GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_BIRTHDAYS, GLANCE_CLOCK, GLANCE_CLOCK_STYLE,
+            GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_CALENDAR, GLANCE_BIRTHDAYS, GLANCE_CLOCK, GLANCE_CLOCK_STYLE,
             RESULT_SHORTCUTS, WEATHER_HOME_LOCATION, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,

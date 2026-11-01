@@ -104,9 +104,11 @@ class DeclinedPermissionTest {
     private fun showRequests() = show {
         val contacts = rememberContactsRequest { }
         val location = rememberApproximateLocationRequest { }
+        val calendar = rememberCalendarRequest { }
         Column {
             TextButton(onClick = contacts::request) { Text("Ask Contacts") }
             TextButton(onClick = location::request) { Text("Ask Location") }
+            TextButton(onClick = calendar::request) { Text("Ask Calendar") }
         }
     }
 
@@ -125,6 +127,16 @@ class DeclinedPermissionTest {
         tap("Ask Contacts")
         tap("Allow")
         assertEquals("'Contacts Access Is Off' after only closing Android's first prompt", false, shown("Contacts Access Is Off"))
+    }
+
+    @Test
+    fun closingTheFirstCalendarPromptDoesNotSayCalendarIsOff() {
+        shadowOf(context).denyPermissions(Manifest.permission.READ_CALENDAR)
+        androidShowsItsReason(Manifest.permission.READ_CALENDAR, false)
+        showRequests()
+        tap("Ask Calendar")
+        tap("Allow")
+        assertEquals("'Calendar Access Is Off' after only closing Android's first prompt", false, shown("Calendar Access Is Off"))
     }
 
     @Test
@@ -173,11 +185,12 @@ class DeclinedPermissionTest {
 
     @Test
     fun openSettingsOnAnAccessIsOffDialogOpensAppInfoOverThisScreen() {
-        shadowOf(context).denyPermissions(Manifest.permission.READ_CONTACTS, Manifest.permission.ACCESS_COARSE_LOCATION)
+        shadowOf(context).denyPermissions(Manifest.permission.READ_CONTACTS, Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.READ_CALENDAR)
         showRequests()
         for ((ask, permission, off) in listOf(
             Triple("Ask Contacts", Manifest.permission.READ_CONTACTS, "Contacts Access Is Off"),
             Triple("Ask Location", Manifest.permission.ACCESS_COARSE_LOCATION, "Location Access Is Off"),
+            Triple("Ask Calendar", Manifest.permission.READ_CALENDAR, "Calendar Access Is Off"),
         )) {
             // Declined once before; this time the user picks Don't Allow, and Android stops showing its reason.
             androidShowsItsReason(permission, true)
@@ -220,26 +233,23 @@ class DeclinedPermissionTest {
 
     @Test
     fun closingAPromptFromFinishSettingUpDoesNotJumpToAppInfo() {
-        shadowOf(context).denyPermissions(Manifest.permission.READ_CONTACTS, Manifest.permission.READ_CALENDAR)
+        shadowOf(context).denyPermissions(Manifest.permission.READ_CONTACTS)
         androidShowsItsReason(Manifest.permission.READ_CONTACTS, false)
-        androidShowsItsReason(Manifest.permission.READ_CALENDAR, false)
         show { SetupChecklistScreen(prefs, {}, {}) }
-        for (step in listOf("Contacts", "Calendar")) {
-            tap(step)
-            assertNull("$step: a closed prompt opened App info", shadowOf(context).nextStartedActivity)
-            assertNull("$step: a closed prompt said access was declined", ShadowToast.getTextOfLatestToast())
-        }
+        tap("Contacts")
+        assertNull("a closed prompt opened App info", shadowOf(context).nextStartedActivity)
+        assertNull("a closed prompt said access was declined", ShadowToast.getTextOfLatestToast())
     }
 
     @Test
     fun declinedForGoodFinishSettingUpStillOpensAppInfo() {
-        shadowOf(context).denyPermissions(Manifest.permission.READ_CALENDAR)
+        shadowOf(context).denyPermissions(Manifest.permission.READ_CONTACTS)
         // Declined once before; this time the user picks Don't Allow, and Android stops showing its reason.
-        androidShowsItsReason(Manifest.permission.READ_CALENDAR, true)
-        answer = false to { androidShowsItsReason(Manifest.permission.READ_CALENDAR, false) }
+        androidShowsItsReason(Manifest.permission.READ_CONTACTS, true)
+        answer = false to { androidShowsItsReason(Manifest.permission.READ_CONTACTS, false) }
         show { SetupChecklistScreen(prefs, {}, {}) }
-        tap("Calendar")
-        assertEquals("Calendar access was declined. You can allow it in Android settings.", ShadowToast.getTextOfLatestToast())
+        tap("Contacts")
+        assertEquals("Contacts access was declined. You can allow it in Android settings.", ShadowToast.getTextOfLatestToast())
         assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, shadowOf(context).nextStartedActivity?.action)
     }
 

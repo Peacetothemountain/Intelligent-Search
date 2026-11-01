@@ -20,7 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Contacts
-import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Search
@@ -54,12 +53,14 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import com.pixel.intelligentsearch.core.system.openSettingsPage
-import com.pixel.intelligentsearch.core.system.openSettingsPageToGrant
 import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.core.system.SearchRoleManager
 
-/** One thing a new user sets up: what it gives them, and whether it is done. */
-enum class SetupStep { CONTACTS, CALENDAR, NOTIFICATIONS, FILES, SEARCH_BAR }
+/**
+ * One thing a new user sets up: what it gives them, and whether it is done. The calendar isn't one: it is asked for
+ * only when the user turns on At a Glance's Calendar Events, the one thing that reads it.
+ */
+enum class SetupStep { CONTACTS, NOTIFICATIONS, FILES, SEARCH_BAR }
 
 /** Which setup steps apply on this phone and which are done; read fresh every time the page is shown. */
 object SetupChecklist {
@@ -72,7 +73,6 @@ object SetupChecklist {
 
     fun isDone(context: Context, prefs: SharedPreferences, step: SetupStep): Boolean = when (step) {
         SetupStep.CONTACTS -> granted(context, Manifest.permission.READ_CONTACTS) && prefs[SettingsManager.SEARCH_CONTACTS]
-        SetupStep.CALENDAR -> granted(context, Manifest.permission.READ_CALENDAR)
         SetupStep.NOTIFICATIONS -> NotificationAccess.isGranted(context)
         SetupStep.FILES -> prefs[SettingsManager.SEARCH_FILES] &&
             (UserGrantedFiles.folderUris(prefs).isNotEmpty() || UserGrantedFiles.mediaUris(prefs).isNotEmpty())
@@ -110,13 +110,9 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    fun openAppSettings() {
-        openSettingsPageToGrant(context, appDetailsSettings(context.packageName))
-    }
     // Android's reason flag as each request starts, so only a decline for good, not a closed prompt, sends the user
     // to Android's settings ([declinedForGood]).
     var contactsRationaleBefore by remember { mutableStateOf(false) }
-    var calendarRationaleBefore by remember { mutableStateOf(false) }
     fun searchContacts() {
         prefs.edit { put(SettingsManager.SEARCH_CONTACTS, true) }
         viewModel?.reindexContacts()
@@ -133,15 +129,6 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
         } else if (context.findActivity()?.let { declinedForGood(it, Manifest.permission.READ_CONTACTS, contactsRationaleBefore) } == true) {
             Toast.makeText(context, "Contacts access was declined. You can allow it in Android settings.", Toast.LENGTH_LONG).show()
             contactsSettingsGrant.open()
-        }
-        revision++
-    }
-    val calendarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
-            forgetDecline(context, Manifest.permission.READ_CALENDAR)
-        } else if (context.findActivity()?.let { declinedForGood(it, Manifest.permission.READ_CALENDAR, calendarRationaleBefore) } == true) {
-            Toast.makeText(context, "Calendar access was declined. You can allow it in Android settings.", Toast.LENGTH_LONG).show()
-            openAppSettings()
         }
         revision++
     }
@@ -214,7 +201,6 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                     val isDone = done[step] == true
                     val (title, why, icon) = when (step) {
                         SetupStep.CONTACTS -> Triple("Contacts", "Find People as You Type, Then Call or Message Them.", Symbols.Outlined.Contacts)
-                        SetupStep.CALENDAR -> Triple("Calendar", "See Upcoming Events and Search Them.", Symbols.Outlined.Event)
                         SetupStep.NOTIFICATIONS -> Triple("Notifications", "Search Your Notifications and See Timers and What's Playing.", Symbols.Outlined.Notifications)
                         SetupStep.FILES -> Triple("Files", "Choose the Folders to Search. Nothing Else Is Read.", Symbols.Outlined.Folder)
                         SetupStep.SEARCH_BAR -> Triple("Home Screen Search Bar", "Power the Pixel Search Bar on Your Home Screen.", Symbols.Outlined.Search)
@@ -231,13 +217,6 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                                     } else {
                                         contactsRationaleBefore = rationaleShown(context, Manifest.permission.READ_CONTACTS)
                                         contactsLauncher.launch(Manifest.permission.READ_CONTACTS)
-                                    }
-                                SetupStep.CALENDAR ->
-                                    if (isDone) {
-                                        openAppSettings()
-                                    } else {
-                                        calendarRationaleBefore = rationaleShown(context, Manifest.permission.READ_CALENDAR)
-                                        calendarLauncher.launch(Manifest.permission.READ_CALENDAR)
                                     }
                                 SetupStep.NOTIFICATIONS ->
                                     if (isDone) openSettingsPage(context, *NotificationAccess.settingsIntents(context).toTypedArray()) else notificationAccess.request()

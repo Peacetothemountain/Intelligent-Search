@@ -107,6 +107,26 @@ class AtAGlanceTest {
         assertTrue(none.copy(media = true).anyOn)
     }
 
+    /**
+     * Calendar events show in the card, after what's playing and before birthdays as their switches are ordered, only
+     * with Calendar Events on and the calendar allowed; a permission taken back hides them with the switch still on.
+     */
+    @Test
+    fun calendarEventsNeedTheirSwitchAndTheCalendar() {
+        val standup = com.pixel.intelligentsearch.core.data.CalendarEvent("Standup", "10:00", eventId = 8, beginMillis = now + hour)
+        val withEvents = everything.copy(events = listOf(standup, standup))
+        val allowed = allOn.copy(calendarAccess = true)
+        assertEquals(listOf("Timer", "Alarm", "Media", "Event", "Birthday"), kinds(glanceItems(withEvents, allowed, now)))
+        assertTrue(allowed.calendarOn)
+        assertFalse("the switch off", allowed.copy(calendar = false).calendarOn)
+        assertFalse("the calendar not allowed", allOn.calendarOn)
+        assertFalse("At a Glance off", allowed.copy(enabled = false).calendarOn)
+        assertEquals(listOf("Timer", "Alarm", "Media", "Birthday"), kinds(glanceItems(withEvents, allOn, now)))
+        assertEquals(listOf("Timer", "Alarm", "Media", "Birthday"), kinds(glanceItems(withEvents, allowed.copy(calendar = false), now)))
+        // Calendar Events alone is enough to read.
+        assertTrue(GlanceToggles(alarm = false, timers = false, media = false, birthdays = false, calendarAccess = true).anyOn)
+    }
+
     @Test
     fun theAlarmShowsOnlyInTheNextTwelveHours() {
         fun shows(at: Long) = glanceItems(GlanceSnapshot(alarm = GlanceAlarm(at)), allOn, now).isNotEmpty()

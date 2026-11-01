@@ -17,7 +17,6 @@ import androidx.work.testing.WorkManagerTestInitHelper
 import com.pixel.intelligentsearch.HiltTestActivity
 import com.pixel.intelligentsearch.core.currency.CurrencyRateWork
 import com.pixel.intelligentsearch.core.data.AppItem
-import com.pixel.intelligentsearch.core.data.CalendarEvent
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.DeviceSearchSources
 import com.pixel.intelligentsearch.core.data.DeviceSearchSourcesModule
@@ -57,8 +56,6 @@ class FakeDeviceSearchSources(val apps: List<AppItem> = DEFAULT_APPS) : DeviceSe
         val DEFAULT_APPS = listOf(app("Calendar", "com.example.calendar"), app("Camera", "com.example.camera"), app("Hidden Thing", "com.example.hidden"))
     }
     var webSuggestions = listOf("weather today", "weather tomorrow")
-    /** The calendar, which a test may change while the overlay is away. */
-    @Volatile var events = listOf(CalendarEvent("Dentist", "09:30", eventId = 7, beginMillis = 1_000))
     @Volatile var contactBook = listOf(ContactItem("Ada Lovelace", "+1 555 0100", "content://contacts/ada"))
     /** How many times app usage has been read for ranking. */
     val appUsageReads = java.util.concurrent.atomic.AtomicInteger()
@@ -73,7 +70,6 @@ class FakeDeviceSearchSources(val apps: List<AppItem> = DEFAULT_APPS) : DeviceSe
     override suspend fun recentFiles(limit: Int, includeHidden: Boolean) = emptyList<com.pixel.intelligentsearch.core.data.FileItem>()
     override suspend fun recentApps(hiddenApps: Set<String>) = apps.filter { it.packageName !in hiddenApps }
     override suspend fun contextAwareQuickApps(hiddenApps: Set<String>) = recentApps(hiddenApps)
-    override suspend fun upcomingEvents() = events
     override suspend fun contacts(query: String) = contactBook.filter { it.name.contains(query, ignoreCase = true) }
     /** When set, the local search waits here (on its own thread) until a test lets it go on. */
     @Volatile var holdCachedSuggestionLookup: java.util.concurrent.CountDownLatch? = null
@@ -171,13 +167,13 @@ class SearchViewModelTest {
     }
 
     @Test
-    fun initialLoadListsAppsEventsAndRecentsWithoutHiddenApps() {
+    fun initialLoadListsAppsAndRecentsWithoutHiddenApps() {
         prefs.edit().put(SettingsManager.HIDDEN_APPS, setOf("com.example.hidden")).commit()
         start()
         viewModel.loadInitialData()
-        val state = await("initial data") { it.allApps.isNotEmpty() && it.calendarEvents.isNotEmpty() }
+        // Calendar events are no longer the search's: At a Glance reads them, only with Calendar Events on.
+        val state = await("initial data") { it.allApps.isNotEmpty() && it.recentApps.isNotEmpty() }
         assertEquals(listOf("Calendar", "Camera", "Hidden Thing"), state.allApps.map { it.name })
-        assertEquals(listOf("Dentist"), state.calendarEvents.map { it.title })
         // Launcher predictions (real here) may add apps; the device's recents must be there and hidden apps never.
         val recents = state.recentApps.map { it.name }
         assertTrue("recents were $recents", recents.containsAll(listOf("Calendar", "Camera")))
@@ -639,18 +635,6 @@ class SearchViewModelTest {
         copy("dogs")
         kotlinx.coroutines.runBlocking { viewModel.refreshClipboardActions() }
         assertEquals(listOf("dogs"), viewModel.uiState.value.directActions.map { it.subtitle })
-    }
-
-    @Test
-    fun comingBackToTheOverlayReloadsUpcomingEvents() {
-        showOverlay()
-        await("first events") { state -> state.calendarEvents.map { it.title } == listOf("Dentist") }
-
-        device.events = listOf(CalendarEvent("Standup", "10:00", eventId = 8, beginMillis = 2_000))
-        ShadowSystemClock.advanceBy(Duration.ofSeconds(2))
-        leaveAndReturn()
-
-        await("fresh events") { state -> state.calendarEvents.map { it.title } == listOf("Standup") }
     }
 
     @Test

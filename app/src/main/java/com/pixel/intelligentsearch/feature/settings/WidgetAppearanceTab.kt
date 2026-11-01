@@ -72,7 +72,9 @@ internal fun WidgetAppearanceTab(
     colors: WidgetColorSelection,
     themeStyle: MutableState<String>,
     view: android.view.View,
-    hapticEngine: PixelHapticEngine
+    hapticEngine: PixelHapticEngine,
+    // The Doodles switch takes effect at once on the widget (the editor decides when it can).
+    onShowDoodlesChanged: (Boolean) -> Unit = {}
 ) {
     var localMaterialGIconTheme by fields::materialGIconTheme
     var localCustomGIconColor by fields::customGIconColor
@@ -125,7 +127,10 @@ internal fun WidgetAppearanceTab(
                 subtitle = "Show Mini Doodles Around the G Icon for Holidays and Special Events.",
                 icon = DoodleBrushIcon,
                 isChecked = localShowDoodles,
-                onCheckedChange = { localShowDoodles = it },
+                onCheckedChange = {
+                    localShowDoodles = it
+                    onShowDoodlesChanged(it)
+                },
                 showDivider = false
             )
         }

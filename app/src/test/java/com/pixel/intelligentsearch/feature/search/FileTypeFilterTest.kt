@@ -38,7 +38,6 @@ import javax.inject.Singleton
 /** A device whose only files are a few documents, for searches that name a file type. */
 class FileTypeSources : DeviceSearchSources by FakeDeviceSearchSources() {
     override suspend fun recentFiles(limit: Int, includeHidden: Boolean) = FILES
-    override suspend fun upcomingEvents() = emptyList<com.pixel.intelligentsearch.core.data.CalendarEvent>()
 
     /** When set, the Nth local search to look up cached suggestions waits on the Nth latch (on its own thread). */
     @Volatile var heldLookups: List<java.util.concurrent.CountDownLatch> = emptyList()

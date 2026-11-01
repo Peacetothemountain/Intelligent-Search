@@ -1,11 +1,13 @@
 package com.pixel.intelligentsearch.feature.search
 
+import android.content.ContentUris
 import android.content.Context
 import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import android.content.Intent
 import android.os.SystemClock
 import android.provider.AlarmClock
+import android.provider.CalendarContract
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -25,17 +27,21 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.Cake
+import androidx.compose.material.icons.outlined.Event
 import androidx.compose.material.icons.outlined.MusicNote
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,8 +60,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import com.pixel.intelligentsearch.core.data.CalendarEvent
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.glance.AndroidGlanceSource
@@ -75,7 +83,12 @@ import com.pixel.intelligentsearch.core.ui.materialYouGeminiPlate
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
+import com.pixel.intelligentsearch.feature.settings.calendarAllowed
 import kotlinx.coroutines.delay
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
 
 /** Test tag on the At a Glance section's heading. */
 internal const val GLANCE_HEADER_TAG = "glance_header"
@@ -115,18 +128,42 @@ private fun rememberGlanceNow(periodMs: Long, enabled: Boolean = true): Long {
     }.value
 }
 
-/** At a Glance's switches in Search Behavior, with notification access for the timers and Contacts for birthdays. */
+/**
+ * Whether Android allows the calendar, read again each time the screen resumes: the user can take it back in
+ * Android's settings while the search is kept between looks.
+ */
+@Composable
+private fun rememberCalendarAllowed(): Boolean {
+    val context = LocalContext.current
+    var granted by remember(context) { mutableStateOf(calendarAllowed(context)) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) granted = calendarAllowed(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return granted
+}
+
+/**
+ * At a Glance's switches in Search Behavior, with notification access for the timers, the calendar permission for
+ * calendar events and Contacts for birthdays.
+ */
 @Composable
 private fun rememberGlanceToggles(): GlanceToggles {
     val enabled by rememberSetting(SettingsManager.GLANCE_ENABLED)
     val alarm by rememberSetting(SettingsManager.GLANCE_ALARM)
     val timers by rememberSetting(SettingsManager.GLANCE_TIMERS)
     val media by rememberSetting(SettingsManager.GLANCE_MEDIA)
+    val calendar by rememberSetting(SettingsManager.GLANCE_CALENDAR)
     val birthdays by rememberSetting(SettingsManager.GLANCE_BIRTHDAYS)
     val notifications = rememberNotificationAccessGranted()
     val contacts by rememberSetting(SettingsManager.SEARCH_CONTACTS)
-    return remember(enabled, alarm, timers, media, birthdays, notifications, contacts) {
-        GlanceToggles(enabled, alarm, timers, media, birthdays, notifications, contacts)
+    val calendarAccess = rememberCalendarAllowed()
+    return remember(enabled, alarm, timers, media, calendar, birthdays, notifications, contacts, calendarAccess) {
+        GlanceToggles(enabled, alarm, timers, media, calendar, birthdays, notifications, contacts, calendarAccess)
     }
 }
 
@@ -308,13 +345,15 @@ private fun GlanceItemRow(item: GlanceItem, onOpened: () -> Unit, modifier: Modi
         is GlanceItem.Timer -> TimerRow(item.timer, open, modifier)
         is GlanceItem.Alarm -> AlarmRow(item.alarm.triggerAt, open, modifier)
         is GlanceItem.Media -> MediaRow(item.media, open, modifier)
+        is GlanceItem.Event -> EventRow(item.event, open, modifier)
         is GlanceItem.Birthday -> BirthdayRow(item.birthday, open, modifier)
     }
 }
 
 /**
  * What an At a Glance item opens, by tap or by Enter: a timer's own page (else the clock's timers, else its app),
- * the alarm's own page (else the clock's alarms, else the app that set it), the player's page, or the contact.
+ * the alarm's own page (else the clock's alarms, else the app that set it), the player's page, the event in the
+ * calendar app at this occurrence (else the calendar at its time), or the contact.
  */
 internal fun openGlanceItem(context: Context, item: GlanceItem) {
     when (item) {
@@ -323,6 +362,7 @@ internal fun openGlanceItem(context: Context, item: GlanceItem) {
             openPendingOrApp(context, show, show?.creatorPackage.orEmpty(), fallback = Intent(AlarmClock.ACTION_SHOW_ALARMS))
         }
         is GlanceItem.Media -> item.media.controls.open()
+        is GlanceItem.Event -> launchSafeIntent(context, calendarEventIntent(item.event))
         is GlanceItem.Birthday -> item.birthday.lookupUri.takeIf { it.isNotEmpty() }
             ?.let { launchSafeIntent(context, Intent(Intent.ACTION_VIEW, it.toUri())) }
     }
@@ -472,6 +512,59 @@ private fun BirthdayRow(birthday: GlanceBirthday, open: () -> Unit, modifier: Mo
         },
         title = "${birthday.name}'s Birthday",
         subtitle = listOfNotNull(day, birthday.turning?.let { "Turns $it" }).joinToString(" · "),
+        onClick = open,
+        modifier = modifier
+    )
+}
+
+/**
+ * The calendar app on [event]: the event itself at this occurrence, or, for an instance without an event id, the
+ * calendar at its time.
+ */
+internal fun calendarEventIntent(event: CalendarEvent): Intent =
+    if (event.eventId > 0L) {
+        Intent(Intent.ACTION_VIEW, ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, event.eventId))
+            .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, event.beginMillis)
+    } else {
+        val time = CalendarContract.CONTENT_URI.buildUpon().appendPath("time")
+        ContentUris.appendId(time, event.beginMillis)
+        Intent(Intent.ACTION_VIEW, time.build())
+    }
+
+/**
+ * When an event is, under its title: "Now" once it has started, else "Today" or "Tomorrow" and its [time] (the
+ * phone's 12 or 24 hour style), or "All Day". An all-day event is kept on its own date, which calendars store at
+ * midnight UTC, so it isn't read as the evening before west of UTC.
+ */
+internal fun calendarEventWhen(event: CalendarEvent, time: String, now: Long, zone: ZoneId = ZoneId.systemDefault()): String {
+    val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+    val day: LocalDate = if (event.allDay) {
+        Instant.ofEpochMilli(event.beginMillis).atOffset(ZoneOffset.UTC).toLocalDate()
+    } else {
+        if (event.beginMillis <= now) return "Now"
+        Instant.ofEpochMilli(event.beginMillis).atZone(zone).toLocalDate()
+    }
+    val dayLabel = when {
+        !day.isAfter(today) -> "Today"
+        day == today.plusDays(1) -> "Tomorrow"
+        else -> day.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
+    }
+    return "$dayLabel · ${if (event.allDay) "All Day" else time}"
+}
+
+/** An upcoming calendar event: its title, then when it is ([calendarEventWhen]); opens the event in the calendar app. */
+@Composable
+private fun EventRow(event: CalendarEvent, open: () -> Unit, modifier: Modifier) {
+    val context = LocalContext.current
+    val now = rememberGlanceNow(GLANCE_COARSE_TICK_MS)
+    // Formatted again on each tick, so a new time zone or 12 or 24 hour style shows while the search is kept open.
+    val time = remember(event.beginMillis, now) {
+        android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(event.beginMillis))
+    }
+    GlanceRow(
+        leading = { GlanceBadge(Icons.Outlined.Event) },
+        title = event.title,
+        subtitle = calendarEventWhen(event, time, now),
         onClick = open,
         modifier = modifier
     )

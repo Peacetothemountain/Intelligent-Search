@@ -7,7 +7,7 @@ import org.junit.Test
 /** An At a Glance switch shows as on only when its item can actually show. */
 class GlancePrerequisitesTest {
 
-    private val all = GlancePrerequisites(notificationAccess = true, contactsAllowed = true, searchContacts = true)
+    private val all = GlancePrerequisites(notificationAccess = true, contactsAllowed = true, searchContacts = true, calendarAllowed = true)
 
     @Test
     fun timersAndMediaControlsNeedNotificationAccess() {
@@ -15,6 +15,13 @@ class GlancePrerequisitesTest {
         assertTrue(all.media)
         assertFalse(all.copy(notificationAccess = false).timers)
         assertFalse(all.copy(notificationAccess = false).media)
+    }
+
+    @Test
+    fun calendarEventsNeedOnlyTheCalendar() {
+        assertTrue(all.calendar)
+        assertFalse(all.copy(calendarAllowed = false).calendar)
+        assertTrue(all.copy(notificationAccess = false, contactsAllowed = false, searchContacts = false).calendar)
     }
 
     @Test

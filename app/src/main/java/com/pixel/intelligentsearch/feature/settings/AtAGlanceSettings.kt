@@ -68,15 +68,18 @@ internal const val CLOCK_STYLE_TAG_PREFIX = "clock_style_"
 
 /**
  * Whether each At a Glance item can show, given what it reads from: timers and Media Controls need notification
- * access, Birthdays contact search and the contacts. A switch shows as on only when its item can actually show.
+ * access, Calendar Events the calendar, Birthdays contact search and the contacts. A switch shows as on only when its
+ * item can actually show.
  */
 internal data class GlancePrerequisites(
     val notificationAccess: Boolean,
     val contactsAllowed: Boolean,
-    val searchContacts: Boolean
+    val searchContacts: Boolean,
+    val calendarAllowed: Boolean
 ) {
     val timers: Boolean get() = notificationAccess
     val media: Boolean get() = notificationAccess
+    val calendar: Boolean get() = calendarAllowed
     val birthdays: Boolean get() = contactsAllowed && searchContacts
 }
 
@@ -84,7 +87,7 @@ internal data class GlancePrerequisites(
  * Search Behavior's At a Glance card: the section's own switch, then one per item in the order they show, then Show
  * Clock and, while the clock shows, its Clock Style. A switch shows as on only when its item can show
  * ([GlancePrerequisites]); turning one on without what it needs asks for it the app's usual way (notification
- * access, the contacts) and switches on what that needs too.
+ * access, the calendar, the contacts) and switches on what that needs too.
  */
 @Composable
 internal fun AtAGlanceSettingsCard() {
@@ -94,18 +97,20 @@ internal fun AtAGlanceSettingsCard() {
     // Granted or revoked in Android's settings while away: read again on the way back.
     var notificationAccess by remember { mutableStateOf(NotificationAccess.isGranted(context)) }
     var contactsPermission by remember { mutableStateOf(contactsAllowed(context)) }
+    var calendarPermission by remember { mutableStateOf(calendarAllowed(context)) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 notificationAccess = NotificationAccess.isGranted(context)
                 contactsPermission = contactsAllowed(context)
+                calendarPermission = calendarAllowed(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val ready = GlancePrerequisites(notificationAccess, contactsPermission, searchContacts)
+    val ready = GlancePrerequisites(notificationAccess, contactsPermission, searchContacts, calendarPermission)
 
     SettingsSectionHeader("At a Glance")
     SettingsCard {
@@ -170,6 +175,26 @@ internal fun AtAGlanceSettingsCard() {
                             !on -> media = false
                             ready.media -> media = true
                             else -> mediaAccess.request()
+                        }
+                    }
+                )
+                var calendar by rememberSetting(SettingsManager.GLANCE_CALENDAR)
+                // Setup no longer asks for the calendar; this switch is where it is asked for, and it turns on only
+                // once allowed (here, or on App info after a decline for good).
+                val calendarRequest = rememberCalendarRequest {
+                    calendarPermission = calendarAllowed(context)
+                    calendar = true
+                }
+                SettingsRowToggle(
+                    title = "Calendar Events",
+                    subtitle = "Show Your Calendar Events for the Next 24 Hours.",
+                    icon = Symbols.Outlined.CalendarMonth,
+                    isChecked = calendar && ready.calendar,
+                    onCheckedChange = { on ->
+                        when {
+                            !on -> calendar = false
+                            ready.calendar -> calendar = true
+                            else -> calendarRequest.request()
                         }
                     }
                 )

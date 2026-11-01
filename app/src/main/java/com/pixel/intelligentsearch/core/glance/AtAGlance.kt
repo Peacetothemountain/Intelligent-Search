@@ -5,6 +5,7 @@ import android.app.Notification
 import android.app.PendingIntent
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
+import com.pixel.intelligentsearch.core.data.CalendarEvent
 import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 
 /**
@@ -61,6 +62,8 @@ data class GlanceSnapshot(
     val alarm: GlanceAlarm? = null,
     val timers: List<GlanceTimer> = emptyList(),
     val media: GlanceMedia? = null,
+    /** The next day's calendar events, soonest first. */
+    val events: List<CalendarEvent> = emptyList(),
     val birthdays: List<GlanceBirthday> = emptyList()
 ) {
     companion object {
@@ -70,8 +73,8 @@ data class GlanceSnapshot(
 
 /**
  * What decides which At a Glance items can show: the section's switch and each item's own in Search Behavior, and
- * the sources the items read from: timers need notification access, birthdays contact search, and media notification
- * access too (checked where the sessions are read).
+ * the sources the items read from: timers need notification access, calendar events the calendar permission,
+ * birthdays contact search, and media notification access too (checked where the sessions are read).
  */
 @Immutable
 data class GlanceToggles(
@@ -79,11 +82,17 @@ data class GlanceToggles(
     val alarm: Boolean = true,
     val timers: Boolean = true,
     val media: Boolean = true,
+    val calendar: Boolean = true,
     val birthdays: Boolean = true,
     /** Android's notification access: timers are read from the clock's notifications. */
     val notifications: Boolean = false,
     /** Search Sources -> Contacts: birthdays come from the contacts, so they show only while contact search is on. */
-    val contacts: Boolean = false
+    val contacts: Boolean = false,
+    /**
+     * Android's calendar permission. It is asked for only as Calendar Events is turned on, and checked again here so
+     * a permission taken back later hides the events, and stops their reading, though the switch is still on.
+     */
+    val calendarAccess: Boolean = false
 ) {
     val alarmOn: Boolean get() = enabled && alarm
 
@@ -92,11 +101,14 @@ data class GlanceToggles(
 
     val mediaOn: Boolean get() = enabled && media
 
+    /** Whether calendar events are read: their switch on and the calendar allowed. */
+    val calendarOn: Boolean get() = enabled && calendar && calendarAccess
+
     /** Whether birthdays are read: their switch and contact search on. */
     val birthdaysOn: Boolean get() = enabled && birthdays && contacts
 
     /** Whether anything at all can show, so nothing is read for an empty section. */
-    val anyOn: Boolean get() = alarmOn || timersOn || mediaOn || birthdaysOn
+    val anyOn: Boolean get() = alarmOn || timersOn || mediaOn || calendarOn || birthdaysOn
 }
 
 /** One card in At a Glance; [key] keeps each in place in the list. */
@@ -112,6 +124,10 @@ sealed interface GlanceItem {
     data class Media(val media: GlanceMedia) : GlanceItem {
         override val key get() = "glance_media_${media.packageName}"
     }
+    data class Event(val event: CalendarEvent) : GlanceItem {
+        // Title and time can repeat (the same meeting on two calendars); the instance's event id and start cannot.
+        override val key get() = "glance_event_${event.eventId}_${event.beginMillis}_${event.title}"
+    }
     data class Birthday(val birthday: GlanceBirthday) : GlanceItem {
         override val key get() = "glance_birthday_${birthday.contactId}"
     }
@@ -123,8 +139,9 @@ const val GLANCE_MAX_TIMERS = 3
 
 /**
  * What At a Glance shows at [now], in order: running timers and stopwatches, the next alarm within
- * [GLANCE_ALARM_WINDOW_MS], what is playing and birthdays this week. Each only with its switch on; timers also need
- * notification access and birthdays contact search ([GlanceToggles]).
+ * [GLANCE_ALARM_WINDOW_MS], what is playing, the next day's calendar events and birthdays this week, the order of
+ * their switches in Search Behavior. Each only with its switch on; timers also need notification access, calendar
+ * events the calendar permission and birthdays contact search ([GlanceToggles]).
  */
 fun glanceItems(snapshot: GlanceSnapshot, toggles: GlanceToggles, now: Long): List<GlanceItem> {
     if (!toggles.enabled) return emptyList()
@@ -132,6 +149,7 @@ fun glanceItems(snapshot: GlanceSnapshot, toggles: GlanceToggles, now: Long): Li
         if (toggles.timersOn) snapshot.timers.take(GLANCE_MAX_TIMERS).forEach { add(GlanceItem.Timer(it)) }
         snapshot.alarm?.takeIf { toggles.alarmOn && it.triggerAt - now in 0..GLANCE_ALARM_WINDOW_MS }?.let { add(GlanceItem.Alarm(it)) }
         snapshot.media?.takeIf { toggles.mediaOn }?.let { add(GlanceItem.Media(it)) }
+        if (toggles.calendarOn) snapshot.events.map { GlanceItem.Event(it) }.distinctBy { it.key }.forEach(::add)
         if (toggles.birthdaysOn) snapshot.birthdays.forEach { add(GlanceItem.Birthday(it)) }
     }
 }

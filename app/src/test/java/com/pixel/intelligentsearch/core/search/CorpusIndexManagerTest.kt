@@ -7,7 +7,6 @@ import android.content.pm.PackageManager
 import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.AppItem
-import com.pixel.intelligentsearch.core.data.CalendarEvent
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.DeviceSearchSources
 import com.pixel.intelligentsearch.core.data.FileItem
@@ -56,7 +55,6 @@ class CorpusIndexManagerTest {
             listOf(FileItem("report.pdf", "/storage/emulated/0/Download/report.pdf", "application/pdf", "content://media/external/file/1"))
         override suspend fun recentApps(hiddenApps: Set<String>) = emptyList<AppItem>()
         override suspend fun contextAwareQuickApps(hiddenApps: Set<String>) = emptyList<AppItem>()
-        override suspend fun upcomingEvents() = emptyList<CalendarEvent>()
         override suspend fun contacts(query: String) = emptyList<ContactItem>()
         override fun cachedWebSuggestions(query: String, engine: String): List<com.pixel.intelligentsearch.core.data.WebSuggestion>? = null
         override suspend fun webSuggestions(query: String, engine: String) = emptyList<com.pixel.intelligentsearch.core.data.WebSuggestion>()

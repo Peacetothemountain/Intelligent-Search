@@ -6,6 +6,7 @@ import com.pixel.intelligentsearch.screenshots.confinedEffects
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -57,6 +58,35 @@ class WidgetSettingsSaveTest {
         // The Material design was never touched, so it must not be marked saved (its legacy fallbacks stay).
         assertFalse(prefs.getBoolean("widget_material_design_saved", false))
         assertFalse(prefs.contains("widget_material_subtheme"))
+    }
+
+    /**
+     * Turning Doodles off takes the doodle off the widget at once, with no Save, and it stays off when the page is
+     * opened again. It used to be a draft until Save, so leaving the page turned it back on.
+     */
+    @Test
+    fun theDoodlesSwitchAppliesAtOnce() {
+        val prefs = ApplicationProvider.getApplicationContext<Context>()
+            .getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations()
+        compose.mainClock.autoAdvance = false
+        val open = androidx.compose.runtime.mutableStateOf(true)
+        compose.setContent { IntelligentSearchTheme(darkTheme = false) { if (open.value) WidgetSettingsScreen(prefs) {} } }
+        compose.settle()
+
+        compose.onNodeWithText("Doodles", useUnmergedTree = true).performClick()
+        compose.settle(steps = 5)
+        assertFalse(prefs.getBoolean("widget_system_show_doodles", true))
+
+        // Left without Save and opened again: still off.
+        open.value = false
+        compose.settle(steps = 2)
+        open.value = true
+        compose.settle(steps = 5)
+        compose.onNode(
+            androidx.compose.ui.test.hasText("Doodles") and androidx.compose.ui.test.isToggleable(),
+            useUnmergedTree = false
+        ).assertIsOff()
     }
 
     @Test

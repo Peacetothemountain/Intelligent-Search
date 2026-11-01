@@ -70,7 +70,12 @@ enum class BugdroidClip(
     SETTINGS(R.raw.bugdroid_video, R.drawable.bugdroid_settings_poster, 340, 0, 1216, 1080, 350, 3, 1543, 1073, 1058),
     // Rendered at 1280x720; its rectangles are scaled to the shared 1920x1080 frame.
     WELCOME(R.raw.bugdroid_welcome_video, R.drawable.bugdroid_welcome_poster, 348, 6, 1335, 1071, 367, 25, 1664, 1059, 1036),
-    BACKUP(R.raw.bugdroid_backup_video, R.drawable.bugdroid_backup_poster, 586, 14, 1036, 986, 603, 30, 1604, 982, 976);
+    BACKUP(R.raw.bugdroid_backup_video, R.drawable.bugdroid_backup_poster, 586, 14, 1036, 986, 603, 30, 1604, 982, 976),
+    // The Developer Note's detective walking into the glass wall. Rendered at 1280x720 with the wall running off the
+    // frame's left edge, so it is kept whole and its edges were faded to black offline (the left most, where the wall
+    // leaves the frame); its rectangles are scaled to the shared 1920x1080 frame. The wall's base, nearer the camera
+    // than the detective's feet, reaches lower, but below 1035 it is in that faded edge and all but gone.
+    DETECTIVE(R.raw.bugdroid_detective_video, R.drawable.bugdroid_detective_poster, 0, 0, 1920, 1080, 33, 12, 1907, 1035, 995);
 
     companion object {
         const val SOURCE_WIDTH = 1920

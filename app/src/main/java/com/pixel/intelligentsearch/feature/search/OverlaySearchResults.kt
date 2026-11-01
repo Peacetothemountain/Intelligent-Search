@@ -17,7 +17,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -90,7 +89,7 @@ internal fun directActionIcon(type: String): androidx.compose.ui.graphics.vector
     else -> Icons.Default.ContentPaste
 }
 
-/** The overlay's results list: suggested actions, At a Glance, best match, recents, calendar, shortcuts, one-boxes, and the app, Android Settings, web, people, file and notification sections. */
+/** The overlay's results list: suggested actions, At a Glance, best match, recents, shortcuts, one-boxes, and the app, Android Settings, web, people, file and notification sections. */
 @Composable
 internal fun OverlaySearchResults(s: OverlayScope) {
     val onOpenSettings = s.onOpenSettings
@@ -124,7 +123,6 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val sensoryEngine = rememberTactileSonicEngine()
     val view = androidx.compose.ui.platform.LocalView.current
     val searchResultsListState = s.listState
-    val verticalPad = 14.dp
 
     // These are plain values from the scope, not snapshot state, so they are keyed rather than derived: a
     // derivedStateOf over them would compute once and never again.
@@ -349,7 +347,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             }
         }
 
-        // At a Glance, one card in the top start corner: timers, the next alarm, what's playing, birthdays and the battery.
+        // At a Glance, one card in the top start corner: timers, the next alarm, what's playing, calendar events and birthdays.
         if (uiState.query.isEmpty()) {
             atAGlanceItems(glanceItems, highlight = { key -> Modifier.keyboardHighlight(s, key, GlanceRowShape) }) { hasStartedTyping = false }
         }
@@ -459,55 +457,6 @@ internal fun OverlaySearchResults(s: OverlayScope) {
             uniqueItems(distinctRecents, key = ResultListKeys::recent, contentType = { "recent_query" }) { recentQuery ->
                 OverlayRecentSearchRow(s, recentQuery)
             }
-        }
-
-        if (uiState.calendarEvents.isNotEmpty()) {
-            // Title + time can repeat (same meeting on two calendars); the instance id and begin time cannot.
-            uniqueItems(uiState.calendarEvents, key = { event -> "event_${event.eventId}_${event.beginMillis}_${event.title}" }, contentType = { "calendar_event" }) { event ->
-                val swipe = rememberSwipeToDismiss(sensoryEngine, view) { viewModel.dismissCalendarEvent(event) }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .animateItem(
-                            placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
-                            fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
-                            fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-                        )
-                        .swipeOffset(swipe)
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = event.eventId > 0L) {
-                                hasStartedTyping = false
-                                val eventIntent = Intent(
-                                    Intent.ACTION_VIEW,
-                                    android.content.ContentUris.withAppendedId(android.provider.CalendarContract.Events.CONTENT_URI, event.eventId)
-                                ).putExtra(android.provider.CalendarContract.EXTRA_EVENT_BEGIN_TIME, event.beginMillis)
-                                launchSafeIntent(context, eventIntent)
-                            }
-                            .swipeToDismiss(swipe, event)
-                            .padding(horizontal = 16.dp, vertical = verticalPad),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.size(24.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), CircleShape), contentAlignment = Alignment.Center) {
-                            // The badge holds the hour; an all-day event has none, so it gets the event icon.
-                            if (event.allDay) {
-                                Icon(imageVector = Icons.Default.Event, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
-                            } else {
-                                Text(event.startTime.split(":").first(), color = MaterialTheme.colorScheme.primary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column {
-                            Text(event.title, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium, fontFamily = GoogleSansFlex)
-                            Text(event.startTime, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = GoogleSansFlex)
-                        }
-                    }
-                }
-            }
-            item(key = "calendar_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
         }
 
         if (uiState.mathResult != null) {

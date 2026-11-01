@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import android.content.SharedPreferences
 import androidx.compose.animation.*
@@ -136,7 +137,7 @@ internal fun WidgetEditorDialogs(
                                 )
                                 if (isCustomizable) {
                                     Icon(
-                                        imageVector = Icons.Default.ArrowDropDown,
+                                        imageVector = Symbols.Filled.ArrowDropDown,
                                         contentDescription = "Options",
                                         modifier = Modifier
                                             .align(Alignment.BottomEnd)

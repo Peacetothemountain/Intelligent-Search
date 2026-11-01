@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import android.Manifest
 import com.pixel.intelligentsearch.core.util.findActivity
 import android.content.Context
@@ -187,7 +188,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
             TopAppBar(
                 title = { SettingsPageTitle("Finish Setting Up") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
             )
@@ -212,16 +213,16 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                 steps.forEachIndexed { index, step ->
                     val isDone = done[step] == true
                     val (title, why, icon) = when (step) {
-                        SetupStep.CONTACTS -> Triple("Contacts", "Find People as You Type, Then Call or Message Them.", Icons.Outlined.Contacts)
-                        SetupStep.CALENDAR -> Triple("Calendar", "See Upcoming Events and Search Them.", Icons.Outlined.Event)
-                        SetupStep.NOTIFICATIONS -> Triple("Notifications", "Search Your Notifications and See Timers and What's Playing.", Icons.Outlined.Notifications)
-                        SetupStep.FILES -> Triple("Files", "Choose the Folders to Search. Nothing Else Is Read.", Icons.Outlined.Folder)
-                        SetupStep.SEARCH_BAR -> Triple("Home Screen Search Bar", "Power the Pixel Search Bar on Your Home Screen.", Icons.Outlined.Search)
+                        SetupStep.CONTACTS -> Triple("Contacts", "Find People as You Type, Then Call or Message Them.", Symbols.Outlined.Contacts)
+                        SetupStep.CALENDAR -> Triple("Calendar", "See Upcoming Events and Search Them.", Symbols.Outlined.Event)
+                        SetupStep.NOTIFICATIONS -> Triple("Notifications", "Search Your Notifications and See Timers and What's Playing.", Symbols.Outlined.Notifications)
+                        SetupStep.FILES -> Triple("Files", "Choose the Folders to Search. Nothing Else Is Read.", Symbols.Outlined.Folder)
+                        SetupStep.SEARCH_BAR -> Triple("Home Screen Search Bar", "Power the Pixel Search Bar on Your Home Screen.", Symbols.Outlined.Search)
                     }
                     SettingsRow(
                         title = title,
                         subtitle = if (isDone) "Done." else why,
-                        icon = if (isDone) Icons.Outlined.CheckCircle else icon,
+                        icon = if (isDone) Symbols.Outlined.CheckCircle else icon,
                         onClick = {
                             when (step) {
                                 SetupStep.CONTACTS ->

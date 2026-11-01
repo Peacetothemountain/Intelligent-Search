@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.ui
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.Android
@@ -16,14 +17,14 @@ import com.pixel.intelligentsearch.core.data.FileTypeGroup
 
 /** The outlined icon for a file type, in File Search settings and on the results' filter chip. */
 fun fileTypeIcon(group: FileTypeGroup): ImageVector = when (group) {
-    FileTypeGroup.PDF -> Icons.Outlined.PictureAsPdf
-    FileTypeGroup.IMAGES -> Icons.Outlined.Image
-    FileTypeGroup.VIDEO -> Icons.Outlined.VideoFile
-    FileTypeGroup.AUDIO -> Icons.Outlined.AudioFile
-    FileTypeGroup.DOCUMENTS -> Icons.Outlined.Description
-    FileTypeGroup.SPREADSHEETS -> Icons.Outlined.TableChart
-    FileTypeGroup.PRESENTATIONS -> Icons.Outlined.Slideshow
-    FileTypeGroup.ARCHIVES -> Icons.Outlined.FolderZip
-    FileTypeGroup.APKS -> Icons.Outlined.Android
-    FileTypeGroup.OTHER -> Icons.AutoMirrored.Outlined.InsertDriveFile
+    FileTypeGroup.PDF -> Symbols.Outlined.PictureAsPdf
+    FileTypeGroup.IMAGES -> Symbols.Outlined.Image
+    FileTypeGroup.VIDEO -> Symbols.Outlined.VideoFile
+    FileTypeGroup.AUDIO -> Symbols.Outlined.AudioFile
+    FileTypeGroup.DOCUMENTS -> Symbols.Outlined.Description
+    FileTypeGroup.SPREADSHEETS -> Symbols.Outlined.TableChart
+    FileTypeGroup.PRESENTATIONS -> Symbols.Outlined.Slideshow
+    FileTypeGroup.ARCHIVES -> Symbols.Outlined.FolderZip
+    FileTypeGroup.APKS -> Symbols.Outlined.Android
+    FileTypeGroup.OTHER -> Symbols.AutoMirrored.Outlined.InsertDriveFile
 }

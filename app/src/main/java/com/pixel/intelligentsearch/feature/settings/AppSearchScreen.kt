@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import android.content.SharedPreferences
@@ -53,7 +54,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                 colors = settingsTopBarColors(),
                 title = { SettingsPageTitle("App & Shortcut Search") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -71,14 +72,14 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                 SettingsRow(
                     title = "Application Search",
                     subtitle = "Customize Quick Launch Apps in Search Overlay Screen.",
-                    icon = Icons.Outlined.ViewCarousel,
+                    icon = Symbols.Outlined.ViewCarousel,
                     onClick = { onNavigate(Route.SearchPills) },
                     showDivider = true
                 )
                 SettingsRow(
                     title = "Manage Hidden Apps",
                     subtitle = "Search Apps to Dynamically Hide from Search.",
-                    icon = Icons.Outlined.VisibilityOff,
+                    icon = Symbols.Outlined.VisibilityOff,
                     onClick = { onNavigate(Route.ManageHiddenApps) },
                     showDivider = true
                 )
@@ -86,7 +87,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                 SettingsRowToggle(
                     title = "Fuzzy Search",
                     subtitle = "Allow Typos When Searching for Apps.",
-                    icon = Icons.Outlined.Spellcheck,
+                    icon = Symbols.Outlined.Spellcheck,
                     isChecked = fuzzySearch,
                     onCheckedChange = { fuzzySearch = it },
                     showDivider = false
@@ -101,7 +102,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                 SettingsRowToggle(
                     title = "Quick App Panel",
                     subtitle = QUICK_APP_PANEL_SUBTITLE,
-                    icon = Icons.Outlined.ViewCompact,
+                    icon = Symbols.Outlined.ViewCompact,
                     isChecked = quickAppPanel,
                     onCheckedChange = { quickAppPanel = it },
                     showDivider = true
@@ -170,7 +171,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.RestartAlt,
+                                imageVector = Symbols.Outlined.RestartAlt,
                                 contentDescription = "Reset Max Quick Panel Apps",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)

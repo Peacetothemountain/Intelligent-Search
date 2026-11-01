@@ -230,6 +230,19 @@ class BackupRestoreScreenTest {
         compose.onNodeWithText("Select Backup to Restore").assertExists()
     }
 
+    /**
+     * The backup's unlock lets a recognized face straight in, with the fingerprint as the fallback: the owner wants the
+     * face first. It used to wait for a Confirm tap after a face match, so the fingerprint felt like the first step.
+     */
+    @Test
+    fun theUnlockLetsAFaceStraightIn() {
+        FakeVerifyPrompt.lockSet = true
+        FakeVerifyPrompt.approve = true
+        showPage()
+
+        assertEquals(1, FakeVerifyPrompt.faceFirstPrompts)
+    }
+
     @Test
     fun cancellingTheUnlockLeavesThePage() {
         FakeVerifyPrompt.lockSet = true
@@ -455,8 +468,11 @@ class FakeVerifyPrompt {
     @Implementation fun canPrompt(): Boolean = lockSet
 
     @Implementation
-    fun authenticate(activity: Activity, title: String, subtitle: String?, onSuccess: () -> Unit, onFailure: () -> Unit) {
+    fun authenticate(
+        activity: Activity, title: String, subtitle: String?, onSuccess: () -> Unit, onFailure: () -> Unit, faceFirst: Boolean
+    ) {
         prompts++
+        if (faceFirst) faceFirstPrompts++
         if (approve) {
             FakeSecurityChip.verified = true
             onSuccess()
@@ -468,11 +484,13 @@ class FakeVerifyPrompt {
     companion object {
         var approve = false
         var prompts = 0
+        var faceFirstPrompts = 0
         var lockSet = false
 
         fun reset() {
             approve = false
             prompts = 0
+            faceFirstPrompts = 0
             lockSet = false
         }
     }

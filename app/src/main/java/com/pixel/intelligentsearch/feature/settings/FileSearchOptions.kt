@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -92,7 +93,7 @@ internal fun OpenFilesWithRow(showDivider: Boolean) {
     SettingsRow(
         title = "Open Files With",
         subtitle = "Choose the App Each Type of File Opens In.",
-        icon = Icons.AutoMirrored.Outlined.OpenInNew,
+        icon = Symbols.AutoMirrored.Outlined.OpenInNew,
         onClick = { open = true },
         showDivider = showDivider
     )
@@ -176,7 +177,7 @@ private fun OpenWithChoices(group: FileTypeGroup, apps: List<OpenerOption>?, onC
                 if (bitmap != null) {
                     Image(bitmap = bitmap, contentDescription = null, modifier = Modifier.size(24.dp))
                 } else {
-                    DialogRowIcon(if (option == OpenWithChoice.AskEveryTime) Icons.Outlined.Apps else Icons.Outlined.TaskAlt)
+                    DialogRowIcon(if (option == OpenWithChoice.AskEveryTime) Symbols.Outlined.Apps else Symbols.Outlined.TaskAlt)
                 }
             },
             title = label,
@@ -229,7 +230,7 @@ private fun OpenWithDialogRow(
         }
         if (selected) {
             Spacer(modifier = Modifier.width(12.dp))
-            Icon(Icons.Outlined.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+            Icon(Symbols.Outlined.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
         }
     }
 }

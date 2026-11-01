@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import com.pixel.intelligentsearch.core.system.battery.BatteryReadings
 import com.pixel.intelligentsearch.core.util.clampSafely
@@ -450,7 +451,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
         // --- TOP CARD: Battery Health ---
         val (statusChipText, statusChipIsHealth) = ChargingStatus.headerChip(batteryHealth, batteryHealthSeverity, power)
         DiagnosticsCard(
-            icon = if (isCharging) Icons.Default.BatteryChargingFull else Icons.Default.BatteryFull,
+            icon = if (isCharging) Symbols.Filled.BatteryChargingFull else Symbols.Filled.BatteryFull,
             title = "Battery Health",
             accent = scheme.primary,
             trailing = {
@@ -536,7 +537,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
 
         // --- BOTTOM CARD: System RAM Usage (Live Graph on Left, RAM Usage Breakdown on Right) ---
         DiagnosticsCard(
-            icon = Icons.Outlined.Speed,
+            icon = Symbols.Outlined.Speed,
             title = "System RAM",
             accent = scheme.secondary,
             trailing = {

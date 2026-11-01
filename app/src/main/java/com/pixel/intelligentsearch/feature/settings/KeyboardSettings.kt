@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
 import androidx.compose.material.icons.outlined.Keyboard
@@ -24,7 +25,7 @@ internal fun KeyboardSettingsCard() {
         SettingsRowToggle(
             title = "Start Assistant with Voice",
             subtitle = "The Assistant Gesture Opens Search with the Microphone On. Works When Intelligent Search Is Your Default Assistant.",
-            icon = Icons.Outlined.Mic,
+            icon = Symbols.Outlined.Mic,
             isChecked = assistantVoice,
             onCheckedChange = { assistantVoice = it },
             showDivider = true
@@ -33,7 +34,7 @@ internal fun KeyboardSettingsCard() {
         SettingsRowToggle(
             title = "Show Keyboard When Search Opens",
             subtitle = "Open Search with the Keyboard Up. When Off, Tap the Search Bar to Show It.",
-            icon = Icons.Outlined.Keyboard,
+            icon = Symbols.Outlined.Keyboard,
             isChecked = showKeyboard,
             onCheckedChange = { showKeyboard = it },
             showDivider = true
@@ -43,7 +44,7 @@ internal fun KeyboardSettingsCard() {
         SettingsRowToggle(
             title = "Enter Opens the First App",
             subtitle = "When Nothing Is the Best Match, Enter Opens the First App in the Results Instead of Searching the Web.",
-            icon = Icons.AutoMirrored.Outlined.KeyboardReturn,
+            icon = Symbols.AutoMirrored.Outlined.KeyboardReturn,
             isChecked = quickLaunch,
             onCheckedChange = { quickLaunch = it },
             showDivider = false

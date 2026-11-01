@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import android.graphics.RuntimeShader
 import android.os.Build
 import androidx.annotation.RequiresApi
@@ -126,7 +127,7 @@ internal fun SearchToggleButton(open: Boolean, onToggle: () -> Unit) {
     val transition = updateTransition(open, label = "search")
     IconButton(onClick = onToggle) {
         transition.Crossfade(animationSpec = SearchFadeIcon) { shown ->
-            Icon(if (shown) Icons.Outlined.Close else Icons.Outlined.Search, contentDescription = if (shown) "Close search" else "Search")
+            Icon(if (shown) Symbols.Outlined.Close else Symbols.Outlined.Search, contentDescription = if (shown) "Close search" else "Search")
         }
     }
 }
@@ -416,7 +417,7 @@ internal fun NoAppsMatch(query: String, modifier: Modifier = Modifier) {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Outlined.SearchOff,
+                imageVector = Symbols.Outlined.SearchOff,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier.size(28.dp)

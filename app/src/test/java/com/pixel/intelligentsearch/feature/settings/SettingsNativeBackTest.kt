@@ -106,6 +106,43 @@ class SettingsNativeBackTest {
         compose.onNodeWithText("Search Overlay").assertExists()
     }
 
+    /**
+     * A swipe that reaches the app before the page a tap opened has been built (the same frame as the tap) goes back
+     * from that page to Main. Main's own handler, still on for that frame, used to close Settings instead, which on the
+     * phone looked like the app crashing.
+     */
+    @Test
+    fun aSwipeInTheFrameOfTheTapGoesBackToMain() {
+        compose.mainClock.autoAdvance = false
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Appearance").performClick()
+        compose.runOnIdle {
+            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 900f, 0f, BackEventCompat.EDGE_LEFT))
+            dispatcher.dispatchOnBackProgressed(BackEventCompat(150f, 900f, 0.3f, BackEventCompat.EDGE_LEFT))
+        }
+        compose.mainClock.advanceTimeByFrame()
+        compose.runOnIdle { dispatcher.onBackPressed() }
+        compose.settle(steps = 15)
+        assertFalse(compose.activity.isFinishing)
+        assertOnMain()
+    }
+
+    /**
+     * A swipe let go while the page a tap opened is still sliding in goes back to Main, once that page has opened: taken
+     * off the back stack before then, the page crashed the app on the owner's phone.
+     */
+    @Test
+    fun aSwipeLetGoWhileThePageOpensGoesBack() {
+        compose.mainClock.autoAdvance = false
+        compose.settle(steps = 5)
+        compose.onNodeWithText("Appearance").performClick()
+        repeat(3) { compose.mainClock.advanceTimeByFrame() }
+        swipeBack()
+        compose.settle(steps = 15)
+        assertFalse(compose.activity.isFinishing)
+        assertOnMain()
+    }
+
     @Test
     fun aSwipeGoesBackOnePage() {
         openCustomIcons()

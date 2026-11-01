@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.get
 import androidx.compose.ui.graphics.graphicsLayer
@@ -55,11 +56,11 @@ fun MainSettingsScreen(
             TopAppBar(
                 title = { SettingsPageTitle("Settings") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
                     IconButton(onClick = { showInfoDialog = true }) {
-                        Icon(Icons.Outlined.Info, contentDescription = "Developer Note")
+                        Icon(Symbols.Outlined.Info, contentDescription = "Developer Note")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -88,7 +89,7 @@ fun MainSettingsScreen(
                     SettingsRow(
                         title = "Finish Setting Up",
                         subtitle = "$setupDone of $setupTotal Done. Let Search Find Your Contacts, Calendar and Files.",
-                        icon = Icons.Outlined.Checklist,
+                        icon = Symbols.Outlined.Checklist,
                         onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Setup) },
                         showDivider = false
                     )
@@ -98,35 +99,35 @@ fun MainSettingsScreen(
                 SettingsRow(
                     title = "Appearance",
                     subtitle = "Theme, Wallpaper, Material Design Layouts.",
-                    icon = Icons.Outlined.Palette,
+                    icon = Symbols.Outlined.Palette,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Appearance) },
                     showDivider = true,
                 )
                 SettingsRow(
                     title = "Search Sources",
                     subtitle = "Apps, Contacts, Files, Etc.",
-                    icon = Icons.Outlined.SavedSearch,
+                    icon = Symbols.Outlined.SavedSearch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchSources) },
                     showDivider = true,
                 )
                 SettingsRow(
                     title = "Search Behavior",
                     subtitle = "Search Overlay, Keyboard, At a Glance and Display Settings.",
-                    icon = Icons.Outlined.Tune,
+                    icon = Symbols.Outlined.Tune,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior) },
                     showDivider = true,
                 )
                 SettingsRow(
                     title = "Widget Customization",
                     subtitle = "Customize Widget Colors, Themes, and Actions.",
-                    icon = Icons.Outlined.Widgets,
+                    icon = Symbols.Outlined.Widgets,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization) },
                     showDivider = true,
                 )
                 SettingsRow(
                     title = "Launch Portal",
                     subtitle = "Search Tile, Home Screen Shortcut, Notification Shortcut and Floating Button.",
-                    icon = Icons.Outlined.RocketLaunch,
+                    icon = Symbols.Outlined.RocketLaunch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal) },
                     showDivider = false,
                 )
@@ -136,14 +137,14 @@ fun MainSettingsScreen(
                 SettingsRow(
                     title = "Encrypted Backup",
                     subtitle = "Import, Export, and Restore Backup App Data.",
-                    icon = Icons.Outlined.Security,
+                    icon = Symbols.Outlined.Security,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
                     showDivider = true
                 )
                 SettingsRow(
                     title = "Google Activity",
                     subtitle = "View and Manage Your Google Activity.",
-                    icon = Icons.Outlined.History,
+                    icon = Symbols.Outlined.History,
                     onClick = {
                         try {
                             val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity"))
@@ -170,7 +171,7 @@ fun MainSettingsScreen(
                 SettingsRow(
                     title = "Browser History",
                     subtitle = historyDestination?.subtitle ?: "View Your Search History.",
-                    icon = Icons.Outlined.TravelExplore,
+                    icon = Symbols.Outlined.TravelExplore,
                     onClick = {
                         val resolver = com.pixel.intelligentsearch.core.search.BrowserHistoryResolver
                         val destination = historyDestination ?: resolver.forContext(context, searchEngine, customEngineUrl)
@@ -203,7 +204,7 @@ fun MainSettingsScreen(
                     SettingsRow(
                         title = "Debug",
                         subtitle = "Developer Tools and Experiments.",
-                        icon = Icons.Outlined.BugReport,
+                        icon = Symbols.Outlined.BugReport,
                         onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Debug) },
                         showDivider = false
                     )

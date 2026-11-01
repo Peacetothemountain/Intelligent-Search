@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.ui.platform.testTag
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -169,7 +170,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 title = { SettingsPageTitle("Custom Icons") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -320,7 +321,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                         if (packageName == "system_default") {
                                             Icon(
-                                                imageVector = Icons.Outlined.Palette,
+                                                imageVector = Symbols.Outlined.Palette,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.primary,
                                                 modifier = Modifier.size(36.dp)
@@ -333,7 +334,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                             )
                                         } else {
                                             Icon(
-                                                imageVector = Icons.Outlined.AppShortcut,
+                                                imageVector = Symbols.Outlined.AppShortcut,
                                                 contentDescription = null,
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                                 modifier = Modifier.size(36.dp)
@@ -363,7 +364,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         Spacer(modifier = Modifier.width(12.dp))
                                         val currentPkg by rememberUpdatedState(packageName)
                                         Icon(
-                                            imageVector = Icons.Outlined.DragHandle,
+                                            imageVector = Symbols.Outlined.DragHandle,
                                             contentDescription = "Drag to reorder",
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                             modifier = Modifier.pointerInput(currentPkg) {

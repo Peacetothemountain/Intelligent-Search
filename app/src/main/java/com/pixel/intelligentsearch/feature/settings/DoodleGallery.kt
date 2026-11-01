@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import android.widget.Toast
 import com.pixel.intelligentsearch.core.theme.isDark
 import com.pixel.intelligentsearch.core.theme.pageContainer
@@ -180,19 +181,19 @@ internal fun DoodleGallery(
             TopAppBar(
                 title = { SettingsPageTitle("Doodle Gallery", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Normal) },
                 navigationIcon = {
-                    IconButton(onClick = onClose) { Icon(Icons.Outlined.Close, contentDescription = "Close") }
+                    IconButton(onClick = onClose) { Icon(Symbols.Outlined.Close, contentDescription = "Close") }
                 },
                 actions = {
                     IconButton(onClick = { lightPill = !lightPill }) {
-                        Icon(Icons.Outlined.Contrast, contentDescription = if (lightPill) "Show on a Dark Pill" else "Show on a Light Pill")
+                        Icon(Symbols.Outlined.Contrast, contentDescription = if (lightPill) "Show on a Dark Pill" else "Show on a Light Pill")
                     }
                     IconButton(onClick = { pickingDate = true }) {
-                        Icon(Icons.Outlined.CalendarMonth, contentDescription = "Find the Doodle for a Date")
+                        Icon(Symbols.Outlined.CalendarMonth, contentDescription = "Find the Doodle for a Date")
                     }
                     IconButton(onClick = {
                         (shown.filter { it != selected }.ifEmpty { Occasion.entries - selected }).randomOrNull()?.let(::pick)
                     }) {
-                        Icon(Icons.Outlined.Shuffle, contentDescription = "Pick a Random Doodle")
+                        Icon(Symbols.Outlined.Shuffle, contentDescription = "Pick a Random Doodle")
                     }
                 },
                 colors = settingsTopBarColors()
@@ -229,9 +230,9 @@ internal fun DoodleGallery(
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 12.dp),
                 singleLine = true,
                 placeholder = { Text("Search Doodles, Groups or Countries") },
-                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
+                leadingIcon = { Icon(Symbols.Outlined.Search, contentDescription = null) },
                 trailingIcon = if (query.isNotEmpty()) {
-                    { IconButton(onClick = { query = "" }) { Icon(Icons.Outlined.Close, contentDescription = "Clear Search") } }
+                    { IconButton(onClick = { query = "" }) { Icon(Symbols.Outlined.Close, contentDescription = "Clear Search") } }
                 } else null,
                 shape = CircleShape
             )
@@ -371,22 +372,22 @@ private fun DoodleStage(
             )
             Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                IconButton(onClick = onPrevious) { Icon(Icons.Outlined.ChevronLeft, contentDescription = "Previous Doodle") }
+                IconButton(onClick = onPrevious) { Icon(Symbols.Outlined.ChevronLeft, contentDescription = "Previous Doodle") }
                 if (onWidgets) {
                     FilledTonalButton(onClick = onShowOnWidgets, modifier = Modifier.weight(1f)) {
                         Text("Stop Widget Preview", maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 } else {
                     Button(onClick = onShowOnWidgets, modifier = Modifier.weight(1f)) {
-                        Icon(Icons.Outlined.Widgets, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Symbols.Outlined.Widgets, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
                         Text("Show on Widgets", maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 IconButton(onClick = onTestTap) {
-                    Icon(Icons.AutoMirrored.Outlined.OpenInNew, contentDescription = "Tap the Doodle")
+                    Icon(Symbols.AutoMirrored.Outlined.OpenInNew, contentDescription = "Tap the Doodle")
                 }
-                IconButton(onClick = onNext) { Icon(Icons.Outlined.ChevronRight, contentDescription = "Next Doodle") }
+                IconButton(onClick = onNext) { Icon(Symbols.Outlined.ChevronRight, contentDescription = "Next Doodle") }
             }
         }
     }
@@ -442,7 +443,7 @@ private fun DoodleCard(
                     Modifier.align(Alignment.TopEnd).padding(6.dp).size(22.dp).background(colors.primary, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Outlined.Widgets, contentDescription = null, tint = colors.onPrimary, modifier = Modifier.size(14.dp))
+                    Icon(Symbols.Outlined.Widgets, contentDescription = null, tint = colors.onPrimary, modifier = Modifier.size(14.dp))
                 }
             }
         }

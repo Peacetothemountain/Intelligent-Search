@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
 import com.pixel.intelligentsearch.core.ui.expressive.matteShell
@@ -86,7 +87,7 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
         shape = shellShape,
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
         tonalElevation = 0.dp,
-        icon = { Icon(Icons.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+        icon = { Icon(Symbols.Outlined.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -209,6 +210,17 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
     )
 }
 
+/**
+ * The Developer Note's Default Search Engine text, in the owner's words: that Intelligent Search is the default
+ * search engine, or that the ADB steps on this page make it the Pixel Launcher's.
+ */
+internal fun defaultSearchEngineNote(roleHeld: Boolean): String =
+    if (roleHeld) {
+        "Intelligent Search is Currently Set as your Default Search Engine."
+    } else {
+        "To set Intelligent Search as your Default Search please follow ADB cmd line steps to apply Intelligent Search as default on Pixel Launcher."
+    }
+
 /** The Developer Note dialog's cards: the Diagnostics and Hardware & Security pages' own, matte with a hairline. */
 private val NoteCardShape = RoundedCornerShape(16.dp)
 
@@ -229,15 +241,16 @@ internal fun DeveloperNotePage(context: Context) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(DiagnosticsCardSpacing)
     ) {
-        DiagnosticsCard(icon = Icons.Outlined.TravelExplore, title = "Default Search Engine", accent = scheme.primary) {
+        val roleHeld = com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)
+        DiagnosticsCard(icon = Symbols.Outlined.TravelExplore, title = "Default Search Engine", accent = scheme.primary) {
             Text(
-                text = "The Android \"Search engine app\" setting decides which app powers your home screen search bar. Its picker only lists apps on your device's search engine list, so Intelligent Search has to be added to that list once (see Search Engine List below) before it can be selected.",
+                text = defaultSearchEngineNote(roleHeld),
                 style = MaterialTheme.typography.bodyMedium,
                 color = scheme.onSurfaceVariant
             )
         }
 
-        if (com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)) {
+        if (roleHeld) {
             MatteShell(
                 modifier = Modifier.fillMaxWidth(),
                 shape = NoteCardShape,
@@ -255,7 +268,7 @@ internal fun DeveloperNotePage(context: Context) {
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.CheckCircle,
+                        imageVector = Symbols.Filled.CheckCircle,
                         contentDescription = null,
                         tint = scheme.primary,
                         modifier = Modifier.size(26.dp)
@@ -268,13 +281,13 @@ internal fun DeveloperNotePage(context: Context) {
                             color = scheme.onPrimaryContainer
                         )
                         Text(
-                            text = "Natively active as your home search bar. Tap to manage in system settings.",
+                            text = "Your home screen search bar opens Intelligent Search. Tap to change this in Android's settings.",
                             style = MaterialTheme.typography.bodySmall,
                             color = scheme.onPrimaryContainer.copy(alpha = 0.8f)
                         )
                     }
                     Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+                        imageVector = Symbols.AutoMirrored.Outlined.OpenInNew,
                         contentDescription = "Open Settings",
                         tint = scheme.primary,
                         modifier = Modifier.size(20.dp)
@@ -284,7 +297,7 @@ internal fun DeveloperNotePage(context: Context) {
         } else {
             val isListed = remember { com.pixel.intelligentsearch.core.system.SearchRoleManager.isListedAsSearchEngine(context) }
             DiagnosticsCard(
-                icon = Icons.Outlined.CheckCircle,
+                icon = Symbols.Outlined.CheckCircle,
                 title = "Search Engine List",
                 accent = scheme.primary,
                 trailing = {
@@ -297,7 +310,7 @@ internal fun DeveloperNotePage(context: Context) {
                         modifier = Modifier.size(32.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.ContentCopy,
+                            imageVector = Symbols.Outlined.ContentCopy,
                             contentDescription = "Copy ADB Commands",
                             tint = scheme.primary,
                             modifier = Modifier.size(18.dp)
@@ -342,7 +355,7 @@ internal fun DeveloperNotePage(context: Context) {
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.CheckCircle,
+                            imageVector = Symbols.Outlined.CheckCircle,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
@@ -353,7 +366,7 @@ internal fun DeveloperNotePage(context: Context) {
             }
         }
 
-        DiagnosticsCard(icon = Icons.Outlined.Info, title = "Compatibility Note", accent = scheme.primary) {
+        DiagnosticsCard(icon = Symbols.Outlined.Info, title = "Compatibility Note", accent = scheme.primary) {
             Text(
                 text = "On Pixel phones, making Intelligent Search the Pixel Launcher's search bar removes the Sports and Finance cards from Google's At a Glance.",
                 style = MaterialTheme.typography.bodySmall,

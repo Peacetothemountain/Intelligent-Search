@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import com.pixel.intelligentsearch.core.system.GoogleApps
@@ -104,7 +105,7 @@ fun AlwaysWithinReachSection() {
         SettingsRowToggle(
             title = "Notification Shortcut",
             subtitle = notificationShortcutSubtitle(lens),
-            icon = Icons.Outlined.NotificationsActive,
+            icon = Symbols.Outlined.NotificationsActive,
             isChecked = notification && canPost,
             onCheckedChange = { on ->
                 when {
@@ -119,7 +120,7 @@ fun AlwaysWithinReachSection() {
         SettingsRowToggle(
             title = "Floating Search Button",
             subtitle = "A Bubble over Other Apps That Opens Search. Drag to Move, Hold to Hide Until You Unlock.",
-            icon = Icons.Outlined.BubbleChart,
+            icon = Symbols.Outlined.BubbleChart,
             isChecked = button && canDraw,
             onCheckedChange = { on ->
                 when {

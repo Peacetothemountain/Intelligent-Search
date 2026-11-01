@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.material.icons.outlined.Hub
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
@@ -81,7 +82,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                 TopAppBar(
                     colors = settingsTopBarColors(),
                     title = { SettingsPageTitle("AI Answers") },
-                    navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") } }
+                    navigationIcon = { IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") } }
                 )
             }
         ) { padding ->
@@ -93,7 +94,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                             title = "AI Answers",
                             subtitle = block?.let(NetworkPolicy::blockSubtitle)
                                 ?: "Questions Ending in ? or Starting with Ask Show an Ask Row. Only the Question You Tap Ask on Is Sent.",
-                            icon = Icons.Outlined.AutoAwesome,
+                            icon = Symbols.Outlined.AutoAwesome,
                             isChecked = enabled && block == null,
                             onCheckedChange = { if (block == null) enabled = it },
                             showDivider = false
@@ -108,7 +109,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                         SettingsSelectorRow(
                             title = "Provider",
                             subtitle = "Answers Come from ${provider.label}.",
-                            icon = Icons.Outlined.Hub,
+                            icon = Symbols.Outlined.Hub,
                             options = AiProvider.entries.toList(),
                             selected = provider,
                             onSelect = { chosen ->
@@ -129,7 +130,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                         SettingsDropdownRow(
                             title = "Model",
                             subtitle = provider.model(model),
-                            icon = Icons.Outlined.Memory,
+                            icon = Symbols.Outlined.Memory,
                             options = provider.models,
                             selectedOption = provider.model(model),
                             onOptionSelected = { model = if (it == provider.defaultModel) "" else it },
@@ -140,7 +141,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                         SettingsInfoRow(
                             title = "Privacy",
                             subtitle = "Only the Question You Tap Ask on Is Sent, to ${provider.host} over HTTPS. Your Key Goes Only to ${provider.host}.",
-                            icon = Icons.Outlined.PrivacyTip,
+                            icon = Symbols.Outlined.PrivacyTip,
                             showDivider = false
                         )
                     }
@@ -169,13 +170,13 @@ private fun ApiKeyRows(vault: AiKeyVault, provider: AiProvider) {
         SettingsInfoRow(
             title = "API Key",
             subtitle = "${saved ?: "••••••••"}. Encrypted on This Phone and Never Backed Up.",
-            icon = Icons.Outlined.Key,
+            icon = Symbols.Outlined.Key,
             showDivider = true
         )
         SettingsRow(
             title = "Remove Key",
             subtitle = "Delete Your ${provider.displayName} Key from This Phone.",
-            icon = Icons.Outlined.Delete,
+            icon = Symbols.Outlined.Delete,
             onClick = {
                 scope.launch {
                     withContext(Dispatchers.IO) { vault.remove(provider) }
@@ -190,7 +191,7 @@ private fun ApiKeyRows(vault: AiKeyVault, provider: AiProvider) {
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Outlined.Key, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+            Icon(Symbols.Outlined.Key, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.size(16.dp))
             OutlinedTextField(
                 value = typed,

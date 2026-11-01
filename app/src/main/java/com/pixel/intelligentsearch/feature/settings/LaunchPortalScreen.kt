@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.app.StatusBarManager
@@ -100,7 +101,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     colors = settingsTopBarColors(),
                     title = { SettingsPageTitle("Launch Portal") },
                     navigationIcon = {
-                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                        IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                     }
                 )
             }
@@ -122,7 +123,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         SettingsRow(
                             title = "Search Tile",
                             subtitle = "Add to Quick Settings Notification Panel.",
-                            icon = Icons.Outlined.ViewAgenda,
+                            icon = Symbols.Outlined.ViewAgenda,
                             onClick = {
                                 if (Build.VERSION.SDK_INT >= 33) {
                                     try {
@@ -152,7 +153,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         SettingsRow(
                             title = "Home Screen Shortcut",
                             subtitle = "Add App Icon to Home Screen.",
-                            icon = Icons.Outlined.AddHome,
+                            icon = Symbols.Outlined.AddHome,
                             onClick = {
                                 if (!requestSearchShortcut(context)) {
                                     Toast.makeText(context, "Pinning shortcuts not supported on this device.", Toast.LENGTH_SHORT).show()

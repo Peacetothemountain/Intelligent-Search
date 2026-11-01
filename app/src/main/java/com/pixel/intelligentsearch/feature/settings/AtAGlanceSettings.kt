@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -112,7 +113,7 @@ internal fun AtAGlanceSettingsCard() {
         SettingsRowToggle(
             title = "At a Glance",
             subtitle = "Show Timely Cards Above the Empty Search.",
-            icon = Icons.Outlined.Today,
+            icon = Symbols.Outlined.Today,
             isChecked = enabled,
             onCheckedChange = { enabled = it },
             showDivider = enabled
@@ -133,7 +134,7 @@ internal fun AtAGlanceSettingsCard() {
                 SettingsRowToggle(
                     title = "Timers & Stopwatch",
                     subtitle = "Show Running Timers and Stopwatches. Uses Notification Access.",
-                    icon = Icons.Outlined.Timer,
+                    icon = Symbols.Outlined.Timer,
                     isChecked = timers && ready.timers,
                     onCheckedChange = { on ->
                         when {
@@ -147,7 +148,7 @@ internal fun AtAGlanceSettingsCard() {
                 SettingsRowToggle(
                     title = "Next Alarm",
                     subtitle = "Show Your Next Alarm Within 12 Hours.",
-                    icon = Icons.Outlined.Alarm,
+                    icon = Symbols.Outlined.Alarm,
                     isChecked = alarm,
                     onCheckedChange = { alarm = it }
                 )
@@ -162,7 +163,7 @@ internal fun AtAGlanceSettingsCard() {
                 SettingsRowToggle(
                     title = "Media Controls",
                     subtitle = "Play, Pause and Skip What's Playing. Uses Notification Access.",
-                    icon = Icons.Outlined.LibraryMusic,
+                    icon = Symbols.Outlined.LibraryMusic,
                     isChecked = media && ready.media,
                     onCheckedChange = { on ->
                         when {
@@ -185,7 +186,7 @@ internal fun AtAGlanceSettingsCard() {
                 SettingsRowToggle(
                     title = "Birthdays",
                     subtitle = "Show Contacts' Birthdays This Week. Uses Contact Search.",
-                    icon = Icons.Outlined.Cake,
+                    icon = Symbols.Outlined.Cake,
                     isChecked = birthdays && ready.birthdays,
                     onCheckedChange = { on ->
                         when {
@@ -199,7 +200,7 @@ internal fun AtAGlanceSettingsCard() {
                 SettingsRowToggle(
                     title = "Show Clock",
                     subtitle = "Show a Clock in the Corner of At a Glance.",
-                    icon = Icons.Outlined.Schedule,
+                    icon = Symbols.Outlined.Schedule,
                     isChecked = showClock,
                     onCheckedChange = { showClock = it },
                     showDivider = false

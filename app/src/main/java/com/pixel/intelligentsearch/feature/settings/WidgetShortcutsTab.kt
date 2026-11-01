@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.animation.*
 import com.pixel.intelligentsearch.core.theme.pageTrack
 import androidx.compose.animation.core.*
@@ -111,9 +112,9 @@ internal fun WidgetShortcutsTab(
 
                 // An empty slot shows Add, which is what tapping it does; an X there read as delete.
                 val cardIcon = when {
-                    isEmpty -> Icons.Outlined.Add
-                    isMic -> Icons.Default.Mic
-                    else -> shortcutOptions.find { it.first == actionName }?.second ?: Icons.Default.Close
+                    isEmpty -> Symbols.Outlined.Add
+                    isMic -> Symbols.Filled.Mic
+                    else -> shortcutOptions.find { it.first == actionName }?.second ?: Symbols.Filled.Close
                 }
 
                 val cardModifier = if (isDragging) {
@@ -315,7 +316,7 @@ internal fun WidgetShortcutsTab(
                                     }
                             ) {
                                 Icon(
-                                    imageVector = Icons.Outlined.DragHandle,
+                                    imageVector = Symbols.Outlined.DragHandle,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )

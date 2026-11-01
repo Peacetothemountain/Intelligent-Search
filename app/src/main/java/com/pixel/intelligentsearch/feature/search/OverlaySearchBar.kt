@@ -165,7 +165,8 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                 // While the bar sits idle, that bottom light flows gently.
                 .geminiPlateIdleFlow(
                     idle = plateFlowsWhileIdle(textFieldValue.text, voice.active),
-                    alpha = pillAlpha(settingsState.pillOpacity)
+                    alpha = pillAlpha(settingsState.pillOpacity),
+                    motion = com.pixel.intelligentsearch.core.ui.IdleFlowMotion.SearchBar
                 )
                 .listeningGlow(active = voice.active, level = { voice.level }, cornerRadius = searchBarCornerRadius)
                 .clickable(

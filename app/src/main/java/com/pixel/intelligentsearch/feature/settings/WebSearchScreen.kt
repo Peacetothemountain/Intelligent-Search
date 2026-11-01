@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import android.content.SharedPreferences
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -42,7 +43,7 @@ fun WebSearchScreen(
                 colors = settingsTopBarColors(),
                 title = { SettingsPageTitle("Web Search") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -75,7 +76,7 @@ fun WebSearchScreen(
                 SettingsDropdownRow(
                     title = "Primary Search App",
                     subtitle = effectiveSearchEngineName,
-                    icon = Icons.Outlined.Search,
+                    icon = Symbols.Outlined.Search,
                     options = listOf("Google", "DuckDuckGo", "Bing", "Tor Project", "Custom"),
                     selectedOption = searchEngine,
                     onOptionSelected = { selected ->
@@ -154,7 +155,7 @@ fun WebSearchScreen(
                 SettingsRowToggle(
                     title = "Web Suggestions",
                     subtitle = WEB_SUGGESTIONS_SUBTITLE,
-                    icon = Icons.Outlined.ChatBubbleOutline,
+                    icon = Symbols.Outlined.ChatBubbleOutline,
                     isChecked = webSuggestions,
                     onCheckedChange = { webSuggestions = it },
                     showDivider = true
@@ -164,7 +165,7 @@ fun WebSearchScreen(
                 SettingsRowToggle(
                     title = "Search History",
                     subtitle = "Previously Searched Web Queries.",
-                    icon = Icons.Outlined.History,
+                    icon = Symbols.Outlined.History,
                     isChecked = searchPreviousSearches,
                     onCheckedChange = { searchPreviousSearches = it },
                     showDivider = true
@@ -204,7 +205,7 @@ private fun AiAnswersRow(onOpen: () -> Unit) {
             ?.let(com.pixel.intelligentsearch.core.security.NetworkPolicy::blockSubtitle)
             ?: if (aiOn) "On. A Question Is Sent Only When You Tap Ask."
             else "Answer Questions with Claude, ChatGPT or Gemini Using Your Own Key.",
-        icon = Icons.Outlined.AutoAwesome,
+        icon = Symbols.Outlined.AutoAwesome,
         onClick = onOpen,
         showDivider = true
     )

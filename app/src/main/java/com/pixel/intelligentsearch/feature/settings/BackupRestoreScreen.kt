@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.draw.clip
 import androidx.compose.runtime.getValue
@@ -114,7 +115,8 @@ fun BackupRestoreScreen(
     val isScreenUnlocked = rememberProtectedPageUnlock(
         title = "Unlock Encrypted Backup",
         subtitle = "Verify It’s You to Back Up or Restore Your Settings.",
-        onBack = onBack
+        onBack = onBack,
+        faceFirst = true
     )
     val backupExoPlayer = rememberBugdroidPlayer(BugdroidClip.BACKUP, enabled = isScreenUnlocked)
     // Only whether one is saved: the saved passphrase is never decrypted into the field. Read again after a save that
@@ -232,6 +234,7 @@ fun BackupRestoreScreen(
                         onFailure = {
                             if (onUnavailable != null) onUnavailable() else safeShowToast("Verify it’s you to use the saved passphrase")
                         },
+                        faceFirst = true,
                     )
                     onUnavailable != null -> onUnavailable()
                     else -> safeShowToast("Couldn’t read the saved passphrase. Type it instead.")
@@ -376,7 +379,7 @@ fun BackupRestoreScreen(
                         placeholder = { Text("Enter Passphrase", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, fontSize = 14.sp) },
                         leadingIcon = {
                             Icon(
-                                imageVector = Icons.Outlined.Lock,
+                                imageVector = Symbols.Outlined.Lock,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(20.dp)
@@ -385,7 +388,7 @@ fun BackupRestoreScreen(
                         trailingIcon = {
                             IconButton(onClick = { dialogPassphraseVisible = !dialogPassphraseVisible }, modifier = Modifier.size(32.dp)) {
                                 Icon(
-                                    imageVector = if (dialogPassphraseVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                    imageVector = if (dialogPassphraseVisible) Symbols.Outlined.Visibility else Symbols.Outlined.VisibilityOff,
                                     contentDescription = if (dialogPassphraseVisible) "Hide passphrase" else "Show passphrase",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp)
@@ -439,7 +442,7 @@ fun BackupRestoreScreen(
             onDismissRequest = { showNoPassphraseWarningDialog = false },
             icon = {
                 Icon(
-                    imageVector = Icons.Outlined.Warning,
+                    imageVector = Symbols.Outlined.Warning,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(28.dp)
@@ -496,7 +499,7 @@ fun BackupRestoreScreen(
                 title = { SettingsPageTitle("Encrypted Backup") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                     }
                 }
             )
@@ -533,7 +536,7 @@ fun BackupRestoreScreen(
                     },
                     leadingIcon = {
                         Icon(
-                            imageVector = Icons.Outlined.Lock,
+                            imageVector = Symbols.Outlined.Lock,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
@@ -544,7 +547,7 @@ fun BackupRestoreScreen(
                             if (passphrase.isNotEmpty()) {
                                 IconButton(onClick = { passphrase = "" }, modifier = Modifier.size(32.dp)) {
                                     Icon(
-                                        imageVector = Icons.Default.Close,
+                                        imageVector = Symbols.Filled.Close,
                                         contentDescription = "Clear",
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(18.dp)
@@ -553,7 +556,7 @@ fun BackupRestoreScreen(
                             }
                             IconButton(onClick = { passphraseVisible = !passphraseVisible }, modifier = Modifier.size(32.dp)) {
                                 Icon(
-                                    imageVector = if (passphraseVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                    imageVector = if (passphraseVisible) Symbols.Outlined.Visibility else Symbols.Outlined.VisibilityOff,
                                     contentDescription = if (passphraseVisible) "Hide passphrase" else "Show passphrase",
                                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(18.dp)
@@ -628,6 +631,7 @@ fun BackupRestoreScreen(
                                                             safeShowToast("Verify it’s you to save the passphrase")
                                                             coroutineScope.launch { refreshSavedOnChip() }
                                                         },
+                                                        faceFirst = true,
                                                     )
                                                 }
                                             }
@@ -648,7 +652,7 @@ fun BackupRestoreScreen(
                         enabled = passphraseLongEnough
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.Security,
+                            imageVector = Symbols.Outlined.Security,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
@@ -687,7 +691,7 @@ fun BackupRestoreScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.CheckCircle,
+                            imageVector = Symbols.Filled.CheckCircle,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(14.dp)
@@ -732,7 +736,7 @@ fun BackupRestoreScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     shape = RoundedCornerShape(percent = 50)
                 ) {
-                    Icon(Icons.Default.FileDownload, contentDescription = null)
+                    Icon(Symbols.Filled.FileDownload, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Export Encrypted Backup", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
                 }
@@ -752,7 +756,7 @@ fun BackupRestoreScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     shape = RoundedCornerShape(percent = 50)
                 ) {
-                    Icon(Icons.Default.FileUpload, contentDescription = null)
+                    Icon(Symbols.Filled.FileUpload, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(if (restoring) "Restoring…" else "Select Backup to Restore", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
                 }

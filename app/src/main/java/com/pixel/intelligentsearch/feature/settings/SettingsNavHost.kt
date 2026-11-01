@@ -92,17 +92,34 @@ private class LeavingPage(val closing: androidx.navigation.NavBackStackEntry?, p
     var job: kotlinx.coroutines.Job? = null
     private var left = false
 
-    /** Takes the page off the back stack, however often it is asked. */
-    fun leave() {
+    /** Takes the page off the back stack once it has opened ([awaitOpened]), however often it is asked. */
+    suspend fun leave() {
+        if (left) return
+        awaitOpened(closing?.lifecycle)
         if (left) return
         left = true
         pop()
     }
 
     /** The page leaves now, as at the end of its animation, which stops. */
-    fun finishNow() {
-        leave()
+    suspend fun finishNow() {
         job?.cancel()
+        leave()
+    }
+}
+
+/**
+ * Waits until the page whose [lifecycle] this is has finished opening, at most a second: the NavHost resumes a page
+ * when its opening animation ends. Taken off the back stack before that, a page made the NavHost turn its opening
+ * animation back on a path (the one meant for a cancelled back gesture) that composes every page it still holds,
+ * destroyed ones too, and composing the destroyed page crashed the app: a tap on a row and a back swipe at once did it.
+ */
+internal suspend fun awaitOpened(lifecycle: androidx.lifecycle.Lifecycle?) {
+    lifecycle ?: return
+    kotlinx.coroutines.withTimeoutOrNull(1_000L) {
+        lifecycle.currentStateFlow.first {
+            it.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED) || it == androidx.lifecycle.Lifecycle.State.DESTROYED
+        }
     }
 }
 
@@ -159,13 +176,22 @@ fun SettingsScreensHub(
         // glow as it was when taken; as the real page takes the picture's place, the drift is set back to that moment,
         // so the light carries on from the picture and never jumps. It stands still on Widget Customization, which
         // has no glow, except while a back swipe shows the page underneath.
-        val glowClock = com.pixel.intelligentsearch.core.ui.rememberMeshClock(isPaused = onWidgetPage && !nativeBack.active)
+        val glowClock = com.pixel.intelligentsearch.core.ui.rememberSettableMeshClock(isPaused = onWidgetPage && !nativeBack.active)
         var enteringGlow by remember { mutableFloatStateOf(1f) }
         // The glow's moment in the picture of the page underneath a back swipe, until the real page has taken over.
         var enteringGlowTime by remember { mutableStateOf<Float?>(null) }
         fun carryGlowOnFromPicture() {
             enteringGlowTime?.let { glowClock.floatValue = it }
             enteringGlowTime = null
+        }
+
+        // Goes back from the page on top once it has finished opening ([awaitOpened]), unless it has gone meanwhile.
+        fun popOnceOpened() {
+            val top = navController.currentBackStackEntry ?: return
+            navScope.launch {
+                awaitOpened(top.lifecycle)
+                if (navController.currentBackStackEntry === top) navController.popBackStack()
+            }
         }
 
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
@@ -235,7 +261,7 @@ fun SettingsScreensHub(
             // A quick double tap would pop the sub-page, then see the root and exit Settings entirely.
             if (!ClickDebouncer.canClick(cooldownMs = 400L, key = "settings_top_bar_back")) return@onBack
             if (navController.previousBackStackEntry != null) {
-                navController.popBackStack()
+                popOnceOpened()
             } else {
                 handleExitBack()
             }
@@ -246,6 +272,14 @@ fun SettingsScreensHub(
         var predictiveBackSwipeEdge by remember { mutableIntStateOf(androidx.activity.BackEventCompat.EDGE_LEFT) }
 
         androidx.activity.compose.PredictiveBackHandler(enabled = !hasSubScreensInNavHost) { progressFlow ->
+            // A page opened since this handler was last switched off for it (a tap and a swipe in the same frame, or
+            // the swipe reaching the app while the new page is still being built): the swipe goes back from that
+            // page, as its own handler would, instead of closing Settings, which looked like the app crashing.
+            if (navController.previousBackStackEntry != null) {
+                progressFlow.collect { }
+                popOnceOpened()
+                return@PredictiveBackHandler
+            }
             val act = context.findActivity()
             val swipe = exitSwipes.incrementAndGet()
             try {
@@ -518,12 +552,14 @@ fun SettingsScreensHub(
             // under it and two quick swipes go back two pages.
             leavingPage.value?.let {
                 leavingPage.value = null
-                it.finishNow()
                 // Handed over as at the end of its animation, hidden meanwhile, so the page that left doesn't flash
                 // back as this swipe starts; this swipe's first moves wait those few frames. Seen through even if
                 // this swipe is cancelled meanwhile, which would otherwise leave the picture up.
                 nativeBack.hideClosing()
-                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { handOver(it.closing) }
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    it.finishNow()
+                    handOver(it.closing)
+                }
             }
             val previous = navController.previousBackStackEntry
             if (previous == null) {
@@ -567,7 +603,7 @@ fun SettingsScreensHub(
             }
             if (!started) {
                 instantPop = false
-                navController.popBackStack()
+                popOnceOpened()
                 com.pixel.intelligentsearch.core.ui.WindowFramePacing.restoreDefaultRefreshRate(act)
                 return@PredictiveBackHandler
             }

@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import android.Manifest
 import android.content.pm.PackageManager
@@ -55,7 +56,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                     colors = settingsTopBarColors(),
                     title = { SettingsPageTitle("Search Sources") },
                     navigationIcon = {
-                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                        IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                     }
                 )
             }
@@ -77,7 +78,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                         SettingsRowToggle(
                             title = "Apps",
                             subtitle = "Search Installed Applications.",
-                            icon = Icons.Outlined.Apps,
+                            icon = Symbols.Outlined.Apps,
                             isChecked = searchApps,
                             onCheckedChange = { searchApps = it },
                             onClick = { 
@@ -93,7 +94,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                         SettingsRowToggle(
                             title = "Web",
                             subtitle = "Web Searches, Suggestions and AI Answers.",
-                            icon = Icons.Outlined.Language,
+                            icon = Symbols.Outlined.Language,
                             isChecked = searchWeb,
                             onCheckedChange = { searchWeb = it },
                             onClick = { 
@@ -135,7 +136,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                         SettingsRowToggle(
                             title = "Contacts",
                             subtitle = "Search Contacts.",
-                            icon = Icons.Outlined.Contacts,
+                            icon = Symbols.Outlined.Contacts,
                             isChecked = searchContacts,
                             onCheckedChange = { isChecked -> 
                                 if (isChecked) contactsRequest.request() else searchContacts = false
@@ -153,7 +154,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                         SettingsRowToggle(
                             title = "Files",
                             subtitle = "Search Local Files & Media via System Pickers.",
-                            icon = Icons.Outlined.Folder,
+                            icon = Symbols.Outlined.Folder,
                             isChecked = searchFiles,
                             onCheckedChange = { isChecked -> 
                                 searchFiles = isChecked
@@ -178,7 +179,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                         SettingsRowToggle(
                             title = "Calculator",
                             subtitle = "Calculate Mathematical Equations Inside Search Bar.",
-                            icon = Icons.Outlined.Calculate,
+                            icon = Symbols.Outlined.Calculate,
                             isChecked = searchCalc,
                             onCheckedChange = { searchCalc = it },
                             showDivider = searchCalc
@@ -189,7 +190,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                             SettingsRowToggle(
                                 title = "Live Currency Rates",
                                 subtitle = "Update Currency Rates Daily from the European Central Bank.",
-                                icon = Icons.Outlined.CurrencyExchange,
+                                icon = Symbols.Outlined.CurrencyExchange,
                                 isChecked = liveCurrencyRates,
                                 onCheckedChange = { liveCurrencyRates = it },
                                 showDivider = false

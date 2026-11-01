@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import kotlin.math.roundToInt
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.theme.ThemeMode
@@ -58,7 +59,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     colors = settingsTopBarColors(),
                     title = { SettingsPageTitle("Appearance") },
                     navigationIcon = {
-                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                        IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                     }
                 )
             }
@@ -71,7 +72,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Three sections, like Search Behavior's: the app as a whole, the search overlay, and what's behind it.
+                // Three sections, like Search Behavior's: the app as a whole, the search overlay (with the back swipe into it and
+                // its wallpaper), and how the wallpaper behind it is shown.
                 SettingsSectionHeader("App")
                 SettingsCard {
                     var rawThemeMode by rememberSetting(SettingsManager.THEME)
@@ -80,7 +82,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     SettingsDropdownRow(
                         title = "App Theme",
                         subtitle = themeMode,
-                        icon = Icons.Outlined.BrightnessMedium,
+                        icon = Symbols.Outlined.BrightnessMedium,
                         options = ThemeMode.entries.map { it.storedValue },
                         selectedOption = themeMode,
                         onOptionSelected = {
@@ -108,7 +110,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     SettingsRow(
                         title = "Custom Icons",
                         subtitle = activeIconPackLabel,
-                        icon = Icons.Outlined.Palette,
+                        icon = Symbols.Outlined.Palette,
                         onClick = { onNavigate(Route.CustomIcons) },
                         showDivider = true
                     )
@@ -117,24 +119,16 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     SettingsRowToggle(
                         title = "System Vibration",
                         subtitle = "Enable Haptic Vibrations Across Intelligent Search.",
-                        icon = Icons.Outlined.Vibration,
+                        icon = Symbols.Outlined.Vibration,
                         isChecked = vibrationEnabled,
                         // The haptic engines read this setting on every haptic, so saving it is enough.
                         onCheckedChange = { vibrationEnabled = it },
-                        showDivider = true
-                    )
-
-                    var settingsBackToSearchOverlay by rememberSetting(SettingsManager.BACK_TO_SEARCH_OVERLAY) {}
-                    SettingsRowToggle(
-                        title = "Back Swipe to Enter Search Overlay Page",
-                        subtitle = "Swiping Back from Settings Menu Directs to Search Overlay Screen.",
-                        icon = Icons.AutoMirrored.Outlined.ArrowBack,
-                        isChecked = settingsBackToSearchOverlay,
-                        onCheckedChange = { settingsBackToSearchOverlay = it },
                         showDivider = false
                     )
                 }
 
+                // Read by the Search Overlay section (its switch) and the Background one (blur and transparency show with it).
+                var showWall by rememberSetting(SettingsManager.SHOW_WALLPAPER)
                 SettingsSectionHeader("Search Overlay")
                 SettingsCard {
                     var enableSearchOverlay by rememberSetting(SettingsManager.SEARCH_OVERLAY_ENABLED) {
@@ -146,7 +140,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     SettingsRowToggle(
                         title = "Enable Search Overlay Page",
                         subtitle = "When Turned Off, Search Bar Widget Opens Native Google Search.",
-                        icon = Icons.Outlined.Layers,
+                        icon = Symbols.Outlined.Layers,
                         isChecked = enableSearchOverlay,
                         onCheckedChange = { enableSearchOverlay = it },
                         showDivider = true
@@ -156,7 +150,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     SettingsRowToggle(
                         title = "Show Microphone in Search Bar",
                         subtitle = "Show Voice Search Button on Search Overlay Page.",
-                        icon = Icons.Outlined.Mic,
+                        icon = Symbols.Outlined.Mic,
                         isChecked = overlayShowMic,
                         onCheckedChange = { overlayShowMic = it },
                         showDivider = true
@@ -166,7 +160,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     SettingsRowToggle(
                         title = "Enable Matrix Animation on Search Overlay Page",
                         subtitle = "Enable Search Overlay Page Animation.",
-                        icon = Icons.Outlined.AutoAwesome,
+                        icon = Symbols.Outlined.AutoAwesome,
                         isChecked = matrixAnimationEnabled,
                         onCheckedChange = { matrixAnimationEnabled = it },
                         showDivider = true
@@ -176,9 +170,28 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     SettingsRowToggle(
                         title = "Enable Material Morph Animation",
                         subtitle = "Enable Material Expressive Bouncing Shapes.",
-                        icon = Icons.Outlined.Animation,
+                        icon = Symbols.Outlined.Animation,
                         isChecked = morphAnimationEnabled,
                         onCheckedChange = { morphAnimationEnabled = it },
+                        showDivider = true
+                    )
+
+                    var settingsBackToSearchOverlay by rememberSetting(SettingsManager.BACK_TO_SEARCH_OVERLAY) {}
+                    SettingsRowToggle(
+                        title = "Back Swipe to Enter Search Overlay Page",
+                        subtitle = "Swiping Back from Settings Menu Directs to Search Overlay Screen.",
+                        icon = Symbols.AutoMirrored.Outlined.ArrowBack,
+                        isChecked = settingsBackToSearchOverlay,
+                        onCheckedChange = { settingsBackToSearchOverlay = it },
+                        showDivider = true
+                    )
+
+                    SettingsRowToggle(
+                        title = "Show Wallpaper",
+                        subtitle = "Show User's Wallpaper on Search Overlay Page.",
+                        icon = Symbols.Outlined.Wallpaper,
+                        isChecked = showWall,
+                        onCheckedChange = { showWall = it },
                         showDivider = false
                     )
                 }
@@ -188,16 +201,6 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
 
                     // Wallpaper, blur, transparency and pill opacity only style the search overlay, never the
                     // home-screen widgets, so changing them doesn't redraw the widgets.
-                    var showWall by rememberSetting(SettingsManager.SHOW_WALLPAPER)
-                    SettingsRowToggle(
-                        title = "Show Wallpaper",
-                        subtitle = "Show User's Wallpaper on Search Overlay Page.",
-                        icon = Icons.Outlined.Wallpaper,
-                        isChecked = showWall,
-                        onCheckedChange = { showWall = it },
-                        showDivider = true
-                    )
-                    
                     var blur by rememberSetting(SettingsManager.BACKGROUND_BLUR)
                     var transparency by rememberSetting(SettingsManager.BACKGROUND_TRANSPARENCY)
                     var pillOpacity by rememberSetting(SettingsManager.PILL_OPACITY)
@@ -210,7 +213,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                                 value = blur.toFloat(),
                                 onValueChange = { blur = it.toInt() },
                                 valueRange = 0f..100f,
-                                icon = Icons.Outlined.BlurOn,
+                                icon = Symbols.Outlined.BlurOn,
                                 showDivider = true,
                                 steps = 9,
                                 onReset = { blur = 50 },
@@ -222,7 +225,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                                 value = transparency.toFloat(),
                                 onValueChange = { transparency = it.toInt() },
                                 valueRange = 0f..100f,
-                                icon = Icons.Outlined.Opacity,
+                                icon = Symbols.Outlined.Opacity,
                                 showDivider = true,
                                 steps = 9,
                                 onReset = { transparency = 50 },
@@ -236,7 +239,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         value = pillOpacity.toFloat(),
                         onValueChange = { pillOpacity = it.toInt() },
                         valueRange = 0f..100f,
-                        icon = Icons.Outlined.BrightnessMedium,
+                        icon = Symbols.Outlined.BrightnessMedium,
                         showDivider = false,
                         steps = 9,
                         onReset = { pillOpacity = SettingsManager.PILL_OPACITY.default },

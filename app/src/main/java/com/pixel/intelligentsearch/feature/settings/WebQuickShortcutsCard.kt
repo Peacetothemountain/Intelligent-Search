@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
@@ -108,7 +109,7 @@ internal fun WebQuickShortcutsCard() {
         SettingsRowToggle(
             title = "Enable Quick Web Shortcuts",
             subtitle = "Prefix Queries with User Selected Symbol to Open Specific Web Applications.",
-            icon = Icons.Outlined.TravelExplore,
+            icon = Symbols.Outlined.TravelExplore,
             isChecked = quickShortcutsEnabled,
             onCheckedChange = { quickShortcutsEnabled = it },
             showDivider = quickShortcutsEnabled
@@ -123,7 +124,7 @@ internal fun WebQuickShortcutsCard() {
             SettingsDropdownRow(
                 title = "Shortcut Trigger Symbol",
                 subtitle = "Prefix Queries with '$shortcutTriggerSymbol'.",
-                icon = Icons.Outlined.Tag,
+                icon = Symbols.Outlined.Tag,
                 options = triggerOptions,
                 selectedOption = if (customMode) "Custom" else shortcutTriggerSymbol,
                 onOptionSelected = { selected ->
@@ -297,7 +298,7 @@ internal fun WebQuickShortcutsCard() {
                         shape = RoundedCornerShape(20.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Outlined.Add,
+                            imageVector = Symbols.Outlined.Add,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
@@ -377,7 +378,7 @@ internal fun WebQuickShortcutsCard() {
                                             contentAlignment = alignment
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Outlined.Delete,
+                                                imageVector = Symbols.Outlined.Delete,
                                                 contentDescription = "Delete shortcut",
                                                 tint = iconTint,
                                                 modifier = Modifier.size(24.dp)
@@ -461,7 +462,7 @@ internal fun WebQuickShortcutsCard() {
                                                 }
                                             }
                                             Icon(
-                                                imageVector = Icons.Outlined.Edit,
+                                                imageVector = Symbols.Outlined.Edit,
                                                 contentDescription = "Edit Shortcut",
                                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                                                 modifier = Modifier.size(18.dp)
@@ -482,7 +483,7 @@ internal fun WebQuickShortcutsCard() {
             SettingsRowToggle(
                 title = "Available Direct Shortcuts",
                 subtitle = "Tap Add to Restore Any Direct Shortcut.",
-                icon = Icons.Outlined.BookmarkBorder,
+                icon = Symbols.Outlined.BookmarkBorder,
                 isChecked = showAvailableDirectShortcuts,
                 onCheckedChange = { showAvailableDirectShortcuts = it },
                 showDivider = showAvailableDirectShortcuts && availableDirectBangs.isNotEmpty()
@@ -548,7 +549,7 @@ internal fun WebQuickShortcutsCard() {
                                         shape = RoundedCornerShape(16.dp)
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Outlined.Add,
+                                            imageVector = Symbols.Outlined.Add,
                                             contentDescription = null,
                                             modifier = Modifier.size(16.dp)
                                         )
@@ -624,7 +625,7 @@ internal fun WebQuickShortcutsCard() {
                                     placeholder = { Text("Search installed apps") },
                                     leadingIcon = {
                                         Icon(
-                                            imageVector = Icons.Outlined.Search,
+                                            imageVector = Symbols.Outlined.Search,
                                             contentDescription = null
                                         )
                                     },
@@ -708,7 +709,7 @@ internal fun WebQuickShortcutsCard() {
                                 trailingIcon = {
                                     IconButton(onClick = { showAppPicker = true }) {
                                         Icon(
-                                            imageVector = Icons.Outlined.Apps,
+                                            imageVector = Symbols.Outlined.Apps,
                                             contentDescription = "Select installed app",
                                             tint = MaterialTheme.colorScheme.primary
                                         )
@@ -888,7 +889,7 @@ internal fun InstalledAppList(apps: List<Pair<String, String>>?, onPick: (appNam
                             )
                         } else {
                             Icon(
-                                imageVector = Icons.Outlined.Android,
+                                imageVector = Symbols.Outlined.Android,
                                 contentDescription = null,
                                 modifier = Modifier.size(28.dp),
                                 tint = MaterialTheme.colorScheme.primary

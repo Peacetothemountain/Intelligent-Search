@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
@@ -36,7 +37,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 colors = settingsTopBarColors(),
                 title = { SettingsPageTitle("Contact Search") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -52,7 +53,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Direct Call",
                     subtitle = "Tap Contact to Call Directly.",
-                    icon = Icons.Outlined.Call,
+                    icon = Symbols.Outlined.Call,
                     isChecked = directCall,
                     onCheckedChange = {
                         directCall = it
@@ -66,7 +67,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Share with Assistants",
                     subtitle = "Let On-Device Assistants Search Your Contacts Through Intelligent Search.",
-                    icon = Icons.Outlined.Assistant,
+                    icon = Symbols.Outlined.Assistant,
                     isChecked = shareWithAssistants,
                     onCheckedChange = { shareWithAssistants = it },
                     showDivider = true

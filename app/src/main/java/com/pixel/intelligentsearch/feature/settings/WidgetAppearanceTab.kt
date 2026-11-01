@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -61,7 +62,8 @@ internal fun elementBrightnessTrack(hue: Float, saturation: Float): List<Color> 
 }
 
 /**
- * The Appearance tab of the widget editor: G icon, subtheme, Material options and element colors.
+ * The Appearance tab of the widget editor: G icon, Material options and element colors. The subtheme pills sit
+ * above the tabs ([WidgetSubthemeSelector]).
  */
 @Composable
 internal fun WidgetAppearanceTab(
@@ -69,11 +71,9 @@ internal fun WidgetAppearanceTab(
     ui: WidgetEditorState,
     colors: WidgetColorSelection,
     themeStyle: MutableState<String>,
-    computedCustomColorInt: Int,
     view: android.view.View,
     hapticEngine: PixelHapticEngine
 ) {
-    var localSubtheme by fields::subtheme
     var localMaterialGIconTheme by fields::materialGIconTheme
     var localCustomGIconColor by fields::customGIconColor
     var localCustomMicColor by fields::customMicColor
@@ -90,7 +90,6 @@ internal fun WidgetAppearanceTab(
     var localShortcut3 by fields::shortcut3
     var localSlotOrderStr by fields::slotOrderStr
     var localKeepSystemG by fields::keepSystemG
-    var localLockBlack by fields::lockBlack
     var localActionIcon by fields::actionIcon
     var showCustomHexDialog by ui::showCustomHexDialog
     var tempCustomHexInput by ui::tempCustomHexInput
@@ -133,7 +132,6 @@ internal fun WidgetAppearanceTab(
     }
 
     if (isMaterialYou) {
-        SettingsSectionHeader("Widget Action Icon")
         val actionOptions = listOf(
             Triple("None", "None", null),
             Triple("Search", "Search", com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive),
@@ -145,7 +143,7 @@ internal fun WidgetAppearanceTab(
         // Taps on each option, so every tap, the chosen option's included, replays that icon's animation.
         val actionTaps = remember { mutableStateMapOf<String, Int>() }
         // In a settings card as it always was, each option its own soft tile and the chosen one primary.
-        SettingsCard(lit = false) {
+        SettingsCard(lit = false, title = "Widget Action Icon") {
             ShellSelector(
                 options = actionOptions,
                 selected = actionOptions.firstOrNull { it.first == currentAction } ?: actionOptions.first(),
@@ -180,7 +178,7 @@ internal fun WidgetAppearanceTab(
                     } else {
                         val pose = remember { ActionIconPose() }
                         Icon(
-                            Icons.Default.Close,
+                            Symbols.Filled.Close,
                             contentDescription = "None",
                             modifier = Modifier
                                 .size(22.dp)
@@ -209,63 +207,8 @@ internal fun WidgetAppearanceTab(
         }
     }
 
-    // Floating Theme Pills
-    // The Custom pill is painted in the custom color, so its label is black or white to match. Unselected, the
-    // pill is a gradient up from half opacity and the label sits on its midpoint, both shown over the page. The
-    // other pills are each a soft tile, the chosen one primary, straight on the page with no track behind them.
-    val pageColor = MaterialTheme.colorScheme.background
-    val pillTile = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-    val dynColor = androidx.compose.ui.graphics.Color(computedCustomColorInt)
-    val subthemeOptions = if (localThemeStyle == "System Default") {
-        listOf("System", "Light", "Dark", "Custom")
-    } else {
-        listOf("Material", "Custom")
-    }
-    ShellSelector(
-        options = subthemeOptions,
-        selected = localSubtheme,
-        onSelect = { opt ->
-            localSubtheme = opt
-            if (opt == "Material") {
-                localLockBlack = true
-            }
-        },
-        modifier = Modifier.padding(vertical = 4.dp),
-        contentPadding = 0.dp,
-        gap = 8.dp,
-        indicatorShape = RoundedCornerShape(32.dp),
-        indicatorColor = { opt -> if (opt == "Custom") dynColor else androidx.compose.ui.graphics.Color.Unspecified },
-        unselectedColor = { opt -> if (opt == "Custom") androidx.compose.ui.graphics.Color.Transparent else pillTile }
-    ) { opt, isSel ->
-        val isCustom = opt == "Custom"
-        if (isCustom && !isSel) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(
-                        brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
-                            colors = listOf(dynColor.copy(alpha = 0.5f), dynColor)
-                        ),
-                        shape = RoundedCornerShape(32.dp)
-                    )
-            )
-        }
-        Text(
-            opt,
-            style = MaterialTheme.typography.labelMedium,
-            color = if (isCustom) {
-                subthemePillLabelColor(if (isSel) dynColor else dynColor.copy(alpha = 0.75f), pageColor)
-            } else {
-                androidx.compose.ui.graphics.Color.Unspecified
-            },
-            maxLines = 1,
-            autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium)
-        )
-    }
-
-    SettingsSectionHeader("G Icon Style")
     // G Icon Row with Custom G Icon button right beside Accented G Icon
-    SettingsCard(lit = false) {
+    SettingsCard(lit = false, title = "G Icon Style") {
         ShellSelector(
             options = listOf("System G Icon", "Material G Icon", "Accented G Icon", "Custom G Icon"),
             selected = localMaterialGIconTheme,
@@ -296,8 +239,7 @@ internal fun WidgetAppearanceTab(
     WidgetBarShapeSection(fields = fields, isMaterialDesign = isMaterialDesign)
 
     if (localMaterialGIconTheme == "Custom G Icon") {
-        SettingsSectionHeader("Custom Icon Colors")
-        SettingsCard(lit = false) {
+        SettingsCard(lit = false, title = "Custom Icon Colors") {
             Column(modifier = Modifier.padding(16.dp)) {
                 // 0. Default Google Color Palette Switch Row
                 Row(
@@ -436,7 +378,7 @@ internal fun WidgetAppearanceTab(
                                 modifier = Modifier.weight(1f)
                             )
                             Icon(
-                                imageVector = if (elementDropdownExpanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                imageVector = if (elementDropdownExpanded) Symbols.Filled.ArrowDropUp else Symbols.Filled.ArrowDropDown,
                                 contentDescription = "Dropdown",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -475,7 +417,7 @@ internal fun WidgetAppearanceTab(
                                         trailingIcon = if (isSelected) {
                                             {
                                                 Icon(
-                                                    imageVector = Icons.Default.Check,
+                                                    imageVector = Symbols.Filled.Check,
                                                     contentDescription = null,
                                                     tint = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.size(18.dp)
@@ -535,7 +477,7 @@ internal fun WidgetAppearanceTab(
 
                 // 3. Hue Slider (matching Color Studio)
                 GradientSliderRow(
-                    icon = Icons.Default.Palette,
+                    icon = Symbols.Filled.Palette,
                     label = "Hue",
                     valueText = "${customIconHue.toInt()}°",
                     gradient = HUE_GRADIENT,
@@ -548,7 +490,7 @@ internal fun WidgetAppearanceTab(
 
                 // 4. Saturation Slider (matching Color Studio)
                 GradientSliderRow(
-                    icon = Icons.Default.WaterDrop,
+                    icon = Symbols.Filled.WaterDrop,
                     label = "Saturation",
                     valueText = "${customIconSat.toInt()}%",
                     gradient = elementSaturationTrack(customIconHue, customIconVal),
@@ -561,7 +503,7 @@ internal fun WidgetAppearanceTab(
 
                 // 5. Brightness Slider (matching Color Studio)
                 GradientSliderRow(
-                    icon = Icons.Outlined.BrightnessMedium,
+                    icon = Symbols.Outlined.BrightnessMedium,
                     label = "Brightness",
                     valueText = "${customIconVal.toInt()}%",
                     gradient = elementBrightnessTrack(customIconHue, customIconSat),
@@ -603,7 +545,7 @@ internal fun WidgetAppearanceTab(
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Icon(
-                        Icons.Default.Edit,
+                        Symbols.Filled.Edit,
                         contentDescription = "Edit Hex",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)
@@ -626,15 +568,14 @@ private fun WidgetBarShapeSection(fields: WidgetDraftFields, isMaterialDesign: B
     val maxCorner = com.pixel.intelligentsearch.feature.widget.WidgetBarShape.maxCornerRadius(isMaterialDesign)
     // The widget draws outlines and corners in whole steps (WidgetBarShape.STEP), so the sliders move in them too.
     val step = com.pixel.intelligentsearch.feature.widget.WidgetBarShape.STEP
-    SettingsSectionHeader("Bar Shape")
-    SettingsCard(lit = false) {
+    SettingsCard(lit = false, title = "Bar Shape") {
         SettingsSliderRow(
             title = "Outline Thickness",
             value = outline.toFloat(),
             onValueChange = { outline = kotlin.math.round(it).toInt() },
             valueRange = 0f..com.pixel.intelligentsearch.core.data.widget.MAX_OUTLINE_THICKNESS.toFloat(),
             steps = com.pixel.intelligentsearch.core.data.widget.MAX_OUTLINE_THICKNESS / step - 1,
-            icon = Icons.Outlined.LineWeight,
+            icon = Symbols.Outlined.LineWeight,
             showDivider = true,
             onReset = { outline = design.outlineThicknessKey.default },
             valueText = { v -> if (kotlin.math.round(v).toInt() == 0) "None" else "${kotlin.math.round(v).toInt()} dp" }
@@ -645,10 +586,99 @@ private fun WidgetBarShapeSection(fields: WidgetDraftFields, isMaterialDesign: B
             onValueChange = { corner = kotlin.math.round(it).toInt() },
             valueRange = 0f..maxCorner.toFloat(),
             steps = (maxCorner / step - 1).coerceAtLeast(0),
-            icon = Icons.Outlined.RoundedCorner,
+            icon = Symbols.Outlined.RoundedCorner,
             showDivider = false,
             onReset = { corner = design.cornerRadiusKey.default },
             valueText = { v -> kotlin.math.round(v).toInt().let { if (it >= maxCorner) "Fully Round" else "$it dp" } }
         )
+    }
+}
+
+/** The subtext under each of the Material design's subtheme pills. */
+internal fun subthemeSubtext(option: String): String? = when (option) {
+    "Material" -> "Default Material Color Design"
+    "Custom" -> "Users Defined Color Design"
+    else -> null
+}
+
+/**
+ * The subtheme pills (the Material design's Material and Custom, the System design's System, Light, Dark and Custom),
+ * above the editor's tabs since they decide what the tabs hold. The Custom pill is painted in the custom color, so
+ * its label is black or white to match; unselected, it is a gradient up from half opacity and the label sits on its
+ * midpoint, both shown over the page. The other pills are each a soft tile, the chosen one primary, straight on the
+ * page with no track behind them. The Material design's two pills carry a line saying what each is.
+ */
+@Composable
+internal fun WidgetSubthemeSelector(
+    fields: WidgetDraftFields,
+    themeStyle: String,
+    computedCustomColorInt: Int,
+    modifier: Modifier = Modifier
+) {
+    var localSubtheme by fields::subtheme
+    var localLockBlack by fields::lockBlack
+    val pageColor = MaterialTheme.colorScheme.background
+    val pillTile = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+    val dynColor = androidx.compose.ui.graphics.Color(computedCustomColorInt)
+    val isSystemDesign = themeStyle == "System Default"
+    val subthemeOptions = if (isSystemDesign) listOf("System", "Light", "Dark", "Custom") else listOf("Material", "Custom")
+    ShellSelector(
+        options = subthemeOptions,
+        selected = localSubtheme,
+        onSelect = { opt ->
+            localSubtheme = opt
+            if (opt == "Material") {
+                localLockBlack = true
+            }
+        },
+        modifier = modifier,
+        itemHeight = if (isSystemDesign) 48.dp else 58.dp,
+        contentPadding = 0.dp,
+        gap = 8.dp,
+        indicatorShape = RoundedCornerShape(32.dp),
+        indicatorColor = { opt -> if (opt == "Custom") dynColor else androidx.compose.ui.graphics.Color.Unspecified },
+        unselectedColor = { opt -> if (opt == "Custom") androidx.compose.ui.graphics.Color.Transparent else pillTile }
+    ) { opt, isSel ->
+        val isCustom = opt == "Custom"
+        if (isCustom && !isSel) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.horizontalGradient(
+                            colors = listOf(dynColor.copy(alpha = 0.5f), dynColor)
+                        ),
+                        shape = RoundedCornerShape(32.dp)
+                    )
+            )
+        }
+        val labelColor = if (isCustom) {
+            subthemePillLabelColor(if (isSel) dynColor else dynColor.copy(alpha = 0.75f), pageColor)
+        } else {
+            LocalContentColor.current
+        }
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(horizontal = 8.dp)
+        ) {
+            Text(
+                opt,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
+                color = labelColor,
+                maxLines = 1,
+                autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium)
+            )
+            val subtext = if (isSystemDesign) null else subthemeSubtext(opt)
+            if (subtext != null) {
+                Text(
+                    subtext,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = labelColor.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    autoSize = oneLineAutoSize(MaterialTheme.typography.labelSmall)
+                )
+            }
+        }
     }
 }

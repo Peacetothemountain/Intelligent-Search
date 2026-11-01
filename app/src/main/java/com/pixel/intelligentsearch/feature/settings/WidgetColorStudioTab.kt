@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -172,12 +173,11 @@ private fun SearchBarPalette(
     var localTransparency by fields::transparency
     var showHexInput by ui::showHexInput
     var tempHexInput by ui::tempHexInput
-    SettingsSectionHeader("Search Bar Color Palette")
-    SettingsCard(lit = false) {
+    SettingsCard(lit = false, title = "Search Bar Color Palette") {
         Column(modifier = Modifier.padding(16.dp)) {
             // 1. Hue Slider
             GradientSliderRow(
-                icon = Icons.Default.Palette,
+                icon = Symbols.Filled.Palette,
                 label = "Hue",
                 valueText = "${localHue.toInt()}°",
                 gradient = SEED_HUE_GRADIENT,
@@ -193,7 +193,7 @@ private fun SearchBarPalette(
 
             // 2. Saturation Slider
             GradientSliderRow(
-                icon = Icons.Default.WaterDrop,
+                icon = Symbols.Filled.WaterDrop,
                 label = "Saturation",
                 valueText = "${localSaturation.toInt()}%",
                 // Grey to the most colorful at this lightness (kept off black and white, where no hue shows).
@@ -212,7 +212,7 @@ private fun SearchBarPalette(
 
             // 3. Lightness Slider
             GradientSliderRow(
-                icon = Icons.Outlined.BrightnessMedium,
+                icon = Symbols.Outlined.BrightnessMedium,
                 label = "Lightness",
                 valueText = "${localLightness.toInt()}%",
                 // Black through the color to white.
@@ -229,7 +229,7 @@ private fun SearchBarPalette(
 
             // 4. Color Opacity Slider
             GradientSliderRow(
-                icon = Icons.Default.Contrast,
+                icon = Symbols.Filled.Contrast,
                 label = "Color Opacity",
                 valueText = "${localColorOpacity.toInt()}%",
                 gradient = colorOpacityTrack(dynamicCustomColor),
@@ -246,7 +246,7 @@ private fun SearchBarPalette(
 
             // 5. Transparency, under Color Opacity: the bar's background fading to nothing, over a checkerboard.
             GradientSliderRow(
-                icon = Icons.Default.Opacity,
+                icon = Symbols.Filled.Opacity,
                 label = "Transparency",
                 valueText = "${localTransparency.toInt()}%",
                 gradient = transparencyTrack(barBackground),
@@ -289,7 +289,7 @@ private fun SearchBarPalette(
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 Icon(
-                    Icons.Default.Edit,
+                    Symbols.Filled.Edit,
                     contentDescription = "Edit Hex",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(18.dp)
@@ -325,8 +325,7 @@ private fun InnerPillPalette(fields: WidgetDraftFields) {
     var hexInput by remember { mutableStateOf("") }
     val hex = String.format("#%06X", 0xFFFFFF and opaque)
 
-    SettingsSectionHeader("Inner Pill & Circle Color Palette")
-    SettingsCard(lit = false) {
+    SettingsCard(lit = false, title = "Inner Pill & Circle Color Palette") {
         SettingsRowToggle(
             title = "Inner Pill & Circle State",
             subtitle = "Force the Inner Pill & Circle to One Color.",
@@ -348,7 +347,7 @@ private fun InnerPillPalette(fields: WidgetDraftFields) {
                 Spacer(modifier = Modifier.height(SLIDER_ROW_GAP + 4.dp))
 
                 GradientSliderRow(
-                    icon = Icons.Default.Palette,
+                    icon = Symbols.Filled.Palette,
                     label = "Hue",
                     valueText = "${sliders.hue.toInt()}°",
                     gradient = SEED_HUE_GRADIENT,
@@ -358,7 +357,7 @@ private fun InnerPillPalette(fields: WidgetDraftFields) {
                 )
                 Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
                 GradientSliderRow(
-                    icon = Icons.Default.WaterDrop,
+                    icon = Symbols.Filled.WaterDrop,
                     label = "Saturation",
                     valueText = "${sliders.saturation.toInt()}%",
                     gradient = listOf(0f, 100f).map {
@@ -370,7 +369,7 @@ private fun InnerPillPalette(fields: WidgetDraftFields) {
                 )
                 Spacer(modifier = Modifier.height(SLIDER_ROW_GAP))
                 GradientSliderRow(
-                    icon = Icons.Outlined.BrightnessMedium,
+                    icon = Symbols.Outlined.BrightnessMedium,
                     label = "Lightness",
                     valueText = "${sliders.lightness.toInt()}%",
                     gradient = seedTrack(sliders.hue, sliders.saturation, listOf(0f, 25f, 50f, 75f, 100f)),
@@ -384,7 +383,7 @@ private fun InnerPillPalette(fields: WidgetDraftFields) {
                     title = hex,
                     detail = null,
                     selected = false,
-                    trailing = Icons.Default.Edit,
+                    trailing = Symbols.Filled.Edit,
                     trailingDescription = "Edit Inner Pill & Circle Hex",
                     onClick = {
                         hexInput = hex
@@ -471,7 +470,7 @@ private fun PaletteChoiceRow(
         }
         Spacer(modifier = Modifier.weight(1f))
         when {
-            selected -> Icon(Icons.Default.Check, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(20.dp))
+            selected -> Icon(Symbols.Filled.Check, contentDescription = null, tint = scheme.primary, modifier = Modifier.size(20.dp))
             trailing != null -> Icon(trailing, contentDescription = trailingDescription, tint = scheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
         }
     }

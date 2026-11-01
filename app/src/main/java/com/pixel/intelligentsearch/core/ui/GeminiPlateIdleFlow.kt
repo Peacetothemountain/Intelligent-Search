@@ -24,7 +24,7 @@ internal fun plateFlowsWhileIdle(query: String, listening: Boolean): Boolean = q
 
 /**
  * Lets the light along the bottom of [materialYouGeminiPlate] flow while the search bar sits [idle], with the motion
- * of the widget customization preview's light (its rippling bottom glow) but far subtler and slower. Nothing new is
+ * of the widget customization preview's light (its rippling bottom glow), subtler and slower by [motion]. Nothing new is
  * lit: the plate's own bottom colour ([geminiPlateBottomLiftColor]) is drawn where that light already fades out, at
  * low strength, so the fading edge ripples sideways and gently breathes; at the very bottom, already that colour,
  * nothing changes. The plate itself is untouched. Draw it straight after the plate, inside the bar's clip.
@@ -35,7 +35,7 @@ internal fun plateFlowsWhileIdle(query: String, listening: Boolean): Boolean = q
  * that the plate is the drifting mesh already and this adds nothing. [alpha] is the plate's own alpha.
  */
 @Composable
-fun Modifier.geminiPlateIdleFlow(idle: Boolean, alpha: Float = 1f): Modifier {
+fun Modifier.geminiPlateIdleFlow(idle: Boolean, alpha: Float = 1f, motion: IdleFlowMotion = IdleFlowMotion.Subtle): Modifier {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return this
     val shader = remember { runCatching { RuntimeShader(AGSL_PLATE_IDLE_FLOW) }.getOrNull() } ?: return this
     val brush = remember(shader) { ShaderBrush(shader) }
@@ -46,6 +46,9 @@ fun Modifier.geminiPlateIdleFlow(idle: Boolean, alpha: Float = 1f): Modifier {
     return this.drawWithCache {
         shader.setFloatUniform("uSize", size.width.coerceAtLeast(1f), size.height.coerceAtLeast(1f))
         shader.setColorUniform("uColor", color)
+        shader.setFloatUniform("uSpeed", motion.speed1, motion.speed2)
+        shader.setFloatUniform("uHeight", motion.height1, motion.height2)
+        shader.setFloatUniform("uBreath", motion.breathDepth, motion.breathSpeed)
         onDrawBehind {
             val s = flow.strength
             if (s > 0f) {
@@ -53,6 +56,28 @@ fun Modifier.geminiPlateIdleFlow(idle: Boolean, alpha: Float = 1f): Modifier {
                 drawRect(brush = brush, alpha = s * plateAlpha)
             }
         }
+    }
+}
+
+/**
+ * How [geminiPlateIdleFlow]'s light moves: the two ripples' speeds (radians per second) and heights (shares of the
+ * plate's height), and the breath's depth and speed. Every speed times 1000 is whole, so the mesh clock wraps without a
+ * jump. The widget customization preview moves at about 2 and 0.23 high.
+ */
+class IdleFlowMotion internal constructor(
+    val speed1: Float, val speed2: Float,
+    val height1: Float, val height2: Float,
+    val breathDepth: Float, val breathSpeed: Float
+) {
+    companion object {
+        /** About a third of the preview's speed and height: the At a Glance card's and the security chart's. */
+        val Subtle = IdleFlowMotion(0.7f, 0.55f, 0.06f, 0.035f, 0.15f, 0.8f)
+
+        /**
+         * The search overlay's bar: about 60% of the preview's speed and height. At a third the owner couldn't see it
+         * move; it should be just enough to notice, short of the preview.
+         */
+        val SearchBar = IdleFlowMotion(1.3f, 1.05f, 0.10f, 0.06f, 0.18f, 1.2f)
     }
 }
 
@@ -92,25 +117,27 @@ private const val IDLE_FLOW_FADE_IN_MS = 1200
 private const val IDLE_FLOW_FADE_OUT_MS = 350
 
 /**
- * The widget preview's rippling bottom glow, reshaped for the search bar: two counter-moving ripples at about a third
- * of the preview's speed and height, raising and lowering the fading top edge of the plate's bottom light, and a slow
- * breath in place of its pulse. At most [uColor] at 0.30 opacity, so the bar's light moves but never brightens much.
- * Every frequency times 1000 is whole, so the mesh clock wraps without a jump.
+ * The widget preview's rippling bottom glow, reshaped for a plate: two counter-moving ripples ([IdleFlowMotion]'s
+ * speeds and heights) raising and lowering the fading top edge of the plate's bottom light, and a slow breath in place
+ * of its pulse. At most [uColor] at 0.30 opacity, so the light moves but never brightens much.
  */
 @Language("AGSL")
 private const val AGSL_PLATE_IDLE_FLOW = """
     uniform float2 uSize;
     uniform float uTime;
+    uniform float2 uSpeed;
+    uniform float2 uHeight;
+    uniform float2 uBreath;
     layout(color) uniform half4 uColor;
 
     half4 main(float2 p) {
         float u = p.x / uSize.x;
         float y = 1.0 - p.y / uSize.y; // 0.0 at the bottom edge, 1.0 at the top
 
-        float wave = sin(u * 6.28 + uTime * 0.7) * 0.06 + cos(u * 9.42 - uTime * 0.55) * 0.035;
+        float wave = sin(u * 6.28 + uTime * uSpeed.x) * uHeight.x + cos(u * 9.42 - uTime * uSpeed.y) * uHeight.y;
         // The plate's bottom light fades out over the lower ~60% of the bar.
         float band = 1.0 - smoothstep(0.0, 0.55, y - wave);
-        float breath = 0.85 + 0.15 * sin(uTime * 0.8);
+        float breath = (1.0 - uBreath.x) + uBreath.x * sin(uTime * uBreath.y);
 
         half a = half(clamp(band * breath, 0.0, 1.0) * 0.30);
         return half4(uColor.rgb * a, a);

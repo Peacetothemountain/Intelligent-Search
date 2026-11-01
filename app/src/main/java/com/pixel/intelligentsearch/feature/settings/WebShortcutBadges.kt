@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -164,7 +165,7 @@ fun SlideToRemoveAllBar(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    imageVector = Symbols.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
                     tint = if (isThresholdReached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = (1f - dragFraction * 0.7f).coerceIn(0.2f, 1f)),
                     modifier = Modifier.size(14.dp)
@@ -211,7 +212,7 @@ fun SlideToRemoveAllBar(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.DeleteSweep,
+                    imageVector = Symbols.Outlined.DeleteSweep,
                     contentDescription = "Slide to remove all",
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(20.dp)

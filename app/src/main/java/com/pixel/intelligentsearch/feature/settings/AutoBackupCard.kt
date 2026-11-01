@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -132,7 +133,7 @@ internal fun AutoBackupCard(passkeySetUp: Boolean = false, obtainPassphrase: (on
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 shape = RoundedCornerShape(percent = 50)
             ) {
-                Icon(Icons.Outlined.FolderOpen, contentDescription = null)
+                Icon(Symbols.Outlined.FolderOpen, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Choose Folder and Turn On", fontFamily = GoogleSansFlex)
             }
@@ -181,7 +182,7 @@ internal fun AutoBackupCard(passkeySetUp: Boolean = false, obtainPassphrase: (on
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(percent = 50)
                 ) {
-                    Icon(Icons.Outlined.Backup, contentDescription = null)
+                    Icon(Symbols.Outlined.Backup, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(if (isRunning) "Backing Up…" else "Back Up Now", fontFamily = GoogleSansFlex)
                 }

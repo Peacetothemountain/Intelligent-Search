@@ -42,13 +42,19 @@ class BiometricSearchGate @Inject constructor(
     /**
      * Shows the system prompt (strong biometric or screen lock). [onSuccess] runs once the user is verified;
      * [onFailure] runs if they cancel, fail too many times, or the prompt can't be shown.
+     *
+     * With [faceFirst], a recognized face lets the user in straight away instead of waiting for a Confirm tap, so
+     * the face scan Android starts as the prompt opens is the way in and the fingerprint the fallback. Android
+     * chooses which sensors a prompt uses; an app can't order them. Waiting for Confirm after a face match is what
+     * made the fingerprint feel like the first step.
      */
     fun authenticate(
         activity: Activity,
         title: String,
         subtitle: String?,
         onSuccess: () -> Unit,
-        onFailure: () -> Unit
+        onFailure: () -> Unit,
+        faceFirst: Boolean = false
     ) {
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
@@ -67,6 +73,7 @@ class BiometricSearchGate @Inject constructor(
                 .setAllowedAuthenticators(
                     BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
                 )
+                .setConfirmationRequired(!faceFirst)
                 .build()
                 .authenticate(CancellationSignal(), activity.mainExecutor, callback)
         } catch (e: Exception) {

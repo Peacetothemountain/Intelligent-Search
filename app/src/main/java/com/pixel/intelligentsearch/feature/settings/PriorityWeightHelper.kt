@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import androidx.compose.material.icons.Icons
@@ -90,7 +91,7 @@ fun PrioritySetting(key: SettingKey<Int>, label: String) {
                     modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.RestartAlt,
+                        imageVector = Symbols.Outlined.RestartAlt,
                         contentDescription = "Reset $label Priority Weight",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)

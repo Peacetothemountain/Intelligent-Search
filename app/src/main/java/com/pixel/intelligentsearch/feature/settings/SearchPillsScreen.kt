@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.activity.compose.BackHandler
 import com.pixel.intelligentsearch.core.theme.pageTrack
 import androidx.compose.ui.platform.testTag
@@ -228,7 +229,7 @@ fun SearchPillsScreen(
                             onBack()
                         }
                     }) {
-                        Icon(if (showAppPicker && multiSelectMode) Icons.Outlined.Close else Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        Icon(if (showAppPicker && multiSelectMode) Symbols.Outlined.Close else Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -248,7 +249,7 @@ fun SearchPillsScreen(
                                 showAppPicker = false
                             }
                         }) {
-                            Icon(Icons.Outlined.Check, contentDescription = "Add Selected")
+                            Icon(Symbols.Outlined.Check, contentDescription = "Add Selected")
                         }
                     } else if (showAppPicker) {
                         SearchToggleButton(open = pickerSearching, onToggle = {
@@ -279,7 +280,7 @@ fun SearchPillsScreen(
                                 showAppPicker = true
                             }
                         }) {
-                            Icon(Icons.Outlined.Add, contentDescription = "Add Pill")
+                            Icon(Symbols.Outlined.Add, contentDescription = "Add Pill")
                         }
                     }
                 }
@@ -349,7 +350,7 @@ fun SearchPillsScreen(
                                     appItem.label == packageName -> ""
                                     else -> packageName.breakableAtDots()
                                 },
-                                icon = appIcon ?: Icons.Outlined.Apps,
+                                icon = appIcon ?: Symbols.Outlined.Apps,
                                 selected = isSelected,
                                 onClick = {
                                     if (multiSelectMode) {
@@ -426,7 +427,7 @@ fun SearchPillsScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Icon(
-                                Icons.Outlined.AccountCircle,
+                                Symbols.Outlined.AccountCircle,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(48.dp)
@@ -454,7 +455,7 @@ fun SearchPillsScreen(
                                 },
                                 shape = RoundedCornerShape(16.dp)
                             ) {
-                                Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Icon(Symbols.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("Add Applications")
                             }
@@ -869,7 +870,7 @@ fun SearchPillsScreen(
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     Icon(
-                                                        imageVector = Icons.Outlined.DragHandle,
+                                                        imageVector = Symbols.Outlined.DragHandle,
                                                         contentDescription = "Drag to reorder",
                                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                                     )

@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.theme.isDark
 import com.pixel.intelligentsearch.core.theme.pageContainer
 import com.pixel.intelligentsearch.core.data.widget.WidgetDefaults
@@ -250,21 +251,21 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     // Discover is the Google app's feed, so it's offered only while the Google app is installed.
     val discoverAvailable = remember(context) { com.pixel.intelligentsearch.feature.widget.isDiscoverAvailable(context) }
     val shortcutOptions = listOfNotNull(
-        "None" to Icons.Default.Close,
+        "None" to Symbols.Filled.Close,
         "Google Lens" to ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_camera),
         "Live" to ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_search_lens_expressive),
-        "Translate (text)" to Icons.Default.Translate,
-        "Translate (camera)" to Icons.Default.DocumentScanner,
-        "Song Search" to Icons.Default.MusicNote,
-        "Weather" to Icons.Default.WbSunny,
-        "Sports" to Icons.Default.SportsBasketball,
-        "Dictionary" to Icons.AutoMirrored.Filled.MenuBook,
-        "Homework" to Icons.Default.School,
-        "Finance" to Icons.AutoMirrored.Filled.TrendingUp,
-        "Saved" to Icons.Default.Bookmark,
-        "News" to Icons.AutoMirrored.Filled.Article,
-        "Calculator" to Icons.Default.Calculate,
-        ("Discover" to Icons.Default.Explore).takeIf { discoverAvailable }
+        "Translate (text)" to Symbols.Filled.Translate,
+        "Translate (camera)" to Symbols.Filled.DocumentScanner,
+        "Song Search" to Symbols.Filled.MusicNote,
+        "Weather" to Symbols.Filled.WbSunny,
+        "Sports" to Symbols.Filled.SportsBasketball,
+        "Dictionary" to Symbols.AutoMirrored.Filled.MenuBook,
+        "Homework" to Symbols.Filled.School,
+        "Finance" to Symbols.AutoMirrored.Filled.TrendingUp,
+        "Saved" to Symbols.Filled.Bookmark,
+        "News" to Symbols.AutoMirrored.Filled.Article,
+        "Calculator" to Symbols.Filled.Calculate,
+        ("Discover" to Symbols.Filled.Explore).takeIf { discoverAvailable }
     )
 
     val themeStyleState = remember { mutableStateOf(prefs[SettingsManager.WIDGET_THEME_STYLE]) }
@@ -471,7 +472,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                 navigationIcon = {
-                    IconButton(onClick = handleBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = handleBack) { Icon(Symbols.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
                 },
                 actions = {
                     // As on Application Search: Reset puts the profile's saved state in the editor (Save puts it on
@@ -491,7 +492,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 if (hasUnsavedChanges) showSaveBeforePinDialog = true else pinWidget()
                             }
                         ) {
-                            Icon(Icons.AutoMirrored.Outlined.AddToHomeScreen, contentDescription = "Add widget to Home screen")
+                            Icon(Symbols.AutoMirrored.Outlined.AddToHomeScreen, contentDescription = "Add widget to Home screen")
                         }
                     }
                     TextButton(onClick = saveSettings) {
@@ -760,6 +761,14 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 }
             }
 
+            // The subtheme pills, above the tabs since they decide what the tabs hold (Color Studio needs Custom).
+            WidgetSubthemeSelector(
+                fields = fields,
+                themeStyle = localThemeStyle,
+                computedCustomColorInt = computedCustomColorInt,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+            )
+
             // Material 3 Expressive Segmented Tab Bar
             val isCustomActive = localSubtheme == "Custom"
             // Color Studio holds the search bar's palette (Custom subtheme) and, on the Material design, the Inner
@@ -768,9 +777,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             // Each tab's outlined icon, and the filled one it shows while selected.
             val tabs = remember(hasColorStudio) {
                 listOfNotNull(
-                    Triple("Appearance", Icons.Outlined.Palette, Icons.Filled.Palette),
-                    if (hasColorStudio) Triple("Color Studio", Icons.Outlined.Tune, Icons.Filled.Tune) else null,
-                    Triple("Shortcuts", Icons.Outlined.Widgets, Icons.Filled.Widgets)
+                    Triple("Appearance", Symbols.Outlined.Palette, Symbols.Filled.Palette),
+                    if (hasColorStudio) Triple("Color Studio", Symbols.Outlined.Tune, Symbols.Filled.Tune) else null,
+                    Triple("Shortcuts", Symbols.Outlined.Widgets, Symbols.Filled.Widgets)
                 )
             }
 
@@ -833,7 +842,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 ) {
                 when (activeTabName) {
                     "Appearance" -> WidgetAppearanceTab(
-                        fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState, computedCustomColorInt = computedCustomColorInt,
+                        fields = fields, ui = ui, colors = colors, themeStyle = themeStyleState,
                         view = view, hapticEngine = hapticEngine
                     )
 

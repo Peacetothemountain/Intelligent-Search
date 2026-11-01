@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
@@ -177,7 +178,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 colors = settingsTopBarColors(),
                 title = { SettingsPageTitle("File Search") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -196,7 +197,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         } else {
                             "Searching This Folder. Tap to Remove."
                         },
-                        icon = Icons.Outlined.Folder,
+                        icon = Symbols.Outlined.Folder,
                         onClick = { folderPendingRemoval = uri },
                         showDivider = true
                     )
@@ -205,7 +206,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     SettingsRow(
                         title = excludedNames[uri] ?: "Subfolder",
                         subtitle = "Skipped in Search. Tap to Search It Again.",
-                        icon = Icons.Outlined.FolderOff,
+                        icon = Symbols.Outlined.FolderOff,
                         onClick = { UserGrantedFiles.removeExcludedFolder(prefs, uri) },
                         showDivider = true
                     )
@@ -213,7 +214,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRow(
                     title = "Add Folder",
                     subtitle = "Pick a Folder Such as Documents. Android Doesn't Allow the Download Folder Itself, but Folders Inside It Work.",
-                    icon = Icons.Outlined.CreateNewFolder,
+                    icon = Symbols.Outlined.CreateNewFolder,
                     onClick = { folderPicker.launch(null) },
                     showDivider = true
                 )
@@ -221,7 +222,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     SettingsRow(
                         title = "Skip a Subfolder",
                         subtitle = "Leave a Folder Inside a Chosen One Out of Search. Hidden Folders and App Data Are Always Skipped.",
-                        icon = Icons.Outlined.FolderOff,
+                        icon = Symbols.Outlined.FolderOff,
                         onClick = {
                             val start = folderUris.minByOrNull { folderNames[it] ?: it }
                             excludePicker.launch(start?.let(UserGrantedFiles::folderRootDocumentUri))
@@ -232,7 +233,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRow(
                     title = "Choose Photos & Videos",
                     subtitle = if (mediaCount > 0) "$mediaCount Chosen. Tap to Add More." else "Pick Photos and Videos with the Android Photo Picker.",
-                    icon = Icons.Outlined.Image,
+                    icon = Symbols.Outlined.Image,
                     onClick = {
                         photoPickerLauncher.launch(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
@@ -244,7 +245,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     SettingsRow(
                         title = "Clear Chosen Photos & Videos",
                         subtitle = "Stop Searching the $mediaCount Photos and Videos Chosen Above.",
-                        icon = Icons.Outlined.DeleteSweep,
+                        icon = Symbols.Outlined.DeleteSweep,
                         onClick = { confirmClearMedia = true },
                         showDivider = true
                     )
@@ -253,7 +254,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Show Hidden Files",
                     subtitle = "Include Files Hidden from Android Index.",
-                    icon = Icons.Outlined.Visibility,
+                    icon = Symbols.Outlined.Visibility,
                     isChecked = hiddenFiles,
                     onCheckedChange = { hiddenFiles = it },
                     showDivider = true
@@ -262,7 +263,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Show Thumbnails",
                     subtitle = "Show Images and Video Thumbnails.",
-                    icon = Icons.Outlined.Image,
+                    icon = Symbols.Outlined.Image,
                     isChecked = thumbnails,
                     onCheckedChange = { thumbnails = it },
                     showDivider = true
@@ -287,7 +288,7 @@ private fun FileSearchScopeNote() {
         verticalAlignment = Alignment.Top
     ) {
         Icon(
-            imageVector = Icons.Outlined.Info,
+            imageVector = Symbols.Outlined.Info,
             contentDescription = null, // decorative: the note beside it says it all
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(24.dp).testTag(FILE_SEARCH_NOTE_ICON_TAG)

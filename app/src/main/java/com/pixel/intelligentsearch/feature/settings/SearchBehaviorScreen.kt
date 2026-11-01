@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
@@ -50,7 +51,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 colors = settingsTopBarColors(),
                 title = { SettingsPageTitle("Search Behavior") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
+                    IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
                 }
             )
         }
@@ -69,7 +70,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Bottom Search Bar",
                     subtitle = "Position Search Bar at Bottom of Search Overlay Page.",
-                    icon = Icons.Outlined.VerticalAlignBottom,
+                    icon = Symbols.Outlined.VerticalAlignBottom,
                     isChecked = bottomSearch,
                     onCheckedChange = { bottomSearch = it },
                     showDivider = true
@@ -78,7 +79,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Bottom Search Results",
                     subtitle = "Order List from Bottom Up Depending on Search Bar Placement.",
-                    icon = Icons.Outlined.AlignVerticalBottom,
+                    icon = Symbols.Outlined.AlignVerticalBottom,
                     isChecked = bottomResult,
                     onCheckedChange = { bottomResult = it },
                     showDivider = true
@@ -87,7 +88,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Quick App Panel",
                     subtitle = QUICK_APP_PANEL_SUBTITLE,
-                    icon = Icons.Outlined.ViewCompact,
+                    icon = Symbols.Outlined.ViewCompact,
                     isChecked = compactList,
                     onCheckedChange = { compactList = it },
                     showDivider = true
@@ -96,7 +97,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Context Aware Quick Apps",
                     subtitle = "Dynamically Chosen Apps Based on User's App Opening Cycles.",
-                    icon = Icons.Outlined.Insights,
+                    icon = Symbols.Outlined.Insights,
                     isChecked = contextAwareApps,
                     onCheckedChange = { contextAwareApps = it },
                     showDivider = true
@@ -128,7 +129,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 SettingsRowToggle(
                     title = "Smart Clipboard Suggestions",
                     subtitle = "Suggests Actions for What You Copy: Open a Link, Call a Number, Search Text or Search an Image with Lens.",
-                    icon = Icons.Outlined.ContentPaste,
+                    icon = Symbols.Outlined.ContentPaste,
                     isChecked = smartClipboard,
                     onCheckedChange = {
                         if (it) {

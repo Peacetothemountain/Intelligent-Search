@@ -1,4 +1,5 @@
 package com.pixel.intelligentsearch.feature.settings
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.put
 import androidx.core.content.edit
@@ -33,7 +34,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 title = { SettingsPageTitle("Developer Settings", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Normal) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
+                        Icon(imageVector = Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = settingsTopBarColors()
@@ -53,7 +54,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Force Tutorial Mode",
                 subtitle = "When Checked, the Tutorial Will Play Every Time the App Opens.",
-                icon = Icons.Outlined.Warning,
+                icon = Symbols.Outlined.Warning,
                 isChecked = forceTutorial,
                 onCheckedChange = { forceTutorial = it }
             )
@@ -61,7 +62,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRow(
                 title = "Reset Tutorial Progress",
                 subtitle = "Mark Tutorial as Incomplete and Restart Step Guide.",
-                icon = Icons.Outlined.Refresh,
+                icon = Symbols.Outlined.Refresh,
                 onClick = {
                     prefs.edit()
                         .put(SettingsManager.TUTORIAL_STEP, 0)
@@ -78,7 +79,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRow(
                 title = "Clear Search History Cache",
                 subtitle = "Reset and Clear All Saved Recent Queries.",
-                icon = Icons.Outlined.Delete,
+                icon = Symbols.Outlined.Delete,
                 onClick = {
                     settingsViewModel?.clearSearchHistory()
                     android.widget.Toast.makeText(context, "Search history cleared.", android.widget.Toast.LENGTH_SHORT).show()
@@ -94,7 +95,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Simulate Web Latency",
                 subtitle = "Adds a 2-Second Artificial Delay to Search Suggestions.",
-                icon = Icons.Outlined.HourglassEmpty,
+                icon = Symbols.Outlined.HourglassEmpty,
                 isChecked = simulateLatency,
                 onCheckedChange = { simulateLatency = it },
                 showDivider = true
@@ -104,7 +105,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Mock Large Dataset",
                 subtitle = "Injects 50 Mock Contacts and Files into Search Lists.",
-                icon = Icons.Outlined.Layers,
+                icon = Symbols.Outlined.Layers,
                 isChecked = mockLargeDataset,
                 onCheckedChange = { mockLargeDataset = it },
                 showDivider = true
@@ -114,7 +115,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Enable Verbose Logging",
                 subtitle = "Print Query Logs and Load Frame Times in Logcat.",
-                icon = Icons.Outlined.Code,
+                icon = Symbols.Outlined.Code,
                 isChecked = verboseLogging,
                 onCheckedChange = { verboseLogging = it },
                 showDivider = true
@@ -125,7 +126,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Show Performance HUD",
                 subtitle = "Render Search Latency and Results Count at Top of Overlay.",
-                icon = Icons.Outlined.Speed,
+                icon = Symbols.Outlined.Speed,
                 isChecked = showPerfStats,
                 onCheckedChange = { showPerfStats = it },
                 showDivider = true
@@ -136,7 +137,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Mock Trending Queries",
                 subtitle = "Force Mock Trending Query Topics When Search Bar Is Empty.",
-                icon = Icons.AutoMirrored.Outlined.TrendingUp,
+                icon = Symbols.AutoMirrored.Outlined.TrendingUp,
                 isChecked = mockTrending,
                 onCheckedChange = { mockTrending = it },
                 showDivider = true
@@ -146,7 +147,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRowToggle(
                 title = "Force Search API Error",
                 subtitle = "Simulate Suggestion Fetch Failure and Display Error Banner.",
-                icon = Icons.Outlined.BugReport,
+                icon = Symbols.Outlined.BugReport,
                 isChecked = forceSearchError,
                 onCheckedChange = { forceSearchError = it },
                 showDivider = true
@@ -155,7 +156,7 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
             SettingsRow(
                 title = "Disable Debug Mode",
                 subtitle = "Turn Off Developer Settings and Exit.",
-                icon = Icons.Outlined.Close,
+                icon = Symbols.Outlined.Close,
                 onClick = onDisableDebug,
                 showDivider = false
             )

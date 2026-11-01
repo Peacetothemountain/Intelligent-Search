@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.util.clampSafely
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import androidx.compose.foundation.combinedClickable
@@ -53,6 +54,8 @@ fun SettingsCard(
     // A page's main cards, the ones holding its settings, have the light behind them; a card that only holds a
     // selector (a design switch, an icon picker) doesn't.
     lit: Boolean = true,
+    // The card's own title, in its top left corner in the section header's style (Widget Customization's cards).
+    title: String? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
@@ -64,6 +67,17 @@ fun SettingsCard(
         lit = lit
     ) {
         Column(modifier = Modifier.padding(vertical = 12.dp)) {
+            if (title != null) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .padding(start = 20.dp, end = 16.dp, top = 4.dp, bottom = 8.dp)
+                        .semantics { heading() }
+                )
+            }
             content()
         }
     }
@@ -255,7 +269,7 @@ fun SettingsRow(
             }
             Spacer(modifier = Modifier.width(8.dp))
             Icon(
-                imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                imageVector = Symbols.AutoMirrored.Outlined.KeyboardArrowRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.size(20.dp)
@@ -342,7 +356,7 @@ fun SettingsDropdownRow(
                 }
             }
             Icon(
-                imageVector = Icons.Outlined.ArrowDropDown,
+                imageVector = Symbols.Outlined.ArrowDropDown,
                 contentDescription = null, // the row's DropdownList role already says it opens a menu
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -372,7 +386,7 @@ fun SettingsDropdownRow(
                             trailingIcon = if (isSelected) {
                                 {
                                     Icon(
-                                        imageVector = Icons.Default.Check,
+                                        imageVector = Symbols.Filled.Check,
                                         contentDescription = "Selected",
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(18.dp)
@@ -632,7 +646,7 @@ fun SettingsAppRow(
                 exit = androidx.compose.animation.scaleOut(targetScale = 0.6f) + androidx.compose.animation.fadeOut()
             ) {
                 Icon(
-                    imageVector = Icons.Filled.CheckCircle,
+                    imageVector = Symbols.Filled.CheckCircle,
                     contentDescription = null, // the row says it's selected
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(start = 12.dp).size(24.dp)
@@ -709,7 +723,7 @@ fun SettingsSliderRow(
                             modifier = Modifier.size(32.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.RestartAlt,
+                                imageVector = Symbols.Outlined.RestartAlt,
                                 contentDescription = "Reset $title",
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(20.dp)
@@ -771,7 +785,7 @@ fun ResultsCountSetting(key: com.pixel.intelligentsearch.core.data.settings.Sett
                     modifier = Modifier.size(32.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.RestartAlt,
+                        imageVector = Symbols.Outlined.RestartAlt,
                         contentDescription = "Reset $label Results",
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(20.dp)

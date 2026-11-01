@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.pageTrack
@@ -157,7 +158,7 @@ fun ManageHiddenAppsScreen(
                 title = {},
                 navigationIcon = {
                     IconButton(onClick = handleBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Symbols.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 actions = {
@@ -228,7 +229,7 @@ fun ManageHiddenAppsScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.Lock,
+                        imageVector = Symbols.Outlined.Lock,
                         contentDescription = "Locked",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(56.dp)
@@ -310,7 +311,7 @@ private fun EnableAllToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit
             .padding(horizontal = 6.dp)
     ) {
         Icon(
-            if (checked) Icons.Filled.CheckCircle else Icons.Outlined.Check,
+            if (checked) Symbols.Filled.CheckCircle else Symbols.Outlined.Check,
             contentDescription = null,
             tint = color,
             modifier = Modifier.size(18.dp)

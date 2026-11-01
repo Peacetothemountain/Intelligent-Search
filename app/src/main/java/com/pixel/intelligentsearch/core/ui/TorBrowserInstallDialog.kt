@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.ui
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -101,7 +102,7 @@ fun TorBrowserInstallDialog(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        imageVector = Icons.Outlined.Security,
+                        imageVector = Symbols.Outlined.Security,
                         contentDescription = "Tor Security Shield",
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(28.dp)

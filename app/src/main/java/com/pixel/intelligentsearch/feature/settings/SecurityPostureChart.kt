@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -214,12 +215,12 @@ internal fun postureShape(axis: Axis): String = when (axis) {
 }
 
 private fun postureIcon(score: SecurityPosture.AxisScore): ImageVector = when (score.axis) {
-    Axis.KeyStorage -> Icons.Outlined.Key
-    Axis.Attestation -> Icons.Outlined.VerifiedUser
-    Axis.VerifiedBoot -> Icons.Outlined.RestartAlt
-    Axis.Bootloader -> if (score.value == "Unlocked") Icons.Outlined.LockOpen else Icons.Outlined.Lock
-    Axis.PatchLevel -> Icons.Outlined.SystemUpdate
-    Axis.ScreenLock -> Icons.Outlined.Password
+    Axis.KeyStorage -> Symbols.Outlined.Key
+    Axis.Attestation -> Symbols.Outlined.VerifiedUser
+    Axis.VerifiedBoot -> Symbols.Outlined.RestartAlt
+    Axis.Bootloader -> if (score.value == "Unlocked") Symbols.Outlined.LockOpen else Symbols.Outlined.Lock
+    Axis.PatchLevel -> Symbols.Outlined.SystemUpdate
+    Axis.ScreenLock -> Symbols.Outlined.Password
 }
 
 /**
@@ -242,7 +243,7 @@ internal fun SecurityPostureCard(axes: List<SecurityPosture.AxisScore>, modifier
     val selected = chosen ?: plan.firstOrNull()?.first?.axis
     val ordered = POSTURE_ORDER.mapNotNull { axis -> axes.firstOrNull { it.axis == axis } }
     DiagnosticsCard(
-        icon = Icons.Outlined.Shield,
+        icon = Symbols.Outlined.Shield,
         title = "Security Posture",
         accent = scheme.primary,
         modifier = modifier,

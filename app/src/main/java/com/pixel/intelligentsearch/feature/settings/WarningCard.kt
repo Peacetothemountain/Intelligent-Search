@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -54,7 +55,7 @@ internal fun WarningCard(
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
                 Icon(
-                    imageVector = Icons.Outlined.WarningAmber,
+                    imageVector = Symbols.Outlined.WarningAmber,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.tertiary,
                     modifier = Modifier.size(32.dp)

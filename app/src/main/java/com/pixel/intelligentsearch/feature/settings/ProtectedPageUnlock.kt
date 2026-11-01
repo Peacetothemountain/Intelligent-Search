@@ -47,7 +47,9 @@ private const val RELOCK_AFTER_MS = 30_000L
 fun rememberProtectedPageUnlock(
     title: String,
     subtitle: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    // Encrypted Backup's: a recognized face opens the page at once, the fingerprint the fallback.
+    faceFirst: Boolean = false
 ): Boolean {
     val context = LocalContext.current
     val activity = context.findActivity()
@@ -121,7 +123,8 @@ fun rememberProtectedPageUnlock(
                     stoppedAtMs = 0L
                     unlocked = true
                 },
-                onFailure = { leaveOnce() }
+                onFailure = { leaveOnce() },
+                faceFirst = faceFirst
             )
         }
     }

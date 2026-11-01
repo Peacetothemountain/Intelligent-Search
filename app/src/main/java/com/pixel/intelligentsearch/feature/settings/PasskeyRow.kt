@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -74,7 +75,7 @@ internal fun PasskeyRow(
                     .padding(start = 16.dp, end = 16.dp, top = 4.dp),
                 shape = RoundedCornerShape(percent = 50)
             ) {
-                Icon(Icons.Outlined.Key, contentDescription = null)
+                Icon(Symbols.Outlined.Key, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(if (creating) "Creating Passkey…" else "Create Passkey")
             }
@@ -87,7 +88,7 @@ internal fun PasskeyRow(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
-                    imageVector = Icons.Filled.CheckCircle,
+                    imageVector = Symbols.Filled.CheckCircle,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)

@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -48,7 +49,7 @@ internal fun ProfileSelector(count: Int, selected: Int, onSelect: (Int) -> Unit,
             modifier = Modifier.padding(horizontal = 2.dp)
         ) {
             Icon(
-                if (isSelected) Icons.Filled.AccountCircle else Icons.Outlined.AccountCircle,
+                if (isSelected) Symbols.Filled.AccountCircle else Symbols.Outlined.AccountCircle,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp)
             )
@@ -94,12 +95,12 @@ internal fun SavedStateActions(
         onReset()
         Toast.makeText(context, resetMessage, Toast.LENGTH_SHORT).show()
     }) {
-        Icon(Icons.Outlined.RestartAlt, contentDescription = "Reset to Saved State")
+        Icon(Symbols.Outlined.RestartAlt, contentDescription = "Reset to Saved State")
     }
     IconButton(onClick = {
         onSave()
         Toast.makeText(context, saveMessage, Toast.LENGTH_SHORT).show()
     }) {
-        Icon(Icons.Outlined.Save, contentDescription = saveDescription)
+        Icon(Symbols.Outlined.Save, contentDescription = saveDescription)
     }
 }

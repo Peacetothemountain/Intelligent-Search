@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.geometry.Offset
@@ -241,7 +242,7 @@ fun CustomSearchAppIcon(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Outlined.Search,
+            imageVector = Symbols.Outlined.Search,
             contentDescription = "Custom Search",
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(3.dp)

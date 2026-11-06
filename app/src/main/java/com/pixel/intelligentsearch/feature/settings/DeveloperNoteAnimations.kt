@@ -124,25 +124,26 @@ internal fun setupStepReached(usbDebugging: Boolean, listed: Boolean, isDefault:
 @Composable
 internal fun DeveloperNoteAnimations(context: Context, maxLoopHeight: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Infinity) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val phoneWidth = min((maxWidth * 0.4f).coerceIn(124.dp, 196.dp), maxLoopHeight / PHONE_RATIO)
-        // Large text needs the whole width for its words, so the loop moves below the path.
-        if (LocalDensity.current.fontScale > 1.3f) {
+        val pageWidth = maxWidth
+        // Side by side only where both stay large: a narrow page or large text puts the loop under the path, full width.
+        if (pageWidth < SIDE_BY_SIDE_MIN_WIDTH || LocalDensity.current.fontScale > 1.3f) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 SetupPath(context, Modifier.fillMaxWidth())
-                SearchLoop(context, phoneWidth)
+                SearchLoop(context, pageWidth)
             }
         } else {
+            val loopWidth = min(pageWidth * 0.56f, maxLoopHeight / LOOP_RATIO)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 SetupPath(context, Modifier.weight(1f))
-                SearchLoop(context, phoneWidth)
+                SearchLoop(context, loopWidth)
             }
         }
     }
@@ -198,7 +199,7 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 68.dp)
+                    .heightIn(min = 72.dp)
                     .then(
                         if (active) {
                             Modifier.clickable(role = Role.Button) { openSetupStep(context, index) }
@@ -207,7 +208,7 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
                         }
                     )
                     .drawBehind {
-                        val x = 18.dp.toPx()
+                        val x = 20.dp.toPx()
                         val cy = size.height / 2f
                         val line = 4.dp.toPx()
                         val top = if (index == 0) cy else 0f
@@ -219,14 +220,14 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
                         if (animations && active) {
                             drawCircle(
                                 scheme.primary,
-                                radius = (12f + pulse * 9f).dp.toPx(),
+                                radius = (14f + pulse * 9f).dp.toPx(),
                                 center = Offset(x, cy),
                                 alpha = (1f - pulse) * 0.8f,
                                 style = Stroke(2.dp.toPx())
                             )
                         }
                         val on = (shown - index).coerceIn(0f, 1f)
-                        val radius = 12.dp.toPx() * (1f + 0.16f * sin(PI.toFloat() * on))
+                        val radius = 14.dp.toPx() * (1f + 0.16f * sin(PI.toFloat() * on))
                         drawCircle(if (on > 0.5f) scheme.primary else scheme.surfaceContainerHighest, radius, Offset(x, cy))
                         drawCircle(
                             if (on > 0.5f || active) scheme.primary else scheme.outlineVariant,
@@ -235,7 +236,7 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
                             style = Stroke(2.dp.toPx())
                         )
                         if (on > 0f) {
-                            val u = 1.dp.toPx()
+                            val u = 1.dp.toPx() * 14f / 12f
                             val check = Path().apply {
                                 moveTo(x - 5.5f * u, cy + 0.5f * u)
                                 relativeLineTo(4f * u, 4f * u)
@@ -265,19 +266,19 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
                             }
                         }
                     }
-                    .padding(start = 42.dp, top = 8.dp, bottom = 8.dp),
+                    .padding(start = 46.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
                     Text(
                         text = row.title,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = if (done || active) scheme.onSurface else scheme.onSurfaceVariant
                     )
                     Text(
                         text = if (done) row.done else row.toDo,
-                        style = MaterialTheme.typography.bodySmall,
+                        style = MaterialTheme.typography.bodyMedium,
                         color = scheme.onSurfaceVariant
                     )
                 }
@@ -396,7 +397,7 @@ private fun SearchLoop(context: Context, width: androidx.compose.ui.unit.Dp) {
             }.getOrNull()
         }
     }
-    val height = width * PHONE_RATIO
+    val height = width * LOOP_RATIO
     val scale = width / SCREEN_WIDTH
     val screenHeight = height / scale
     val shape = RoundedCornerShape(22.dp)
@@ -608,7 +609,9 @@ private fun LoopOpening(time: () -> Float, look: SplashLook?, icon: ImageBitmap?
 }
 
 private val SCREEN_WIDTH = 412.dp
-private const val PHONE_RATIO = 1.53f
+/** The loop's height to its width: tall enough for its result and bar, with no empty screen above them to shrink them. */
+private const val LOOP_RATIO = 0.8f
+private val SIDE_BY_SIDE_MIN_WIDTH = 420.dp
 private val BAR_HEIGHT = 72.dp
 private val BAR_BOTTOM = 26.dp
 private val RESULT_BOTTOM = 112.dp

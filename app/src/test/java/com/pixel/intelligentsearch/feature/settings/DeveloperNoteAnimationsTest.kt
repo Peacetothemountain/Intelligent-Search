@@ -95,6 +95,25 @@ class DeveloperNoteAnimationsTest {
         compose.onAllNodes(androidx.compose.ui.test.hasText("Search engine list")).assertCountEquals(0)
     }
 
+    @Test
+    fun finishedSetupKeepsTheRowsWithAllSetUnderThem() {
+        compose.setContent {
+            IntelligentSearchTheme(darkTheme = false) { SetupStatusCard(LocalContext.current, 3, true) }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText("Search engine list").assertExists()
+        compose.onNodeWithText("You're all set").assertExists()
+    }
+
+    @Test
+    fun unfinishedSetupDoesNotSayItIsAllSet() {
+        compose.setContent {
+            IntelligentSearchTheme(darkTheme = false) { SetupStatusCard(LocalContext.current, 2, true) }
+        }
+        compose.waitForIdle()
+        compose.onAllNodes(androidx.compose.ui.test.hasText("You're all set")).assertCountEquals(0)
+    }
+
     private fun showPath() {
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) { SetupPath(LocalContext.current) }

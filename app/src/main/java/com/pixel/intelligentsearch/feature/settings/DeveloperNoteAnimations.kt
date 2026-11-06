@@ -79,7 +79,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
@@ -93,7 +92,6 @@ import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.system.SearchRoleManager
 import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
-import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
 import com.pixel.intelligentsearch.core.ui.IdleFlowMotion
 import com.pixel.intelligentsearch.core.ui.geminiPlateIdleFlow
 import com.pixel.intelligentsearch.core.ui.materialYouGeminiPlate
@@ -134,17 +132,19 @@ internal fun DeveloperNoteAnimations(context: Context, maxLoopHeight: androidx.c
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 SetupPath(context, Modifier.fillMaxWidth())
-                SearchLoop(context, pageWidth)
+                SearchLoop(context, pageWidth, pageWidth * LOOP_RATIO)
             }
         } else {
-            val loopWidth = min(pageWidth * 0.56f, maxLoopHeight / LOOP_RATIO)
+            val loopWidth = pageWidth * 0.56f
+            // Both containers share one height: what the cards leave, or enough for the setup container.
+            val height = if (maxLoopHeight == androidx.compose.ui.unit.Dp.Infinity) SETUP_MIN_HEIGHT else maxLoopHeight.coerceAtLeast(SETUP_MIN_HEIGHT)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                SetupPath(context, Modifier.weight(1f), allSetHeight = loopWidth * LOOP_RATIO)
-                SearchLoop(context, loopWidth)
+                SetupPath(context, Modifier.weight(1f).heightIn(min = height))
+                SearchLoop(context, loopWidth, height)
             }
         }
     }
@@ -155,10 +155,10 @@ private class SetupRowText(val title: String, val toDo: String, val done: String
 
 /**
  * Setup as a path: it grows to the step this phone has reached, read again each time the app comes back. The next
- * step pulses and opens where it gets done. Once all are done, [SetupAllSet] takes its place.
+ * step pulses and opens where it gets done. Once all are done, [SetupAllSet] shows under them.
  */
 @Composable
-internal fun SetupPath(context: Context, modifier: Modifier = Modifier, allSetHeight: androidx.compose.ui.unit.Dp = ALL_SET_HEIGHT) {
+internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
     val lifecycleOwner = LocalLifecycleOwner.current
     var revision by remember { mutableIntStateOf(0) }
     DisposableEffect(lifecycleOwner) {
@@ -174,10 +174,12 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier, allSetHe
             isDefault = SearchRoleManager.isSearchRoleHeld(context)
         )
     }
-    if (step >= SETUP_STEPS) {
-        SetupAllSet(modifier.height(allSetHeight))
-        return
-    }
+    SetupStatusCard(context, step, usbDebugging, modifier)
+}
+
+/** [SetupPath]'s container, with the same rim as the search loop's beside it, at setup step [step]. */
+@Composable
+internal fun SetupStatusCard(context: Context, step: Int, usbDebugging: Boolean, modifier: Modifier = Modifier) {
     val animations by rememberAnimationsEnabled()
     val shown by animateFloatAsState(
         targetValue = step.toFloat(),
@@ -188,12 +190,18 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier, allSetHe
     val pulse by infinite.animateFloat(
         0f, 1f, infiniteRepeatable(tween(PULSE_MS, easing = LinearEasing), RepeatMode.Restart), label = "setup_pulse"
     )
+    val light by infinite.animateFloat(
+        0f, 1f, infiniteRepeatable(tween(LIGHT_MS, easing = LinearEasing), RepeatMode.Restart), label = "setup_light"
+    )
     val rows = listOf(
         SetupRowText("USB debugging", "Turn this on", if (usbDebugging) "On" else "Done"),
         SetupRowText("Search engine list", "Run the commands", "On the list"),
         SetupRowText("Default search engine", "Choose it in Settings", "Set")
     )
-    Column(modifier) {
+    Column(
+        modifier = modifier.noteFrame().padding(vertical = 8.dp),
+        verticalArrangement = Arrangement.Center
+    ) {
         rows.forEachIndexed { index, row ->
             val active = index == step
             val done = index < step
@@ -201,7 +209,7 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier, allSetHe
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 72.dp)
+                    .heightIn(min = 46.dp)
                     .then(
                         if (active) {
                             Modifier.clickable(role = Role.Button) { openSetupStep(context, index) }
@@ -210,7 +218,7 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier, allSetHe
                         }
                     )
                     .drawBehind {
-                        val x = 20.dp.toPx()
+                        val x = 22.dp.toPx()
                         val cy = size.height / 2f
                         val line = 4.dp.toPx()
                         val top = if (index == 0) cy else 0f
@@ -222,14 +230,14 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier, allSetHe
                         if (animations && active) {
                             drawCircle(
                                 scheme.primary,
-                                radius = (14f + pulse * 9f).dp.toPx(),
+                                radius = (12f + pulse * 8f).dp.toPx(),
                                 center = Offset(x, cy),
                                 alpha = (1f - pulse) * 0.8f,
                                 style = Stroke(2.dp.toPx())
                             )
                         }
                         val on = (shown - index).coerceIn(0f, 1f)
-                        val radius = 14.dp.toPx() * (1f + 0.16f * sin(PI.toFloat() * on))
+                        val radius = 12.dp.toPx() * (1f + 0.16f * sin(PI.toFloat() * on))
                         drawCircle(if (on > 0.5f) scheme.primary else scheme.surfaceContainerHighest, radius, Offset(x, cy))
                         drawCircle(
                             if (on > 0.5f || active) scheme.primary else scheme.outlineVariant,
@@ -238,7 +246,7 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier, allSetHe
                             style = Stroke(2.dp.toPx())
                         )
                         if (on > 0f) {
-                            val u = 1.dp.toPx() * 14f / 12f
+                            val u = 1.dp.toPx()
                             val check = Path().apply {
                                 moveTo(x - 5.5f * u, cy + 0.5f * u)
                                 relativeLineTo(4f * u, 4f * u)
@@ -255,26 +263,51 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier, allSetHe
                                 style = Stroke(2.4f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
                             )
                         }
+                        if (animations && step == rows.size) {
+                            val run = light * LIGHT_MS / LIGHT_RUN_MS
+                            val at = run * rows.lastIndex - index
+                            if (run < 1f && at in -0.5f..0.5f) {
+                                drawCircle(
+                                    scheme.onPrimaryContainer,
+                                    radius = 4.5.dp.toPx(),
+                                    center = Offset(x, cy + at * size.height),
+                                    alpha = sin(PI.toFloat() * run) * 0.9f
+                                )
+                            }
+                        }
                     }
-                    .padding(start = 46.dp, top = 8.dp, bottom = 8.dp),
+                    .padding(start = 44.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
                     Text(
                         text = row.title,
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = if (done || active) scheme.onSurface else scheme.onSurfaceVariant
                     )
                     Text(
                         text = if (done) row.done else row.toDo,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
                         color = scheme.onSurfaceVariant
                     )
                 }
             }
         }
+        if (step >= rows.size) {
+            SetupAllSet(Modifier.fillMaxWidth().padding(top = 4.dp))
+        }
     }
+}
+
+/** The rim both containers at the bottom of the Developer Note share. */
+@Composable
+private fun Modifier.noteFrame(): Modifier {
+    val scheme = MaterialTheme.colorScheme
+    return this
+        .clip(NOTE_FRAME_SHAPE)
+        .background(scheme.surface)
+        .border(2.dp, scheme.outlineVariant, NOTE_FRAME_SHAPE)
 }
 
 /** Whether USB debugging is on: the setting, or the USB connection reporting it when a phone hides the setting. */
@@ -313,8 +346,8 @@ private fun openSetupStep(context: Context, index: Int) {
 }
 
 /**
- * Setup finished: a container with a scalloped check that pops in and keeps slowly turning over a breathing halo, and
- * "You're all set" under it. With animations removed it holds still.
+ * Setup finished: a scalloped check that pops in and keeps slowly turning over a breathing halo, and "You're all set"
+ * under it. With animations removed it holds still.
  */
 @Composable
 internal fun SetupAllSet(modifier: Modifier = Modifier) {
@@ -331,56 +364,44 @@ internal fun SetupAllSet(modifier: Modifier = Modifier) {
             withInfiniteAnimationFrameNanos { time = (it - start) / 1_000_000_000f }
         }
     }
-    MatteShell(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        containerColor = scheme.surfaceContainerLow,
-        border = androidx.compose.foundation.BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.35f))
-    ) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Canvas(Modifier.size(ALL_SET_BADGE)) {
-                val t = time
-                val u = size.minDimension / 110f
-                val center = Offset(size.width / 2f, size.height / 2f)
-                val grown = popIn((t - 0.05f) / 0.65f)
-                val spin = if (animations) t else 0f
-                val breath = if (animations) (sin(spin * 1.2f) + 1f) / 2f else 0.5f
-                drawPath(
-                    scallopPath(center, (46f + breath * 5f) * u * grown, -spin * 0.1f),
-                    scheme.primaryContainer,
-                    alpha = 0.55f + 0.2f * breath
-                )
-                drawPath(scallopPath(center, 38f * u * grown, spin * 0.14f), scheme.primary)
-                val check = Path().apply {
-                    moveTo(center.x - 15f * u, center.y + 1f * u)
-                    relativeLineTo(11f * u, 11f * u)
-                    relativeLineTo(20f * u, -23f * u)
-                }
-                val drawn = Path()
-                PathMeasure().run {
-                    setPath(check, false)
-                    getSegment(0f, length * easeOut((t - 0.2f) / 0.35f), drawn)
-                }
-                drawPath(drawn, scheme.onPrimary, style = Stroke(5f * u, cap = StrokeCap.Round, join = StrokeJoin.Round))
-            }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "You're all set",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = scheme.onSurface,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.graphicsLayer {
-                    val shown = easeOut((time - 0.25f) / 0.4f)
-                    alpha = shown
-                    translationY = (1f - shown) * 8.dp.toPx()
-                }
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(Modifier.size(ALL_SET_BADGE)) {
+            val t = time
+            val u = size.minDimension / 110f
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val grown = popIn((t - 0.05f) / 0.65f)
+            val spin = if (animations) t else 0f
+            val breath = if (animations) (sin(spin * 1.2f) + 1f) / 2f else 0.5f
+            drawPath(
+                scallopPath(center, (46f + breath * 5f) * u * grown, -spin * 0.1f),
+                scheme.primaryContainer,
+                alpha = 0.55f + 0.2f * breath
             )
+            drawPath(scallopPath(center, 38f * u * grown, spin * 0.14f), scheme.primary)
+            val check = Path().apply {
+                moveTo(center.x - 15f * u, center.y + 1f * u)
+                relativeLineTo(11f * u, 11f * u)
+                relativeLineTo(20f * u, -23f * u)
+            }
+            val drawn = Path()
+            PathMeasure().run {
+                setPath(check, false)
+                getSegment(0f, length * easeOut((t - 0.2f) / 0.35f), drawn)
+            }
+            drawPath(drawn, scheme.onPrimary, style = Stroke(5f * u, cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
+        Text(
+            text = "You're all set",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = scheme.onSurface,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+            modifier = Modifier.graphicsLayer {
+                val shown = easeOut((time - 0.25f) / 0.4f)
+                alpha = shown
+                translationY = (1f - shown) * 8.dp.toPx()
+            }
+        )
     }
 }
 
@@ -397,11 +418,13 @@ private fun scallopPath(center: Offset, radius: Float, rotation: Float): Path = 
 }
 
 private const val PULSE_MS = 1800
-private const val SETUP_STEPS = 3
+private const val LIGHT_MS = 5000
+private const val LIGHT_RUN_MS = 1600f
 private const val SCALLOP_POINTS = 72
 private const val ALL_SET_REST = 2f
-private val ALL_SET_BADGE = 110.dp
-private val ALL_SET_HEIGHT = 200.dp
+private val ALL_SET_BADGE = 64.dp
+private val SETUP_MIN_HEIGHT = 240.dp
+private val NOTE_FRAME_SHAPE = RoundedCornerShape(22.dp)
 
 /** When each part of [SearchLoop] happens, in seconds from the start of a loop. */
 internal object SearchLoopTimes {
@@ -449,7 +472,7 @@ private fun popIn(x: Float): Float {
  * over. With animations removed it holds still, typed and ready.
  */
 @Composable
-private fun SearchLoop(context: Context, width: androidx.compose.ui.unit.Dp) {
+private fun SearchLoop(context: Context, width: androidx.compose.ui.unit.Dp, height: androidx.compose.ui.unit.Dp) {
     val animations by rememberAnimationsEnabled()
     var time by remember { mutableFloatStateOf(if (animations) 0f else SearchLoopTimes.STILL) }
     LaunchedEffect(animations) {
@@ -474,16 +497,14 @@ private fun SearchLoop(context: Context, width: androidx.compose.ui.unit.Dp) {
             }.getOrNull()
         }
     }
-    val height = width * LOOP_RATIO
     val scale = width / SCREEN_WIDTH
     val screenHeight = height / scale
-    val shape = RoundedCornerShape(22.dp)
     val scheme = MaterialTheme.colorScheme
     val density = LocalDensity.current
     Box(
         Modifier
             .size(width, height)
-            .clip(shape)
+            .clip(NOTE_FRAME_SHAPE)
             .background(scheme.surface)
             .clearAndSetSemantics {
                 contentDescription = "Animated example: typing Intelligent Search in the search bar, pressing Enter and the app opening"
@@ -520,7 +541,7 @@ private fun SearchLoop(context: Context, width: androidx.compose.ui.unit.Dp) {
                 )
             }
         }
-        Box(Modifier.fillMaxSize().border(2.dp, scheme.outlineVariant, shape))
+        Box(Modifier.fillMaxSize().border(2.dp, scheme.outlineVariant, NOTE_FRAME_SHAPE))
     }
 }
 

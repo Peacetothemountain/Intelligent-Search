@@ -40,3 +40,10 @@ If CI fails, fix it on `dev` and repeat; never push to `main` around it.
 their fixes. Each version is tagged `v<versionName>-<versionCode>`. Read history with `git log dev` or `git log main`,
 not `--all`: the `refs/t3/` checkpoint refs on the owner's PC hold copies of commits that were never on GitHub. Pushing a
 `v*` tag starts the release workflow, so tag only a release you mean to publish.
+
+## Improving the app
+
+`docs/IMPROVEMENT.md` sets the standard for every change: evidence before changing anything, metrics that must never
+get worse, which model and effort to use for each job, and how much to do at each level of weekly usage.
+`docs/LEDGER.md` records every target already tried. Read it before choosing or retrying one, so work isn't repeated.
+Use `/improve`, `/debug` and `/audit` to run a cycle.

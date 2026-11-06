@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.draw.*
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.*
 
 /**
@@ -238,12 +239,22 @@ private fun noteCardBorder() = androidx.compose.foundation.BorderStroke(1.dp, Ma
 @Composable
 internal fun DeveloperNotePage(context: Context) {
     val scheme = MaterialTheme.colorScheme
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        DeveloperNoteCards(context, scheme)
-        Spacer(Modifier.height(DiagnosticsCardSpacing))
-        DeveloperNoteAnimations(context)
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val pageHeight = maxHeight
+        var cardsHeight by remember { mutableIntStateOf(0) }
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            Box(Modifier.onSizeChanged { cardsHeight = it.height }) { DeveloperNoteCards(context, scheme) }
+            Spacer(Modifier.height(DiagnosticsCardSpacing))
+            // The loop fits what the cards leave, so its search bar shows without scrolling whenever there is room.
+            val left = pageHeight - with(density) { cardsHeight.toDp() } - DiagnosticsCardSpacing
+            DeveloperNoteAnimations(context, maxLoopHeight = left.coerceAtLeast(DeveloperNoteLoopMinHeight))
+        }
     }
 }
+
+/** The loop's least height, used when the cards leave it less and the page scrolls to it. */
+private val DeveloperNoteLoopMinHeight = 190.dp
 
 /** The Developer Note's cards: the default search engine, how to set it, and the compatibility note. */
 @Composable

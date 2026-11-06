@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.animation.core.LinearEasing
@@ -78,9 +79,11 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.min
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
+import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -88,6 +91,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.system.SearchRoleManager
+import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.core.ui.IdleFlowMotion
 import com.pixel.intelligentsearch.core.ui.geminiPlateIdleFlow
@@ -104,7 +108,6 @@ import kotlinx.coroutines.withContext
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.exp
-import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -119,9 +122,9 @@ internal fun setupStepReached(usbDebugging: Boolean, listed: Boolean, isDefault:
 
 /** The bottom of the Developer Note: the phone's real setup status beside a loop of what it gets you. */
 @Composable
-internal fun DeveloperNoteAnimations(context: Context) {
+internal fun DeveloperNoteAnimations(context: Context, maxLoopHeight: androidx.compose.ui.unit.Dp = androidx.compose.ui.unit.Dp.Infinity) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val phoneWidth = (maxWidth * 0.4f).coerceIn(124.dp, 196.dp)
+        val phoneWidth = min((maxWidth * 0.4f).coerceIn(124.dp, 196.dp), maxLoopHeight / PHONE_RATIO)
         // Large text needs the whole width for its words, so the loop moves below the path.
         if (LocalDensity.current.fontScale > 1.3f) {
             Column(
@@ -161,9 +164,7 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val usbDebugging = remember(revision) {
-        Settings.Global.getInt(context.contentResolver, Settings.Global.ADB_ENABLED, 0) == 1
-    }
+    val usbDebugging = remember(revision) { isUsbDebuggingOn(context) }
     val step = remember(revision) {
         setupStepReached(
             usbDebugging = usbDebugging,
@@ -285,6 +286,15 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
     }
 }
 
+/** Whether USB debugging is on: the setting, or the USB connection reporting it when a phone hides the setting. */
+internal fun isUsbDebuggingOn(context: Context): Boolean {
+    if (Settings.Global.getInt(context.contentResolver, Settings.Global.ADB_ENABLED, 0) == 1) return true
+    return runCatching {
+        ContextCompat.registerReceiver(context, null, IntentFilter(ChargingStatus.ACTION_USB_STATE), ContextCompat.RECEIVER_NOT_EXPORTED)
+            ?.getBooleanExtra("adb", false) == true
+    }.getOrDefault(false)
+}
+
 /** Takes the user to where step [index] of [SetupPath] gets done. */
 private fun openSetupStep(context: Context, index: Int) {
     when (index) {
@@ -338,7 +348,7 @@ internal object SearchLoopTimes {
         time < 0.95f -> 1
         time < 1.2f -> 2
         time < REST_OF_NAME -> 3
-        else -> min(NAME.length, 3 + ((time - REST_OF_NAME) / SECONDS_PER_LETTER).toInt())
+        else -> (3 + ((time - REST_OF_NAME) / SECONDS_PER_LETTER).toInt()).coerceAtMost(NAME.length)
     }
 
     /** How far the app has opened at [time]: AppOpeningLayer's critically damped spring of stiffness 500. */

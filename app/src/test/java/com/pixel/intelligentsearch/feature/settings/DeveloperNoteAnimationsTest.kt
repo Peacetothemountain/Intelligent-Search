@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.feature.settings
 
 import android.app.Application
 import android.content.ClipboardManager
+import android.content.Intent
 import android.provider.Settings
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.test.assertHasClickAction
@@ -70,6 +71,17 @@ class DeveloperNoteAnimationsTest {
         assertEquals(0f, SearchLoopTimes.openedAt(SearchLoopTimes.ENTER))
         assertTrue(SearchLoopTimes.openedAt(SearchLoopTimes.OPENS + 0.05f) in 0.01f..0.99f)
         assertTrue(SearchLoopTimes.openedAt(SearchLoopTimes.LEAVES) > 0.999f)
+    }
+
+    @Test
+    fun usbDebuggingCountsWhenOnlyTheUsbConnectionReportsIt() {
+        // Seen on the Pixel 11: USB debugging on, and the row read as if the setting said off.
+        Settings.Global.putInt(context.contentResolver, Settings.Global.ADB_ENABLED, 0)
+        assertEquals(false, isUsbDebuggingOn(context))
+        @Suppress("DEPRECATION")
+        context.sendStickyBroadcast(Intent("android.hardware.usb.action.USB_STATE").putExtra("adb", true))
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+        assertEquals(true, isUsbDebuggingOn(context))
     }
 
     private fun showPath() {

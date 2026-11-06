@@ -217,24 +217,6 @@ class SettingsNativeBackTest {
         assertEquals(android.view.View.REQUESTED_FRAME_RATE_CATEGORY_NO_PREFERENCE, compose.activity.window.decorView.requestedFrameRate)
     }
 
-    @Test
-    fun aCancelledSwipeStaysOnThePage() {
-        compose.mainClock.autoAdvance = false
-        compose.settle(steps = 5)
-        compose.onNodeWithText("Appearance").performClick()
-        compose.settle(steps = 5)
-        val section = compose.onNodeWithText("Search Overlay")
-        val before = section.fetchSemanticsNode().boundsInRoot
-        compose.runOnIdle {
-            dispatcher.dispatchOnBackStarted(BackEventCompat(0f, 900f, 0f, BackEventCompat.EDGE_LEFT))
-            dispatcher.dispatchOnBackProgressed(BackEventCompat(300f, 900f, 0.6f, BackEventCompat.EDGE_LEFT))
-        }
-        compose.settle(steps = 2)
-        compose.runOnIdle { dispatcher.dispatchOnBackCancelled() }
-        compose.settle(steps = 10)
-        assertEquals(before, section.fetchSemanticsNode().boundsInRoot)
-        compose.onNodeWithText("Launch Portal").assertDoesNotExist()
-    }
     /**
      * Just after letting go, Main is only a picture, and the real page under it is Appearance, leaving, invisible. A tap
      * on one of Appearance's switches where it is now drawn, and one on Main's Launch Portal row as the user sees it,

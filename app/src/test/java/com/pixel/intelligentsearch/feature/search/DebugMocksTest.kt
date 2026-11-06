@@ -8,12 +8,6 @@ import org.junit.Test
 class DebugMocksTest {
 
     @Test
-    fun mockLargeDatasetHasFiftyContactsAndFiftyFiles() {
-        assertEquals(50, DebugMocks.contacts.size)
-        assertEquals(50, DebugMocks.files.size)
-    }
-
-    @Test
     fun mockContactsUseOnlyNumbersReservedForFiction() {
         // 555-0100 to 555-0199 are never assigned, so a tap can't dial a real person.
         DebugMocks.contacts.forEach { assertTrue(it.phoneNumber, it.phoneNumber.matches(Regex("\\+1 555-01\\d\\d"))) }

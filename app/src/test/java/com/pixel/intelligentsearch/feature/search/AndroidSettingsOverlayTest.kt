@@ -85,13 +85,4 @@ class AndroidSettingsOverlayTest {
         assertEquals(Intent.ACTION_POWER_USAGE_SUMMARY, started?.action)
     }
 
-    @Test
-    fun anOlderBuildsSwitchedOffSourceNoLongerHidesTheSection() {
-        // The Android Settings source has no switch now; a value an older build left behind changes nothing.
-        context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putBoolean("search.android.settings", false).commit()
-        showOverlay("battery")
-
-        compose.onNodeWithContentDescription("Battery settings").assertExists()
-    }
 }

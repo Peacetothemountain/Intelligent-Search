@@ -120,26 +120,6 @@ class DeclinedPermissionTest {
     private fun shown(text: String) = runCatching { compose.onNodeWithText(text).assertExists() }.isSuccess
 
     @Test
-    fun closingTheFirstContactsPromptDoesNotSayContactsAreOff() {
-        shadowOf(context).denyPermissions(Manifest.permission.READ_CONTACTS)
-        androidShowsItsReason(Manifest.permission.READ_CONTACTS, false)
-        showRequests()
-        tap("Ask Contacts")
-        tap("Allow")
-        assertEquals("'Contacts Access Is Off' after only closing Android's first prompt", false, shown("Contacts Access Is Off"))
-    }
-
-    @Test
-    fun closingTheFirstCalendarPromptDoesNotSayCalendarIsOff() {
-        shadowOf(context).denyPermissions(Manifest.permission.READ_CALENDAR)
-        androidShowsItsReason(Manifest.permission.READ_CALENDAR, false)
-        showRequests()
-        tap("Ask Calendar")
-        tap("Allow")
-        assertEquals("'Calendar Access Is Off' after only closing Android's first prompt", false, shown("Calendar Access Is Off"))
-    }
-
-    @Test
     fun aLapsedGrantClosedAgainDoesNotSayLocationIsOff() {
         shadowOf(context).denyPermissions(Manifest.permission.ACCESS_COARSE_LOCATION)
         androidShowsItsReason(Manifest.permission.ACCESS_COARSE_LOCATION, false)

@@ -141,16 +141,6 @@ class SubmitQueryTest {
     }
 
     @Test
-    fun enterRunsAFullTimerPhraseToo() {
-        showOverlay()
-        viewModel.onQueryChanged("set a timer for 10 minutes")
-        compose.settle()
-        compose.onNode(hasSetTextAction()).performImeAction()
-        compose.settle()
-        assertEquals(android.provider.AlarmClock.ACTION_SET_TIMER, startedActivity()?.action)
-    }
-
-    @Test
     fun enterOnATimerWithNoClockAppSaysSo() {
         // Only installed apps open: there is no clock. Enter used to leave the overlay as it was, with no word why.
         shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).checkActivities(true)

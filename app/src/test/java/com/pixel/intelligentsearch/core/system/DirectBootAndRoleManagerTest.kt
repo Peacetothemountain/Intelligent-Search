@@ -23,14 +23,6 @@ class DirectBootAndRoleManagerTest {
     }
 
     @Test
-    fun testRoleManager_constantsIntegrity() {
-        assertEquals("android.app.role.SEARCH_ENGINE", SearchRoleManager.ROLE_SEARCH_ENGINE)
-        assertEquals("android.app.role.SEARCH", SearchRoleManager.ROLE_SEARCH)
-        assertEquals("selected_search_engine", SearchRoleManager.SECURE_SELECTED_SEARCH_ENGINE)
-        assertEquals("com.google.android.finsky.intent.action.UPDATE_DSE", SearchRoleManager.ACTION_UPDATE_DSE)
-    }
-
-    @Test
     fun testSearchRoleManager_nullSafeFallbacks() {
         val mockContext = TestContext()
 

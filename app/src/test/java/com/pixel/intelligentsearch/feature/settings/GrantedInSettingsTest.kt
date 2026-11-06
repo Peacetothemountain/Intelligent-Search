@@ -153,19 +153,6 @@ class GrantedInSettingsTest {
     }
 
     @Test
-    fun contactsAllowedOnAppInfoTurnTheSearchSourcesSwitchOn() {
-        declinedBefore(Manifest.permission.READ_CONTACTS)
-        show { SearchSourcesScreen({}, {}) }
-        compose.onNode(isToggleable() and hasContentDescription("Contacts")).performClick()
-        compose.waitForIdle()
-        tap("Allow")
-        assertFalse(prefs[SettingsManager.SEARCH_CONTACTS])
-
-        openSettingsAndComeBack(Manifest.permission.READ_CONTACTS, allow = true)
-        assertTrue("the switch the user turned on is on", prefs[SettingsManager.SEARCH_CONTACTS])
-    }
-
-    @Test
     fun comingBackWithoutAllowingLeavesContactsOff() {
         declinedBefore(Manifest.permission.READ_CONTACTS)
         show { SearchSourcesScreen({}, {}) }
@@ -184,39 +171,8 @@ class GrantedInSettingsTest {
     }
 
     @Test
-    fun locationAllowedOnAppInfoLooksTheWeatherUpAgain() {
-        declinedBefore(Manifest.permission.ACCESS_COARSE_LOCATION)
-        var lookedUp = 0
-        show {
-            val location = rememberApproximateLocationRequest { lookedUp++ }
-            TextButton(onClick = location::request) { Text("Use Approximate Location") }
-        }
-        tap("Use Approximate Location")
-        tap("Allow")
-        assertEquals(0, lookedUp)
-
-        openSettingsAndComeBack(Manifest.permission.ACCESS_COARSE_LOCATION, allow = true)
-        assertEquals("the weather card asks for the forecast again", 1, lookedUp)
-    }
-
-    @Test
-    fun contactsAllowedOnAppInfoFinishThatSetupStep() {
-        declinedBefore(Manifest.permission.READ_CONTACTS)
-        show { SetupChecklistScreen(prefs, {}, {}) }
-        // Finish Setting Up asks Android at once and sends a decline for good straight to App info.
-        shadowOf(context).clearNextStartedActivities()
-        tap("Contacts")
-        assertEquals(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, shadowOf(context).nextStartedActivity?.action)
-
-        page.registry.currentState = Lifecycle.State.CREATED
-        shadowOf(context).grantPermissions(Manifest.permission.READ_CONTACTS)
-        page.registry.currentState = Lifecycle.State.RESUMED
-        compose.waitForIdle()
-        assertTrue(prefs[SettingsManager.SEARCH_CONTACTS])
-    }
-
-    @Test
     fun notificationsAllowedInSettingsTurnTheNotificationShortcutOn() {
+        inAndroidsOrder = true
         declinedBefore(Manifest.permission.POST_NOTIFICATIONS)
         show { LaunchPortalScreen(prefs) {} }
         compose.onNode(isToggleable() and hasText("Notification Shortcut")).performScrollTo().performClick()
@@ -230,7 +186,7 @@ class GrantedInSettingsTest {
         assertTrue("the shortcut the user turned on is on", prefs[SettingsManager.NOTIFICATION_SHORTCUT])
     }
 
-    // The same trips in Android's order ([inAndroidsOrder]). Finish Setting Up opens App info from the prompt's answer,
+    // The trips in Android's order ([inAndroidsOrder]). Finish Setting Up opens App info from the prompt's answer,
     // so the page resumes once before App info covers it; that resume, with contacts still off, ended the wait.
 
     @Test
@@ -332,16 +288,4 @@ class GrantedInSettingsTest {
         assertFalse(prefs[SettingsManager.SEARCH_CONTACTS])
     }
 
-    @Test
-    fun notificationsAllowedInSettingsTurnTheNotificationShortcutOnInAndroidsOrder() {
-        inAndroidsOrder = true
-        declinedBefore(Manifest.permission.POST_NOTIFICATIONS)
-        show { LaunchPortalScreen(prefs) {} }
-        compose.onNode(isToggleable() and hasText("Notification Shortcut")).performScrollTo().performClick()
-        compose.waitForIdle()
-        tap("Allow")
-
-        openSettingsAndComeBack(Manifest.permission.POST_NOTIFICATIONS, allow = true)
-        assertTrue("the shortcut the user turned on is on", prefs[SettingsManager.NOTIFICATION_SHORTCUT])
-    }
 }

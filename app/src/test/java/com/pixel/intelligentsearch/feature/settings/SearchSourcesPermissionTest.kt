@@ -54,7 +54,7 @@ class SearchSourcesPermissionTest {
             override fun <I, O> onLaunch(requestCode: Int, contract: ActivityResultContract<I, O>, input: I, options: ActivityOptionsCompat?) {
                 shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS, androidWillAskAgain)
                 @Suppress("UNCHECKED_CAST")
-                dispatchResult(requestCode, mapOf(Manifest.permission.READ_CONTACTS to false) as O)
+                dispatchResult(requestCode, false as O)
             }
         }
     }

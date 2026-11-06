@@ -10,7 +10,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Metric | Value | Measured at |
 |---|---|---|
 | Lines of test code | 52,098 | 2026-11-06, replaces the `@Test` count (owner: root causes over more tests) |
-| CI time, `Run Build & Check` | 773s (was 1118s) | run 42272997745 on `89526acd` |
+| CI time, `Run Build & Check` | 630s (was 1118s) | run 42275245914 on `2cafacd8` |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 19 | `0260afa7`, 2026-11-05 |
@@ -122,10 +122,25 @@ with the strongest evidence.
 - Tests removed, 20 in all: guarded a copy that no longer exists (2 in `PhoneCallsRequestTest`, 2 in `DeclinedPermissionTest`); same flow with and without a flag, and only one order happens on a phone (4 in `GrantedInSettingsTest`, keeping the Android-order version and the extra checks); repeats (`enterRunsAFullTimerPhraseToo`, `aHighlightedResultOpens`, `enterRunsTheShortPhrasingsAction`, `aCancelledSwipeStaysOnThePage`); a retired key only `REMOVED_NAMES` mentions (`anOlderBuildsSearchTheWebNoLongerSkipsTheBestMatch`, `theOldContactActionsSwitchNoLongerHidesThem`, 2 for `search.android.settings`); constants restated (`testRoleManager_constantsIntegrity`, `testFrameRateCategoryConstants`, `mockLargeDatasetHasFiftyContactsAndFiftyFiles`); `theManifestDeclaresExactlyOneNotificationListener`, whose permission check moved into `androidFindsOneListenerInTheApp`
 - Test changed, assertions untouched: the fake prompt in `SearchSourcesPermissionTest` answered in the removed multi-permission format
 - Before -> after: app code 76,634 -> 76,502 lines; test code 52,322 -> 52,098; full suite 2911 tests -> 2891, 0 failures
-- Result: kept, pending CI. Permission dialogs not checked by eye on the phone; goldens unchanged
+- Result: kept. CI `Build & Check` green on `2cafacd8`, 630s. Permission dialogs not checked by eye on the phone; goldens unchanged
 - Retry only if: a phone shows Enter opening the wrong result, or a permission flow behaving differently from before
 - Commit: see `Fix Enter on stale results, share one permission flow` in `git log dev`
 - Lesson: read the app code behind a slow test before speeding the test up. Half of this batch was a real race that a timeout was hiding.
+
+### 2026-11-06: Goldens let real changes through
+- Command: continuing without prompts, from a reviewer's finding
+- Target and evidence: `changeThreshold = 0.001f` allowed 0.1% of each image to change, up to 4,284 pixels on the tallest pages. A throwaway branch ran every golden on CI at threshold 0: 143 of 247 tests differed. Measured with the comparator's own distance, 119 of the 137 images I could compare differ by at most 0.041, which is the faint color difference between Windows and Linux; every other image reaches at least 0.54. Those were real changes CI had passed, such as the tablet golden still saying "Normal battery consumption" when the app says "Battery Saver Off"
+- Prior work checked: this ledger, whose lesson that recording a class "rewrites unrelated goldens by sub-threshold noise" has the same cause
+- Research: `differ` 0.3.0 `ColorKt.distance` is the Euclidean distance of RGBA from 0 to 1, read from the bytecode. In Roborazzi, recording with verify on rewrites only goldens that fail the comparison
+- Models used: inline
+- Usage level: owner reported full; no figure visible. Normal mode
+- Change: `GOLDEN_OPTIONS` ignores color distance up to 0.05 and allows no other pixel to change; `roborazzi.test.verify` is always on, so a record run only rewrites what really changed
+- Goldens re-recorded, 20, all for changes already shipped and none from this batch: `overlay_tablet/detail_setting_*` (Battery Saver Off); `overlay/empty_*`, `overlay/tutorial_*`, `overlay_tablet/empty_*` (the placeholder's "..." became one "…" character); `settings/launch_portal_on_*`, `settings/backup_*`, `settings/doodle_gallery_*`, `settings/hidden_apps_unlocked_*`, `widget/countdown_setup_*`, `overlay/file_type_filter_*` (icons and top bars from earlier commits). I looked at the differences in all of them
+- Before -> after: changed pixels allowed per golden, up to 4,284 -> 0; goldens that didn't match the app, 20 -> 0; the other 217 goldens untouched by recording
+- Result: kept, pending CI
+- Retry only if: CI fails a golden with no change to its screen; measure the new distance before raising the limit
+- Commit: see `Stop goldens passing real changes` in `git log dev`
+- Lesson: a limit on how many pixels change was the wrong measure, because the noise is faint in color, not few in number. Measure the noise before setting a tolerance. The limit does still pass a real change fainter than 0.05, about 7 color levels per channel.
 
 <!--
 Copy this for each cycle, newest at the bottom.

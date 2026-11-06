@@ -9,6 +9,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
+import com.dropbox.differ.SimpleImageComparator
 import com.github.takahirom.roborazzi.RoborazziOptions
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -122,9 +123,18 @@ class SettingsGoldenTest(private val page: String, private val dark: Boolean) {
             "search_pills", "web_search", "contact_search", "file_search", "widget", "hidden_apps", "backup", "setup"
         )
 
-        /** Up to 0.1% of pixels may differ (anti-aliasing); a real layout or colour change exceeds that. */
+        /**
+         * No pixel may really change. Goldens are recorded on Windows and compared on CI's Linux, which differ only by
+         * faint color: at most 0.041 in the comparator's distance, measured over every golden, where the smallest real
+         * change reached 0.54. Counting changed pixels instead (it was 0.1%) let a changed label or icon through.
+         */
         val GOLDEN_OPTIONS by lazy {
-            RoborazziOptions(compareOptions = RoborazziOptions.CompareOptions(changeThreshold = 0.001f))
+            RoborazziOptions(
+                compareOptions = RoborazziOptions.CompareOptions(
+                    imageComparator = SimpleImageComparator(maxDistance = 0.05f),
+                    changeThreshold = 0f
+                )
+            )
         }
 
         @JvmStatic

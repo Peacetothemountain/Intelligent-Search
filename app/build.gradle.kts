@@ -93,7 +93,9 @@ android {
         val recordScreenshots = project.findProperty("roborazzi.record")?.toString()?.let { it.isEmpty() || it.toBoolean() } ?: false
         all { test ->
           test.systemProperty("roborazzi.test.record", recordScreenshots.toString())
-          test.systemProperty("roborazzi.test.verify", (!recordScreenshots).toString())
+          // Always compared, so recording only rewrites the goldens that really changed. Each one it rewrites fails that
+          // run; run again to confirm.
+          test.systemProperty("roborazzi.test.verify", "true")
           // Robolectric has no window blur; screens are drawn as on a phone that has it on (see CrossWindowBlur.kt).
           test.systemProperty("intelligentsearch.test.crossWindowBlur", "true")
           // Goldens are inputs: replacing an image must re-run the comparison instead of reusing a cached result.

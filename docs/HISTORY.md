@@ -66,10 +66,10 @@ Some codes that reached Google Play were never committed with their number: 9.06
 
 ## Releases
 
-GitHub Releases exist for 8.3, 8.8, 9.1.9 and 9.3.1 (125); 9.3.1 is marked Latest. Pushing a `v*` tag runs
-`.github/workflows/release.yml`, which builds, signs and publishes the release. It needs the repository secrets
-`RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`, `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD`, and stops before
-building when they aren't set. Until they are, releases are made by hand.
+GitHub Releases exist for 8.3, 8.8, 9.1.9, 9.3.1 (125), 9.5.1 (129) and 9.5.4 (132); 9.5.4 is marked Latest. Dev test
+builds are published as non-latest pre-releases. Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds,
+signs and publishes the release using the repository secrets `RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`,
+`RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD`. The workflow stops before building if any of them is missing.
 
 ## Reading crash reports
 

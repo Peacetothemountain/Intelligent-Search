@@ -24,6 +24,7 @@ import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import com.pixel.intelligentsearch.core.occasion.Occasion
 import com.pixel.intelligentsearch.feature.search.SearchIconPaths
 import com.pixel.intelligentsearch.feature.search.SearchLensDrawing
+import androidx.core.net.toUri
 
 internal val PACKAGE_NAME_REGEX = Regex("^[a-zA-Z][a-zA-Z0-9_]*(\\.[a-zA-Z][a-zA-Z0-9_]*)+$")
 
@@ -38,7 +39,7 @@ internal fun isValidShortcutUrl(raw: String): Boolean {
         raw.contains(':') -> return false
         else -> "https://$raw"
     }
-    val host = android.net.Uri.parse(withScheme).host ?: return false
+    val host = withScheme.toUri().host ?: return false
     return host.contains('.') && !host.startsWith('.') && !host.endsWith('.')
 }
 

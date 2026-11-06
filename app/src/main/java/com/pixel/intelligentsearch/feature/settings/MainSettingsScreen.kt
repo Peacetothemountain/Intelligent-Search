@@ -29,6 +29,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.*
 import androidx.compose.ui.semantics.*
 import com.pixel.intelligentsearch.core.data.SettingsManager
+import androidx.core.net.toUri
 
 // -----------------------------------------------------------------------------------------
 // MAIN SETTINGS
@@ -147,7 +148,7 @@ fun MainSettingsScreen(
                     icon = Symbols.Outlined.History,
                     onClick = {
                         try {
-                            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://myactivity.google.com/myactivity"))
+                            val intent = Intent(Intent.ACTION_VIEW, "https://myactivity.google.com/myactivity".toUri())
                             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                             context.startActivity(intent)
                         } catch (_: Throwable) {}

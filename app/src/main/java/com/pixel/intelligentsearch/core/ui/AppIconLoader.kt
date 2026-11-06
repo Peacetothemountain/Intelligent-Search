@@ -29,6 +29,7 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.util.IconPackManager
 import com.pixel.intelligentsearch.core.util.MaterialOutlineManager
+import androidx.core.graphics.createBitmap
 
 /** Largest icon edge kept in memory; icons are shown far smaller than this. */
 private const val MAX_ICON_PX = 192
@@ -46,7 +47,7 @@ private fun drawableToBitmap(drawable: Drawable): Bitmap {
     }
     val width = (if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 100).coerceIn(1, MAX_ICON_PX)
     val height = (if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 100).coerceIn(1, MAX_ICON_PX)
-    val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    val bitmap = createBitmap(width, height, Bitmap.Config.ARGB_8888)
     val canvas = Canvas(bitmap)
     drawable.mutate().apply { setBounds(0, 0, canvas.width, canvas.height) }.draw(canvas)
     return bitmap

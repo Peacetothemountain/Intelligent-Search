@@ -269,14 +269,14 @@ object SearchScoringEngine {
         if (query.none(Char::isDigit)) {
             val queryMetaphone = precomputedQueryMetaphone ?: DoubleMetaphone.encode(query)
             val titleMetaphone = precomputedTargetMetaphone ?: DoubleMetaphone.encode(title)
-            if (queryMetaphone.matches(titleMetaphone)) {
+            if (queryMetaphone.matches(titleMetaphone) && startsWithSameSound(query, title)) {
                 return SCORE_PHONETIC_MATCH
             }
 
             // Check phonetic match across individual words (e.g. contact first/last name)
             for (w in words) {
                 val wordMetaphone = DoubleMetaphone.encode(w)
-                if (queryMetaphone.matches(wordMetaphone)) {
+                if (queryMetaphone.matches(wordMetaphone) && startsWithSameSound(query, w)) {
                     return SCORE_PHONETIC_MATCH * 0.9f
                 }
             }
@@ -287,28 +287,66 @@ object SearchScoringEngine {
         val allowedEdits = fuzzyEditsFor(query)
         if (allowedEdits > 0) {
             val editDistance = LevenshteinDistance.computeDistance(query, title, maxDistance = allowedEdits)
-            if (editDistance <= allowedEdits) {
+            if (editDistance <= allowedEdits && isPlausibleSlip(query, title, editDistance)) {
                 return (SCORE_FUZZY_BASE - (editDistance * PENALTY_PER_EDIT_DISTANCE)).coerceAtLeast(10.0f)
             }
             for (w in words) {
                 val tokenDist = LevenshteinDistance.computeDistance(query, w, maxDistance = allowedEdits)
-                if (tokenDist <= allowedEdits) {
+                if (tokenDist <= allowedEdits && isPlausibleSlip(query, w, tokenDist)) {
                     return (SCORE_FUZZY_BASE - (tokenDist * PENALTY_PER_EDIT_DISTANCE) - 30.0f).coerceAtLeast(10.0f)
                 }
             }
             // G. A partly typed name with a slip ("yuotu", "gogle ma"): close to the start of the title or a word.
             // Three letters with a slip are two right, which starts too many names to mean any one of them.
             if (query.length < MIN_PARTIAL_SLIP_LENGTH) return 0.0f
-            val prefixDist = minOf(
-                LevenshteinDistance.prefixDistance(query, title, maxDistance = allowedEdits),
-                words.minOfOrNull { LevenshteinDistance.prefixDistance(query, it, maxDistance = allowedEdits) } ?: Int.MAX_VALUE
-            )
+            val prefixDist = (sequenceOf(title) + words.asSequence())
+                .map { it to LevenshteinDistance.prefixDistance(query, it, maxDistance = allowedEdits) }
+                .filter { (target, distance) -> isPlausibleSlip(query, target, distance) }
+                .minOfOrNull { it.second } ?: Int.MAX_VALUE
             if (prefixDist <= allowedEdits) {
                 return (SCORE_FUZZY_BASE - (prefixDist * PENALTY_PER_EDIT_DISTANCE) - 40.0f).coerceAtLeast(10.0f)
             }
         }
 
         return 0.0f
+    }
+
+    /**
+     * One slip can land anywhere, but two that also change the first sound make another word: "butter" isn't a
+     * mistyped "Potter".
+     */
+    private fun isPlausibleSlip(query: String, target: String, edits: Int): Boolean =
+        edits < 2 || startsWithSameSound(query, target)
+
+    /**
+     * Whether two words that sound alike also begin alike. Double Metaphone drops every vowel and reads B as P, so
+     * alone it hears "battery" as "Potter" and "water" as "Father". "Kathy" and "Cathy", or "Fil" and "Phil", still agree.
+     */
+    private fun startsWithSameSound(first: String, second: String): Boolean {
+        val firstSounds = firstSoundsOf(first)
+        val secondSounds = firstSoundsOf(second)
+        return firstSounds.isEmpty() || secondSounds.isEmpty() || firstSounds.any { it in secondSounds }
+    }
+
+    /** The sounds [word] can begin with, past any leading punctuation and silent letter. */
+    private fun firstSoundsOf(word: String): Set<Char> {
+        val start = word.indexOfFirst(Char::isLetterOrDigit)
+        if (start < 0) return emptySet()
+        val first = word[start].lowercaseChar()
+        val next = word.getOrNull(start + 1)?.lowercaseChar()
+        val softens = next == 'e' || next == 'i' || next == 'y'
+        return when {
+            first in "aeiouy" -> setOf('a')
+            (first == 'k' || first == 'g' || first == 'p') && next == 'n' -> setOf('n')
+            first == 'w' && next == 'r' -> setOf('r')
+            first == 'p' && next == 's' -> setOf('s')
+            first == 'p' && next == 'h' -> setOf('f')
+            first == 'c' -> if (softens) setOf('k', 's') else setOf('k')
+            first == 'g' -> if (softens) setOf('g', 'j') else setOf('g')
+            first == 'q' -> setOf('k')
+            first == 'x' || first == 'z' -> setOf('s')
+            else -> setOf(first)
+        }
     }
 
     /**

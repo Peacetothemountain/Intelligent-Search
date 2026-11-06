@@ -82,7 +82,7 @@ internal fun createCustomMaterialGBitmap(
     bitmapCache.get(cacheKey)?.let { return it }
 
     return try {
-        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
+        val bitmap = createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888).apply {
             this.density = densityDpi
         }
         val canvas = Canvas(bitmap)

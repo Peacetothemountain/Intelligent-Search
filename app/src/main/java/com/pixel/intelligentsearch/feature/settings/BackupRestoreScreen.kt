@@ -386,7 +386,7 @@ fun BackupRestoreScreen(
                             )
                         },
                         trailingIcon = {
-                            IconButton(onClick = { dialogPassphraseVisible = !dialogPassphraseVisible }, modifier = Modifier.size(32.dp)) {
+                            IconButton(onClick = { dialogPassphraseVisible = !dialogPassphraseVisible }, modifier = Modifier.size(48.dp)) {
                                 Icon(
                                     imageVector = if (dialogPassphraseVisible) Symbols.Outlined.Visibility else Symbols.Outlined.VisibilityOff,
                                     contentDescription = if (dialogPassphraseVisible) "Hide passphrase" else "Show passphrase",
@@ -545,7 +545,7 @@ fun BackupRestoreScreen(
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (passphrase.isNotEmpty()) {
-                                IconButton(onClick = { passphrase = "" }, modifier = Modifier.size(32.dp)) {
+                                IconButton(onClick = { passphrase = "" }, modifier = Modifier.size(48.dp)) {
                                     Icon(
                                         imageVector = Symbols.Filled.Close,
                                         contentDescription = "Clear",
@@ -554,7 +554,7 @@ fun BackupRestoreScreen(
                                     )
                                 }
                             }
-                            IconButton(onClick = { passphraseVisible = !passphraseVisible }, modifier = Modifier.size(32.dp)) {
+                            IconButton(onClick = { passphraseVisible = !passphraseVisible }, modifier = Modifier.size(48.dp)) {
                                 Icon(
                                     imageVector = if (passphraseVisible) Symbols.Outlined.Visibility else Symbols.Outlined.VisibilityOff,
                                     contentDescription = if (passphraseVisible) "Hide passphrase" else "Show passphrase",

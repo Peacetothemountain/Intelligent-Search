@@ -64,10 +64,10 @@ fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: ()
                 subtitle = "Mark Tutorial as Incomplete and Restart Step Guide.",
                 icon = Symbols.Outlined.Refresh,
                 onClick = {
-                    prefs.edit()
-                        .put(SettingsManager.TUTORIAL_STEP, 0)
-                        .put(SettingsManager.TUTORIAL_COMPLETED, false)
-                        .apply()
+                    prefs.edit {
+                        put(SettingsManager.TUTORIAL_STEP, 0)
+                        put(SettingsManager.TUTORIAL_COMPLETED, false)
+                    }
                     // Settings screens read tutorial state from DataStore, not the prefs mirror.
                     settingsViewModel?.updateSetting(SettingsManager.TUTORIAL_STEP, 0)
                     settingsViewModel?.updateSetting(SettingsManager.TUTORIAL_COMPLETED, false)

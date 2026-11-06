@@ -412,7 +412,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
     operator fun <T : Any> get(key: SettingKey<T>): T = prefs[key]
 
     fun <T : Any> set(key: SettingKey<T>, value: T) {
-        prefs.edit().put(key, value).apply()
+        prefs.edit { put(key, value) }
     }
 
     /** Suspend form of [set] for call sites already in coroutines; the write itself is asynchronous. */

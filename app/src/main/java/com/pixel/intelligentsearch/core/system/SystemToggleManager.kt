@@ -17,7 +17,6 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.NetworkRequest
-import android.net.Uri
 import android.net.wifi.WifiManager
 import android.nfc.NfcAdapter
 import android.os.PowerManager
@@ -31,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.net.toUri
 
 @Singleton
 class SystemToggleManager @Inject constructor(
@@ -390,7 +390,7 @@ class SystemToggleManager @Inject constructor(
         if (!Settings.System.canWrite(context)) {
             try {
                 val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
-                    data = Uri.parse("package:${context.packageName}")
+                    data = "package:${context.packageName}".toUri()
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 if (intent.resolveActivity(context.packageManager) != null) {

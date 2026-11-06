@@ -17,6 +17,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.semantics.semantics
 
 import androidx.compose.ui.semantics.stateDescription
+import androidx.core.content.edit
 
 class TargetState {
     var rect by mutableStateOf<Rect?>(null)
@@ -36,15 +37,15 @@ object TutorialManager {
     }
 
     fun completeTutorial(prefs: SharedPreferences) {
-        prefs.edit().put(SettingsManager.TUTORIAL_COMPLETED, true).apply()
+        prefs.edit { put(SettingsManager.TUTORIAL_COMPLETED, true) }
         clearTargetStates()
     }
 
     fun resetForForceTutorial(prefs: SharedPreferences) {
-        prefs.edit()
-            .put(SettingsManager.TUTORIAL_STEP, 0)
-            .put(SettingsManager.TUTORIAL_COMPLETED, false)
-            .apply()
+        prefs.edit {
+            put(SettingsManager.TUTORIAL_STEP, 0)
+            put(SettingsManager.TUTORIAL_COMPLETED, false)
+        }
         clearTargetStates()
     }
 

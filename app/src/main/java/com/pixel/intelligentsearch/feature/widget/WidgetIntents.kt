@@ -206,7 +206,7 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
         "Song Search", "Now Playing" -> getNowPlayingIntent(context)
         "Google Lens" -> getLensSearchIntent(context)
         "Translate (text)" -> context.packageManager.getLaunchIntentForPackage(GoogleTranslate.PACKAGE)
-            ?: Intent(Intent.ACTION_VIEW, Uri.parse(GoogleTranslate.WEB_HOME)).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            ?: Intent(Intent.ACTION_VIEW, GoogleTranslate.WEB_HOME.toUri()).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "Translate (camera)" -> getLensTranslateIntent(context)
         "Weather" -> getCustomIntentOrDefault(context, "Weather") {
             torTopicSearch(context, "Weather")?.let { return@getCustomIntentOrDefault it }
@@ -222,7 +222,7 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
                     intentSearchWeather
                 } else {
                     // Any browser: the Google app is already known to be missing by this point.
-                    Intent(Intent.ACTION_VIEW, Uri.parse("https://google.com/search?q=weather")).apply {
+                    Intent(Intent.ACTION_VIEW, "https://google.com/search?q=weather".toUri()).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     }
                 }
@@ -238,7 +238,7 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
             if (context.packageManager.resolveActivityCompat(intent) != null) {
                 intent
             } else {
-                Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=Sports")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                Intent(Intent.ACTION_VIEW, "https://www.google.com/search?q=Sports".toUri()).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
             }
         }
         "Dictionary" -> getCustomIntentOrDefault(context, "Dictionary") {
@@ -246,20 +246,20 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
             if (intent != null) {
                 intent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
             } else {
-                Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.books")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=com.google.android.apps.books".toUri()).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
             }
         }
         "Homework" -> {
             val pm = context.packageManager
             val intent = pm.getLaunchIntentForPackage("com.google.android.apps.labs.language.tailwind")
             intent?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/apps/details?id=com.google.android.apps.labs.language.tailwind")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                ?: Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=com.google.android.apps.labs.language.tailwind".toUri()).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         }
         "Finance" -> torTopicSearch(context, "Finance")
-            ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/finance")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-        "Saved" -> Intent(Intent.ACTION_VIEW, Uri.parse("https://google.com/save")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            ?: Intent(Intent.ACTION_VIEW, "https://www.google.com/finance".toUri()).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        "Saved" -> Intent(Intent.ACTION_VIEW, "https://google.com/save".toUri()).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "News" -> torTopicSearch(context, "News")
-            ?: Intent(Intent.ACTION_VIEW, Uri.parse("https://news.google.com")).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+            ?: Intent(Intent.ACTION_VIEW, "https://news.google.com".toUri()).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "Calculator" -> getCalculatorIntent(context)
         "Discover" -> getDiscoverIntent(context)
         else -> getLensSearchIntent(context)
@@ -430,7 +430,7 @@ fun getNowPlayingIntent(context: Context): Intent {
     } catch (_: Throwable) {}
 
     // 7. Universal Google voice music search query
-    return Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=what+song+is+this")).apply {
+    return Intent(Intent.ACTION_VIEW, "https://www.google.com/search?q=what+song+is+this".toUri()).apply {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 }

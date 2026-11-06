@@ -31,8 +31,12 @@ import java.security.cert.Certificate
 import java.util.Collections
 import java.util.Date
 import java.util.Enumeration
+import androidx.compose.ui.test.assertHeightIsAtLeast
+import androidx.compose.ui.test.assertWidthIsAtLeast
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.unit.dp
 
-/** Both ADB commands are needed to list and select the app, so every "copy" copies both. */
+/** Every ADB command is needed to list and select the app, so every "copy" copies them all. */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
 @Config(application = HiltTestApplication::class, qualifiers = "w412dp-h915dp-xhdpi")
@@ -78,14 +82,41 @@ class SearchRoleCommandsTest {
     fun theSharedCommandsSwitchTheRoleOnListSelectGrantAndHoldIt() {
         assertEquals(
             listOf(
-                "adb shell settings put secure search_engine_role_available 1",
-                "adb shell settings put secure user_setup_search_engine com.pixel.intelligentsearch",
-                "adb shell settings put secure selected_search_engine com.pixel.intelligentsearch",
-                "adb shell pm grant com.pixel.intelligentsearch android.permission.WRITE_SECURE_SETTINGS",
-                "adb shell cmd role add-role-holder android.app.role.SEARCH_ENGINE com.pixel.intelligentsearch"
+                "settings put secure search_engine_role_available 1",
+                "settings put secure user_setup_search_engine com.pixel.intelligentsearch",
+                "settings put secure selected_search_engine com.pixel.intelligentsearch",
+                "pm grant com.pixel.intelligentsearch android.permission.WRITE_SECURE_SETTINGS",
+                "cmd role add-role-holder android.app.role.SEARCH_ENGINE com.pixel.intelligentsearch"
             ),
             SearchRoleManager.ADB_ACTIVATION_COMMANDS.lines()
         )
+    }
+
+    @Test
+    fun theDeveloperNoteSaysToOpenAdbShellBeforeCopying() {
+        compose.setContent {
+            IntelligentSearchTheme(darkTheme = false) { SearchRoleInfoDialog(LocalContext.current) {} }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText(
+            "On a terminal with ADB accessibility, first input: adb shell. Once the prompt is successful, copy the following:"
+        ).assertExists()
+    }
+
+    @Test
+    fun theCopyButtonIsAFullTouchTarget() {
+        compose.setContent {
+            IntelligentSearchTheme(darkTheme = false) { SearchRoleInfoDialog(LocalContext.current) {} }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Copy ADB Commands")
+            .assertWidthIsAtLeast(48.dp)
+            .assertHeightIsAtLeast(48.dp)
+    }
+
+    @Test
+    fun theNoteNoLongerPlaysAClip() {
+        assertEquals(setOf("SETTINGS", "WELCOME", "BACKUP"), BugdroidClip.entries.map { it.name }.toSet())
     }
 
     @Test

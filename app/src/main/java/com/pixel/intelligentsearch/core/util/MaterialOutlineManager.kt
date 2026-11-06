@@ -12,6 +12,7 @@ import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
 import androidx.core.graphics.PathParser
 import kotlin.math.sqrt
+import androidx.core.graphics.createBitmap
 
 /**
  * Provides official-grade Material outline & monochrome icons for Android applications.
@@ -48,7 +49,7 @@ object MaterialOutlineManager {
      */
     private fun getPrecisionOutline(pkg: String, label: String): Bitmap? {
         val size = 108
-        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -202,7 +203,7 @@ object MaterialOutlineManager {
             }
 
             val srcSize = 108
-            val srcBitmap = Bitmap.createBitmap(srcSize, srcSize, Bitmap.Config.ARGB_8888)
+            val srcBitmap = createBitmap(srcSize, srcSize, Bitmap.Config.ARGB_8888)
             val srcCanvas = Canvas(srcBitmap)
             // Draw without permanently altering the caller's drawable bounds
             val savedBounds = Rect(sourceDrawable.bounds)
@@ -216,11 +217,11 @@ object MaterialOutlineManager {
 
             val silhouette = silhouetteFromPixels(pixels, srcSize) ?: return null
 
-            val outBitmap = Bitmap.createBitmap(srcSize, srcSize, Bitmap.Config.ARGB_8888)
+            val outBitmap = createBitmap(srcSize, srcSize, Bitmap.Config.ARGB_8888)
             outBitmap.setPixels(silhouette, 0, srcSize, 0, 0, srcSize, srcSize)
 
             // Scale to inner 72dp safe zone of standard 108dp canvas
-            val finalBitmap = Bitmap.createBitmap(srcSize, srcSize, Bitmap.Config.ARGB_8888)
+            val finalBitmap = createBitmap(srcSize, srcSize, Bitmap.Config.ARGB_8888)
             val finalCanvas = Canvas(finalBitmap)
             val matrix = Matrix().apply {
                 postScale(0.72f, 0.72f, srcSize / 2f, srcSize / 2f)

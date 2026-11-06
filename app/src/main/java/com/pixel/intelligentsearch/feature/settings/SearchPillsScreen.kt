@@ -41,6 +41,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.core.graphics.createBitmap
 
 // SEARCH PILLS SCREEN
 // -----------------------------------------------------------------------------------------
@@ -60,7 +61,7 @@ fun getNativeAppIcon(context: Context, packageName: String): androidx.compose.ui
             val d = drawable.mutate()
             val width = (if (d.intrinsicWidth > 0) d.intrinsicWidth else 96).coerceIn(1, 192)
             val height = (if (d.intrinsicHeight > 0) d.intrinsicHeight else 96).coerceIn(1, 192)
-            val bmp = android.graphics.Bitmap.createBitmap(
+            val bmp = createBitmap(
                 width,
                 height,
                 android.graphics.Bitmap.Config.ARGB_8888

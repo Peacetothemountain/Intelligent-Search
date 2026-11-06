@@ -30,6 +30,7 @@ import com.pixel.intelligentsearch.feature.settings.DiagnosticsSample
 import com.pixel.intelligentsearch.feature.settings.DiagnosticsSampler
 import com.pixel.intelligentsearch.feature.settings.DeveloperNoteAnimations
 import com.pixel.intelligentsearch.feature.settings.DeveloperNotePage
+import com.pixel.intelligentsearch.feature.settings.SetupAllSet
 import com.pixel.intelligentsearch.feature.settings.HardwareSecurityPage
 import com.pixel.intelligentsearch.feature.settings.MemorySnapshot
 import com.pixel.intelligentsearch.feature.settings.ProcessRamEntry
@@ -98,6 +99,7 @@ class DiagnosticsGoldenTest(
                             "security" -> HardwareSecurityPage(HARDWARE, ATTESTATION, POSTURE)
                             "note" -> DeveloperNotePage(ApplicationProvider.getApplicationContext())
                             "note_status" -> DeveloperNoteAnimations(ApplicationProvider.getApplicationContext())
+                            "note_all_set" -> SetupAllSet(Modifier.width(220.dp).height(220.dp))
                             else -> error("unknown page $page")
                         }
                     }
@@ -170,7 +172,9 @@ class DiagnosticsGoldenTest(
             arrayOf("note", true, 1f, DIALOG_WIDTH, 900),
             arrayOf("note_status", false, 1f, DIALOG_WIDTH, 520),
             arrayOf("note_status", true, 1f, DIALOG_WIDTH, 520),
-            arrayOf("note_status", false, 2f, DIALOG_WIDTH, 900)
+            arrayOf("note_status", false, 2f, DIALOG_WIDTH, 900),
+            arrayOf("note_all_set", false, 1f, DIALOG_WIDTH, 240),
+            arrayOf("note_all_set", true, 1f, DIALOG_WIDTH, 240)
         )
     }
 }

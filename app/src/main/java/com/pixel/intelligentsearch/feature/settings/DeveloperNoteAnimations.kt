@@ -93,6 +93,7 @@ import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.system.SearchRoleManager
 import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
+import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
 import com.pixel.intelligentsearch.core.ui.IdleFlowMotion
 import com.pixel.intelligentsearch.core.ui.geminiPlateIdleFlow
 import com.pixel.intelligentsearch.core.ui.materialYouGeminiPlate
@@ -142,7 +143,7 @@ internal fun DeveloperNoteAnimations(context: Context, maxLoopHeight: androidx.c
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                SetupPath(context, Modifier.weight(1f))
+                SetupPath(context, Modifier.weight(1f), allSetHeight = loopWidth * LOOP_RATIO)
                 SearchLoop(context, loopWidth)
             }
         }
@@ -154,10 +155,10 @@ private class SetupRowText(val title: String, val toDo: String, val done: String
 
 /**
  * Setup as a path: it grows to the step this phone has reached, read again each time the app comes back. The next
- * step pulses and opens where it gets done. Once all are done, one slow light runs down the path every few seconds.
+ * step pulses and opens where it gets done. Once all are done, [SetupAllSet] takes its place.
  */
 @Composable
-internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
+internal fun SetupPath(context: Context, modifier: Modifier = Modifier, allSetHeight: androidx.compose.ui.unit.Dp = ALL_SET_HEIGHT) {
     val lifecycleOwner = LocalLifecycleOwner.current
     var revision by remember { mutableIntStateOf(0) }
     DisposableEffect(lifecycleOwner) {
@@ -173,6 +174,10 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
             isDefault = SearchRoleManager.isSearchRoleHeld(context)
         )
     }
+    if (step >= SETUP_STEPS) {
+        SetupAllSet(modifier.height(allSetHeight))
+        return
+    }
     val animations by rememberAnimationsEnabled()
     val shown by animateFloatAsState(
         targetValue = step.toFloat(),
@@ -182,9 +187,6 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
     val infinite = rememberInfiniteTransition(label = "setup_path_motion")
     val pulse by infinite.animateFloat(
         0f, 1f, infiniteRepeatable(tween(PULSE_MS, easing = LinearEasing), RepeatMode.Restart), label = "setup_pulse"
-    )
-    val light by infinite.animateFloat(
-        0f, 1f, infiniteRepeatable(tween(LIGHT_MS, easing = LinearEasing), RepeatMode.Restart), label = "setup_light"
     )
     val rows = listOf(
         SetupRowText("USB debugging", "Turn this on", if (usbDebugging) "On" else "Done"),
@@ -253,18 +255,6 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
                                 style = Stroke(2.4f * u, cap = StrokeCap.Round, join = StrokeJoin.Round)
                             )
                         }
-                        if (animations && step == rows.size) {
-                            val run = light * LIGHT_MS / LIGHT_RUN_MS
-                            val at = run * rows.lastIndex - index
-                            if (run < 1f && at in -0.5f..0.5f) {
-                                drawCircle(
-                                    scheme.onPrimaryContainer,
-                                    radius = 4.5.dp.toPx(),
-                                    center = Offset(x, cy + at * size.height),
-                                    alpha = sin(PI.toFloat() * run) * 0.9f
-                                )
-                            }
-                        }
                     }
                     .padding(start = 46.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -322,9 +312,96 @@ private fun openSetupStep(context: Context, index: Int) {
     }
 }
 
+/**
+ * Setup finished: a container with a scalloped check that pops in and keeps slowly turning over a breathing halo, and
+ * "You're all set" under it. With animations removed it holds still.
+ */
+@Composable
+internal fun SetupAllSet(modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val animations by rememberAnimationsEnabled()
+    var time by remember { mutableFloatStateOf(if (animations) 0f else ALL_SET_REST) }
+    LaunchedEffect(animations) {
+        if (!animations) {
+            time = ALL_SET_REST
+            return@LaunchedEffect
+        }
+        val start = withInfiniteAnimationFrameNanos { it }
+        while (true) {
+            withInfiniteAnimationFrameNanos { time = (it - start) / 1_000_000_000f }
+        }
+    }
+    MatteShell(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        containerColor = scheme.surfaceContainerLow,
+        border = androidx.compose.foundation.BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.35f))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Canvas(Modifier.size(ALL_SET_BADGE)) {
+                val t = time
+                val u = size.minDimension / 110f
+                val center = Offset(size.width / 2f, size.height / 2f)
+                val grown = popIn((t - 0.05f) / 0.65f)
+                val spin = if (animations) t else 0f
+                val breath = if (animations) (sin(spin * 1.2f) + 1f) / 2f else 0.5f
+                drawPath(
+                    scallopPath(center, (46f + breath * 5f) * u * grown, -spin * 0.1f),
+                    scheme.primaryContainer,
+                    alpha = 0.55f + 0.2f * breath
+                )
+                drawPath(scallopPath(center, 38f * u * grown, spin * 0.14f), scheme.primary)
+                val check = Path().apply {
+                    moveTo(center.x - 15f * u, center.y + 1f * u)
+                    relativeLineTo(11f * u, 11f * u)
+                    relativeLineTo(20f * u, -23f * u)
+                }
+                val drawn = Path()
+                PathMeasure().run {
+                    setPath(check, false)
+                    getSegment(0f, length * easeOut((t - 0.2f) / 0.35f), drawn)
+                }
+                drawPath(drawn, scheme.onPrimary, style = Stroke(5f * u, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "You're all set",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = scheme.onSurface,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.graphicsLayer {
+                    val shown = easeOut((time - 0.25f) / 0.4f)
+                    alpha = shown
+                    translationY = (1f - shown) * 8.dp.toPx()
+                }
+            )
+        }
+    }
+}
+
+/** A nine-lobed scallop of [radius] around [center], turned by [rotation] radians: Material's cookie shape. */
+private fun scallopPath(center: Offset, radius: Float, rotation: Float): Path = Path().apply {
+    for (i in 0 until SCALLOP_POINTS) {
+        val angle = i * 2f * PI.toFloat() / SCALLOP_POINTS
+        val r = radius * (1f + 0.07f * cos(9f * (angle - rotation)))
+        val x = center.x + r * cos(angle)
+        val y = center.y + r * sin(angle)
+        if (i == 0) moveTo(x, y) else lineTo(x, y)
+    }
+    close()
+}
+
 private const val PULSE_MS = 1800
-private const val LIGHT_MS = 5000
-private const val LIGHT_RUN_MS = 1600f
+private const val SETUP_STEPS = 3
+private const val SCALLOP_POINTS = 72
+private const val ALL_SET_REST = 2f
+private val ALL_SET_BADGE = 110.dp
+private val ALL_SET_HEIGHT = 200.dp
 
 /** When each part of [SearchLoop] happens, in seconds from the start of a loop. */
 internal object SearchLoopTimes {

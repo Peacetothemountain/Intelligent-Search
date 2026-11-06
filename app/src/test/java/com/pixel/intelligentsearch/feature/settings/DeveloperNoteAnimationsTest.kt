@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertHasNoClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -82,6 +83,16 @@ class DeveloperNoteAnimationsTest {
         context.sendStickyBroadcast(Intent("android.hardware.usb.action.USB_STATE").putExtra("adb", true))
         org.robolectric.shadows.ShadowLooper.idleMainLooper()
         assertEquals(true, isUsbDebuggingOn(context))
+    }
+
+    @Test
+    fun finishedSetupSaysOnlyThatItIsAllSet() {
+        compose.setContent {
+            IntelligentSearchTheme(darkTheme = false) { SetupAllSet() }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText("You're all set").assertExists()
+        compose.onAllNodes(androidx.compose.ui.test.hasText("Search engine list")).assertCountEquals(0)
     }
 
     private fun showPath() {

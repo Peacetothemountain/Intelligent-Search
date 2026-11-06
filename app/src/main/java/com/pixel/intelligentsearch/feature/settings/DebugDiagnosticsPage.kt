@@ -439,6 +439,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
     val animationsEnabled by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
     val motion = rememberDiagnosticsMotion(animationsEnabled)
     val wavePhase by motion.wavePhase
+    val pointPulse by motion.pointPulse
 
     val scheme = MaterialTheme.colorScheme
     Column(
@@ -559,6 +560,8 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                     RamCategoryGraph(
                         processes = topProcesses,
                         appColors = materialAppColors,
+                        wavePhase = wavePhase,
+                        pointPulse = pointPulse,
                         modifier = graphModifier
                     )
                 },
@@ -668,17 +671,17 @@ private fun DiagnosticsHeroRow(
 }
 
 /** The battery level as a gently rolling wave of Material You colour. */
-/** The battery graph's motion: its wave's phase. */
-internal class DiagnosticsMotion(val wavePhase: State<Float>)
+/** The graphs' motion: the battery and memory waves' phase and the app points' pulse radius, in dp. */
+internal class DiagnosticsMotion(val wavePhase: State<Float>, val pointPulse: State<Float>)
 
 /**
- * The wave rolling for as long as the page is open, or a still frame while animations are
+ * The waves rolling and the points pulsing for as long as the page is open, or a still frame while animations are
  * turned off ([animationsEnabled], Remove animations), as the settings slider's wave does.
  */
 @Composable
 internal fun rememberDiagnosticsMotion(animationsEnabled: Boolean): DiagnosticsMotion {
     if (!animationsEnabled) {
-        return remember { DiagnosticsMotion(mutableFloatStateOf(0f)) }
+        return remember { DiagnosticsMotion(mutableFloatStateOf(0f), mutableFloatStateOf(POINT_PULSE_MAX)) }
     }
     val infiniteTransition = rememberInfiniteTransition(label = "diagPulseTransition")
     val wavePhase = infiniteTransition.animateFloat(
@@ -687,8 +690,17 @@ internal fun rememberDiagnosticsMotion(animationsEnabled: Boolean): DiagnosticsM
         animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Restart),
         label = "diagWavePhase"
     )
-    return remember(wavePhase) { DiagnosticsMotion(wavePhase) }
+    val pointPulse = infiniteTransition.animateFloat(
+        initialValue = POINT_PULSE_MIN,
+        targetValue = POINT_PULSE_MAX,
+        animationSpec = infiniteRepeatable(tween(1000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "pointPulse"
+    )
+    return remember(wavePhase, pointPulse) { DiagnosticsMotion(wavePhase, pointPulse) }
 }
+
+private const val POINT_PULSE_MIN = 3f
+private const val POINT_PULSE_MAX = 5.5f
 
 @Composable
 private fun BatteryLevelWave(batteryLevel: Int, wavePhase: Float, modifier: Modifier) {
@@ -776,18 +788,22 @@ private fun RamLegendRow(dotColor: Color, name: String, nameColor: Color, value:
     }
 }
 
-/** How tall a category's bar is against the graph's [ceilingMb]: its true share, so sizes can be compared by eye. */
-internal fun ramBarFraction(ramMb: Float, ceilingMb: Int): Float =
+/** How high a category's point sits against the graph's [ceilingMb]: its true share, so a small one stays small. */
+internal fun ramPointFraction(ramMb: Float, ceilingMb: Int): Float =
     if (ceilingMb <= 0) 0f else (ramMb / ceilingMb).coerceIn(0f, 1f)
 
-/** RAM by category: one bar each, in the color of its row in the list beside it. */
+/** Live RAM by category: a spline through each category's true size, with pulsing peaks. */
 @Composable
 private fun RamCategoryGraph(
     processes: List<ProcessRamEntry>,
     appColors: List<Color>,
+    wavePhase: Float,
+    pointPulse: Float,
     modifier: Modifier
 ) {
+    val primaryColor = MaterialTheme.colorScheme.primary
     val outlineColor = MaterialTheme.colorScheme.outlineVariant
+    val surfaceColor = MaterialTheme.colorScheme.surface
 
     val ceilingMb = if (processes.isNotEmpty()) {
         val maxVal = (processes.maxOfOrNull { it.ramMb } ?: 500f).coerceAtLeast(100f)
@@ -801,6 +817,12 @@ private fun RamCategoryGraph(
         contentAlignment = Alignment.Center
     ) {
         val gridDashEffect = remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 4f)) }
+        val stemDashEffect = remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3f, 3f)) }
+        val gradientBrush = remember(primaryColor) {
+            androidx.compose.ui.graphics.Brush.verticalGradient(
+                listOf(primaryColor.copy(alpha = 0.32f), primaryColor.copy(alpha = 0.04f), Color.Transparent)
+            )
+        }
 
         androidx.compose.foundation.Canvas(
             modifier = Modifier
@@ -823,25 +845,123 @@ private fun RamCategoryGraph(
                 )
             }
 
-            val slot = w / processes.size.coerceAtLeast(1)
-            val barWidth = slot * 0.56f
-            val corner = androidx.compose.ui.geometry.CornerRadius(minOf(barWidth / 2f, 6.dp.toPx()))
-            processes.forEachIndexed { i, process ->
-                val barHeight = h * ramBarFraction(process.ramMb, ceilingMb)
-                val x = slot * i + (slot - barWidth) / 2f
-                val bar = androidx.compose.ui.graphics.Path().apply {
-                    addRoundRect(
-                        androidx.compose.ui.geometry.RoundRect(
-                            left = x,
-                            top = h - barHeight,
-                            right = x + barWidth,
-                            bottom = h,
-                            topLeftCornerRadius = corner,
-                            topRightCornerRadius = corner
+            if (processes.isNotEmpty()) {
+                val n = processes.size
+
+                // Calculate (X, Y) coordinate for each app's peak based on its actual RAM
+                val appPoints = processes.mapIndexed { i, proc ->
+                    val px = if (n > 1) {
+                        val margin = w * 0.12f
+                        margin + (i.toFloat() / (n - 1)) * (w - 2f * margin)
+                    } else {
+                        w * 0.5f
+                    }
+                    val normY = ramPointFraction(proc.ramMb, ceilingMb)
+                    val breathe = kotlin.math.sin(wavePhase + i * 1.4f) * 2.5.dp.toPx()
+                    val py = (h - (h * normY) + breathe).clampSafely(4.dp.toPx(), h)
+                    androidx.compose.ui.geometry.Offset(px, py)
+                }
+
+                // Build smooth spline mountain curve connecting the app peaks
+                val linePath = androidx.compose.ui.graphics.Path()
+                val fillPath = androidx.compose.ui.graphics.Path()
+
+                fillPath.moveTo(0f, h)
+                val firstPt = appPoints.first()
+                val startY = (h + firstPt.y) / 2f
+                fillPath.lineTo(0f, startY)
+                linePath.moveTo(0f, startY)
+
+                for (i in 0 until appPoints.size) {
+                    val curr = appPoints[i]
+                    if (i == 0) {
+                        val cx = curr.x * 0.5f
+                        linePath.cubicTo(cx, startY, cx, curr.y, curr.x, curr.y)
+                        fillPath.cubicTo(cx, startY, cx, curr.y, curr.x, curr.y)
+                    } else {
+                        val prev = appPoints[i - 1]
+                        val midX = (prev.x + curr.x) / 2f
+                        val valleyY = ((prev.y + curr.y) / 2f + h * 0.18f).coerceAtMost(h - 4.dp.toPx())
+                        linePath.cubicTo(
+                            (prev.x + midX) / 2f, prev.y,
+                            (prev.x + midX) / 2f, valleyY,
+                            midX, valleyY
                         )
+                        linePath.cubicTo(
+                            (midX + curr.x) / 2f, valleyY,
+                            (midX + curr.x) / 2f, curr.y,
+                            curr.x, curr.y
+                        )
+                        fillPath.cubicTo(
+                            (prev.x + midX) / 2f, prev.y,
+                            (prev.x + midX) / 2f, valleyY,
+                            midX, valleyY
+                        )
+                        fillPath.cubicTo(
+                            (midX + curr.x) / 2f, valleyY,
+                            (midX + curr.x) / 2f, curr.y,
+                            curr.x, curr.y
+                        )
+                    }
+                }
+
+                val lastPt = appPoints.last()
+                val endY = (h + lastPt.y) / 2f
+                val endControlX = (lastPt.x + w) / 2f
+                linePath.cubicTo(endControlX, lastPt.y, endControlX, endY, w, endY)
+                fillPath.cubicTo(endControlX, lastPt.y, endControlX, endY, w, endY)
+                fillPath.lineTo(w, h)
+                fillPath.close()
+
+                // Soft Material You primary vertical gradient fill
+                drawPath(
+                    path = fillPath,
+                    brush = gradientBrush
+                )
+
+                // Crisp spline outline
+                drawPath(
+                    path = linePath,
+                    color = primaryColor.copy(alpha = 0.85f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = 2.dp.toPx(),
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
+                        join = androidx.compose.ui.graphics.StrokeJoin.Round
+                    )
+                )
+
+                // Vertical dashed drop stems and pulsing peak dots for each app in its Material You color
+                appPoints.forEachIndexed { i, pt ->
+                    val appColor = appColors[i % appColors.size]
+
+                    // Vertical dashed stem from peak down to baseline
+                    drawLine(
+                        color = appColor.copy(alpha = 0.45f),
+                        start = pt,
+                        end = androidx.compose.ui.geometry.Offset(pt.x, h),
+                        strokeWidth = 1.dp.toPx(),
+                        pathEffect = stemDashEffect
+                    )
+
+                    // Pulsing halo aura
+                    drawCircle(
+                        color = appColor.copy(alpha = 0.25f),
+                        radius = pointPulse.dp.toPx() * 1.6f,
+                        center = pt
+                    )
+                    // Clean surface ring
+                    drawCircle(
+                        color = surfaceColor,
+                        radius = 3.5.dp.toPx(),
+                        center = pt
+                    )
+                    // Solid center dot in app's Material You color
+                    drawCircle(
+                        color = appColor,
+                        radius = 2.dp.toPx(),
+                        center = pt
                     )
                 }
-                drawPath(bar, appColors[i % appColors.size])
             }
         }
 

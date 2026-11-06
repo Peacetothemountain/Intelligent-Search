@@ -82,23 +82,23 @@ class DebugDiagnosticsPageTest {
     }
 
     @Test
-    fun aRamBarShowsItsTrueShareWithNoFloorOrCap() {
-        // The old curve held every point between 15% and 88%, so a small category looked bigger than it was.
-        assertEquals(0.05f, ramBarFraction(50f, 1000), 0.0001f)
-        assertEquals(0.5f, ramBarFraction(500f, 1000), 0.0001f)
-        assertEquals(1f, ramBarFraction(1000f, 1000), 0.0001f)
-        assertEquals(0f, ramBarFraction(500f, 0), 0.0001f)
+    fun aRamPointShowsItsTrueShareWithNoFloorOrCap() {
+        // The curve used to hold every point between 15% and 88%, so a small category looked bigger than it was.
+        assertEquals(0.05f, ramPointFraction(50f, 1000), 0.0001f)
+        assertEquals(0.5f, ramPointFraction(500f, 1000), 0.0001f)
+        assertEquals(1f, ramPointFraction(1000f, 1000), 0.0001f)
+        assertEquals(0f, ramPointFraction(500f, 0), 0.0001f)
     }
 
-    /** The distinct wave phases over two thirds of a second. */
-    private fun frameChanges(animationsEnabled: Boolean): Set<Float> {
+    /** The distinct (wave phase, point pulse) frames over two thirds of a second. */
+    private fun frameChanges(animationsEnabled: Boolean): Set<Pair<Float, Float>> {
         compose.mainClock.autoAdvance = false
         lateinit var motion: DiagnosticsMotion
         compose.setContent { motion = rememberDiagnosticsMotion(animationsEnabled) }
-        val frames = mutableSetOf<Float>()
+        val frames = mutableSetOf<Pair<Float, Float>>()
         repeat(40) {
             compose.mainClock.advanceTimeBy(16)
-            frames += motion.wavePhase.value
+            frames += motion.wavePhase.value to motion.pointPulse.value
         }
         return frames
     }

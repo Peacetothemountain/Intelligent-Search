@@ -143,4 +143,5 @@ Write the usage level in each ledger entry, so later cycles can see what each ki
 3. Update the ratchet values in `docs/LEDGER.md` and add the cycle's entry.
 4. One short, plain commit on `dev`, American spelling, attribution as the session's current instructions say.
    Push `dev`, let CI run, then `git push origin dev:main` only after CI is green and only if asked.
-5. Install on the phone only as `MEMORY.md` says (release build, only when the owner allows, once per batch).
+5. See it working on the emulator without the phone (`docs/DEVICE_TESTING.md`). Install on the phone only as `MEMORY.md`
+   says (release build, only when the owner allows, once per batch).

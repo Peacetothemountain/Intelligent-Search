@@ -10,7 +10,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Metric | Value | Measured at |
 |---|---|---|
 | Lines of test code | 52,098 | 2026-11-06, replaces the `@Test` count (owner: root causes over more tests) |
-| CI time, `Run Build & Check` | 630s (was 1118s) | run 42275245914 on `2cafacd8` |
+| CI time, `Run Build & Check` | 527s (was 1118s) | run 42277305877 on `8de98e0a` |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 19 | `0260afa7`, 2026-11-05 |
@@ -37,6 +37,12 @@ with the strongest evidence.
 | B10 | Plain copy for Quick App Panel, Context Aware Quick Apps and Files | Pixel 11, 2026-11-05: "Fixed Applications Sourced from Application Search Menu", "User's App Opening Cycles", "via System Pickers" explain internals, against memory `user-copy-results-not-internals`. | 4 | 2026-11-05 |
 | B11 | Add tests for At a Glance media | The part of B3 still open: `glanceMedia` and `scaledArtwork` (`core/glance/GlanceSource.kt`) have 0 references in `app/src/test` on 2026-11-06. The decline helpers from B3 are now covered. | 2 | 2026-11-06 |
 | B12 | Stop CI downloading Android runtimes it should have cached | CI run 42256710298 failed on `0b9b1148`: `OverlayWaitsForPermissionGrantTest > classMethod`, `IOException` in Robolectric's `MavenArtifactFetcher`. The re-run passed with no code change. `sdk = [31]` was added 2026-10-30, but `.github/workflows/ci.yml` keys the cache `robolectric-<version>-sdk34`, and that entry (592 MB) dates from 2026-10-22 and is never rewritten. So SDK 31 is very likely fetched from the network on every run (inferred; the cache's contents weren't opened). 1 failure in the last 40 runs. Proof: the key changes with the set of SDKs in use, and a run shows the new cache holding `android-all` for 31. | 1 | 2026-11-06 |
+| B13 | Run `assembleRelease` beside the tests, not during them | Tests took 20 minutes with R8 overlapping and 13 with R8 cached on the same commit, before the `settle` fix. Parallel jobs under one aggregator named `Build & Check`, which must check `needs` results (a skipped job counts as passing). Saving smaller now: measure first. | 2 | 2026-11-06 |
+| B14 | One `FileResultPicture` instead of 4 copies of `if (filesThumbnails)` | `OverlayBestMatchCard:274`, `OverlayDetailPane:261`, `OverlayPinnedRow:112`, `OverlaySearchResults:690`. Then `FileThumbnailsScopeTest`, which greps source lines, can go. | 2 | 2026-11-06 |
+| B15 | One `SettingsTopBar` and a small lint module | 18 raw `TopAppBar(` calls, with drift: 16 Outlined back arrows, 2 Filled. Replaces `SettingsPageTitleTest` and `LayeringTest`, which read source text. | 2 | 2026-11-06 |
+| B16 | Inject dispatchers so tests can stop polling in real time | 117 `Dispatchers.*` uses and no seam. `SearchViewModelTest.runOn` and `FileTypeFilterTest:181` assert nothing happened after about 250ms, which passes wrongly on a slow machine. Large. | 2 | 2026-11-06 |
+| B17 | One table-driven backup round trip | 7 `*BackupTest` classes each build Room and run PBKDF2 for their own settings; a forgotten key can slip through. Over `SettingsManager.ALL`, a new setting needs no new test. Backup data: use the strongest model. | 2 | 2026-11-06 |
+| B18 | Share one recorded run between the morph physics rules | `MorphBouncePhysicsTest` is now the slowest class, 113s of 556s. Its 23 tests hold real rules about physics, so this only saves time: lowest priority. | 3 | 2026-11-06 |
 
 ## Entries
 
@@ -137,10 +143,24 @@ with the strongest evidence.
 - Change: `GOLDEN_OPTIONS` ignores color distance up to 0.05 and allows no other pixel to change; `roborazzi.test.verify` is always on, so a record run only rewrites what really changed
 - Goldens re-recorded, 20, all for changes already shipped and none from this batch: `overlay_tablet/detail_setting_*` (Battery Saver Off); `overlay/empty_*`, `overlay/tutorial_*`, `overlay_tablet/empty_*` (the placeholder's "..." became one "…" character); `settings/launch_portal_on_*`, `settings/backup_*`, `settings/doodle_gallery_*`, `settings/hidden_apps_unlocked_*`, `widget/countdown_setup_*`, `overlay/file_type_filter_*` (icons and top bars from earlier commits). I looked at the differences in all of them
 - Before -> after: changed pixels allowed per golden, up to 4,284 -> 0; goldens that didn't match the app, 20 -> 0; the other 217 goldens untouched by recording
-- Result: kept, pending CI
+- Result: kept. CI `Build & Check` green on `8de98e0a`, 527s, so the limit holds on Linux
 - Retry only if: CI fails a golden with no change to its screen; measure the new distance before raising the limit
 - Commit: see `Stop goldens passing real changes` in `git log dev`
 - Lesson: a limit on how many pixels change was the wrong measure, because the noise is faint in color, not few in number. Measure the noise before setting a tolerance. The limit does still pass a real change fainter than 0.05, about 7 color levels per channel.
+
+### 2026-11-06: Verifying without plugging in the phone
+- Command: owner said to find a method to "test and verify and change without me having to plug in my phone"
+- Target and evidence: every check by eye waited on a cable, and driving the phone turned off the owner's app lock (2026-11-05 entry)
+- Prior work checked: this ledger, memories `test-phones` and `search-engine-role-allowlist`
+- Research: emulator accelerated by WHPX on this PC, Android 17 image installed, with the Pixel launcher, Gboard, Play services and the permission controller. `avdmanager` crashes on the `android-37.0` image, so the AVD was written by hand
+- Models used: inline
+- Usage level: owner reported full; no figure visible. Normal mode
+- Change: `IS_Pixel_XL` AVD on the owner's PC; `docs/DEVICE_TESTING.md`; charter section 8 points to it
+- Before -> after: boots in 45s; release 9.5.5 (133) installs with no cable and no owner action. Launching and driving the app on it: NOT verified
+- Result: blocked at the last step. `device_open` fails: "JAVA_HOME is set to an invalid directory ... jdk-17.0.20.101-hotspot". Windows already holds the right value, so T3's process has the old one from before the JDK update
+- Retry only if: T3 Code has been restarted, then `device_open` on `IS_Pixel_XL`. Wireless debugging is also untested: the owner has to pair the phone once
+- Commit: see `Add a way to test without plugging in the phone` in `git log dev`
+- Lesson: an updated JDK leaves running apps with the old path; check the machine's value before calling an environment variable wrong.
 
 <!--
 Copy this for each cycle, newest at the bottom.

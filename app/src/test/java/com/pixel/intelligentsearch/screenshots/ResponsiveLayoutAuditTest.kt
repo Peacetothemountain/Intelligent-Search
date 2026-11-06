@@ -57,7 +57,6 @@ import dagger.hilt.android.testing.HiltTestApplication
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
-import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -100,7 +99,6 @@ class ResponsiveLayoutAuditTest(private val screen: String, private val device: 
 
     @Test
     fun audit() {
-        assumeTrue("run with -PlayoutAudit", System.getProperty("layoutAudit") == "true")
         // The overlay and the voice sheet fill the real screen; settings pages scroll.
         val isOverlay = screen.startsWith("overlay_") || screen.startsWith("voice_")
         // Settings pages scroll, so they get a tall window to lay out every row; the overlay fills the real screen.

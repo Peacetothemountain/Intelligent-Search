@@ -102,6 +102,7 @@ android {
           if (project.hasProperty("skipScreenshots")) test.exclude("**/screenshots/**")
           // The layout audit renders every screen at many device sizes and text sizes; it runs only on request
           // (-PlayoutAudit) and writes its report and captures to build/layout-audit.
+          if (!project.hasProperty("layoutAudit")) test.exclude("**/ResponsiveLayoutAuditTest*")
           // Gradle's default 512 MB isn't enough for this many Robolectric and screenshot tests in one worker.
           test.maxHeapSize = "2g"
           // Robolectric runs each test on one thread, so the tests spread over up to three JVMs side by side (CI's four

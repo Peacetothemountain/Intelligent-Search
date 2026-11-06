@@ -46,6 +46,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import java.time.LocalDate
+import java.time.ZoneId
 import javax.inject.Inject
 
 /**
@@ -66,9 +67,12 @@ class AtAGlanceOverlayTest {
     private val context: Context get() = ApplicationProvider.getApplicationContext()
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
 
+    /** Noon today, where the clock is held: the event an hour later is "Today" at whatever hour the tests run. */
+    private val noon = LocalDate.now().atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+
     private val snapshot = GlanceSnapshot(
-        alarm = GlanceAlarm(System.currentTimeMillis() + 2 * 60 * 60 * 1000L),
-        events = listOf(CalendarEvent("Dentist", "9:30", eventId = 7, beginMillis = System.currentTimeMillis() + 60 * 60 * 1000L)),
+        alarm = GlanceAlarm(noon + 2 * 60 * 60 * 1000L),
+        events = listOf(CalendarEvent("Dentist", "9:30", eventId = 7, beginMillis = noon + 60 * 60 * 1000L)),
         birthdays = listOf(GlanceBirthday(7, "lk", "Ana Lima", 0, LocalDate.now(), turning = null))
     )
 
@@ -116,7 +120,7 @@ class AtAGlanceOverlayTest {
                     history.forEach(viewModel::addSearchHistory)
                     if (query.isNotEmpty()) viewModel.onQueryChanged(query)
                 }
-                CompositionLocalProvider(LocalGlanceSource provides source) {
+                CompositionLocalProvider(LocalGlanceSource provides source, LocalGlanceClock provides GlanceClock({ noon }, ticks = true)) {
                     SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
                 }
             }

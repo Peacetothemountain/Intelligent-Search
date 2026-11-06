@@ -59,6 +59,7 @@ checkpoints), and those hold copies of commits that were never on GitHub.
 | 9.5.2 | 130 | `f552d950` | 2026-10-30 |
 | 9.5.3 | 131 | `9ce6a1c5` | 2026-10-30 |
 | 9.5.4 | 132 | see `Release 9.5.4 (132)` | 2026-11-01 |
+| 9.5.5 | 133 | see `Release 9.5.5 (133)` | 2026-11-06 |
 
 Some codes that reached Google Play were never committed with their number: 9.06 (105), 9.1.1 (109), and 111, 117 and
 119. A crash report from one of them belongs to the code between the tags either side of it: 105 sits between

@@ -63,7 +63,7 @@ class AppSearchQuickPanelRowsTest {
     fun theRowsSayWhatTheyDo() {
         compose.setContent { IntelligentSearchTheme(darkTheme = false) { AppSearchScreen(prefs, {}, {}) } }
         compose.onNodeWithText("Quick App Panel").assertExists()
-        compose.onNodeWithText("Fixed Applications Sourced from Application Search Menu. Quickly Launch Your Favorite Apps Without Searching.").assertExists()
+        compose.onNodeWithText("The Apps You Chose Under Application Search. Open Your Favorites Without Searching.").assertExists()
         compose.onNodeWithText("Max Quick Panel Apps").assertExists()
         compose.onAllNodesWithText("Manage Shortcuts for 20 Apps.").assertCountEquals(0)
         compose.onAllNodesWithText("Max Shortcut Suggestions").assertCountEquals(0)

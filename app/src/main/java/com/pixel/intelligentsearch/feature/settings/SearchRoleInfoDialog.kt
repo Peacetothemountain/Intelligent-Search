@@ -162,15 +162,18 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                         }) {
                             Text("Diagnostics")
                         }
-                        TextButton(onClick = {
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                            // Every command: selecting the app alone fails while it isn't on the search engine list.
-                            val clip = android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS)
-                            clipboard?.setPrimaryClip(clip)
-                            com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click(view)
-                            Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
-                        }) {
-                            Text("Copy Command")
+                        // Once it is the default search engine there is nothing left to run.
+                        if (!com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)) {
+                            TextButton(onClick = {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
+                                // Every command: selecting the app alone fails while it isn't on the search engine list.
+                                val clip = android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS)
+                                clipboard?.setPrimaryClip(clip)
+                                com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click(view)
+                                Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
+                            }) {
+                                Text("Copy Command")
+                            }
                         }
                     }
                 }
@@ -214,16 +217,9 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
     )
 }
 
-/**
- * The Developer Note's Default Search Engine text, in the owner's words: that Intelligent Search is the default
- * search engine, or that the ADB steps on this page make it the Pixel Launcher's.
- */
-internal fun defaultSearchEngineNote(roleHeld: Boolean): String =
-    if (roleHeld) {
-        "Intelligent Search is Currently Set as your Default Search Engine."
-    } else {
-        "To set Intelligent Search as your Default Search please follow ADB cmd line steps to apply Intelligent Search as default on Pixel Launcher."
-    }
+/** The Developer Note's Default Search Engine text, in the owner's words: the ADB steps on this page set it. */
+private const val DEFAULT_SEARCH_ENGINE_NOTE =
+    "To set Intelligent Search as your Default Search please follow ADB cmd line steps to apply Intelligent Search as default on Pixel Launcher."
 
 /** The Developer Note dialog's cards: the Diagnostics and Hardware & Security pages' own, matte with a hairline. */
 private val NoteCardShape = RoundedCornerShape(16.dp)
@@ -264,12 +260,15 @@ private fun DeveloperNoteCards(context: Context, scheme: androidx.compose.materi
         verticalArrangement = Arrangement.spacedBy(DiagnosticsCardSpacing)
     ) {
         val roleHeld = com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)
-        DiagnosticsCard(icon = Symbols.Outlined.TravelExplore, title = "Default Search Engine", accent = scheme.primary) {
-            Text(
-                text = defaultSearchEngineNote(roleHeld),
-                style = MaterialTheme.typography.bodyMedium,
-                color = scheme.onSurfaceVariant
-            )
+        // Once it is the default, the card below says so and can change it.
+        if (!roleHeld) {
+            DiagnosticsCard(icon = Symbols.Outlined.TravelExplore, title = "Default Search Engine", accent = scheme.primary) {
+                Text(
+                    text = DEFAULT_SEARCH_ENGINE_NOTE,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurfaceVariant
+                )
+            }
         }
 
         if (roleHeld) {

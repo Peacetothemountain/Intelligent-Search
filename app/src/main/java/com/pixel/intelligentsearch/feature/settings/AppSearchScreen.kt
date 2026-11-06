@@ -209,7 +209,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
 
 /** What the Quick App Panel switch does: its apps are the ones chosen under Application Search. */
 internal const val QUICK_APP_PANEL_SUBTITLE =
-    "Fixed Applications Sourced from Application Search Menu. Quickly Launch Your Favorite Apps Without Searching."
+    "The Apps You Chose Under Application Search. Open Your Favorites Without Searching."
 
 /** An installed app's name, or its package name when it isn't installed. */
 private fun appLabel(context: android.content.Context, packageName: String): String = runCatching {

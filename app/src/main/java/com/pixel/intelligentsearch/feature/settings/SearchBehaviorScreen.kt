@@ -96,7 +96,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var contextAwareApps by rememberSetting(SettingsManager.CONTEXT_AWARE_QUICK_APPS)
                 SettingsRowToggle(
                     title = "Context Aware Quick Apps",
-                    subtitle = "Dynamically Chosen Apps Based on User's App Opening Cycles.",
+                    subtitle = "Suggests Apps Based on When You Usually Open Them.",
                     icon = Symbols.Outlined.Insights,
                     isChecked = contextAwareApps,
                     onCheckedChange = { contextAwareApps = it },

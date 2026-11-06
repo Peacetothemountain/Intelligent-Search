@@ -153,7 +153,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                         
                         SettingsRowToggle(
                             title = "Files",
-                            subtitle = "Search Local Files & Media via System Pickers.",
+                            subtitle = "Search Files & Media in the Folders You Choose.",
                             icon = Symbols.Outlined.Folder,
                             isChecked = searchFiles,
                             onCheckedChange = { isChecked -> 

@@ -30,7 +30,7 @@ import com.pixel.intelligentsearch.feature.settings.DiagnosticsSample
 import com.pixel.intelligentsearch.feature.settings.DiagnosticsSampler
 import com.pixel.intelligentsearch.feature.settings.DeveloperNoteAnimations
 import com.pixel.intelligentsearch.feature.settings.DeveloperNotePage
-import com.pixel.intelligentsearch.feature.settings.SetupAllSet
+import com.pixel.intelligentsearch.feature.settings.SetupStatusCard
 import com.pixel.intelligentsearch.feature.settings.HardwareSecurityPage
 import com.pixel.intelligentsearch.feature.settings.MemorySnapshot
 import com.pixel.intelligentsearch.feature.settings.ProcessRamEntry
@@ -99,7 +99,7 @@ class DiagnosticsGoldenTest(
                             "security" -> HardwareSecurityPage(HARDWARE, ATTESTATION, POSTURE)
                             "note" -> DeveloperNotePage(ApplicationProvider.getApplicationContext())
                             "note_status" -> DeveloperNoteAnimations(ApplicationProvider.getApplicationContext())
-                            "note_all_set" -> SetupAllSet(Modifier.width(220.dp).height(220.dp))
+                            "note_all_set" -> SetupStatusCard(ApplicationProvider.getApplicationContext(), 3, true, Modifier.width(220.dp).height(240.dp))
                             else -> error("unknown page $page")
                         }
                     }

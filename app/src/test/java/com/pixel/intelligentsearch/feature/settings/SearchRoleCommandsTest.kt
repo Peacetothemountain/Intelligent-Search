@@ -31,6 +31,7 @@ import java.security.cert.Certificate
 import java.util.Collections
 import java.util.Date
 import java.util.Enumeration
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHeightIsAtLeast
 import androidx.compose.ui.test.assertWidthIsAtLeast
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -112,6 +113,24 @@ class SearchRoleCommandsTest {
         compose.onNodeWithContentDescription("Copy ADB Commands")
             .assertWidthIsAtLeast(48.dp)
             .assertHeightIsAtLeast(48.dp)
+    }
+
+    @Test
+    fun onceDefaultTheNoteDropsTheRepeatedCardAndTheCommands() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val roles = org.robolectric.shadow.api.Shadow.extract<org.robolectric.shadows.ShadowRoleManager>(
+            context.getSystemService(android.app.role.RoleManager::class.java)
+        )
+        roles.addAvailableRole(SearchRoleManager.ROLE_SEARCH_ENGINE)
+        roles.addHeldRole(SearchRoleManager.ROLE_SEARCH_ENGINE)
+        compose.setContent {
+            IntelligentSearchTheme(darkTheme = false) { SearchRoleInfoDialog(LocalContext.current) {} }
+        }
+        compose.waitForIdle()
+        compose.onNodeWithText("Intelligent Search is your active Default Search Engine.").assertExists()
+        compose.onNodeWithText("You're all set").assertExists()
+        compose.onAllNodes(androidx.compose.ui.test.hasText("Default Search Engine")).assertCountEquals(0)
+        compose.onAllNodes(androidx.compose.ui.test.hasText("Copy Command")).assertCountEquals(0)
     }
 
     @Test

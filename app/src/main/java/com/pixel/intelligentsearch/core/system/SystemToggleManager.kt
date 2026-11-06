@@ -476,7 +476,10 @@ class SystemToggleManager @Inject constructor(
     }
 
     fun getBatterySaverStatusText(enabled: Boolean): String {
-        return if (enabled) "Battery Saver is active" else "Normal battery consumption"
+        val battery = context.getSystemService(android.os.BatteryManager::class.java)
+        val level = runCatching { battery?.getIntProperty(android.os.BatteryManager.BATTERY_PROPERTY_CAPACITY) }.getOrNull()
+        val charging = runCatching { battery?.isCharging }.getOrNull() == true
+        return batteryStatusText(level, charging, enabled)
     }
 
     fun openBatterySaverSettings() {
@@ -594,4 +597,14 @@ class SystemToggleManager @Inject constructor(
             }
         } catch (_: Exception) {}
     }
+}
+
+/** What a battery search answers: the level, whether it's charging, and Battery Saver when it's on. */
+internal fun batteryStatusText(level: Int?, charging: Boolean, saverOn: Boolean): String {
+    val parts = buildList {
+        if (level != null && level in 0..100) add("$level%")
+        if (charging) add("Charging")
+        if (saverOn) add("Battery Saver On")
+    }
+    return parts.joinToString(" • ").ifEmpty { "Battery Saver Off" }
 }

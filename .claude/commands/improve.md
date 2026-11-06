@@ -29,8 +29,7 @@ choose another target and say why.
 ## Step 2: Choose one target
 
 In this order: a requested target that passes Step 1; then the backlog item with the strongest evidence; then crashes
-and ANRs; then ratchet metrics that can go down (lint baseline, APK size); then gaps in test coverage around code
-that changed recently. Write one sentence: what it is, the evidence (`IMPROVEMENT.md` section 1), and which number
+and ANRs; then flaky CI failures; then ratchet metrics that can go down (CI time, test code, lint baseline, APK size). Write one sentence: what it is, the evidence (`IMPROVEMENT.md` section 1), and which number
 or check will prove it got better.
 
 If you can't name a measurable result, it isn't a target. Add it to the backlog as an idea and choose again.
@@ -46,7 +45,8 @@ Stop and ask the owner if the fix would touch anything in section 3.
 
 1. Write down the "before" value: the metric, or a test that fails today.
 2. Make the smallest change that moves it. No unrelated edits.
-3. Compile. Add the test that proves it (it must fail without the change).
+3. Compile. Remove the cause rather than adding a guard (`docs/IMPROVEMENT.md` section 1a). If a test is the only way
+   to keep this safe, say why. If the fix makes an existing test pointless, remove that test.
 4. Write down the "after" value. If any ratchet metric got worse, revert your change (only your edits; never restore
    files that had uncommitted changes before you started) or ask the owner whether the trade is worth it.
 
@@ -55,5 +55,5 @@ Stop and ask the owner if the fix would touch anything in section 3.
 - Add the ledger entry (template in `docs/LEDGER.md`) and update the ratchet values. Include `Retry only if` and a
   one-line lesson.
 - Commit and push as `docs/IMPROVEMENT.md` section 8 says. CI runs the tests.
-- Report to the owner in a few lines: target, evidence, before → after, commit, CI status, usage mode, and the next
-  strongest candidate (don't start it).
+- Report in a few lines: target, evidence, before → after, commit, CI status, usage mode, and the next strongest
+  candidate. The owner reads these later, so carry on with that candidate unless it needs them (section 4).

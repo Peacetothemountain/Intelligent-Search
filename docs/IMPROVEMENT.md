@@ -10,16 +10,36 @@ cleaner" or "feels faster" doesn't count until a number or a reproducible check 
 
 Accepted evidence, strongest first:
 
-1. A Play Console crash or ANR, a reproducible bug, or a failing test. Fixed means a new test fails without the fix
-   and passes with it.
-2. A measured number moved the right way: test count, lint baseline size, APK size, cold start, frame time or jank,
-   memory, a WCAG contrast ratio, a touch target size.
+1. A Play Console crash or ANR, a reproducible bug, or a failing test. Fixed means its cause is gone (section 1a).
+2. A measured number moved the right way: CI time, lines of test code, lint baseline size, APK size, cold start, frame
+   time or jank, memory, a WCAG contrast ratio, a touch target size.
 3. A platform rule broken today: a lint warning, an Android or Play policy, a deprecated API with a removal date.
 4. A written M3 or Android guideline the app breaks, cited by URL. Taste alone never counts.
 
 Not improvements: renames, reformatting, moving code around, swapping one library for another of equal weight,
 restyles nobody asked for, or "while I'm here" edits. Refactors only count when they make a measured fix possible or
 remove a measured cost.
+
+## 1a. Root causes, not more tests
+
+A test added to guard against an issue is not the fix. Find why the issue can happen and remove that, so it can't
+happen and the test isn't needed. The suite and CI should get smaller and better organized over time, not keep growing.
+
+In order of preference, fix a failure by:
+
+1. Making it impossible: one shared mechanism instead of copies, a type or required parameter, an injected clock or
+   dispatcher, deleting the code path.
+2. Having the build reject it: the compiler, or a lint rule.
+3. Only then a test, when the design can't rule the failure out. Say why in the ledger entry. Real logic with many
+   inputs (parsers, ranking, math), the data-safety tests (backups, migration, encryption) and `characterization/` earn
+   their place; removing one of these needs a reason of its own.
+
+A test can go once the failure it guards can no longer happen, when another test or a golden asserts the same thing, or
+when it only restates the code and couldn't catch a bug. Say which in the ledger. Removing a test because it is failing
+is never a reason: find out why it fails.
+
+A slow or flaky test is a symptom too. Look for the cause (a real-time wait, a missing seam, logic that can only be
+reached by rendering a screen) before adding retries, longer timeouts or more machines.
 
 ## 2. The ratchet
 
@@ -29,14 +49,16 @@ Each kept change must leave every number below **equal or better**. The current 
 | Metric | Direction | How to measure |
 |---|---|---|
 | Unit, characterization and screenshot tests | all pass | CI `Build & Check` (memory: CI runs the tests, not this PC) |
-| `@Test` count in `app/src/test` | never down | `grep -r "@Test" app/src/test --include=*.kt \| wc -l` |
+| Lines of test code | never up without a written reason | `find app/src/test -name '*.kt' \| xargs cat \| wc -l` |
+| CI time for `Build & Check` | never up without a written reason | `gh run list --branch dev`, full runs only; a cached docs commit isn't a measure |
+| Flaky CI failures | never up | failed runs that pass on re-run with no change; each one is a target |
 | Issues in `app/lint-baseline.xml` | never up | `grep -c '<issue$' app/lint-baseline.xml` |
 | Release APK size | never up without a written reason | size of `app/build/outputs/apk/release/app-release.apk` |
-| Known Play crashes without a test | never up | crash table in `docs/HISTORY.md` |
+| Known Play crashes without a traced fix | never up | crash table in `docs/HISTORY.md` |
 | Phone metrics (cold start, jank, memory) | never worse | only when the owner allows phone use; same build type, same steps, 3 runs, median |
 
 If a change makes one number better and another worse, it is a trade, not an improvement: write both numbers in the
-ledger and ask the owner before keeping it.
+ledger, and don't keep it unless the owner has asked for it.
 
 ## 3. Off limits
 
@@ -66,6 +88,9 @@ Rules:
 - Two failed attempts at the same target: stop, write what was learned, mark it `blocked`, and move on.
 - One target per cycle. A cycle ends with a ledger entry even when nothing changed. "Nothing worth changing" is a
   valid result.
+- The owner doesn't prompt each cycle. Choose the best course, keep going on `dev`, and leave the ledger as the record
+  for them to read later. What still needs the owner: pushing to `main`, `v*` tags and releases, using the phone,
+  anything in section 3, and choices a later reader couldn't undo.
 
 ## 5. Research before acting
 
@@ -113,7 +138,8 @@ Write the usage level in each ledger entry, so later cycles can see what each ki
 ## 8. Finishing a cycle
 
 1. Make all the edits, compile only (memory: test once at the end).
-2. Every bug fix gets a test that fails without it. New behavior gets tests.
+2. The cause of a bug is removed (section 1a). Reproduce it first: a failing run proves the fix. New behavior gets
+   tests only for logic the design can't make safe.
 3. Update the ratchet values in `docs/LEDGER.md` and add the cycle's entry.
 4. One short, plain commit on `dev`, American spelling, attribution as the session's current instructions say.
    Push `dev`, let CI run, then `git push origin dev:main` only after CI is green and only if asked.

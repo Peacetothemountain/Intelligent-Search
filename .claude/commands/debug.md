@@ -6,7 +6,8 @@ argument-hint: "<symptom, crash trace, or steps to reproduce>"
 Debug this in Intelligent Search: $ARGUMENTS
 
 Follow `docs/IMPROVEMENT.md` (budget in section 7, models in section 6, off limits in section 3). The goal is the real
-root cause, proved, then fixed with a test that fails without the fix. A guess that hides the symptom isn't a fix.
+root cause, proved, then removed so it can't come back (section 1a). A guess that hides the symptom isn't a fix, and
+neither is a test that guards against it.
 
 ## 1. Has this been seen before?
 
@@ -34,8 +35,8 @@ If the first theory turns out wrong, go up a level instead of guessing again.
 
 ## 4. Fix and prove
 
-1. Write the test that fails for the root cause.
-2. Make the smallest fix. Compile.
+1. Have a failing run that shows the root cause, from step 2.
+2. Make the fix that removes the cause. Compile. Keep a test only if the design can't rule the failure out.
 3. Check the fix doesn't make any ratchet value worse (`docs/LEDGER.md`).
 4. Add a ledger entry; for a Play crash, also add a row to the crash table in `docs/HISTORY.md`.
 5. Commit and push per section 8. Report: cause, evidence, fix, test name, commit, CI status.

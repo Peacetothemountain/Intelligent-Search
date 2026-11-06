@@ -36,12 +36,13 @@ fun disableHandRolledAnimations() {
  *    main thread and moves the clock one frame so the loaded result composes; with auto-advance off nothing
  *    else would, and the loop would run until its cap.
  * 2. Then a fixed schedule long enough for any entrance animation to finish, so the capture does not depend on
- *    how long loading took; each step also drains anything that arrived late.
+ *    how long loading took; each step also drains anything that arrived late. The clock here is virtual, so a
+ *    step only waits in real time while background work is running ([awaitBackgroundWork]).
  */
 fun ComposeTestRule.settle(steps: Int = 30, stepMs: Long = 100, realWaitMs: Long = 120, maxLoadingWaits: Int = 250) {
     val frameMs = 16L
-    fun drain(advanceMs: Long) {
-        Thread.sleep(realWaitMs)
+    fun drain(advanceMs: Long, wait: () -> Unit = { Thread.sleep(realWaitMs) }) {
+        wait()
         // Move the main looper's clock with the Compose clock, so work posted with a delay (debounces) runs at
         // the same point in every run instead of whenever the looper happens to be idled.
         if (advanceMs > 0) {
@@ -58,5 +59,27 @@ fun ComposeTestRule.settle(steps: Int = 30, stepMs: Long = 100, realWaitMs: Long
         drain(frameMs)
         waits++
     }
-    repeat(steps) { drain(stepMs) }
+    repeat(steps) { drain(stepMs) { awaitBackgroundWork(realWaitMs) } }
+}
+
+/** Waits, for at most [maxMs], until the app's background threads have stayed idle for a few checks in a row. */
+private fun awaitBackgroundWork(maxMs: Long) {
+    val deadline = System.nanoTime() + maxMs * 1_000_000
+    var idleChecks = 0
+    while (idleChecks < 3 && System.nanoTime() < deadline) {
+        idleChecks = if (backgroundWorkRunning()) 0 else idleChecks + 1
+        Thread.sleep(1)
+    }
+}
+
+/** True while a coroutine IO worker or Room thread is doing anything but waiting for its next task. */
+private fun backgroundWorkRunning(): Boolean {
+    var group = Thread.currentThread().threadGroup
+    while (group.parent != null) group = group.parent
+    val threads = arrayOfNulls<Thread>(group.activeCount() + 16)
+    val count = group.enumerate(threads)
+    return (0 until count).mapNotNull { threads[it] }.any { thread ->
+        val worker = thread.name.startsWith("DefaultDispatcher-worker") || thread.name.startsWith("arch_disk_io")
+        worker && thread.stackTrace.none { it.methodName == "getTask" || it.methodName == "tryPark" }
+    }
 }

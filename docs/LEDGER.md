@@ -9,11 +9,13 @@ Update these in the same commit as a change that improves them. Never let one ge
 
 | Metric | Value | Measured at |
 |---|---|---|
-| `@Test` count | 2337 | 2026-11-06, the At a Glance clock cycle |
+| Lines of test code | 52,322 | 2026-11-06, replaces the `@Test` count (owner: root causes over more tests) |
+| CI time, `Run Build & Check` | 1118s before the `settle` fix (run 42256710298, attempt 1) | updated by the next full run |
+| Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 19 | `0260afa7`, 2026-11-05 |
 | Release APK size | 12,920,597 bytes | local build 2026-11-05, `8fc5df48`; up 16 KB from `0260afa7` for the owner-requested Developer Note animations |
-| Known Play crashes without a test | 0 | `docs/HISTORY.md` crash table |
+| Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
 ## Backlog
@@ -34,6 +36,7 @@ with the strongest evidence.
 | B9 | Remove the Developer Note's repeats once Intelligent Search is default | Pixel 11, 2026-11-05: two cards say the same thing, and "Copy Command" still copies commands that no longer apply. Layout change, so it goes with the note's replacement animation. | 4 | 2026-11-05 |
 | B10 | Plain copy for Quick App Panel, Context Aware Quick Apps and Files | Pixel 11, 2026-11-05: "Fixed Applications Sourced from Application Search Menu", "User's App Opening Cycles", "via System Pickers" explain internals, against memory `user-copy-results-not-internals`. | 4 | 2026-11-05 |
 | B11 | Add tests for At a Glance media | The part of B3 still open: `glanceMedia` and `scaledArtwork` (`core/glance/GlanceSource.kt`) have 0 references in `app/src/test` on 2026-11-06. The decline helpers from B3 are now covered. | 2 | 2026-11-06 |
+| B12 | Stop CI downloading Android runtimes it should have cached | CI run 42256710298 failed on `0b9b1148`: `OverlayWaitsForPermissionGrantTest > classMethod`, `IOException` in Robolectric's `MavenArtifactFetcher`. The re-run passed with no code change. `sdk = [31]` was added 2026-10-30, but `.github/workflows/ci.yml` keys the cache `robolectric-<version>-sdk34`, and that entry (592 MB) dates from 2026-10-22 and is never rewritten. So SDK 31 is very likely fetched from the network on every run (inferred; the cache's contents weren't opened). 1 failure in the last 40 runs. Proof: the key changes with the set of SDKs in use, and a run shows the new cache holding `android-all` for 31. | 1 | 2026-11-06 |
 
 ## Entries
 
@@ -91,7 +94,22 @@ with the strongest evidence.
 - Result: kept
 - Retry only if: n/a
 - Commit: see `Fix At a Glance test that failed after 23:00` in `git log dev`
+- CI: attempt 1 failed on an unrelated download error (B12); attempt 2 on the same commit passed, `Build & Check` green on `0b9b1148`
 - Lesson: to test another hour, set `JAVA_TOOL_OPTIONS=-Duser.timezone=GMT+07:00` (choose the offset for the hour wanted) and run the classes with `--tests`. Tests that read the wall clock only fail at some hours, so a pass at one hour proves little.
+
+### 2026-11-06: Owner's rule, real-time waits in tests, CI running twice (includes B12)
+- Command: owner said "having to add a test just to avoid an issue is not the solution", and to take the best course without prompting
+- Target and evidence: 3 independent reviewers each found `settle()` sleeping a fixed 120ms per step, so 3.7s per default call with nothing running, about 265 call sites. 34.6 CPU minutes per CI run. CI ran the same 24-28 minute job again when a commit reached `main`, and `dev` couldn't write the Gradle cache. 400 of 3305 tests were one audit test skipping itself in every run
+- Prior work checked: this ledger; the reviewers read the tests and main code; I confirmed `Settle.kt`, `ci.yml`, branch protection (`strict: false`, check `Build & Check`)
+- Research: `validate-wrappers: true` in the CI log means `setup-gradle` already checks the wrapper, so the separate step repeated it
+- Models used: opus/high, 3 read-only reviewers (about 510k tokens); inline for the changes
+- Usage level: owner reported full; no figure visible. Normal mode
+- Change: `settle` waits in real time only while a coroutine IO or Room thread is working, up to the old limit; CI pushes run on `dev` only and `dev` writes the cache; Robolectric cache key names every SDK in use (B12) with a restore fallback; audit excluded from normal runs instead of skipping; redundant wrapper step removed; charter, `CLAUDE.md` and commands now put root causes before tests. No assertions and no app code changed
+- Before -> after: full suite 34.6 CPU minutes (CI) -> 9.5 (local run, same 0 failures; CI figure to confirm); 3305 tests with 400 skipped -> 2911 with 0 skipped, same tests run
+- Result: kept, pending CI
+- Retry only if: captures turn flaky; then find the background work `settle` can't see instead of restoring the sleep
+- Commit: see `Stop tests sleeping and CI running twice` in `git log dev`
+- Lesson: when one helper appears in most slow tests, measure the helper first. All 3 reviewers guessed "rendering" was the cost until they did the arithmetic.
 
 <!--
 Copy this for each cycle, newest at the bottom.

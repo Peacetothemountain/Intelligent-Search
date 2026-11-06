@@ -1,8 +1,10 @@
 name: CI Check & Build
 
+# Pushes run on dev only: main requires this job green on the exact commit, and a commit reaches main only after
+# passing here (git push origin dev:main), so a run on main would repeat the same check on the same code.
 on:
   push:
-    branches: [ main, dev ]
+    branches: [ dev ]
   pull_request:
     branches: [ main, dev ]
   workflow_dispatch:
@@ -32,26 +34,32 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
-
-      - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
+        with:
+          # dev is where work lands, so it keeps the cache warm: unchanged tasks, such as all of them on a docs-only
+          # commit, then come from the cache while the job still reports on that exact commit.
+          cache-read-only: ${{ github.ref != 'refs/heads/dev' }}
+          # Also checks the Gradle wrapper before anything runs.
+          validate-wrappers: true
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
       # Robolectric downloads the Android runtime its tests run on (android-all, about 150 MB) into the local Maven
-      # repository the first time; keep it between runs. A new Robolectric version or test SDK needs a new one.
+      # repository the first time; keep them between runs. A cache entry is never rewritten, so the key names every
+      # SDK the tests ask for: adding one saves a new entry, instead of downloading it again on every run.
       - name: Read Robolectric version and test SDK
         id: robolectric
         run: |
           echo "version=$(sed -n 's/^robolectric = "\([^"]*\)".*/\1/p' gradle/libs.versions.toml)" >> "$GITHUB_OUTPUT"
           echo "sdk=$(sed -n 's/^sdk=\([0-9]*\).*/\1/p' app/src/test/resources/robolectric.properties)" >> "$GITHUB_OUTPUT"
+          echo "sdks=$(grep -rhoE 'sdk = \[[0-9, ]+\]' app/src/test --include=*.kt | grep -oE '[0-9]+' | sort -un | paste -sd- -)" >> "$GITHUB_OUTPUT"
 
       - name: Cache Robolectric's Android runtime
         uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: ~/.m2/repository/org/robolectric
-          key: robolectric-${{ steps.robolectric.outputs.version }}-sdk${{ steps.robolectric.outputs.sdk }}
+          key: robolectric-${{ steps.robolectric.outputs.version }}-sdk${{ steps.robolectric.outputs.sdk }}-${{ steps.robolectric.outputs.sdks }}
+          restore-keys: robolectric-${{ steps.robolectric.outputs.version }}-
 
       # Lint fails on warnings not in app/lint-baseline.xml. CI has no signing key, so assembleRelease here only
       # proves the minified build compiles.

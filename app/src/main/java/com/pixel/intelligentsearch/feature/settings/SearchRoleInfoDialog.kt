@@ -240,6 +240,8 @@ internal fun DeveloperNotePage(context: Context) {
     val scheme = MaterialTheme.colorScheme
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         DeveloperNoteCards(context, scheme)
+        Spacer(Modifier.height(DiagnosticsCardSpacing))
+        DeveloperNoteAnimations(context)
     }
 }
 

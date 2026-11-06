@@ -28,6 +28,7 @@ import com.pixel.intelligentsearch.feature.settings.BatteryTelemetrySnapshot
 import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import com.pixel.intelligentsearch.feature.settings.DiagnosticsSample
 import com.pixel.intelligentsearch.feature.settings.DiagnosticsSampler
+import com.pixel.intelligentsearch.feature.settings.DeveloperNoteAnimations
 import com.pixel.intelligentsearch.feature.settings.DeveloperNotePage
 import com.pixel.intelligentsearch.feature.settings.HardwareSecurityPage
 import com.pixel.intelligentsearch.feature.settings.MemorySnapshot
@@ -96,6 +97,7 @@ class DiagnosticsGoldenTest(
                             )
                             "security" -> HardwareSecurityPage(HARDWARE, ATTESTATION, POSTURE)
                             "note" -> DeveloperNotePage(ApplicationProvider.getApplicationContext())
+                            "note_status" -> DeveloperNoteAnimations(ApplicationProvider.getApplicationContext())
                             else -> error("unknown page $page")
                         }
                     }
@@ -165,7 +167,10 @@ class DiagnosticsGoldenTest(
             arrayOf("security", false, 2f, DIALOG_WIDTH, 1880),
             arrayOf("security", false, 1f, 240, 960),
             arrayOf("note", false, 1f, DIALOG_WIDTH, 900),
-            arrayOf("note", true, 1f, DIALOG_WIDTH, 900)
+            arrayOf("note", true, 1f, DIALOG_WIDTH, 900),
+            arrayOf("note_status", false, 1f, DIALOG_WIDTH, 240),
+            arrayOf("note_status", true, 1f, DIALOG_WIDTH, 240),
+            arrayOf("note_status", false, 2f, DIALOG_WIDTH, 760)
         )
     }
 }

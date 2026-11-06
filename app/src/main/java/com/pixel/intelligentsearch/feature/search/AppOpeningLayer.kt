@@ -221,7 +221,7 @@ private fun AppOpeningSurface(opening: AppOpening, onProgress: (Float) -> Unit, 
     }
 }
 
-private fun lerpRect(a: Rect, b: Rect, t: Float) = Rect(
+internal fun lerpRect(a: Rect, b: Rect, t: Float) = Rect(
     lerp(a.left, b.left, t), lerp(a.top, b.top, t), lerp(a.right, b.right, t), lerp(a.bottom, b.bottom, t)
 )
 
@@ -229,7 +229,7 @@ private fun lerpRect(a: Rect, b: Rect, t: Float) = Rect(
  * Draws [look]'s splash icon centered on [center] at [scale] of its splash size. At full size it lands on the pixel
  * Android's splash icon view does: its square centered in the window, rounded down.
  */
-private fun DrawScope.drawSplashIcon(look: SplashLook, center: Offset, scale: Float, alpha: Float) {
+internal fun DrawScope.drawSplashIcon(look: SplashLook, center: Offset, scale: Float, alpha: Float) {
     val size = look.iconSizePx * scale
     drawIntoCanvas { canvas ->
         val native = canvas.nativeCanvas

@@ -189,56 +189,68 @@ internal const val CONTACTS_RATIONALE =
     "Intelligent Search needs your contacts so you can search, call, message and see contact details from the " +
         "search bar, and see their birthdays in At a Glance. Your contacts stay on your phone."
 
-/** A way to ask for the contacts: [request] answers at once when allowed, else explains first. */
-internal fun interface ContactsRequest {
+/** A way to ask for a permission: [request] answers at once when it is allowed, else explains first. */
+internal fun interface PermissionRequest {
     fun request()
 }
 
+/** What the app says when it asks for [permission], and how it knows the permission is [allowed]. */
+private class PermissionPrompt(
+    val permission: String,
+    val askTitle: String,
+    val askText: String,
+    val offTitle: String,
+    val offText: String,
+    val allowed: (Context) -> Boolean = { it.checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED }
+)
+
 /**
- * The contacts, asked the one way the app asks for them (contact search, At a Glance's birthdays): when allowed
- * [onResult] hears yes at once; otherwise [CONTACTS_RATIONALE] shows, then Android's prompt. Declining once just
- * answers no; once Android won't ask again, the user is offered Android's settings instead (allowed there, [onResult]
- * hears yes on the way back, [rememberSettingsGrant]), but not when they only closed Android's prompt
- * ([declinedForGood]). Shows its dialogs in place while they are up.
+ * A permission, asked the one way the app asks: when allowed [onGranted] runs at once; otherwise the explanation shows,
+ * then Android's prompt, and [onGranted] runs if the user allows it. Declining, or Not Now, runs [onNotGranted]. Once
+ * Android won't ask again ("Allow" then answers no at once), the user is offered Android's settings instead, and
+ * [onGranted] runs on the way back if they allowed it there ([rememberSettingsGrant]); not when they only closed
+ * Android's prompt ([declinedForGood]). Shows its dialogs in place while they are up.
  */
 @Composable
-internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): ContactsRequest {
+private fun rememberPermissionRequest(prompt: PermissionPrompt, onGranted: () -> Unit, onNotGranted: () -> Unit = {}): PermissionRequest {
     val context = LocalContext.current
-    val currentOnResult by rememberUpdatedState(onResult)
+    val currentOnGranted by rememberUpdatedState(onGranted)
+    val currentOnNotGranted by rememberUpdatedState(onNotGranted)
     var showRationale by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var rationaleBefore by remember { mutableStateOf(false) }
-    val settingsGrant = rememberSettingsGrant(Manifest.permission.READ_CONTACTS) { currentOnResult(true) }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { results ->
-        val granted = results.values.isNotEmpty() && results.values.all { it }
-        val activity = context.findActivity()
-        if (granted) forgetDecline(context, Manifest.permission.READ_CONTACTS)
-        currentOnResult(granted)
-        // Declined for good: only Android's settings can allow it now.
-        if (!granted && activity != null && declinedForGood(activity, Manifest.permission.READ_CONTACTS, rationaleBefore)) {
-            showSettings = true
+    val settingsGrant = rememberSettingsGrant(prompt.permission) { currentOnGranted() }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            forgetDecline(context, prompt.permission)
+            currentOnGranted()
+        } else {
+            currentOnNotGranted()
+            // Declined for good: only Android's settings can allow it now.
+            val activity = context.findActivity()
+            if (activity != null && declinedForGood(activity, prompt.permission, rationaleBefore)) showSettings = true
         }
     }
     if (showRationale) {
         PermissionRationaleDialog(
-            title = "Allow Contacts Access?",
-            text = CONTACTS_RATIONALE,
+            title = prompt.askTitle,
+            text = prompt.askText,
             confirm = "Allow",
             onConfirm = {
                 showRationale = false
-                rationaleBefore = rationaleShown(context, Manifest.permission.READ_CONTACTS)
-                permission.launch(arrayOf(Manifest.permission.READ_CONTACTS))
+                rationaleBefore = rationaleShown(context, prompt.permission)
+                launcher.launch(prompt.permission)
             },
             onDismiss = {
                 showRationale = false
-                currentOnResult(false)
+                currentOnNotGranted()
             }
         )
     }
     if (showSettings) {
         PermissionRationaleDialog(
-            title = "Contacts Access Is Off",
-            text = "Contacts access for Intelligent Search is turned off. Allow it in Android settings to search your contacts.",
+            title = prompt.offTitle,
+            text = prompt.offText,
             confirm = "Open Settings",
             onConfirm = {
                 showSettings = false
@@ -248,16 +260,29 @@ internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): Cont
         )
     }
     return remember(context) {
-        ContactsRequest {
-            if (contactsAllowed(context)) {
-                forgetDecline(context, Manifest.permission.READ_CONTACTS)
-                currentOnResult(true)
+        PermissionRequest {
+            if (prompt.allowed(context)) {
+                forgetDecline(context, prompt.permission)
+                currentOnGranted()
             } else {
                 showRationale = true
             }
         }
     }
 }
+
+private val CONTACTS_PROMPT = PermissionPrompt(
+    permission = Manifest.permission.READ_CONTACTS,
+    askTitle = "Allow Contacts Access?",
+    askText = CONTACTS_RATIONALE,
+    offTitle = "Contacts Access Is Off",
+    offText = "Contacts access for Intelligent Search is turned off. Allow it in Android settings to search your contacts."
+)
+
+/** The contacts, for contact search and At a Glance's birthdays: [onResult] hears yes or no. */
+@Composable
+internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): PermissionRequest =
+    rememberPermissionRequest(CONTACTS_PROMPT, onGranted = { onResult(true) }, onNotGranted = { onResult(false) })
 
 /** Whether the contacts may be read. */
 internal fun contactsAllowed(context: android.content.Context): Boolean =
@@ -268,75 +293,19 @@ internal const val CALENDAR_RATIONALE =
     "Intelligent Search needs your calendar to show your events for the next day in At a Glance. Your calendar " +
         "stays on your phone."
 
-/** A way to ask for the calendar: [request] answers at once when allowed, else explains first. */
-internal fun interface CalendarRequest {
-    fun request()
-}
+private val CALENDAR_PROMPT = PermissionPrompt(
+    permission = Manifest.permission.READ_CALENDAR,
+    askTitle = "Allow Calendar Access?",
+    askText = CALENDAR_RATIONALE,
+    offTitle = "Calendar Access Is Off",
+    offText = "Calendar access for Intelligent Search is turned off. Allow it in Android settings to see your " +
+        "upcoming events in At a Glance."
+)
 
-/**
- * The calendar, asked for the one way the app asks, and only as At a Glance's Calendar Events is turned on (setup
- * no longer asks for it): when allowed [onGranted] runs at once; otherwise [CALENDAR_RATIONALE] shows, then
- * Android's prompt, and [onGranted] runs if the user allows it. Declining once just leaves things off; once Android
- * won't ask again, the user is offered Android's settings instead, as contacts and location do, and [onGranted]
- * runs on the way back if they allowed it there ([rememberSettingsGrant]); not when they only closed Android's
- * prompt ([declinedForGood]). Shows its dialogs in place while they are up.
- */
+/** The calendar, asked only as At a Glance's Calendar Events is turned on (setup no longer asks for it). */
 @Composable
-internal fun rememberCalendarRequest(onGranted: () -> Unit): CalendarRequest {
-    val context = LocalContext.current
-    val currentOnGranted by rememberUpdatedState(onGranted)
-    var showRationale by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
-    var rationaleBefore by remember { mutableStateOf(false) }
-    val settingsGrant = rememberSettingsGrant(Manifest.permission.READ_CALENDAR) { currentOnGranted() }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        val activity = context.findActivity()
-        if (granted) {
-            forgetDecline(context, Manifest.permission.READ_CALENDAR)
-            currentOnGranted()
-        }
-        // Declined for good: only Android's settings can allow it now.
-        else if (activity != null && declinedForGood(activity, Manifest.permission.READ_CALENDAR, rationaleBefore)) {
-            showSettings = true
-        }
-    }
-    if (showRationale) {
-        PermissionRationaleDialog(
-            title = "Allow Calendar Access?",
-            text = CALENDAR_RATIONALE,
-            confirm = "Allow",
-            onConfirm = {
-                showRationale = false
-                rationaleBefore = rationaleShown(context, Manifest.permission.READ_CALENDAR)
-                permission.launch(Manifest.permission.READ_CALENDAR)
-            },
-            onDismiss = { showRationale = false }
-        )
-    }
-    if (showSettings) {
-        PermissionRationaleDialog(
-            title = "Calendar Access Is Off",
-            text = "Calendar access for Intelligent Search is turned off. Allow it in Android settings to see your " +
-                "upcoming events in At a Glance.",
-            confirm = "Open Settings",
-            onConfirm = {
-                showSettings = false
-                settingsGrant.open()
-            },
-            onDismiss = { showSettings = false }
-        )
-    }
-    return remember(context) {
-        CalendarRequest {
-            if (calendarAllowed(context)) {
-                forgetDecline(context, Manifest.permission.READ_CALENDAR)
-                currentOnGranted()
-            } else {
-                showRationale = true
-            }
-        }
-    }
-}
+internal fun rememberCalendarRequest(onGranted: () -> Unit): PermissionRequest =
+    rememberPermissionRequest(CALENDAR_PROMPT, onGranted)
 
 /** Whether the calendar may be read. */
 internal fun calendarAllowed(context: Context): Boolean =
@@ -347,137 +316,39 @@ internal const val PHONE_CALLS_RATIONALE =
     "Direct Call places the call as soon as you tap a contact. Allow phone calls for that; otherwise tapping a " +
         "contact opens the dialer with the number ready."
 
-/** A way to ask to make phone calls: [request] does nothing when allowed, else explains first. */
-internal fun interface PhoneCallsRequest {
-    fun request()
-}
+private val PHONE_CALLS_PROMPT = PermissionPrompt(
+    permission = Manifest.permission.CALL_PHONE,
+    askTitle = "Allow Phone Calls?",
+    askText = PHONE_CALLS_RATIONALE,
+    offTitle = "Phone Calls Are Off",
+    offText = "Phone calls for Intelligent Search are turned off. Allow them in Android settings for Direct Call " +
+        "to place your calls; until then, tapping a contact opens the dialer with the number ready.",
+    allowed = com.pixel.intelligentsearch.feature.search.ContactActions::canCallDirectly
+)
 
 /**
- * Phone calls for Direct Call, asked the one way the app asks: when they are allowed nothing more is needed;
- * otherwise [PHONE_CALLS_RATIONALE] shows, then Android's prompt. Declining keeps Direct Call on, opening the dialer
- * instead ([com.pixel.intelligentsearch.feature.search.ContactActions.open]). Once Android won't ask again, the user
- * is offered Android's settings instead, as contacts and location do. Shows its dialogs in place while they are up.
+ * Phone calls for Direct Call. Declining keeps Direct Call on, opening the dialer instead
+ * ([com.pixel.intelligentsearch.feature.search.ContactActions.open]), so there is nothing to answer.
  */
 @Composable
-internal fun rememberPhoneCallsRequest(): PhoneCallsRequest {
-    val context = LocalContext.current
-    var showRationale by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
-    var rationaleBefore by remember { mutableStateOf(false) }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        val activity = context.findActivity()
-        if (granted) forgetDecline(context, Manifest.permission.CALL_PHONE)
-        else if (activity != null && declinedForGood(activity, Manifest.permission.CALL_PHONE, rationaleBefore)) {
-            showSettings = true
-        }
-    }
-    if (showRationale) {
-        PermissionRationaleDialog(
-            title = "Allow Phone Calls?",
-            text = PHONE_CALLS_RATIONALE,
-            confirm = "Allow",
-            onConfirm = {
-                showRationale = false
-                rationaleBefore = rationaleShown(context, Manifest.permission.CALL_PHONE)
-                permission.launch(Manifest.permission.CALL_PHONE)
-            },
-            onDismiss = { showRationale = false }
-        )
-    }
-    if (showSettings) {
-        PermissionRationaleDialog(
-            title = "Phone Calls Are Off",
-            text = "Phone calls for Intelligent Search are turned off. Allow them in Android settings for Direct Call " +
-                "to place your calls; until then, tapping a contact opens the dialer with the number ready.",
-            confirm = "Open Settings",
-            onConfirm = {
-                showSettings = false
-                openSettingsPageToGrant(context, appDetailsSettings(context.packageName))
-            },
-            onDismiss = { showSettings = false }
-        )
-    }
-    return remember(context) {
-        PhoneCallsRequest {
-            if (com.pixel.intelligentsearch.feature.search.ContactActions.canCallDirectly(context)) {
-                forgetDecline(context, Manifest.permission.CALL_PHONE)
-            } else {
-                showRationale = true
-            }
-        }
-    }
-}
+internal fun rememberPhoneCallsRequest(): PermissionRequest = rememberPermissionRequest(PHONE_CALLS_PROMPT, onGranted = {})
 
 /** What weather answers say before Android asks for approximate location. */
 internal const val LOCATION_RATIONALE =
     "The weather can use your phone's approximate location, never its precise one. Only rounded coordinates " +
         "are sent to Open-Meteo for the forecast, and only when you ask for the weather."
 
-/** A way to ask for approximate location: [request] answers at once when allowed, else explains first. */
-internal fun interface ApproximateLocationRequest {
-    fun request()
-}
+private val LOCATION_PROMPT = PermissionPrompt(
+    permission = Manifest.permission.ACCESS_COARSE_LOCATION,
+    askTitle = "Allow Approximate Location?",
+    askText = LOCATION_RATIONALE,
+    offTitle = "Location Access Is Off",
+    offText = "Location access for Intelligent Search is turned off. Allow approximate location in Android " +
+        "settings to get the weather where you are, or choose a place with Set Location on the weather card.",
+    allowed = { AndroidDeviceLocation(it).permitted() }
+)
 
-/**
- * Approximate location for weather answers, asked the one way the app asks for it: when it is already allowed
- * [onGranted] runs at once; otherwise the rationale ([LOCATION_RATIONALE]) shows, then Android's prompt, and
- * [onGranted] runs if the user allows it. Once Android won't ask again ("Allow" then answers no at once), the user
- * is offered Android's settings instead, as contacts do, and [onGranted] runs on the way back if they allowed it there;
- * not when they only closed Android's prompt ([declinedForGood]). Shows its dialogs in place while they are up.
- */
+/** Approximate location for weather answers. */
 @Composable
-internal fun rememberApproximateLocationRequest(onGranted: () -> Unit): ApproximateLocationRequest {
-    val context = LocalContext.current
-    val currentOnGranted by rememberUpdatedState(onGranted)
-    var showRationale by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
-    var rationaleBefore by remember { mutableStateOf(false) }
-    val settingsGrant = rememberSettingsGrant(Manifest.permission.ACCESS_COARSE_LOCATION) { currentOnGranted() }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        val activity = context.findActivity()
-        if (granted) {
-            forgetDecline(context, Manifest.permission.ACCESS_COARSE_LOCATION)
-            currentOnGranted()
-        }
-        // Declined for good: only Android's settings can allow it now.
-        else if (activity != null && declinedForGood(activity, Manifest.permission.ACCESS_COARSE_LOCATION, rationaleBefore)) {
-            showSettings = true
-        }
-    }
-    if (showSettings) {
-        PermissionRationaleDialog(
-            title = "Location Access Is Off",
-            text = "Location access for Intelligent Search is turned off. Allow approximate location in Android " +
-                "settings to get the weather where you are, or choose a place with Set Location on the weather card.",
-            confirm = "Open Settings",
-            onConfirm = {
-                showSettings = false
-                settingsGrant.open()
-            },
-            onDismiss = { showSettings = false }
-        )
-    }
-    if (showRationale) {
-        PermissionRationaleDialog(
-            title = "Allow Approximate Location?",
-            text = LOCATION_RATIONALE,
-            confirm = "Allow",
-            onConfirm = {
-                showRationale = false
-                rationaleBefore = rationaleShown(context, Manifest.permission.ACCESS_COARSE_LOCATION)
-                permission.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
-            },
-            onDismiss = { showRationale = false }
-        )
-    }
-    return remember(context) {
-        ApproximateLocationRequest {
-            if (AndroidDeviceLocation(context).permitted()) {
-                forgetDecline(context, Manifest.permission.ACCESS_COARSE_LOCATION)
-                currentOnGranted()
-            } else {
-                showRationale = true
-            }
-        }
-    }
-}
+internal fun rememberApproximateLocationRequest(onGranted: () -> Unit): PermissionRequest =
+    rememberPermissionRequest(LOCATION_PROMPT, onGranted)

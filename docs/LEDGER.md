@@ -9,8 +9,8 @@ Update these in the same commit as a change that improves them. Never let one ge
 
 | Metric | Value | Measured at |
 |---|---|---|
-| Lines of test code | 52,322 | 2026-11-06, replaces the `@Test` count (owner: root causes over more tests) |
-| CI time, `Run Build & Check` | 1118s before the `settle` fix (run 42256710298, attempt 1) | updated by the next full run |
+| Lines of test code | 52,098 | 2026-11-06, replaces the `@Test` count (owner: root causes over more tests) |
+| CI time, `Run Build & Check` | 773s (was 1118s) | run 42272997745 on `89526acd` |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 19 | `0260afa7`, 2026-11-05 |
@@ -106,10 +106,26 @@ with the strongest evidence.
 - Usage level: owner reported full; no figure visible. Normal mode
 - Change: `settle` waits in real time only while a coroutine IO or Room thread is working, up to the old limit; CI pushes run on `dev` only and `dev` writes the cache; Robolectric cache key names every SDK in use (B12) with a restore fallback; audit excluded from normal runs instead of skipping; redundant wrapper step removed; charter, `CLAUDE.md` and commands now put root causes before tests. No assertions and no app code changed
 - Before -> after: full suite 34.6 CPU minutes (CI) -> 9.5 (local run, same 0 failures; CI figure to confirm); 3305 tests with 400 skipped -> 2911 with 0 skipped, same tests run
-- Result: kept, pending CI
+- Result: kept. CI `Build & Check` green on `89526acd`: 1118s -> 773s. Full suite passed twice locally as well. The new Robolectric cache is 124 MB larger than the old one, about one runtime, which supports the B12 reading that SDK 31 was missing
 - Retry only if: captures turn flaky; then find the background work `settle` can't see instead of restoring the sleep
 - Commit: see `Stop tests sleeping and CI running twice` in `git log dev`
 - Lesson: when one helper appears in most slow tests, measure the helper first. All 3 reviewers guessed "rendering" was the cost until they did the arithmetic.
+
+### 2026-11-06: Enter acting on stale results, permission flow copied four times
+- Command: continuing without prompts, from the 3 reviewers' findings
+- Target and evidence: (1) `submitWhenSettled` waited up to 500ms for composed state to catch up to the view model, then went ahead anyway, so with a late composition Enter or the voice check opened the previous query's Best Match. Read from the code; not reproduced on a phone. (2) Contacts, calendar, phone calls and location each held their own copy of the same flow, about 60 lines each, and they had drifted: phone calls skipped the check on return from App info
+- Prior work checked: this ledger; `git log dev -S"withTimeoutOrNull(500)"`; claude-mem #14522
+- Research: `awaitSearch` returns once the view model holds this query's results, so nothing needs to wait for composition
+- Models used: inline
+- Usage level: owner reported full; no figure visible. Normal mode
+- Change: Enter reads `viewModel.uiState.value` through the same `visibleAppsIn` and `bestMatchIn` the screen draws with, and the timeout is gone; one `rememberPermissionRequest` driven by a `PermissionPrompt` for all four, and contacts uses the same single-permission request as the others
+- Tests removed, 20 in all: guarded a copy that no longer exists (2 in `PhoneCallsRequestTest`, 2 in `DeclinedPermissionTest`); same flow with and without a flag, and only one order happens on a phone (4 in `GrantedInSettingsTest`, keeping the Android-order version and the extra checks); repeats (`enterRunsAFullTimerPhraseToo`, `aHighlightedResultOpens`, `enterRunsTheShortPhrasingsAction`, `aCancelledSwipeStaysOnThePage`); a retired key only `REMOVED_NAMES` mentions (`anOlderBuildsSearchTheWebNoLongerSkipsTheBestMatch`, `theOldContactActionsSwitchNoLongerHidesThem`, 2 for `search.android.settings`); constants restated (`testRoleManager_constantsIntegrity`, `testFrameRateCategoryConstants`, `mockLargeDatasetHasFiftyContactsAndFiftyFiles`); `theManifestDeclaresExactlyOneNotificationListener`, whose permission check moved into `androidFindsOneListenerInTheApp`
+- Test changed, assertions untouched: the fake prompt in `SearchSourcesPermissionTest` answered in the removed multi-permission format
+- Before -> after: app code 76,634 -> 76,502 lines; test code 52,322 -> 52,098; full suite 2911 tests -> 2891, 0 failures
+- Result: kept, pending CI. Permission dialogs not checked by eye on the phone; goldens unchanged
+- Retry only if: a phone shows Enter opening the wrong result, or a permission flow behaving differently from before
+- Commit: see `Fix Enter on stale results, share one permission flow` in `git log dev`
+- Lesson: read the app code behind a slow test before speeding the test up. Half of this batch was a real race that a timeout was hiding.
 
 <!--
 Copy this for each cycle, newest at the bottom.

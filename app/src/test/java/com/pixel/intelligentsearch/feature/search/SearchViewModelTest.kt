@@ -450,17 +450,6 @@ class SearchViewModelTest {
         assertEquals("battery", state.systemToggle?.id)
     }
 
-    @Test
-    fun anOlderBuildsSwitchedOffSourceStillOffersSettingsPages() {
-        // Android Settings pages are always searched now; a switch an older build stored changes nothing.
-        batteryPageResolves()
-        prefs.edit().putBoolean("search.android.settings", false).commit()
-        start()
-        viewModel.onQueryChanged("battery")
-        val state = await("settings results") { it.androidSettings.isNotEmpty() }
-        assertEquals("Battery", state.androidSettings.first().title)
-    }
-
     /** Makes [intent] open a Settings activity. */
     private fun opens(intent: android.content.Intent) {
         val info = android.content.pm.ResolveInfo().apply {

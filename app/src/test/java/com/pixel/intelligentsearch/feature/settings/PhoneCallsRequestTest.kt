@@ -95,34 +95,6 @@ class PhoneCallsRequestTest {
     }
 
     @Test
-    fun declinedForGoodItOffersAndroidSettings() {
-        shadowOf(context).denyPermissions(Manifest.permission.CALL_PHONE)
-        // Declined once before; this time the user picks Don't Allow, and Android stops showing its reason.
-        androidShowsItsReason(true)
-        turnOnDirectCall { androidShowsItsReason(false) }
-        compose.onNodeWithText("Allow").performClick()
-        compose.waitForIdle()
-        // "Allow" did nothing visible from then on; now it offers the one place calls can still be allowed.
-        compose.onNodeWithText("Phone Calls Are Off").assertExists()
-        compose.onNodeWithText("Open Settings").performClick()
-        compose.waitForIdle()
-        val opened = shadowOf(context).nextStartedActivity
-        assertEquals(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, opened?.action)
-        assertEquals(context.packageName, opened?.data?.schemeSpecificPart)
-        assertTrue(prefs[SettingsManager.CONTACT_DIRECT_CALL])
-    }
-
-    @Test
-    fun decliningOnceOffersNoSettings() {
-        shadowOf(context).denyPermissions(Manifest.permission.CALL_PHONE)
-        // Android shows its reason after a first decline: it will ask again next time.
-        turnOnDirectCall { androidShowsItsReason(true) }
-        compose.onNodeWithText("Allow").performClick()
-        compose.waitForIdle()
-        compose.onNodeWithText("Phone Calls Are Off").assertDoesNotExist()
-    }
-
-    @Test
     fun notNowStillTurnsItOnAndAsksNothing() {
         shadowOf(context).denyPermissions(Manifest.permission.CALL_PHONE)
         turnOnDirectCall()

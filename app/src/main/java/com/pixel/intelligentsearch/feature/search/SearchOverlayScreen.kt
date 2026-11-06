@@ -577,26 +577,25 @@ fun SearchOverlayScreen(
         }
     }
 
-    val visibleApps by remember {
-        derivedStateOf {
-            val hidden = settingsState.hiddenApps
-            uiState.filteredApps.filter { !hidden.contains(it.packageName) }.distinctBy { it.packageName to it.userHandle }
-        }
+    // The apps and Best Match for a set of results: what the screen draws, and what Enter opens from the newest results.
+    fun visibleAppsIn(state: SearchUiState): List<AppItem> {
+        val hidden = settingsState.hiddenApps
+        return state.filteredApps.filter { !hidden.contains(it.packageName) }.distinctBy { it.packageName to it.userHandle }
     }
 
-    val bestMatch by remember {
-        derivedStateOf {
-            BestMatch.find(
-                uiState.query,
-                listOf(
-                    BestMatch.Domain(appWeight, settingsState.searchApps, visibleApps, ResultKeys::app) { it.name },
-                    BestMatch.Domain(contactWeight, settingsState.searchContacts, uiState.contacts, ResultKeys::contact) { it.name },
-                    BestMatch.Domain(fileWeight, settingsState.searchFiles, uiState.files, ResultKeys::file) { it.name }
-                ),
-                learnedPick = uiState.learnedPick
-            )
-        }
-    }
+    fun bestMatchIn(state: SearchUiState, apps: List<AppItem>): Any? = BestMatch.find(
+        state.query,
+        listOf(
+            BestMatch.Domain(appWeight, settingsState.searchApps, apps, ResultKeys::app) { it.name },
+            BestMatch.Domain(contactWeight, settingsState.searchContacts, state.contacts, ResultKeys::contact) { it.name },
+            BestMatch.Domain(fileWeight, settingsState.searchFiles, state.files, ResultKeys::file) { it.name }
+        ),
+        learnedPick = state.learnedPick
+    )
+
+    val visibleApps by remember { derivedStateOf { visibleAppsIn(uiState) } }
+
+    val bestMatch by remember { derivedStateOf { bestMatchIn(uiState, visibleApps) } }
 
     val bestMatchText by remember {
         derivedStateOf {
@@ -639,10 +638,13 @@ fun SearchOverlayScreen(
     // guessed (enterAction; a guessed one waits for a tap), else the best match opens, then a typed web address, Quick
     // Launch, and finally a web search.
     val submitQuery: (String, Boolean) -> Unit = submit@{ submittedQuery, fromVoice ->
+        // The view model's results, not the ones composed here, which can still be the previous query's.
+        val results = viewModel.uiState.value
+        val apps = visibleAppsIn(results)
         val outcome = OverlayEnterKey.decide(
             query = submittedQuery,
             highlighted = null,
-            phrasingAction = uiState.enterAction?.takeIf { it.intent != null },
+            phrasingAction = results.enterAction?.takeIf { it.intent != null },
             // A bang is an explicit request for that site: it must not be taken over by an app match or Quick Launch
             // ("!g maps" would otherwise open Maps).
             isBang = submittedQuery.isNotEmpty() && viewModel.resolveBangIntent(submittedQuery) != null
@@ -665,7 +667,7 @@ fun SearchOverlayScreen(
             else -> return@submit
         }
         viewModel.addSearchHistory(submittedQuery)
-        when (val match = bestMatch) {
+        when (val match = bestMatchIn(results, apps)) {
             is ContactItem -> {
                 viewModel.recordOpened(match)
                 // A spoken name can be misheard, so voice opens the contact rather than calling straight away.
@@ -677,8 +679,8 @@ fun SearchOverlayScreen(
                 openFileResult(context, prefs, match)
             }
             else -> when {
-                uiState.instantAnswer?.iconType == "url" -> uiState.instantAnswer?.let { answer -> openWebAddress(answer.title) }
-                settingsState.appQuickLaunch && visibleApps.isNotEmpty() -> visibleApps.first().let { app -> performAppLaunch(app, LaunchSource.keyboard(LaunchIconKeys.app(app))) }
+                results.instantAnswer?.iconType == "url" -> results.instantAnswer?.let { answer -> openWebAddress(answer.title) }
+                settingsState.appQuickLaunch && apps.isNotEmpty() -> apps.first().let { app -> performAppLaunch(app, LaunchSource.keyboard(LaunchIconKeys.app(app))) }
                 else -> launchWebSearch(submittedQuery)
             }
         }
@@ -688,11 +690,6 @@ fun SearchOverlayScreen(
     // results first.
     val submitWhenSettled: suspend (String, Boolean) -> Unit = { query, fromVoice ->
         viewModel.awaitSearch()
-        // The results reach this screen through a collector; wait until what is composed here is what the view
-        // model holds, so bestMatch is for this query and not the one before it.
-        kotlinx.coroutines.withTimeoutOrNull(500) {
-            snapshotFlow { uiState === viewModel.uiState.value && uiState.query == query }.first { it }
-        }
         // The user may have typed on meanwhile; then this query is theirs no longer.
         if (viewModel.uiState.value.query == query) submitQuery(query, fromVoice)
     }

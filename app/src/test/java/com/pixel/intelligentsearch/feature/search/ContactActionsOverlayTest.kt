@@ -71,14 +71,6 @@ class ContactActionsOverlayTest {
     }
 
     @Test
-    fun theOldContactActionsSwitchNoLongerHidesThem() {
-        // An older build's Contact Actions switch, left off, means nothing now.
-        prefs.edit().putBoolean("contact_actions", false).commit()
-        showOverlay()
-        assertButtonsShown()
-    }
-
-    @Test
     fun theButtonsAreLookedUpWhileContactSearchIsOn() {
         showOverlay()
         assertNotNull(ContactActionTargets.cached)

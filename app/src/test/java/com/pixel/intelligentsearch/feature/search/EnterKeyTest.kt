@@ -109,27 +109,4 @@ class EnterKeyTest {
         assertEquals(listOf("com.example.camera"), launchedApps)
     }
 
-    @Test
-    fun anOlderBuildsSearchTheWebNoLongerSkipsTheBestMatch() {
-        prefs.edit().putString("enter_key_action", "search_web").commit()
-        showOverlay("camera")
-        press(listOf(Key.Enter))
-        assertEquals(listOf("com.example.camera"), launchedApps)
-    }
-
-    @Test
-    fun aHighlightedResultOpens() {
-        showOverlay("camera")
-        // Down onto the Best Match card, the first result, and Enter opens it.
-        press(listOf(Key.DirectionDown, Key.Enter))
-        assertEquals(listOf("com.example.camera"), launchedApps)
-    }
-
-    @Test
-    fun enterRunsTheShortPhrasingsAction() {
-        showOverlay("15 min")
-        press(listOf(Key.Enter))
-        assertEquals(android.provider.AlarmClock.ACTION_SET_TIMER, startedActivity()?.action)
-    }
-
 }

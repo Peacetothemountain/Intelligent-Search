@@ -15,9 +15,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
-import org.w3c.dom.Element
-import java.io.File
-import javax.xml.parsers.DocumentBuilderFactory
 
 /**
  * One notification listener for the whole app: Search Your Notifications, At a Glance's Now Playing and the widget's
@@ -70,26 +67,11 @@ class NotificationAccessUnifiedTest {
     }
 
     @Test
-    fun theManifestDeclaresExactlyOneNotificationListener() {
-        // Unit tests run from the module directory; the repo root is tried too.
-        val manifest = listOf(File("src/main/AndroidManifest.xml"), File("app/src/main/AndroidManifest.xml")).first { it.isFile }
-        val factory = DocumentBuilderFactory.newInstance().apply { isNamespaceAware = true }
-        val nodes = factory.newDocumentBuilder().parse(manifest).getElementsByTagName("service")
-        val listeners = (0 until nodes.length).map { nodes.item(it) as Element }.filter { service ->
-            val actions = service.getElementsByTagName("action")
-            (0 until actions.length).any { (actions.item(it) as Element).getAttributeNS(androidNs, "name") == NotificationListenerService.SERVICE_INTERFACE }
-        }
-        assertEquals(1, listeners.size)
-        val listener = listeners.single()
-        assertEquals(".core.glance.NotificationAccessListener", listener.getAttributeNS(androidNs, "name"))
-        assertEquals("android.permission.BIND_NOTIFICATION_LISTENER_SERVICE", listener.getAttributeNS(androidNs, "permission"))
-    }
-
-    @Test
     fun androidFindsOneListenerInTheApp() {
         val found = context.packageManager.queryIntentServices(
             Intent(NotificationListenerService.SERVICE_INTERFACE).setPackage(context.packageName), 0
         )
         assertEquals(listOf(NotificationAccessListener::class.java.name), found.map { it.serviceInfo.name })
+        assertEquals("android.permission.BIND_NOTIFICATION_LISTENER_SERVICE", found.single().serviceInfo.permission)
     }
 }

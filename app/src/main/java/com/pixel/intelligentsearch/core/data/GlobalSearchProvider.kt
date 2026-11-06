@@ -17,13 +17,14 @@ import android.provider.BaseColumns
 import android.util.Log
 import com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine
 import com.pixel.intelligentsearch.di.appEntryPoint
+import androidx.core.net.toUri
 
 class GlobalSearchProvider : ContentProvider() {
 
     companion object {
         private const val TAG = "GlobalSearchProvider"
         const val AUTHORITY = "com.pixel.intelligentsearch.globalsearch"
-        val CONTENT_URI: Uri = Uri.parse("content://$AUTHORITY/search")
+        val CONTENT_URI: Uri = "content://$AUTHORITY/search".toUri()
         private const val SEARCH_PATH = "search"
 
         /**

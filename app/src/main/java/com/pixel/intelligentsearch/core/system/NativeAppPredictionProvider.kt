@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.content.edit
 
 /**
  * Suggested apps for the empty overlay: Pixel Launcher predictions when readable, else apps used in the last
@@ -86,10 +87,10 @@ class NativeAppPredictionProvider @Inject constructor(
         try {
             val prefs = context.getSharedPreferences("NATIVE_APP_LAUNCH_PREDICTIONS", Context.MODE_PRIVATE)
             val currentCount = prefs.getInt("count_$packageName", 0)
-            prefs.edit()
-                .putInt("count_$packageName", currentCount + 1)
-                .putLong("time_$packageName", System.currentTimeMillis())
-                .apply()
+            prefs.edit {
+                putInt("count_$packageName", currentCount + 1)
+                putLong("time_$packageName", System.currentTimeMillis())
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to record local app launch prediction", e)
         }

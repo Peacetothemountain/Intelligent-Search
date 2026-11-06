@@ -45,9 +45,7 @@ fun AnimatedBugdroidEmoji(
         android.graphics.BitmapFactory.decodeResource(
             resources,
             R.drawable.ic_bugdroid_balloon,
-            android.graphics.BitmapFactory.Options().apply {
-                inScaled = false
-            }
+            mascotDecodeOptions()
         ).asImageBitmap()
     }
 
@@ -55,9 +53,7 @@ fun AnimatedBugdroidEmoji(
         android.graphics.BitmapFactory.decodeResource(
             resources,
             R.drawable.ic_bugdroid_body,
-            android.graphics.BitmapFactory.Options().apply {
-                inScaled = false
-            }
+            mascotDecodeOptions()
         ).asImageBitmap()
     }
 
@@ -65,9 +61,7 @@ fun AnimatedBugdroidEmoji(
         android.graphics.BitmapFactory.decodeResource(
             resources,
             R.drawable.ic_bugdroid_body_half,
-            android.graphics.BitmapFactory.Options().apply {
-                inScaled = false
-            }
+            mascotDecodeOptions()
         )?.asImageBitmap() ?: bodyOpenBitmap
     }
 
@@ -75,9 +69,7 @@ fun AnimatedBugdroidEmoji(
         android.graphics.BitmapFactory.decodeResource(
             resources,
             R.drawable.ic_bugdroid_body_blink,
-            android.graphics.BitmapFactory.Options().apply {
-                inScaled = false
-            }
+            mascotDecodeOptions()
         )?.asImageBitmap() ?: bodyOpenBitmap
     }
 
@@ -181,4 +173,13 @@ fun AnimatedBugdroidEmoji(
                 }
         )
     }
+}
+
+/**
+ * The mascot's layers are 418x587 and drawn at 40x56 dp, so half size is still sharp on any phone: 245 KB a layer
+ * instead of 981 KB, and four times less to decode.
+ */
+internal fun mascotDecodeOptions() = android.graphics.BitmapFactory.Options().apply {
+    inScaled = false
+    inSampleSize = 2
 }

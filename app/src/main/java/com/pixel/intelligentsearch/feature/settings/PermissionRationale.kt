@@ -129,7 +129,7 @@ internal fun rememberSettingsGrant(permission: String, onGranted: () -> Unit): S
 }
 
 /** The permissions the user has declined at least once, kept apart from the settings (never backed up or shown). */
-private const val DECLINED_PERMISSIONS = "declined_permissions"
+internal const val DECLINED_PERMISSIONS = "declined_permissions"
 
 /**
  * Whether [permission], just declined, can now only be allowed in Android's settings. [rationaleBefore] is Android's

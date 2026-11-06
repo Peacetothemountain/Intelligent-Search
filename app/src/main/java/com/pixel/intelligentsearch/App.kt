@@ -21,6 +21,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
+import androidx.core.content.edit
 
 @HiltAndroidApp
 class App : Application(), androidx.work.Configuration.Provider {
@@ -127,7 +128,7 @@ class App : Application(), androidx.work.Configuration.Provider {
         val maintenance = getSharedPreferences(MAINTENANCE_PREFS, MODE_PRIVATE)
         if (maintenance.getBoolean(KEY_RETIRED_SECRETS_REMOVED, false)) return
         appEntryPoint.strongBoxSecurityManager().removeRetiredSecrets()
-        maintenance.edit().putBoolean(KEY_RETIRED_SECRETS_REMOVED, true).apply()
+        maintenance.edit { putBoolean(KEY_RETIRED_SECRETS_REMOVED, true) }
     }
 
     /**

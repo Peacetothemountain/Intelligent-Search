@@ -37,6 +37,7 @@ import kotlinx.coroutines.isActive
 import org.intellij.lang.annotations.Language
 import kotlin.math.PI
 import kotlin.math.sin
+import androidx.core.graphics.createBitmap
 
 /**
  * AGSL GPU fragment shader generating the 4-point astroid sparkle matrix grid.
@@ -246,7 +247,7 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
             val totalRecordedPoints = ptr
 
             val spriteDimension = (sparkleSize * 2.5f).toInt().coerceAtLeast(16)
-            val spriteBitmap = Bitmap.createBitmap(spriteDimension, spriteDimension, Bitmap.Config.ARGB_8888)
+            val spriteBitmap = createBitmap(spriteDimension, spriteDimension, Bitmap.Config.ARGB_8888)
             val spriteCanvas = Canvas(spriteBitmap)
             val spriteHalf = spriteDimension / 2f
 

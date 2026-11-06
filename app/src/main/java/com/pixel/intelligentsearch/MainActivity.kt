@@ -27,6 +27,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import com.pixel.intelligentsearch.feature.search.SearchViewModel
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.core.graphics.drawable.toDrawable
 
 @AndroidEntryPoint
 open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.system.WaitsForPermissionGrant {
@@ -305,7 +306,7 @@ open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.
             splashScreenView.remove()
         }
 
-        window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT))
+        window.setBackgroundDrawable(android.graphics.Color.TRANSPARENT.toDrawable())
         window.setDimAmount(0f)
         window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         window.setWindowAnimations(0)

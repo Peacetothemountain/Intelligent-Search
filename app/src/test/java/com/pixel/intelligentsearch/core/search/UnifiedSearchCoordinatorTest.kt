@@ -134,6 +134,33 @@ class UnifiedSearchCoordinatorTest {
     }
 
     @Test
+    fun aCommonWordFindsNoContactItOnlySoundsLike() {
+        // Seen on the owner's phone: "battery", "butter" and "better" listed Matt Potter, "water" a contact labeled (Father).
+        val potter = ContactItem("Matt Potter", "(212) 555-0101", "content://contacts/potter")
+        val father = ContactItem("Johnny Bowling (Father)", "(212) 555-0102", "content://contacts/father")
+        val coordinator = coordinator().apply { replaceContacts(listOf(potter, father)) }
+        for (word in listOf("battery", "butter", "better", "water")) {
+            assertEquals(word, emptyList<ContactItem>(), coordinator.executeSearchSync(word).contacts)
+        }
+        assertEquals(listOf(potter), coordinator.executeSearchSync("potter").contacts)
+        assertEquals(listOf(potter), coordinator.executeSearchSync("poter").contacts)
+        assertEquals(listOf(father), coordinator.executeSearchSync("father").contacts)
+    }
+
+    @Test
+    fun namesThatSoundTheSameAreStillFoundWhateverLetterTheyStartWith() {
+        val cathy = ContactItem("Cathy Lane", "(212) 555-0103", "content://contacts/cathy")
+        val john = ContactItem("John Reed", "(212) 555-0104", "content://contacts/john")
+        val phil = ContactItem("Phil Stone", "(212) 555-0105", "content://contacts/phil")
+        val geoff = ContactItem("Geoff Marsh", "(212) 555-0106", "content://contacts/geoff")
+        val coordinator = coordinator().apply { replaceContacts(listOf(cathy, john, phil, geoff)) }
+        assertEquals(listOf(cathy), coordinator.executeSearchSync("kathy").contacts)
+        assertEquals(listOf(john), coordinator.executeSearchSync("jon").contacts)
+        assertEquals(listOf(phil), coordinator.executeSearchSync("fil").contacts)
+        assertEquals(listOf(geoff), coordinator.executeSearchSync("jeff").contacts)
+    }
+
+    @Test
     fun aCallOrMessageGoesOnlyToTheOneContactTheWordsName() {
         context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putBoolean(SettingsManager.SEARCH_CONTACTS.name, true).commit()

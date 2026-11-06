@@ -49,6 +49,7 @@ import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.core.theme.SearchIconColors
 import com.pixel.intelligentsearch.core.ui.expressive.matteShell
 import kotlinx.coroutines.launch
+import androidx.core.content.edit
 
 // WIDGET SETTINGS SCREEN
 // -----------------------------------------------------------------------------------------
@@ -460,7 +461,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 onBack()
             },
             onDontShowAgain = {
-                prefs.edit().putBoolean("widget_suppress_unsaved_warning", true).apply()
+                prefs.edit { putBoolean("widget_suppress_unsaved_warning", true) }
                 showUnsavedChangesDialog = false
                 onBack()
             },

@@ -124,9 +124,7 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
             runCatching { controller.playbackState?.lastPositionUpdateTime }.getOrNull(),
             SystemClock.elapsedRealtime()
         ) == true
-        val artist = (metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
-            ?: metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
-            ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE))?.trim().orEmpty()
+        val artist = glanceArtistOf(metadata)
         val appLabel = runCatching {
             val pm = context.packageManager
             pm.getApplicationLabel(pm.getApplicationInfo(controller.packageName, 0)).toString()
@@ -155,15 +153,9 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
             val newKey = "$packageName|$title|${bitmap?.generationId}"
             if (newKey == key) return image
             key = newKey
-            image = bitmap?.let { scaledArtwork(it) }?.asImageBitmap()
+            image = bitmap?.let { scaledGlanceArtwork(it, ARTWORK_PX) }?.asImageBitmap()
             return image
         }
-
-        private fun scaledArtwork(bitmap: Bitmap): Bitmap? = runCatching {
-            val side = minOf(bitmap.width, bitmap.height)
-            if (side <= 0) return@runCatching null
-            if (side <= ARTWORK_PX) bitmap else bitmap.scale(bitmap.width * ARTWORK_PX / side, bitmap.height * ARTWORK_PX / side)
-        }.getOrNull()
     }
 
     /** A session's transport controls; equal for the same session. */
@@ -185,3 +177,16 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
         private const val ARTWORK_PX = 160
     }
 }
+
+/** Who the media card credits: the artist, else the album's, else whatever subtitle the app gave. */
+internal fun glanceArtistOf(metadata: MediaMetadata): String =
+    (metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
+        ?: metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
+        ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE))?.trim().orEmpty()
+
+/** [bitmap] with its short side at most [maxSide], keeping its shape; the same picture when it's already small enough. */
+internal fun scaledGlanceArtwork(bitmap: Bitmap, maxSide: Int): Bitmap? = runCatching {
+    val side = minOf(bitmap.width, bitmap.height)
+    if (side <= 0) return@runCatching null
+    if (side <= maxSide) bitmap else bitmap.scale(bitmap.width * maxSide / side, bitmap.height * maxSide / side)
+}.getOrNull()

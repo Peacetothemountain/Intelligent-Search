@@ -148,11 +148,11 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
             title = { Text("Home Screen Search Bar", fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "Android only lists an app as a search engine once it's on the phone's search engine list. " +
-                        "Adding Intelligent Search takes one step from a computer:\n\n" +
+                    "Choosing Intelligent Search takes one step from a computer:\n\n" +
                         "1. Turn on USB debugging in Developer options.\n" +
-                        "2. Connect your phone to a computer with ADB.\n" +
-                        "3. Run the two commands you copy below.\n\n" +
+                        "2. Connect your phone to a computer.\n" +
+                        "3. On a terminal with ADB accessibility, first input: adb shell.\n" +
+                        "4. Once the prompt is successful, paste the commands you copy below.\n\n" +
                         "Then come back here and choose Intelligent Search.",
                     style = MaterialTheme.typography.bodyMedium
                 )

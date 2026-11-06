@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.core.bangs
 
 import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
+import androidx.core.net.toUri
 
 @Immutable
 @Serializable
@@ -30,7 +31,7 @@ data class SearchBang(
         } else {
             "$template$encodedQuery"
         }
-        return android.net.Uri.parse(uriStr)
+        return uriStr.toUri()
     }
 }
 

@@ -19,7 +19,8 @@ import androidx.compose.ui.text.font.FontVariation
  * Google Sans Flex, the variable typeface of Pixel's system UI and of Google's apps, bundled so every phone shows it.
  * One file serves every weight the app uses (300 to 700), upright, at normal width and grade, with the square (ROND 0)
  * letterforms of running text; Pixel keeps the rounded ones for expressive moments such as its lock screen clock.
- * Optical size stays at the font's default (18) for every size.
+ * Optical size stays at the font's default (18) for every size. The bundled file holds only the weight axis, with the
+ * others built in at those values, which takes it from 4.1 MB to 275 KB; the settings below still say what it is.
  */
 val GoogleSansFlex = FontFamily(
     listOf(FontWeight.Light, FontWeight.Normal, FontWeight.Medium, FontWeight.SemiBold, FontWeight.Bold).map { weight ->

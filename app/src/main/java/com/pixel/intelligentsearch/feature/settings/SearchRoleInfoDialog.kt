@@ -163,7 +163,7 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                         }
                         TextButton(onClick = {
                             val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
-                            // Both commands: selecting the app alone fails while it isn't on the search engine list.
+                            // Every command: selecting the app alone fails while it isn't on the search engine list.
                             val clip = android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS)
                             clipboard?.setPrimaryClip(clip)
                             com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click(view)
@@ -238,67 +238,10 @@ private fun noteCardBorder() = androidx.compose.foundation.BorderStroke(1.dp, Ma
 @Composable
 internal fun DeveloperNotePage(context: Context) {
     val scheme = MaterialTheme.colorScheme
-    val detective = rememberBugdroidPlayer(BugdroidClip.DETECTIVE)
-    androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val pageHeight = maxHeight
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            CardsThenRest(
-                pageHeight = pageHeight,
-                gap = DiagnosticsCardSpacing,
-                minRest = DetectiveMinHeight,
-                cards = { DeveloperNoteCards(context, scheme) },
-                rest = if (detective == null) null else {
-                    {
-                        BugdroidPlayer(
-                            player = detective,
-                            clip = BugdroidClip.DETECTIVE,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .semantics { contentDescription = "Animated 3D Bugdroid detective walking into a glass wall" }
-                        )
-                    }
-                }
-            )
-        }
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        DeveloperNoteCards(context, scheme)
     }
 }
-
-/**
- * The bottom of the Developer Note page belongs to the detective bugdroid: [cards] take their own height and [rest] the
- * page's height left under them ([pageHeight] less the cards and [gap]), never less than [minRest]. When the cards
- * fill the page (the longer note while Intelligent Search isn't the default search engine, or large text) the clip
- * sits below them at [minRest] and the page scrolls to it.
- */
-@Composable
-private fun CardsThenRest(
-    pageHeight: androidx.compose.ui.unit.Dp,
-    gap: androidx.compose.ui.unit.Dp,
-    minRest: androidx.compose.ui.unit.Dp,
-    cards: @Composable () -> Unit,
-    rest: (@Composable () -> Unit)?
-) {
-    androidx.compose.ui.layout.Layout(
-        content = {
-            Box { cards() }
-            if (rest != null) Box { rest() }
-        }
-    ) { measurables, constraints ->
-        val width = constraints.maxWidth
-        val cardsPlaceable = measurables[0].measure(androidx.compose.ui.unit.Constraints(maxWidth = width))
-        val restPlaceable = measurables.getOrNull(1)?.let {
-            val restHeight = maxOf(minRest.roundToPx(), pageHeight.roundToPx() - cardsPlaceable.height - gap.roundToPx())
-            it.measure(androidx.compose.ui.unit.Constraints.fixed(width, restHeight))
-        }
-        val height = cardsPlaceable.height + (restPlaceable?.let { gap.roundToPx() + it.height } ?: 0)
-        layout(width, height) {
-            cardsPlaceable.place(0, 0)
-            restPlaceable?.place(0, cardsPlaceable.height + gap.roundToPx())
-        }
-    }
-}
-
-/** The detective's least height, used when the cards leave it less: big enough to see it trip. */
-private val DetectiveMinHeight = 140.dp
 
 /** The Developer Note's cards: the default search engine, how to set it, and the compatibility note. */
 @Composable
@@ -373,7 +316,7 @@ private fun DeveloperNoteCards(context: Context, scheme: androidx.compose.materi
                             clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS))
                             Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
                         },
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Symbols.Outlined.ContentCopy,
@@ -385,7 +328,12 @@ private fun DeveloperNoteCards(context: Context, scheme: androidx.compose.materi
                 }
             ) {
                 Text(
-                    text = "The Intelligent Search widget is always there for you to use. To have Intelligent Search replace the Pixel Launcher's own search bar instead, turn on USB debugging, connect your phone to a computer with ADB and run these commands once:",
+                    text = "The Intelligent Search widget is always there for you to use. To have Intelligent Search replace the Pixel Launcher's own search bar instead, turn on USB debugging and connect your phone to a computer.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onSurface
+                )
+                Text(
+                    text = "On a terminal with ADB accessibility, first input: adb shell. Once the prompt is successful, copy the following:",
                     style = MaterialTheme.typography.bodyMedium,
                     color = scheme.onSurface
                 )

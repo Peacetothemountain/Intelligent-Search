@@ -19,6 +19,8 @@ import org.json.JSONObject
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
+import androidx.core.net.toUri
+import androidx.core.content.edit
 
 @Singleton
 class SearchBangManager @Inject constructor(
@@ -349,7 +351,7 @@ class SearchBangManager @Inject constructor(
      */
     fun bangWebUri(parsed: ParsedBangQuery): Uri =
         com.pixel.intelligentsearch.core.security.CustomSearchUrl.build(parsed.bang.urlTemplate, parsed.extractedQuery)
-            ?: Uri.parse("https://www.google.com/search?q=${Uri.encode(parsed.extractedQuery)}")
+            ?: "https://www.google.com/search?q=${Uri.encode(parsed.extractedQuery)}".toUri()
 
     private fun isActivityExported(pm: PackageManager, component: android.content.ComponentName): Boolean {
         return try {
@@ -397,10 +399,10 @@ class SearchBangManager @Inject constructor(
             val custom = parseCustomBangs(prefs[SettingsManager.CUSTOM_BANGS_JSON]).toMutableList()
             val disabled = prefs[SettingsManager.DISABLED_WEB_SHORTCUTS].toMutableSet()
             edit(custom, disabled)
-            prefs.edit()
-                .put(SettingsManager.CUSTOM_BANGS_JSON, serializeCustomBangs(custom))
-                .put(SettingsManager.DISABLED_WEB_SHORTCUTS, disabled.toSet())
-                .commit()
+            prefs.edit(commit = true) {
+                put(SettingsManager.CUSTOM_BANGS_JSON, serializeCustomBangs(custom))
+                put(SettingsManager.DISABLED_WEB_SHORTCUTS, disabled.toSet())
+            }
         }
     }
 

@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.util.Log
+import androidx.core.net.toUri
 
 data class NexusPredictionApp(
     val packageName: String,
@@ -21,7 +22,7 @@ class NexusLauncherBridge @Inject constructor(@param:ApplicationContext private 
     companion object {
         private const val TAG = "NexusLauncherBridge"
         private const val LAUNCHER_PKG = "com.google.android.apps.nexuslauncher"
-        private val PREDICTION_URI: Uri = Uri.parse("content://com.google.android.apps.nexuslauncher.prediction/predictions")
+        private val PREDICTION_URI: Uri = "content://com.google.android.apps.nexuslauncher.prediction/predictions".toUri()
     }
 
     fun isNexusLauncherInstalled(): Boolean {

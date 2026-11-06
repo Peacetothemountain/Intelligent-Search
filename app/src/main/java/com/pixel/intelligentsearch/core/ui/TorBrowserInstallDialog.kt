@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.core.ui
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -48,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
+import androidx.core.net.toUri
 
 @Composable
 fun TorBrowserInstallDialog(
@@ -211,13 +211,13 @@ fun launchTorPlayStore(context: Context) {
     val playStoreUri = "market://details?id=org.torproject.torbrowser"
     val webFallbackUri = "https://play.google.com/store/apps/details?id=org.torproject.torbrowser"
     try {
-        val playStoreIntent = Intent(Intent.ACTION_VIEW, Uri.parse(playStoreUri)).apply {
+        val playStoreIntent = Intent(Intent.ACTION_VIEW, playStoreUri.toUri()).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(playStoreIntent)
     } catch (_: Throwable) {
         try {
-            val webIntent = Intent(Intent.ACTION_VIEW, Uri.parse(webFallbackUri)).apply {
+            val webIntent = Intent(Intent.ACTION_VIEW, webFallbackUri.toUri()).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(webIntent)

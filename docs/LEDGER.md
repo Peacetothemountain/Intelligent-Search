@@ -9,12 +9,12 @@ Update these in the same commit as a change that improves them. Never let one ge
 
 | Metric | Value | Measured at |
 |---|---|---|
-| Lines of test code | 51,986 | 2026-11-07, Bugdroid tutorial layers (was 52,004 after no live suggestions in tests, up 19 for a written reason); replaces the `@Test` count (owner: root causes over more tests) |
+| Lines of test code | 52,055 | 2026-11-07, up 69 for a written reason: the old settings file's reader (was 51,986 after the Bugdroid tutorial layers, 52,004 after no live suggestions in tests, up 19 for a written reason); replaces the `@Test` count (owner: root causes over more tests) |
 | CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 872s (was 1003s) on one that changes app code, run 42356421669 on `f15b95a3` | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change. Since B13 there is no single step to time: measure from the start of the run to `Build & Check` finishing |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
-| Release APK size | 10,619,341 bytes, unsigned | local build 2026-11-07, themes built on Android's own Material theme (11,346,076 before, 11,675,957 before the activities were plain `ComponentActivity`, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
+| Release APK size | 10,431,593 bytes, unsigned | local build 2026-11-07, DataStore out of the release build (10,619,341 before, 11,346,076 before the themes moved to Android's own Material theme, 11,675,957 before the activities were plain `ComponentActivity`, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
@@ -449,9 +449,6 @@ with the strongest evidence.
 - Lesson: in an all-Compose app, `AppCompatActivity` alone keeps AppCompat's and Material's view widgets through the theme's view inflater; `ComponentActivity` is enough.
 - Next: the `session t3-e822f319011a4059b97668d8` that holds `emulator-5580` has blocked two runs' emulator checks; the owner may want to close it
 
-<!--
-Copy this for each cycle, newest at the bottom.
-
 ### 2026-11-07: The window theme kept Material Components' view styles
 - Command: /improve (scheduled run)
 - Target and evidence: release APK size. After the AppCompat cut, `androidx.appcompat` (36,900 bytes) and most of `com.google.android.material` still shipped, held by `aapt_rules.txt` keep rules for the views in library layouts (`Toolbar`, `MaterialButton`, `Chip` and others), and R8's `resources.txt` showed 1,397 resources reachable, most of them widget styles, drawables and colors reached from `Theme.Material3.DayNight.NoActionBar`. Every screen is Compose and no platform view takes a color from the theme, so the window theme only needs window attributes
@@ -466,6 +463,25 @@ Copy this for each cycle, newest at the bottom.
 - Retry only if: a title bar appears, Settings flashes a different color while opening, or a dialog's scrim looks lighter or darker; compare the window attributes with `Base.V14.Theme.Material3.Light` in material 1.14.0 before going back to it
 - Commit: see `Build the themes on Android's own Material theme` in `git log dev`
 - Lesson: R8 can't drop a library's view classes while its layouts are reachable; the theme parent is what made them reachable. Check `resources.txt` for what a theme pulls in before blaming keep rules.
+
+### 2026-11-07: DataStore shipped to read one old file
+- Command: /improve (scheduled run)
+- Target and evidence: release APK size. `apkanalyzer dex packages` with the mapping showed `androidx.datastore` at 112,623 bytes of dex (90,207 of it its own copy of protobuf), plus `libdatastore_shared_counter.so` for 4 ABIs, 36,192 bytes stored. Its only use is `importLegacyDataStore`, which reads the settings file versions before 2026-10-15 (`6956f538`) kept, once, then deletes it. Nothing else in the release classpath pulls it in. Chosen because the backlog has nothing left with evidence (B11 only adds tests) and no crash or flaky run is open. CI green on `db4014c9`; `3d5fffea` still running
+- Prior work checked: this ledger (no DataStore entry), `git log origin/dev -S"importLegacyDataStore"`, claude-mem
+- Research: field numbers read from `datastore-preferences-proto` 1.2.1 with `javap`: `PreferenceMap.preferences` 1, `Value` boolean 1, float 2, int32 3, int64 4, string 5, `StringSet` 6, double 7, bytes 8. The migration can't go yet: it is three weeks old, and older installs still hold the file. The import had no test: the only one wrote an empty file
+- Models used: inline (Opus 5.5); fable/xhigh for one independent review, as charter section 6 asks for settings migration (about 100k tokens). It found no problem, and confirmed against the 1.2.1 bytecode the path, the oneof and duplicate-entry rules, empty files and negative ints
+- Usage level: no figure visible. Normal mode
+- Change: `LegacySettingsFile.kt` reads that file's format directly (123 lines) and throws on a malformed one, which the import already catches; DataStore moves to `testImplementation`
+- Test added: `valuesOnlyTheOldDataStoreFileHeldAreImported` in `characterization/SettingsLegacyMigrationTest`, writing the file with real DataStore (every value type, a negative int, non-ASCII text, an empty set) and checking both the reader's map and the settings after migration. Reason it is a test: a parser over another library's file format, the migration category charter section 1a keeps. Proof: the reader broken 3 ways (int32 sign, string sets dropped, other types not cleared) fails it each time
+- Before -> after: release APK, unsigned local builds, 10,619,341 -> 10,431,593 bytes (-187,748); dex 6,334,336 -> 6,215,956; `lib/` 73,584 -> 37,392; test code 51,986 -> 52,055 lines, up 69 for the reason above; app code 132 in, 15 out; lint baseline 11 -> 11. `SettingsLegacyMigrationTest` 3/3 and `SettingsMigrationWriteFailureTest` 2/2 pass locally; the rest is left to CI. Nothing on screen changes, so no emulator check
+- Also: the entry above had been written inside the template's comment, so it didn't show; moved out, text unchanged
+- Result: kept, pending CI
+- Retry only if: a settings value from before 2026-10-15 is lost on update; or, once no supported install can predate `6956f538`, delete the import, the reader and its test
+- Commit: see `Read the old settings file without DataStore` in `git log dev`
+- Lesson: a library kept only for a one-time migration read costs its whole runtime; a format this small reads in a page of code, proven against the library writing it in tests.
+
+<!--
+Copy this for each cycle, newest at the bottom.
 
 ### YYYY-MM-DD: <short target>
 - Command: /improve | /debug | /audit

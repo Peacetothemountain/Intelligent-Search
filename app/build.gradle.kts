@@ -203,6 +203,8 @@ dependencies {
   testImplementation(platform(libs.androidx.compose.bom))
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.hilt.android.testing)
+  // Writes real files in the format old versions kept their settings in, for the migration that reads them
+  testImplementation(libs.androidx.datastore.preferences)
   kspTest(libs.hilt.android.compiler)
 
   // Navigation & Serialization
@@ -218,9 +220,6 @@ dependencies {
   implementation(libs.hilt.android)
   ksp(libs.hilt.android.compiler)
   implementation(libs.hilt.navigation.compose)
-
-  // Preferences DataStore
-  implementation(libs.androidx.datastore.preferences)
 
   // Graphics Shapes for Material Morph Animations
   implementation(libs.androidx.graphics.shapes)

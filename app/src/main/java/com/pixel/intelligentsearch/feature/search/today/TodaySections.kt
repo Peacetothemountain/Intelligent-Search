@@ -106,7 +106,6 @@ import kotlin.math.roundToInt
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.graphics.PathMeasure
 import androidx.compose.runtime.mutableIntStateOf
 import com.pixel.intelligentsearch.core.ui.icons.filled.LocalShipping
 import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.VolumeUp
@@ -285,11 +284,11 @@ internal fun WeatherAhead(report: WeatherReport) {
     var seen by remember { mutableStateOf(false) }
     val shown = rememberDrawIn(delayMs = 250, durationMs = 1300, start = seen)
     val animate by rememberAnimationsEnabled()
-    // Once drawn, a warm glint rides along the line, every 4.5 seconds.
-    val glint = if (animate && shown >= 1f) {
-        val transition = rememberInfiniteTransition(label = "glint")
-        transition.animateFloat(0f, 1f, infiniteRepeatable(tween(4_500, easing = LinearEasing)), label = "along").value
-    } else -1f
+    // Once drawn, the line floats: each hour rises and falls a little in turn, a slow wave every 5 seconds.
+    val wave = if (animate && shown >= 1f) {
+        val transition = rememberInfiniteTransition(label = "float")
+        transition.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(5_000, easing = LinearEasing)), label = "wave").value
+    } else null
     val measurer = rememberTextMeasurer()
     val dark = scheme.surface.luminance() < 0.5f
     val warm = if (dark) Color(0xFFF2B872) else Color(0xFFB5651D)
@@ -335,7 +334,11 @@ internal fun WeatherAhead(report: WeatherReport) {
             val top = 26.dp.toPx()
             val bottom = 60.dp.toPx()
             val step = if (hours.size > 1) (right - left) / (hours.size - 1) else 0f
-            val points = temps.mapIndexed { i, t -> Offset(left + i * step, bottom - ((t - lo) / (hi - lo)).toFloat() * (bottom - top)) }
+            val lift = 3.dp.toPx()
+            val points = temps.mapIndexed { i, t ->
+                val float = if (wave != null) kotlin.math.sin(wave + i * 0.8f) * lift else 0f
+                Offset(left + i * step, bottom - ((t - lo) / (hi - lo)).toFloat() * (bottom - top) + float)
+            }
             val line = Path().apply {
                 moveTo(points[0].x, points[0].y)
                 for (i in 0 until points.size - 1) {
@@ -385,13 +388,6 @@ internal fun WeatherAhead(report: WeatherReport) {
                 drawText(temp, topLeft = Offset(p.x - temp.size.width / 2f, p.y - 8.dp.toPx() - temp.size.height), alpha = visible)
                 val hour = measurer.measure(labels[i], hourStyle)
                 drawText(hour, topLeft = Offset(p.x - hour.size.width / 2f, size.height - hour.size.height), alpha = visible)
-            }
-            if (glint >= 0f) {
-                val measure = PathMeasure().apply { setPath(line, false) }
-                val at = measure.getPosition(measure.length * glint)
-                val fadeInOut = kotlin.math.sin(glint * Math.PI).toFloat()
-                drawCircle(warm.copy(alpha = 0.25f * fadeInOut), 9.dp.toPx(), at)
-                drawCircle(warm.copy(alpha = fadeInOut), 4.5.dp.toPx(), at)
             }
         }
     }

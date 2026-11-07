@@ -58,8 +58,8 @@ internal const val CARD_ALPHA = 0.88f
 internal fun <T> arriveSpring() = spring<T>(dampingRatio = 0.62f, stiffness = 240f)
 
 /**
- * The light behind the page: three soft glows (the accent, the tertiary and a warm one) drifting slowly on their own
- * paths, 11 to 17 seconds each way. Still with animations off.
+ * The light behind the page: three soft glows (the accent, the tertiary and a warm one) drifting very slowly on
+ * their own paths, 40 to 60 seconds each way. Still with animations off.
  */
 @Composable
 internal fun LivingLight(warm: Color, modifier: Modifier = Modifier) {
@@ -71,9 +71,9 @@ internal fun LivingLight(warm: Color, modifier: Modifier = Modifier) {
     val c = warm.copy(alpha = if (dark) 0.18f else 0.3f)
     val t = if (animate) {
         val transition = rememberInfiniteTransition(label = "living light")
-        val ta by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(14_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "a")
-        val tb by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(17_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "b")
-        val tc by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(11_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "c")
+        val ta by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(48_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "a")
+        val tb by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(60_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "b")
+        val tc by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(40_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "c")
         Triple({ ta }, { tb }, { tc })
     } else Triple({ 0.3f }, { 0.3f }, { 0.3f })
     Canvas(modifier.fillMaxSize()) {

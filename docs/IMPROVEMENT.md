@@ -87,29 +87,31 @@ Rules:
   Write down which evidence makes it true.
 - Two failed attempts at the same target: stop, write what was learned, mark it `blocked`, and move on.
 - One target per cycle, one commit per cycle. "Nothing worth changing" is a valid result, and a run that changes nothing
-  commits nothing.
+  commits nothing unless a ledger line would stop a later run repeating the work.
 - The owner doesn't prompt each cycle. Choose the best course, keep going on `dev`, and leave the ledger as the record
-  for them to read later. What still needs the owner: approving the merge to `main`, `v*` tags and releases, using the phone,
+  for them to read later. What still needs the owner: pushing to `main`, `v*` tags and releases, using the phone,
   anything in section 3, and choices a later reader couldn't undo.
 
-### How runs work
+### Scheduled runs
 
-`.github/workflows/improve.yml` runs every 4 hours on GitHub. It uses nothing from the owner's PC, GitHub login or signing
-key, and each step starts only when the one before it passes, so waiting costs no Claude usage:
+A task in T3 Code's scheduled tasks, `Improve Intelligent Search`, starts one fresh cycle every 4 hours. Nobody is there
+to answer, so each run follows these rules:
 
-| Step | Claude? | What it can do |
-|---|---|---|
-| Decide | no | Stops when `MAX_WAITING` changes already wait on the owner |
-| Work | yes | Reads and edits files. No shell, no GitHub writes |
-| Commit | no | Refuses edits to `.github`, `.claude` and the Gradle wrapper; pushes the rest to a throwaway branch |
-| CI | no | Lint, every test, screenshot comparisons, minified build |
-| Smoke | no | Installs that build on an emulator, signed with a key made for the run, and checks that it opens |
-| Review | yes, fresh | Read-only. Can only stop the run |
-| Deliver | no | Moves `dev` forward and asks the owner in one pull request |
-
-Only code that passes all of it reaches `dev`, so a failed run leaves nothing behind. Approving the pull request merges
-it. Closing it takes those changes back out of `dev` and records them as declined (`declined.yml`). GitHub emails the
-owner when a run fails.
+- Each run has its own T3 worktree, so it can't disturb the owner's checkout at `F:\Intelligent-Search`. Work only in the
+  worktree, and don't change anything in that checkout.
+- Start with `git status` and `git log origin/dev..HEAD`. Uncommitted changes to tracked files or unpushed commits mean an
+  earlier run stopped mid-work: change nothing and end the run saying what was found. Otherwise
+  `git switch --detach origin/dev`, because the worktree starts from an older commit.
+- A run never holds the owner's signing key. Its `local.properties` has `sdk.dir` and nothing else, so its builds are
+  debug or unsigned.
+- Finish with `git push origin HEAD:dev`. If `dev` has moved, rebase the run's own commit onto `origin/dev` and push
+  again. Never force a push.
+- If CI failed on the newest `dev` commit, fixing that is the target.
+- A target that needs the owner goes in the ledger as waiting on them, and the run takes the next candidate.
+- Don't wait for CI, and don't schedule or poll anything to find out when something finishes. Every wake-up is a new
+  prompt that spends tokens to learn nothing. Push and end the run. The next run reads the result first.
+- When no candidate has evidence behind it, add a ledger entry saying so, pause the task, and tell the owner in the
+  run's report.
 
 ## 5. Research before acting
 
@@ -162,13 +164,21 @@ Write the usage level in each ledger entry, so later cycles can see what each ki
    tests only for logic the design can't make safe.
 3. Update the ratchet values in `docs/LEDGER.md` and add the cycle's entry.
 4. One short, plain commit on `dev`, American spelling, attribution as the session's current instructions say.
-   Push `dev` and let CI run. `main` is reached only by the pull request the owner approves.
+   Push `dev` and let CI run. `main` is reached only as section 9 says.
 5. See it working on the emulator without the phone (`docs/DEVICE_TESTING.md`). Install on the phone only as `MEMORY.md`
    says (release build, only when the owner allows, once per batch).
 
 ## 9. Layers of checking
 
-Each layer in the table above exists to stop bad code, not to create work. Most of what a layer reports isn't worth acting
-on. Act on what is confirmed and serious: a failing check, a crash or ANR, lost or exposed data, a wrong result for the
-user, a security hole, a weakened test, or a change to something off limits. Drop the rest with no commit, comment or
-ledger line. Never one commit or one reply per finding.
+| Layer | Where | Claude usage |
+|---|---|---|
+| Compiler | the run | none |
+| Lint, every test, screenshot comparisons, minified build | GitHub CI, every `dev` commit | none |
+| Emulator, for changes people can see | here | the run's own |
+| Claude's review (`/merge-check`) | here, when the owner runs it | one session |
+| The owner's yes or no | here, the question `/merge-check` asks | none |
+
+Each layer exists to stop bad code, not to create work. Most of what a layer reports isn't worth acting on. Act on what is
+confirmed and serious: a failing check, a crash or ANR, lost or exposed data, a wrong result for the user, a security hole,
+or a change to something off limits. Drop the rest with no commit, comment or ledger line. All of a pass's fixes go in one
+commit, never one commit or one reply per finding.

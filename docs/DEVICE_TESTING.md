@@ -1,8 +1,5 @@
 # Testing Without Plugging In the Phone
 
-This is for sessions the owner is in, on their PC. The automated runs don't use it: `improve.yml` starts its own emulator
-on GitHub, with a key made for that run.
-
 Work is checked on an emulator first, then over wireless debugging for what only the real phone can show. Neither
 needs a cable.
 
@@ -19,19 +16,27 @@ alone.
 | Rendering | The PC's GPU (`-gpu host`) |
 | Boot | 45 seconds, measured 2026-11-06 |
 
-Build and install the same release build the phone runs:
+Boot it by hand on port 5580, then install a debug build, which needs no signing key:
 
 ```
-./gradlew assembleRelease
-adb -s emulator-5560 install -r app/build/outputs/apk/release/app-release.apk
+emulator -avd IS_Pixel_XL -port 5580 -no-boot-anim -no-audio -gpu host
+./gradlew assembleDebug
+adb -s emulator-5580 install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Start it from T3 Code's device tools (`device_list`, then `device_open` with `IS_Pixel_XL`) so the owner can watch it in
-the Device panel, and drive it with the `agent-device` command `device_open` returns. To boot it by hand:
+If it refuses to install over a build signed with another key, run `adb -s emulator-5580 uninstall` with the app's package
+first. A session with the owner, in their checkout, can build the release instead.
 
-```
-emulator -avd IS_Pixel_XL -port 5560 -no-boot-anim -no-audio -gpu host
-```
+Then `device_open` with `emulator-5580`, so the owner can watch it in the Device panel, and drive it with the
+`agent-device` command `device_open` returns. Take pictures with its `screenshot` command: `device_screenshot` failed
+("The device hub could not complete the request") on 2026-11-06 while that command worked.
+
+Keep to port 5580, and don't `device_open` the powered-off `IS_Pixel_XL`. T3 Code would choose the lowest free port, and
+three old device sessions from October still claim `emulator-5554`, `5558` and `5560`, so `open` then fails with
+`DEVICE_IN_USE`. They belong to other threads: don't close or reuse them.
+
+T3 Code passes its own environment to `avdmanager`. If it was started before a JDK update, `device_open` fails with
+`JAVA_HOME is set to an invalid directory` until T3 Code is restarted.
 
 `avdmanager` crashes on the `android-37.0` image ("null"), so this AVD's `.ini` and `config.ini` were written by hand from
 another Android 17 AVD. Recreate it the same way if it is ever lost.

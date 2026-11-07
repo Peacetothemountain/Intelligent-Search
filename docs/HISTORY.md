@@ -7,7 +7,7 @@ How the branches, tags and releases fit together, so any version, crash report o
 | Branch | What it is |
 |---|---|
 | `main` | What ships. Protected: a push needs a commit that already passed `Build & Check`, and force pushes are blocked. |
-| `dev` | Where work lands. Reaches `main` by a pull request the owner approves (`docs/IMPROVEMENT.md` section 4). Commits before 2026-11-07 reached it by fast-forward. |
+| `dev` | Where work lands. `main` is always an ancestor of `dev`, and reaches it by fast-forward (`git push origin dev:main`) once CI is green. |
 
 History is one line from `Initial commit` (2026-07-30). On 2026-11-01 it was cleaned up to one commit per release
 (`Release <version> (<code>)`) plus the main feature changes between releases, each holding exactly the code it had;

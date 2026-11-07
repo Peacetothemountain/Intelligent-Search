@@ -219,6 +219,16 @@ with the strongest evidence.
 - Commit: see `Run improvements on GitHub, ending in one question` in `git log dev`
 - Lesson: when asked to remove blocks, don't remove them by handing an agent the owner's keys. Move the work somewhere the keys aren't.
 
+### 2026-11-07: Review here, not on GitHub; pipeline removed
+- Command: owner said Claude's review before their approval was meant to happen here, not on GitHub, and that running Claude on GitHub would burn tokens for no reason
+- Target and evidence: `improve.yml` from the entry above ran Claude on GitHub. It never ran: it was never on `main`, no token was stored, and no pull request was opened
+- Change: removed `improve.yml`, `declined.yml`, `smoke.sh`; added `/merge-check`; every GitHub setting from the last two entries restored to what it was before them; runs hold `sdk.dir` only, never the signing key; runs push and end instead of waiting for CI; the review task deleted and the 4-hour task re-enabled
+- Before -> after: Claude on GitHub: none -> none. Unattended runs holding the signing key: yes -> no
+- Result: kept. This supersedes the entries `One setup for every run` and `Replaced the local setup with one workflow on GitHub`
+- Retry only if: the owner asks for runs with the PC off
+- Commit: see `Review here before merging, not on GitHub` in `git log dev`
+- Lesson: when a request can be read two ways and the build is large, say the plan in one line first. Two rebuilds came from not doing that.
+
 <!--
 Copy this for each cycle, newest at the bottom.
 

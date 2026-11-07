@@ -58,6 +58,7 @@ import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -91,6 +92,7 @@ import com.pixel.intelligentsearch.core.ui.icons.filled.Event
 import com.pixel.intelligentsearch.core.ui.icons.filled.History
 import com.pixel.intelligentsearch.core.ui.icons.filled.HourglassBottom
 import com.pixel.intelligentsearch.core.ui.icons.filled.NightsStay
+import com.pixel.intelligentsearch.core.ui.icons.filled.Person
 import com.pixel.intelligentsearch.core.ui.icons.filled.Thunderstorm
 import com.pixel.intelligentsearch.core.ui.icons.filled.Umbrella
 import com.pixel.intelligentsearch.core.ui.icons.filled.WbCloudy
@@ -227,6 +229,16 @@ internal fun catchUpFrom(entries: List<IndexedNotification>, now: Long): List<In
 private fun previewLine(entry: IndexedNotification): String? {
     val lines = entry.text.lines().filter { it.isNotBlank() }
     return (if (entry.category == Notification.CATEGORY_MESSAGE) lines.lastOrNull() else lines.firstOrNull())?.trim()
+}
+
+/**
+ * [title]'s initial when it starts with a name, a letter or an emoji, else null: an unsaved number ("(650) 555-1234",
+ * "+1 650...") has no initial, and its circle shows a person as the phone's own apps do.
+ */
+private fun nameInitial(title: String, locale: java.util.Locale): String? {
+    val initial = initialOf(title, locale).ifEmpty { return null }
+    val first = initial.codePointAt(0)
+    return initial.takeIf { Character.isLetter(first) || Character.getType(first) == Character.OTHER_SYMBOL.toInt() }
 }
 
 private val CATCH_UP_CATEGORIES = setOf(Notification.CATEGORY_MISSED_CALL, Notification.CATEGORY_MESSAGE, Notification.CATEGORY_EMAIL)
@@ -453,12 +465,17 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
                         .padding(horizontal = 8.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Box(Modifier.size(40.dp).background(scheme.secondaryContainer, CircleShape), contentAlignment = Alignment.Center) {
-                        Text(
-                            initialOf(entry.title, locale),
-                            style = MaterialTheme.typography.titleMedium,
-                            color = scheme.onSecondaryContainer
-                        )
+                    // Only a picture: the title beside it says who, so TalkBack reads that once.
+                    Box(
+                        Modifier.size(40.dp).background(scheme.secondaryContainer, CircleShape).clearAndSetSemantics {},
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val initial = nameInitial(entry.title, locale)
+                        if (initial != null) {
+                            Text(initial, style = MaterialTheme.typography.titleMedium, color = scheme.onSecondaryContainer)
+                        } else {
+                            Icon(Icons.Filled.Person, null, tint = scheme.onSecondaryContainer, modifier = Modifier.size(22.dp))
+                        }
                     }
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                         Text(entry.title, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)

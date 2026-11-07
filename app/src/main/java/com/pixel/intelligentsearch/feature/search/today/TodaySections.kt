@@ -678,14 +678,16 @@ internal fun LeftOff(searches: List<String>, onSearch: (String) -> Unit) {
 internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
-    val locale = LocalConfiguration.current.locales[0]
     var speech by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
     var speaking by remember { mutableStateOf(false) }
     var hops by remember { mutableIntStateOf(0) }
     DisposableEffect(Unit) { onDispose { speech?.shutdown() } }
+    // The ring turns only while the engine has the word: a speak it refuses never calls back to stop it.
     fun say(tts: android.speech.tts.TextToSpeech) {
         speaking = true
-        tts.speak(word.word, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "word")
+        if (tts.speak(word.word, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "word") != android.speech.tts.TextToSpeech.SUCCESS) {
+            speaking = false
+        }
     }
     Column(
         Modifier
@@ -738,21 +740,31 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
                         if (ready != null) {
                             say(ready)
                         } else {
+                            // A failed start can call back inside the constructor, before `made` is set: keep only an
+                            // engine that started, so the next tap tries again.
                             var made: android.speech.tts.TextToSpeech? = null
+                            var failed = false
                             made = android.speech.tts.TextToSpeech(context.applicationContext) { status ->
-                                val tts = made ?: return@TextToSpeech
-                                if (status == android.speech.tts.TextToSpeech.SUCCESS) {
-                                    tts.language = locale
-                                    tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                                        override fun onStart(utteranceId: String?) {}
-                                        override fun onDone(utteranceId: String?) { speaking = false }
-                                        @Deprecated("Deprecated in Java")
-                                        override fun onError(utteranceId: String?) { speaking = false }
-                                    })
-                                    say(tts)
+                                val tts = made
+                                if (status != android.speech.tts.TextToSpeech.SUCCESS) {
+                                    failed = true
+                                    if (tts != null) {
+                                        tts.shutdown()
+                                        if (speech === tts) speech = null
+                                    }
+                                    return@TextToSpeech
                                 }
+                                if (tts == null) return@TextToSpeech
+                                tts.language = java.util.Locale.US
+                                tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                                    override fun onStart(utteranceId: String?) {}
+                                    override fun onDone(utteranceId: String?) { speaking = false }
+                                    @Deprecated("Deprecated in Java")
+                                    override fun onError(utteranceId: String?) { speaking = false }
+                                })
+                                say(tts)
                             }
-                            speech = made
+                            if (failed) made.shutdown() else speech = made
                         }
                         hops++
                     }

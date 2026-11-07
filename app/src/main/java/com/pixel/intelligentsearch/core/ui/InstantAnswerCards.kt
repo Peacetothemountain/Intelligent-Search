@@ -83,6 +83,7 @@ import com.pixel.intelligentsearch.core.answers.WeatherCodes
 import com.pixel.intelligentsearch.core.answers.WeatherReport
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
+import com.pixel.intelligentsearch.core.util.initialOf
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
@@ -618,7 +619,7 @@ private fun ScreenTimeAppIcon(packageName: String, label: String) {
             )
         } else {
             Text(
-                text = label.take(1).uppercase(locale),
+                text = initialOf(label, locale),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

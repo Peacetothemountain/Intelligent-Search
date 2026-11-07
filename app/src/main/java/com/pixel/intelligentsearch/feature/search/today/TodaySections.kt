@@ -101,6 +101,7 @@ import com.pixel.intelligentsearch.core.ui.icons.outlined.FlashlightOn
 import com.pixel.intelligentsearch.core.ui.icons.outlined.WifiTethering
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import com.pixel.intelligentsearch.core.util.Durations
+import com.pixel.intelligentsearch.core.util.initialOf
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -410,6 +411,7 @@ internal fun WeatherAhead(report: WeatherReport) {
 internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
     Column {
         SectionTitle("Catch up", "From your notifications")
         Spacer(Modifier.height(8.dp))
@@ -430,7 +432,7 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
                 ) {
                     Box(Modifier.size(40.dp).background(scheme.secondaryContainer, CircleShape), contentAlignment = Alignment.Center) {
                         Text(
-                            entry.title.trim().take(1).uppercase(),
+                            initialOf(entry.title, locale),
                             style = MaterialTheme.typography.titleMedium,
                             color = scheme.onSecondaryContainer
                         )

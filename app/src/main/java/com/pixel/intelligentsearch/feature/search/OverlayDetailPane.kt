@@ -258,8 +258,7 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
                 }
             }
             is FileItem -> {
-                if (s.settingsState.filesThumbnails) FileIconThumbnail(item.uri, item.mimeType, size = DETAIL_PICTURE_SIZE)
-                else DetailSymbol(Icons.AutoMirrored.Outlined.InsertDriveFile)
+                FileResultPicture(s, item, size = DETAIL_PICTURE_SIZE) { DetailSymbol(Icons.AutoMirrored.Outlined.InsertDriveFile) }
                 DetailTitle(item.name, fileLocationLabel(item))
                 DetailActions {
                     DetailAction("Open", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true, onClick = open)

@@ -271,9 +271,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (settingsState.filesThumbnails) {
-                            FileIconThumbnail(match.uri, match.mimeType, size = 48.dp)
-                        } else {
+                        FileResultPicture(s, match, size = 48.dp) {
                             Box(
                                 modifier = Modifier
                                     .size(48.dp)

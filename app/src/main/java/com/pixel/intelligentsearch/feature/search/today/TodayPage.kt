@@ -321,11 +321,11 @@ internal fun TodayPage(
     val leaveByOn by rememberSetting(SettingsManager.TODAY_LEAVE_BY)
     val memoriesOn by rememberSetting(SettingsManager.TODAY_MEMORIES)
     // What the layer read wins whenever it has it, including when it arrives or refreshes after the page has opened;
-    // the page reads for itself only while it has nothing.
+    // the page reads for itself only while it has nothing. With Weather off there is none, so no part shows it.
     val ownWeather = produceState<Pair<WeatherReport, WeatherReport?>?>(null, preloadedWeather == null, active, weatherOn) {
         if (preloadedWeather == null && active && weatherOn) value = sources.weather()
     }.value
-    val loadedWeather = preloadedWeather ?: ownWeather
+    val loadedWeather = (preloadedWeather ?: ownWeather)?.takeIf { weatherOn }
     val weather = loadedWeather?.first
     val tomorrowWeather = loadedWeather?.second
     val notifications = rememberNotifications(sources, active && catchUpOn)
@@ -358,7 +358,7 @@ internal fun TodayPage(
     val locationOk = rememberPermissionState { com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(it).permitted() }
     val locationRequest = rememberTodayLocationRequest { }
     val askLocation = if (leaveByOn && !locationOk) ({ locationRequest.request() }) else null
-    val sunset = weather?.sunset?.toEpochMilli()?.takeIf { it > now && weatherOn }
+    val sunset = weather?.sunset?.toEpochMilli()?.takeIf { it > now }
     val warm = if (scheme.surface.luminance() < 0.5f) Color(0xFFF2B872) else Color(0xFFB5651D)
     val scroll = rememberScrollState()
     val density = LocalDensity.current
@@ -387,11 +387,11 @@ internal fun TodayPage(
                 translationY = scroll.value * 0.35f
                 alpha = (1f - scroll.value / with(density) { 260.dp.toPx() }).coerceIn(0f, 1f)
             }) {
-                Enter(index++) { Greeting(now, weather.takeIf { weatherOn }, sunset, birthdaysToday, warm) }
+                Enter(index++) { Greeting(now, weather, sunset, birthdaysToday, warm) }
             }
             if (upNext != null) Enter(index++) { UpNextCard(upNext, now, trip, askLocation) }
             if (upNextOn && laterToday.size + (if (sunset != null) 1 else 0) >= 2) Enter(index++) { RestOfDay(laterToday, now, sunset) }
-            if (weatherOn && weather != null && weather.hours.size >= 3) Enter(index++) { WeatherAhead(weather) }
+            if (weather != null && weather.hours.size >= 3) Enter(index++) { WeatherAhead(weather) }
             if (timer != null || alarm != null || delivery != null) {
                 Enter(index++) { TimerAlarmTiles(timer, alarm?.let { GlanceItem.Alarm(it) }, delivery, now) }
             }
@@ -409,7 +409,7 @@ internal fun TodayPage(
                 Enter(index++) { YearTiles(today, null, memory) }
             }
             if (alarmTomorrow != null || tomorrowWeather != null || tomorrowEvent != null) {
-                Enter(index) { Tomorrow(today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather?.takeIf { weatherOn }, tomorrowEvent) }
+                Enter(index) { Tomorrow(today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather, tomorrowEvent) }
             }
         }
       }

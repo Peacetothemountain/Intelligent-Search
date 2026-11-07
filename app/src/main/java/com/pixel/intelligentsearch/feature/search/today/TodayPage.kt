@@ -320,9 +320,12 @@ internal fun TodayPage(
     val extrasOn by rememberSetting(SettingsManager.TODAY_EXTRAS)
     val leaveByOn by rememberSetting(SettingsManager.TODAY_LEAVE_BY)
     val memoriesOn by rememberSetting(SettingsManager.TODAY_MEMORIES)
-    val loadedWeather = produceState(preloadedWeather, preloadedWeather, active, weatherOn) {
+    // What the layer read wins whenever it has it, including when it arrives or refreshes after the page has opened;
+    // the page reads for itself only while it has nothing.
+    val ownWeather = produceState<Pair<WeatherReport, WeatherReport?>?>(null, preloadedWeather == null, active, weatherOn) {
         if (preloadedWeather == null && active && weatherOn) value = sources.weather()
     }.value
+    val loadedWeather = preloadedWeather ?: ownWeather
     val weather = loadedWeather?.first
     val tomorrowWeather = loadedWeather?.second
     val notifications = rememberNotifications(sources, active && catchUpOn)
@@ -346,9 +349,10 @@ internal fun TodayPage(
         value = if (upNext != null && leaveByOn && active) sources.trip(upNext) else null
     }.value
     val photosOk = rememberPermissionState(::photosAllowed)
-    val memory = produceState(preloadedMemory, preloadedMemory, today, memoriesOn, extrasOn, active, photosOk) {
+    val ownMemory = produceState<TodayMemory?>(null, preloadedMemory == null, today, memoriesOn, extrasOn, active, photosOk) {
         if (preloadedMemory == null && memoriesOn && extrasOn && active && photosOk) value = sources.memory(today)
     }.value
+    val memory = (preloadedMemory ?: ownMemory)?.takeIf { memoriesOn && photosOk }
     val photosRequest = rememberPhotosRequest { }
     val askPhotos = if (memoriesOn && extrasOn && !photosOk) ({ photosRequest.request() }) else null
     val locationOk = rememberPermissionState { com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(it).permitted() }

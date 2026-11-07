@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import android.content.Context
 import android.graphics.BlendMode
 import android.graphics.Matrix
 import android.graphics.RectF
@@ -9,6 +10,7 @@ import android.graphics.Shader
 import android.os.Build
 import android.view.TextureView
 import androidx.annotation.DrawableRes
+import androidx.annotation.OptIn
 import androidx.annotation.RawRes
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Canvas
@@ -42,7 +44,16 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.RawResourceDataSource
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.RenderersFactory
+import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
+import androidx.media3.extractor.ExtractorsFactory
+import androidx.media3.extractor.mp4.Mp4Extractor
+import androidx.media3.extractor.text.SubtitleParser
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.theme.isDark
 import kotlin.math.cos
@@ -165,7 +176,7 @@ fun rememberBugdroidPlayer(clip: BugdroidClip, enabled: Boolean = true, autoPlay
     val player = remember(clip, enabled) {
         if (!enabled || !isBugdroidVideoSupported) return@remember null
         runCatching {
-            ExoPlayer.Builder(context).build().apply {
+            bugdroidExoPlayer(context).apply {
                 setMediaItem(MediaItem.fromUri("android.resource://${context.packageName}/${clip.rawRes}"))
                 repeatMode = Player.REPEAT_MODE_ALL
                 prepare()
@@ -182,6 +193,31 @@ fun rememberBugdroidPlayer(clip: BugdroidClip, enabled: Boolean = true, autoPlay
         }
     }
     return player
+}
+
+/**
+ * A player for the clips and nothing else: they are MP4 files in res/raw with one video track and no sound, so it
+ * holds only a video renderer, the MP4 extractor and a raw resource reader. `ExoPlayer.Builder(context)` would bring
+ * every renderer (audio, text, metadata, image), every container extractor and every data source into the APK, since
+ * R8 can't tell they are never used. The video renderer is set up as `DefaultRenderersFactory` sets it up.
+ */
+@OptIn(UnstableApi::class)
+private fun bugdroidExoPlayer(context: Context): ExoPlayer {
+    val renderers = RenderersFactory { handler, videoListener, _, _, _ ->
+        arrayOf(
+            MediaCodecVideoRenderer.Builder(context)
+                .setAllowedJoiningTimeMs(DefaultRenderersFactory.DEFAULT_ALLOWED_VIDEO_JOINING_TIME_MS)
+                .setEventHandler(handler)
+                .setEventListener(videoListener)
+                .setMaxDroppedFramesToNotify(DefaultRenderersFactory.MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
+                .build()
+        )
+    }
+    val mp4Only = ExtractorsFactory {
+        arrayOf(Mp4Extractor(SubtitleParser.Factory.UNSUPPORTED, Mp4Extractor.FLAG_EMIT_RAW_SUBTITLE_DATA))
+    }
+    val source = ProgressiveMediaSource.Factory({ RawResourceDataSource(context) }, mp4Only)
+    return ExoPlayer.Builder(context, renderers, source).build()
 }
 
 /**

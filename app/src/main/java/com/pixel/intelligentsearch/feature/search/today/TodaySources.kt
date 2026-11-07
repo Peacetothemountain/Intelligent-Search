@@ -145,13 +145,17 @@ private val COUNTDOWN_OCCASIONS = setOf(
     Occasion.HOLIDAYS, Occasion.NEW_YEARS_EVE, Occasion.CANADA_DAY, Occasion.DIWALI, Occasion.LUNAR_NEW_YEAR
 )
 
-/** The next of [COUNTDOWN_OCCASIONS] after [today], in [zone] and [region], named by [name]. */
+/**
+ * The next of [COUNTDOWN_OCCASIONS] after [today], in [zone] and [region], named by [name]. The holidays doodle runs
+ * Christmas Eve and Christmas Day; the countdown is to Christmas Day and says so.
+ */
 internal fun nextCountdown(today: LocalDate, zone: ZoneId, region: String, name: (Occasion) -> String): TodayCountdown? {
     var date = today.plusDays(1)
     repeat(400) {
         val occasion = OccasionCalendar.on(date, zone, region)
-        if (occasion != null && occasion in COUNTDOWN_OCCASIONS) {
-            return TodayCountdown(name(occasion), ChronoUnit.DAYS.between(today, date).toInt(), date)
+        val christmas = occasion == Occasion.HOLIDAYS
+        if (occasion != null && occasion in COUNTDOWN_OCCASIONS && (!christmas || date.dayOfMonth == 25)) {
+            return TodayCountdown(if (christmas) "Christmas" else name(occasion), ChronoUnit.DAYS.between(today, date).toInt(), date)
         }
         date = date.plusDays(1)
     }
@@ -251,9 +255,7 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
     }
 
     override fun countdown(today: LocalDate): TodayCountdown? =
-        nextCountdown(today, ZoneId.systemDefault(), Locale.getDefault().country.uppercase(Locale.ROOT)) { occasion ->
-            if (occasion == Occasion.HOLIDAYS) "Christmas" else app.getString(occasion.title)
-        }
+        nextCountdown(today, ZoneId.systemDefault(), Locale.getDefault().country.uppercase(Locale.ROOT)) { app.getString(it.title) }
 
     override val controls: TodayControls = object : TodayControls {
         private val notifications = app.getSystemService(NotificationManager::class.java)

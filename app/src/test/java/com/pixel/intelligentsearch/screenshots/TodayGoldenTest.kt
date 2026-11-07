@@ -146,7 +146,7 @@ class TodayGoldenTest(private val dark: Boolean) {
         override suspend fun memory(today: LocalDate) = TodayMemory("3 years ago", "24 photos", android.net.Uri.EMPTY, photo())
         override val controls = object : TodayControls {
             override fun doNotDisturb(): Flow<Boolean> = flowOf(false)
-            override fun setDoNotDisturb(on: Boolean) = false
+            override fun setDoNotDisturb(on: Boolean): android.content.Intent? = null
             override fun flashlight(): Flow<Boolean> = flowOf(false)
             override fun setFlashlight(on: Boolean) {}
             override fun batterySaver(): Flow<Boolean> = flowOf(true)

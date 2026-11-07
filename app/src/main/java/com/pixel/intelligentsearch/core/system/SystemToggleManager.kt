@@ -416,34 +416,15 @@ class SystemToggleManager @Inject constructor(
     // ==========================================
     // 7. DO NOT DISTURB (ZEN MODE)
     // ==========================================
-    private fun checkDndEnabled(): Boolean {
-        return try {
-            val filter = notificationManager?.currentInterruptionFilter ?: NotificationManager.INTERRUPTION_FILTER_ALL
-            filter != NotificationManager.INTERRUPTION_FILTER_ALL
-        } catch (_: Exception) { false }
-    }
+    private fun checkDndEnabled(): Boolean = DoNotDisturb.isOn(notificationManager)
 
     fun isDndEnabled(): Boolean = _isDndEnabled.value
 
+    /** Switches Do Not Disturb, or opens the Android page that can when the app can't ([DoNotDisturb.switch]). */
     fun toggleDnd(enabled: Boolean) {
-        try {
-            if (notificationManager?.isNotificationPolicyAccessGranted == true) {
-                val filter = if (enabled) {
-                    NotificationManager.INTERRUPTION_FILTER_PRIORITY
-                } else {
-                    NotificationManager.INTERRUPTION_FILTER_ALL
-                }
-                notificationManager.setInterruptionFilter(filter)
-                _isDndEnabled.value = enabled
-            } else {
-                openDndSettings()
-            }
-        } catch (e: SecurityException) {
-            Log.w(TAG, "Notification policy access restricted by system", e)
-            openDndSettings()
-        } catch (e: Exception) {
-            openDndSettings()
-        }
+        val page = DoNotDisturb.switch(context, enabled)?.action
+        if (page == Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS) openDndSettings() else if (page != null) openSettingsIntent(page)
+        _isDndEnabled.value = checkDndEnabled()
     }
 
     fun getDndStatusText(enabled: Boolean): String {

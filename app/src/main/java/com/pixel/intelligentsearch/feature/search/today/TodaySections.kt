@@ -481,7 +481,7 @@ internal fun QuickControls(controls: TodayControls) {
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ControlTile("Do Not Disturb", Icons.Outlined.DoNotDisturbOn, dnd, Modifier.weight(1f)) {
-                if (!controls.setDoNotDisturb(!dnd)) launchSafeIntent(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+                controls.setDoNotDisturb(!dnd)?.let { launchSafeIntent(context, it) }
             }
             ControlTile("Flashlight", Icons.Outlined.FlashlightOn, torch, Modifier.weight(1f)) { controls.setFlashlight(!torch) }
             ControlTile("Hotspot", Icons.Outlined.WifiTethering, null, Modifier.weight(1f)) {

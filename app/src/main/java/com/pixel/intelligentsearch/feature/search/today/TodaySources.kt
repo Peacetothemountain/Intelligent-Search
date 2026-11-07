@@ -21,6 +21,7 @@ import com.pixel.intelligentsearch.core.answers.WeatherReport
 import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import com.pixel.intelligentsearch.core.occasion.Occasion
 import com.pixel.intelligentsearch.core.occasion.OccasionCalendar
+import com.pixel.intelligentsearch.core.system.DoNotDisturb
 import com.pixel.intelligentsearch.di.appEntryPoint
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -134,8 +135,8 @@ internal fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double):
 /** Do Not Disturb, the flashlight, the hotspot and Battery Saver; each state is read now and again whenever it changes. */
 interface TodayControls {
     fun doNotDisturb(): Flow<Boolean>
-    /** Switches Do Not Disturb, when the app may; false when it has to send the user to Android's page instead. */
-    fun setDoNotDisturb(on: Boolean): Boolean
+    /** Switches Do Not Disturb, when the app may; otherwise the Android page to send the user to ([DoNotDisturb.switch]). */
+    fun setDoNotDisturb(on: Boolean): Intent?
     fun flashlight(): Flow<Boolean>
     fun setFlashlight(on: Boolean)
     fun batterySaver(): Flow<Boolean>
@@ -277,15 +278,10 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
         }
 
         override fun doNotDisturb(): Flow<Boolean> = broadcastState(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED) {
-            notifications?.currentInterruptionFilter?.let { it != NotificationManager.INTERRUPTION_FILTER_ALL && it != NotificationManager.INTERRUPTION_FILTER_UNKNOWN } == true
+            DoNotDisturb.isOn(notifications)
         }
 
-        override fun setDoNotDisturb(on: Boolean): Boolean {
-            val manager = notifications ?: return false
-            if (!manager.isNotificationPolicyAccessGranted) return false
-            manager.setInterruptionFilter(if (on) NotificationManager.INTERRUPTION_FILTER_PRIORITY else NotificationManager.INTERRUPTION_FILTER_ALL)
-            return true
-        }
+        override fun setDoNotDisturb(on: Boolean): Intent? = DoNotDisturb.switch(app, on)
 
         override fun flashlight(): Flow<Boolean> = callbackFlow {
             val manager = cameras

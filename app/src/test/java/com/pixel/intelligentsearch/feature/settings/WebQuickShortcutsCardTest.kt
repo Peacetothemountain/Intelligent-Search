@@ -15,13 +15,13 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isHeading
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
 import androidx.compose.ui.test.performTextReplacement
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.HiltTestActivity
 import com.pixel.intelligentsearch.core.bangs.SearchBang
@@ -31,7 +31,6 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.core.ui.LOADING_INDICATOR_TAG
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
 import com.pixel.intelligentsearch.screenshots.settle
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -60,7 +59,7 @@ import org.robolectric.annotation.Config
 class WebQuickShortcutsCardTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>(confinedEffects())
+    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>()
 
     private val prefs: SharedPreferences = ApplicationProvider.getApplicationContext<Context>()
         .getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)

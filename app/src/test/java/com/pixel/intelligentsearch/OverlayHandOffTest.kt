@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.net.Uri
+import android.os.Process
 import android.speech.RecognizerIntent
 import androidx.lifecycle.ViewModelProvider
 import androidx.test.core.app.ApplicationProvider
@@ -52,6 +53,7 @@ import org.robolectric.shadow.api.Shadow
 import org.robolectric.shadows.ShadowAppTask
 import org.robolectric.shadows.ShadowChoreographer
 import org.robolectric.shadows.ShadowLooper
+import org.robolectric.shadows.ShadowRoleManager
 import org.robolectric.shadows.ShadowToast
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
@@ -129,7 +131,7 @@ class OverlayHandOffTest {
 
     @Test
     fun asTheAssistantWithoutGeminiOrGoogleTheAssistantButtonSearchesWhatWasSaid() {
-        shadowOf(context.getSystemService(RoleManager::class.java)).addHeldRole(RoleManager.ROLE_ASSISTANT)
+        ShadowRoleManager.addRoleHolder(RoleManager.ROLE_ASSISTANT, context.packageName, Process.myUserHandle())
         install("org.example.speech", IntentFilter(RecognizerIntent.ACTION_RECOGNIZE_SPEECH))
         // The widget's assistant button and the overlay's Digital Assistant row. Their last fallback, this app's own
         // voice search, was started from the search handling the button, which closed right after: the words were lost.
@@ -152,7 +154,7 @@ class OverlayHandOffTest {
 
     @Test
     fun asTheAssistantWithNoRecognizerEitherTheAssistantButtonOpensTheSearch() {
-        shadowOf(context.getSystemService(RoleManager::class.java)).addHeldRole(RoleManager.ROLE_ASSISTANT)
+        ShadowRoleManager.addRoleHolder(RoleManager.ROLE_ASSISTANT, context.packageName, Process.myUserHandle())
         // Nothing to listen with: the search stays open to type in, instead of flashing and closing.
         val controller = Robolectric.buildActivity(WidgetActivity::class.java, getVoiceActionIntent(context)).setup()
         assertFalse(controller.get().isFinishing)
@@ -186,7 +188,7 @@ class OverlayHandOffTest {
 
     @Test
     fun withTheOverlayOffTheAssistantButtonsVoiceSearchSearchesTheWebForWhatWasSaid() {
-        shadowOf(context.getSystemService(RoleManager::class.java)).addHeldRole(RoleManager.ROLE_ASSISTANT)
+        ShadowRoleManager.addRoleHolder(RoleManager.ROLE_ASSISTANT, context.packageName, Process.myUserHandle())
         install("org.example.search", IntentFilter(Intent.ACTION_WEB_SEARCH))
 
         val activity = voiceWithTheOverlayOff(getVoiceActionIntent(context), Activity.RESULT_OK, "bus times")

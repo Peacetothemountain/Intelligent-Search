@@ -26,7 +26,7 @@ import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isDialog
 import androidx.compose.ui.test.isNotEnabled
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -50,7 +50,6 @@ import com.pixel.intelligentsearch.core.security.BiometricSearchGate
 import com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
 import com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager.PassphraseSave
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
 import com.pixel.intelligentsearch.screenshots.settle
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -94,7 +93,7 @@ import org.robolectric.util.ReflectionHelpers
 class BackupRestoreScreenTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     @Inject lateinit var settingsManager: SettingsManager
     @Inject lateinit var historyDao: HistoryDao

@@ -5,7 +5,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -17,7 +17,6 @@ import com.pixel.intelligentsearch.core.data.widget.WidgetProfileDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetProfiles
 import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
 import com.pixel.intelligentsearch.screenshots.settle
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -40,7 +39,7 @@ import org.robolectric.annotation.GraphicsMode
 class WidgetEditorSlidersTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     @Before fun inject() = hilt.inject()
 

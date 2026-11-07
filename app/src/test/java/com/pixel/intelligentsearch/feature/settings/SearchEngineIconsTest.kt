@@ -2,11 +2,10 @@ package com.pixel.intelligentsearch.feature.settings
 
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -24,7 +23,7 @@ import org.robolectric.annotation.Config
 class SearchEngineIconsTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     @Before fun inject() = hilt.inject()
 

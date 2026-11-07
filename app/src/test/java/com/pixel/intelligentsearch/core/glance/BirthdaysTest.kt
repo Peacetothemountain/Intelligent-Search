@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.feature.search.birthdayDayLabel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -108,6 +109,7 @@ class BirthdaysTest {
     private val lateEvening = ZonedDateTime.of(2026, 10, 22, 23, 0, 0, 0, ZoneOffset.UTC)
 
     @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun theWeekMovesOnAtMidnightWhileTheSearchStaysOpen() = runTest {
         val shown = mutableListOf<List<String>>()
         val now = { lateEvening.plus(Duration.ofMillis(testScheduler.currentTime)) }

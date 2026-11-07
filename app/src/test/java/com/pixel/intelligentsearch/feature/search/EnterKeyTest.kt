@@ -5,7 +5,7 @@ import android.content.Intent
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.test.requestFocus
@@ -18,7 +18,6 @@ import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.core.data.DeviceSearchSourcesModule
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
 import com.pixel.intelligentsearch.screenshots.settle
 import dagger.Module
@@ -60,7 +59,7 @@ class EnterKeyTest {
     }
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>(confinedEffects())
+    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>()
 
     private val context get() = ApplicationProvider.getApplicationContext<Context>()
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)

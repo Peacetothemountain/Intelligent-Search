@@ -3,9 +3,9 @@ package com.pixel.intelligentsearch.feature.search
 import android.content.Context
 import android.content.Intent
 import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.performImeAction
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.HiltTestActivity
 import com.pixel.intelligentsearch.core.data.ContactItem
@@ -15,7 +15,6 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.settings.TutorialManager
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
 import com.pixel.intelligentsearch.screenshots.settle
 import dagger.Module
@@ -54,7 +53,7 @@ class SubmitQueryTest {
     }
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>(confinedEffects())
+    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>()
 
     @Inject lateinit var sources: DeviceSearchSources
 

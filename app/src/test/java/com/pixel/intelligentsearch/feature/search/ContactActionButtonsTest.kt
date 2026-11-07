@@ -13,7 +13,7 @@ import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.hasContentDescription
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performClick
@@ -21,7 +21,6 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.haptics.RecordingViewHaptics
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -46,7 +45,7 @@ import org.robolectric.shadows.ShadowSystemClock
 class ContactActionButtonsTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     @Before fun inject() {
         hilt.inject()

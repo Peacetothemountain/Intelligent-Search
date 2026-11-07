@@ -9,7 +9,7 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.getBoundsInRoot
 import androidx.compose.ui.test.onNodeWithTag
@@ -24,7 +24,6 @@ import com.pixel.intelligentsearch.core.glance.GlanceMedia
 import com.pixel.intelligentsearch.core.glance.MediaControls
 import com.pixel.intelligentsearch.core.system.MediaSessionAccess
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -47,7 +46,7 @@ import java.time.ZoneId
 class GlanceMediaControlsTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     @org.junit.Before fun inject() = hilt.inject()
 

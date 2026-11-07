@@ -173,7 +173,7 @@ class FileTypeFilterTest {
             rerun.countDown()
             await("awaitSearch to come back") { returnedWith != null }
             assertNull(returnedWith!!.fileTypeFilter)
-            assertEquals("pdf invoice x", returnedWith!!.query)
+            assertEquals("pdf invoice x", returnedWith.query)
         } finally {
             fake.heldLookups = emptyList()
             first.countDown()

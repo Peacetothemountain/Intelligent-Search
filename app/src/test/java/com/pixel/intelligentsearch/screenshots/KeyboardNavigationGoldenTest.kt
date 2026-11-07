@@ -2,14 +2,12 @@ package com.pixel.intelligentsearch.screenshots
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ActivityInfo
-import android.content.pm.ResolveInfo
 import android.provider.Settings
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -22,6 +20,8 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.search.SearchOverlayScreen
 import com.pixel.intelligentsearch.feature.search.SearchViewModel
+import com.pixel.intelligentsearch.installActivityFor
+import com.pixel.intelligentsearch.settingsPage
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -30,7 +30,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.ParameterizedRobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -47,7 +46,7 @@ import org.robolectric.annotation.GraphicsMode
 class KeyboardNavigationGoldenTest(private val dark: Boolean) {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>(confinedEffects())
+    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>()
 
     private val context get() = ApplicationProvider.getApplicationContext<Context>()
     private val mode get() = if (dark) "dark" else "light"
@@ -60,13 +59,7 @@ class KeyboardNavigationGoldenTest(private val dark: Boolean) {
         // Live web suggestions come from the network and arrive at random times; goldens must not depend on them.
         prefs.edit().putBoolean(SettingsManager.SEARCH_WEB_SUGGESTIONS.name, false).commit()
         for (action in listOf(Intent.ACTION_POWER_USAGE_SUMMARY, Settings.ACTION_BATTERY_SAVER_SETTINGS, Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) {
-            val info = ResolveInfo().apply {
-                activityInfo = ActivityInfo().apply {
-                    packageName = "com.android.settings"
-                    name = "com.android.settings.SubSettings"
-                }
-            }
-            shadowOf(context.packageManager).addResolveInfoForIntent(Intent(action), info)
+            installActivityFor(Intent(action), settingsPage)
         }
     }
 

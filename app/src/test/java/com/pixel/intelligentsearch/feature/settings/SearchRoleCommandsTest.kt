@@ -3,13 +3,12 @@ package com.pixel.intelligentsearch.feature.settings
 import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.system.SearchRoleManager
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -44,7 +43,7 @@ import androidx.compose.ui.unit.dp
 class SearchRoleCommandsTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     /** An empty Android Keystore, so the dialog's hardware checks open (and find nothing) off a device. */
     class EmptyKeyStore : KeyStoreSpi() {
@@ -118,11 +117,9 @@ class SearchRoleCommandsTest {
     @Test
     fun onceDefaultTheNoteDropsTheRepeatedCardAndTheCommands() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val roles = org.robolectric.shadow.api.Shadow.extract<org.robolectric.shadows.ShadowRoleManager>(
-            context.getSystemService(android.app.role.RoleManager::class.java)
+        org.robolectric.shadows.ShadowRoleManager.addRoleHolder(
+            SearchRoleManager.ROLE_SEARCH_ENGINE, context.packageName, android.os.Process.myUserHandle()
         )
-        roles.addAvailableRole(SearchRoleManager.ROLE_SEARCH_ENGINE)
-        roles.addHeldRole(SearchRoleManager.ROLE_SEARCH_ENGINE)
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) { SearchRoleInfoDialog(LocalContext.current) {} }
         }

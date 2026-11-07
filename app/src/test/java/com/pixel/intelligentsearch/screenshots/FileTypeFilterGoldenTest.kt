@@ -2,9 +2,9 @@ package com.pixel.intelligentsearch.screenshots
 
 import android.content.Context
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.pixel.intelligentsearch.HiltTestActivity
@@ -55,7 +55,7 @@ class FileTypeFilterGoldenTest(private val dark: Boolean) {
     }
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>(confinedEffects())
+    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>()
 
     @Inject lateinit var coordinator: UnifiedSearchCoordinator
 

@@ -4,6 +4,7 @@ import android.app.Notification
 import android.media.session.PlaybackState
 import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.system.MediaSessionAccess
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
@@ -162,6 +163,7 @@ class AtAGlanceTest {
 
     /** A player left paused leaves when its half hour is up, though nothing about the session changes then. */
     @Test
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun aPausedPlayerLeavesOnTimeWithoutAnyChangeToItsSession() = runTest {
         val start = 10_000_000L
         val paused = MediaSessionAccess.SessionState("Podcast", PlaybackState.STATE_PAUSED, start - MediaSessionAccess.PAUSED_MEDIA_MS + 60_000)

@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.feature.search
 import com.pixel.intelligentsearch.AppJob
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.ColorDrawable
@@ -21,6 +22,8 @@ import com.pixel.intelligentsearch.core.data.DeviceSearchSourcesModule
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
+import com.pixel.intelligentsearch.installActivityFor
+import com.pixel.intelligentsearch.settingsPage
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -405,14 +408,7 @@ class SearchViewModelTest {
 
     /** Makes the Battery page open, as the Settings app would on a phone. */
     private fun batteryPageResolves() {
-        val info = android.content.pm.ResolveInfo().apply {
-            activityInfo = android.content.pm.ActivityInfo().apply {
-                packageName = "com.android.settings"
-                name = "com.android.settings.SubSettings"
-            }
-        }
-        shadowOf(ApplicationProvider.getApplicationContext<Context>().packageManager)
-            .addResolveInfoForIntent(android.content.Intent(android.content.Intent.ACTION_POWER_USAGE_SUMMARY), info)
+        installActivityFor(android.content.Intent(android.content.Intent.ACTION_POWER_USAGE_SUMMARY), settingsPage)
     }
 
     @Test
@@ -428,13 +424,7 @@ class SearchViewModelTest {
 
     /** Makes [intent] open a Settings activity. */
     private fun opens(intent: android.content.Intent) {
-        val info = android.content.pm.ResolveInfo().apply {
-            activityInfo = android.content.pm.ActivityInfo().apply {
-                packageName = "com.android.settings"
-                name = "com.android.settings.SubSettings"
-            }
-        }
-        shadowOf(ApplicationProvider.getApplicationContext<Context>().packageManager).addResolveInfoForIntent(intent, info)
+        installActivityFor(intent, settingsPage)
     }
 
     private fun appDetailsOpens() = opens(

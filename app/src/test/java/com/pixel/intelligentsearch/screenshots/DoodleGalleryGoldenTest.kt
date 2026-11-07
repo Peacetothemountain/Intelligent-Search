@@ -1,6 +1,6 @@
 package com.pixel.intelligentsearch.screenshots
 
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.pixel.intelligentsearch.core.occasion.Occasion
@@ -27,7 +27,7 @@ import java.time.ZoneId
 class DoodleGalleryGoldenTest(private val dark: Boolean) {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     @Before fun inject() {
         hilt.inject()

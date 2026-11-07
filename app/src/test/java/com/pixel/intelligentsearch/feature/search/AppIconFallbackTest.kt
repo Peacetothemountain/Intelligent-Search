@@ -6,13 +6,12 @@ import android.content.pm.PackageInfo
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.ui.getThemedAppIcon
 import com.pixel.intelligentsearch.core.ui.peekThemedAppIcon
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -36,7 +35,7 @@ import org.robolectric.annotation.GraphicsMode
 class AppIconFallbackTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     private val context = ApplicationProvider.getApplicationContext<Context>()
 
@@ -107,6 +106,7 @@ class AppIconFallbackTest {
         assertSame(systemIcon, shown)
 
         pack.value = "com.example.missing.iconpack"
+        compose.waitForIdle()
         compose.waitUntil(5_000) { shown != null && shown !== systemIcon }
         assertEquals(peekThemedAppIcon(packageName, "com.example.missing.iconpack"), shown)
     }

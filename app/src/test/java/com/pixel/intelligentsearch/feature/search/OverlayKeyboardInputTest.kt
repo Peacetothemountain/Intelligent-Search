@@ -2,8 +2,6 @@ package com.pixel.intelligentsearch.feature.search
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ActivityInfo
-import android.content.pm.ResolveInfo
 import android.provider.Settings
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.input.key.Key
@@ -15,7 +13,7 @@ import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assert
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
@@ -27,9 +25,10 @@ import com.pixel.intelligentsearch.HiltTestActivity
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
-import com.pixel.intelligentsearch.screenshots.confinedEffects
+import com.pixel.intelligentsearch.installActivityFor
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
 import com.pixel.intelligentsearch.screenshots.settle
+import com.pixel.intelligentsearch.settingsPage
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -56,7 +55,7 @@ import org.robolectric.annotation.Config
 class OverlayKeyboardInputTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>(confinedEffects())
+    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>()
 
     private val context get() = ApplicationProvider.getApplicationContext<Context>()
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
@@ -75,13 +74,7 @@ class OverlayKeyboardInputTest {
         // Live web suggestions come from the network; this test must not depend on them.
         prefs.edit().putBoolean(SettingsManager.SEARCH_WEB_SUGGESTIONS.name, false).commit()
         for (action in batteryPages.values) {
-            val info = ResolveInfo().apply {
-                activityInfo = ActivityInfo().apply {
-                    packageName = "com.android.settings"
-                    name = "com.android.settings.SubSettings"
-                }
-            }
-            shadowOf(context.packageManager).addResolveInfoForIntent(Intent(action), info)
+            installActivityFor(Intent(action), settingsPage)
         }
     }
 

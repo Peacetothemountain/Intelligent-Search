@@ -5,18 +5,7 @@ import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import com.pixel.intelligentsearch.core.ui.LOADING_INDICATOR_TAG
-import kotlin.coroutines.CoroutineContext
-import kotlinx.coroutines.test.StandardTestDispatcher
 import org.robolectric.Shadows.shadowOf
-
-/**
- * The effect context for every compose rule in these tests. By default the rule runs composition and effects
- * on an unconfined dispatcher, so an effect that comes back from `withContext(Dispatchers.IO)` continues on
- * the IO worker and writes its state there, racing the test thread's composition; a write that lands while a
- * frame is in progress can be lost, leaving the screen stuck on its loading indicator. A standard test
- * dispatcher queues the continuation for the test thread, as the main dispatcher does in the app.
- */
-fun confinedEffects(): CoroutineContext = StandardTestDispatcher()
 
 /**
  * Screenshot tests run with system animations off (as with Accessibility > Remove animations): the app's
@@ -74,8 +63,8 @@ private fun awaitBackgroundWork(maxMs: Long) {
 
 /** True while a coroutine IO worker or Room thread is doing anything but waiting for its next task. */
 private fun backgroundWorkRunning(): Boolean {
-    var group = Thread.currentThread().threadGroup
-    while (group.parent != null) group = group.parent
+    var group = Thread.currentThread().threadGroup ?: return false
+    while (true) group = group.parent ?: break
     val threads = arrayOfNulls<Thread>(group.activeCount() + 16)
     val count = group.enumerate(threads)
     return (0 until count).mapNotNull { threads[it] }.any { thread ->

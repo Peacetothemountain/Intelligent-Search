@@ -10,12 +10,11 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasAnyChild
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.haptics.RecordingViewHaptics
 import com.pixel.intelligentsearch.core.haptics.rememberTactileSonicEngine
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -37,7 +36,7 @@ import org.robolectric.annotation.Config
 class SwipeToDismissTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     @Before fun inject() = hilt.inject()
 

@@ -6,7 +6,7 @@ import android.content.Context
 import android.provider.Settings
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -14,7 +14,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.glance.NotificationAccessListener
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -40,7 +39,7 @@ import org.robolectric.annotation.Config
 class NotificationAccessSetupTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
@@ -62,6 +61,8 @@ class NotificationAccessSetupTest {
 
     @Test
     fun searchSourcesHasNoSwitchForWhatAndroidAlreadyAsksAbout() {
+        // The page's Material Morph animation (on by default) never idles; this test is about the page's rows.
+        prefs.edit().putBoolean(SettingsManager.MORPH_ANIMATION_ENABLED.name, false).commit()
         compose.setContent { IntelligentSearchTheme(darkTheme = false) { SearchSourcesScreen({}, {}) } }
         compose.waitForIdle()
         for (title in listOf("Notifications", "Calendar", "Android Settings")) {

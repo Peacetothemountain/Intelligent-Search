@@ -145,11 +145,11 @@ class TodayGoldenTest(private val dark: Boolean) {
         override suspend fun trip(event: CalendarEvent) = TodayTrip(event.beginMillis - 22 * MINUTE, 22)
         override suspend fun memory(today: LocalDate) = TodayMemory("3 years ago", "24 photos", android.net.Uri.EMPTY, photo())
         override val controls = object : TodayControls {
-            override fun doNotDisturb() = false
+            override fun doNotDisturb(): Flow<Boolean> = flowOf(false)
             override fun setDoNotDisturb(on: Boolean) = false
             override fun flashlight(): Flow<Boolean> = flowOf(false)
             override fun setFlashlight(on: Boolean) {}
-            override fun batterySaver() = true
+            override fun batterySaver(): Flow<Boolean> = flowOf(true)
         }
     }
 

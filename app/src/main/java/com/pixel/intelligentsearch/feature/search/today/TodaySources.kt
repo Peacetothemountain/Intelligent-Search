@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.search.today
 
 import android.app.NotificationManager
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -13,6 +14,7 @@ import android.os.PowerManager
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.core.content.ContextCompat
 import com.pixel.intelligentsearch.core.answers.ScreenTimeReport
 import com.pixel.intelligentsearch.core.answers.ScreenTimeRepository
 import com.pixel.intelligentsearch.core.answers.WeatherReport
@@ -23,6 +25,7 @@ import com.pixel.intelligentsearch.di.appEntryPoint
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
@@ -123,14 +126,14 @@ internal fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double):
     return 6371.0 * 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
 }
 
-/** Do Not Disturb, the flashlight, the hotspot and Battery Saver. */
+/** Do Not Disturb, the flashlight, the hotspot and Battery Saver; each state is read now and again whenever it changes. */
 interface TodayControls {
-    fun doNotDisturb(): Boolean
+    fun doNotDisturb(): Flow<Boolean>
     /** Switches Do Not Disturb, when the app may; false when it has to send the user to Android's page instead. */
     fun setDoNotDisturb(on: Boolean): Boolean
     fun flashlight(): Flow<Boolean>
     fun setFlashlight(on: Boolean)
-    fun batterySaver(): Boolean
+    fun batterySaver(): Flow<Boolean>
 }
 
 internal val LocalTodaySources = staticCompositionLocalOf<TodaySources?> { null }
@@ -263,8 +266,9 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
             }.getOrNull()
         }
 
-        override fun doNotDisturb(): Boolean =
+        override fun doNotDisturb(): Flow<Boolean> = broadcastState(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED) {
             notifications?.currentInterruptionFilter?.let { it != NotificationManager.INTERRUPTION_FILTER_ALL && it != NotificationManager.INTERRUPTION_FILTER_UNKNOWN } == true
+        }
 
         override fun setDoNotDisturb(on: Boolean): Boolean {
             val manager = notifications ?: return false
@@ -295,6 +299,20 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
             runCatching { cameras?.setTorchMode(id, on) }
         }
 
-        override fun batterySaver(): Boolean = app.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
+        override fun batterySaver(): Flow<Boolean> = broadcastState(PowerManager.ACTION_POWER_SAVE_MODE_CHANGED) {
+            app.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
+        }
     }
+
+    /** [read] now, and again each time Android broadcasts [action], for as long as it is collected. */
+    private fun broadcastState(action: String, read: () -> Boolean): Flow<Boolean> = callbackFlow {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                trySend(read())
+            }
+        }
+        ContextCompat.registerReceiver(app, receiver, IntentFilter(action), ContextCompat.RECEIVER_NOT_EXPORTED)
+        trySend(read())
+        awaitClose { app.unregisterReceiver(receiver) }
+    }.distinctUntilChanged()
 }

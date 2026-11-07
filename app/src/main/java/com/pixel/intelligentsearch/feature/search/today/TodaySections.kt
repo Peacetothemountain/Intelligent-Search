@@ -468,16 +468,16 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
 @Composable
 internal fun QuickControls(controls: TodayControls) {
     val context = LocalContext.current
-    var dnd by remember { mutableStateOf(controls.doNotDisturb()) }
+    // Live, so a switch flipped in the notification shade while the page is open shows here too.
+    val dnd by remember(controls) { controls.doNotDisturb() }.collectAsState(initial = false)
     val torch by remember(controls) { controls.flashlight() }.collectAsState(initial = false)
-    val saver = remember { controls.batterySaver() }
+    val saver by remember(controls) { controls.batterySaver() }.collectAsState(initial = false)
     Column {
         SectionTitle("Quick controls")
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ControlTile("Do Not Disturb", Icons.Outlined.DoNotDisturbOn, dnd, Modifier.weight(1f)) {
-                if (controls.setDoNotDisturb(!dnd)) dnd = !dnd
-                else launchSafeIntent(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
+                if (!controls.setDoNotDisturb(!dnd)) launchSafeIntent(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
             }
             ControlTile("Flashlight", Icons.Outlined.FlashlightOn, torch, Modifier.weight(1f)) { controls.setFlashlight(!torch) }
             ControlTile("Hotspot", Icons.Outlined.WifiTethering, false, Modifier.weight(1f)) {

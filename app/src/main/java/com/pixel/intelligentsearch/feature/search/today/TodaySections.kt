@@ -335,11 +335,13 @@ internal fun WeatherAhead(report: WeatherReport) {
             .onFirstSeen { seen = true }
             .padding(14.dp)
     ) {
+        // The chance is of rain or snow alike, so the hour's own weather says which to name.
         val rainAt = hours.indexOfFirst { (it.precipitation ?: 0) >= 50 }
+        val falling = if (rainAt >= 0 && WeatherCodes.kind(hours[rainAt].code) == WeatherCodes.Kind.SNOW) "Snow" else "Rain"
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Weather ahead", style = MaterialTheme.typography.titleSmall, color = scheme.onSurface, modifier = Modifier.weight(1f))
             Text(
-                if (rainAt >= 0) "Rain likely around ${hours[rainAt].time.withZoneSameInstant(zone).format(DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h a", locale))}"
+                if (rainAt >= 0) "$falling likely around ${hours[rainAt].time.withZoneSameInstant(zone).format(DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h a", locale))}"
                 else "H ${report.high.roundToInt()}°  L ${report.low.roundToInt()}°",
                 style = MaterialTheme.typography.labelLarge,
                 color = scheme.onSurfaceVariant

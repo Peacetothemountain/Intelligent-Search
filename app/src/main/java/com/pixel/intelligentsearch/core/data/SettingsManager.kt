@@ -8,9 +8,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.core.content.edit
-import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.preferencesDataStore
-import androidx.datastore.preferences.preferencesDataStoreFile
 import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
 import com.pixel.intelligentsearch.core.data.settings.IntSetting
 import com.pixel.intelligentsearch.core.data.settings.SettingKey
@@ -26,13 +23,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
-
-/** Settings stored in DataStore by versions before the single-store migration; read once, then deleted. */
-private val Context.legacySettingsDataStore by preferencesDataStore(name = SettingsManager.LEGACY_DATASTORE_NAME)
 
 /** Immutable snapshot of the app-wide settings, read by the overlay, settings screens and services. */
 @androidx.compose.runtime.Immutable
@@ -560,7 +553,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
     }
 
     /** The single-store move itself; false if it couldn't be saved, so it runs again at the next start. */
-    private suspend fun foldIntoSingleStore(sp: SharedPreferences): Boolean {
+    private fun foldIntoSingleStore(sp: SharedPreferences): Boolean {
         val editor = sp.edit()
         importLegacyDataStore(sp, editor)
         for (key in ALL) {
@@ -577,7 +570,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         // The old store may hold the only copy of what was imported: keep it until the import is on disk, and the
         // migration runs again at the next start.
         if (!editor.commit()) return false
-        runCatching { context.preferencesDataStoreFile(LEGACY_DATASTORE_NAME).delete() }
+        runCatching { legacySettingsFile(context).delete() }
         return true
     }
 
@@ -609,16 +602,17 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
      * Copies DataStore values for settings that SharedPreferences doesn't hold under any spelling. Every
      * write since DataStore was added went to SharedPreferences first, so it wins whenever both have a value.
      */
-    private suspend fun importLegacyDataStore(sp: SharedPreferences, editor: SharedPreferences.Editor) {
-        if (!context.preferencesDataStoreFile(LEGACY_DATASTORE_NAME).exists()) return
-        val stored: Map<Preferences.Key<*>, Any> = try {
-            context.legacySettingsDataStore.data.first().asMap()
+    private fun importLegacyDataStore(sp: SharedPreferences, editor: SharedPreferences.Editor) {
+        val file = legacySettingsFile(context)
+        if (!file.exists()) return
+        val stored: Map<String, Any> = try {
+            readLegacySettings(file.readBytes())
         } catch (e: Exception) {
             Log.w(TAG, "Old settings store unreadable; keeping current settings", e)
             return
         }
-        for ((dsKey, value) in stored) {
-            val key = keyFor(dsKey.name) ?: continue
+        for ((name, value) in stored) {
+            val key = keyFor(name) ?: continue
             if (key.allNames.any(sp::contains)) continue
             when (key) {
                 is BooleanSetting -> (value as? Boolean)?.let { editor.put(key, it) }

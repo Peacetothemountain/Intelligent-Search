@@ -14,7 +14,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
-| Release APK size | 12,134,709 bytes, unsigned | local build 2026-11-07, app's serialization, navigation and Room keep rules removed (12,183,861 before, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
+| Release APK size | 11,675,957 bytes, unsigned | local build 2026-11-07, Bugdroid player holds only what the clips need (12,134,709 before, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
@@ -417,6 +417,21 @@ with the strongest evidence.
 - Retry only if: a release build can't open a settings page, loses its place after a process restart, or throws `SerializationException`; then add back `-keepclassmembers` for `core.navigation.Route` only and look at what it kept
 - Commit: see `Drop keep rules the libraries already ship` in `git log dev`
 - Lesson: the kotlinx.serialization README rules predate the library shipping its own; with them the app keeps serializers for classes that are never serialized.
+
+### 2026-11-07: The Bugdroid player carried all of ExoPlayer
+- Command: /improve (scheduled run)
+- Target and evidence: release APK size. Media3 was 751,426 bytes of the 5,913,554 bytes of dex (`apkanalyzer dex packages` with the mapping), the largest library after Compose, to play three clips in `res/raw`. Each is a plain MP4 with one `vide` track and no sound (box headers read 2026-11-07). `ExoPlayer.Builder(context)` builds `DefaultRenderersFactory` and `DefaultMediaSourceFactory`, which reference every renderer, extractor and data source, so R8 kept them all; Media3's guide says so and shows the fix (https://developer.android.com/media/media3/exoplayer/shrinking). Chosen because the backlog has nothing left with evidence (B11 only adds tests) and no crash or flaky run is open. CI green on `71851d2f`; `f8c02614` and `c18870cd` still running
+- Prior work checked: this ledger (no Media3 entry), `git log origin/dev -S"ExoPlayer.Builder"` (only releases and the first commit), claude-mem
+- Research: Media3 1.11.1 bytecode. `DefaultRenderersFactory` builds its video renderer with `MediaCodecVideoRenderer.Builder`, changing only the joining time (5000 ms) and dropped frames to notify (50) from the builder's defaults; codec adapter, selector and the experimental settings are the same defaults. `DefaultDataSource` hands `android.resource` URIs to `RawResourceDataSource`, which reads `android.resource://<package>/<id>`
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: `BugdroidPlayer.kt` builds its player from a video renderer set up as the default one, an MP4-only extractor and `RawResourceDataSource`. Nothing else
+- Before -> after: release APK, unsigned local builds, 12,134,709 -> 11,675,957 bytes (-458,752); Media3 dex 751,426 -> 401,893 bytes, total dex 5,913,554 -> 5,503,000; no audio or text renderer, other extractor or HTTP source left in the mapping. Test code and lint baseline unchanged
+- Emulator: not checked. `IS_Pixel_XL` booted on 5580 and the debug build installed, but `agent-device open` stayed busy 20 s, held by session `t3-e822f319011a4059b97668d8` from another thread, which the rules say to leave alone (diagnostic `mw68bqbf-ff26b753`). Emulator shut down
+- Result: kept, pending CI and a look at a clip playing (Settings, tutorial welcome, Encrypted Backup)
+- Retry only if: a clip stays on its poster, or a new clip isn't a plain MP4 or has sound; then add only the extractor or renderer it needs
+- Commit: see `Build the Bugdroid player with only what the clips need` in `git log dev`
+- Lesson: `apkanalyzer dex packages --proguard-mappings` shows which library R8 couldn't shrink; a default factory is often the reason.
 
 <!--
 Copy this for each cycle, newest at the bottom.

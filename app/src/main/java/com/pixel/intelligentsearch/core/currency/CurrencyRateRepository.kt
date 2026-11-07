@@ -1,17 +1,10 @@
 package com.pixel.intelligentsearch.core.currency
 
+import android.app.job.JobInfo
 import android.content.Context
 import android.os.Looper
 import android.util.Log
-import androidx.work.Constraints
-import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.ExistingWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.WorkerParameters
+import com.pixel.intelligentsearch.AppJob
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.net.HttpsClient
@@ -170,51 +163,48 @@ class CurrencyRateRepository internal constructor(
     }
 }
 
-/** The WorkManager side of [CurrencyRateRepository]: a daily refresh and a one-off first fetch, both on a network. */
+/**
+ * The scheduled side of [CurrencyRateRepository]: a daily refresh and a one-off first fetch, both on a network. A
+ * failed download is tried again up to [MAX_RETRIES] times, 30 seconds after the first failure and twice as long after
+ * each next one.
+ */
 object CurrencyRateWork {
-    const val DAILY_WORK = "currency_rates_daily"
-    const val FIRST_FETCH_WORK = "currency_rates_first_fetch"
-    private const val TAG = "CurrencyRateWork"
+    const val ATTEMPT = "attempt"
+    private const val MAX_RETRIES = 3
+    private val FIRST_RETRY_MS = TimeUnit.SECONDS.toMillis(30)
 
-    private val onNetwork = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-
-    /** Refreshes the rates once a day, starting a day from now (the first fetch is [fetchSoon]'s). */
+    /** Refreshes the rates once a day, the first time from half a day to a day from now (the first fetch is [fetchSoon]'s). */
     fun scheduleDaily(context: Context) {
-        val request = PeriodicWorkRequestBuilder<CurrencyRatesWorker>(1, TimeUnit.DAYS)
-            .setConstraints(onNetwork)
-            .setInitialDelay(1, TimeUnit.DAYS)
-            .build()
-        runCatching {
-            WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(DAILY_WORK, ExistingPeriodicWorkPolicy.KEEP, request)
-        }.onFailure { Log.w(TAG, "Couldn't schedule the daily currency rates", it) }
+        AppJob.CURRENCY_DAILY.schedule(context, keepExisting = true) {
+            setPeriodic(TimeUnit.DAYS.toMillis(1), TimeUnit.HOURS.toMillis(12))
+            setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+            setPersisted(true)
+        }
     }
 
     /** Fetches the rates once, as soon as there is a network. */
     fun fetchSoon(context: Context) {
-        val request = OneTimeWorkRequestBuilder<CurrencyRatesWorker>().setConstraints(onNetwork).build()
-        runCatching {
-            WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(FIRST_FETCH_WORK, ExistingWorkPolicy.KEEP, request)
-        }.onFailure { Log.w(TAG, "Couldn't schedule the first currency rates", it) }
+        AppJob.CURRENCY_FIRST_FETCH.schedule(context, keepExisting = true) {
+            setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+            setPersisted(true)
+        }
     }
 
     fun cancel(context: Context) {
-        runCatching {
-            val workManager = WorkManager.getInstance(context.applicationContext)
-            workManager.cancelUniqueWork(DAILY_WORK)
-            workManager.cancelUniqueWork(FIRST_FETCH_WORK)
-        }.onFailure { Log.w(TAG, "Couldn't cancel the currency rates work", it) }
+        AppJob.CURRENCY_DAILY.cancel(context)
+        AppJob.CURRENCY_FIRST_FETCH.cancel(context)
+        AppJob.CURRENCY_RETRY.cancel(context)
     }
-}
 
-/** Fetches the rates. A failed download is retried a few times with WorkManager's backoff. */
-class CurrencyRatesWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result =
-        when (applicationContext.appEntryPoint.currencyRateRepository().refresh()) {
-            CurrencyRateRepository.RefreshResult.FAILED -> if (runAttemptCount < MAX_ATTEMPTS) Result.retry() else Result.failure()
-            else -> Result.success()
+    /** Fetches the rates; [attempt] is 0 for a scheduled fetch and counts the retries after it. */
+    suspend fun run(context: Context, attempt: Int) {
+        val result = context.appEntryPoint.currencyRateRepository().refresh()
+        if (result != CurrencyRateRepository.RefreshResult.FAILED || attempt >= MAX_RETRIES) return
+        AppJob.CURRENCY_RETRY.schedule(context) {
+            setMinimumLatency(FIRST_RETRY_MS shl attempt)
+            setRequiredNetworkType(JobInfo.NETWORK_TYPE_ANY)
+            setExtras(android.os.PersistableBundle().apply { putInt(ATTEMPT, attempt + 1) })
+            setPersisted(true)
         }
-
-    private companion object {
-        const val MAX_ATTEMPTS = 3
     }
 }

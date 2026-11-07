@@ -1,17 +1,17 @@
 package com.pixel.intelligentsearch.core.currency
 
+import android.app.job.JobInfo
+import android.app.job.JobScheduler
+import com.pixel.intelligentsearch.AppJob
 import com.pixel.intelligentsearch.core.net.HttpsGet
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.NetworkType
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
-import androidx.work.testing.WorkManagerTestInitHelper
 import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository.RefreshResult
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
@@ -45,12 +45,11 @@ class CurrencyRateRepositoryTest {
             body()
         })
 
-    private fun uniqueWork(name: String): List<WorkInfo> = WorkManager.getInstance(context).getWorkInfosForUniqueWork(name).get()
+    private fun pending(job: AppJob): JobInfo? = context.getSystemService(JobScheduler::class.java).getPendingJob(job.id)
 
     @Before fun setUp() {
         settings.prefs.edit().clear().commit()
         file.delete()
-        WorkManagerTestInitHelper.initializeTestWorkManager(context)
     }
 
     @Test
@@ -119,16 +118,15 @@ class CurrencyRateRepositoryTest {
         val repository = repository()
         repository.onCurrencyConverted(repository.current())
 
-        val first = uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).single()
-        assertEquals(WorkInfo.State.ENQUEUED, first.state)
-        assertEquals(NetworkType.CONNECTED, first.constraints.requiredNetworkType)
-        assertEquals(0L, first.initialDelayMillis)
+        val first = pending(AppJob.CURRENCY_FIRST_FETCH)!!
+        assertNotNull(first.requiredNetwork)
+        assertEquals(0L, first.minLatencyMillis)
 
-        val daily = uniqueWork(CurrencyRateWork.DAILY_WORK).single()
-        assertEquals(WorkInfo.State.ENQUEUED, daily.state)
-        assertEquals(NetworkType.CONNECTED, daily.constraints.requiredNetworkType)
-        assertEquals(TimeUnit.DAYS.toMillis(1), daily.periodicityInfo?.repeatIntervalMillis)
-        assertEquals(TimeUnit.DAYS.toMillis(1), daily.initialDelayMillis)
+        val daily = pending(AppJob.CURRENCY_DAILY)!!
+        assertNotNull(daily.requiredNetwork)
+        assertEquals(TimeUnit.DAYS.toMillis(1), daily.intervalMillis)
+        // The first daily refresh comes no sooner than half a day from now.
+        assertEquals(TimeUnit.HOURS.toMillis(12), daily.intervalMillis - daily.flexMillis)
         // Nothing was fetched here: the work does that, with a network.
         assertTrue(requested.isEmpty())
     }
@@ -138,8 +136,8 @@ class CurrencyRateRepositoryTest {
         repository().refresh()
         val repository = repository()
         repository.onCurrencyConverted(repository.current())
-        assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).isEmpty())
-        assertEquals(1, uniqueWork(CurrencyRateWork.DAILY_WORK).size)
+        assertNull(pending(AppJob.CURRENCY_FIRST_FETCH))
+        assertNotNull(pending(AppJob.CURRENCY_DAILY))
     }
 
     @Test
@@ -150,8 +148,8 @@ class CurrencyRateRepositoryTest {
         settings.set(SettingsManager.LIVE_CURRENCY_RATES, false)
         repository().onCurrencyConverted(CurrencyRates.BUILT_IN)
 
-        assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).isEmpty())
-        assertTrue(uniqueWork(CurrencyRateWork.DAILY_WORK).isEmpty())
+        assertNull(pending(AppJob.CURRENCY_FIRST_FETCH))
+        assertNull(pending(AppJob.CURRENCY_DAILY))
     }
 
     @Test
@@ -160,8 +158,8 @@ class CurrencyRateRepositoryTest {
         settings.set(SettingsManager.SEARCH_ENGINE, "Tor Project")
         repository().syncSchedule()
 
-        assertEquals(WorkInfo.State.CANCELLED, uniqueWork(CurrencyRateWork.DAILY_WORK).single().state)
-        assertEquals(WorkInfo.State.CANCELLED, uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).single().state)
+        assertNull(pending(AppJob.CURRENCY_DAILY))
+        assertNull(pending(AppJob.CURRENCY_FIRST_FETCH))
     }
 
     /** A repository whose today is [today], reading on the main thread when [onMainThread] says so, on [loader]. */
@@ -183,8 +181,8 @@ class CurrencyRateRepositoryTest {
         assertEquals(RefreshResult.SKIPPED_OFF, repository().refresh())
         repository().onCurrencyConverted(CurrencyRates.BUILT_IN)
         assertTrue(requested.isEmpty())
-        assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).isEmpty())
-        assertTrue(uniqueWork(CurrencyRateWork.DAILY_WORK).isEmpty())
+        assertNull(pending(AppJob.CURRENCY_FIRST_FETCH))
+        assertNull(pending(AppJob.CURRENCY_DAILY))
     }
 
     @Test
@@ -198,18 +196,18 @@ class CurrencyRateRepositoryTest {
         val repository = repository()
         for ((off, on) in switches) {
             repository.onCurrencyConverted(repository.current())
-            assertTrue(uniqueWork(CurrencyRateWork.DAILY_WORK).any { it.state == WorkInfo.State.ENQUEUED })
-            assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).any { it.state == WorkInfo.State.ENQUEUED })
+            assertNotNull(pending(AppJob.CURRENCY_DAILY))
+            assertNotNull(pending(AppJob.CURRENCY_FIRST_FETCH))
 
             off()
             repository.syncSchedule()
-            assertTrue(uniqueWork(CurrencyRateWork.DAILY_WORK).all { it.state == WorkInfo.State.CANCELLED })
-            assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).all { it.state == WorkInfo.State.CANCELLED })
+            assertNull(pending(AppJob.CURRENCY_DAILY))
+            assertNull(pending(AppJob.CURRENCY_FIRST_FETCH))
             on()
             repository.syncSchedule()
         }
         repository.onCurrencyConverted(repository.current())
-        assertTrue(uniqueWork(CurrencyRateWork.DAILY_WORK).any { it.state == WorkInfo.State.ENQUEUED })
+        assertNotNull(pending(AppJob.CURRENCY_DAILY))
     }
 
     @Test
@@ -244,7 +242,7 @@ class CurrencyRateRepositoryTest {
         assertEquals(1, queued.size)
         // Not knowing yet whether rates were ever fetched, it asks for no first fetch.
         repository.onCurrencyConverted(CurrencyRates.BUILT_IN)
-        assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).isEmpty())
+        assertNull(pending(AppJob.CURRENCY_FIRST_FETCH))
 
         queued.single().run()
         assertEquals(LocalDate.of(2026, 10, 19), repository.current().date)
@@ -256,18 +254,18 @@ class CurrencyRateRepositoryTest {
         repository().refresh()
         // AED isn't in the ECB's table, so its answer used the built-in rates.
         repository().onCurrencyConverted(CurrencyRates.BUILT_IN)
-        assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).isEmpty())
-        assertEquals(1, uniqueWork(CurrencyRateWork.DAILY_WORK).size)
+        assertNull(pending(AppJob.CURRENCY_FIRST_FETCH))
+        assertNotNull(pending(AppJob.CURRENCY_DAILY))
     }
 
     @Test
     fun startupKeepsTheDailyRefreshOnlyOnceRatesWereFetched() = runBlocking {
         repository().syncSchedule()
-        assertTrue(uniqueWork(CurrencyRateWork.DAILY_WORK).isEmpty())
+        assertNull(pending(AppJob.CURRENCY_DAILY))
 
         repository().refresh()
         repository().syncSchedule()
-        assertEquals(WorkInfo.State.ENQUEUED, uniqueWork(CurrencyRateWork.DAILY_WORK).single().state)
-        assertNull(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).firstOrNull())
+        assertNotNull(pending(AppJob.CURRENCY_DAILY))
+        assertNull(pending(AppJob.CURRENCY_FIRST_FETCH))
     }
 }

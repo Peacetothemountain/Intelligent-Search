@@ -1,10 +1,10 @@
 package com.pixel.intelligentsearch.feature.widget
 
+import android.app.job.JobScheduler
+import com.pixel.intelligentsearch.AppJob
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.WorkManager
-import androidx.work.testing.WorkManagerTestInitHelper
 import com.pixel.intelligentsearch.core.occasion.OccasionCalendar
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -34,10 +34,7 @@ class LocaleChangeRescheduleTest {
     private val defaultNow = OccasionCalendar.now
     private val defaultRegion = OccasionCalendar.region
 
-    @Before fun setUp() {
-        hilt.inject()
-        WorkManagerTestInitHelper.initializeTestWorkManager(context)
-    }
+    @Before fun setUp() = hilt.inject()
 
     @After fun restoreClockAndRegion() {
         OccasionCalendar.now = defaultNow
@@ -61,8 +58,8 @@ class LocaleChangeRescheduleTest {
         OccasionCalendar.region = { "US" }
         SearchWidgetProvider().onReceive(context, Intent(Intent.ACTION_LOCALE_CHANGED))
 
-        val work = WorkManager.getInstance(context).getWorkInfosForUniqueWork("widget_doodle_change").get().single()
+        val job = context.getSystemService(JobScheduler::class.java).getPendingJob(AppJob.DOODLE_CHANGE.id)
         // Thanksgiving starts at midnight in the US; the redraw waits half a minute past it.
-        assertEquals(TimeUnit.HOURS.toMillis(15) + TimeUnit.SECONDS.toMillis(30), work.initialDelayMillis)
+        assertEquals(TimeUnit.HOURS.toMillis(15) + TimeUnit.SECONDS.toMillis(30), job!!.minLatencyMillis)
     }
 }

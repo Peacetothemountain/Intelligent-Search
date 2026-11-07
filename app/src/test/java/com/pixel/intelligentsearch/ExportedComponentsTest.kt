@@ -47,9 +47,8 @@ class ExportedComponentsTest {
         val exported = manifest.receivers.orEmpty().filter { it.exported }.associate { it.name to it.permission }
         assertEquals(
             mapOf(
-                // Libraries' receivers, which only a shell with DUMP (adb) may send to.
+                // A library's receiver, which only a shell with DUMP (adb) may send to.
                 "androidx.profileinstaller.ProfileInstallReceiver" to "android.permission.DUMP",
-                "androidx.work.impl.diagnostics.DiagnosticsReceiver" to "android.permission.DUMP",
                 // The widgets: the launcher's widget broadcasts and the clock, time zone and language changes.
                 "com.pixel.intelligentsearch.feature.widget.CountdownWidgetProvider" to null,
                 "com.pixel.intelligentsearch.feature.widget.SearchBoxWidgetProvider" to null,
@@ -79,8 +78,6 @@ class ExportedComponentsTest {
                 "com.pixel.intelligentsearch.feature.voice.IntelligentRecognitionService" to null,
                 "com.pixel.intelligentsearch.core.glance.NotificationAccessListener" to "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE",
                 "com.pixel.intelligentsearch.feature.appfunctions.IntelligentSearchAppFunctionService" to "android.permission.BIND_APP_FUNCTION_SERVICE",
-                // WorkManager's job service (the daily currency rates).
-                "androidx.work.impl.background.systemjob.SystemJobService" to "android.permission.BIND_JOB_SERVICE",
             ),
             exported
         )

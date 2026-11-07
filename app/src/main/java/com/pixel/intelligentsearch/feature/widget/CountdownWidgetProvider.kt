@@ -15,24 +15,19 @@ import android.view.View
 import android.widget.RemoteViews
 import androidx.annotation.LayoutRes
 import androidx.core.graphics.ColorUtils
-import androidx.work.CoroutineWorker
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkerParameters
+import com.pixel.intelligentsearch.AppJob
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.widget.CountdownEvent
 import com.pixel.intelligentsearch.core.data.widget.CountdownEventStore
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
-import com.pixel.intelligentsearch.core.system.workManagerOnceUnlocked
 import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.Companion.WidgetDesignConfig
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZonedDateTime
@@ -49,7 +44,7 @@ import kotlin.math.roundToInt
  * to the bar as one family and follows every change to it.
  *
  * It is responsive ([CountdownSize]): one row high it is a pill like the bar, two rows a tile with the number as its
- * hero, and wider or larger it makes room for the date. It is redrawn just after each local midnight by WorkManager
+ * hero, and wider or larger it makes room for the date. It is redrawn just after each local midnight by a scheduled job
  * (no exact alarm), when the clock, time zone or language changes, and with the search bars
  * ([SearchWidgetProvider.updateAllWidgets]) whenever the design or the theme changes. Tapping it searches for the
  * event; a widget not set up yet opens its setup ([CountdownConfigActivity]).
@@ -85,7 +80,7 @@ class CountdownWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onDisabled(context: Context) {
-        runCatching { context.workManagerOnceUnlocked()?.cancelUniqueWork(MIDNIGHT_WORK) }
+        AppJob.COUNTDOWN_MIDNIGHT.cancel(context)
     }
 
     /**
@@ -130,7 +125,6 @@ class CountdownWidgetProvider : AppWidgetProvider() {
 
     companion object {
         private const val TAG = "CountdownWidget"
-        private const val MIDNIGHT_WORK = "countdown_widget_midnight"
         private val AFTER_MIDNIGHT_MS = TimeUnit.SECONDS.toMillis(30)
 
         /** How far the words sit inside the pill or the tile's surface, in dp. */
@@ -177,17 +171,22 @@ class CountdownWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        /**
-         * Arranges the redraw just after the next local midnight, replacing any arranged before. Skipped before the
-         * first unlock after a restart (see [workManagerOnceUnlocked]); the redraw at the unlock arranges it.
-         */
+        /** Arranges the redraw just after the next local midnight, replacing any arranged before. */
         fun scheduleMidnight(context: Context) {
             val current = now()
             val delayMs = Duration.between(current, CountdownEventStore.nextMidnight(current)).toMillis() + AFTER_MIDNIGHT_MS
-            val request = OneTimeWorkRequestBuilder<CountdownMidnightWorker>().setInitialDelay(delayMs, TimeUnit.MILLISECONDS).build()
-            runCatching {
-                context.workManagerOnceUnlocked()?.enqueueUniqueWork(MIDNIGHT_WORK, ExistingWorkPolicy.REPLACE, request)
-            }.onFailure { Log.w(TAG, "Couldn't schedule the midnight redraw", it) }
+            AppJob.COUNTDOWN_MIDNIGHT.schedule(context) {
+                setMinimumLatency(delayMs)
+                setPersisted(true)
+            }
+        }
+
+        /** Arranges the midnight redraw while a countdown widget is placed; a force stop cancels it. */
+        fun syncSchedule(context: Context) {
+            val manager = AppWidgetManager.getInstance(context) ?: return
+            if (manager.getAppWidgetIds(ComponentName(context, CountdownWidgetProvider::class.java)).isNotEmpty()) {
+                scheduleMidnight(context)
+            }
         }
 
         /** The design [event] is drawn in: its own, or the one last saved in Widget Customization (the search bar's). */
@@ -383,16 +382,5 @@ class CountdownWidgetProvider : AppWidgetProvider() {
             }
             views.setContentDescription(android.R.id.background, texts.spoken)
         }
-    }
-}
-
-/** Redraws the countdown widgets just after local midnight, then arranges the next night's. */
-class CountdownMidnightWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result {
-        // Drawn before the work counts as done, so the process isn't let go half way through.
-        withContext(Dispatchers.IO) {
-            AppWidgetManager.getInstance(applicationContext)?.let { CountdownWidgetProvider.redrawAll(applicationContext, it) }
-        }
-        return Result.success()
     }
 }

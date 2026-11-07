@@ -13,7 +13,6 @@ import android.provider.DocumentsContract
 import android.provider.DocumentsContract.Document
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.testing.WorkManagerTestInitHelper
 import com.pixel.intelligentsearch.core.data.IntelligentSearchDatabase
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
@@ -197,7 +196,6 @@ class AutoBackupTest {
     fun withAPasskeyAutomaticBackupNeedsNoPassphrase() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
         Robolectric.setupContentProvider(FakeBackupFolderProvider::class.java, FakeBackupFolderProvider.AUTHORITY)
-        WorkManagerTestInitHelper.initializeTestWorkManager(context)
         context.getSharedPreferences("backup_passkey_state", Context.MODE_PRIVATE).edit().clear().commit()
         val db = Room.inMemoryDatabaseBuilder(context, IntelligentSearchDatabase::class.java).allowMainThreadQueries().build()
         val backupManager = BackupManager(context, SettingsManager(context), db.historyDao(), StrongBoxSecurityManager(context), WidgetUpdater { })
@@ -238,8 +236,7 @@ class AutoBackupTest {
         val autoBackup = AutoBackup(context) { wrapKey }
 
         init {
-            WorkManagerTestInitHelper.initializeTestWorkManager(context)
-            val tree = DocumentsContract.buildTreeDocumentUri(FakeBackupFolderProvider.AUTHORITY, FakeBackupFolderProvider.ROOT_ID)
+                val tree = DocumentsContract.buildTreeDocumentUri(FakeBackupFolderProvider.AUTHORITY, FakeBackupFolderProvider.ROOT_ID)
             assertTrue(autoBackup.enable(tree, "correct horse battery".toCharArray()))
             folder.calledOnMainThread.clear()
         }

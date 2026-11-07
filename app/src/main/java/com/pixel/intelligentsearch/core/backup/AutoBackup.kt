@@ -6,12 +6,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.util.Log
 import androidx.core.content.edit
-import androidx.work.Constraints
-import androidx.work.CoroutineWorker
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.WorkerParameters
+import com.pixel.intelligentsearch.AppJob
 import com.pixel.intelligentsearch.core.security.MemorySanitizer
 import com.pixel.intelligentsearch.di.appEntryPoint
 import kotlinx.coroutines.CancellationException
@@ -134,7 +129,7 @@ class AutoBackup internal constructor(
 
     /** Turns automatic backups off and forgets the key and folder access. Backups already written stay. */
     fun disable() {
-        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        AppJob.AUTO_BACKUP.cancel(context)
         folderUri?.let { uri ->
             val settings = context.getSharedPreferences(com.pixel.intelligentsearch.core.data.SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
             val stillSearched = uri.toString() in com.pixel.intelligentsearch.core.data.UserGrantedFiles.folderUris(settings)
@@ -259,7 +254,6 @@ class AutoBackup internal constructor(
         const val MIN_PASSPHRASE_LENGTH = 10
         const val FILE_PREFIX = "IntelligentSearch-auto-"
         const val FILE_SUFFIX = ".json"
-        private const val WORK_NAME = "automatic_encrypted_backup"
         private const val STATE_FILE = "auto_backup_state"
         private const val WRAP_KEY_ALIAS = "auto_backup_wrap_key"
         private const val KEY_ENABLED = "enabled"
@@ -276,22 +270,25 @@ class AutoBackup internal constructor(
         fun <T> oldestBeyond(entries: List<Pair<T, String>>, keep: Int): List<Pair<T, String>> =
             entries.sortedByDescending { it.second }.drop(keep)
 
-        /** (Re)schedules the weekly job; it runs when the battery and storage aren't low. */
+        /** Schedules the weekly job, unless it is already waiting; it runs when the battery and storage aren't low. */
         fun schedule(context: Context) {
-            val request = PeriodicWorkRequestBuilder<AutoBackupWorker>(7, TimeUnit.DAYS)
-                .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).setRequiresStorageNotLow(true).build())
-                .build()
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.KEEP, request)
+            AppJob.AUTO_BACKUP.schedule(context, keepExisting = true) {
+                setPeriodic(TimeUnit.DAYS.toMillis(7))
+                setRequiresBatteryNotLow(true)
+                setRequiresStorageNotLow(true)
+                setPersisted(true)
+            }
         }
-    }
-}
 
-/** The weekly job. A failure is recorded for the Encrypted Backup page and retried at the next run. */
-class AutoBackupWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result {
-        val autoBackup = AutoBackup(applicationContext)
-        if (!autoBackup.isEnabled) return Result.success()
-        val backupManager = applicationContext.appEntryPoint.backupManager()
-        return if (autoBackup.runOnce(backupManager).isSuccess) Result.success() else Result.failure()
+        /** Keeps the weekly job while automatic backups are on; a force stop cancels it. */
+        fun syncSchedule(context: Context) {
+            if (AutoBackup(context).isEnabled) schedule(context)
+        }
+
+        /** The weekly job. A failure is recorded for the Encrypted Backup page and tried again at the next run. */
+        suspend fun runScheduled(context: Context) {
+            val autoBackup = AutoBackup(context)
+            if (autoBackup.isEnabled) autoBackup.runOnce(context.appEntryPoint.backupManager())
+        }
     }
 }

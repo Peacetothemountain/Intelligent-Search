@@ -158,7 +158,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                             showDivider = true
                         )
                         // Either switch can stop or allow the daily rates download; bring it in line at once, off the
-                        // main thread (it checks the saved rates and talks to WorkManager) so the switch never waits.
+                        // main thread (it checks the saved rates and talks to JobScheduler) so the switch never waits.
                         val scope = androidx.compose.runtime.rememberCoroutineScope()
                         val syncCurrencyRates: () -> Unit = {
                             val rates = context.appEntryPoint.currencyRateRepository()

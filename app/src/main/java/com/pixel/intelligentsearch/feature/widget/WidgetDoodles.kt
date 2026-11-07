@@ -2,15 +2,10 @@ package com.pixel.intelligentsearch.feature.widget
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log
 import androidx.core.content.edit
-import androidx.work.CoroutineWorker
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkerParameters
+import com.pixel.intelligentsearch.AppJob
 import com.pixel.intelligentsearch.core.occasion.Occasion
 import com.pixel.intelligentsearch.core.occasion.OccasionCalendar
-import com.pixel.intelligentsearch.core.system.workManagerOnceUnlocked
 import java.time.Duration
 import java.util.concurrent.TimeUnit
 
@@ -23,8 +18,6 @@ object WidgetDoodles {
     /** A doodle Developer Settings is previewing on the widgets, whatever the date. Never backed up (debug_ key). */
     const val PREVIEW_KEY = "debug_doodle_preview"
 
-    private const val TAG = "WidgetDoodles"
-    private const val CHANGE_WORK = "widget_doodle_change"
     private val AFTER_MIDNIGHT_MS = TimeUnit.SECONDS.toMillis(30)
 
     /** The doodle to draw now: the one being previewed, else today's; null on an ordinary day. */
@@ -44,28 +37,20 @@ object WidgetDoodles {
         redraw()
     }
 
-    /**
-     * Arranges the redraw for the next time the doodle changes, replacing any arranged before. Skipped before the first
-     * unlock after a restart (see [workManagerOnceUnlocked]); the app arranges it at the unlock.
-     */
+    /** Arranges the redraw for the next time the doodle changes, replacing any arranged before. */
     fun scheduleNextChange(context: Context) {
         val now = OccasionCalendar.now()
         val delayMs = Duration.between(now, OccasionCalendar.nextChange(now, OccasionCalendar.region())).toMillis() + AFTER_MIDNIGHT_MS
-        val request = OneTimeWorkRequestBuilder<DoodleChangeWorker>()
-            .setInitialDelay(delayMs, TimeUnit.MILLISECONDS)
-            .build()
         // Replacing it from inside the run that is redrawing ends that run; its work is already done.
-        runCatching {
-            context.workManagerOnceUnlocked()?.enqueueUniqueWork(CHANGE_WORK, ExistingWorkPolicy.REPLACE, request)
-        }.onFailure { Log.w(TAG, "Couldn't schedule the next doodle change", it) }
+        AppJob.DOODLE_CHANGE.schedule(context) {
+            setMinimumLatency(delayMs)
+            setPersisted(true)
+        }
     }
-}
 
-/** Redraws the widgets at a doodle day's start or end, then arranges the next one. */
-class DoodleChangeWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
-    override suspend fun doWork(): Result {
-        SearchWidgetProvider.updateAllWidgets(applicationContext)
-        WidgetDoodles.scheduleNextChange(applicationContext)
-        return Result.success()
+    /** Redraws the widgets at a doodle day's start or end, then arranges the next one. */
+    fun changeNow(context: Context) {
+        SearchWidgetProvider.updateAllWidgets(context)
+        scheduleNextChange(context)
     }
 }

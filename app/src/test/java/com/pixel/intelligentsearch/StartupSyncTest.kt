@@ -5,9 +5,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
-import androidx.work.testing.WorkManagerTestInitHelper
 import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
 import com.pixel.intelligentsearch.core.currency.CurrencyRateStore
 import com.pixel.intelligentsearch.core.currency.CurrencyRateWork
@@ -15,8 +12,8 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -32,7 +29,6 @@ class StartupSyncTest {
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
     private val settings by lazy { SettingsManager(context) }
-    private val workManager get() = WorkManager.getInstance(context)
     private val entry get() = ComponentName(context, SelectedTextSearchActivity::class.java)
 
     private fun repository() = CurrencyRateRepository(
@@ -43,11 +39,6 @@ class StartupSyncTest {
     private fun sync() = kotlinx.coroutines.runBlocking {
         StartupSync.afterUnlock(context, repository(), com.pixel.intelligentsearch.core.answers.LiveAnswerEngine(context, settings, kotlinx.coroutines.Dispatchers.IO))
     }
-
-    private fun pending(work: String) =
-        workManager.getWorkInfosForUniqueWork(work).get().filter { it.state == WorkInfo.State.ENQUEUED }
-
-    @Before fun setUp() = WorkManagerTestInitHelper.initializeTestWorkManager(context)
 
     @Test
     fun anEntryAnOlderVersionTurnedOffIsTurnedBackOn() {
@@ -63,17 +54,17 @@ class StartupSyncTest {
     @Test
     fun theNextDoodleRedrawIsArranged() {
         sync()
-        assertTrue(pending("widget_doodle_change").isNotEmpty())
+        assertTrue(AppJob.DOODLE_CHANGE.isPending(context))
     }
 
     @Test
     fun aDailyRatesDownloadTheSettingsNoLongerAllowIsCancelled() {
         CurrencyRateWork.scheduleDaily(context)
-        assertTrue(pending(CurrencyRateWork.DAILY_WORK).isNotEmpty())
+        assertTrue(AppJob.CURRENCY_DAILY.isPending(context))
 
         settings.prefs.edit().put(SettingsManager.SEARCH_CALCULATOR, false).commit()
         sync()
 
-        assertTrue(pending(CurrencyRateWork.DAILY_WORK).isEmpty())
+        assertFalse(AppJob.CURRENCY_DAILY.isPending(context))
     }
 }

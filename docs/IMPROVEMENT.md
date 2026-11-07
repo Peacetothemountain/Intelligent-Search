@@ -86,10 +86,10 @@ Rules:
 - A target marked `rejected` or `reverted` isn't tried again unless its `Retry only if` condition has come true.
   Write down which evidence makes it true.
 - Two failed attempts at the same target: stop, write what was learned, mark it `blocked`, and move on.
-- One target per cycle. A cycle ends with a ledger entry even when nothing changed. "Nothing worth changing" is a
-  valid result.
+- One target per cycle, one commit per cycle. "Nothing worth changing" is a valid result. A cycle that changed nothing
+  reports that in its run and commits only if a ledger line would stop a later run repeating the same work.
 - The owner doesn't prompt each cycle. Choose the best course, keep going on `dev`, and leave the ledger as the record
-  for them to read later. What still needs the owner: pushing to `main`, `v*` tags and releases, using the phone,
+  for them to read later. What still needs the owner: merging to `main`, `v*` tags and releases, using the phone,
   anything in section 3, and choices a later reader couldn't undo.
 
 ### Scheduled runs
@@ -101,7 +101,8 @@ to answer, so each run follows these rules:
   worktree, and don't change anything in that checkout.
 - Start with `git status` and `git log origin/dev..HEAD`. Uncommitted changes to tracked files or unpushed commits mean an
   earlier run stopped mid-work: change nothing and end the run saying what was found. Otherwise
-  `git switch --detach origin/dev`, because the worktree starts from an older commit.
+  `git switch --detach origin/dev`, because the worktree starts from an older commit, then run `scripts/run-env.ps1`. It
+  sets up the JDK and release signing, and says what is missing.
 - Finish with `git push origin HEAD:dev`. If `dev` has moved, rebase the run's own commit onto `origin/dev` and push
   again. Never force a push.
 - If CI failed on the newest `dev` commit, fixing that is the target.
@@ -161,6 +162,35 @@ Write the usage level in each ledger entry, so later cycles can see what each ki
    tests only for logic the design can't make safe.
 3. Update the ratchet values in `docs/LEDGER.md` and add the cycle's entry.
 4. One short, plain commit on `dev`, American spelling, attribution as the session's current instructions say.
-   Push `dev`, let CI run, then `git push origin dev:main` only after CI is green and only if asked.
+   Push `dev` and let CI run. `main` is reached only as section 9 says.
 5. See it working on the emulator without the phone (`docs/DEVICE_TESTING.md`). Install on the phone only as `MEMORY.md`
    says (release build, only when the owner allows, once per batch).
+
+## 9. Layers of checking
+
+Bad code has to get past every layer below. A layer's job is to stop it, not to generate work: most of what a layer
+reports isn't worth acting on, and acting on all of it would bury the history in commits.
+
+| Layer | Runs | Stops |
+|---|---|---|
+| 1. Compiler | every change | code that can't work |
+| 2. Lint, unit tests, goldens, minified release build | CI on every `dev` commit | regressions and visual changes |
+| 3. Emulator, signed release build | changes people can see | what only a running app shows |
+| 4. Claude's review, each finding then challenged by a fresh agent | `/review-candidate`, daily | bugs no check covers |
+| 5. The owner's merge | when they choose | everything else: this is the only approval |
+
+Rules for every layer:
+
+- **Only the best gets through.** Act on what is confirmed and serious: a failing check, a crash or ANR, lost or exposed
+  data, a wrong result for the user, a security hole, or a change to something locked or declined.
+- **Drop the rest silently.** Style, naming, tidying, "could be a problem someday" and anything unconfirmed get no commit,
+  comment or ledger line. A real problem that doesn't block can take one backlog line if it has strong evidence.
+- **Few commits.** All of a pass's fixes go in one commit. Never one commit or one reply per finding.
+- **One round.** A review pass fixes up to 3 blockers once, then checks only that fix. More than that means the candidate
+  isn't ready: it stops there, and the blockers become the next target.
+
+`candidate` is what the owner sees. `/review-candidate` fast-forwards it to the commit it reviewed, so new `dev` commits
+can't slip into an open pull request after the review. GitHub requires `Build & Check` on those commits and allows only
+merge commits, so `dev` and `main` never need to be rewritten to match. `.claude/settings.json` refuses `gh pr merge` and
+pushes to `main` for Claude. That is a guard against mistakes, not a security boundary: Claude runs under the owner's
+GitHub login, so GitHub can't tell the two apart.

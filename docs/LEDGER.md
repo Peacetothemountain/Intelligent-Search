@@ -178,6 +178,20 @@ with the strongest evidence.
 - Commit: see `Read file thumbnails switch in one place` in `git log dev`
 - Lesson: an APK can keep its exact size when its code changes, so compare dex sizes and checksums before believing two builds really differed.
 
+### 2026-11-06: One setup for every run, and layers of checking before main
+- Command: owner said to set up an environment where the only block is the final approval before merging, reviewed by Claude first, and that the layers exist to block bad code, so only the best of each layer's reports should be acted on
+- Target and evidence: (1) `device_open` failed even with `IS_Pixel_XL` already booted by hand, because T3's process held a deleted `JAVA_HOME`. (2) Once that cleared, every command after `device_open` failed with `DEVICE_IN_USE`, because sessions from 2026-10-29 and 10-30 still claim `emulator-5554`, `5558` and `5560`, the ports T3 and the doc used. (3) `RELEASE_STORE_FILE` is relative, so worktree release builds came out unsigned without saying so, and those can't be installed. (4) Nothing reviewed code before `main`, and nothing separated what was reviewed from newer `dev` commits. No proxy, sandbox or permission rule was blocking: Android and GitHub hosts answered (`m3.material.io` answered too, refusing only the HEAD request), and user settings hold no restrictions
+- Prior work checked: the 2026-11-06 emulator entry above, memory `emulator-before-phone`
+- Research: a `workflow_dispatch` promote job was rejected: it has to be on `main` first, and `GITHUB_TOKEN` can't push commits that change workflow files. A pull request needs neither
+- Models used: inline (Opus 5.5)
+- Usage level: no figure visible. Lean mode
+- Change: `scripts/run-env.ps1` (stable JDK link, user `JAVA_HOME`, worktree signing, status report, `-Emulator` on port 5580); `/review-candidate`; `candidate` branch and pull request as the owner's approval; `.claude/settings.json` refuses merges and pushes to `main`; CI no longer runs for pull requests to `main`, which hold commits it already passed; charter section 9
+- Before -> after: `device_open` and driving the app: failed -> works after the owner restarted T3 Code: launched 9.5.5 (133), skipped the tutorial, read the search screen and took a screenshot on `emulator-5580`. Signed release from a worktree: no -> yes, installed at 12,920,597 bytes, matching the ratchet. Claude review before `main`: none -> required. `device_screenshot` still fails; the `agent-device` `screenshot` command works, so the docs use that
+- Result: kept, pending CI. The old sessions are left alone, since they belong to other threads
+- Retry only if: `DEVICE_IN_USE` appears on `emulator-5580`, or `device_screenshot` is needed
+- Commit: see `Set up runs and a review before main` in `git log dev`
+- Lesson: an error's first line isn't always its cause. The port error was really `JAVA_HOME`, and the helper failure after it was really `DEVICE_IN_USE`, two lines higher in the output.
+
 <!--
 Copy this for each cycle, newest at the bottom.
 

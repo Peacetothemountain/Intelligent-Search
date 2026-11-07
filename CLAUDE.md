@@ -25,14 +25,15 @@ expected to behave. No change is finished until it passes.
 
 ## Getting a change onto `main`
 
-`main` is protected: GitHub rejects any push to it whose commit hasn't already passed the `Build & Check` CI job,
-and force pushes are blocked. So:
+`main` is protected: GitHub rejects any commit that hasn't already passed the `Build & Check` CI job, and force pushes
+are blocked. The owner's merge is the last approval, so Claude never merges or pushes to `main`. So:
 
 1. Commit on `dev` and push `dev`.
 2. Wait for the `CI Check & Build` run on that commit to go green (`gh run watch`).
-3. Then push the same commit to `main` (`git push origin dev:main`, a fast-forward).
+3. `/review-candidate` reviews it, moves the `candidate` branch to it, and opens or updates the pull request to `main`.
+4. The owner reads the pull request and merges it.
 
-If CI fails, fix it on `dev` and repeat; never push to `main` around it.
+If CI fails, fix it on `dev` and repeat. `docs/IMPROVEMENT.md` section 9 has the layers of checking.
 
 ## Finding your way through the history
 

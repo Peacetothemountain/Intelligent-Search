@@ -16,19 +16,28 @@ alone.
 | Rendering | The PC's GPU (`-gpu host`) |
 | Boot | 45 seconds, measured 2026-11-06 |
 
-Build and install the same release build the phone runs:
+Start it, then build and install the same release build the phone runs:
 
 ```
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-env.ps1 -Emulator
 ./gradlew assembleRelease
-adb -s emulator-5560 install -r app/build/outputs/apk/release/app-release.apk
+adb -s emulator-5580 install -r app/build/outputs/apk/release/app-release.apk
 ```
 
-Start it from T3 Code's device tools (`device_list`, then `device_open` with `IS_Pixel_XL`) so the owner can watch it in
-the Device panel, and drive it with the `agent-device` command `device_open` returns. To boot it by hand:
+The script also points a worktree's signing at the owner's keystore. Otherwise the build comes out unsigned without saying
+so, and an unsigned APK won't install.
 
-```
-emulator -avd IS_Pixel_XL -port 5560 -no-boot-anim -no-audio -gpu host
-```
+Then `device_open` with `emulator-5580`, so the owner can watch it in the Device panel, and drive it with the
+`agent-device` command `device_open` returns. Take pictures with its `screenshot` command: `device_screenshot` failed
+("The device hub could not complete the request") on 2026-11-06 while that command worked.
+
+Use port 5580, and don't `device_open` the powered-off `IS_Pixel_XL`. T3 Code would choose the lowest free port, and three
+old device sessions from October still claim `emulator-5554`, `5558` and `5560`, so `open` then fails with `DEVICE_IN_USE`
+and the rest fails after it. They belong to other threads: don't close or reuse them.
+
+T3 Code passes its own environment to `avdmanager`, so one started before a JDK update fails with `JAVA_HOME is set to an
+invalid directory`, and `device_open` can't start or attach to any emulator. `scripts/run-env.ps1` sets `JAVA_HOME` to a
+path that survives updates, so this can't come back.
 
 `avdmanager` crashes on the `android-37.0` image ("null"), so this AVD's `.ini` and `config.ini` were written by hand from
 another Android 17 AVD. Recreate it the same way if it is ever lost.

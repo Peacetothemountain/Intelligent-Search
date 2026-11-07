@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Redrawn just after each local midnight by WorkManager (CountdownWidgetProvider), so no update period is needed.
+<!-- Redrawn just after each local midnight by a scheduled job (CountdownWidgetProvider), so no update period is needed.
      Responsive: a pill like the search bar one row high, a tile two rows or more (the launcher picks the layout for
      the size it is given). Set up through SettingsActivity, which hands it on to CountdownConfigActivity. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"

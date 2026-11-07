@@ -175,7 +175,6 @@ dependencies {
   // The overlay start-up profile, generated on a phone by :baselineprofile.
   baselineProfile(project(":baselineprofile"))
   // Weekly automatic encrypted backups.
-  implementation(libs.androidx.work.runtime)
   // Passkeys for encrypted backups (Android 14+ uses the system Credential Manager, so no Play services library).
   implementation(libs.androidx.credentials)
   implementation(platform(libs.androidx.compose.bom))
@@ -195,7 +194,6 @@ dependencies {
   // Robolectric runs Android-dependent code (SharedPreferences, DataStore, Room, ContentResolver) on the JVM.
   testImplementation(libs.robolectric)
   testImplementation(libs.androidx.test.core)
-  testImplementation(libs.androidx.work.testing)
   // Screenshot tests (Robolectric native graphics) that pin the UI while it is rebuilt.
   testImplementation(libs.roborazzi)
   testImplementation(libs.roborazzi.compose)

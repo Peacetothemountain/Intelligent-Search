@@ -1,15 +1,12 @@
 package com.pixel.intelligentsearch.core.backup
 
+import com.pixel.intelligentsearch.AppJob
 import android.content.Context
 import android.net.Uri
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
-import androidx.work.testing.WorkManagerTestInitHelper
 import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
 import com.pixel.intelligentsearch.core.currency.CurrencyRateStore
-import com.pixel.intelligentsearch.core.currency.CurrencyRateWork
 import com.pixel.intelligentsearch.core.currency.CurrencyRates
 import com.pixel.intelligentsearch.core.data.IntelligentSearchDatabase
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -17,6 +14,7 @@ import com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
 import com.pixel.intelligentsearch.core.system.WidgetUpdater
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,13 +28,12 @@ class LiveCurrencyRatesBackupTest {
     @Test
     fun restoringSettingsThatStopFetchingCancelsTheDailyDownload() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        WorkManagerTestInitHelper.initializeTestWorkManager(context)
         val db = Room.inMemoryDatabaseBuilder(context, IntelligentSearchDatabase::class.java).allowMainThreadQueries().build()
         val settingsManager = SettingsManager(context)
         val currencyRates = CurrencyRateRepository(context, settingsManager)
         val backupManager = BackupManager(context, settingsManager, db.historyDao(), StrongBoxSecurityManager(context), WidgetUpdater { }, currencyRates)
         val uri = Uri.fromFile(File(context.cacheDir, "tor_engine.json"))
-        fun dailyWork() = WorkManager.getInstance(context).getWorkInfosForUniqueWork(CurrencyRateWork.DAILY_WORK).get()
+        fun dailyWorkPending() = AppJob.CURRENCY_DAILY.isPending(context)
 
         // Each of these, restored, means no more downloads.
         val stops = listOf<suspend () -> Unit>(
@@ -50,9 +47,9 @@ class LiveCurrencyRatesBackupTest {
             settingsManager.prefs.edit().clear().commit()
 
             currencyRates.onCurrencyConverted(CurrencyRates.BUILT_IN)
-            assertTrue(dailyWork().any { it.state == WorkInfo.State.ENQUEUED })
+            assertTrue(dailyWorkPending())
             backupManager.importFromFile(uri, "correct horse battery").getOrThrow()
-            assertTrue(dailyWork().all { it.state == WorkInfo.State.CANCELLED })
+            assertFalse(dailyWorkPending())
         }
 
         db.close()
@@ -61,13 +58,12 @@ class LiveCurrencyRatesBackupTest {
     @Test
     fun restoringTheCalculatorResumesDownloadsButARestoreNeverLeavesTorAsThePrivacyPolicySays() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        WorkManagerTestInitHelper.initializeTestWorkManager(context)
         val db = Room.inMemoryDatabaseBuilder(context, IntelligentSearchDatabase::class.java).allowMainThreadQueries().build()
         val settingsManager = SettingsManager(context)
         val currencyRates = CurrencyRateRepository(context, settingsManager)
         val backupManager = BackupManager(context, settingsManager, db.historyDao(), StrongBoxSecurityManager(context), WidgetUpdater { }, currencyRates)
         val uri = Uri.fromFile(File(context.cacheDir, "resume.json"))
-        fun dailyWork() = WorkManager.getInstance(context).getWorkInfosForUniqueWork(CurrencyRateWork.DAILY_WORK).get()
+        fun dailyWorkPending() = AppJob.CURRENCY_DAILY.isPending(context)
         // Rates were fetched before, so the daily refresh is kept whenever fetching is allowed.
         val rates = CurrencyRates("eur", mapOf("eur" to 1.0, "usd" to 1.08), java.time.LocalDate.now())
         assertTrue(CurrencyRateStore(File(context.filesDir, CurrencyRateRepository.FILE_NAME)).save(rates))
@@ -82,12 +78,12 @@ class LiveCurrencyRatesBackupTest {
             backupManager.exportToFile(uri, "correct horse battery").getOrThrow()
             onThisPhone()
             currencyRates.syncSchedule()
-            assertTrue(dailyWork().all { it.state == WorkInfo.State.CANCELLED })
+            assertFalse(dailyWorkPending())
 
             backupManager.importFromFile(uri, "correct horse battery").getOrThrow()
             assertEquals(true, settingsManager[SettingsManager.LIVE_CURRENCY_RATES])
             assertTrue(currencyRates.liveRatesAllowed())
-            assertTrue(dailyWork().any { it.state == WorkInfo.State.ENQUEUED })
+            assertTrue(dailyWorkPending())
         }
 
         // A backup made with Google can't take a phone on Tor off it, so the downloads stay stopped.
@@ -97,7 +93,7 @@ class LiveCurrencyRatesBackupTest {
         currencyRates.syncSchedule()
         backupManager.importFromFile(uri, "correct horse battery").getOrThrow()
         assertEquals("Tor Project", settingsManager[SettingsManager.SEARCH_ENGINE])
-        assertTrue(dailyWork().all { it.state == WorkInfo.State.CANCELLED })
+        assertFalse(dailyWorkPending())
         db.close()
 
         // So the policy may not say a restore never lets rates be fetched: it names the settings that can.

@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.widget
 
+import android.os.PersistableBundle
+import com.pixel.intelligentsearch.AppJob
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
@@ -8,8 +10,6 @@ import android.os.Looper
 import android.view.View
 import android.widget.ImageView
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.ListenableWorker
-import androidx.work.testing.TestListenableWorkerBuilder
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.widget.CountdownEvent
@@ -97,8 +97,7 @@ class CountdownWidgetRedrawTest {
     @Test
     fun theMidnightRedrawHasDrawnTheWidgetWhenItsWorkIsDone() {
         assertEquals(null, widgets.getViewFor(widgetId))
-        val result = runBlocking { TestListenableWorkerBuilder<CountdownMidnightWorker>(context).build().doWork() }
-        assertEquals(ListenableWorker.Result.success(), result)
+        runBlocking { AppJob.COUNTDOWN_MIDNIGHT.run(context, PersistableBundle()) }
         // Drawn already: nothing was left running in the background.
         assertNotNull(widgets.getViewFor(widgetId))
     }

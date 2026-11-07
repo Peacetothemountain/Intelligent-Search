@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.AppJob
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -10,10 +11,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
-import androidx.work.testing.WorkManagerTestInitHelper
-import com.pixel.intelligentsearch.core.currency.CurrencyRateWork
 import com.pixel.intelligentsearch.core.currency.CurrencyRates
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
@@ -35,7 +32,7 @@ import org.robolectric.annotation.Config
 /**
  * Live Currency Rates sits under the Calculator, which gives currency answers: it is shown only while the Calculator
  * is on, and switching either off, or picking Tor as the search engine, cancels the daily rates download straight
- * away (the switches hand that to a background thread, so the tap itself never waits on WorkManager).
+ * away (the switches hand that to a background thread, so the tap itself never waits on JobScheduler).
  */
 @HiltAndroidTest
 @RunWith(RobolectricTestRunner::class)
@@ -49,11 +46,8 @@ class LiveCurrencyRatesSettingTest {
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
     private val currencyRates get() = context.appEntryPoint.currencyRateRepository()
 
-    private fun dailyWork(): List<WorkInfo> =
-        WorkManager.getInstance(context).getWorkInfosForUniqueWork(CurrencyRateWork.DAILY_WORK).get()
-
-    private fun dailyWorkEnqueued() = dailyWork().any { it.state == WorkInfo.State.ENQUEUED }
-    private fun dailyWorkCancelled() = eventually { dailyWork().let { it.isNotEmpty() && it.all { work -> work.state == WorkInfo.State.CANCELLED } } }
+    private fun dailyWorkEnqueued() = AppJob.CURRENCY_DAILY.isPending(context)
+    private fun dailyWorkCancelled() = eventually { !AppJob.CURRENCY_DAILY.isPending(context) }
 
     /** Whether [check] holds within a second, for work a switch hands to a background thread. */
     private fun eventually(check: () -> Boolean): Boolean {
@@ -76,7 +70,6 @@ class LiveCurrencyRatesSettingTest {
     fun setUp() {
         hilt.inject()
         prefs.edit().clear().commit()
-        WorkManagerTestInitHelper.initializeTestWorkManager(context)
     }
 
     @Test

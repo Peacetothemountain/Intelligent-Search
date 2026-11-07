@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
+import com.pixel.intelligentsearch.AppJob
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -12,10 +13,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.WorkManager
-import androidx.work.testing.WorkManagerTestInitHelper
 import com.pixel.intelligentsearch.HiltTestActivity
-import com.pixel.intelligentsearch.core.currency.CurrencyRateWork
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.DeviceSearchSources
@@ -34,6 +32,7 @@ import dagger.hilt.android.testing.UninstallModules
 import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -312,7 +311,7 @@ class SearchViewModelTest {
         return await("local results") { done }
     }
 
-    private fun uniqueWork(name: String) = WorkManager.getInstance(ApplicationProvider.getApplicationContext()).getWorkInfosForUniqueWork(name).get()
+    private fun pending(job: AppJob) = job.isPending(ApplicationProvider.getApplicationContext())
 
     @Test
     fun aTimeInAnotherZoneIsAnsweredOnTheClockCard() {
@@ -377,23 +376,21 @@ class SearchViewModelTest {
 
     @Test
     fun aCurrencyAnswerStartsTheRatesDownload() {
-        WorkManagerTestInitHelper.initializeTestWorkManager(ApplicationProvider.getApplicationContext())
         start()
         viewModel.onQueryChanged("100 usd to eur")
         assertEquals("currency", awaitLocalResults().instantAnswer?.iconType)
-        assertEquals(1, uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).size)
-        assertEquals(1, uniqueWork(CurrencyRateWork.DAILY_WORK).size)
+        assertTrue(pending(AppJob.CURRENCY_FIRST_FETCH))
+        assertTrue(pending(AppJob.CURRENCY_DAILY))
     }
 
     @Test
     fun withTheCalculatorOffACurrencyQueryNeverStartsTheRatesDownload() {
-        WorkManagerTestInitHelper.initializeTestWorkManager(ApplicationProvider.getApplicationContext())
         prefs.edit().put(SettingsManager.SEARCH_CALCULATOR, false).commit()
         start()
         viewModel.onQueryChanged("100 usd to eur")
         assertNull(awaitLocalResults().instantAnswer)
-        assertTrue(uniqueWork(CurrencyRateWork.FIRST_FETCH_WORK).isEmpty())
-        assertTrue(uniqueWork(CurrencyRateWork.DAILY_WORK).isEmpty())
+        assertFalse(pending(AppJob.CURRENCY_FIRST_FETCH))
+        assertFalse(pending(AppJob.CURRENCY_DAILY))
     }
 
     @Test

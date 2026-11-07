@@ -24,7 +24,7 @@ import javax.inject.Inject
 import androidx.core.content.edit
 
 @HiltAndroidApp
-class App : Application(), androidx.work.Configuration.Provider {
+class App : Application() {
 
     @Inject
     lateinit var directBootManager: DirectBootManager
@@ -49,18 +49,6 @@ class App : Application(), androidx.work.Configuration.Provider {
         const val MAINTENANCE_PREFS = "app_maintenance"
         const val KEY_RETIRED_SECRETS_REMOVED = "retired_secrets_removed_v1"
     }
-
-    /**
-     * WorkManager starts the first time the app asks for it, not with every process (the manifest removes its start-up
-     * initializer). Android can start the process while the phone is still locked after a reboot, when WorkManager's
-     * storage can't be opened yet, and its start-up check then crashed the app. The app asks for it only once the user
-     * has unlocked ([com.pixel.intelligentsearch.core.system.workManagerOnceUnlocked], and [StartupSync] after the
-     * unlock); should a start still fail, it is logged instead of crashing, and the next process tries again.
-     */
-    override val workManagerConfiguration: androidx.work.Configuration
-        get() = androidx.work.Configuration.Builder()
-            .setInitializationExceptionHandler { Log.w("AppWorkManager", "WorkManager couldn't start", it) }
-            .build()
 
     /** The languages the cached app list's labels are in; null until known. */
     private var appListLocales: LocaleList? = null

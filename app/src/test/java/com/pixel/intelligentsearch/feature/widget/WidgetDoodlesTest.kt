@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.widget
 
+import android.app.job.JobScheduler
+import com.pixel.intelligentsearch.AppJob
 import android.app.Activity
 import android.app.SearchManager
 import android.content.ComponentName
@@ -16,15 +18,13 @@ import com.pixel.intelligentsearch.R
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
 import androidx.test.core.app.ApplicationProvider
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
-import androidx.work.testing.WorkManagerTestInitHelper
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.occasion.Occasion
 import com.pixel.intelligentsearch.core.occasion.OccasionCalendar
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -81,16 +81,15 @@ class WidgetDoodlesTest {
 
     @Test
     fun theNextRedrawIsArrangedForJustAfterTheNextChange() {
-        WorkManagerTestInitHelper.initializeTestWorkManager(context)
         val now = ZonedDateTime.of(2026, 10, 30, 23, 0, 0, 0, ZoneId.of("America/New_York"))
         OccasionCalendar.now = { now }
 
         WidgetDoodles.scheduleNextChange(context)
 
-        val work = WorkManager.getInstance(context).getWorkInfosForUniqueWork("widget_doodle_change").get().single()
-        assertEquals(WorkInfo.State.ENQUEUED, work.state)
+        val job = context.getSystemService(JobScheduler::class.java).getPendingJob(AppJob.DOODLE_CHANGE.id)
+        assertNotNull(job)
         // Halloween starts in an hour; the redraw waits half a minute past midnight.
-        assertEquals(TimeUnit.HOURS.toMillis(1) + TimeUnit.SECONDS.toMillis(30), work.initialDelayMillis)
+        assertEquals(TimeUnit.HOURS.toMillis(1) + TimeUnit.SECONDS.toMillis(30), job!!.minLatencyMillis)
     }
 
     /** The doodle plays around the G, so a widget with its G hidden has none, even on a doodle day. */

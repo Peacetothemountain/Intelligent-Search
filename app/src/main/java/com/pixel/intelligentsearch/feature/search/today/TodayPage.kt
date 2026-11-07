@@ -320,9 +320,11 @@ internal fun TodayPage(
     val extrasOn by rememberSetting(SettingsManager.TODAY_EXTRAS)
     val leaveByOn by rememberSetting(SettingsManager.TODAY_LEAVE_BY)
     val memoriesOn by rememberSetting(SettingsManager.TODAY_MEMORIES)
+    // Weather with no saved place, and the leave-by time, need the phone's location, so allowing it reads both again.
+    val locationOk = rememberPermissionState { com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(it).permitted() }
     // What the layer read wins whenever it has it, including when it arrives or refreshes after the page has opened;
     // the page reads for itself only while it has nothing. With Weather off there is none, so no part shows it.
-    val ownWeather = produceState<Pair<WeatherReport, WeatherReport?>?>(null, preloadedWeather == null, active, weatherOn) {
+    val ownWeather = produceState<Pair<WeatherReport, WeatherReport?>?>(null, preloadedWeather == null, active, weatherOn, locationOk) {
         if (preloadedWeather == null && active && weatherOn) value = sources.weather()
     }.value
     val loadedWeather = (preloadedWeather ?: ownWeather)?.takeIf { weatherOn }
@@ -345,7 +347,7 @@ internal fun TodayPage(
     val alarmTomorrow = snapshot.alarm?.takeIf {
         Instant.ofEpochMilli(it.triggerAt).atZone(zone).toLocalDate() == today.plusDays(1)
     }
-    val trip = produceState<TodayTrip?>(null, upNext?.eventId, upNext?.beginMillis, upNext?.location, leaveByOn, active) {
+    val trip = produceState<TodayTrip?>(null, upNext?.eventId, upNext?.beginMillis, upNext?.location, leaveByOn, active, locationOk) {
         value = if (upNext != null && leaveByOn && active) sources.trip(upNext) else null
     }.value
     val photosOk = rememberPermissionState(::photosAllowed)
@@ -355,7 +357,6 @@ internal fun TodayPage(
     val memory = (preloadedMemory ?: ownMemory)?.takeIf { memoriesOn && photosOk }
     val photosRequest = rememberPhotosRequest { }
     val askPhotos = if (memoriesOn && extrasOn && !photosOk) ({ photosRequest.request() }) else null
-    val locationOk = rememberPermissionState { com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(it).permitted() }
     val locationRequest = rememberTodayLocationRequest { }
     val askLocation = if (leaveByOn && !locationOk) ({ locationRequest.request() }) else null
     val sunset = weather?.sunset?.toEpochMilli()?.takeIf { it > now }

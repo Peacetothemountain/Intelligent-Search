@@ -14,7 +14,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
-| Release APK size | 9,712,589 bytes, unsigned | local build 2026-11-07, the app's Material Icons as path text (9,761,741 with Material's view keep rules ignored, 9,808,233 before that, with WorkManager out; 9,972,773 before Media3 went from the release build, 10,431,593 before DataStore went, 10,619,341 before that, 11,346,076 before the themes moved to Android's own Material theme, 11,675,957 before the activities were plain `ComponentActivity`, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
+| Release APK size | 9,672,793 bytes, unsigned | local build 2026-11-07, the tutorial mascot layers as lossless WebP (9,712,589 with the app's Material Icons as path text, 9,761,741 with Material's view keep rules ignored, 9,808,233 before that, with WorkManager out; 9,972,773 before Media3 went from the release build, 10,431,593 before DataStore went, 10,619,341 before that, 11,346,076 before the themes moved to Android's own Material theme, 11,675,957 before the activities were plain `ComponentActivity`, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
@@ -542,6 +542,21 @@ with the strongest evidence.
 - Retry only if: a golden that draws an icon fails on this commit; compare that icon's path with the library's first
 - Commit: see `Draw the Material Icons from path text` in `git log dev`
 - Lesson: a vector written as code costs about twice its path text in dex. Measure the dex files, not `apkanalyzer`'s package sizes, which put the strings elsewhere.
+
+### 2026-11-07: The tutorial mascot layers were PNG
+- Command: /improve (scheduled run)
+- Target and evidence: release APK size. After the dex, the largest files the APK stores whole are the three Bugdroid clips (locked), the font, and the four tutorial mascot layers in `drawable-nodpi` (`ic_bugdroid_body`, `_blink`, `_half`, `_balloon`): 118,465 bytes of PNG, stored uncompressed. Chosen because the backlog has nothing left with evidence (B11 only adds tests) and no crash or flaky run is open. CI green on `2d9f33a4` and everything before it; `bb776bce` still running
+- Prior work checked: this ledger (`Bugdroid tutorial layers ship at the size they're drawn at` resized these, kept them PNG), `git log origin/dev -- app/src/main/res/drawable-nodpi/ic_bugdroid_body.png`, claude-mem
+- Research: also looked at `androidx.appsearch` (96,768 bytes of dex), which only AppFunctions brings. It is needed: `AppFunctionService.onExecuteFunction` reads the function's own metadata through `AppFunctionMetadataUtils` and `AppSearchAppFunctionReader` (read from the 1.0.0-beta01 classes), so ignoring its keep rules would break assistants calling the app. Not a target. For the PNGs: Pillow's lossless WebP (`method=6`, `exact`) gives back the same RGBA bytes. A throwaway Robolectric test (native graphics, SDK 31 and 34, deleted before commit) decoded each WebP through the app's resources and the old PNG with `BitmapFactory`: same size, `ARGB_8888`, premultiplied, and the drawn (premultiplied) bytes differ by at most 1 of 255 on 454 of 61,237 pixels (185 for the balloon), all on the anti-aliased edge, because Android's WebP and PNG decoders round premultiplied alpha differently. The art is drawn scaled down to about 140x196 px, so nothing visible changes
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: the four layers are lossless WebP; same names, so `TutorialBugdroidEmoji.kt` is unchanged
+- Before -> after: release APK, unsigned local builds, 9,712,589 -> 9,672,793 bytes (-39,796); the layers 118,465 -> 78,192 bytes. Test code 51,916 -> 51,916; `lintVitalRelease` clean, baseline 11 -> 11; `TutorialSpotlightOverlayTest` and `SettingsTutorialStepsTest` pass locally
+- Emulator: not run. The mascot only draws on the welcome step below Android 13, where the clip can't play, so the Android 17 emulator wouldn't show it, and the decode check above already compared what gets drawn
+- Result: kept, pending CI
+- Retry only if: the mascot looks different on an Android 12 phone; then decode both files as the throwaway test did and compare the edge pixels
+- Commit: see `Ship the tutorial mascot layers as lossless WebP` in `git log dev`
+- Lesson: lossless WebP gives back the same RGBA bytes, but Android premultiplies it with different rounding than PNG, so compare what gets drawn (`copyPixelsToBuffer`), not `getPixels`.
 
 <!--
 Copy this for each cycle, newest at the bottom.

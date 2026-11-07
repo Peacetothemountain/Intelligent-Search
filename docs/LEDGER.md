@@ -9,7 +9,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 
 | Metric | Value | Measured at |
 |---|---|---|
-| Lines of test code | 51,985 | 2026-11-07, B18, up 32 for a written reason (see its entry); replaces the `@Test` count (owner: root causes over more tests) |
+| Lines of test code | 52,004 | 2026-11-07, no live suggestions in tests, up 19 for a written reason (see its entry); replaces the `@Test` count (owner: root causes over more tests) |
 | CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 872s (was 1003s) on one that changes app code, run 42356421669 on `f15b95a3` | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change. Since B13 there is no single step to time: measure from the start of the run to `Build & Check` finishing |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
@@ -344,6 +344,20 @@ with the strongest evidence.
 - Retry only if: lint reports one of the 8 again, or a settings or backup golden shifts by a card inset
 - Commit: see `Clear eight lint baseline issues` in `git log dev`
 - Lesson: a modifier default that carries layout makes every caller who passes a modifier copy it. Put the layout inside and keep the default `Modifier`.
+
+### 2026-11-07: Tests sent what they typed to Google
+- Command: /improve (scheduled run)
+- Target and evidence: a full local run on `76aa6448` failed `WebSearchProviderEntityTest.theAnswerIsCachedWithItsPictures`, `expected:<1> but was:<2>` requests to its local server; the next two runs passed. A probe logging every suggestion fetch showed one full run sending 9 live requests to `suggestqueries.google.com` (`translate hello to spanish`, `define serendipity`, `ca`, `mo` and others), from `LiveAnswerViewModelTest` and `RecordOpenedTest`. Web Suggestions is on by default, and Hilt tests that don't replace `DeviceSearchSources` used the real one. `WebSearchProvider.openForTests` is one global, so a fetch that starts while the entity test has it set goes to that test's server. That this caused the failure is inferred, not reproduced. The JDK re-sends a GET only when the server closes without answering (`sun.net.www.http.HttpClient.parseHTTP`), and this server always answers. Chosen over the backlog: B11 only adds tests, and every other item is done
+- Prior work checked: this ledger, claude-mem (no earlier record of this test failing). CI green on `e600895f` and `76aa6448` (B18 and B19, both pending above)
+- Research: what the CI log for run 42356421669 shows about lint. `lintAnalyzeDebug` ran at 08:42, beside the test compile, and only its report printed at 08:48. With the configuration cache, lint already runs in parallel with the tests, so a separate lint job would save nothing. `testDebugUnitTest` alone took 08:44:46 to 08:53:17. Local per-class times: 2,876 tests in 453s of class time, with `MorphBouncePhysicsTest` (51s) still the largest, then `MaterialMorphLookTest` (20s) and `SettingsGoldenTest` (18s)
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: `DeviceSearchSourcesImpl` takes a `WebSuggestionService` (`WebSuggestionServiceModule` provides the same `WebSearchProvider.getWebSuggestions` as before); `NoLiveWebSuggestionsModule`, a `@TestInstallIn`, gives every Hilt test a service that returns nothing. Tests that check suggestions already use their own sources or call `WebSearchProvider` directly. No assertions changed
+- Before -> after: live suggestion requests from one full test run, 9 -> 0 (same probe, removed before committing); full suite 2,876 tests, 0 failures, locally; test code 51,985 -> 52,004 lines, up 19: the reason is that no other place can switch this off for every Hilt test, and it takes the tests off the internet; app code 22 lines in, 2 out; lint baseline 11 -> 11. Nothing in the app changes, so no emulator check
+- Result: kept, pending CI
+- Retry only if: the entity test fails again with 2 requests; then log the address of each request it gets
+- Commit: see `Keep tests from asking Google for suggestions` in `git log dev`
+- Lesson: a test seam held in a global var is shared by every test in the JVM. A test that points it at a local server can get requests from tests that ran before it.
 
 <!--
 Copy this for each cycle, newest at the bottom.

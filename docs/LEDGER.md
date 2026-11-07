@@ -10,7 +10,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Metric | Value | Measured at |
 |---|---|---|
 | Lines of test code | 51,803 | 2026-11-07, test sources with no compiler warnings (51,916 with the Material Icons library out; 51,919 with WorkManager out; was 52,055, up 69 for a written reason: the old settings file's reader; was 51,986 after the Bugdroid tutorial layers, 52,004 after no live suggestions in tests, up 19 for a written reason); replaces the `@Test` count (owner: root causes over more tests) |
-| CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 872s (was 1003s) on one that changes app code, run 42356421669 on `f15b95a3` | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change. Since B13 there is no single step to time: measure from the start of the run to `Build & Check` finishing |
+| CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 500s (was 872s, 1003s before that) on one that changes app code, run 42371565420 on `4845268c` | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change. Since B13 there is no single step to time: measure from the start of the run to `Build & Check` finishing |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
@@ -44,7 +44,7 @@ with the strongest evidence.
 | B17 | One table-driven backup round trip | 7 `*BackupTest` classes each build Room and run PBKDF2 for their own settings; a forgotten key can slip through. Over `SettingsManager.ALL`, a new setting needs no new test. Backup data: use the strongest model. | 2 | 2026-11-06 |
 | B18 | Share one recorded run between the morph physics rules | `MorphBouncePhysicsTest` is now the slowest class, 113s of 556s. Its 23 tests hold real rules about physics, so this only saves time: lowest priority. | 3 | 2026-11-06 |
 | B19 | Clear the lint baseline issues that have a fix | 8 of the 19 can go: 5 `ModifierParameter` (`GeminiCornerSwipeWave.kt:80`, `OneBoxCards.kt:193`, `SettingsComponents.kt:53,205,428`), 2 `UseKtx` `SharedPreferences.edit` in `SettingsManager.kt:508,526` and 1 `UseCompatLoadingForDrawables` in `IconPackManager.kt:135`. The rest stay: `StrongBoxSecurityManager.kt:454` needs `commit()`'s result, which the KTX `edit` drops; `NaturalLanguageIntentParser.kt` keeps `Uri.parse` (2026-11-05 lesson); the 5 `DiscouragedApi` read another app's icon pack by name, which has no other way. Proof: `grep -c '<issue$' app/lint-baseline.xml` 19 -> 11 and lint green | 3 | 2026-11-07 |
-| B20 | Find why `WebSearchProviderEntityTest` counts two requests on Windows | 2026-11-07, two local runs on this PC: `aRedirectIsRefusedNotFollowed` then `theAnswerIsCachedWithItsPictures` failed, `expected:<1> but was:<2>` from the loopback `ServerSocket`'s request count; a different test each run, file untouched. CI has passed it in every recent run, so it is local only so far. Proof: the class passes 10 runs in a row here | 1 | 2026-11-07 |
+| B20 | Find why `WebSearchProviderEntityTest` counts two requests on Windows (cause found 2026-11-07, fix waiting on the owner: see the entry `B20, the JDK sends a GET twice`) | 2026-11-07, two local runs on this PC: `aRedirectIsRefusedNotFollowed` then `theAnswerIsCachedWithItsPictures` failed, `expected:<1> but was:<2>` from the loopback `ServerSocket`'s request count; a different test each run, file untouched. CI has passed it in every recent run, so it is local only so far. Proof: the class passes 10 runs in a row here | 1 | 2026-11-07 |
 
 ## Entries
 
@@ -588,6 +588,32 @@ with the strongest evidence.
 - Retry only if: a test fails on CI on this commit; then look for work v2 queues that the test never waits for (`waitForIdle`), not a way back to v1
 - Commit: see `Compile the tests with no warnings` in `git log dev`
 - Lesson: under the v2 Compose rules, `waitUntil` doesn't run queued effects and an endless frame loop stops `waitForIdle` from returning. Call `waitForIdle` before polling, and turn endless animations off in tests that wait for idle.
+
+### 2026-11-07: B20, the JDK sends a GET twice
+- Command: /improve (scheduled run)
+- Target and evidence: B20. Its `Retry only if` from `Tests sent what they typed to Google` had come true (the entity test failed again with 2 requests), so this run logged each request, as that line asked. Chosen because the backlog has nothing else with evidence (B11 only adds tests), CI is green on `4845268c` and everything before it (`924a8bb7` still running), and no crash is open
+- Prior work checked: this ledger (`Tests sent what they typed to Google`, B20), claude-mem #32245 to #32249
+- Research: a throwaway probe in the test printed every `openForTests` call, every connection the loopback server accepted (client port, thread, time) with its header lines, and what was left unread when the server closed. The class failed in 2 of 15 local runs, both times with `NotificationAccessSetupTest` in the same run. Each time, `openForTests` ran once, the server read the whole request (`available() = 0`), sent the full answer and closed, and about 1 ms later a new client port sent the same `GET` again. So no other test sent it: the JDK's `HttpClient.parseHTTP` re-sends a GET once when reading the status line fails, and here that read failed even though the answer had been sent. Why it failed is not proven. During these runs this PC had 3.4 GB of commit memory free of 163.5 (SignalRgbLauncher held 94 GB), and test JVMs crashed in 5 runs with `The paging file is too small`. CI runs on Linux with no such pressure, which fits it passing there. Android's own `HttpURLConnection` also retries a failed connection silently, so the app making 2 attempts for one suggestion is harmless and not a fault in the app
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: none to code; the probe was removed. Proposed for the owner: the test counts the requests the app makes (`asked`, one per `openForTests` call) instead of the connections the server accepts, and `aRedirectIsRefusedNotFollowed` checks that no request for `/elsewhere` ever arrived. That states what each test claims (the cache answered; the redirect wasn't followed) without counting the JDK's retry. It rewrites assertions, which `CLAUDE.md` says needs the owner's OK first
+- Before -> after: no metric changed. CI time ratchet updated from runs already finished: 872s -> 500s on an app code commit (run 42371565420 on `4845268c`)
+- Result: blocked, waiting on the owner's OK to change what the test counts
+- Retry only if: the owner agrees to the proposed assertions; or CI fails this test with `expected:<1> but was:<2>`
+- Commit: see `Record why the entity test counts two requests` in `git log dev`
+- Lesson: when a test's loopback server counts connections, it counts the HTTP client's own retries too. Log the client port of each connection before blaming another test. And check free commit memory (`Win32_OperatingSystem.FreeVirtualMemory`) before trusting a local failure on this PC
+
+### 2026-11-07: No candidate with evidence left
+- Command: /improve (scheduled run)
+- Target and evidence: none. After B20 went to the owner, the backlog holds only B11, which only adds tests (against the owner's rule, and mostly done: see the B18 entry). The 11 lint baseline issues left each have a written reason (B19). Compiler warnings are 0 in app and test code. CI is green, no CI run has failed in the last 12, and the crash table has nothing open. The last APK breakdown (`The app's code compiled with 18 warnings`) found nothing large left that isn't Compose, the app's own code, or a library holding user data or routes
+- Prior work checked: this ledger, `gh run list --branch dev`
+- Models used: inline (Opus 5.5)
+- Usage level: no figure visible. Normal mode
+- Change: none. The scheduled task `Improve Intelligent Search` is paused, as `IMPROVEMENT.md` section 4 says
+- Result: no change needed
+- Retry only if: the owner answers B20 or B11, adds a backlog item, a CI run fails, a Play crash arrives, or the owner runs `/audit`; then turn the scheduled task back on
+- Commit: same as the entry above
+- Lesson: when every cycle's reason reads "the backlog has nothing left with evidence", run `/audit` for new evidence rather than mining one metric further
 
 <!--
 Copy this for each cycle, newest at the bottom.

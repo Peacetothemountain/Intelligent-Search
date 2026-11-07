@@ -28,8 +28,14 @@ class DeliveryFromTest {
     @Test
     fun aFailedDeliveryHidesTheOlderNewsForIt() {
         val older = IndexedNotification("a", "com.shop", "Shop", "Your package", "Out for delivery", NOW - 3_600_000L)
-        val newer = IndexedNotification("b", "com.shop", "Shop", "Your package", "Your package could not be delivered", NOW - 60_000L)
-        assertEquals(null, deliveryFrom(listOf(older, newer), NOW))
+        listOf(
+            "Your package could not be delivered", "Delivery attempted: no one was home",
+            "We were unable to deliver your package", "Delivery exception: address problem",
+            "Your package is being returned to sender"
+        ).forEach { text ->
+            val newer = IndexedNotification("b", "com.shop", "Shop", "Your package", text, NOW - 60_000L)
+            assertEquals(text, null, deliveryFrom(listOf(older, newer), NOW))
+        }
     }
 
     private companion object {

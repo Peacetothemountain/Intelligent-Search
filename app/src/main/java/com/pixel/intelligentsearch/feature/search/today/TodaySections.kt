@@ -132,7 +132,14 @@ internal data class TodayDelivery(val step: Int, val headline: String, val detai
 
 /** "Delivered" said of the past only: "will be delivered" and "could not be delivered" are taken out first. */
 private val DELIVERED = Regex("\\bdelivered\\b", RegexOption.IGNORE_CASE)
-private val NOT_DELIVERED = Regex("(?:\\bnot|n['’]t)\\s+(?:yet\\s+)?(?:been\\s+|be\\s+)?delivered\\b", RegexOption.IGNORE_CASE)
+/** A delivery that didn't happen, in the carriers' words: not delivered, attempted, unable to deliver, an exception, sent back. */
+private val NOT_DELIVERED = Regex(
+    "(?:\\bnot|n['’]t)\\s+(?:yet\\s+)?(?:been\\s+|be\\s+)?delivered\\b" +
+        "|\\b(?:could\\s*not|couldn['’]t|unable\\s+to|cannot|can['’]t)\\s+(?:be\\s+)?deliver" +
+        "|\\bdelivery\\s+(?:was\\s+)?(?:attempted|failed|unsuccessful|exception)\\b|\\battempted\\s+(?:to\\s+)?deliver" +
+        "|\\b(?:failed|missed|unsuccessful)\\s+delivery\\b|\\bundeliverable\\b|\\breturn(?:ed|ing)?\\s+to\\s+(?:the\\s+)?sender\\b",
+    RegexOption.IGNORE_CASE
+)
 private val TO_BE_DELIVERED = Regex("\\b(?:will|to|should)\\s+be\\s+delivered\\b", RegexOption.IGNORE_CASE)
 private val OUT_FOR_DELIVERY = Regex("out for delivery|arriving today|arrives today|will arrive today|delivery today|be delivered today", RegexOption.IGNORE_CASE)
 private val ON_THE_WAY = Regex("\\bshipped\\b|on (its|the) way|in transit|arriving (tomorrow|on)|has left|departed|be delivered", RegexOption.IGNORE_CASE)
@@ -141,7 +148,7 @@ private val PACKAGE = Regex("package|parcel|order|shipment|delivery", RegexOptio
 /**
  * The newest package news among the notifications from the last two days, if any: delivered, out for delivery, or on
  * its way. Only notifications that speak of a package, order or delivery count. When the newest says it couldn't be
- * delivered, no step says that, so there is no tile rather than an older, happier one.
+ * delivered (in any of [NOT_DELIVERED]'s words), no step says that, so there is no tile rather than an older, happier one.
  */
 internal fun deliveryFrom(entries: List<IndexedNotification>, now: Long): TodayDelivery? {
     for (entry in entries.filter { now - it.postedAt in 0..DELIVERY_WINDOW_MS }.sortedByDescending { it.postedAt }) {

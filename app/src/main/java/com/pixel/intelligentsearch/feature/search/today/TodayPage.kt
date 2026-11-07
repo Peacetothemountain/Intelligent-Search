@@ -20,8 +20,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -800,7 +802,7 @@ private fun RestOfDay(calendar: List<CalendarEvent>, now: Long, sunset: Long?) {
     }
 }
 
-/** A running timer (counting down each second, a ring sweeping each minute) and the next alarm, side by side. */
+/** A running timer (counting down each second, a ring sweeping each minute) and the next alarm, side by side at the taller one's height. */
 @Composable
 private fun TimerAlarmTiles(timer: GlanceTimer?, alarm: GlanceItem.Alarm?, delivery: TodayDelivery?, now: Long) {
     val tiles = listOfNotNull<@Composable (Modifier) -> Unit>(
@@ -810,8 +812,8 @@ private fun TimerAlarmTiles(timer: GlanceTimer?, alarm: GlanceItem.Alarm?, deliv
     )
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         for (pair in tiles.chunked(2)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                for (tile in pair) tile(Modifier.weight(1f))
+            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                for (tile in pair) tile(Modifier.weight(1f).fillMaxHeight())
             }
         }
     }

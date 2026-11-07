@@ -19,8 +19,10 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -514,7 +516,7 @@ private fun ControlTile(label: String, icon: ImageVector, on: Boolean, modifier:
     }
 }
 
-/** The battery, as a ring that fills to its level, and today's screen time with the apps that took most of it. */
+/** The battery, as a ring that fills to its level, and today's screen time with the apps that took most of it, side by side at the taller one's height. */
 @Composable
 internal fun PhoneToday(sources: TodaySources, active: Boolean) {
     val context = LocalContext.current
@@ -527,10 +529,10 @@ internal fun PhoneToday(sources: TodaySources, active: Boolean) {
     Column(Modifier.onFirstSeen { phoneSeen.value = true }) {
         SectionTitle("Your phone today")
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (battery != null) BatteryTile(battery, Modifier.weight(1f), phoneSeen.value)
+        Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (battery != null) BatteryTile(battery, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value)
             if (screenTime != null) {
-                ScreenTimeTile(screenTime, Modifier.weight(1f), phoneSeen.value) {
+                ScreenTimeTile(screenTime, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value) {
                     launchSafeIntent(context, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
                 }
             }
@@ -757,7 +759,7 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
     }
 }
 
-/** The days until the next big holiday, and how far through the year today is. */
+/** The days until the next big holiday, and how far through the year today is, side by side at the taller one's height. */
 @Composable
 internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: TodayMemory? = null, askPhotos: (() -> Unit)? = null) {
     val scheme = MaterialTheme.colorScheme
@@ -765,11 +767,12 @@ internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: Tod
     val shown = rememberDrawIn(300, 1100, seen)
     val confetti = LocalConfetti.current
     var tileCenter by remember { mutableStateOf(Offset.Zero) }
-    Row(Modifier.onFirstSeen { seen = true }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(Modifier.height(IntrinsicSize.Min).onFirstSeen { seen = true }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (countdown != null) {
             Column(
                 Modifier
                     .weight(1f)
+                    .fillMaxHeight()
                     .heightIn(min = 120.dp)
                     .clip(CardShape)
                     .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
@@ -787,11 +790,11 @@ internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: Tod
             }
         }
         if (memory != null) {
-            MemoryTile(memory, Modifier.weight(1f))
+            MemoryTile(memory, Modifier.weight(1f).fillMaxHeight())
             return@Row
         }
         if (askPhotos != null) {
-            AskPhotosTile(askPhotos, Modifier.weight(1f))
+            AskPhotosTile(askPhotos, Modifier.weight(1f).fillMaxHeight())
             return@Row
         }
         val dayOfYear = today.dayOfYear
@@ -800,6 +803,7 @@ internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: Tod
         Column(
             Modifier
                 .weight(1f)
+                .fillMaxHeight()
                 .heightIn(min = 120.dp)
                 .clip(CardShape)
                 .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))

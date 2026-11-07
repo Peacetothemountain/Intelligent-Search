@@ -3,13 +3,12 @@ package com.pixel.intelligentsearch.feature.settings
 import android.content.Context
 import android.view.View
 import androidx.activity.BackEventCompat
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.feature.search.SearchActivity
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
 import com.pixel.intelligentsearch.screenshots.settle
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -48,7 +47,7 @@ class SettingsNavHostBackTest {
         }
     }
 
-    @get:Rule(order = 2) val compose = createAndroidComposeRule<SettingsActivity>(confinedEffects())
+    @get:Rule(order = 2) val compose = createAndroidComposeRule<SettingsActivity>()
 
     @Test
     fun cancellingTheExitSwipePutsThePageBack() {

@@ -9,7 +9,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -17,7 +17,6 @@ import androidx.compose.ui.test.performTextInput
 import com.pixel.intelligentsearch.core.occasion.DoodleCatalog
 import com.pixel.intelligentsearch.core.occasion.Occasion
 import com.pixel.intelligentsearch.core.ui.LOADING_INDICATOR_TAG
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -34,7 +33,7 @@ import java.time.ZoneId
 @Config(qualifiers = "w412dp-h2400dp-xhdpi")
 class DoodleGalleryTest {
 
-    @get:Rule val compose = createComposeRule(confinedEffects())
+    @get:Rule val compose = createComposeRule()
 
     private val today = LocalDate.of(2026, 10, 20)
     private val newYork = ZoneId.of("America/New_York")

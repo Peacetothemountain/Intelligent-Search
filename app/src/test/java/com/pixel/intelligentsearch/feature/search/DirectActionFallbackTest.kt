@@ -4,12 +4,11 @@ import android.app.Application
 import android.content.ComponentName
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.ActivityInfo
-import android.content.pm.ResolveInfo
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser
 import com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent
 import com.pixel.intelligentsearch.core.security.SafeWebLaunch
+import com.pixel.intelligentsearch.installActivityFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -37,10 +36,7 @@ class DirectActionFallbackTest {
     }
 
     private fun installHandlerFor(intent: Intent) {
-        val handler = ResolveInfo().apply {
-            activityInfo = ActivityInfo().apply { packageName = "org.example.handler"; name = "org.example.handler.Main" }
-        }
-        shadowOf(context.packageManager).addResolveInfoForIntent(intent, handler)
+        installActivityFor(intent, ComponentName("org.example.handler", "org.example.handler.Main"))
     }
 
     @Test

@@ -6,7 +6,7 @@ import android.content.SharedPreferences
 import android.hardware.biometrics.BiometricManager
 import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
 import com.dropbox.differ.SimpleImageComparator
@@ -57,7 +57,7 @@ import org.robolectric.annotation.GraphicsMode
 class SettingsGoldenTest(private val page: String, private val dark: Boolean) {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     @Before fun inject() {
         hilt.inject()

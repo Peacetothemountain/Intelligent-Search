@@ -81,6 +81,8 @@ class OverlayRecentsCardTest {
     @Test
     fun theHomeScreenBarsOverlayThemeKeepsTheLavenderOffToo() {
         for (theme in listOf(R.style.Theme_IntelligentSearch_Overlay_WidgetLaunch, R.style.Theme_IntelligentSearch_Overlay_Launcher)) {
+            // Deprecated as window colors, but Android still draws the Recents card's header from them.
+            @Suppress("DEPRECATION")
             val a = context.obtainStyledAttributes(theme, intArrayOf(android.R.attr.statusBarColor, android.R.attr.navigationBarColor))
             assertEquals(0, android.graphics.Color.alpha(a.getColor(0, -1)))
             assertEquals(0, android.graphics.Color.alpha(a.getColor(1, -1)))

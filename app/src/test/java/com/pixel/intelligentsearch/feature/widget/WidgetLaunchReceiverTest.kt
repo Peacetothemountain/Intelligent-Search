@@ -1,9 +1,11 @@
 package com.pixel.intelligentsearch.feature.widget
 
 import android.app.Application
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import androidx.test.core.app.ApplicationProvider
+import com.pixel.intelligentsearch.installActivityFor
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,13 +30,7 @@ class WidgetLaunchReceiverTest {
     /** Makes [launcherPackage] the home screen. */
     private fun home(launcherPackage: String) {
         val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-        shadowOf(context.packageManager).addResolveInfoForIntent(homeIntent, android.content.pm.ResolveInfo().apply {
-            activityInfo = android.content.pm.ActivityInfo().apply {
-                packageName = launcherPackage
-                name = "$launcherPackage.Home"
-                applicationInfo = android.content.pm.ApplicationInfo().apply { packageName = launcherPackage }
-            }
-        })
+        installActivityFor(homeIntent, ComponentName(launcherPackage, "$launcherPackage.Home"))
     }
 
     @Test

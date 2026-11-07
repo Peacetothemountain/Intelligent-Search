@@ -2,7 +2,7 @@ package com.pixel.intelligentsearch.feature.settings
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import com.pixel.intelligentsearch.core.theme.appColorScheme
 import androidx.compose.ui.platform.LocalContext
 import org.junit.Assert.assertEquals

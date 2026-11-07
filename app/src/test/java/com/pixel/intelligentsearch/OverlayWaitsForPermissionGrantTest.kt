@@ -121,12 +121,12 @@ class OverlayWaitsForPermissionGrantTest {
 
         // The screen turns off over Android's page: the user comes back to it, so the overlay still waits.
         overlayTask(activity, top = usageAccess, onScreen = false)
-        shadowOf(context.getSystemService(PowerManager::class.java)).setIsInteractive(false)
+        shadowOf(context.getSystemService(PowerManager::class.java)).turnScreenOn(false)
         ShadowLooper.idleMainLooper(3, TimeUnit.SECONDS)
         assertFalse("the screen going off isn't leaving", activity.isFinishing)
 
         // The user goes Home instead of Back: the overlay left behind would come up again later with the old search.
-        shadowOf(context.getSystemService(PowerManager::class.java)).setIsInteractive(true)
+        shadowOf(context.getSystemService(PowerManager::class.java)).turnScreenOn(true)
         ShadowLooper.idleMainLooper(3, TimeUnit.SECONDS)
         assertTrue(activity.isFinishing)
         search.destroy()
@@ -176,11 +176,11 @@ class OverlayWaitsForPermissionGrantTest {
         // Over two minutes on Android's page, the screen times out. The overlay gave up a second later, so waking the
         // phone, turning access on and going Back went Home, the search lost.
         overlayTask(activity, top = usageAccess, onScreen = false)
-        shadowOf(context.getSystemService(PowerManager::class.java)).setIsInteractive(false)
+        shadowOf(context.getSystemService(PowerManager::class.java)).turnScreenOn(false)
         ShadowLooper.idleMainLooper(5, TimeUnit.MINUTES)
         assertFalse("the screen going off isn't leaving", activity.isFinishing)
 
-        shadowOf(context.getSystemService(PowerManager::class.java)).setIsInteractive(true)
+        shadowOf(context.getSystemService(PowerManager::class.java)).turnScreenOn(true)
         overlayTask(activity, top = usageAccess, onScreen = true)
         ShadowLooper.idleMainLooper(3, TimeUnit.MINUTES)
         assertFalse("the user is back on Android's page", activity.isFinishing)

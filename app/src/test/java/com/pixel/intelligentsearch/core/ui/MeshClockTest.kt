@@ -2,8 +2,7 @@ package com.pixel.intelligentsearch.core.ui
 
 import android.animation.ValueAnimator
 import androidx.compose.runtime.State
-import androidx.compose.ui.test.junit4.createComposeRule
-import com.pixel.intelligentsearch.screenshots.confinedEffects
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -24,7 +23,7 @@ import org.robolectric.annotation.Config
 class MeshClockTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     @Before fun inject() = hilt.inject()
 

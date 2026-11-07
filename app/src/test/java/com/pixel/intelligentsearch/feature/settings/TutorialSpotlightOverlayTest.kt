@@ -10,7 +10,7 @@ import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.SemanticsMatcher
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -18,7 +18,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
 import com.pixel.intelligentsearch.screenshots.settle
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -41,7 +40,7 @@ import org.robolectric.annotation.Config
 class TutorialSpotlightOverlayTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     @Before fun inject() = hilt.inject()
 
@@ -99,7 +98,9 @@ class TutorialSpotlightOverlayTest {
         compose.settle(steps = 5)
 
         compose.onNodeWithText("Second").assertExists()
-        // The card's live region reads each step; a separate announcement would read it a second time.
+        // The card's live region reads each step; a separate announcement would read it a second time. Announcements
+        // are deprecated, which is why none may be sent.
+        @Suppress("DEPRECATION")
         val announcements = accessibility.sentAccessibilityEvents.filter { it.eventType == AccessibilityEvent.TYPE_ANNOUNCEMENT }
         assertEquals(emptyList<List<CharSequence>>(), announcements.map { it.text.toList() })
         assertEquals(paneTitle, pane.fetchSemanticsNode().config[SemanticsProperties.PaneTitle])

@@ -16,7 +16,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -34,7 +34,6 @@ import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.feature.launch.FloatingSearchOverlays
 import com.pixel.intelligentsearch.feature.launch.NotificationShortcut
-import com.pixel.intelligentsearch.screenshots.confinedEffects
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -62,7 +61,7 @@ import org.robolectric.shadows.ShadowSettings
 class GrantedInSettingsTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createComposeRule(confinedEffects())
+    @get:Rule(order = 1) val compose = createComposeRule()
 
     private val context: Application get() = ApplicationProvider.getApplicationContext()
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
@@ -102,8 +101,8 @@ class GrantedInSettingsTest {
                 if (inAndroidsOrder) page.registry.currentState = Lifecycle.State.STARTED
                 permissions.forEach { shadowOf(context.packageManager).setShouldShowRequestPermissionRationale(it, false) }
                 @Suppress("UNCHECKED_CAST")
-                val result: Any = if (input is Array<*>) permissions.associateWith { false } else false
-                dispatchResult(requestCode, result as O)
+                val result = (if (input is Array<*>) permissions.associateWith { false } else false) as O
+                dispatchResult(requestCode, result)
                 if (inAndroidsOrder) page.registry.currentState = Lifecycle.State.RESUMED
             }
         }

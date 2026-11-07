@@ -2,8 +2,6 @@ package com.pixel.intelligentsearch.core.search
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ActivityInfo
-import android.content.pm.ResolveInfo
 import android.graphics.drawable.ColorDrawable
 import android.provider.Settings
 import androidx.test.core.app.ApplicationProvider
@@ -13,13 +11,14 @@ import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.core.profile.MultiProfileManager
 import com.pixel.intelligentsearch.core.system.SystemToggleManager
 import com.pixel.intelligentsearch.feature.search.resultSectionOrder
+import com.pixel.intelligentsearch.installActivityFor
+import com.pixel.intelligentsearch.settingsPage
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 
 /** Matching queries to Android Settings pages, hiding pages that don't open here, and App Info for installed apps. */
 @RunWith(RobolectricTestRunner::class)
@@ -29,13 +28,7 @@ class AndroidSettingsSearchTest {
 
     /** Makes [intent] open an activity, as the Settings app would on a phone. */
     private fun resolves(intent: Intent) {
-        val info = ResolveInfo().apply {
-            activityInfo = ActivityInfo().apply {
-                packageName = "com.android.settings"
-                name = "com.android.settings.SubSettings"
-            }
-        }
-        shadowOf(context.packageManager).addResolveInfoForIntent(intent, info)
+        installActivityFor(intent, settingsPage)
     }
 
     /** A phone whose Settings app opens every catalogue page and App Info. */

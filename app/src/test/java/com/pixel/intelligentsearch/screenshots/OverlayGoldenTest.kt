@@ -2,9 +2,9 @@ package com.pixel.intelligentsearch.screenshots
 
 import android.os.Looper
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.onRoot
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.github.takahirom.roborazzi.captureRoboImage
 import com.pixel.intelligentsearch.HiltTestActivity
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
@@ -38,7 +38,7 @@ import org.robolectric.annotation.GraphicsMode
 class OverlayGoldenTest(private val state: String, private val query: String, private val dark: Boolean) {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>(confinedEffects())
+    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>()
 
     @Before fun inject() {
         hilt.inject()

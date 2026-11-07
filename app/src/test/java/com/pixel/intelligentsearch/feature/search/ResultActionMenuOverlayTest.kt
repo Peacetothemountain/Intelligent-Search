@@ -2,11 +2,9 @@ package com.pixel.intelligentsearch.feature.search
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.ActivityInfo
-import android.content.pm.ResolveInfo
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.test.hasSetTextAction
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -22,9 +20,10 @@ import com.pixel.intelligentsearch.core.data.ResultShortcutStore
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.search.ResultShortcuts
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
-import com.pixel.intelligentsearch.screenshots.confinedEffects
+import com.pixel.intelligentsearch.installActivityFor
 import com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations
 import com.pixel.intelligentsearch.screenshots.settle
+import com.pixel.intelligentsearch.settingsPage
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -49,7 +48,7 @@ import org.robolectric.annotation.Config
 class ResultActionMenuOverlayTest {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
-    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>(confinedEffects())
+    @get:Rule(order = 1) val compose = createAndroidComposeRule<HiltTestActivity>()
 
     private val context get() = ApplicationProvider.getApplicationContext<Context>()
     private val store get() = ResultShortcutStore(SettingsManager(context))
@@ -62,13 +61,7 @@ class ResultActionMenuOverlayTest {
         com.pixel.intelligentsearch.feature.settings.TutorialManager.completeTutorial(prefs)
         prefs.edit().putBoolean(SettingsManager.SEARCH_WEB_SUGGESTIONS.name, false).commit()
         // The Battery page opens, as the Settings app's would on a phone.
-        val info = ResolveInfo().apply {
-            activityInfo = ActivityInfo().apply {
-                packageName = "com.android.settings"
-                name = "com.android.settings.SubSettings"
-            }
-        }
-        shadowOf(context.packageManager).addResolveInfoForIntent(Intent(Intent.ACTION_POWER_USAGE_SUMMARY), info)
+        installActivityFor(Intent(Intent.ACTION_POWER_USAGE_SUMMARY), settingsPage)
     }
 
     private fun showOverlay(query: String, history: List<String> = emptyList()) {

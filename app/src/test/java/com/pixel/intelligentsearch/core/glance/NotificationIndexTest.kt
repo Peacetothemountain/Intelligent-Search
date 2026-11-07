@@ -114,6 +114,8 @@ class NotificationIndexTest {
 
     private fun sbn(key: String, title: String): StatusBarNotification {
         val notification = Notification.Builder(context, "c").setContentTitle(title).setContentText("text").build()
+        // Android posts these itself; this constructor is the only public way to make one.
+        @Suppress("DEPRECATION")
         return StatusBarNotification("com.example.app", "com.example.app", key.hashCode(), key, 0, 0, 0, notification, android.os.Process.myUserHandle(), 0L)
     }
 

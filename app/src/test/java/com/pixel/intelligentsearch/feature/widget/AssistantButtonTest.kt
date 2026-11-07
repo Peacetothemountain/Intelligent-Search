@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Process
 import android.speech.RecognizerIntent
 import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.system.GoogleApps
@@ -15,6 +16,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowRoleManager
 
 /**
  * The Material bar's round assistant button opens the user's assistant. With Intelligent Search as the phone's
@@ -50,7 +52,7 @@ class AssistantButtonTest {
     }
 
     private fun thisAppIsTheAssistant() =
-        shadowOf(context.getSystemService(RoleManager::class.java)).addHeldRole(RoleManager.ROLE_ASSISTANT)
+        ShadowRoleManager.addRoleHolder(RoleManager.ROLE_ASSISTANT, context.packageName, Process.myUserHandle())
 
     private fun tapped(): Intent {
         assertTrue(launchGeminiCornerOverlay(context))

@@ -82,7 +82,7 @@ class AiKeyStorageTest {
         // Decrypt the file as a restore would and read what it holds.
         val envelope = backups.inspectBackupEnvelope(uri).getOrThrow()
         val key = BackupCryptoEngine.deriveKeyFromPassphrase(
-            passphrase.toCharArray(), BackupCryptoEngine.decodeBase64(envelope.kdf!!.saltBase64), envelope.kdf!!.iterations
+            passphrase.toCharArray(), BackupCryptoEngine.decodeBase64(envelope.kdf!!.saltBase64), envelope.kdf.iterations
         )
         val json = BackupCryptoEngine.decryptPayload(
             BackupCryptoEngine.decodeBase64(envelope.encryptedPayloadBase64), key, BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64)

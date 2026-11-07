@@ -8,8 +8,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.ActivityInfo
-import android.content.pm.ResolveInfo
 import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
@@ -22,6 +20,7 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.occasion.Occasion
 import com.pixel.intelligentsearch.core.occasion.OccasionCalendar
+import com.pixel.intelligentsearch.installActivityFor
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -144,10 +143,7 @@ class WidgetDoodlesTest {
     @Test
     fun aDoodleSearchesWithTheChosenEngine() {
         prefs.edit().put(SettingsManager.SEARCH_ENGINE, "DuckDuckGo").commit()
-        shadowOf(context.packageManager).addResolveInfoForIntent(
-            Intent(Intent.ACTION_VIEW, "https://duckduckgo.com/?q=Pi%20Day".toUri()),
-            ResolveInfo().apply { activityInfo = ActivityInfo().apply { packageName = "browser"; name = "Browser" } }
-        )
+        installActivityFor(Intent(Intent.ACTION_VIEW, "https://duckduckgo.com/?q=Pi%20Day".toUri()), ComponentName("browser", "browser.Browser"))
         val intent = SearchWidgetProvider.doodleSearchIntent(context, prefs, appWidgetId = 7, doodle = Occasion.PI_DAY)
 
         assertEquals(Intent.ACTION_VIEW, intent.action)

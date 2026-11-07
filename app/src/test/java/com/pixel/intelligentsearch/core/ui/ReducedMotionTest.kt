@@ -4,7 +4,7 @@ import android.animation.ValueAnimator
 import android.content.Context
 import android.provider.Settings
 import androidx.compose.runtime.State
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.test.core.app.ApplicationProvider
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

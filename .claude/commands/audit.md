@@ -15,7 +15,7 @@ Don't run this when weekly usage is over 70% (section 7); tell the owner instead
 2. Run cheap fact-gathering with `haiku`/low subagents in parallel, one per area, each told to return facts with file
    paths and line numbers, not opinions:
    - crashes: Play crash table vs tests; `try`/`catch` that swallows errors; `!!` on platform results
-   - lint: what the 67 baseline issues are and which can be fixed safely
+   - lint: what the baseline issues are and which can be fixed safely
    - size: largest resources and dependencies in the release APK (`r8-analyzer` skill for keep rules)
    - tests: groups of tests guarding one failure because the code lacks a shared mechanism; tests the compiler or
      lint could replace; duplicates; real-time waits (`IMPROVEMENT.md` section 1a)

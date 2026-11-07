@@ -92,6 +92,19 @@ Rules:
   for them to read later. What still needs the owner: pushing to `main`, `v*` tags and releases, using the phone,
   anything in section 3, and choices a later reader couldn't undo.
 
+### Scheduled runs
+
+A task in T3 Code's scheduled tasks, `Improve Intelligent Search`, starts one fresh cycle every 4 hours. Nobody is there
+to answer, so each run follows these rules:
+
+- Start only from a clean `dev` that matches `origin/dev`. Uncommitted changes to tracked files or another branch may mean
+  the owner or an earlier run is mid-work: change nothing, leave them alone, and end the run saying what was found.
+- If CI failed on the newest `dev` commit, fixing that is the target.
+- A target that needs the owner goes in the ledger as waiting on them, and the run takes the next candidate.
+- Wait for CI on the run's own commit before finishing. Leave no failing commit behind.
+- When no candidate has evidence behind it, add a ledger entry saying so, pause the task, and tell the owner in the
+  run's report.
+
 ## 5. Research before acting
 
 Being sure of something isn't evidence. Before changing behavior:
@@ -125,7 +138,8 @@ set `model` and `effort` on Agent calls.
 ## 7. Usage budget
 
 The owner's Claude plan has weekly and session limits. Check them at the start of each cycle: the claude-mem start-up
-notice reports weekly usage, and `/usage` in Claude Code shows both limits.
+notice reports weekly usage, and `/usage` in Claude Code shows both limits. If a scheduled run can't see a figure, it
+works in Lean mode and writes "no figure visible" in the ledger.
 
 | Weekly usage | Mode |
 |---|---|

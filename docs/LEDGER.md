@@ -9,8 +9,8 @@ Update these in the same commit as a change that improves them. Never let one ge
 
 | Metric | Value | Measured at |
 |---|---|---|
-| Lines of test code | 51,953 | 2026-11-07, B16, up 29 for a written reason (see its entry); replaces the `@Test` count (owner: root causes over more tests) |
-| CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 1003s on one that changes app code | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change. Since B13 there is no single step to time: measure from the start of the run to `Build & Check` finishing |
+| Lines of test code | 51,985 | 2026-11-07, B18, up 32 for a written reason (see its entry); replaces the `@Test` count (owner: root causes over more tests) |
+| CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 872s (was 1003s) on one that changes app code, run 42356421669 on `f15b95a3` | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change. Since B13 there is no single step to time: measure from the start of the run to `Build & Check` finishing |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 19 | `0260afa7`, 2026-11-05 |
@@ -43,6 +43,7 @@ with the strongest evidence.
 | B16 | Inject dispatchers so tests can stop polling in real time | 117 `Dispatchers.*` uses and no seam. `SearchViewModelTest.runOn` and `FileTypeFilterTest:181` assert nothing happened after about 250ms, which passes wrongly on a slow machine. Large. | 2 | 2026-11-06 |
 | B17 | One table-driven backup round trip | 7 `*BackupTest` classes each build Room and run PBKDF2 for their own settings; a forgotten key can slip through. Over `SettingsManager.ALL`, a new setting needs no new test. Backup data: use the strongest model. | 2 | 2026-11-06 |
 | B18 | Share one recorded run between the morph physics rules | `MorphBouncePhysicsTest` is now the slowest class, 113s of 556s. Its 23 tests hold real rules about physics, so this only saves time: lowest priority. | 3 | 2026-11-06 |
+| B19 | Clear the lint baseline issues that have a fix | 8 of the 19 can go: 5 `ModifierParameter` (`GeminiCornerSwipeWave.kt:80`, `OneBoxCards.kt:193`, `SettingsComponents.kt:53,205,428`), 2 `UseKtx` `SharedPreferences.edit` in `SettingsManager.kt:508,526` and 1 `UseCompatLoadingForDrawables` in `IconPackManager.kt:135`. The rest stay: `StrongBoxSecurityManager.kt:454` needs `commit()`'s result, which the KTX `edit` drops; `NaturalLanguageIntentParser.kt` keeps `Uri.parse` (2026-11-05 lesson); the 5 `DiscouragedApi` read another app's icon pack by name, which has no other way. Proof: `grep -c '<issue$' app/lint-baseline.xml` 19 -> 11 and lint green | 3 | 2026-11-07 |
 
 ## Entries
 
@@ -313,6 +314,22 @@ with the strongest evidence.
 - Retry only if: a test fails with "background work still running", or a Hilt test turns flaky without a change to its screen; then look at what the wrapper changes before removing it
 - Commit: see `Wait for background work in tests, not a fixed time` in `git log dev`
 - Lesson: to prove a "nothing happened" check, make the thing happen slowly. Removing a gate alone doesn't show it: a fast request is caught by the fixed wait and the test looks fine.
+
+
+### 2026-11-07: B18, the morph physics rules share one run per seed
+- Command: /improve (scheduled run)
+- Target and evidence: B18. `MorphBouncePhysicsTest` took 92.5s here (113s on CI by the backlog), and a profile of it (JFR, 5,909 samples) put 92% of the time in planning drops (`forecast`, `sheetStep`). Seven of its tests each ran their own 30 to 60s world for the same seeds, so seeds 1 to 6 were simulated seven times over. The physics itself wasn't changed: planning is what the phone needs, and the tests already prove a seed gives the same run. Chosen over B11, which turned out to be mostly done already: `GlanceMediaCardTest` covers `scaledGlanceArtwork` and `glanceArtistOf`, and only the private `glanceMedia` has no test
+- Prior work checked: this ledger, `git log origin/dev -S"MorphBouncePhysicsTest"` (no earlier attempt at its time), claude-mem #31329. Newest finished CI, `f15b95a3`, green
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: the 7 seeded rule tests became rules watching one shared run per seed, in the order and over the time each watched before; each test reports its own rule's first failure, and a failing rule stops being watched while the run goes on for the others. Rule bodies and assertions are word for word. No app code changed
+- Proof: the physics broken 8 ways, each run against the old tests and the new: forecast rules off, every touch a bounce, a shape skipped, every later bounce sparkling, dents growing back, a fifth shape, landings off screen, a shape above the card. The same tests failed both times, with the same messages, in all 8 (the fifth-shape break failed nothing in either, because planning refuses a fifth shape on its own)
+- Before -> after: `MorphBouncePhysicsTest`, local, 92.5s -> 51.6s, and its 7 rules 55.1s -> 14.6s, 23 of 23 passing; test code 51,953 -> 51,985 lines, up 32: the reason is the shared runner, which buys back about 41s of CPU on every CI run; app code, APK and lint baseline unchanged. Only this class was run here; the rest is left to CI
+- CI on `f15b95a3` (B16), the first app code commit since B13: 872s from the start of the run to `Build & Check`, against 1003s on `b19aaa19`; `Minified Build` took 333s beside the tests. That is the measure B13 was waiting for, so B13 stays
+- Result: kept, pending CI
+- Retry only if: one of these tests fails on CI with no change to the physics; check that every rule still sees the frames it saw before
+- Commit: see `Share one physics run between the morph rules` in `git log dev`
+- Lesson: profile a slow test before shortening it. Here the cost was in planning the phone needs too, so sharing the runs was the only saving that left every check intact.
 
 <!--
 Copy this for each cycle, newest at the bottom.

@@ -13,7 +13,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 872s (was 1003s) on one that changes app code, run 42356421669 on `f15b95a3` | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change. Since B13 there is no single step to time: measure from the start of the run to `Build & Check` finishing |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
-| Lint baseline issues | 19 | `0260afa7`, 2026-11-05 |
+| Lint baseline issues | 11 | 2026-11-07, B19 |
 | Release APK size | 12,920,597 bytes | local build 2026-11-05, `8fc5df48`; up 16 KB from `0260afa7` for the owner-requested Developer Note animations |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
@@ -330,6 +330,20 @@ with the strongest evidence.
 - Retry only if: one of these tests fails on CI with no change to the physics; check that every rule still sees the frames it saw before
 - Commit: see `Share one physics run between the morph rules` in `git log dev`
 - Lesson: profile a slow test before shortening it. Here the cost was in planning the phone needs too, so sharing the runs was the only saving that left every check intact.
+
+### 2026-11-07: B19, lint baseline issues that had a fix
+- Command: /improve (scheduled run)
+- Target and evidence: B19. 8 of the 19 baseline issues had a direct fix: 5 `ModifierParameter`, 2 `UseKtx` `SharedPreferences.edit` in `SettingsManager`, 1 `UseCompatLoadingForDrawables` in `IconPackManager`. Chosen as the only backlog item left with a ratchet number behind it: B11 is mostly done (B18 entry) and only adds tests
+- Prior work checked: this ledger, claude-mem search (earlier `ModifierParameter` fixes in other files, none of these). Newest finished CI, `f15b95a3`, green; `e600895f` still running at the start
+- Research: every caller of the 4 reordered composables uses named arguments, which the compiler confirmed. `GeminiCornerSwipeWave.kt` is not the locked `AGSL_GEMINI_PLATE` (that is `DynamicMeshShader.kt`), and only its parameter order moved. `SettingsCard`'s old default held its width and 4dp inset, so a caller passing a modifier had to repeat them: `Modifier.backupCard` was that copy, and the widget design switcher repeated it with 16dp
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: `modifier` moved to the first optional parameter of `GeminiCornerSwipeWaveLayer`, `AnimatedCopyChip`, `SettingsRow` and `SettingsRowToggle`; `SettingsCard` defaults to `Modifier` and always applies its own width and inset, so `backupCard` is gone (its 4 cards pass only their test tag) and the switcher passes 12dp on top of the card's 4dp, the same 16dp as before; the two mirror writes use KTX `edit`, which applies as before; icon pack drawables load through `ResourcesCompat.getDrawable`. 8 entries out of `app/lint-baseline.xml`
+- Before -> after: lint baseline 19 -> 11 (`grep -c '<issue$'`); app code 26 lines in, 28 out; test code 51,985 -> 51,985. Layout should not change: same width and insets everywhere, proven by the goldens on CI, so no emulator check. Release APK not rebuilt for a change this small; lint itself is left to CI as well
+- Result: kept, pending CI
+- Retry only if: lint reports one of the 8 again, or a settings or backup golden shifts by a card inset
+- Commit: see `Clear eight lint baseline issues` in `git log dev`
+- Lesson: a modifier default that carries layout makes every caller who passes a modifier copy it. Put the layout inside and keep the default `Modifier`.
 
 <!--
 Copy this for each cycle, newest at the bottom.

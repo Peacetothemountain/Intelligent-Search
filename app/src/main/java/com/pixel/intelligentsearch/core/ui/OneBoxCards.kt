@@ -188,9 +188,9 @@ internal fun ExpressiveOneBoxCard(
 @Composable
 fun AnimatedCopyChip(
     textToCopy: String,
+    modifier: Modifier = Modifier,
     label: String = "Copy",
     copiedLabel: String = "Copied!",
-    modifier: Modifier = Modifier,
     clipLabel: String = "Search Result"
 ) {
     var isCopied by remember { mutableStateOf(false) }

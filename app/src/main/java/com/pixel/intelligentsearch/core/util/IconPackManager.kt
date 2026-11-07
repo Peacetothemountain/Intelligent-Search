@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import androidx.core.content.res.ResourcesCompat
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.InputStream
@@ -132,7 +133,7 @@ object IconPackManager {
             }
 
             if (resId != 0) {
-                val drawable = iconPackRes.getDrawable(resId, iconPackContext?.theme)
+                val drawable = ResourcesCompat.getDrawable(iconPackRes, resId, iconPackContext?.theme)
                 if (drawable != null) return drawable
             }
         } catch (e: Exception) {

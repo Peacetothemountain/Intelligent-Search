@@ -741,9 +741,8 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
             // System vs Material Design Switcher, in a settings card as it always was.
             SettingsCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                // 12dp more inset than the card's own 4dp.
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
                 lit = false
             ) {
                 ShellSelector(

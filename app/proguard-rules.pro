@@ -18,32 +18,6 @@
     public static int w(...);
 }
 
-# Kotlin Serialization
--keepattributes *Annotation*, InnerClasses
--dontnote kotlinx.serialization.SerializationKt
--keepclasseswithmembers class * {
-    kotlinx.serialization.KSerializer serializer(...);
-}
--keep,allowobfuscation class * implements kotlinx.serialization.KSerializer {
-    <init>(...);
-}
--keepclassmembers @kotlinx.serialization.Serializable class * {
-    <init>(...);
-    *** Companion;
-}
-
-# Jetpack Compose Navigation & Destinations
--keep,allowobfuscation class com.pixel.intelligentsearch.core.navigation.** { *; }
--keepclasseswithmembers class com.pixel.intelligentsearch.core.navigation.** {
-    kotlinx.serialization.KSerializer serializer(...);
-}
-
-# Room Database
--keep class * extends androidx.room.RoomDatabase {
-    <init>();
-}
--dontwarn androidx.room.paging.**
-
 # Coroutines
 -dontwarn kotlinx.coroutines.**
 

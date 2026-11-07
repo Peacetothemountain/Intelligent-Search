@@ -14,7 +14,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
-| Release APK size | 12,183,861 bytes, unsigned | local build 2026-11-07, three app keep rules removed (12,233,013 before, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
+| Release APK size | 12,134,709 bytes, unsigned | local build 2026-11-07, app's serialization, navigation and Room keep rules removed (12,183,861 before, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
@@ -402,6 +402,21 @@ with the strongest evidence.
 - Commit: see `Drop three keep rules R8 didn't need` in `git log dev`
 - Lesson: a keep rule copied from an old template outlives the library version that needed it. Check the library's own consumer rules before keeping one.
 - Note for the owner: `377db522` and `71851d2f`, from earlier runs, carry a Co-Authored-By line against memory `commit-style-no-attribution`. Pushed history isn't rewritten; this commit has none
+
+### 2026-11-07: Serialization, navigation and Room keep rules the libraries already ship
+- Command: /improve (scheduled run)
+- Target and evidence: release APK size. `app/proguard-rules.pro` still held the old kotlinx.serialization README rules, which kept every class in the APK with a `serializer(...)` method and the constructor of every `KSerializer`, plus `-keep,allowobfuscation class core.navigation.** { *; }` and a copy of Room's own rule. They made 485 of 2,826 entries in `seeds.txt`, 243 of them the app's own, such as the `$$serializer` classes of the backup models, which backups never use (they read and write with `org.json`). Chosen because the backlog has nothing left with evidence (B11 only adds tests) and no crash or flaky run is open. CI green on `377db522`; `f3a0001d`, `71851d2f` and `f8c02614` still running
+- Prior work checked: this ledger (the entry above removed three other rules), `git log origin/dev -S"core.navigation.**"` (from releases 9.05 and 9.1.8, no reason given), claude-mem
+- Research: kotlinx-serialization-core 1.11.0 ships R8 rules that keep `Companion`, `INSTANCE` and `serializer()` on every `@Serializable` class and keep the class with its annotation, which is what `KClass.serializer()` reads when navigation is given a route object. Room 2.8.5 ships the same `RoomDatabase` rule. Every other `serializer()` in the app is called directly. In the new build each `Route` object still keeps `INSTANCE` and `serializer()` under their names, and `Route` keeps `Companion`
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: the app's kotlinx.serialization block, its two `core.navigation` rules and its Room rule removed. No code changed
+- Before -> after: release APK, unsigned local builds of the same code, 12,183,861 -> 12,134,709 bytes (-49,152); R8 seeds 2,826 -> 2,341, none added; test code, app code and lint baseline unchanged
+- Emulator: the minified build, signed with the local debug key, on `IS_Pixel_XL`: Settings opened at its start route, Appearance and Encrypted Backup opened and left with Back, and after the process was killed in the background on Appearance it came back on Appearance and Back went to Settings. Crash buffer empty. The first `agent-device open` failed with the device held by session `t3-e822f319011a4059b97668d8`; `--wait 20000` worked, and that session was left alone
+- Result: kept, pending CI
+- Retry only if: a release build can't open a settings page, loses its place after a process restart, or throws `SerializationException`; then add back `-keepclassmembers` for `core.navigation.Route` only and look at what it kept
+- Commit: see `Drop keep rules the libraries already ship` in `git log dev`
+- Lesson: the kotlinx.serialization README rules predate the library shipping its own; with them the app keeps serializers for classes that are never serialized.
 
 <!--
 Copy this for each cycle, newest at the bottom.

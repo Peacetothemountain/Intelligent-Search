@@ -17,11 +17,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Contacts
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.Search
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Contacts
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Notifications
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold

@@ -9,12 +9,12 @@ Update these in the same commit as a change that improves them. Never let one ge
 
 | Metric | Value | Measured at |
 |---|---|---|
-| Lines of test code | 51,919 | 2026-11-07, WorkManager out (was 52,055, up 69 for a written reason: the old settings file's reader; was 51,986 after the Bugdroid tutorial layers, 52,004 after no live suggestions in tests, up 19 for a written reason); replaces the `@Test` count (owner: root causes over more tests) |
+| Lines of test code | 51,916 | 2026-11-07, Material Icons library out (51,919 with WorkManager out; was 52,055, up 69 for a written reason: the old settings file's reader; was 51,986 after the Bugdroid tutorial layers, 52,004 after no live suggestions in tests, up 19 for a written reason); replaces the `@Test` count (owner: root causes over more tests) |
 | CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 872s (was 1003s) on one that changes app code, run 42356421669 on `f15b95a3` | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change. Since B13 there is no single step to time: measure from the start of the run to `Build & Check` finishing |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
-| Release APK size | 9,761,741 bytes, unsigned | local build 2026-11-07, Material's view keep rules ignored (9,808,233 before that, with WorkManager out; 9,972,773 before Media3 went from the release build, 10,431,593 before DataStore went, 10,619,341 before that, 11,346,076 before the themes moved to Android's own Material theme, 11,675,957 before the activities were plain `ComponentActivity`, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
+| Release APK size | 9,712,589 bytes, unsigned | local build 2026-11-07, the app's Material Icons as path text (9,761,741 with Material's view keep rules ignored, 9,808,233 before that, with WorkManager out; 9,972,773 before Media3 went from the release build, 10,431,593 before DataStore went, 10,619,341 before that, 11,346,076 before the themes moved to Android's own Material theme, 11,675,957 before the activities were plain `ComponentActivity`, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
@@ -527,6 +527,21 @@ with the strongest evidence.
 - Retry only if: a release build throws `ClassNotFoundException` or `NoSuchMethodException` naming a Material, CoordinatorLayout or RecyclerView class; or the app starts inflating one of their views in XML. Then drop that library from `ignoreFrom`
 - Commit: see `Ignore Material's keep rules for views the app never inflates` in `git log dev`
 - Lesson: after the app's own keep rules, look at what the libraries' rules keep (`configuration.txt`, then a dex diff). A library used for one small part can bring rules for all of it.
+
+### 2026-11-07: The Material Icons library wrote each icon as code
+- Command: /improve (scheduled run)
+- Target and evidence: release APK size. `apkanalyzer dex packages` with the mapping put `androidx.compose.material.icons` at 125,305 bytes of dex for the 157 icons the overlay and widget editor draw (`material-icons-extended`). The library writes each icon as one builder call per path command; the settings pages' `Symbols` already keep theirs as path text. Chosen because the backlog has nothing left with evidence (B11 only adds tests) and no crash or flaky run is open. CI green on `454a8978` and everything before it; `a59cf0e8` and `2d9f33a4` still running
+- Prior work checked: this ledger (no icons entry; `Symbols` came with the settings redesign, `cf947265`), `git log origin/dev -S"material.icons.extended"`, claude-mem
+- Research: a throwaway JVM test read every icon's `ImageVector` from the library and wrote one path string per `materialPath`, one command per path node. It checked that `addPathNodes` gives back the same node list, and the size, viewport, mirroring, fill, stroke attributes and fill type (one icon, `Filled.PushPin`, is even-odd) all hold. A second throwaway test compared each icon built in the app with the library's: name, size, viewport, tint and the whole vector tree equal for all 157. Both tests deleted before commit
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: `core/ui/icons` holds the 157 icons as `Icons.Outlined.Search` and so on, so call sites are unchanged and only their imports moved; `icon()` builds each one the first time it is asked for, as the library does. 76 leftover imports of icons the settings pages no longer use (they draw `Symbols`) are gone. `material-icons-extended` is out of the build and the version catalog; `material-icons-core` stays for the `Icons` object. Two tests used icons the app never draws (`Swipe`, `LineWeight`); they pass `Symbols` icons instead, assertions untouched
+- Before -> after: release APK, unsigned local builds, 9,761,741 -> 9,712,589 bytes (-49,152); dex files 5,572,160 -> 5,523,104 bytes. Test code 51,919 -> 51,916; `lintVitalRelease` clean, baseline 11 -> 11; unit test sources compile. Pixels: the vectors are equal, so the goldens should not move; CI's comparison is the proof
+- Emulator: not run. Nothing should look different, and the screenshot goldens draw these icons
+- Result: kept, pending CI
+- Retry only if: a golden that draws an icon fails on this commit; compare that icon's path with the library's first
+- Commit: see `Draw the Material Icons from path text` in `git log dev`
+- Lesson: a vector written as code costs about twice its path text in dex. Measure the dex files, not `apkanalyzer`'s package sizes, which put the strings elsewhere.
 
 <!--
 Copy this for each cycle, newest at the bottom.

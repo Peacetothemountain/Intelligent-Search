@@ -2,9 +2,7 @@ package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardReturn
-import androidx.compose.material.icons.outlined.Keyboard
-import androidx.compose.material.icons.outlined.Mic
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Keyboard
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue

@@ -11,7 +11,7 @@ import android.net.Uri
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material.icons.outlined.Flag
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Flag
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.TextButton
@@ -34,12 +34,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.outlined.ErrorOutline
-import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.filled.Refresh
+import com.pixel.intelligentsearch.core.ui.icons.automirrored.filled.ArrowForward
+import com.pixel.intelligentsearch.core.ui.icons.automirrored.filled.OpenInNew
+import com.pixel.intelligentsearch.core.ui.icons.filled.AutoAwesome
+import com.pixel.intelligentsearch.core.ui.icons.outlined.ErrorOutline
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Settings
+import com.pixel.intelligentsearch.core.ui.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text

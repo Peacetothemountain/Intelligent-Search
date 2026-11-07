@@ -11,10 +11,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.NorthWest
-import androidx.compose.material.icons.filled.Search
+import com.pixel.intelligentsearch.core.ui.icons.filled.Close
+import com.pixel.intelligentsearch.core.ui.icons.filled.History
+import com.pixel.intelligentsearch.core.ui.icons.filled.NorthWest
+import com.pixel.intelligentsearch.core.ui.icons.filled.Search
 import androidx.compose.material3.Icon
 import com.pixel.intelligentsearch.feature.settings.IconButton
 import androidx.compose.material3.MaterialTheme

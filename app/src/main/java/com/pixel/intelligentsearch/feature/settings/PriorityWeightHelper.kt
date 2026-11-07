@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.animation.core.*
-import androidx.compose.material.icons.outlined.*
+import com.pixel.intelligentsearch.core.ui.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.draw.*

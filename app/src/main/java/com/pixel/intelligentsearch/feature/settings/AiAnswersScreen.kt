@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
-import androidx.compose.material.icons.outlined.Hub
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,11 +14,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Key
-import androidx.compose.material.icons.outlined.Memory
-import androidx.compose.material.icons.outlined.PrivacyTip
+import com.pixel.intelligentsearch.core.ui.icons.outlined.AutoAwesome
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Delete
+import com.pixel.intelligentsearch.core.ui.icons.outlined.PrivacyTip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField

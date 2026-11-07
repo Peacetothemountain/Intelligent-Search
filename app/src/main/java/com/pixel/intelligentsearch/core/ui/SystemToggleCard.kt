@@ -12,9 +12,9 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.VolumeOff
-import androidx.compose.material.icons.automirrored.outlined.VolumeUp
-import androidx.compose.material.icons.outlined.*
+import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.VolumeOff
+import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.VolumeUp
+import com.pixel.intelligentsearch.core.ui.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment

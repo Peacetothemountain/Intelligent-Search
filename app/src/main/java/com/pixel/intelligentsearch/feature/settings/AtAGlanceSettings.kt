@@ -13,12 +13,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Alarm
-import androidx.compose.material.icons.outlined.Cake
-import androidx.compose.material.icons.outlined.LibraryMusic
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.Timer
-import androidx.compose.material.icons.outlined.Today
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Alarm
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Cake
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Schedule
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Timer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable

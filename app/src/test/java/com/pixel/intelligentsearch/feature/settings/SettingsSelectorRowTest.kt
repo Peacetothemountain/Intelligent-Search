@@ -1,8 +1,5 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Swipe
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -10,6 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.assertIsSelected
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -44,7 +42,7 @@ class SettingsSelectorRowTest {
                 var side by remember { mutableStateOf("Left") }
                 SettingsCard {
                     SettingsSelectorRow(
-                        title = "Edge", subtitle = "The Side of the Screen You Swipe In From.", icon = Icons.Outlined.Swipe,
+                        title = "Edge", subtitle = "The Side of the Screen You Swipe In From.", icon = Symbols.Outlined.Tune,
                         options = listOf("Left", "Right"), selected = side, onSelect = { side = it }, label = { it },
                         showDivider = false
                     )
@@ -62,7 +60,7 @@ class SettingsSelectorRowTest {
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) {
                 SettingsCard(lit = false) {
-                    SettingsInfoRow(title = "Privacy", subtitle = "Nothing Else Is Sent.", icon = Icons.Outlined.Info, showDivider = false)
+                    SettingsInfoRow(title = "Privacy", subtitle = "Nothing Else Is Sent.", icon = Symbols.Outlined.Info, showDivider = false)
                 }
             }
         }

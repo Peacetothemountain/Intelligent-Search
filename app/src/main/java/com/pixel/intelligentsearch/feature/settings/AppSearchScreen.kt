@@ -14,11 +14,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.RestartAlt
-import androidx.compose.material.icons.outlined.Spellcheck
-import androidx.compose.material.icons.outlined.ViewCarousel
-import androidx.compose.material.icons.outlined.ViewCompact
-import androidx.compose.material.icons.outlined.VisibilityOff
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Spellcheck
+import com.pixel.intelligentsearch.core.ui.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold

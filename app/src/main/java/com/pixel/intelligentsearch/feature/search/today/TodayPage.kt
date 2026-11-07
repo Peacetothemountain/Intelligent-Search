@@ -713,7 +713,7 @@ private fun LeaveBy(trip: TodayTrip, now: Long) {
         ) {
             Box(Modifier.fillMaxWidth(fill).height(6.dp).clip(CircleShape).background(scheme.onPrimaryContainer))
         }
-        Text("About ${trip.minutes} min", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer)
+        Text("About ${Durations.minutes(trip.minutes * 60_000L)}", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer)
     }
 }
 

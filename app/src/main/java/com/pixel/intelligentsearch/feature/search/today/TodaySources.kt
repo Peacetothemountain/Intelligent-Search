@@ -105,17 +105,21 @@ interface TodaySources {
 
 /**
  * About how long a drive of [straightKm] as the crow flies takes, in whole minutes: roads run about 1.3 times the
- * straight line, at city speed for short trips and highway speed for long ones, plus five minutes to park.
+ * straight line, at city speed for short trips and highway speed for long ones, plus five minutes to park. Null past
+ * [MAX_DRIVE_MINUTES]: a place that far is a journey to plan (or another city's namesake), not a drive to leave for.
  */
-internal fun driveMinutes(straightKm: Double): Int {
+internal fun driveMinutes(straightKm: Double): Int? {
     val roadKm = straightKm * 1.3
     val kmPerHour = when {
         roadKm < 3 -> 25.0
         roadKm < 25 -> 40.0
         else -> 70.0
     }
-    return (kmPerHour.let { roadKm / it * 60 }).let { kotlin.math.ceil(it).toInt() } + 5
+    return ((kmPerHour.let { roadKm / it * 60 }).let { kotlin.math.ceil(it).toInt() } + 5).takeIf { it <= MAX_DRIVE_MINUTES }
 }
+
+/** The longest drive Up Next gives a leave-by time for. */
+private const val MAX_DRIVE_MINUTES = 4 * 60
 
 /** The distance between two points on the earth, in kilometers. */
 internal fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
@@ -195,7 +199,7 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
         if (!here.permitted()) return@withContext null
         val from = here.approximate() ?: return@withContext null
         val to = places[event.location] ?: geocode(event.location)?.also { places[event.location] = it } ?: return@withContext null
-        val minutes = driveMinutes(distanceKm(from.first, from.second, to.first, to.second))
+        val minutes = driveMinutes(distanceKm(from.first, from.second, to.first, to.second)) ?: return@withContext null
         TodayTrip(event.beginMillis - minutes * 60_000L, minutes)
     }
 

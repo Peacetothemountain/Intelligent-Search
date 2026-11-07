@@ -1,6 +1,5 @@
 package com.pixel.intelligentsearch.feature.settings
 
-import android.content.Context
 import android.graphics.BlendMode
 import android.graphics.Matrix
 import android.graphics.RectF
@@ -10,7 +9,6 @@ import android.graphics.Shader
 import android.os.Build
 import android.view.TextureView
 import androidx.annotation.DrawableRes
-import androidx.annotation.OptIn
 import androidx.annotation.RawRes
 import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Canvas
@@ -42,18 +40,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.compose.LifecycleResumeEffect
-import androidx.media3.common.MediaItem
-import androidx.media3.common.Player
-import androidx.media3.common.util.UnstableApi
-import androidx.media3.datasource.RawResourceDataSource
-import androidx.media3.exoplayer.DefaultRenderersFactory
-import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.RenderersFactory
-import androidx.media3.exoplayer.source.ProgressiveMediaSource
-import androidx.media3.exoplayer.video.MediaCodecVideoRenderer
-import androidx.media3.extractor.ExtractorsFactory
-import androidx.media3.extractor.mp4.Mp4Extractor
-import androidx.media3.extractor.text.SubtitleParser
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.theme.isDark
 import kotlin.math.cos
@@ -171,17 +157,11 @@ internal const val EDGE_FADE_SHADER = """
  * false when the screen showing it controls playback itself.
  */
 @Composable
-fun rememberBugdroidPlayer(clip: BugdroidClip, enabled: Boolean = true, autoPlay: Boolean = true): ExoPlayer? {
+fun rememberBugdroidPlayer(clip: BugdroidClip, enabled: Boolean = true, autoPlay: Boolean = true): BugdroidVideo? {
     val context = LocalContext.current
     val player = remember(clip, enabled) {
         if (!enabled || !isBugdroidVideoSupported) return@remember null
-        runCatching {
-            bugdroidExoPlayer(context).apply {
-                setMediaItem(MediaItem.fromUri("android.resource://${context.packageName}/${clip.rawRes}"))
-                repeatMode = Player.REPEAT_MODE_ALL
-                prepare()
-            }
-        }.getOrNull()
+        runCatching { BugdroidVideo(context, clip.rawRes) }.getOrNull()
     }
     DisposableEffect(player) {
         onDispose { player?.release() }
@@ -193,31 +173,6 @@ fun rememberBugdroidPlayer(clip: BugdroidClip, enabled: Boolean = true, autoPlay
         }
     }
     return player
-}
-
-/**
- * A player for the clips and nothing else: they are MP4 files in res/raw with one video track and no sound, so it
- * holds only a video renderer, the MP4 extractor and a raw resource reader. `ExoPlayer.Builder(context)` would bring
- * every renderer (audio, text, metadata, image), every container extractor and every data source into the APK, since
- * R8 can't tell they are never used. The video renderer is set up as `DefaultRenderersFactory` sets it up.
- */
-@OptIn(UnstableApi::class)
-private fun bugdroidExoPlayer(context: Context): ExoPlayer {
-    val renderers = RenderersFactory { handler, videoListener, _, _, _ ->
-        arrayOf(
-            MediaCodecVideoRenderer.Builder(context)
-                .setAllowedJoiningTimeMs(DefaultRenderersFactory.DEFAULT_ALLOWED_VIDEO_JOINING_TIME_MS)
-                .setEventHandler(handler)
-                .setEventListener(videoListener)
-                .setMaxDroppedFramesToNotify(DefaultRenderersFactory.MAX_DROPPED_VIDEO_FRAME_COUNT_TO_NOTIFY)
-                .build()
-        )
-    }
-    val mp4Only = ExtractorsFactory {
-        arrayOf(Mp4Extractor(SubtitleParser.Factory.UNSUPPORTED, Mp4Extractor.FLAG_EMIT_RAW_SUBTITLE_DATA))
-    }
-    val source = ProgressiveMediaSource.Factory({ RawResourceDataSource(context) }, mp4Only)
-    return ExoPlayer.Builder(context, renderers, source).build()
 }
 
 /**
@@ -234,7 +189,7 @@ private fun bugdroidExoPlayer(context: Context): ExoPlayer {
  */
 @Composable
 fun BugdroidPlayer(
-    player: ExoPlayer?,
+    player: BugdroidVideo?,
     clip: BugdroidClip,
     modifier: Modifier = Modifier,
     scaleFactor: Float = 1.0f
@@ -246,20 +201,8 @@ fun BugdroidPlayer(
     val videoLayer = rememberGraphicsLayer()
     val shadowLayer = rememberGraphicsLayer()
 
-    // The poster stays until the video has drawn a frame of its own: ExoPlayer reports the frame as it hands it to
-    // the TextureView, which shows it on its next draw, so the poster goes the frame after that.
+    // The poster stays until the view has drawn a frame of the video, and goes on the frame after.
     var videoShowing by remember(player) { mutableStateOf(false) }
-    val textureView = remember { arrayOfNulls<TextureView>(1) }
-    DisposableEffect(player) {
-        val listener = object : Player.Listener {
-            override fun onRenderedFirstFrame() {
-                val view = textureView[0] ?: return run { videoShowing = true }
-                view.postOnAnimation { view.postOnAnimation { videoShowing = true } }
-            }
-        }
-        player?.addListener(listener)
-        onDispose { player?.removeListener(listener) }
-    }
 
     Box(
         modifier = modifier
@@ -288,23 +231,22 @@ fun BugdroidPlayer(
             factory = { ctx ->
                 TextureView(ctx).apply {
                     isOpaque = false
-                    textureView[0] = this
                     addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
                         applyClipTransform(view as TextureView, clip, scaleFactor)
                     }
                 }
             },
             update = { view ->
-                // ExoPlayer manages the TextureView's surface itself; only attach when the player changes.
+                // The player follows the view's surface itself; only attach when the player changes.
                 if (view.tag !== player) {
-                    (view.tag as? ExoPlayer)?.clearVideoTextureView(view)
-                    player?.setVideoTextureView(view)
+                    (view.tag as? BugdroidVideo)?.detach(view)
+                    player?.attach(view) { view.postOnAnimation { videoShowing = true } }
                     view.tag = player
                 }
                 applyClipTransform(view, clip, scaleFactor)
             },
             onRelease = { view ->
-                (view.tag as? ExoPlayer)?.clearVideoTextureView(view)
+                (view.tag as? BugdroidVideo)?.detach(view)
                 view.tag = null
             },
             modifier = Modifier.fillMaxSize()

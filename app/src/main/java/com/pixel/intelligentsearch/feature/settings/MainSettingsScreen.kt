@@ -40,14 +40,14 @@ fun MainSettingsScreen(
     onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit,
     onBack: () -> Unit,
     context: Context,
-    exoPlayer: androidx.media3.exoplayer.ExoPlayer? = null,
+    bugdroidPlayer: BugdroidVideo? = null,
     showTutorial: Boolean = false
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
 
-    androidx.lifecycle.compose.LifecycleResumeEffect(exoPlayer) {
-        exoPlayer?.play()
-        onPauseOrDispose { exoPlayer?.pause() }
+    androidx.lifecycle.compose.LifecycleResumeEffect(bugdroidPlayer) {
+        bugdroidPlayer?.play()
+        onPauseOrDispose { bugdroidPlayer?.pause() }
     }
 
     Scaffold(
@@ -234,7 +234,7 @@ fun MainSettingsScreen(
 
                 // Without a player (below Android 13, or when the video can't be keyed) there is no bugdroid to stand
                 // beside, so the thank-you centers on its own instead of leaving the bugdroid's room empty.
-                val hasBugdroid = exoPlayer != null
+                val hasBugdroid = bugdroidPlayer != null
                 val footerAlign = if (hasBugdroid) TextAlign.Start else TextAlign.Center
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -243,7 +243,7 @@ fun MainSettingsScreen(
                 ) {
                     if (hasBugdroid) {
                         BugdroidPlayer(
-                            player = exoPlayer,
+                            player = bugdroidPlayer,
                             clip = BugdroidClip.SETTINGS,
                             modifier = Modifier
                                 .width(playerWidth)

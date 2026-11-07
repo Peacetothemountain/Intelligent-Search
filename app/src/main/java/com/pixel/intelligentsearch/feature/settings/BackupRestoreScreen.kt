@@ -64,7 +64,6 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.media3.exoplayer.ExoPlayer
 import com.pixel.intelligentsearch.core.backup.AutoBackup
 import com.pixel.intelligentsearch.core.backup.EncryptedBackupEnvelope
 import kotlinx.coroutines.Dispatchers
@@ -114,7 +113,7 @@ fun BackupRestoreScreen(
         onBack = onBack,
         faceFirst = true
     )
-    val backupExoPlayer = rememberBugdroidPlayer(BugdroidClip.BACKUP, enabled = isScreenUnlocked)
+    val backupPlayer = rememberBugdroidPlayer(BugdroidClip.BACKUP, enabled = isScreenUnlocked)
     // Only whether one is saved: the saved passphrase is never decrypted into the field. Read again after a save that
     // didn't go through, which may have kept the old passphrase or lost it.
     suspend fun refreshSavedOnChip() {
@@ -497,7 +496,7 @@ fun BackupRestoreScreen(
             modifier = Modifier.fillMaxSize().padding(padding),
             // Below Android 13 the bugdroid video can't be shown (see isBugdroidVideoSupported), so neither are the
             // room kept for it and the shadows under its feet.
-            bugdroid = if (isBugdroidVideoSupported) { { BackupBugdroid(backupExoPlayer) } } else null
+            bugdroid = if (isBugdroidVideoSupported) { { BackupBugdroid(backupPlayer) } } else null
         ) {
             SettingsCard(modifier = Modifier.testTag("backup_card_passphrase")) {
                 BackupCardTitle("Encryption")
@@ -814,7 +813,7 @@ private fun CardsAboveBugdroid(
 
 /** The backup bugdroid holding its key, standing on the shadows it casts (see [BugdroidPlayer]). */
 @Composable
-private fun BackupBugdroid(player: ExoPlayer?) {
+private fun BackupBugdroid(player: BugdroidVideo?) {
     Box(modifier = Modifier.fillMaxSize().testTag("backup_bugdroid"), contentAlignment = Alignment.Center) {
         BugdroidPlayer(
             player = player,

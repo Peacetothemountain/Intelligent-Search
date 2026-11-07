@@ -14,7 +14,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
-| Release APK size | 9,808,233 bytes, unsigned | local build 2026-11-07, WorkManager out (9,972,773 before Media3 went from the release build, 10,431,593 before DataStore went, 10,619,341 before that, 11,346,076 before the themes moved to Android's own Material theme, 11,675,957 before the activities were plain `ComponentActivity`, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
+| Release APK size | 9,761,741 bytes, unsigned | local build 2026-11-07, Material's view keep rules ignored (9,808,233 before that, with WorkManager out; 9,972,773 before Media3 went from the release build, 10,431,593 before DataStore went, 10,619,341 before that, 11,346,076 before the themes moved to Android's own Material theme, 11,675,957 before the activities were plain `ComponentActivity`, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
@@ -512,6 +512,21 @@ with the strongest evidence.
 - Retry only if: a countdown or doodle redraw is missed after midnight, the weekly backup stops after a force stop, or the currency rates stop refreshing; check `adb shell dumpsys jobscheduler` for the app's jobs before anything else
 - Commit: see `Run the background jobs without WorkManager` in `git log dev`
 - Lesson: a library's own storage can be the cause of a whole class of workarounds (lazy start, locked-boot guards); removing the library removed them too.
+
+### 2026-11-07: Material's keep rules held views the app never inflates
+- Command: /improve (scheduled run)
+- Target and evidence: release APK size. `apkanalyzer dex packages` with the mapping showed `com.google.android.material` at 47,158 bytes of dex, of which the app uses only `color` (12,678: `DynamicColors` and the color utilities in `MaterialYouPaletteHelper`, `OverlayVoice` and `WidgetColorRules`). The rest (shape 21,183, focus, bottom and side sheets, carousel, behaviors) and all of `androidx.recyclerview` (19,980) were held by the libraries' own rules in `configuration.txt`: Material and CoordinatorLayout keep every `CoordinatorLayout$Behavior` constructor, RecyclerView every `LayoutManager` constructor, Material `FocusRingDrawable`. Those exist for XML views looked up by name; no layout, style or manifest entry in the app names any of them, and no code does. Chosen because the backlog has nothing left with evidence (B11 only adds tests) and no crash or flaky run is open. CI green on `454a8978` and everything before it; `a59cf0e8` still running
+- Prior work checked: this ledger (the keep-rule entries dropped the app's own rules; library rules weren't looked at), `git log origin/dev -S"ignoreFrom"` (none), claude-mem
+- Research: AGP 9.4.1's `KeepRules` DSL has `ignoreFrom(vararg String)` (read from `gradle-api-9.4.1.jar`). The ignored files' `-keepattributes` lines add nothing: the default file already keeps the runtime-visible annotations
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: the release build type ignores the keep rules of `com.google.android.material:material`, `androidx.coordinatorlayout:coordinatorlayout` and `androidx.recyclerview:recyclerview`
+- Before -> after: release APK, unsigned local builds, 9,808,233 -> 9,761,741 bytes (-46,492); dex 4,583,483 -> 4,555,176; `com.google.android.material` 47,158 -> 12,678 (its `color` package, unchanged); `androidx.recyclerview` 19,980 -> 0. 75 classes went: 59 Material views and helpers, 6 RecyclerView, and 10 that R8 now merges into others (checked in the new mapping: `NavHost`, `SnackbarHost`, `NavSources`, the icons and the rest are still there). Test code unchanged; `lintVitalRelease` clean, baseline 11 -> 11
+- Emulator: not run. Nothing should look or behave differently, and the classes that went can't be reached from the app; the minified build on CI is the proof
+- Result: kept, pending CI
+- Retry only if: a release build throws `ClassNotFoundException` or `NoSuchMethodException` naming a Material, CoordinatorLayout or RecyclerView class; or the app starts inflating one of their views in XML. Then drop that library from `ignoreFrom`
+- Commit: see `Ignore Material's keep rules for views the app never inflates` in `git log dev`
+- Lesson: after the app's own keep rules, look at what the libraries' rules keep (`configuration.txt`, then a dex diff). A library used for one small part can bring rules for all of it.
 
 <!--
 Copy this for each cycle, newest at the bottom.

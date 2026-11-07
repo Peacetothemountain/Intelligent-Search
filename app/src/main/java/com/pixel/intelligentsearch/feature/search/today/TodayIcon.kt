@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.feature.search.today
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
@@ -66,7 +67,11 @@ internal fun TodayIcon(
     hour: Float,
     color: Color,
     modifier: Modifier = Modifier,
-    rise: Boolean = false
+    rise: Boolean = false,
+    /** The sun's (or moon's) own color; the arc's [color] by default. */
+    sunColor: Color = color,
+    /** Whether the sun's glow swells and settles, every three seconds. */
+    pulse: Boolean = false
 ) {
     val target = dayArcFraction(hour)
     val shown = remember { Animatable(if (rise) 0f else target) }
@@ -78,11 +83,19 @@ internal fun TodayIcon(
         }
     }
     val day = isDayHour(hour)
+    val glow = if (pulse) {
+        val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "sun glow")
+        transition.animateFloat(
+            0.82f, 1.12f,
+            androidx.compose.animation.core.infiniteRepeatable(tween(1_500), androidx.compose.animation.core.RepeatMode.Reverse),
+            label = "glow"
+        )
+    } else null
     // Drawn in its own layer, so the clear sky around the sun cuts only the icon, not what is behind it.
     Canvas(modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
         val unit = size.minDimension / 24f
         val inset = Offset((size.width - unit * 24f) / 2f, (size.height - unit * 24f) / 2f)
-        drawDayArc(shown.value, day, color, unit, inset)
+        drawDayArc(shown.value, day, color, sunColor, glow?.value ?: 1f, unit, inset)
     }
 }
 
@@ -91,7 +104,7 @@ private const val RISE_MS = 560
 /** Material's emphasized decelerate curve: quick out of the start, settling gently. */
 private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 
-private fun DrawScope.drawDayArc(fraction: Float, day: Boolean, color: Color, unit: Float, inset: Offset) {
+private fun DrawScope.drawDayArc(fraction: Float, day: Boolean, color: Color, sunColor: Color, glow: Float, unit: Float, inset: Offset) {
     fun p(x: Float, y: Float) = Offset(inset.x + x * unit, inset.y + y * unit)
     // The horizon.
     drawLine(color, p(2.4f, HORIZON_Y), p(21.6f, HORIZON_Y), strokeWidth = HORIZON_STROKE * unit, cap = StrokeCap.Round)
@@ -114,10 +127,10 @@ private fun DrawScope.drawDayArc(fraction: Float, day: Boolean, color: Color, un
     // it works on any background (the search bar's plate is a gradient).
     drawCircle(Color.Black, radius = 3.4f * unit, center = center, blendMode = BlendMode.Clear)
     if (day) {
-        drawCircle(color.copy(alpha = color.alpha * 0.2f), radius = 3.4f * unit, center = center)
-        drawCircle(color, radius = 2.2f * unit, center = center)
+        drawCircle(sunColor.copy(alpha = sunColor.alpha * 0.2f), radius = 3.4f * unit * glow, center = center)
+        drawCircle(sunColor, radius = 2.2f * unit, center = center)
     } else {
-        drawGlyph(moonPath(c.x, c.y), color, unit, inset)
+        drawGlyph(moonPath(c.x, c.y), sunColor, unit, inset)
         val sx = if (c.x < 12f) c.x + 5.2f else c.x - 5.4f
         drawGlyph(sparklePath(sx, c.y - 1.6f), color, unit, inset)
     }

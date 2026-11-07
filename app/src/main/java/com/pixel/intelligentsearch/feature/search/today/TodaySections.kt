@@ -103,6 +103,11 @@ import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.runtime.mutableIntStateOf
 import com.pixel.intelligentsearch.core.ui.icons.filled.LocalShipping
 import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.VolumeUp
 import androidx.compose.ui.graphics.luminance
@@ -159,7 +164,7 @@ internal fun DeliveryTile(delivery: TodayDelivery, modifier: Modifier) {
         modifier
             .heightIn(min = 108.dp)
             .clip(CardShape)
-            .background(scheme.surfaceContainer)
+            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
             .bouncyClickable(shape = CardShape) { openPendingOrApp(context, delivery.entry.contentIntent, delivery.entry.packageName) }
             .padding(horizontal = 14.dp, vertical = 13.dp)
     ) {
@@ -242,20 +247,29 @@ private fun Card(modifier: Modifier = Modifier, padding: Int = 14, content: @Com
         modifier
             .fillMaxWidth()
             .clip(CardShape)
-            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = CARD_ALPHA))
             .padding(padding.dp)
     ) { content() }
 }
 
-/** Grows from 0 to 1 once, after [delayMs], with the page's spring (at once with animations off). */
+/** Grows from 0 to 1 once [start] is true, after [delayMs] (at once with animations off). */
 @Composable
-private fun rememberDrawIn(delayMs: Int = 200, durationMs: Int = 1000): Float {
+private fun rememberDrawIn(delayMs: Int = 200, durationMs: Int = 1000, start: Boolean = true): Float {
     val animate by rememberAnimationsEnabled()
     val shown = remember { Animatable(if (animate) 0f else 1f) }
-    LaunchedEffect(Unit) {
-        if (animate) shown.animateTo(1f, tween(durationMs, delayMillis = delayMs, easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f)))
+    LaunchedEffect(start, animate) {
+        if (animate && start) shown.animateTo(1f, tween(durationMs, delayMillis = delayMs, easing = androidx.compose.animation.core.CubicBezierEasing(0.3f, 0f, 0.1f, 1f)))
     }
     return shown.value
+}
+
+/** An overshooting ease for things that pop in: past full size a little, then back. */
+private fun popIn(t: Float): Float {
+    if (t <= 0f) return 0f
+    if (t >= 1f) return 1f
+    val c = 1.9f
+    val u = t - 1f
+    return 1f + (c + 1f) * u * u * u + c * u * u
 }
 
 /**
@@ -268,7 +282,14 @@ internal fun WeatherAhead(report: WeatherReport) {
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     val is24 = android.text.format.DateFormat.is24HourFormat(context)
-    val shown = rememberDrawIn()
+    var seen by remember { mutableStateOf(false) }
+    val shown = rememberDrawIn(delayMs = 250, durationMs = 1300, start = seen)
+    val animate by rememberAnimationsEnabled()
+    // Once drawn, a warm glint rides along the line, every 4.5 seconds.
+    val glint = if (animate && shown >= 1f) {
+        val transition = rememberInfiniteTransition(label = "glint")
+        transition.animateFloat(0f, 1f, infiniteRepeatable(tween(4_500, easing = LinearEasing)), label = "along").value
+    } else -1f
     val measurer = rememberTextMeasurer()
     val dark = scheme.surface.luminance() < 0.5f
     val warm = if (dark) Color(0xFFF2B872) else Color(0xFFB5651D)
@@ -287,8 +308,9 @@ internal fun WeatherAhead(report: WeatherReport) {
         Modifier
             .fillMaxWidth()
             .clip(CardShape)
-            .background(scheme.surfaceContainer)
+            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
             .bouncyClickable(shape = CardShape) { openWeather(context) }
+            .onFirstSeen { seen = true }
             .padding(14.dp)
     ) {
         val rainAt = hours.indexOfFirst { (it.precipitation ?: 0) >= 50 }
@@ -344,7 +366,7 @@ internal fun WeatherAhead(report: WeatherReport) {
             hours.forEachIndexed { i, hour ->
                 val chance = hour.precipitation ?: return@forEachIndexed
                 if (chance <= 0) return@forEachIndexed
-                val grow = ((shown * points.size) - i - 0.5f).coerceIn(0f, 1f)
+                val grow = popIn(((shown * points.size) - i - 1.5f).coerceIn(0f, 1f))
                 val h = (rainBottom - rainTop) * chance / 100f * grow
                 drawRoundRect(
                     rain.copy(alpha = 0.75f),
@@ -356,12 +378,20 @@ internal fun WeatherAhead(report: WeatherReport) {
             points.forEachIndexed { i, p ->
                 val visible = ((shown * points.size) - i).coerceIn(0f, 1f)
                 if (visible <= 0f) return@forEachIndexed
-                drawCircle(warm.copy(alpha = visible), 3.6.dp.toPx(), p)
-                drawCircle(scheme.surfaceContainer.copy(alpha = visible), 2.dp.toPx(), p)
+                val pop = popIn(visible)
+                drawCircle(warm, 3.6.dp.toPx() * pop, p)
+                drawCircle(scheme.surfaceContainer, 2.dp.toPx() * pop, p)
                 val temp = measurer.measure("${temps[i].roundToInt()}°", labelStyle)
                 drawText(temp, topLeft = Offset(p.x - temp.size.width / 2f, p.y - 8.dp.toPx() - temp.size.height), alpha = visible)
                 val hour = measurer.measure(labels[i], hourStyle)
                 drawText(hour, topLeft = Offset(p.x - hour.size.width / 2f, size.height - hour.size.height), alpha = visible)
+            }
+            if (glint >= 0f) {
+                val measure = PathMeasure().apply { setPath(line, false) }
+                val at = measure.getPosition(measure.length * glint)
+                val fadeInOut = kotlin.math.sin(glint * Math.PI).toFloat()
+                drawCircle(warm.copy(alpha = 0.25f * fadeInOut), 9.dp.toPx(), at)
+                drawCircle(warm.copy(alpha = fadeInOut), 4.5.dp.toPx(), at)
             }
         }
     }
@@ -492,18 +522,19 @@ private fun ControlTile(label: String, icon: ImageVector, on: Boolean, modifier:
 @Composable
 internal fun PhoneToday(sources: TodaySources, active: Boolean) {
     val context = LocalContext.current
+    val phoneSeen = remember { mutableStateOf(false) }
     val battery = produceState(sources.battery(), active) { value = sources.battery() }.value
     val screenTime = produceState<ScreenTimeReport?>(null, active) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { sources.screenTime() }
     }.value
     if (battery == null && screenTime == null) return
-    Column {
+    Column(Modifier.onFirstSeen { phoneSeen.value = true }) {
         SectionTitle("Your phone today")
         Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (battery != null) BatteryTile(battery, Modifier.weight(1f))
+            if (battery != null) BatteryTile(battery, Modifier.weight(1f), phoneSeen.value)
             if (screenTime != null) {
-                ScreenTimeTile(screenTime, Modifier.weight(1f)) {
+                ScreenTimeTile(screenTime, Modifier.weight(1f), phoneSeen.value) {
                     launchSafeIntent(context, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
                 }
             }
@@ -529,10 +560,10 @@ private fun TileLabel(icon: ImageVector, label: String) {
 }
 
 @Composable
-private fun BatteryTile(battery: TodayBattery, modifier: Modifier) {
+private fun BatteryTile(battery: TodayBattery, modifier: Modifier, seen: Boolean) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
-    val shown = rememberDrawIn(300, 1100)
+    val shown = rememberDrawIn(300, 1100, seen)
     val status = when {
         battery.charging && battery.minutesToFull != null -> "Full in ${Durations.minutes(battery.minutesToFull * 60_000L)}"
         battery.charging -> "Charging"
@@ -543,7 +574,7 @@ private fun BatteryTile(battery: TodayBattery, modifier: Modifier) {
         modifier
             .heightIn(min = 108.dp)
             .clip(CardShape)
-            .background(scheme.surfaceContainer)
+            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
             .bouncyClickable(shape = CardShape) { launchSafeIntent(context, Intent(Intent.ACTION_POWER_USAGE_SUMMARY)) }
             .padding(horizontal = 14.dp, vertical = 13.dp)
     ) {
@@ -567,16 +598,16 @@ private fun BatteryTile(battery: TodayBattery, modifier: Modifier) {
 }
 
 @Composable
-private fun ScreenTimeTile(report: ScreenTimeReport, modifier: Modifier, onClick: () -> Unit) {
+private fun ScreenTimeTile(report: ScreenTimeReport, modifier: Modifier, seen: Boolean, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    val shown = rememberDrawIn(300, 900)
+    val shown = rememberDrawIn(300, 900, seen)
     val top = report.topApps.take(3)
     val longest = top.maxOfOrNull { it.durationMs }?.coerceAtLeast(1L) ?: 1L
     Column(
         modifier
             .heightIn(min = 108.dp)
             .clip(CardShape)
-            .background(scheme.surfaceContainer)
+            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
             .bouncyClickable(shape = CardShape, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 13.dp)
     ) {
@@ -618,7 +649,7 @@ internal fun LeftOff(searches: List<String>, onSearch: (String) -> Unit) {
                         .width(128.dp)
                         .height(100.dp)
                         .clip(RoundedCornerShape(20.dp))
-                        .background(scheme.surfaceContainer)
+                        .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
                         .bouncyClickable(shape = RoundedCornerShape(20.dp)) { onSearch(query) }
                         .padding(11.dp)
                 ) {
@@ -644,13 +675,19 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     var speech by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
+    var speaking by remember { mutableStateOf(false) }
+    var hops by remember { mutableIntStateOf(0) }
     DisposableEffect(Unit) { onDispose { speech?.shutdown() } }
+    fun say(tts: android.speech.tts.TextToSpeech) {
+        speaking = true
+        tts.speak(word.word, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "word")
+    }
     Column(
         Modifier
             .fillMaxWidth()
             .clip(CardShape)
-            .background(scheme.surfaceContainer)
-            .bouncyClickable(shape = CardShape) { onSearch("define ${word.word}") }
+            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
+            .bouncyClickable(shape = CardShape) { hops++ }
             .padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -666,28 +703,53 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
                         color = scheme.onSurfaceVariant
                     )
                 }
-                Text(word.word, style = MaterialTheme.typography.headlineMedium, color = scheme.primary, modifier = Modifier.padding(top = 4.dp))
-                Text(word.kind, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+                HopText(word.word, hops, MaterialTheme.typography.headlineMedium, scheme.primary, Modifier.padding(top = 4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(word.kind, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+                    Text(
+                        "  ·  Look it up",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = scheme.primary,
+                        modifier = Modifier.bouncyClickable { onSearch("define ${word.word}") }
+                    )
+                }
             }
+            val ripple = if (speaking) {
+                rememberInfiniteTransition(label = "speaking").animateFloat(0f, 1f, infiniteRepeatable(tween(1_000)), label = "ring").value
+            } else 0f
+            val ring = scheme.primary
             Box(
                 Modifier
                     .size(44.dp)
+                    .drawBehind {
+                        if (speaking) {
+                            drawCircle(ring.copy(alpha = 1f - ripple), radius = size.minDimension / 2f * (1f + 0.35f * ripple), style = Stroke(2.dp.toPx()))
+                        }
+                    }
                     .clip(CircleShape)
                     .background(scheme.primaryContainer)
                     .bouncyClickable(shape = CircleShape) {
                         val ready = speech
                         if (ready != null) {
-                            ready.speak(word.word, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "word")
+                            say(ready)
                         } else {
                             var made: android.speech.tts.TextToSpeech? = null
                             made = android.speech.tts.TextToSpeech(context.applicationContext) { status ->
+                                val tts = made ?: return@TextToSpeech
                                 if (status == android.speech.tts.TextToSpeech.SUCCESS) {
-                                    made?.language = locale
-                                    made?.speak(word.word, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "word")
+                                    tts.language = locale
+                                    tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                                        override fun onStart(utteranceId: String?) {}
+                                        override fun onDone(utteranceId: String?) { speaking = false }
+                                        @Deprecated("Deprecated in Java")
+                                        override fun onError(utteranceId: String?) { speaking = false }
+                                    })
+                                    say(tts)
                                 }
                             }
                             speech = made
                         }
+                        hops++
                     }
                     .semantics { contentDescription = "Hear It" },
                 contentAlignment = Alignment.Center
@@ -703,19 +765,24 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
 @Composable
 internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: TodayMemory? = null, askPhotos: (() -> Unit)? = null) {
     val scheme = MaterialTheme.colorScheme
-    val shown = rememberDrawIn(300, 1000)
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    var seen by remember { mutableStateOf(false) }
+    val shown = rememberDrawIn(300, 1100, seen)
+    val confetti = LocalConfetti.current
+    var tileCenter by remember { mutableStateOf(Offset.Zero) }
+    Row(Modifier.onFirstSeen { seen = true }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (countdown != null) {
             Column(
                 Modifier
                     .weight(1f)
                     .heightIn(min = 120.dp)
                     .clip(CardShape)
-                    .background(scheme.surfaceContainer)
+                    .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
+                    .onGloballyPositioned { tileCenter = it.boundsInWindow().center }
+                    .bouncyClickable(shape = CardShape) { confetti.burst(tileCenter) }
                     .padding(horizontal = 14.dp, vertical = 13.dp)
             ) {
                 TileLabel(Icons.Filled.Event, "Countdown")
-                Text("${countdown.days}", style = MaterialTheme.typography.displaySmall, color = scheme.onSurface, modifier = Modifier.padding(top = 4.dp))
+                Text("${(countdown.days * shown).roundToInt()}", style = MaterialTheme.typography.displaySmall, color = scheme.onSurface, modifier = Modifier.padding(top = 4.dp))
                 Text(
                     if (countdown.days == 1) "day until ${countdown.name}" else "days until ${countdown.name}",
                     style = MaterialTheme.typography.bodySmall,
@@ -739,7 +806,7 @@ internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: Tod
                 .weight(1f)
                 .heightIn(min = 120.dp)
                 .clip(CardShape)
-                .background(scheme.surfaceContainer)
+                .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
                 .padding(horizontal = 14.dp, vertical = 13.dp)
         ) {
             TileLabel(Icons.Filled.HourglassBottom, today.year.toString())
@@ -822,7 +889,7 @@ private fun MemoryTile(memory: TodayMemory, modifier: Modifier) {
                 picture,
                 contentDescription = null,
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.matchParentSize()
+                modifier = Modifier.matchParentSize().kenBurns()
             )
             Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.15f), Color.Black.copy(alpha = 0.65f)))))
         }
@@ -850,7 +917,7 @@ private fun AskPhotosTile(onAllow: () -> Unit, modifier: Modifier) {
         modifier
             .heightIn(min = 120.dp)
             .clip(CardShape)
-            .background(scheme.surfaceContainer)
+            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
             .bouncyClickable(shape = CardShape, onClick = onAllow)
             .padding(horizontal = 14.dp, vertical = 13.dp)
     ) {

@@ -353,35 +353,36 @@ internal fun TodayPage(
     val locationRequest = rememberTodayLocationRequest { }
     val askLocation = if (leaveByOn && !locationOk) ({ locationRequest.request() }) else null
     val sunset = weather?.sunset?.atZone(zone)?.toInstant()?.toEpochMilli()?.takeIf { it > now && weatherOn }
-    val primary = scheme.primaryContainer
+    val warm = if (scheme.surface.luminance() < 0.5f) Color(0xFFF2B872) else Color(0xFFB5651D)
+    val scroll = rememberScrollState()
+    val density = LocalDensity.current
 
     Box(
         Modifier
             .fillMaxSize()
             .background(scheme.surface)
-            .drawBehind {
-                drawRect(
-                    Brush.radialGradient(
-                        colors = listOf(primary.copy(alpha = 0.55f), Color.Transparent),
-                        center = Offset.Zero,
-                        radius = size.maxDimension * 0.6f
-                    )
-                )
-            }
             // Taps on the page stay on it rather than reaching the search beneath.
             .pointerInput(Unit) { detectTapGestures { } }
             .testTag(TODAY_PAGE_TAG)
     ) {
+      LivingLight(warm)
+      ConfettiHost {
         Column(
             Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scroll)
                 .statusBarsPadding()
                 .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             var index = 0
-            Enter(index++) { Greeting(now, weather.takeIf { weatherOn }, sunset, birthdaysToday) }
+            // The greeting drifts away slower than the page and fades as it scrolls (parallax).
+            Box(Modifier.graphicsLayer {
+                translationY = scroll.value * 0.35f
+                alpha = (1f - scroll.value / with(density) { 260.dp.toPx() }).coerceIn(0f, 1f)
+            }) {
+                Enter(index++) { Greeting(now, weather.takeIf { weatherOn }, sunset, birthdaysToday, warm) }
+            }
             if (upNext != null) Enter(index++) { UpNextCard(upNext, now, trip, askLocation) }
             if (upNextOn && laterToday.size + (if (sunset != null) 1 else 0) >= 2) Enter(index++) { RestOfDay(laterToday, now, sunset) }
             if (weatherOn && weather != null && weather.hours.size >= 3) Enter(index++) { WeatherAhead(weather) }
@@ -402,6 +403,7 @@ internal fun TodayPage(
                 Enter(index) { Tomorrow(today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather?.takeIf { weatherOn }, tomorrowEvent) }
             }
         }
+      }
         // The page fades under the bar as it scrolls.
         Box(
             Modifier
@@ -444,32 +446,40 @@ private fun rememberTodaySnapshot(hiddenApps: Set<String>, active: Boolean): Gla
     }.value
 }
 
-/** Each part rises into place in turn as the page opens, 48 ms apart, with the expressive spring (at once with animations off). */
+/**
+ * Each part springs up into place as it comes into view: those on screen as the page opens one after another, 70 ms
+ * apart, the rest as the user scrolls to them (at once with animations off).
+ */
 @Composable
 private fun Enter(index: Int, content: @Composable () -> Unit) {
     val animate by rememberAnimationsEnabled()
     val shown = remember { Animatable(if (animate) 0f else 1f) }
-    LaunchedEffect(Unit) {
-        if (!animate) return@LaunchedEffect
-        delay(120L + index * 48L)
-        shown.animateTo(1f, spring(dampingRatio = 0.72f, stiffness = 260f))
+    var seenAt by remember { mutableLongStateOf(0L) }
+    val opened = remember { System.currentTimeMillis() }
+    LaunchedEffect(seenAt) {
+        if (!animate || seenAt == 0L) return@LaunchedEffect
+        // On screen from the start: in turn. Scrolled to later: at once.
+        if (seenAt - opened < 400) delay(80L + index * 70L)
+        shown.animateTo(1f, arriveSpring())
     }
     val density = LocalDensity.current
     Box(
-        Modifier.graphicsLayer {
-            val p = shown.value
-            alpha = (p * 2.8f).coerceIn(0f, 1f)
-            translationY = (1f - p) * with(density) { 22.dp.toPx() }
-            val s = 0.985f + 0.015f * p
-            scaleX = s
-            scaleY = s
-        }
+        Modifier
+            .onFirstSeen { seenAt = System.currentTimeMillis() }
+            .graphicsLayer {
+                val p = shown.value
+                alpha = (p * 3.3f).coerceIn(0f, 1f)
+                translationY = (1f - p) * with(density) { 26.dp.toPx() }
+                val s = 0.96f + 0.04f * p
+                scaleX = s
+                scaleY = s
+            }
     ) { content() }
 }
 
 /** The date, a greeting for the time of day, and a chip for each birthday today. */
 @Composable
-private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthdays: List<GlanceBirthday>) {
+private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthdays: List<GlanceBirthday>, warm: Color) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
@@ -482,15 +492,28 @@ private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthday
         in 12..17 -> "Good afternoon"
         else -> "Good evening"
     }
+    val animate by rememberAnimationsEnabled()
     Column(Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 2.dp)) {
+      Row(verticalAlignment = Alignment.Bottom) {
+       Column(Modifier.weight(1f)) {
         Text(date, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = scheme.onSurfaceVariant)
-        Text(
+        SettleText(
             greeting,
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Normal,
+            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Normal),
             color = scheme.onSurface,
             modifier = Modifier.padding(top = 2.dp, bottom = 10.dp).semantics { heading() }
         )
+       }
+        // The Discover Overlay's own sun, large, rising to now as the page opens, its glow breathing.
+        TodayIcon(
+            hour = hourOfDay(now),
+            color = scheme.onSurfaceVariant,
+            sunColor = warm,
+            rise = animate,
+            pulse = animate,
+            modifier = Modifier.padding(bottom = 6.dp).size(88.dp)
+        )
+      }
         if (birthdays.isNotEmpty() || weather != null || sunset != null) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (weather != null) {
@@ -574,6 +597,7 @@ private fun UpNextCard(event: CalendarEvent, now: Long, trip: TodayTrip?, askLoc
             .fillMaxWidth()
             .clip(HeroShape)
             .background(scheme.primaryContainer)
+            .sheen()
             .bouncyClickable(shape = HeroShape) { launchSafeIntent(context, calendarEventIntent(event)) }
             .padding(start = 16.dp, end = 16.dp, top = 15.dp, bottom = 14.dp)
     ) {
@@ -591,7 +615,7 @@ private fun UpNextCard(event: CalendarEvent, now: Long, trip: TodayTrip?, askLoc
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = scheme.onPrimary,
-                modifier = Modifier.clip(CircleShape).background(scheme.primary).padding(horizontal = 10.dp, vertical = 4.dp)
+                modifier = Modifier.breathe().clip(CircleShape).background(scheme.primary).padding(horizontal = 10.dp, vertical = 4.dp)
             )
         }
         Text(
@@ -729,7 +753,7 @@ private fun RestOfDay(calendar: List<CalendarEvent>, now: Long, sunset: Long?) {
         Modifier
             .fillMaxWidth()
             .clip(CardShape)
-            .background(scheme.surfaceContainer)
+            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
             .padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -801,7 +825,7 @@ private fun Tile(icon: ImageVector, label: String, onClick: () -> Unit, modifier
         modifier
             .heightIn(min = 108.dp)
             .clip(CardShape)
-            .background(scheme.surfaceContainer)
+            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
             .bouncyClickable(shape = CardShape, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 13.dp)
     ) {
@@ -872,7 +896,7 @@ private fun NowPlaying(media: GlanceMedia) {
         Modifier
             .fillMaxWidth()
             .clip(CardShape)
-            .background(scheme.surfaceContainer)
+            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
             .padding(start = 12.dp, end = 12.dp, top = 11.dp, bottom = if (media.progress != null) 4.dp else 11.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

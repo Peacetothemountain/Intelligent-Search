@@ -210,6 +210,15 @@ internal fun catchUpFrom(entries: List<IndexedNotification>, now: Long): List<In
     .distinctBy { it.packageName to it.title }
     .take(3)
 
+/**
+ * The one line of [entry] a Catch Up row has room for: a conversation's newest message (the index keeps its last few,
+ * oldest first), or an email's or call's first line, its subject. All of it on one line would show only the first.
+ */
+private fun previewLine(entry: IndexedNotification): String? {
+    val lines = entry.text.lines().filter { it.isNotBlank() }
+    return (if (entry.category == Notification.CATEGORY_MESSAGE) lines.lastOrNull() else lines.firstOrNull())?.trim()
+}
+
 private val CATCH_UP_CATEGORIES = setOf(Notification.CATEGORY_MISSED_CALL, Notification.CATEGORY_MESSAGE, Notification.CATEGORY_EMAIL)
 private const val CATCH_UP_WINDOW_MS = 12 * 3_600_000L
 
@@ -442,7 +451,7 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                         Text(entry.title, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
-                            listOf(entry.text.takeIf { it.isNotBlank() }, Durations.ago(now - entry.postedAt)).filterNotNull().joinToString(" · "),
+                            listOfNotNull(previewLine(entry), Durations.ago(now - entry.postedAt)).joinToString(" · "),
                             style = MaterialTheme.typography.bodySmall,
                             color = scheme.onSurfaceVariant,
                             maxLines = 1,

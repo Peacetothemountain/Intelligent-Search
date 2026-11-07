@@ -34,11 +34,18 @@ import java.time.temporal.ChronoUnit
 import java.util.Locale
 
 /**
- * The battery now: its level, whether it is charging, whether it is plugged in and already full, and how long until
- * full when Android can tell.
+ * The battery now: its level, whether it is charging, whether it is full (Android calls a battery at 100% charged,
+ * plugged in or not), whether it is on a charger that isn't charging it, and how long until full when Android can tell.
  */
 @Immutable
-data class TodayBattery(val level: Int, val charging: Boolean, val minutesToFull: Long? = null, val saver: Boolean = false, val full: Boolean = false)
+data class TodayBattery(
+    val level: Int,
+    val charging: Boolean,
+    val minutesToFull: Long? = null,
+    val saver: Boolean = false,
+    val full: Boolean = false,
+    val pluggedNotCharging: Boolean = false
+)
 
 /** When to leave for an event: at [leaveAt] (wall clock), for a trip of about [minutes]. */
 @Immutable
@@ -198,7 +205,12 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
             app.getSystemService(BatteryManager::class.java)?.computeChargeTimeRemaining()?.takeIf { it > 0 }?.let { it / 60_000L }
         } else null
         val saver = app.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
-        return TodayBattery(level * 100 / scale, charging, toFull, saver, full = state == BatteryReadings.ChargeState.Full)
+        val percent = level * 100 / scale
+        return TodayBattery(
+            percent, charging, toFull, saver,
+            full = state == BatteryReadings.ChargeState.Full || percent >= 100,
+            pluggedNotCharging = state == BatteryReadings.ChargeState.PluggedNotCharging
+        )
     }
 
     override fun screenTime(): ScreenTimeReport? = runCatching { ScreenTimeRepository(app).today() }.getOrNull()

@@ -599,6 +599,8 @@ private fun BatteryTile(battery: TodayBattery, modifier: Modifier, seen: Boolean
         battery.full -> "Charged"
         battery.charging && battery.minutesToFull != null -> "Full in ${Durations.minutes(battery.minutesToFull * 60_000L)}"
         battery.charging -> "Charging"
+        // Android's own words for each, so a phone held on its charger doesn't read as one off it.
+        battery.pluggedNotCharging -> "Connected, but not charging"
         battery.saver -> "Battery Saver on"
         else -> "Not charging"
     }

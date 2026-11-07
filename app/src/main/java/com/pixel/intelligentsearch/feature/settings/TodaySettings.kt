@@ -12,7 +12,9 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
+import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import com.pixel.intelligentsearch.feature.search.rememberCalendarAllowed
+import com.pixel.intelligentsearch.feature.search.rememberNotificationAccessGranted
 import com.pixel.intelligentsearch.feature.search.today.TodayIcon
 
 /**
@@ -24,6 +26,7 @@ import com.pixel.intelligentsearch.feature.search.today.TodayIcon
 internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() {
     var button by rememberSetting(SettingsManager.TODAY_BUTTON)
     val scheme = MaterialTheme.colorScheme
+    val context = androidx.compose.ui.platform.LocalContext.current
     SettingsRowToggle(
         title = "Discover Overlay",
         subtitle = "Adds a Button to the Search Bar That Opens Your Day.",
@@ -70,7 +73,28 @@ internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() 
                 }
             )
             PartRow(SettingsManager.TODAY_WEATHER, "Weather", "Weather Now, the Next Hours and Tomorrow. Follows Web Suggestions.", Symbols.Outlined.Today)
-            PartRow(SettingsManager.TODAY_CATCH_UP, "Catch Up", "Missed Calls, Messages, Emails and Packages on Their Way. Uses Notification Access.", Symbols.Outlined.Notifications)
+            var catchUp by rememberSetting(SettingsManager.TODAY_CATCH_UP)
+            val notificationsAllowed = rememberNotificationAccessGranted()
+            val notificationsRequest = rememberNotificationAccessRequest { granted ->
+                if (granted) {
+                    catchUp = true
+                    NotificationAccess.start(context)
+                }
+            }
+            NotificationAccessDialog(notificationsRequest)
+            SettingsRowToggle(
+                title = "Catch Up",
+                subtitle = "Missed Calls, Messages, Emails and Packages on Their Way. Uses Notification Access.",
+                icon = Symbols.Outlined.Notifications,
+                isChecked = catchUp && notificationsAllowed,
+                onCheckedChange = { on ->
+                    when {
+                        !on -> catchUp = false
+                        notificationsAllowed -> catchUp = true
+                        else -> notificationsRequest.request()
+                    }
+                }
+            )
             PartRow(SettingsManager.TODAY_CONTROLS, "Quick Controls", "Do Not Disturb, Flashlight, Hotspot and Battery Saver.", Symbols.Outlined.Tune)
             PartRow(SettingsManager.TODAY_PHONE, "Your Phone Today", "Battery and Screen Time.", Symbols.Outlined.Speed)
             PartRow(SettingsManager.TODAY_LEFT_OFF, "Pick Up Where You Left Off", "Your Last Searches, One Tap to Search Again.", Symbols.Outlined.History)

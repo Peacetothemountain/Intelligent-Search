@@ -9,12 +9,12 @@ Update these in the same commit as a change that improves them. Never let one ge
 
 | Metric | Value | Measured at |
 |---|---|---|
-| Lines of test code | 52,004 | 2026-11-07, no live suggestions in tests, up 19 for a written reason (see its entry); replaces the `@Test` count (owner: root causes over more tests) |
+| Lines of test code | 51,986 | 2026-11-07, Bugdroid tutorial layers (was 52,004 after no live suggestions in tests, up 19 for a written reason); replaces the `@Test` count (owner: root causes over more tests) |
 | CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 872s (was 1003s) on one that changes app code, run 42356421669 on `f15b95a3` | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change. Since B13 there is no single step to time: measure from the start of the run to `Build & Check` finishing |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
-| Release APK size | 12,920,597 bytes | local build 2026-11-05, `8fc5df48`; up 16 KB from `0260afa7` for the owner-requested Developer Note animations |
+| Release APK size | 12,652,905 bytes, unsigned | local build 2026-11-07, Bugdroid tutorial layers at drawn size (12,908,309 unsigned before it). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
@@ -358,6 +358,20 @@ with the strongest evidence.
 - Retry only if: the entity test fails again with 2 requests; then log the address of each request it gets
 - Commit: see `Keep tests from asking Google for suggestions` in `git log dev`
 - Lesson: a test seam held in a global var is shared by every test in the JVM. A test that points it at a local server can get requests from tests that ran before it.
+
+### 2026-11-07: Bugdroid tutorial layers ship at the size they're drawn at
+- Command: /improve (scheduled run)
+- Target and evidence: release APK size. The 4 tutorial mascot layers (`ic_bugdroid_balloon`, `_body`, `_body_half`, `_body_blink`) were 603,697 bytes of 418x587 PNGs, the largest images in the APK after the locked clips, and the app only ever decoded them at half size (`inSampleSize = 2`, from B2), so three quarters of their pixels were never used. Chosen because the backlog has nothing left with evidence (B11 only adds tests) and no crash or flaky run is open. CI green on `76aa6448`; `377db522` still running
+- Prior work checked: this ledger (B2 halved the decode and left the files), `git log dev -S"ic_bugdroid_body"` (no earlier resize)
+- Research: Skia's sampled PNG decode keeps pixels 1, 3, 5... in each direction (`get_start_coord` is `sampleSize / 2`) and gives 209x293. Proved on real Android graphics: a Robolectric `NATIVE` probe decoded each new file plainly and each old file at `inSampleSize = 2`, and all 61,237 pixels matched in all 4 layers. Lossless WebP was tried first and saved 40 KB more, but 185 to 454 edge pixels per layer came out different, from its own premultiply rounding, so it was dropped. The files are in `drawable-nodpi`, so `inScaled = false` changed nothing either: a plain `decodeResource` gave the same pixels
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: the 4 layers are now 209x293 PNGs with exactly those pixels; `mascotDecodeOptions` and `TutorialMascotDecodeTest`, which only asserted its two option values, are gone
+- Before -> after: release APK, unsigned local builds of the same code with only the images swapped, 12,908,309 -> 12,652,905 bytes (-255,404; only the 4 image entries changed, `resources.arsc` and dex are identical); source images 603,697 -> 118,465 bytes; test code 52,004 -> 51,986 lines; lint baseline 11 -> 11; decoded memory unchanged. Pixels drawn are identical, so no emulator check; the probe was removed before committing
+- Result: kept, pending CI
+- Retry only if: the mascot needs to be drawn larger than about 60x84 dp; then go back to the full-size art from `git log` and decode at the size needed
+- Commit: see `Ship the tutorial mascot at the size it's drawn` in `git log dev`
+- Lesson: when code always downsamples an asset, ship the asset downsampled the same way. Check exactness with the platform's own decoder, since a lossless format can still round differently once premultiplied.
 
 <!--
 Copy this for each cycle, newest at the bottom.

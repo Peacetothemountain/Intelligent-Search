@@ -44,32 +44,28 @@ fun AnimatedBugdroidEmoji(
     val balloonBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
             resources,
-            R.drawable.ic_bugdroid_balloon,
-            mascotDecodeOptions()
+            R.drawable.ic_bugdroid_balloon
         ).asImageBitmap()
     }
 
     val bodyOpenBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
             resources,
-            R.drawable.ic_bugdroid_body,
-            mascotDecodeOptions()
+            R.drawable.ic_bugdroid_body
         ).asImageBitmap()
     }
 
     val bodyHalfBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
             resources,
-            R.drawable.ic_bugdroid_body_half,
-            mascotDecodeOptions()
+            R.drawable.ic_bugdroid_body_half
         )?.asImageBitmap() ?: bodyOpenBitmap
     }
 
     val bodyBlinkBitmap = remember(resources) {
         android.graphics.BitmapFactory.decodeResource(
             resources,
-            R.drawable.ic_bugdroid_body_blink,
-            mascotDecodeOptions()
+            R.drawable.ic_bugdroid_body_blink
         )?.asImageBitmap() ?: bodyOpenBitmap
     }
 
@@ -173,13 +169,4 @@ fun AnimatedBugdroidEmoji(
                 }
         )
     }
-}
-
-/**
- * The mascot's layers are 418x587 and drawn at 40x56 dp, so half size is still sharp on any phone: 245 KB a layer
- * instead of 981 KB, and four times less to decode.
- */
-internal fun mascotDecodeOptions() = android.graphics.BitmapFactory.Options().apply {
-    inScaled = false
-    inSampleSize = 2
 }

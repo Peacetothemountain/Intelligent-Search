@@ -161,6 +161,11 @@ val Icons.Filled.Person: ImageVector
 
 private var _person: ImageVector? = null
 
+val Icons.Filled.LocalShipping: ImageVector
+    get() = _localShipping ?: icon("Filled.LocalShipping", "M20,8h-3V4H3C1.9,4,1,4.9,1,6v11h2c0,1.66,1.34,3,3,3s3-1.34,3-3h6c0,1.66,1.34,3,3,3s3-1.34,3-3h2v-5L20,8zM6,18.5c-0.83,0-1.5-0.67-1.5-1.5s0.67-1.5,1.5-1.5s1.5,0.67,1.5,1.5S6.83,18.5,6,18.5zM19.5,9.5l1.96,2.5H17V9.5H19.5zM18,18.5c-0.83,0-1.5-0.67-1.5-1.5s0.67-1.5,1.5-1.5s1.5,0.67,1.5,1.5S18.83,18.5,18,18.5z").also { _localShipping = it }
+
+private var _localShipping: ImageVector? = null
+
 val Icons.Filled.PlayArrow: ImageVector
     get() = _playArrow ?: icon("Filled.PlayArrow", "M8,5v14l11-7z").also { _playArrow = it }
 

@@ -79,7 +79,9 @@ data class CalendarEvent(
     val beginMillis: Long = 0L,
     val allDay: Boolean = false,
     /** Where the event is, as typed in the calendar; empty when it has no place. */
-    val location: String = ""
+    val location: String = "",
+    /** A phone number found in the event's place or notes, to call; empty when it has none. */
+    val phone: String = ""
 )
 
 @Immutable
@@ -301,6 +303,16 @@ object SystemDataProvider {
         combined.take(6)
     }
 
+    /** The first phone number in [text] with at least seven digits, as written there; empty when it has none. */
+    internal fun phoneIn(text: String): String {
+        val matcher = android.util.Patterns.PHONE.matcher(text)
+        while (matcher.find()) {
+            val found = matcher.group().trim()
+            if (found.count { it.isDigit() } >= 7) return found
+        }
+        return ""
+    }
+
     suspend fun getUpcomingEvents(context: Context): List<CalendarEvent> = withContext(Dispatchers.IO) {
         val events = mutableListOf<CalendarEvent>()
         if (context.checkSelfPermission(android.Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) {
@@ -320,7 +332,8 @@ object SystemDataProvider {
                 CalendarContract.Instances.BEGIN,
                 CalendarContract.Instances.EVENT_ID,
                 CalendarContract.Instances.ALL_DAY,
-                CalendarContract.Instances.EVENT_LOCATION
+                CalendarContract.Instances.EVENT_LOCATION,
+                CalendarContract.Instances.DESCRIPTION
             )
 
             context.contentResolver.query(
@@ -336,6 +349,7 @@ object SystemDataProvider {
                 val eventIdIndex = cursor.getColumnIndex(CalendarContract.Instances.EVENT_ID)
                 val allDayIndex = cursor.getColumnIndex(CalendarContract.Instances.ALL_DAY)
                 val locationIndex = cursor.getColumnIndex(CalendarContract.Instances.EVENT_LOCATION)
+                val descriptionIndex = cursor.getColumnIndex(CalendarContract.Instances.DESCRIPTION)
                 // Honours the user's 12/24-hour preference and locale instead of always printing AM/PM.
                 val timeFormat = android.text.format.DateFormat.getTimeFormat(context)
 
@@ -348,7 +362,8 @@ object SystemDataProvider {
                     val timeString = if (allDay) "All day" else timeFormat.format(java.util.Date(startTimeMillis))
 
                     val location = if (locationIndex >= 0) cursor.getString(locationIndex).orEmpty().trim() else ""
-                    events.add(CalendarEvent(title ?: "Event", timeString, eventId, startTimeMillis, allDay, location))
+                    val description = if (descriptionIndex >= 0) cursor.getString(descriptionIndex).orEmpty() else ""
+                    events.add(CalendarEvent(title ?: "Event", timeString, eventId, startTimeMillis, allDay, location, phoneIn(location + "\n" + description)))
                 }
             }
         } catch (_: Throwable) {}

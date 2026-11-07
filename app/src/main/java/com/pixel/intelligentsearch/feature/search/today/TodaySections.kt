@@ -103,6 +103,11 @@ import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
+import com.pixel.intelligentsearch.core.ui.icons.filled.LocalShipping
+import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.VolumeUp
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 
 /** The weather for [day] while [enabled] and on screen; null until it comes (or with Web Suggestions off). */
 @Composable
@@ -116,13 +121,82 @@ internal fun rememberWeather(sources: TodaySources, day: ForecastDay, enabled: B
     }.value
 }
 
-/** Missed calls, messages and emails from the last 12 hours, newest first, three at most. */
+/** The notification index while [enabled]: Catch Up and the delivery tile read it. */
 @Composable
-internal fun rememberCatchUp(sources: TodaySources, enabled: Boolean, now: Long): List<IndexedNotification> {
-    val flow = remember(sources, enabled) { if (enabled) sources.notifications() else null }
-    val entries by (flow ?: remember { kotlinx.coroutines.flow.MutableStateFlow(emptyList<IndexedNotification>()) })
-        .collectAsState(initial = emptyList())
-    return remember(entries, now) { catchUpFrom(entries, now) }
+internal fun rememberNotifications(sources: TodaySources, enabled: Boolean): List<IndexedNotification> {
+    val flow = remember(sources, enabled) { if (enabled) sources.notifications() else kotlinx.coroutines.flow.flowOf(emptyList()) }
+    val entries by flow.collectAsState(initial = emptyList())
+    return entries
+}
+
+/** A package on its way, read from a shipping notification: how far along it is (0 to 3) and what it said. */
+@Immutable
+internal data class TodayDelivery(val step: Int, val headline: String, val detail: String, val entry: IndexedNotification)
+
+private val DELIVERED = Regex("\\bdelivered\\b", RegexOption.IGNORE_CASE)
+private val OUT_FOR_DELIVERY = Regex("out for delivery|arriving today|arrives today|will arrive today|delivery today", RegexOption.IGNORE_CASE)
+private val ON_THE_WAY = Regex("\\bshipped\\b|on (its|the) way|in transit|arriving (tomorrow|on)|has left|departed", RegexOption.IGNORE_CASE)
+private val PACKAGE = Regex("package|parcel|order|shipment|delivery", RegexOption.IGNORE_CASE)
+
+/**
+ * The newest package news among the notifications from the last two days, if any: delivered, out for delivery, or on
+ * its way. Only notifications that speak of a package, order or delivery count.
+ */
+internal fun deliveryFrom(entries: List<IndexedNotification>, now: Long): TodayDelivery? = entries
+    .filter { now - it.postedAt in 0..DELIVERY_WINDOW_MS }
+    .sortedByDescending { it.postedAt }
+    .firstNotNullOfOrNull { entry ->
+        val text = "${entry.title} ${entry.text}"
+        if (!PACKAGE.containsMatchIn(text)) return@firstNotNullOfOrNull null
+        when {
+            DELIVERED.containsMatchIn(text) -> TodayDelivery(3, "Delivered", entry.appLabel, entry)
+            OUT_FOR_DELIVERY.containsMatchIn(text) -> TodayDelivery(2, "Arriving today", "Out for delivery", entry)
+            ON_THE_WAY.containsMatchIn(text) -> TodayDelivery(1, "On the way", entry.appLabel, entry)
+            else -> null
+        }
+    }
+
+private const val DELIVERY_WINDOW_MS = 48 * 3_600_000L
+
+/** A package's tile: where it is, and its steps from shipped to here with the current one pulsing. Tap opens its notification. */
+@Composable
+internal fun DeliveryTile(delivery: TodayDelivery, modifier: Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val animate by rememberAnimationsEnabled()
+    val pulse = if (animate && delivery.step < 3) {
+        rememberInfiniteTransition(label = "delivery").animateFloat(0f, 1f, infiniteRepeatable(tween(1800), RepeatMode.Restart), label = "pulse").value
+    } else 0f
+    Column(
+        modifier
+            .heightIn(min = 108.dp)
+            .clip(CardShape)
+            .background(scheme.surfaceContainer)
+            .bouncyClickable(shape = CardShape) { openPendingOrApp(context, delivery.entry.contentIntent, delivery.entry.packageName) }
+            .padding(horizontal = 14.dp, vertical = 13.dp)
+    ) {
+        TileLabel(Icons.Filled.LocalShipping, "Package")
+        Text(delivery.headline, style = MaterialTheme.typography.titleLarge, color = scheme.onSurface, modifier = Modifier.padding(top = 4.dp))
+        Text(delivery.detail, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.weight(1f, fill = false).height(10.dp))
+        val on = scheme.primary
+        val off = scheme.surfaceContainerHighest
+        Canvas(Modifier.fillMaxWidth().height(14.dp)) {
+            val r = 5.dp.toPx()
+            val y = size.height / 2
+            val xs = (0..3).map { r + it * (size.width - 2 * r) / 3f }
+            for (i in 0 until 3) drawLine(if (i < delivery.step) on else off, Offset(xs[i], y), Offset(xs[i + 1], y), strokeWidth = 3.dp.toPx())
+            xs.forEachIndexed { i, x ->
+                if (i == delivery.step && pulse > 0f) drawCircle(on.copy(alpha = 0.5f * (1 - pulse)), r + 9.dp.toPx() * pulse, Offset(x, y))
+                drawCircle(if (i <= delivery.step) on else off, r, Offset(x, y))
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("Shipped", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            Text("Today", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+            Text("Here", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+        }
+    }
 }
 
 /** The notifications worth catching up on: missed calls, messages and emails from the last 12 hours, newest first. */
@@ -208,7 +282,9 @@ internal fun WeatherAhead(report: WeatherReport) {
     val is24 = android.text.format.DateFormat.is24HourFormat(context)
     val shown = rememberDrawIn()
     val measurer = rememberTextMeasurer()
-    val warm = Color(0xFFF2B872).takeIf { scheme.surface.luminance() < 0.5f } ?: Color(0xFFB5651D)
+    val dark = scheme.surface.luminance() < 0.5f
+    val warm = if (dark) Color(0xFFF2B872) else Color(0xFFB5651D)
+    val rain = if (dark) Color(0xFF7FB0F0) else Color(0xFF3A6FB8)
     val labelStyle = MaterialTheme.typography.labelMedium.copy(color = scheme.onSurface)
     val hourStyle = MaterialTheme.typography.labelSmall.copy(color = scheme.onSurfaceVariant)
     val hours = report.hours
@@ -227,10 +303,12 @@ internal fun WeatherAhead(report: WeatherReport) {
             .bouncyClickable(shape = CardShape) { openWeather(context) }
             .padding(14.dp)
     ) {
+        val rainAt = hours.indexOfFirst { (it.precipitation ?: 0) >= 50 }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Weather ahead", style = MaterialTheme.typography.titleSmall, color = scheme.onSurface, modifier = Modifier.weight(1f))
             Text(
-                "H ${report.high.roundToInt()}°  L ${report.low.roundToInt()}°",
+                if (rainAt >= 0) "Rain likely around ${hours[rainAt].time.format(DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h a", locale))}"
+                else "H ${report.high.roundToInt()}°  L ${report.low.roundToInt()}°",
                 style = MaterialTheme.typography.labelLarge,
                 color = scheme.onSurfaceVariant
             )
@@ -245,7 +323,7 @@ internal fun WeatherAhead(report: WeatherReport) {
             val left = 16.dp.toPx()
             val right = size.width - 16.dp.toPx()
             val top = 26.dp.toPx()
-            val bottom = 70.dp.toPx()
+            val bottom = 60.dp.toPx()
             val step = if (hours.size > 1) (right - left) / (hours.size - 1) else 0f
             val points = temps.mapIndexed { i, t -> Offset(left + i * step, bottom - ((t - lo) / (hi - lo)).toFloat() * (bottom - top)) }
             val line = Path().apply {
@@ -272,6 +350,21 @@ internal fun WeatherAhead(report: WeatherReport) {
                 drawPath(area, Brush.verticalGradient(listOf(warm.copy(alpha = 0.32f), Color.Transparent), startY = top, endY = bottom + 12.dp.toPx()))
                 drawPath(line, warm, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
             }
+            // Rain chances as short bars along the bottom, growing in after the line.
+            val rainTop = bottom + 10.dp.toPx()
+            val rainBottom = size.height - 18.dp.toPx()
+            hours.forEachIndexed { i, hour ->
+                val chance = hour.precipitation ?: return@forEachIndexed
+                if (chance <= 0) return@forEachIndexed
+                val grow = ((shown * points.size) - i - 0.5f).coerceIn(0f, 1f)
+                val h = (rainBottom - rainTop) * chance / 100f * grow
+                drawRoundRect(
+                    rain.copy(alpha = 0.75f),
+                    topLeft = Offset(points[i].x - 5.dp.toPx(), rainBottom - h),
+                    size = Size(10.dp.toPx(), h),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
+                )
+            }
             points.forEachIndexed { i, p ->
                 val visible = ((shown * points.size) - i).coerceIn(0f, 1f)
                 if (visible <= 0f) return@forEachIndexed
@@ -286,7 +379,6 @@ internal fun WeatherAhead(report: WeatherReport) {
     }
 }
 
-private fun Color.luminance(): Float = 0.2126f * red + 0.7152f * green + 0.0722f * blue
 
 /** Missed calls, unread messages and emails, each opening where it came from. */
 @Composable
@@ -554,38 +646,74 @@ internal fun LeftOff(searches: List<String>, onSearch: (String) -> Unit) {
     }
 }
 
-/** Today's word, what kind of word it is and what it means; a tap looks it up. */
+/**
+ * Today's word, what kind of word it is and what it means, on the page's own card color with the word in the accent
+ * color. Hear It says it aloud (Android's text to speech); a tap on the card looks it up.
+ */
 @Composable
 internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
     val scheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
+    var speech by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
+    DisposableEffect(Unit) { onDispose { speech?.shutdown() } }
     Column(
         Modifier
             .fillMaxWidth()
             .clip(CardShape)
-            .background(scheme.tertiaryContainer)
+            .background(scheme.surfaceContainer)
             .bouncyClickable(shape = CardShape) { onSearch("define ${word.word}") }
             .padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "WORD OF THE DAY",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.6.sp,
-                color = scheme.onTertiaryContainer.copy(alpha = 0.85f),
-                modifier = Modifier.weight(1f)
-            )
-            Icon(Icons.AutoMirrored.Filled.MenuBook, null, tint = scheme.onTertiaryContainer, modifier = Modifier.size(18.dp))
+            Column(Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.AutoMirrored.Filled.MenuBook, null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "WORD OF THE DAY",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.6.sp,
+                        color = scheme.onSurfaceVariant
+                    )
+                }
+                Text(word.word, style = MaterialTheme.typography.headlineMedium, color = scheme.primary, modifier = Modifier.padding(top = 4.dp))
+                Text(word.kind, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+            }
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(scheme.primaryContainer)
+                    .bouncyClickable(shape = CircleShape) {
+                        val ready = speech
+                        if (ready != null) {
+                            ready.speak(word.word, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "word")
+                        } else {
+                            var made: android.speech.tts.TextToSpeech? = null
+                            made = android.speech.tts.TextToSpeech(context.applicationContext) { status ->
+                                if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                                    made?.language = locale
+                                    made?.speak(word.word, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "word")
+                                }
+                            }
+                            speech = made
+                        }
+                    }
+                    .semantics { contentDescription = "Hear It" },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.AutoMirrored.Outlined.VolumeUp, null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
+            }
         }
-        Text(word.word, style = MaterialTheme.typography.headlineMedium, color = scheme.onTertiaryContainer, modifier = Modifier.padding(top = 4.dp))
-        Text(word.kind, style = MaterialTheme.typography.bodyMedium, color = scheme.onTertiaryContainer.copy(alpha = 0.8f))
-        Text(word.meaning, style = MaterialTheme.typography.bodyLarge, color = scheme.onTertiaryContainer, modifier = Modifier.padding(top = 8.dp))
+        Text(word.meaning, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface, modifier = Modifier.padding(top = 8.dp))
     }
 }
 
 /** The days until the next big holiday, and how far through the year today is. */
 @Composable
-internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?) {
+internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: TodayMemory? = null) {
     val scheme = MaterialTheme.colorScheme
     val shown = rememberDrawIn(300, 1000)
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -606,6 +734,10 @@ internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?) {
                     color = scheme.onSurfaceVariant
                 )
             }
+        }
+        if (memory != null) {
+            MemoryTile(memory, Modifier.weight(1f))
+            return@Row
         }
         val dayOfYear = today.dayOfYear
         val daysInYear = today.lengthOfYear()
@@ -678,3 +810,50 @@ private fun TomorrowRow(icon: ImageVector, text: String, detail: String?) {
     }
 }
 
+
+/** Photos from this date in another year: the first as the tile's picture, how long ago and how many. Tap opens it. */
+@Composable
+private fun MemoryTile(memory: TodayMemory, modifier: Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    Box(
+        modifier
+            .heightIn(min = 120.dp)
+            .clip(CardShape)
+            .background(scheme.surfaceContainerHigh)
+            .bouncyClickable(shape = CardShape) {
+                launchSafeIntent(context, Intent(Intent.ACTION_VIEW, memory.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+            }
+    ) {
+        memory.thumbnail?.let { picture ->
+            androidx.compose.foundation.Image(
+                picture,
+                contentDescription = null,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.matchParentSize()
+            )
+            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.15f), Color.Black.copy(alpha = 0.65f)))))
+        }
+        val text = if (memory.thumbnail != null) Color.White else scheme.onSurface
+        Text(
+            "ON THIS DAY",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.6.sp,
+            color = text.copy(alpha = 0.9f),
+            modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 14.dp, vertical = 13.dp)
+        )
+        Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Text(
+                if (memory.yearsAgo == 1) "1 year ago" else "${memory.yearsAgo} years ago",
+                style = MaterialTheme.typography.titleMedium,
+                color = text
+            )
+            Text(
+                if (memory.count == 1) "1 photo" else "${memory.count} photos",
+                style = MaterialTheme.typography.bodySmall,
+                color = text.copy(alpha = 0.85f)
+            )
+        }
+    }
+}

@@ -14,6 +14,8 @@ import com.pixel.intelligentsearch.feature.search.today.TodayBattery
 import com.pixel.intelligentsearch.feature.search.today.TodayControls
 import com.pixel.intelligentsearch.feature.search.today.TodayCountdown
 import com.pixel.intelligentsearch.feature.search.today.TodaySources
+import com.pixel.intelligentsearch.feature.search.today.TodayMemory
+import com.pixel.intelligentsearch.feature.search.today.TodayTrip
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDateTime
 import android.graphics.Bitmap
@@ -105,7 +107,7 @@ class TodayGoldenTest(private val dark: Boolean) {
             progress = MediaSessionAccess.Progress(durationMs = 243_000L, positionMs = 98_000L, updatedAtElapsed = 0L, speed = 1f, canSeek = true)
         ),
         events = listOf(
-            CalendarEvent("Dentist", "3:30 PM", 1, NOW + 52 * MINUTE, location = "1200 Main St"),
+            CalendarEvent("Dentist", "3:30 PM", 1, NOW + 52 * MINUTE, location = "1200 Main St", phone = "423-555-0100"),
             CalendarEvent("Pick up Ana", "6:00 PM", 2, NOW + 3 * HOUR + 22 * MINUTE),
             CalendarEvent("Ana's party", "8:30 PM", 3, NOW + 5 * HOUR + 52 * MINUTE)
         ),
@@ -117,7 +119,10 @@ class TodayGoldenTest(private val dark: Boolean) {
         private val start = LocalDateTime.of(2027, 1, 15, 15, 0)
         private val today = WeatherReport(
             "Johnson City", TemperatureUnit.FAHRENHEIT, ForecastDay.TODAY, 63.0, 61.0, 0, true, 68.0, 39.0,
-            listOf(65.0, 66.0, 68.0, 66.0, 61.0, 57.0).mapIndexed { i, t -> WeatherHour(start.plusHours(i.toLong()), t, if (i < 4) 0 else 3, i < 3) }
+            listOf(65.0, 66.0, 68.0, 66.0, 61.0, 57.0).mapIndexed { i, t ->
+                WeatherHour(start.plusHours(i.toLong()), t, if (i < 4) 0 else 3, i < 3, listOf(0, 0, 5, 10, 40, 60)[i])
+            },
+            sunset = LocalDateTime.of(2027, 1, 15, 17, 24)
         )
         private val tomorrow = WeatherReport(
             "Johnson City", TemperatureUnit.FAHRENHEIT, ForecastDay.TOMORROW, 58.0, null, 61, true, 58.0, 41.0, emptyList()
@@ -132,10 +137,13 @@ class TodayGoldenTest(private val dark: Boolean) {
         override fun notifications(): Flow<List<IndexedNotification>> = flowOf(
             listOf(
                 IndexedNotification("1", "com.example.dialer", "Phone", "Mom", "Missed call", NOW - 118 * MINUTE, Notification.CATEGORY_MISSED_CALL),
-                IndexedNotification("2", "com.example.chat", "Messages", "Sam", "Are we still on for 6?", NOW - 20 * MINUTE, Notification.CATEGORY_MESSAGE)
+                IndexedNotification("2", "com.example.chat", "Messages", "Sam", "Are we still on for 6?", NOW - 20 * MINUTE, Notification.CATEGORY_MESSAGE),
+                IndexedNotification("3", "com.example.shop", "Shop", "Your package", "Your order is out for delivery", NOW - 40 * MINUTE)
             )
         )
         override fun countdown(today: LocalDate) = TodayCountdown("Valentine's Day", 30, today.plusDays(30))
+        override suspend fun trip(event: CalendarEvent) = TodayTrip(event.beginMillis - 22 * MINUTE, 22)
+        override suspend fun memory(today: LocalDate) = TodayMemory(3, 24, android.net.Uri.EMPTY, photo())
         override val controls = object : TodayControls {
             override fun doNotDisturb() = false
             override fun setDoNotDisturb(on: Boolean) = false
@@ -181,3 +189,13 @@ class TodayGoldenTest(private val dark: Boolean) {
         fun parameters(): List<Array<Any>> = listOf(arrayOf<Any>(false), arrayOf<Any>(true))
     }
 }
+
+/** A stand-in photo: a sun going down behind a hill. */
+private fun photo() = Bitmap.createBitmap(120, 120, Bitmap.Config.ARGB_8888).apply {
+    Canvas(this).apply {
+        drawColor(0xFF9D4F53.toInt())
+        drawCircle(84f, 40f, 16f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFD59A.toInt() })
+        drawCircle(60f, 160f, 80f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF4A2E4F.toInt() })
+    }
+}.asImageBitmap()
+

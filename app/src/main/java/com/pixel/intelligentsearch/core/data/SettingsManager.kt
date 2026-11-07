@@ -249,6 +249,10 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val TODAY_LEFT_OFF = BooleanSetting("today.left_off", true)
         /** Today's Word of the Day and holiday countdown. */
         val TODAY_EXTRAS = BooleanSetting("today.extras", true)
+        /** Up Next's leave-by time, from the phone's approximate location (shown only while location is allowed). */
+        val TODAY_LEAVE_BY = BooleanSetting("today.leave_by", true)
+        /** Today's On This Day: photos from this date in other years (shown only while photos may be read). */
+        val TODAY_MEMORIES = BooleanSetting("today.memories", true)
         /**
          * AI Answers: questions ("…?", "ask …") offer an Ask row that, only when tapped, sends that one question to
          * [AI_PROVIDER] with the user's own key (kept in AiKeyVault, never here). Off by default; a backup can't
@@ -316,7 +320,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, GLANCE_ENABLED, GLANCE_ALARM,
             GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_CALENDAR, GLANCE_BIRTHDAYS, GLANCE_CLOCK, GLANCE_CLOCK_STYLE,
             TODAY_BUTTON, TODAY_UP_NEXT, TODAY_WEATHER, TODAY_CATCH_UP, TODAY_CONTROLS, TODAY_PHONE, TODAY_LEFT_OFF,
-            TODAY_EXTRAS,
+            TODAY_EXTRAS, TODAY_LEAVE_BY, TODAY_MEMORIES,
             RESULT_SHORTCUTS, WEATHER_HOME_LOCATION, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,

@@ -13,9 +13,7 @@ import com.pixel.intelligentsearch.core.data.settings.BooleanSetting
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.feature.search.rememberCalendarAllowed
-import com.pixel.intelligentsearch.feature.search.rememberGlanceNow
 import com.pixel.intelligentsearch.feature.search.today.TodayIcon
-import com.pixel.intelligentsearch.feature.search.today.hourOfDay
 
 /**
  * The last rows of Appearance's Search Overlay card: the switch for the Today button in the search bar, then, while
@@ -26,12 +24,12 @@ import com.pixel.intelligentsearch.feature.search.today.hourOfDay
 internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() {
     var button by rememberSetting(SettingsManager.TODAY_BUTTON)
     val scheme = MaterialTheme.colorScheme
-    val now = rememberGlanceNow(60_000L)
     SettingsRowToggle(
         title = "Today Button",
         subtitle = "Adds a Button to the Search Bar That Opens Your Day.",
         customIcon = {
-            TodayIcon(hour = hourOfDay(now), color = scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+            // A still afternoon sun: the row names the button, it needn't tell the time.
+            TodayIcon(hour = 14.5f, color = scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
         },
         isChecked = button,
         onCheckedChange = { button = it },
@@ -55,12 +53,45 @@ internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() 
                     }
                 }
             )
+            var leaveBy by rememberSetting(SettingsManager.TODAY_LEAVE_BY)
+            val locationAllowed = rememberPermissionState { com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(it).permitted() }
+            val locationRequest = rememberTodayLocationRequest { leaveBy = true }
+            SettingsRowToggle(
+                title = "Leave-By Time",
+                subtitle = "When to Leave for Your Next Event and About How Long It Takes. Uses Approximate Location.",
+                icon = Symbols.Outlined.Schedule,
+                isChecked = leaveBy && locationAllowed,
+                onCheckedChange = { on ->
+                    when {
+                        !on -> leaveBy = false
+                        locationAllowed -> leaveBy = true
+                        else -> locationRequest.request()
+                    }
+                }
+            )
             PartRow(SettingsManager.TODAY_WEATHER, "Weather", "Weather Now, the Next Hours and Tomorrow. Follows Web Suggestions.", Symbols.Outlined.Today)
-            PartRow(SettingsManager.TODAY_CATCH_UP, "Catch Up", "Missed Calls, Messages and Emails. Uses Notification Access.", Symbols.Outlined.Notifications)
+            PartRow(SettingsManager.TODAY_CATCH_UP, "Catch Up", "Missed Calls, Messages, Emails and Packages on Their Way. Uses Notification Access.", Symbols.Outlined.Notifications)
             PartRow(SettingsManager.TODAY_CONTROLS, "Quick Controls", "Do Not Disturb, Flashlight, Hotspot and Battery Saver.", Symbols.Outlined.Tune)
             PartRow(SettingsManager.TODAY_PHONE, "Your Phone Today", "Battery and Screen Time.", Symbols.Outlined.Speed)
             PartRow(SettingsManager.TODAY_LEFT_OFF, "Pick Up Where You Left Off", "Your Last Searches, One Tap to Search Again.", Symbols.Outlined.History)
-            PartRow(SettingsManager.TODAY_EXTRAS, "Word of the Day and Countdown", "A New Word Each Day, and Days Until the Next Holiday.", Symbols.Outlined.Spellcheck, last = true)
+            PartRow(SettingsManager.TODAY_EXTRAS, "Word of the Day and Countdown", "A New Word Each Day, and Days Until the Next Holiday.", Symbols.Outlined.Spellcheck)
+            var memories by rememberSetting(SettingsManager.TODAY_MEMORIES)
+            val photos = rememberPermissionState(::photosAllowed)
+            val photosRequest = rememberPhotosRequest { memories = true }
+            SettingsRowToggle(
+                title = "On This Day",
+                subtitle = "Photos You Took on This Date in Other Years. Uses Photo Access.",
+                icon = Symbols.Outlined.Image,
+                isChecked = memories && photos,
+                onCheckedChange = { on ->
+                    when {
+                        !on -> memories = false
+                        photos -> memories = true
+                        else -> photosRequest.request()
+                    }
+                },
+                showDivider = false
+            )
         }
     }
 }
@@ -76,4 +107,20 @@ private fun PartRow(key: BooleanSetting, title: String, subtitle: String, icon: 
         onCheckedChange = { on = it },
         showDivider = !last
     )
+}
+
+/** Whether [allowed] says yes, read again each time the page resumes (the user can change it in Android's settings). */
+@Composable
+private fun rememberPermissionState(allowed: (android.content.Context) -> Boolean): Boolean {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var granted by androidx.compose.runtime.remember(context) { androidx.compose.runtime.mutableStateOf(allowed(context)) }
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(owner, context) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) granted = allowed(context)
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+    return granted
 }

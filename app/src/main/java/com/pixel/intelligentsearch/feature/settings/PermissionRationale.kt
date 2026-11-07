@@ -352,3 +352,57 @@ private val LOCATION_PROMPT = PermissionPrompt(
 @Composable
 internal fun rememberApproximateLocationRequest(onGranted: () -> Unit): PermissionRequest =
     rememberPermissionRequest(LOCATION_PROMPT, onGranted)
+
+/** What Today's leave-by time says before Android asks for approximate location. */
+internal const val TODAY_LOCATION_RATIONALE =
+    "Today can tell you when to leave for your next event. It uses your phone's approximate location, never its " +
+        "precise one, and Android's own map lookup finds the event's address. Nothing is kept."
+
+private val TODAY_LOCATION_PROMPT = PermissionPrompt(
+    permission = Manifest.permission.ACCESS_COARSE_LOCATION,
+    askTitle = "Allow Approximate Location?",
+    askText = TODAY_LOCATION_RATIONALE,
+    offTitle = "Location Access Is Off",
+    offText = "Location access for Intelligent Search is turned off. Allow approximate location in Android " +
+        "settings to see when to leave for your next event.",
+    allowed = { AndroidDeviceLocation(it).permitted() }
+)
+
+/** Approximate location for Today's leave-by time. */
+@Composable
+internal fun rememberTodayLocationRequest(onGranted: () -> Unit): PermissionRequest =
+    rememberPermissionRequest(TODAY_LOCATION_PROMPT, onGranted)
+
+/** The permission that lets the app read the phone's photos: Android 13 split it out of storage. */
+internal val PHOTOS_PERMISSION: String =
+    if (android.os.Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_IMAGES else Manifest.permission.READ_EXTERNAL_STORAGE
+
+/**
+ * Whether any photos may be read: all of them, or (Android 14 and later) only those the user picked when Android
+ * asked, which On This Day reads just the same.
+ */
+internal fun photosAllowed(context: Context): Boolean {
+    fun granted(permission: String) = context.checkSelfPermission(permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    return granted(PHOTOS_PERMISSION) ||
+        (android.os.Build.VERSION.SDK_INT >= 34 && granted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED))
+}
+
+/** What Today's On This Day says before Android asks for photos. */
+internal const val PHOTOS_RATIONALE =
+    "On This Day shows photos you took on this date in other years. Your photos are read on your phone and never " +
+        "leave it."
+
+private val PHOTOS_PROMPT = PermissionPrompt(
+    permission = PHOTOS_PERMISSION,
+    askTitle = "Allow Photo Access?",
+    askText = PHOTOS_RATIONALE,
+    offTitle = "Photo Access Is Off",
+    offText = "Photo access for Intelligent Search is turned off. Allow it in Android settings to see your photos " +
+        "from this day in other years.",
+    allowed = ::photosAllowed
+)
+
+/** Photos for Today's On This Day. */
+@Composable
+internal fun rememberPhotosRequest(onGranted: () -> Unit): PermissionRequest =
+    rememberPermissionRequest(PHOTOS_PROMPT, onGranted)

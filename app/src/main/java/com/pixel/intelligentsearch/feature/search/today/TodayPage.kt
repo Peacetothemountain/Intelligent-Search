@@ -128,6 +128,8 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.hypot
+import com.pixel.intelligentsearch.core.ui.icons.filled.Call
+import androidx.compose.ui.graphics.luminance
 import kotlin.math.roundToInt
 import com.pixel.intelligentsearch.core.answers.WeatherReport
 import com.pixel.intelligentsearch.core.answers.WeatherCodes
@@ -143,6 +145,9 @@ internal const val TODAY_PAGE_TAG = "today_page"
 private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 private val EmphasizedAccelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 private const val OPEN_MS = 560
+
+/** Sunset's label on Rest of Your Day. */
+private const val SUNSET = "Sunset"
 private const val CLOSE_MS = 380
 
 /**
@@ -260,9 +265,13 @@ internal fun TodayPage(
     val phoneOn by rememberSetting(SettingsManager.TODAY_PHONE)
     val leftOffOn by rememberSetting(SettingsManager.TODAY_LEFT_OFF)
     val extrasOn by rememberSetting(SettingsManager.TODAY_EXTRAS)
+    val leaveByOn by rememberSetting(SettingsManager.TODAY_LEAVE_BY)
+    val memoriesOn by rememberSetting(SettingsManager.TODAY_MEMORIES)
     val weather = rememberWeather(sources, ForecastDay.TODAY, active && weatherOn)
     val tomorrowWeather = rememberWeather(sources, ForecastDay.TOMORROW, active && weatherOn)
-    val catchUp = rememberCatchUp(sources, active && catchUpOn, now)
+    val notifications = rememberNotifications(sources, active && catchUpOn)
+    val catchUp = remember(notifications, now) { catchUpFrom(notifications, now) }
+    val delivery = remember(notifications, now) { deliveryFrom(notifications, now) }
 
     val zone = ZoneId.systemDefault()
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
@@ -277,6 +286,13 @@ internal fun TodayPage(
     val alarmTomorrow = snapshot.alarm?.takeIf {
         Instant.ofEpochMilli(it.triggerAt).atZone(zone).toLocalDate() == today.plusDays(1)
     }
+    val trip = produceState<TodayTrip?>(null, upNext?.eventId, upNext?.beginMillis, upNext?.location, leaveByOn, active) {
+        value = if (upNext != null && leaveByOn && active) sources.trip(upNext) else null
+    }.value
+    val memory = produceState<TodayMemory?>(null, today, memoriesOn, extrasOn, active) {
+        value = if (memoriesOn && extrasOn && active) sources.memory(today) else null
+    }.value
+    val sunset = weather?.sunset?.atZone(zone)?.toInstant()?.toEpochMilli()?.takeIf { it > now && weatherOn }
     val primary = scheme.primaryContainer
 
     Box(
@@ -305,11 +321,13 @@ internal fun TodayPage(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             var index = 0
-            Enter(index++) { Greeting(now, weather.takeIf { weatherOn }, birthdaysToday) }
-            if (upNext != null) Enter(index++) { UpNextCard(upNext, now) }
-            if (upNextOn && laterToday.size >= 2) Enter(index++) { RestOfDay(laterToday, now) }
+            Enter(index++) { Greeting(now, weather.takeIf { weatherOn }, sunset, birthdaysToday) }
+            if (upNext != null) Enter(index++) { UpNextCard(upNext, now, trip) }
+            if (upNextOn && laterToday.size + (if (sunset != null) 1 else 0) >= 2) Enter(index++) { RestOfDay(laterToday, now, sunset) }
             if (weatherOn && weather != null && weather.hours.size >= 3) Enter(index++) { WeatherAhead(weather) }
-            if (timer != null || alarm != null) Enter(index++) { TimerAlarmTiles(timer, alarm?.let { GlanceItem.Alarm(it) }, now) }
+            if (timer != null || alarm != null || delivery != null) {
+                Enter(index++) { TimerAlarmTiles(timer, alarm?.let { GlanceItem.Alarm(it) }, delivery, now) }
+            }
             snapshot.media?.let { media -> Enter(index++) { NowPlaying(media) } }
             if (catchUpOn && catchUp.isNotEmpty()) Enter(index++) { CatchUp(catchUp, now) }
             if (controlsOn) Enter(index++) { QuickControls(sources.controls) }
@@ -318,7 +336,7 @@ internal fun TodayPage(
             if (extrasOn) {
                 Enter(index++) { WordOfTheDay(wordOfTheDay(today), onSearch) }
                 val countdown = remember(today) { sources.countdown(today) }
-                Enter(index++) { YearTiles(today, countdown) }
+                Enter(index++) { YearTiles(today, countdown, memory) }
             }
             if (alarmTomorrow != null || tomorrowWeather != null || tomorrowEvent != null) {
                 Enter(index) { Tomorrow(today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather?.takeIf { weatherOn }, tomorrowEvent) }
@@ -391,7 +409,7 @@ private fun Enter(index: Int, content: @Composable () -> Unit) {
 
 /** The date, a greeting for the time of day, and a chip for each birthday today. */
 @Composable
-private fun Greeting(now: Long, weather: WeatherReport?, birthdays: List<GlanceBirthday>) {
+private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthdays: List<GlanceBirthday>) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
@@ -413,7 +431,7 @@ private fun Greeting(now: Long, weather: WeatherReport?, birthdays: List<GlanceB
             color = scheme.onSurface,
             modifier = Modifier.padding(top = 2.dp, bottom = 10.dp).semantics { heading() }
         )
-        if (birthdays.isNotEmpty() || weather != null) {
+        if (birthdays.isNotEmpty() || weather != null || sunset != null) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (weather != null) {
                     TodayChip(
@@ -421,6 +439,16 @@ private fun Greeting(now: Long, weather: WeatherReport?, birthdays: List<GlanceB
                         text = "${weather.temperature.roundToInt()}° ${WeatherCodes.describe(weather.code)}",
                         detail = "H ${weather.high.roundToInt()}°",
                         spin = WeatherCodes.kind(weather.code) == WeatherCodes.Kind.CLEAR && weather.isDay,
+                        onClick = { openWeather(context) }
+                    )
+                }
+                if (sunset != null) {
+                    val time = remember(sunset) { android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(sunset)) }
+                    TodayChip(
+                        icon = null,
+                        leading = { color -> TodayIcon(hour = 17.6f, color = color, modifier = Modifier.size(18.dp)) },
+                        text = "Sunset $time",
+                        detail = null,
                         onClick = { openWeather(context) }
                     )
                 }
@@ -439,7 +467,14 @@ private fun Greeting(now: Long, weather: WeatherReport?, birthdays: List<GlanceB
 }
 
 @Composable
-internal fun TodayChip(icon: ImageVector, text: String, detail: String?, spin: Boolean = false, onClick: () -> Unit) {
+internal fun TodayChip(
+    icon: ImageVector?,
+    text: String,
+    detail: String?,
+    spin: Boolean = false,
+    leading: (@Composable (Color) -> Unit)? = null,
+    onClick: () -> Unit
+) {
     val scheme = MaterialTheme.colorScheme
     Row(
         Modifier
@@ -452,7 +487,11 @@ internal fun TodayChip(icon: ImageVector, text: String, detail: String?, spin: B
     ) {
         Box(Modifier.size(26.dp).background(scheme.tertiaryContainer, CircleShape), contentAlignment = Alignment.Center) {
             val turn = rememberSlowTurn(spin)
-            Icon(icon, contentDescription = null, tint = scheme.onTertiaryContainer, modifier = Modifier.size(17.dp).graphicsLayer { rotationZ = turn() })
+            if (icon != null) {
+                Icon(icon, contentDescription = null, tint = scheme.onTertiaryContainer, modifier = Modifier.size(17.dp).graphicsLayer { rotationZ = turn() })
+            } else {
+                leading?.invoke(scheme.onTertiaryContainer)
+            }
         }
         Spacer(Modifier.width(8.dp))
         Text(text, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface)
@@ -464,7 +503,7 @@ internal fun TodayChip(icon: ImageVector, text: String, detail: String?, spin: B
 
 /** The next event: how long until it starts, when and where, and one tap to directions (when it has a place) or the event. */
 @Composable
-private fun UpNextCard(event: CalendarEvent, now: Long) {
+private fun UpNextCard(event: CalendarEvent, now: Long, trip: TodayTrip?) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val time = remember(event.beginMillis) {
@@ -518,16 +557,58 @@ private fun UpNextCard(event: CalendarEvent, now: Long) {
                 )
             }
         }
-        Row(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (trip != null) LeaveBy(trip, now)
+        FlowRow(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (event.location.isNotBlank()) {
                 PillButton("Directions", Icons.Filled.Directions, filled = true) {
                     launchSafeIntent(context, Intent(Intent.ACTION_VIEW, "geo:0,0?q=${Uri.encode(event.location)}".toUri()))
                 }
             }
-            PillButton("Open Event", Icons.Outlined.Event, filled = event.location.isBlank()) {
-                launchSafeIntent(context, calendarEventIntent(event))
+            if (event.phone.isNotBlank()) {
+                PillButton("Call", Icons.Filled.Call, filled = event.location.isBlank()) {
+                    launchSafeIntent(context, Intent(Intent.ACTION_DIAL, "tel:${Uri.encode(event.phone)}".toUri()))
+                }
+            }
+            // With both Directions and Call there is no room for a third; the card itself opens the event.
+            if (event.location.isBlank() || event.phone.isBlank()) {
+                PillButton("Open Event", Icons.Outlined.Event, filled = event.location.isBlank() && event.phone.isBlank()) {
+                    launchSafeIntent(context, calendarEventIntent(event))
+                }
             }
         }
+    }
+}
+
+/**
+ * When to leave: the time, a bar filling over the hour before it, and about how long the trip takes. Past the time
+ * it says to leave now.
+ */
+@Composable
+private fun LeaveBy(trip: TodayTrip, now: Long) {
+    val scheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val time = remember(trip.leaveAt) { android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(trip.leaveAt)) }
+    val window = 60 * 60_000L
+    val target = ((now - (trip.leaveAt - window)).toFloat() / window).coerceIn(0f, 1f)
+    val animate by rememberAnimationsEnabled()
+    val fill by animateFloatAsState(target, if (animate) tween(800, delayMillis = 300) else snap(), label = "leave by")
+    Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            if (trip.leaveAt <= now) "Leave now" else "Leave by $time",
+            style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onPrimaryContainer
+        )
+        Box(
+            Modifier
+                .weight(1f)
+                .padding(horizontal = 10.dp)
+                .height(6.dp)
+                .clip(CircleShape)
+                .background(scheme.onPrimaryContainer.copy(alpha = 0.18f))
+        ) {
+            Box(Modifier.fillMaxWidth(fill).height(6.dp).clip(CircleShape).background(scheme.onPrimaryContainer))
+        }
+        Text("About ${trip.minutes} min", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer)
     }
 }
 
@@ -556,7 +637,9 @@ private fun PillButton(label: String, icon: ImageVector, filled: Boolean, onClic
  * (labels taking turns above and below the line so neighbors don't collide), and a dot for now.
  */
 @Composable
-private fun RestOfDay(events: List<CalendarEvent>, now: Long) {
+private fun RestOfDay(calendar: List<CalendarEvent>, now: Long, sunset: Long?) {
+    // The day's events, with sunset among them as a warm pin when it is still ahead.
+    val events = (calendar + listOfNotNull(sunset?.let { CalendarEvent(SUNSET, "", -1L, it) })).sortedBy { it.beginMillis }
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val animate by rememberAnimationsEnabled()
@@ -579,7 +662,7 @@ private fun RestOfDay(events: List<CalendarEvent>, now: Long) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Rest of your day", style = MaterialTheme.typography.titleSmall, color = scheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-            Text("${events.size} events", style = MaterialTheme.typography.labelMedium, color = scheme.primary)
+            Text(if (calendar.size == 1) "1 event" else "${calendar.size} events", style = MaterialTheme.typography.labelMedium, color = scheme.primary)
         }
         BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 6.dp).height(96.dp)) {
             val width = maxWidth
@@ -587,6 +670,7 @@ private fun RestOfDay(events: List<CalendarEvent>, now: Long) {
             val fill = scheme.primary
             val pin = scheme.onSurfaceVariant
             val pinFill = scheme.surfaceContainer
+            val warm = if (scheme.surface.luminance() < 0.5f) Color(0xFFF2B872) else Color(0xFFB5651D)
             val nowAt = at(now)
             Canvas(Modifier.fillMaxSize()) {
                 val y = 44.dp.toPx()
@@ -596,7 +680,7 @@ private fun RestOfDay(events: List<CalendarEvent>, now: Long) {
                 for (event in events) {
                     val x = size.width * at(event.beginMillis)
                     drawCircle(pinFill, 5.dp.toPx(), Offset(x, y))
-                    drawCircle(pin, 5.dp.toPx() - 1.25.dp.toPx(), Offset(x, y), style = Stroke(2.5.dp.toPx()))
+                    drawCircle(if (event.eventId == -1L) warm else pin, 5.dp.toPx() - 1.25.dp.toPx(), Offset(x, y), style = Stroke(2.5.dp.toPx()))
                 }
                 drawCircle(fill.copy(alpha = 0.25f), 12.dp.toPx(), Offset(size.width * nowAt * shown, y))
                 drawCircle(fill, 8.dp.toPx(), Offset(size.width * nowAt * shown, y))
@@ -622,10 +706,18 @@ private fun RestOfDay(events: List<CalendarEvent>, now: Long) {
 
 /** A running timer (counting down each second, a ring sweeping each minute) and the next alarm, side by side. */
 @Composable
-private fun TimerAlarmTiles(timer: GlanceTimer?, alarm: GlanceItem.Alarm?, now: Long) {
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (timer != null) TimerTile(timer, Modifier.weight(1f))
-        if (alarm != null) AlarmTile(alarm, now, Modifier.weight(1f))
+private fun TimerAlarmTiles(timer: GlanceTimer?, alarm: GlanceItem.Alarm?, delivery: TodayDelivery?, now: Long) {
+    val tiles = listOfNotNull<@Composable (Modifier) -> Unit>(
+        timer?.let { { m: Modifier -> TimerTile(it, m) } },
+        delivery?.let { { m: Modifier -> DeliveryTile(it, m) } },
+        alarm?.let { { m: Modifier -> AlarmTile(it, now, m) } }
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        for (pair in tiles.chunked(2)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                for (tile in pair) tile(Modifier.weight(1f))
+            }
+        }
     }
 }
 

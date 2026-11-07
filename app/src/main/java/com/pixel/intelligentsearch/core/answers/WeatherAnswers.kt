@@ -75,11 +75,26 @@ object HomeLocationCodec {
 
 /** One hour of a forecast. */
 @Immutable
-data class WeatherHour(val time: LocalDateTime, val temperature: Double, val code: Int, val isDay: Boolean)
+data class WeatherHour(
+    val time: LocalDateTime,
+    val temperature: Double,
+    val code: Int,
+    val isDay: Boolean,
+    /** The chance of rain or snow that hour, 0 to 100; null when the forecast didn't say. */
+    val precipitation: Int? = null
+)
 
 /** One day of a forecast: its overall conditions and its high and low. */
 @Immutable
-data class WeatherDay(val date: LocalDate, val code: Int, val high: Double, val low: Double)
+data class WeatherDay(
+    val date: LocalDate,
+    val code: Int,
+    val high: Double,
+    val low: Double,
+    /** When the sun rises and sets that day, in the place's own time; null when the forecast didn't say. */
+    val sunrise: LocalDateTime? = null,
+    val sunset: LocalDateTime? = null
+)
 
 /** What Open-Meteo said for a place: conditions now (in the place's own time), hour by hour, and day by day. */
 @Immutable
@@ -106,7 +121,10 @@ data class WeatherReport(
     val isDay: Boolean,
     val high: Double,
     val low: Double,
-    val hours: List<WeatherHour>
+    val hours: List<WeatherHour>,
+    /** The day's sunrise and sunset, in the place's own time, when the forecast gave them. */
+    val sunrise: LocalDateTime? = null,
+    val sunset: LocalDateTime? = null
 ) {
     companion object {
         /** Hours shown on the card. */
@@ -122,12 +140,12 @@ data class WeatherReport(
                 val thisHour = data.now.withMinute(0).withSecond(0).withNano(0)
                 WeatherReport(
                     placeName, unit, day, data.temperature, data.feelsLike, data.code, data.isDay, daily.high, daily.low,
-                    data.hourly.filter { it.time.isAfter(thisHour) }.take(HOURS_SHOWN)
+                    data.hourly.filter { it.time.isAfter(thisHour) }.take(HOURS_SHOWN), daily.sunrise, daily.sunset
                 )
             } else {
                 WeatherReport(
                     placeName, unit, day, daily.high, null, daily.code, true, daily.high, daily.low,
-                    data.hourly.filter { it.time.toLocalDate() == date && it.time.hour in TOMORROW_HOURS }
+                    data.hourly.filter { it.time.toLocalDate() == date && it.time.hour in TOMORROW_HOURS }, daily.sunrise, daily.sunset
                 )
             }
         }
@@ -197,10 +215,14 @@ object OpenMeteoParser {
             val temps = hourlyObj.array("temperature_2m")
             val codes = hourlyObj.array("weather_code")
             val days = hourlyObj.array("is_day")
+            val rain = hourlyObj.array("precipitation_probability")
             times.indices.mapNotNull { i ->
                 val time = times[i].text()?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() } ?: return@mapNotNull null
                 val temp = temps.getOrNull(i)?.number() ?: return@mapNotNull null
-                WeatherHour(time, temp, codes.getOrNull(i)?.number()?.toInt() ?: 3, days.getOrNull(i)?.flag() ?: true)
+                WeatherHour(
+                    time, temp, codes.getOrNull(i)?.number()?.toInt() ?: 3, days.getOrNull(i)?.flag() ?: true,
+                    rain.getOrNull(i)?.number()?.toInt()?.coerceIn(0, 100)
+                )
             }
         }
         val dailyObj = root["daily"] as JsonObject
@@ -208,13 +230,18 @@ object OpenMeteoParser {
         val dayCodes = dailyObj.array("weather_code")
         val highs = dailyObj.array("temperature_2m_max")
         val lows = dailyObj.array("temperature_2m_min")
+        val sunrises = dailyObj.array("sunrise")
+        val sunsets = dailyObj.array("sunset")
+        fun timeAt(list: List<JsonElement>, i: Int) = list.getOrNull(i)?.text()?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() }
         val daily = dates.indices.mapNotNull { i ->
             val date = dates[i].text()?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return@mapNotNull null
             WeatherDay(
                 date,
                 dayCodes.getOrNull(i)?.number()?.toInt() ?: 3,
                 highs.getOrNull(i)?.number() ?: return@mapNotNull null,
-                lows.getOrNull(i)?.number() ?: return@mapNotNull null
+                lows.getOrNull(i)?.number() ?: return@mapNotNull null,
+                timeAt(sunrises, i),
+                timeAt(sunsets, i)
             )
         }
         val temperature = (current["temperature_2m"] as JsonPrimitive).doubleOrNull
@@ -253,8 +280,8 @@ object OpenMeteoParser {
         append("https://api.open-meteo.com/v1/forecast?latitude=").append(HomeLocationCodec.coordinate(latitude))
         append("&longitude=").append(HomeLocationCodec.coordinate(longitude))
         append("&current=temperature_2m,apparent_temperature,weather_code,is_day")
-        append("&hourly=temperature_2m,weather_code,is_day")
-        append("&daily=weather_code,temperature_2m_max,temperature_2m_min")
+        append("&hourly=temperature_2m,weather_code,is_day,precipitation_probability")
+        append("&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset")
         unit.apiValue?.let { append("&temperature_unit=").append(it) }
         append("&timezone=auto&forecast_days=2")
     }

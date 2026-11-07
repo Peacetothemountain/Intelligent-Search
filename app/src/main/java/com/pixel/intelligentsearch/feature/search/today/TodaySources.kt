@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.staticCompositionLocalOf
 import com.pixel.intelligentsearch.core.answers.ForecastDay
 import com.pixel.intelligentsearch.core.answers.LiveAnswer
@@ -37,6 +38,14 @@ import java.util.Locale
 @Immutable
 data class TodayBattery(val level: Int, val charging: Boolean, val minutesToFull: Long? = null, val saver: Boolean = false)
 
+/** When to leave for an event: at [leaveAt] (wall clock), for a trip of about [minutes]. */
+@Immutable
+data class TodayTrip(val leaveAt: Long, val minutes: Int)
+
+/** Photos from this date [yearsAgo] years ago: how many, the first to open, and its thumbnail. */
+@Immutable
+data class TodayMemory(val yearsAgo: Int, val count: Int, val uri: android.net.Uri, val thumbnail: androidx.compose.ui.graphics.ImageBitmap?)
+
 /** The next big holiday, [days] from today. */
 @Immutable
 data class TodayCountdown(val name: String, val days: Int, val date: LocalDate)
@@ -56,6 +65,33 @@ interface TodaySources {
     fun notifications(): Flow<List<IndexedNotification>>
     fun countdown(today: LocalDate): TodayCountdown?
     val controls: TodayControls
+    /** When to leave for [event], from the phone's approximate location to its place; null when either is unknown. */
+    suspend fun trip(event: com.pixel.intelligentsearch.core.data.CalendarEvent): TodayTrip? = null
+    /** The latest year's photos taken on [today]'s date, when photos may be read and there are any. */
+    suspend fun memory(today: LocalDate): TodayMemory? = null
+}
+
+/**
+ * About how long a drive of [straightKm] as the crow flies takes, in whole minutes: roads run about 1.3 times the
+ * straight line, at city speed for short trips and highway speed for long ones, plus five minutes to park.
+ */
+internal fun driveMinutes(straightKm: Double): Int {
+    val roadKm = straightKm * 1.3
+    val kmPerHour = when {
+        roadKm < 3 -> 25.0
+        roadKm < 25 -> 40.0
+        else -> 70.0
+    }
+    return (kmPerHour.let { roadKm / it * 60 }).let { kotlin.math.ceil(it).toInt() } + 5
+}
+
+/** The distance between two points on the earth, in kilometers. */
+internal fun distanceKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val dLat = Math.toRadians(lat2 - lat1)
+    val dLon = Math.toRadians(lon2 - lon1)
+    val a = kotlin.math.sin(dLat / 2).let { it * it } +
+        kotlin.math.cos(Math.toRadians(lat1)) * kotlin.math.cos(Math.toRadians(lat2)) * kotlin.math.sin(dLon / 2).let { it * it }
+    return 6371.0 * 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
 }
 
 /** Do Not Disturb, the flashlight, the hotspot and Battery Saver. */
@@ -118,6 +154,79 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
     override fun screenTime(): ScreenTimeReport? = runCatching { ScreenTimeRepository(app).today() }.getOrNull()
 
     override fun notifications(): Flow<List<IndexedNotification>> = app.appEntryPoint.notificationIndex().entries
+
+    private val places = java.util.concurrent.ConcurrentHashMap<String, Pair<Double, Double>>()
+
+    override suspend fun trip(event: com.pixel.intelligentsearch.core.data.CalendarEvent): TodayTrip? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        if (event.location.isBlank()) return@withContext null
+        val here = com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(app)
+        if (!here.permitted()) return@withContext null
+        val from = here.approximate() ?: return@withContext null
+        val to = places[event.location] ?: geocode(event.location)?.also { places[event.location] = it } ?: return@withContext null
+        val minutes = driveMinutes(distanceKm(from.first, from.second, to.first, to.second))
+        TodayTrip(event.beginMillis - minutes * 60_000L, minutes)
+    }
+
+    /** Where [address] is, from Android's own geocoder; null when it has none or finds nothing. */
+    private suspend fun geocode(address: String): Pair<Double, Double>? {
+        if (!android.location.Geocoder.isPresent()) return null
+        val geocoder = android.location.Geocoder(app)
+        return runCatching {
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                kotlinx.coroutines.withTimeoutOrNull(5_000L) {
+                    kotlinx.coroutines.suspendCancellableCoroutine { done ->
+                        geocoder.getFromLocationName(address, 1, object : android.location.Geocoder.GeocodeListener {
+                            override fun onGeocode(addresses: MutableList<android.location.Address>) {
+                                done.resumeWith(Result.success(addresses.firstOrNull()?.let { it.latitude to it.longitude }))
+                            }
+                            override fun onError(errorMessage: String?) {
+                                done.resumeWith(Result.success(null))
+                            }
+                        })
+                    }
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                geocoder.getFromLocationName(address, 1)?.firstOrNull()?.let { it.latitude to it.longitude }
+            }
+        }.getOrNull()
+    }
+
+    override suspend fun memory(today: LocalDate): TodayMemory? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        if (!com.pixel.intelligentsearch.feature.settings.photosAllowed(app)) return@withContext null
+        val zone = ZoneId.systemDefault()
+        // The same date in each of the last fifteen years, as one query.
+        val years = (1..15).mapNotNull { back ->
+            runCatching { today.minusYears(back.toLong()) }.getOrNull()?.takeIf { it.dayOfMonth == today.dayOfMonth }
+        }
+        if (years.isEmpty()) return@withContext null
+        val selection = years.joinToString(" OR ") { "(${android.provider.MediaStore.Images.Media.DATE_TAKEN} >= ? AND ${android.provider.MediaStore.Images.Media.DATE_TAKEN} < ?)" }
+        val args = years.flatMap { day ->
+            val start = day.atStartOfDay(zone).toInstant().toEpochMilli()
+            listOf(start.toString(), (start + 86_400_000L).toString())
+        }.toTypedArray()
+        val uri = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+        val found = mutableListOf<Pair<Long, Long>>()
+        runCatching {
+            app.contentResolver.query(
+                uri,
+                arrayOf(android.provider.MediaStore.Images.Media._ID, android.provider.MediaStore.Images.Media.DATE_TAKEN),
+                selection, args,
+                "${android.provider.MediaStore.Images.Media.DATE_TAKEN} DESC"
+            )?.use { cursor ->
+                while (cursor.moveToNext()) found += cursor.getLong(0) to cursor.getLong(1)
+            }
+        }
+        if (found.isEmpty()) return@withContext null
+        // The latest year that has any.
+        val year = java.time.Instant.ofEpochMilli(found.first().second).atZone(zone).year
+        val thatYear = found.filter { java.time.Instant.ofEpochMilli(it.second).atZone(zone).year == year }
+        val first = android.content.ContentUris.withAppendedId(uri, thatYear.first().first)
+        val thumbnail = runCatching {
+            app.contentResolver.loadThumbnail(first, android.util.Size(360, 360), null).asImageBitmap()
+        }.getOrNull()
+        TodayMemory(today.year - year, thatYear.size, first, thumbnail)
+    }
 
     override fun countdown(today: LocalDate): TodayCountdown? =
         nextCountdown(today, ZoneId.systemDefault(), Locale.getDefault().country.uppercase(Locale.ROOT)) { occasion ->

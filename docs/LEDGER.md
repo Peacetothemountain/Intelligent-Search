@@ -281,6 +281,20 @@ with the strongest evidence.
 - Commit: see `Run the minified build beside the tests` in `git log dev`
 - Lesson: check a shell gate under the same flags the runner uses. `set -e` is ignored inside `( ... ) && ...`, so my first check of this one passed cases that really fail.
 
+### 2026-11-07: Cycles run back to back
+- Command: owner said "Runs need to happen concurrently. One after the next. Do not wait for me."
+- Target and evidence: a 4-hour gap between runs. Read as one after another, not at the same time: the runs share one thread and worktree, and two pushing to `dev` together would collide
+- Research: the scheduler's triggers are interval, fixed time, once and webhook, with nothing for "when the last run ends". What a short interval does while a run is active isn't documented, and an overlapping run would stop at the unfinished-work check
+- Models used: inline (Opus 5.5)
+- Usage level: owner said they have full use with no limits; no figure visible. Normal mode
+- Change: each run's last action is `run_scheduled_task_now`; the 4-hour interval stays only to restart a broken chain; a CI run still in progress no longer holds up a cycle; the chain stops when a run finds unfinished work or no candidate has evidence
+- CI on `49b44ad7` (B13, entry above): all three jobs green, about 76s, as expected with nothing to rebuild. The saving is still to be measured on an app code commit. A failing job hasn't gone through the gate on GitHub yet
+- Before -> after: gap between runs, 4 hours -> none, once proven by a run starting from another
+- Result: kept, pending that proof
+- Retry only if: `run_scheduled_task_now` returns null from inside a run, or starts a run on top of an active one
+- Commit: see `Run improvement cycles back to back` in `git log dev`
+- Lesson: more runs means commits land faster than CI finishes, so read the newest finished run rather than the newest commit.
+
 <!--
 Copy this for each cycle, newest at the bottom.
 

@@ -94,8 +94,9 @@ Rules:
 
 ### Scheduled runs
 
-A task in T3 Code's scheduled tasks, `Improve Intelligent Search`, starts one fresh cycle every 4 hours. Nobody is there
-to answer, so each run follows these rules:
+A task in T3 Code's scheduled tasks, `Improve Intelligent Search`, runs fresh cycles back to back: each run's last action
+starts the next, and a 4-hour timer only restarts the chain if it breaks. Nobody is there to answer, so each run follows
+these rules:
 
 - Each run has its own T3 worktree, so it can't disturb the owner's checkout at `F:\Intelligent-Search`. Work only in the
   worktree, and don't change anything in that checkout.
@@ -106,10 +107,12 @@ to answer, so each run follows these rules:
   debug or unsigned.
 - Finish with `git push origin HEAD:dev`. If `dev` has moved, rebase the run's own commit onto `origin/dev` and push
   again. Never force a push.
-- If CI failed on the newest `dev` commit, fixing that is the target.
+- If CI failed on the newest `dev` commit that has finished, fixing that is the target. A run still in progress doesn't
+  hold anything up: carry on, and a later run fixes it if it fails.
 - A target that needs the owner goes in the ledger as waiting on them, and the run takes the next candidate.
 - Don't wait for CI, and don't schedule or poll anything to find out when something finishes. Every wake-up is a new
-  prompt that spends tokens to learn nothing. Push and end the run. The next run reads the result first.
+  prompt that spends tokens to learn nothing. Push, start the next run with `run_scheduled_task_now`, and end. The next
+  run reads the result first. A run that found an earlier run's unfinished work, or paused the task, doesn't start another.
 - When no candidate has evidence behind it, add a ledger entry saying so, pause the task, and tell the owner in the
   run's report.
 

@@ -389,16 +389,16 @@ internal fun photosAllowed(context: Context): Boolean {
 
 /** What Today's On This Day says before Android asks for photos. */
 internal const val PHOTOS_RATIONALE =
-    "On This Day shows photos you took on this date in other years. Your photos are read on your phone and never " +
-        "leave it."
+    "On This Day shows a photo from your past each day, from this date in another year when there is one. Your " +
+        "photos are read on your phone and never leave it."
 
 private val PHOTOS_PROMPT = PermissionPrompt(
     permission = PHOTOS_PERMISSION,
     askTitle = "Allow Photo Access?",
     askText = PHOTOS_RATIONALE,
     offTitle = "Photo Access Is Off",
-    offText = "Photo access for Intelligent Search is turned off. Allow it in Android settings to see your photos " +
-        "from this day in other years.",
+    offText = "Photo access for Intelligent Search is turned off. Allow it in Android settings to see a photo " +
+        "from your past each day.",
     allowed = ::photosAllowed
 )
 

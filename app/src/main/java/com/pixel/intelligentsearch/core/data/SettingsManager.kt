@@ -251,7 +251,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val TODAY_EXTRAS = BooleanSetting("today.extras", true)
         /** Up Next's leave-by time, from the phone's approximate location (shown only while location is allowed). */
         val TODAY_LEAVE_BY = BooleanSetting("today.leave_by", true)
-        /** Today's On This Day: photos from this date in other years (shown only while photos may be read). */
+        /** Today's On This Day: a photo from the past each day, from this date when there is one (shown only while photos may be read). */
         val TODAY_MEMORIES = BooleanSetting("today.memories", true)
         /**
          * AI Answers: questions ("…?", "ask …") offer an Ask row that, only when tapped, sends that one question to

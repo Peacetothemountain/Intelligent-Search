@@ -104,7 +104,7 @@ internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() 
             val photosRequest = rememberPhotosRequest { memories = true }
             SettingsRowToggle(
                 title = "On This Day",
-                subtitle = "Photos You Took on This Date in Other Years. Uses Photo Access.",
+                subtitle = "A Photo From Your Past Each Day, From This Date When There Is One. Uses Photo Access.",
                 icon = Symbols.Outlined.Image,
                 isChecked = memories && photos,
                 onCheckedChange = { on ->

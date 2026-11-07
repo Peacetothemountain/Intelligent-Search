@@ -27,14 +27,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Key
-import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.LockOpen
-import androidx.compose.material.icons.outlined.Password
-import androidx.compose.material.icons.outlined.RestartAlt
-import androidx.compose.material.icons.outlined.Shield
-import androidx.compose.material.icons.outlined.SystemUpdate
-import androidx.compose.material.icons.outlined.VerifiedUser
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Password
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Shield
+import com.pixel.intelligentsearch.core.ui.icons.outlined.SystemUpdate
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon

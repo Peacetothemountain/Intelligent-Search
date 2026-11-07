@@ -12,12 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Apps
-import androidx.compose.material.icons.outlined.Calculate
-import androidx.compose.material.icons.outlined.Contacts
-import androidx.compose.material.icons.outlined.CurrencyExchange
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.Language
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Apps
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Contacts
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Language
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text

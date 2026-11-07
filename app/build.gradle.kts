@@ -193,7 +193,6 @@ dependencies {
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.material3)
   implementation(libs.androidx.compose.material.icons.core)
-  implementation(libs.androidx.compose.material.icons.extended)
   // No ui-tooling: nothing uses @Preview, and it adds an exported PreviewActivity to debug builds.
   // The empty activity the Compose test rules host screens in; debug builds only.
   debugImplementation(libs.androidx.compose.ui.test.manifest)

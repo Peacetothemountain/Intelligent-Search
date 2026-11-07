@@ -1,11 +1,11 @@
 package com.pixel.intelligentsearch.feature.search
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.ContentPaste
-import androidx.compose.material.icons.filled.Directions
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Timer
+import com.pixel.intelligentsearch.core.ui.icons.filled.Alarm
+import com.pixel.intelligentsearch.core.ui.icons.filled.ContentPaste
+import com.pixel.intelligentsearch.core.ui.icons.filled.Directions
+import com.pixel.intelligentsearch.core.ui.icons.filled.Lock
+import com.pixel.intelligentsearch.core.ui.icons.filled.Timer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test

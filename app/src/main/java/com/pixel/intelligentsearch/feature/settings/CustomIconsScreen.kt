@@ -26,9 +26,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AppShortcut
-import androidx.compose.material.icons.outlined.DragHandle
-import androidx.compose.material.icons.outlined.Palette
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Palette
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon

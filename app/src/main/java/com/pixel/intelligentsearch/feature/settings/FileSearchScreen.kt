@@ -24,13 +24,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CreateNewFolder
-import androidx.compose.material.icons.outlined.DeleteSweep
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material.icons.outlined.FolderOff
-import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Visibility
+import com.pixel.intelligentsearch.core.ui.icons.outlined.DeleteSweep
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Info
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon

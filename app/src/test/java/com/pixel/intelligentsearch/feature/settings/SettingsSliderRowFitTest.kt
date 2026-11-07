@@ -2,8 +2,6 @@ package com.pixel.intelligentsearch.feature.settings
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.LineWeight
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
@@ -14,6 +12,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
+import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.android.testing.HiltTestApplication
@@ -54,7 +53,7 @@ class SettingsSliderRowFitTest {
                             value = 0f,
                             onValueChange = {},
                             valueRange = 0f..12f,
-                            icon = Icons.Outlined.LineWeight,
+                            icon = Symbols.Outlined.LineWeight,
                             showDivider = false,
                             steps = 5,
                             valueText = { "None" }

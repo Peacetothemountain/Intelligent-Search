@@ -30,10 +30,10 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.CalendarMonth
-import androidx.compose.material.icons.outlined.EventRepeat
-import androidx.compose.material.icons.automirrored.outlined.Label
+import com.pixel.intelligentsearch.core.ui.icons.automirrored.filled.ArrowBack
+import com.pixel.intelligentsearch.core.ui.icons.outlined.CalendarMonth
+import com.pixel.intelligentsearch.core.ui.icons.outlined.EventRepeat
+import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.Label
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api

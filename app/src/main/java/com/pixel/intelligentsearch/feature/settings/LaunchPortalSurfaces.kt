@@ -14,8 +14,7 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.BubbleChart
-import androidx.compose.material.icons.outlined.NotificationsActive
+import com.pixel.intelligentsearch.core.ui.icons.outlined.NotificationsActive
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect

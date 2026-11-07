@@ -25,11 +25,11 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Alarm
-import androidx.compose.material.icons.outlined.Cake
-import androidx.compose.material.icons.outlined.Event
-import androidx.compose.material.icons.outlined.MusicNote
-import androidx.compose.material.icons.outlined.Timer
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Alarm
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Cake
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Event
+import com.pixel.intelligentsearch.core.ui.icons.outlined.MusicNote
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Timer
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text

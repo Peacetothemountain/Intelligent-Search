@@ -2,16 +2,7 @@ package com.pixel.intelligentsearch.core.ui
 
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
-import androidx.compose.material.icons.outlined.Android
-import androidx.compose.material.icons.outlined.AudioFile
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.FolderZip
-import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.PictureAsPdf
-import androidx.compose.material.icons.outlined.Slideshow
-import androidx.compose.material.icons.outlined.TableChart
-import androidx.compose.material.icons.outlined.VideoFile
+import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.pixel.intelligentsearch.core.data.FileTypeGroup
 

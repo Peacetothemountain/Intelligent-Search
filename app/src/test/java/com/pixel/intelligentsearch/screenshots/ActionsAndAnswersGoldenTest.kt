@@ -6,9 +6,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.Event
-import androidx.compose.material.icons.filled.Timer
+import com.pixel.intelligentsearch.core.ui.icons.filled.Alarm
+import com.pixel.intelligentsearch.core.ui.icons.filled.Event
+import com.pixel.intelligentsearch.core.ui.icons.filled.Timer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier

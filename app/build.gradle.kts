@@ -163,7 +163,6 @@ room {
 }
 
 dependencies {
-  implementation(libs.media3.exoplayer)
   implementation(libs.google.material)
   // Core
   implementation(libs.androidx.core.ktx)

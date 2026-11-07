@@ -146,7 +146,7 @@ fun SettingsScreensHub(
         val navController = androidx.navigation.compose.rememberNavController()
         // Held by the hub so the clip stays loaded while moving between settings pages; MainSettingsScreen plays
         // it only while it is the resumed page.
-        val exoPlayer = rememberBugdroidPlayer(BugdroidClip.SETTINGS, autoPlay = false)
+        val bugdroidPlayer = rememberBugdroidPlayer(BugdroidClip.SETTINGS, autoPlay = false)
 
         // Android's own back animation between pages: each page is remembered as it was last seen when another opens
         // over it, so a back swipe can show it underneath as the system shows the activity underneath.
@@ -467,7 +467,7 @@ fun SettingsScreensHub(
                         )
                     }
                 ) {
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.Main> { MainSettingsScreen(prefs, onNavigate, onBack, context, exoPlayer, showTutorial) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.Main> { MainSettingsScreen(prefs, onNavigate, onBack, context, bugdroidPlayer, showTutorial) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Appearance> { AppearanceScreen(prefs, onNavigate, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.CustomIcons> { CustomIconsScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.SearchSources> { SearchSourcesScreen(onNavigate, onBack) }
@@ -498,7 +498,7 @@ fun SettingsScreensHub(
                                 }
                             )
                         } else {
-                            MainSettingsScreen(prefs, onNavigate, onBack, context, exoPlayer, showTutorial)
+                            MainSettingsScreen(prefs, onNavigate, onBack, context, bugdroidPlayer, showTutorial)
                         }
                     }
                 }

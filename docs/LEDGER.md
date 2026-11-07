@@ -14,7 +14,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
-| Release APK size | 10,431,593 bytes, unsigned | local build 2026-11-07, DataStore out of the release build (10,619,341 before, 11,346,076 before the themes moved to Android's own Material theme, 11,675,957 before the activities were plain `ComponentActivity`, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
+| Release APK size | 9,972,773 bytes, unsigned | local build 2026-11-07, Media3 out of the release build (10,431,593 before DataStore went, 10,619,341 before that, 11,346,076 before the themes moved to Android's own Material theme, 11,675,957 before the activities were plain `ComponentActivity`, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
@@ -479,6 +479,23 @@ with the strongest evidence.
 - Retry only if: a settings value from before 2026-10-15 is lost on update; or, once no supported install can predate `6956f538`, delete the import, the reader and its test
 - Commit: see `Read the old settings file without DataStore` in `git log dev`
 - Lesson: a library kept only for a one-time migration read costs its whole runtime; a format this small reads in a page of code, proven against the library writing it in tests.
+
+### 2026-11-07: Media3 shipped to loop three silent clips
+- Command: /improve (scheduled run)
+- Target and evidence: release APK size. After the narrow ExoPlayer entry above, `apkanalyzer dex packages` with the mapping still showed `androidx.media3` at 365,373 bytes of dex and Guava, which only Media3 brought in whole, at 37,223: about 400 KB to play three MP4s in `res/raw`, each one H.264 track (High profile, B-frames) with no sound and one key frame (box headers read this run). The largest library left that does one small job. Chosen because the backlog has nothing left with evidence (B11 only adds tests) and no crash or flaky run is open. CI green on `3d5fffea` and everything before it; `baca3d07` still running
+- Prior work checked: this ledger (the ExoPlayer entry cut Media3 to what the clips need), memories `bugdroid-loops-untouched` and `bugdroid-ignores-reduced-motion`, claude-mem
+- Research: the callers use only play, pause, release, a `TextureView` and a first-frame signal. All three clips run at a constant rate (128 frames in 5.333 s, 192 in 8 s, 473 in 7.883 s)
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: new `BugdroidVideo.kt` (about 290 lines) decodes with the platform `MediaCodec` on a thread of its own. At the end of the file it feeds the same samples again from the start, timed one loop later, so the decoder never stops and every frame is kept. Frames reach the view at their own time on a clock that stops while paused. A decoder that fails before its first frame hands over to the next one the device lists. The poster now goes when the view has drawn a video frame (`onSurfaceTextureUpdated`). Callers and the `exoPlayer` names are switched over; Media3 is gone from the build and the version catalog
+- Behavior change: when a page with a bugdroid closes and comes back, the clip starts again from its first frame, which is its poster, instead of from where it paused. Before, the poster showed and then the clip jumped to the paused frame
+- Before -> after: release APK, unsigned local builds, 10,431,593 -> 9,972,773 bytes (-458,820); dex 5,086,891 -> 4,689,498; `com.google.common` 37,223 -> 7,728 (what other libraries use). Test code 52,055 -> 52,055; lint clean, baseline 11 -> 11; unit test sources compile
+- Emulator: `agent-device open` returned `DEVICE_IN_USE` for the fourth run in a row, held by session `t3-e822f319011a4059b97668d8` (diagnostics `mw6a49a6-24984042`, `mw6a4cmt-4e104a9a` with `--wait 30000`), so no screen was driven. Instead a throwaway instrumented probe (removed before commit) ran on `IS_Pixel_XL` with `adb -s emulator-5580 am instrument`. It played each clip into a real `TextureView` and logged every frame's buffer timestamp. 24 fps clips: every step 41.7 ms across two loop seams each. Welcome clip at 60 fps: 1,022 frames in 17 s, every step 16.7-22 ms, across two seams. First frame shown while still paused, 0.2-0.8 s after the surface was ready. No frames during a 1.5 s pause. Moving to a new view: 119 frames in 5 s. No exceptions. The probe also found that the emulator's hardware decoder `c2.goldfish.h264.decoder` fails every app decode, the plain textbook one included (SELinux denies the codec the app's buffer memory). Media3, which has no decoder fallback by default, would have shown only the poster there; the fallback above plays it on `c2.android.avc.decoder`
+- Waiting on the owner: the baseline profile in `app/src/release/generated` still names Media3 classes (harmless, they are ignored) and lacks `BugdroidVideo`; regenerating it needs the phone. A look on the phone that the three clips play and loop as before
+- Result: kept, pending CI
+- Retry only if: a clip stays on its poster or stutters at its loop on the phone; first check which decoder logcat names, then compare frame timestamps with this probe, rebuilt from this entry
+- Commit: see `Play the Bugdroid clips without Media3` in `git log dev`
+- Lesson: a library player's whole runtime is the price of a few lines of `MediaCodec` when the media is fixed and known. Measure the loop with buffer timestamps, not by eye.
 
 <!--
 Copy this for each cycle, newest at the bottom.

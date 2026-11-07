@@ -171,7 +171,7 @@ fun TutorialSpotlightOverlay(
     // Only decode the keyed video on the step that shows it, and only where the AGSL key is supported (API 33+).
     val showsBugdroidVideo = android.os.Build.VERSION.SDK_INT >= 33 &&
         (stepInfo.text.contains("[bugdroid]") || stepInfo.text.contains(":)"))
-    val welcomeExoPlayer = rememberBugdroidPlayer(BugdroidClip.WELCOME, enabled = showsBugdroidVideo)
+    val welcomePlayer = rememberBugdroidPlayer(BugdroidClip.WELCOME, enabled = showsBugdroidVideo)
 
     val stepForward: () -> Unit = {
         if (currentStep < TutorialManager.TOTAL_STEPS - 1) {
@@ -580,7 +580,7 @@ fun TutorialSpotlightOverlay(
                                 minOf(275.dp, (windowHeightPx * 0.3f).toDp())
                             }
                             val cleanText = rawText.replace(bugdroidTag, "").replace(":)", "").trim()
-                            if (welcomeExoPlayer != null) {
+                            if (welcomePlayer != null) {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -590,7 +590,7 @@ fun TutorialSpotlightOverlay(
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
                                     BugdroidPlayer(
-                                        player = welcomeExoPlayer,
+                                        player = welcomePlayer,
                                         clip = BugdroidClip.WELCOME,
                                         modifier = Modifier
                                             .fillMaxWidth()

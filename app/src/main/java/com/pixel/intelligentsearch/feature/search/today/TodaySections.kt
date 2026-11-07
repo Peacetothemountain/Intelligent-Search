@@ -64,6 +64,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -632,10 +633,24 @@ private fun ScreenTimeTile(report: ScreenTimeReport, modifier: Modifier, seen: B
     ) {
         TileLabel(Icons.Filled.HourglassBottom, "Screen time")
         Text(Durations.minutes(report.totalMs), style = MaterialTheme.typography.titleLarge, color = scheme.onSurface, modifier = Modifier.padding(top = 4.dp))
+        // The names share one column, as wide as the longest needs (at least 62 dp, at most two thirds of the row, so
+        // the bars keep a third), so "Intelligent Search" reads whole and the bars still start together.
+        val labelStyle = MaterialTheme.typography.labelSmall
+        val measurer = rememberTextMeasurer()
+        val widestName = remember(top, labelStyle) {
+            top.maxOfOrNull { measurer.measure(it.label, labelStyle, maxLines = 1).size.width } ?: 0
+        }
+        val nameColumn = Modifier.layout { measurable, constraints ->
+            val least = 62.dp.roundToPx()
+            val most = maxOf(least, (constraints.maxWidth * 0.65f).toInt())
+            val width = (widestName + 6.dp.roundToPx()).coerceIn(least, most)
+            val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+            layout(width, placeable.height) { placeable.place(0, 0) }
+        }
         Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             for (app in top) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(app.label, style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(62.dp))
+                    Text(app.label, style = labelStyle, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = nameColumn)
                     Box(Modifier.weight(1f).height(8.dp)) {
                         Box(
                             Modifier

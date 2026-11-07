@@ -59,6 +59,16 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Material is here only for its color math. These three libraries' rules keep the
+            // behaviors, carousel and focus ring that their XML views look up by name, and the
+            // app inflates none of those views.
+            optimization.keepRules {
+                ignoreFrom(
+                    "com.google.android.material:material",
+                    "androidx.coordinatorlayout:coordinatorlayout",
+                    "androidx.recyclerview:recyclerview",
+                )
+            }
             val relConfig = signingConfigs.getByName("release")
             // Strict security: Never silently sign release APKs with debug keys
             signingConfig = if (relConfig.storeFile != null && relConfig.storeFile!!.exists()) relConfig else null

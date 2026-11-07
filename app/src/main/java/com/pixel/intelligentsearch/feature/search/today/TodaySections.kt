@@ -596,6 +596,7 @@ private fun BatteryTile(battery: TodayBattery, modifier: Modifier, seen: Boolean
     val context = LocalContext.current
     val shown = rememberDrawIn(300, 1100, seen)
     val status = when {
+        battery.full -> "Charged"
         battery.charging && battery.minutesToFull != null -> "Full in ${Durations.minutes(battery.minutesToFull * 60_000L)}"
         battery.charging -> "Charging"
         battery.saver -> "Battery Saver on"

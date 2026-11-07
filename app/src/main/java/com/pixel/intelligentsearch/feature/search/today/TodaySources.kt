@@ -22,6 +22,7 @@ import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import com.pixel.intelligentsearch.core.occasion.Occasion
 import com.pixel.intelligentsearch.core.occasion.OccasionCalendar
 import com.pixel.intelligentsearch.core.system.DoNotDisturb
+import com.pixel.intelligentsearch.core.system.battery.BatteryReadings
 import com.pixel.intelligentsearch.di.appEntryPoint
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -32,9 +33,12 @@ import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 
-/** The battery now: its level, whether it is charging, and how long until full when Android can tell. */
+/**
+ * The battery now: its level, whether it is charging, whether it is plugged in and already full, and how long until
+ * full when Android can tell.
+ */
 @Immutable
-data class TodayBattery(val level: Int, val charging: Boolean, val minutesToFull: Long? = null, val saver: Boolean = false)
+data class TodayBattery(val level: Int, val charging: Boolean, val minutesToFull: Long? = null, val saver: Boolean = false, val full: Boolean = false)
 
 /** When to leave for an event: at [leaveAt] (wall clock), for a trip of about [minutes]. */
 @Immutable
@@ -184,13 +188,17 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
         val level = status.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
         val scale = status.getIntExtra(BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
         if (level < 0) return null
-        val state = status.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
-        val charging = state == BatteryManager.BATTERY_STATUS_CHARGING || state == BatteryManager.BATTERY_STATUS_FULL
+        // The same reading as the search's battery answer and Diagnostics, so a full battery on its charger is full here too.
+        val state = BatteryReadings.chargeState(
+            status.getIntExtra(BatteryManager.EXTRA_STATUS, -1),
+            status.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)
+        )
+        val charging = state == BatteryReadings.ChargeState.Charging
         val toFull = if (charging) {
             app.getSystemService(BatteryManager::class.java)?.computeChargeTimeRemaining()?.takeIf { it > 0 }?.let { it / 60_000L }
         } else null
         val saver = app.getSystemService(PowerManager::class.java)?.isPowerSaveMode == true
-        return TodayBattery(level * 100 / scale, charging, toFull, saver)
+        return TodayBattery(level * 100 / scale, charging, toFull, saver, full = state == BatteryReadings.ChargeState.Full)
     }
 
     override fun screenTime(): ScreenTimeReport? = runCatching { ScreenTimeRepository(app).today() }.getOrNull()

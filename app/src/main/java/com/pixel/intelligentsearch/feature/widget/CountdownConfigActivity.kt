@@ -10,7 +10,7 @@ import android.widget.FrameLayout
 import android.widget.RemoteViews
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -97,7 +97,7 @@ import java.time.format.FormatStyle
  * is drawn in. The widget itself is previewed at the top, drawn exactly as it will be. Saving draws the widget and
  * answers the launcher with its id; backing out of a new widget's setup leaves it unplaced.
  */
-class CountdownConfigActivity : AppCompatActivity() {
+class CountdownConfigActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -386,8 +386,7 @@ private fun RemoteViewsPreview(views: RemoteViews, modifier: Modifier = Modifier
         },
         update = { host ->
             host.removeAllViews()
-            // Inflated as a launcher inflates it: the activity's AppCompat inflater would swap in its own views,
-            // which RemoteViews refuses to set up.
+            // Inflated from the app's context, as a launcher inflates it, not with this screen's own inflater.
             val shown = views.apply(host.context.applicationContext, host)
             // A preview: the widget's tap would open the search, or this screen again.
             shown.findViewById<View>(android.R.id.background)?.apply {

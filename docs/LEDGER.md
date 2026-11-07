@@ -14,7 +14,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
-| Release APK size | 11,675,957 bytes, unsigned | local build 2026-11-07, Bugdroid player holds only what the clips need (12,134,709 before, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
+| Release APK size | 11,346,076 bytes, unsigned | local build 2026-11-07, activities are plain `ComponentActivity` (11,675,957 before, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
@@ -432,6 +432,22 @@ with the strongest evidence.
 - Retry only if: a clip stays on its poster, or a new clip isn't a plain MP4 or has sound; then add only the extractor or renderer it needs
 - Commit: see `Build the Bugdroid player with only what the clips need` in `git log dev`
 - Lesson: `apkanalyzer dex packages --proguard-mappings` shows which library R8 couldn't shrink; a default factory is often the reason.
+
+### 2026-11-07: Three activities carried AppCompat for nothing
+- Command: /improve (scheduled run)
+- Target and evidence: release APK size. After the Media3 cut, `apkanalyzer dex packages` with the mapping showed `androidx.appcompat` at 212,633 bytes (126,282 of it `appcompat.widget`) and `com.google.android.material` at 90,670, with button, checkbox, text field and radio button classes. Every screen is Compose, yet `MainActivity`, `SettingsActivity` and `CountdownConfigActivity` extended `AppCompatActivity`, whose delegate and view inflater keep AppCompat's and Material's view widgets. None of them used an AppCompat API: no action bar, `AppCompatDelegate`, night mode override or fragment, the biometric prompt is the platform one, and the only XML inflation is RemoteViews from the app's context. Chosen because the backlog has nothing left with evidence (B11 only adds tests) and no crash or flaky run is open. CI green on `c18870cd`; `ec2990f6` still running
+- Prior work checked: this ledger (no AppCompat entry), `git log origin/dev -S"AppCompatActivity"` (present since the first commit, never chosen on purpose), claude-mem
+- Research: AppCompat 1.7.0's `Platform.AppCompat`, the root of `Theme.Material3.DayNight.NoActionBar`, sets `android:windowNoTitle` true and `android:windowActionBar` false, so the platform draws no title bar for a `ComponentActivity`. Dark mode comes from `isSystemInDarkTheme()` and the platform's `uiMode` config change, not from AppCompat. `DynamicColors.applyToActivityIfAvailable` takes any `Activity`. The test host `HiltTestActivity` was already a `ComponentActivity`
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: the three activities extend `ComponentActivity`; one comment that named the AppCompat inflater reworded. Theme, manifest and dependencies untouched (Material still brings AppCompat, which R8 now mostly removes)
+- Before -> after: release APK, unsigned local builds, 11,675,957 -> 11,346,076 bytes (-329,881); dex 5,503,000 -> 5,256,288; `androidx.appcompat` 212,633 -> 36,900, `com.google.android.material` 90,670 -> 63,342 (the color utilities and shapes the app uses). Test code and lint baseline unchanged
+- Emulator: not checked. `IS_Pixel_XL` booted on 5580 and the debug build installed, but `agent-device open` returned `DEVICE_IN_USE`, held by session `t3-e822f319011a4059b97668d8` from another thread, even with `--wait 30000` (diagnostic `mw68mw8j-6d58d9f1`). Left alone as the rules say; emulator shut down. Robolectric tests that start `MainActivity` and `SettingsActivity` run in CI
+- Result: kept, pending CI and a look at the search overlay, Settings and the countdown widget setup (title bar, insets, switching dark mode while open)
+- Retry only if: a title bar or action bar appears, insets shift, or a screen stops following a dark mode switch while open; then check the theme's window attributes before going back to `AppCompatActivity`
+- Commit: see `Drop AppCompat from the activities` in `git log dev`
+- Lesson: in an all-Compose app, `AppCompatActivity` alone keeps AppCompat's and Material's view widgets through the theme's view inflater; `ComponentActivity` is enough.
+- Next: the `session t3-e822f319011a4059b97668d8` that holds `emulator-5580` has blocked two runs' emulator checks; the owner may want to close it
 
 <!--
 Copy this for each cycle, newest at the bottom.

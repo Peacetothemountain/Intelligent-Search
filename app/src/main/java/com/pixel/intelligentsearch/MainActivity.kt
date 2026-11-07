@@ -8,7 +8,7 @@ import com.pixel.intelligentsearch.feature.settings.SettingsActivity
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
@@ -30,7 +30,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import androidx.core.graphics.drawable.toDrawable
 
 @AndroidEntryPoint
-open class MainActivity : AppCompatActivity(), com.pixel.intelligentsearch.core.system.WaitsForPermissionGrant {
+open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.system.WaitsForPermissionGrant {
 
     @javax.inject.Inject
     lateinit var multiProfileManager: com.pixel.intelligentsearch.core.profile.MultiProfileManager

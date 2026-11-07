@@ -33,7 +33,6 @@
 }
 
 # Jetpack Compose Navigation & Destinations
--keepnames class androidx.navigation.compose.** { *; }
 -keep,allowobfuscation class com.pixel.intelligentsearch.core.navigation.** { *; }
 -keepclasseswithmembers class com.pixel.intelligentsearch.core.navigation.** {
     kotlinx.serialization.KSerializer serializer(...);
@@ -51,14 +50,6 @@
 # Assume Log.isLoggable returns false in release builds for dead-branch elimination
 -assumevalues class android.util.Log {
     boolean isLoggable(java.lang.String, int) return false;
-}
-
-# Material 3 Dynamic Colors
--keep class com.google.android.material.color.DynamicColors { *; }
-
-# Hilt & Architecture Components
--keepclassmembers class * extends androidx.lifecycle.ViewModel {
-    <init>(...);
 }
 
 # Android 14/15/16 Hidden APIs accessed safely via reflection

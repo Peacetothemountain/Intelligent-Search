@@ -305,12 +305,14 @@ internal fun WeatherAhead(report: WeatherReport) {
     val labelStyle = MaterialTheme.typography.labelMedium.copy(color = scheme.onSurface)
     val hourStyle = MaterialTheme.typography.labelSmall.copy(color = scheme.onSurfaceVariant)
     val hours = report.hours
+    // The page is the phone's day, so its hours read on the phone's clock, as sunset and the events do
+    val zone = java.time.ZoneId.systemDefault()
     val temps = hours.map { it.temperature }
     val lo = (temps.minOrNull() ?: 0.0) - 2
     val hi = (temps.maxOrNull() ?: 0.0) + 2
     val labels = hours.mapIndexed { i, h ->
         val pattern = if (is24) "HH" else if (i == 0) "h a" else "h"
-        h.time.format(DateTimeFormatter.ofPattern(pattern, locale))
+        h.time.withZoneSameInstant(zone).format(DateTimeFormatter.ofPattern(pattern, locale))
     }
     Column(
         Modifier
@@ -325,7 +327,7 @@ internal fun WeatherAhead(report: WeatherReport) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Weather ahead", style = MaterialTheme.typography.titleSmall, color = scheme.onSurface, modifier = Modifier.weight(1f))
             Text(
-                if (rainAt >= 0) "Rain likely around ${hours[rainAt].time.format(DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h a", locale))}"
+                if (rainAt >= 0) "Rain likely around ${hours[rainAt].time.withZoneSameInstant(zone).format(DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h a", locale))}"
                 else "H ${report.high.roundToInt()}°  L ${report.low.roundToInt()}°",
                 style = MaterialTheme.typography.labelLarge,
                 color = scheme.onSurfaceVariant

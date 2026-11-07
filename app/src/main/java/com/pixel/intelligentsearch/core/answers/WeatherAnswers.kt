@@ -19,6 +19,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.time.ZonedDateTime
 import java.util.Locale
 
 /** The temperature scale answers use: Fahrenheit where people read it (the US and a few others), else Celsius. */
@@ -79,7 +80,8 @@ object HomeLocationCodec {
 /** One hour of a forecast. */
 @Immutable
 data class WeatherHour(
-    val time: LocalDateTime,
+    /** The hour in the place's own time; move it to the phone's zone where the page is about the phone's day. */
+    val time: ZonedDateTime,
     val temperature: Double,
     val code: Int,
     val isDay: Boolean,
@@ -143,7 +145,7 @@ data class WeatherReport(
                 val thisHour = data.now.withMinute(0).withSecond(0).withNano(0)
                 WeatherReport(
                     placeName, unit, day, data.temperature, data.feelsLike, data.code, data.isDay, daily.high, daily.low,
-                    data.hourly.filter { it.time.isAfter(thisHour) }.take(HOURS_SHOWN), daily.sunrise, daily.sunset
+                    data.hourly.filter { it.time.toLocalDateTime().isAfter(thisHour) }.take(HOURS_SHOWN), daily.sunrise, daily.sunset
                 )
             } else {
                 WeatherReport(
@@ -212,6 +214,9 @@ object OpenMeteoParser {
         val root = json.parseToJsonElement(body) as JsonObject
         val current = root["current"] as JsonObject
         val now = LocalDateTime.parse(current.string("time"))
+        // Times come in the place's own time (timezone=auto), which the answer names
+        val zone = root.string("timezone")?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+            ?: (root["utc_offset_seconds"] as? JsonPrimitive)?.intOrNull?.let { runCatching { ZoneOffset.ofTotalSeconds(it) }.getOrNull() }
         val hourlyObj = root["hourly"] as? JsonObject
         val hourly = if (hourlyObj == null) emptyList() else {
             val times = hourlyObj.array("time")
@@ -220,7 +225,9 @@ object OpenMeteoParser {
             val days = hourlyObj.array("is_day")
             val rain = hourlyObj.array("precipitation_probability")
             times.indices.mapNotNull { i ->
-                val time = times[i].text()?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() } ?: return@mapNotNull null
+                // An answer that names no zone keeps its hours on the phone's clock, as written
+                val time = times[i].text()?.let { runCatching { LocalDateTime.parse(it).atZone(zone ?: ZoneId.systemDefault()) }.getOrNull() }
+                    ?: return@mapNotNull null
                 val temp = temps.getOrNull(i)?.number() ?: return@mapNotNull null
                 WeatherHour(
                     time, temp, codes.getOrNull(i)?.number()?.toInt() ?: 3, days.getOrNull(i)?.flag() ?: true,
@@ -235,9 +242,6 @@ object OpenMeteoParser {
         val lows = dailyObj.array("temperature_2m_min")
         val sunrises = dailyObj.array("sunrise")
         val sunsets = dailyObj.array("sunset")
-        // Daily times come in the place's own time (timezone=auto), which the answer names
-        val zone = root.string("timezone")?.let { runCatching { ZoneId.of(it) }.getOrNull() }
-            ?: (root["utc_offset_seconds"] as? JsonPrimitive)?.intOrNull?.let { runCatching { ZoneOffset.ofTotalSeconds(it) }.getOrNull() }
         fun timeAt(list: List<JsonElement>, i: Int) = zone?.let { place ->
             list.getOrNull(i)?.text()?.let { runCatching { LocalDateTime.parse(it).atZone(place).toInstant() }.getOrNull() }
         }

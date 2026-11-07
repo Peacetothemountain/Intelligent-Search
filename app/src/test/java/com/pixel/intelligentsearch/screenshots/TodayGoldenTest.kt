@@ -120,7 +120,7 @@ class TodayGoldenTest(private val dark: Boolean) {
         private val today = WeatherReport(
             "Johnson City", TemperatureUnit.FAHRENHEIT, ForecastDay.TODAY, 63.0, 61.0, 0, true, 68.0, 39.0,
             listOf(65.0, 66.0, 68.0, 66.0, 61.0, 57.0).mapIndexed { i, t ->
-                WeatherHour(start.plusHours(i.toLong()), t, if (i < 4) 0 else 3, i < 3, listOf(0, 0, 5, 10, 40, 60)[i])
+                WeatherHour(start.plusHours(i.toLong()).atZone(java.time.ZoneOffset.UTC), t, if (i < 4) 0 else 3, i < 3, listOf(0, 0, 5, 10, 40, 60)[i])
             },
             sunset = LocalDateTime.of(2027, 1, 15, 17, 24).toInstant(java.time.ZoneOffset.UTC)
         )

@@ -740,8 +740,9 @@ private fun PillButton(label: String, icon: ImageVector, filled: Boolean, onClic
  */
 @Composable
 private fun RestOfDay(calendar: List<CalendarEvent>, now: Long, sunset: Long?) {
-    // The day's events, with sunset among them as a warm pin when it is still ahead.
-    val events = (calendar + listOfNotNull(sunset?.let { CalendarEvent(SUNSET, "", -1L, it) })).sortedBy { it.beginMillis }
+    // The next three of the day's events (the count says how many there are), with sunset among them as a warm pin
+    // when it is still ahead: four labels at most, which fit two above the line and two below.
+    val events = (calendar.take(3) + listOfNotNull(sunset?.let { CalendarEvent(SUNSET, "", -1L, it) })).sortedBy { it.beginMillis }
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val animate by rememberAnimationsEnabled()

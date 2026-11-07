@@ -353,7 +353,8 @@ object SystemDataProvider {
                 // Honours the user's 12/24-hour preference and locale instead of always printing AM/PM.
                 val timeFormat = android.text.format.DateFormat.getTimeFormat(context)
 
-                while (cursor.moveToNext() && events.size < 3) { // Max 3 events
+                // Every instance in the window: At a Glance shows the first few, the Discover Overlay the timed ones ahead.
+                while (cursor.moveToNext()) {
                     val title = if (titleIndex >= 0) cursor.getString(titleIndex) else null
                     val startTimeMillis = if (dtStartIndex >= 0) cursor.getLong(dtStartIndex) else 0L
                     val eventId = if (eventIdIndex >= 0) cursor.getLong(eventIdIndex) else 0L

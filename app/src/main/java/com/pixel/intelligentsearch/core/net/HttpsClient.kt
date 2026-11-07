@@ -40,6 +40,14 @@ class HttpsCall {
         return false
     }
 
+    /**
+     * Whether the call still wants its answer, asked once the attached connection has connected. Closing a connection
+     * that hasn't connected yet does nothing, so a [cancel] between [attach] and the connect would otherwise leave the
+     * request to block on its read until the timeout. Under the lock, either [cancel] comes after this and closes the
+     * connected socket, or this sees it.
+     */
+    internal fun stillWanted(): Boolean = synchronized(this) { !isCancelled }
+
     /** Runs [action] once the call is cancelled (at once when it already is), for a stand-in transport in a test. */
     fun onCancel(action: () -> Unit) {
         synchronized(this) {
@@ -131,6 +139,8 @@ class HttpsClient internal constructor(
         return try {
             connection.prepare(timeoutMs)
             connection.setRequestProperty("Accept", accept)
+            connection.connect()
+            if (!call.stillWanted()) return null
             // Anything but 200 (a redirect included, never followed) is a failure, its body unread.
             when {
                 connection.responseCode != HttpURLConnection.HTTP_OK -> null
@@ -169,6 +179,8 @@ class HttpsClient internal constructor(
             connection.doOutput = true
             connection.prepare(timeoutMs)
             for ((name, value) in headers) connection.setRequestProperty(name, value)
+            connection.connect()
+            if (!call.stillWanted()) throw IOException("Cancelled")
             connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
             val code = connection.responseCode
             if (code != HttpURLConnection.HTTP_OK) {

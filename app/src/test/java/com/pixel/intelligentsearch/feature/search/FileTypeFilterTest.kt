@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.search
 
 import android.content.Context
-import android.os.Looper
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
@@ -30,7 +29,6 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -101,16 +99,7 @@ class FileTypeFilterTest {
         return await(query) { done && it.query == query }
     }
 
-    private fun await(what: String, condition: (SearchUiState) -> Boolean): SearchUiState {
-        val deadline = System.currentTimeMillis() + 10_000
-        while (System.currentTimeMillis() < deadline) {
-            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(50))
-            val state = viewModel.uiState.value
-            if (condition(state)) return state
-            Thread.sleep(25)
-        }
-        throw AssertionError("timed out waiting for $what; state=${viewModel.uiState.value}")
-    }
+    private fun await(what: String, condition: (SearchUiState) -> Boolean) = viewModel.awaitState(what, condition)
 
     @Test
     fun aTypeWordLimitsFilesToThatTypeAndShowsItsChip() {
@@ -178,10 +167,7 @@ class FileTypeFilterTest {
 
             // The cancelled search ends while the re-run is still going: awaitSearch keeps waiting.
             first.countDown()
-            repeat(10) {
-                shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(50))
-                Thread.sleep(20)
-            }
+            finishBackgroundWork(held = 1)
             assertNull("awaitSearch came back on the cancelled search", returnedWith)
 
             rerun.countDown()

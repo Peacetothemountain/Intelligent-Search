@@ -151,20 +151,7 @@ class SearchViewModelTest {
         scenario.moveToState(Lifecycle.State.RESUMED)
     }
 
-    /**
-     * Work runs on real IO threads and on the main looper, whose delays (the suggestion debounce) only elapse as
-     * its clock is moved; wait for the state to satisfy [condition].
-     */
-    private fun await(what: String, condition: (SearchUiState) -> Boolean): SearchUiState {
-        val deadline = System.currentTimeMillis() + 10_000
-        while (System.currentTimeMillis() < deadline) {
-            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(50))
-            val state = viewModel.uiState.value
-            if (condition(state)) return state
-            Thread.sleep(25)
-        }
-        throw AssertionError("timed out waiting for $what; state=${viewModel.uiState.value}")
-    }
+    private fun await(what: String, condition: (SearchUiState) -> Boolean) = viewModel.awaitState(what, condition)
 
     @Test
     fun initialLoadListsAppsAndRecentsWithoutHiddenApps() {
@@ -200,7 +187,7 @@ class SearchViewModelTest {
         start()
         viewModel.onQueryChanged("!w android")
         awaitLocalResults()
-        runOn()
+        finishBackgroundWork()
         assertEquals(emptyList<String>(), device.suggestionRequests.toList())
         assertEquals(emptyList<String>(), viewModel.uiState.value.webSuggestions.map { it.query })
 
@@ -210,14 +197,6 @@ class SearchViewModelTest {
         assertEquals(listOf("android"), device.suggestionRequests.toList())
     }
 
-    /** Lets the main looper's clock and the IO threads run on a while, long past the suggestion pacing. */
-    private fun runOn() {
-        repeat(10) {
-            shadowOf(Looper.getMainLooper()).idleFor(java.time.Duration.ofMillis(50))
-            Thread.sleep(25)
-        }
-    }
-
     @Test
     fun aHandedInQueryIsSearchedOnThePhoneOnlyUntilTheUserPressesEnter() {
         prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
@@ -225,7 +204,7 @@ class SearchViewModelTest {
         // Selected text, a share or another app's search, as MainActivity hands it in.
         viewModel.seedQuery("weather")
         val local = awaitLocalResults()
-        runOn()
+        finishBackgroundWork()
         assertEquals(false, viewModel.queryConfirmed.value)
         // The tap-through weather card is the phone's own; the forecast and the suggestions would ask a server.
         assertEquals("weather", local.instantAnswer?.iconType)
@@ -234,7 +213,7 @@ class SearchViewModelTest {
 
         // A cursor move hands the same text back; it is no edit.
         viewModel.onQueryChanged("weather")
-        runOn()
+        finishBackgroundWork()
         assertEquals(false, viewModel.queryConfirmed.value)
         assertEquals(emptyList<String>(), viewModel.uiState.value.webSuggestions.map { it.query })
 
@@ -250,7 +229,7 @@ class SearchViewModelTest {
         start()
         viewModel.seedQuery("weather")
         awaitLocalResults()
-        runOn()
+        finishBackgroundWork()
         assertEquals(emptyList<String>(), viewModel.uiState.value.webSuggestions.map { it.query })
 
         viewModel.onQueryChanged("weather t")

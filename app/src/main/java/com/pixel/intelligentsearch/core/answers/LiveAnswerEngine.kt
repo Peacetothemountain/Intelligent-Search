@@ -8,7 +8,9 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.net.HttpsClient
 import com.pixel.intelligentsearch.core.net.HttpsGet
 import com.pixel.intelligentsearch.core.security.NetworkPolicy
+import com.pixel.intelligentsearch.di.IoDispatcher
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asExecutor
 import kotlinx.coroutines.delay
@@ -60,19 +62,25 @@ class LiveAnswerEngine internal constructor(
     private val locale: () -> Locale = Locale::getDefault,
     private val debounceMs: Long = DEBOUNCE_MS,
     /** Where a switched-off feature's saved answers are deleted, off the main thread the change arrives on. */
-    private val cacheCleaner: Executor = Dispatchers.IO.asExecutor()
+    private val cacheCleaner: Executor = Dispatchers.IO.asExecutor(),
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : SharedPreferences.OnSharedPreferenceChangeListener {
     /** The answers that keep what they fetched on the phone. */
     enum class Feature { DICTIONARY, WEATHER }
 
     @Inject
-    constructor(@ApplicationContext context: Context, settingsManager: SettingsManager) : this(
+    constructor(
+        @ApplicationContext context: Context,
+        settingsManager: SettingsManager,
+        @IoDispatcher ioDispatcher: CoroutineDispatcher
+    ) : this(
         context = context.applicationContext,
         settingsManager = settingsManager,
-        http = HttpsClient(timeoutMs = 8_000, totalTimeoutMs = 12_000L, accept = HttpsClient.ACCEPT_JSON)
+        http = HttpsClient(timeoutMs = 8_000, totalTimeoutMs = 12_000L, accept = HttpsClient.ACCEPT_JSON),
+        ioDispatcher = ioDispatcher
     )
 
-    private constructor(context: Context, settingsManager: SettingsManager, http: HttpsGet) : this(
+    private constructor(context: Context, settingsManager: SettingsManager, http: HttpsGet, ioDispatcher: CoroutineDispatcher) : this(
         prefs = { settingsManager.prefs },
         dictionary = DictionaryRepository(
             http,
@@ -85,7 +93,8 @@ class LiveAnswerEngine internal constructor(
             AnswerCache(PLACE_TTL_MS, 32, DiskAnswerCache(cacheDir(context, "places"), 32))
         ),
         screenTime = ScreenTimeRepository(context)::today,
-        location = AndroidDeviceLocation(context)
+        location = AndroidDeviceLocation(context),
+        ioDispatcher = ioDispatcher
     )
 
     /** The answer to [question], which was read from [query]. */
@@ -96,7 +105,7 @@ class LiveAnswerEngine internal constructor(
             is LiveAnswerQuery.Translate -> emit(translation(question, query))
             LiveAnswerQuery.ScreenTime -> emit(LiveAnswer.ScreenTime(query, screenTime()))
         }
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(ioDispatcher)
 
     private suspend fun FlowCollector<LiveAnswer>.define(question: LiveAnswerQuery.Define, query: String) {
         if (!NetworkPolicy.webAnswersAllowed(prefs())) return
@@ -154,7 +163,7 @@ class LiveAnswerEngine internal constructor(
     )
 
     /** Forgets saved answers for [feature], for when it is turned off. */
-    suspend fun clearCache(feature: Feature) = withContext(Dispatchers.IO) { clearNow(feature) }
+    suspend fun clearCache(feature: Feature) = withContext(ioDispatcher) { clearNow(feature) }
 
     private fun clearNow(feature: Feature) {
         when (feature) {
@@ -167,7 +176,7 @@ class LiveAnswerEngine internal constructor(
      * Brings the saved answers in line with the settings, at every start: with Web or Web Suggestions off nothing is
      * kept, and answers past their lifetime are deleted rather than left on disk.
      */
-    suspend fun syncCaches() = withContext(Dispatchers.IO) {
+    suspend fun syncCaches() = withContext(ioDispatcher) {
         val kept = NetworkPolicy.webAnswersKept(prefs())
         for (feature in Feature.entries) {
             if (!kept) clearNow(feature) else when (feature) {
@@ -196,7 +205,7 @@ class LiveAnswerEngine internal constructor(
     }
 
     /** Places called [name], for setting the weather's location; null when the lookup failed or isn't allowed. */
-    suspend fun findPlaces(name: String): List<GeoPlace>? = withContext(Dispatchers.IO) {
+    suspend fun findPlaces(name: String): List<GeoPlace>? = withContext(ioDispatcher) {
         if (!NetworkPolicy.webAnswersAllowed(prefs()) || name.isBlank()) return@withContext null
         val language = locale().language
         weather.cachedPlaces(name, language) ?: weather.fetchPlaces(name, language)

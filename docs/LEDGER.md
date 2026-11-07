@@ -9,7 +9,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 
 | Metric | Value | Measured at |
 |---|---|---|
-| Lines of test code | 51,924 | 2026-11-06, B17; replaces the `@Test` count (owner: root causes over more tests) |
+| Lines of test code | 51,953 | 2026-11-07, B16, up 29 for a written reason (see its entry); replaces the `@Test` count (owner: root causes over more tests) |
 | CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 1003s on one that changes app code | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change. Since B13 there is no single step to time: measure from the start of the run to `Build & Check` finishing |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
@@ -294,6 +294,25 @@ with the strongest evidence.
 - Retry only if: `run_scheduled_task_now` returns null from inside a run, or starts a run on top of an active one
 - Commit: see `Run improvement cycles back to back` in `git log dev`
 - Lesson: more runs means commits land faster than CI finishes, so read the newest finished run rather than the newest commit.
+
+### 2026-11-07: B16, tests that say nothing happened now wait for the work to end
+- Command: /improve (scheduled run)
+- Target and evidence: B16. A query handed in from another app must stay on the phone until Enter, and the tests for that checked "no request went out" after a fixed 250ms. Reproduced: with the gate removed and the request taking 400ms, `editingAHandedInQueryMakesItTheUsersOwn` and `aHandedInQueryIsSearchedOnThePhoneOnlyUntilTheUserPressesEnter` both passed. Chosen over B11 (only adds tests, against the owner's rule) and B18 (weaker, saves time only)
+- Prior work checked: this ledger, `git log dev -S"runOn()"`, claude-mem #31243, #31237. Newest finished CI, `49b44ad7`, green; `503c11a4` still running at the start, green (1m42s) by the time of this push
+- Research: read the suggestion and live answer paths. `Settle.kt`'s thread check wasn't reused: a parked worker that has just been handed a task looks idle, so on a busy machine it would be worse than the 250ms
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: `SearchViewModel` and `LiveAnswerEngine` take `@IoDispatcher` and `@DefaultDispatcher` (`DispatchersModule`, which provides the same `Dispatchers.IO` and `Default` as before). In tests a `@TestInstallIn` module wraps them to count each task from hand-over to end, and `finishBackgroundWork()` runs the looper and those tasks until nothing is left; it replaces `runOn()` and the wait in `FileTypeFilterTest`. Assertions untouched. The 3 copies of `await` became one `awaitState`. The other 106 `Dispatchers.*` uses stay until a test needs them: converting them all has no measured gain
+- Proof, the same breaks again: the 2 tests above now fail on their own assertions (`expected:<[]> but was:<[weather today, weather tomorrow]>`). So do `aQueryWithABangAsksForNoWebSuggestions` with the bang check removed (`was:<[!w android]>`) and `awaitSearchWaitsForTheRunThatReplacedTheOneItWasWaitingFor` with `awaitSearch` returning on a cancelled job. That last one was not a real gap before: on an earlier, blunter break of `awaitSearch` its wait passed wrongly, but a later assertion in the test failed. Those two were not run against the old wait with these exact breaks
+- Not counted by `finishBackgroundWork`: real-time `delay`s (the answer debounce, the spelling pause), and code on dispatchers still hard-coded (`UnifiedSearchCoordinator`, `CorpusIndexManager`, Room). None of the 4 checks depends on them, since both gates are decided on the main thread. `LiveAnswerViewModelTest`'s `assertNull(state.liveAnswer)` lines read at once with no wait, so they can't see a late answer; left alone, because an answer sent through the debounce would still arrive after this helper returns
+- Before -> after: `Thread.sleep` in tests 15 -> 12; hard-coded `Dispatchers.*` in app code 117 -> 106; test code 51,924 -> 51,953 lines, up 29: the reason is that the checks guarding what leaves the phone can now fail; app code 76,372 -> 76,406 lines; release APK, unsigned local builds, 12,908,309 -> 12,908,309 bytes, with `classes2.dex` up 128 bytes (4,886,804 -> 4,886,932); lint baseline 19 -> 19
+- Tests run here: `SearchViewModelTest` and `FileTypeFilterTest` 3 more times with no failures, plus `LiveAnswerViewModelTest`, `LiveAnswerEngineTest`, `StartupSyncTest`, `RecordOpenedTest`, `SubmitQueryTest`. The rest of the suite, lint and goldens are left to CI; every Hilt test now runs through the counting wrapper
+- Result: kept, pending CI. Nothing should look different, so no emulator check
+- This commit changes app code, so its CI run is the measure B13 was waiting for: start of the run to `Build & Check` finished, against 1003s
+- Back-to-back runs: this run started at 3:26, the minute `503c11a4` was pushed, which fits a run starting from another. Inferred from the time; nothing here shows what started it
+- Retry only if: a test fails with "background work still running", or a Hilt test turns flaky without a change to its screen; then look at what the wrapper changes before removing it
+- Commit: see `Wait for background work in tests, not a fixed time` in `git log dev`
+- Lesson: to prove a "nothing happened" check, make the thing happen slowly. Removing a gate alone doesn't show it: a fast request is caught by the fixed wait and the test looks fine.
 
 <!--
 Copy this for each cycle, newest at the bottom.

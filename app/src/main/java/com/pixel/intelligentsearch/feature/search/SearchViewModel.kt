@@ -185,7 +185,9 @@ class SearchViewModel @Inject constructor(
     private val resultShortcutStore: com.pixel.intelligentsearch.core.data.ResultShortcutStore,
     private val instantAnswers: com.pixel.intelligentsearch.core.answers.LiveAnswerEngine,
     private val aiAnswers: com.pixel.intelligentsearch.core.ai.AiAnswers,
-    private val selectionMemory: com.pixel.intelligentsearch.core.search.SelectionMemory
+    private val selectionMemory: com.pixel.intelligentsearch.core.search.SelectionMemory,
+    @param:com.pixel.intelligentsearch.di.IoDispatcher private val ioDispatcher: CoroutineDispatcher,
+    @param:com.pixel.intelligentsearch.di.DefaultDispatcher private val defaultDispatcher: CoroutineDispatcher
 ) : ViewModel() {
     
     private val settingsState = settingsManager.settingsFlow
@@ -306,7 +308,7 @@ class SearchViewModel @Inject constructor(
         }
 
         // The key vault's small preferences file is read once here, off the main thread, so typing never waits on it.
-        viewModelScope.launch(Dispatchers.IO) { aiAnswers.unavailableReason() }
+        viewModelScope.launch(ioDispatcher) { aiAnswers.unavailableReason() }
 
 
         // Tier 2: remote web suggestions, paced like Chrome's omnibox: a request goes out at once unless the last one
@@ -388,7 +390,7 @@ class SearchViewModel @Inject constructor(
     private fun observeLiveSystemToggles() {
         // The toggle manager registers camera, network and broadcast listeners as it is built; build it off the main
         // thread so opening the overlay never waits for that.
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(defaultDispatcher) {
             val toggles = systemToggleManager.get()
 
             launch {
@@ -519,7 +521,7 @@ class SearchViewModel @Inject constructor(
         lastInitialLoadAtMs = android.os.SystemClock.elapsedRealtime()
         refreshContacts()
         initialDataJob?.cancel()
-        initialDataJob = viewModelScope.launch(Dispatchers.IO) {
+        initialDataJob = viewModelScope.launch(ioDispatcher) {
             try {
                 val appsDeferred = async { sources.allApps() }
                 // The provider already tries Pixel Launcher predictions first, then usage stats. (Re-querying the
@@ -563,7 +565,7 @@ class SearchViewModel @Inject constructor(
     suspend fun refreshClipboardActions() {
         val settings = settingsState.value
         val actions = if (settings.smartClipboardSuggestions) {
-            withContext(Dispatchers.IO) { readClipboardActions(settings) }.filterNot { it.subtitle in dismissedClipTexts }
+            withContext(ioDispatcher) { readClipboardActions(settings) }.filterNot { it.subtitle in dismissedClipTexts }
         } else emptyList()
         initialClipboardActions = actions
         // Only the empty screen shows clipboard actions; a query's own actions ("call mom") stay.
@@ -771,7 +773,7 @@ class SearchViewModel @Inject constructor(
         searchJob?.cancel()
         val ready = kotlinx.coroutines.CompletableDeferred<Unit>()
         localResultsReady = ready
-        searchJob = viewModelScope.launch(Dispatchers.Default) {
+        searchJob = viewModelScope.launch(defaultDispatcher) {
             if (verboseLogging) debugLog("Local query started (length ${newQuery.length})")
             val startTime = System.currentTimeMillis()
 
@@ -1094,7 +1096,7 @@ class SearchViewModel @Inject constructor(
 
         val maxResults = settings.webResultsCount.coerceAtLeast(1)
 
-        withContext(Dispatchers.IO) {
+        withContext(ioDispatcher) {
             try {
                 val started = System.currentTimeMillis()
                 if (debugSwitch(SettingsManager.DEBUG_SIMULATE_LATENCY)) delay(SIMULATED_LATENCY_MS)
@@ -1147,7 +1149,7 @@ class SearchViewModel @Inject constructor(
             val updated = (listOf(trimmed) + state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) }).take(25)
             state.copy(recentSearches = updated)
         }
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             if (directBootManager.isUserUnlocked.value) {
                 historyDao.recordAndPrune(trimmed, System.currentTimeMillis(), 25)
             }
@@ -1160,7 +1162,7 @@ class SearchViewModel @Inject constructor(
         _uiState.update { state ->
             state.copy(recentSearches = state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) })
         }
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             if (directBootManager.isUserUnlocked.value) {
                 historyDao.deleteByQuery(trimmed)
                 selectionMemory.forgetQuery(trimmed)
@@ -1175,7 +1177,7 @@ class SearchViewModel @Inject constructor(
         val now = System.currentTimeMillis()
         lastClearedHistory = currentSearches.mapIndexed { index, query -> HistoryEntity(query, now - index) }
         _uiState.update { state -> state.copy(recentSearches = emptyList()) }
-        historyClearJob = viewModelScope.launch(Dispatchers.IO) {
+        historyClearJob = viewModelScope.launch(ioDispatcher) {
             try {
                 if (directBootManager.isUserUnlocked.value) {
                     val dbHistory = historyDao.getSearchHistory()
@@ -1197,7 +1199,7 @@ class SearchViewModel @Inject constructor(
         lastClearedHistory = emptyList()
         _uiState.update { state -> state.copy(recentSearches = toRestore.map { it.query }) }
         val pendingClear = historyClearJob
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(ioDispatcher) {
             try {
                 // The clear may still be running; restoring first would let it wipe the restored rows.
                 pendingClear?.join()
@@ -1235,7 +1237,7 @@ class SearchViewModel @Inject constructor(
     /** Finds the pinned results that can be shown now (indexed, their source on, not hidden) for the empty overlay. */
     private fun refreshPinned() {
         pinnedJob?.cancel()
-        pinnedJob = viewModelScope.launch(Dispatchers.Default) {
+        pinnedJob = viewModelScope.launch(defaultDispatcher) {
             val pinned = resultShortcutStore.current.pinned.mapNotNull { resolveShortcut(it.key) }
             ensureActive()
             _uiState.update { if (it.pinned == pinned) it else it.copy(pinned = pinned) }
@@ -1322,7 +1324,7 @@ class SearchViewModel @Inject constructor(
         val keepsSearches = settings.searchPreviousSearches &&
             !com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(settings.searchEngine)
         val query = _uiState.value.query.takeIf { keepsSearches }
-        viewModelScope.launch(Dispatchers.IO) { selectionMemory.record(key, query) }
+        viewModelScope.launch(ioDispatcher) { selectionMemory.record(key, query) }
     }
 
     fun notifyAppLaunch(packageName: String) {

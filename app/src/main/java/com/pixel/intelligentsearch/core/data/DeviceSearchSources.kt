@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.core.data
 import android.content.Context
 import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
@@ -27,8 +28,19 @@ interface DeviceSearchSources {
     suspend fun webSuggestions(query: String, engine: String): List<WebSuggestion>
 }
 
+/**
+ * Asks the search engine for live suggestions, over the network. Injected on its own so that a test which builds the
+ * real [DeviceSearchSourcesImpl] never sends what it types to the engine unless it means to.
+ */
+fun interface WebSuggestionService {
+    suspend fun suggestions(query: String, engine: String): List<WebSuggestion>
+}
+
 /** The real device, through the existing providers. */
-class DeviceSearchSourcesImpl @Inject constructor(@ApplicationContext private val context: Context) : DeviceSearchSources {
+class DeviceSearchSourcesImpl @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val web: WebSuggestionService
+) : DeviceSearchSources {
     override suspend fun allApps(forceRefresh: Boolean): List<AppItem> = SystemDataProvider.getAllApps(context, forceRefresh)
     override fun invalidateAppsCache() = SystemDataProvider.invalidateAppsCache()
     override fun appUsage(): Map<String, SystemDataProvider.AppUsage> = SystemDataProvider.getAppUsage(context)
@@ -39,7 +51,7 @@ class DeviceSearchSourcesImpl @Inject constructor(@ApplicationContext private va
     override suspend fun contextAwareQuickApps(hiddenApps: Set<String>): List<AppItem> = SystemDataProvider.getContextAwareQuickApps(context, hiddenApps)
     override suspend fun contacts(query: String): List<ContactItem> = SystemDataProvider.getContacts(context, query)
     override fun cachedWebSuggestions(query: String, engine: String): List<WebSuggestion>? = WebSearchProvider.getCachedSuggestions(query, engine)
-    override suspend fun webSuggestions(query: String, engine: String): List<WebSuggestion> = WebSearchProvider.getWebSuggestions(query, engine)
+    override suspend fun webSuggestions(query: String, engine: String): List<WebSuggestion> = web.suggestions(query, engine)
 }
 
 @Module
@@ -47,4 +59,12 @@ class DeviceSearchSourcesImpl @Inject constructor(@ApplicationContext private va
 abstract class DeviceSearchSourcesModule {
     @Binds
     abstract fun bindDeviceSearchSources(impl: DeviceSearchSourcesImpl): DeviceSearchSources
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+object WebSuggestionServiceModule {
+    @Provides
+    fun provideWebSuggestionService(): WebSuggestionService =
+        WebSuggestionService { query, engine -> WebSearchProvider.getWebSuggestions(query, engine) }
 }

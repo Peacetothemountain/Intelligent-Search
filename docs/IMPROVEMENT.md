@@ -97,8 +97,13 @@ Rules:
 A task in T3 Code's scheduled tasks, `Improve Intelligent Search`, starts one fresh cycle every 4 hours. Nobody is there
 to answer, so each run follows these rules:
 
-- Start only from a clean `dev` that matches `origin/dev`. Uncommitted changes to tracked files or another branch may mean
-  the owner or an earlier run is mid-work: change nothing, leave them alone, and end the run saying what was found.
+- Each run has its own T3 worktree, so it can't disturb the owner's checkout at `F:\Intelligent-Search`. Work only in the
+  worktree, and don't change anything in that checkout.
+- Start with `git status` and `git log origin/dev..HEAD`. Uncommitted changes to tracked files or unpushed commits mean an
+  earlier run stopped mid-work: change nothing and end the run saying what was found. Otherwise
+  `git switch --detach origin/dev`, because the worktree starts from an older commit.
+- Finish with `git push origin HEAD:dev`. If `dev` has moved, rebase the run's own commit onto `origin/dev` and push
+  again. Never force a push.
 - If CI failed on the newest `dev` commit, fixing that is the target.
 - A target that needs the owner goes in the ledger as waiting on them, and the run takes the next candidate.
 - Wait for CI on the run's own commit before finishing. Leave no failing commit behind.

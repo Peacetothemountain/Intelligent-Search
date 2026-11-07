@@ -128,6 +128,21 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.hypot
+import kotlinx.coroutines.launch
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.animation.core.LinearEasing
+import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
+import com.pixel.intelligentsearch.feature.settings.drawSearchPill
+import com.pixel.intelligentsearch.feature.settings.SearchEasing
+import com.pixel.intelligentsearch.feature.settings.SEARCH_MILLIS
+import com.pixel.intelligentsearch.feature.settings.SEARCH_FADE_MILLIS
+import com.pixel.intelligentsearch.feature.settings.PILL_TEXT
+import com.pixel.intelligentsearch.feature.settings.PILL_SIDE
+import com.pixel.intelligentsearch.feature.settings.PILL_MARGIN
+import com.pixel.intelligentsearch.feature.settings.PILL_HEIGHT
+import com.pixel.intelligentsearch.feature.settings.FlashDecay
+import com.pixel.intelligentsearch.feature.settings.FLASH_MILLIS
 import com.pixel.intelligentsearch.core.ui.icons.filled.Call
 import androidx.compose.ui.graphics.luminance
 import kotlin.math.roundToInt
@@ -211,7 +226,7 @@ private class CircleReveal(private val center: Offset, private val radius: Float
 
 /**
  * Today's button in the search bar, to the left of the lens: the sun on its arc ([TodayIcon]), placed by the time of
- * day and rising to it as the search opens, drawn at the bar's own icon size (24 dp) and weight, in its icon color.
+ * day and rising to it as the search opens, at 30 dp (a little larger than the lens beside it) in the bar's icon weight and color.
  */
 @Composable
 internal fun TodayBarButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
@@ -219,9 +234,9 @@ internal fun TodayBarButton(onClick: () -> Unit, modifier: Modifier = Modifier) 
     val animate by rememberAnimationsEnabled()
     Box(
         modifier = modifier
-            .size(36.dp)
+            .size(40.dp)
             .clip(CircleShape)
-            .semantics { contentDescription = "Today" }
+            .semantics { contentDescription = "Discover Overlay" }
             .bouncyClickable(shape = CircleShape, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -229,7 +244,7 @@ internal fun TodayBarButton(onClick: () -> Unit, modifier: Modifier = Modifier) 
             hour = hourOfDay(now),
             color = MaterialTheme.colorScheme.onSurface,
             rise = animate,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(30.dp)
         )
     }
 }
@@ -241,7 +256,7 @@ private val HeroShape = RoundedCornerShape(28.dp)
 /**
  * The Today page: the day's greeting and what is coming, the weather ahead, what is running and playing, what to catch
  * up on, quick controls, the phone's day, where you left off, a word and a countdown, and tomorrow. Each part shows
- * only when it has something to show and its switch (Appearance > Search Overlay > Today Button) is on. Read while
+ * only when it has something to show and its switch (Appearance > Discover Overlay) is on. Read while
  * [active] and on screen. The bar at the bottom goes back to the search or to Today's settings.
  */
 @Composable
@@ -854,60 +869,133 @@ private fun NowPlaying(media: GlanceMedia) {
     }
 }
 
-/** How long the bar stays full before it springs down to Back and Settings. */
+/** How long the bar stays full before it goes down to Back and Settings. */
 private const val BAR_SHRINK_DELAY_MS = 1_500L
 
+/** The compact bar: Back and Settings, each a 48 dp button 12 dp in from its end. */
+private val BAR_COMPACT_WIDTH = 120.dp
+private val BAR_BUTTON_INSET = 12.dp
+private val BAR_BUTTON = 48.dp
+
 /**
- * Today's bar: flat, in its own look rather than the search bar's. It opens full ("Back to Search", the back arrow and
- * the Settings bars), then springs down to just Back and Settings at the start. A tap on it while full, or on Back,
- * returns to the search; Settings opens Today's settings.
+ * Today's bar, in the look of the search pill on Manage Hidden Apps and Add Applications ([BottomSearchPill]): the
+ * same body color, 72 dp, 14 dp from the sides, 20 sp text, no shadow. It forms out of the morph's halftone from the
+ * right as that pill does ("Back to Search", the back arrow and the Settings bars), flashes as it lands, then after a
+ * moment goes down the same way in reverse: its right end dissolves back toward the left, the light leading it and
+ * Settings riding it, until only Back and Settings are left, where it flashes again. Same timing and curve as the
+ * search pill; at once with animations off. A tap on it while full, or on Back, returns to the search; Settings opens
+ * Today's settings.
  */
 @Composable
 private fun TodayBar(onBack: () -> Unit, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
     val animate by rememberAnimationsEnabled()
-    var compact by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
+    val reveal = remember { Animatable(if (animate) 0f else 1f) }
+    val fade = remember { Animatable(if (animate) 0f else 1f) }
+    val flash = remember { Animatable(0f) }
+    val shrink = remember { Animatable(0f) }
+    val landing = remember { Animatable(0f) }
+    LaunchedEffect(animate) {
+        if (!animate) {
+            reveal.snapTo(1f)
+            fade.snapTo(1f)
+            delay(BAR_SHRINK_DELAY_MS)
+            shrink.snapTo(1f)
+            return@LaunchedEffect
+        }
+        // Forms once the page has mostly opened.
+        delay(OPEN_MS * 2L / 3)
+        launch { fade.animateTo(1f, tween(SEARCH_FADE_MILLIS, easing = LinearEasing)) }
+        reveal.animateTo(1f, tween(SEARCH_MILLIS, easing = SearchEasing))
+        flash.snapTo(1f)
+        flash.animateTo(0f, tween(FLASH_MILLIS, easing = FlashDecay))
         delay(BAR_SHRINK_DELAY_MS)
-        compact = true
+        shrink.animateTo(1f, tween(SEARCH_MILLIS, easing = SearchEasing))
+        landing.snapTo(1f)
+        landing.animateTo(0f, tween(FLASH_MILLIS, easing = FlashDecay))
     }
-    val labelAlpha by animateFloatAsState(if (compact) 0f else 1f, if (animate) tween(220) else snap(), label = "bar label")
-    BoxWithConstraints(modifier.fillMaxWidth().padding(14.dp)) {
-        val width by animateDpAsState(
-            if (compact) 104.dp else maxWidth,
-            if (animate) spring(dampingRatio = 0.72f, stiffness = 260f) else snap(),
-            label = "bar width"
-        )
-        Surface(
-            onClick = { if (!compact) onBack() },
-            shape = CircleShape,
-            color = scheme.surfaceContainerHigh,
-            shadowElevation = 3.dp,
-            modifier = Modifier.width(width).height(60.dp)
-        ) {
-            Row(Modifier.padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Search", tint = scheme.onSurface)
-                }
-                Text(
-                    "Back to Search",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = scheme.onSurface,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Clip,
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(start = 4.dp)
-                        .graphicsLayer {
-                            alpha = labelAlpha
-                            translationX = (1f - labelAlpha) * -12.dp.toPx()
+    val body = scheme.surfaceVariant
+    val light = scheme.primary
+    val onPill = scheme.onSurfaceVariant
+    val density = LocalDensity.current
+    BoxWithConstraints(
+        modifier
+            .fillMaxWidth()
+            .padding(start = PILL_SIDE, end = PILL_SIDE, bottom = PILL_MARGIN)
+            .height(PILL_HEIGHT)
+    ) {
+        val fullPx = with(density) { maxWidth.toPx() }
+        val compactPx = with(density) { BAR_COMPACT_WIDTH.toPx() }
+        // How far the pill reaches from its start (the left), as it shrinks.
+        fun edge(s: Float) = fullPx - s * (fullPx - compactPx)
+        Box(
+            Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    val s = shrink.value
+                    when {
+                        s <= 0f -> drawSearchPill(size, reveal.value, fade.value, flash.value, body, light, mirrored = false)
+                        s < 1f -> {
+                            // The compact pill firming up as the edge comes back to it.
+                            drawRoundRect(
+                                body,
+                                size = Size(compactPx, size.height),
+                                cornerRadius = CornerRadius(size.height / 2f),
+                                alpha = smoothStep(0.6f, 1f, s)
+                            )
+                            drawSearchPill(size, edge(s) / fullPx, 1f, 0f, body, light, mirrored = true)
                         }
-                )
-                IconButton(onClick = onOpenSettings) {
-                    Icon(painterResource(R.drawable.ic_three_bars), contentDescription = "Today Settings", tint = scheme.onSurface)
+                        else -> drawSearchPill(Size(compactPx, size.height), 1f, 1f, landing.value, body, light, mirrored = true)
+                    }
                 }
-            }
+                .then(
+                    if (shrink.value < 0.5f) {
+                        Modifier.pointerInput(Unit) { detectTapGestures { onBack() } }
+                    } else Modifier
+                )
+        )
+        val formed = { fade.value * smoothStep(0.82f, 1f, reveal.value) }
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = BAR_BUTTON_INSET)
+                .size(BAR_BUTTON)
+                .graphicsLayer { alpha = formed() }
+        ) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Search", tint = onPill)
+        }
+        Text(
+            "Back to Search",
+            color = onPill,
+            fontSize = PILL_TEXT,
+            fontFamily = GoogleSansFlex,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = BAR_BUTTON_INSET + BAR_BUTTON + 4.dp)
+                .graphicsLayer { alpha = formed() * (1f - smoothStep(0f, 0.35f, shrink.value)) }
+        )
+        IconButton(
+            onClick = onOpenSettings,
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .offset {
+                    // At the pill's right end, riding its edge as it shrinks.
+                    val x = edge(shrink.value) - (BAR_BUTTON_INSET + BAR_BUTTON).toPx()
+                    IntOffset(x.roundToInt(), 0)
+                }
+                .size(BAR_BUTTON)
+                .graphicsLayer { alpha = formed() }
+        ) {
+            Icon(painterResource(R.drawable.ic_three_bars), contentDescription = "Discover Overlay Settings", tint = onPill)
         }
     }
+}
+
+/** Hermite smoothing of [x] between [edge0] and [edge1], as the search pill's own. */
+private fun smoothStep(edge0: Float, edge1: Float, x: Float): Float {
+    val t = ((x - edge0) / (edge1 - edge0)).coerceIn(0f, 1f)
+    return t * t * (3f - 2f * t)
 }

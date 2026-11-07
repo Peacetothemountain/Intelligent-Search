@@ -62,6 +62,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ShaderBrush
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -98,19 +99,19 @@ internal const val KEYBOARD_LEAD = 0.6f
 internal const val KEYBOARD_WAIT_MS = 220L
 
 /** The flash on landing: it dies away like the morph's flash on impact, most of it in the first ~110 ms. */
-private const val FLASH_MILLIS = 450
-private val FlashDecay = Easing { t -> ((1f - exp(-t * 4.1f)) / (1f - exp(-4.1f))) }
+internal const val FLASH_MILLIS = 450
+internal val FlashDecay = Easing { t -> ((1f - exp(-t * 4.1f)) / (1f - exp(-4.1f))) }
 
 /**
  * The pill is the search overlay's own bar in size: 72dp tall (its 48dp buttons and 12dp above and below them), 14dp
  * from the screen's sides (the overlay panel's 4dp and the bar's 10dp), with the bar's 24dp inside and 20sp text. It
  * sits 12dp above the keyboard (or the navigation bar).
  */
-private val PILL_HEIGHT = 72.dp
-private val PILL_SIDE = 14.dp
-private val PILL_INSIDE = 24.dp
-private val PILL_TEXT = 20.sp
-private val PILL_MARGIN = 12.dp
+internal val PILL_HEIGHT = 72.dp
+internal val PILL_SIDE = 14.dp
+internal val PILL_INSIDE = 24.dp
+internal val PILL_TEXT = 20.sp
+internal val PILL_MARGIN = 12.dp
 
 /** How much of the list's bottom edge dissolves into the pill while search is open, and how strongly. */
 internal val PILL_BLUR_EDGE = 120.dp
@@ -297,6 +298,41 @@ private fun Modifier.manifestingPill(
 
 /** Room around the pill for its light to spill past its edge. */
 private val PILL_GLOW_PAD = 30.dp
+
+/**
+ * Draws a search pill [pillSize] at the origin as [BottomSearchPill] draws its own: formed, or [progress] of the way
+ * through forming out of the halftone with its light and [flash] ([alpha] over it all). [mirrored] grows it from the
+ * left end instead of the right, so its forming edge and its flash are at the right. Below Android 13 the pill is
+ * uncovered rather than formed. Draw one at a time: the shader is shared.
+ */
+internal fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSearchPill(
+    pillSize: Size,
+    progress: Float,
+    alpha: Float,
+    flash: Float,
+    body: Color,
+    light: Color,
+    mirrored: Boolean
+) {
+    if (alpha <= 0f || progress <= 0f) return
+    val corner = CornerRadius(pillSize.height / 2f)
+    val shader = bottomSearchShader
+    withTransform({
+        if (mirrored) scale(-1f, 1f, pivot = Offset(pillSize.width / 2f, pillSize.height / 2f))
+    }) {
+        if (progress >= 1f && flash <= 0.003f) {
+            drawRoundRect(body, size = pillSize, cornerRadius = corner, alpha = alpha)
+        } else if (shader != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val pad = PILL_GLOW_PAD.toPx()
+            shader.setPillUniforms(pillSize, density, progress, alpha, flash, body, light)
+            drawRect(ShaderBrush(shader), topLeft = Offset(-pad, -pad), size = Size(pillSize.width + 2 * pad, pillSize.height + 2 * pad))
+        } else {
+            clipRect(left = pillSize.width * (1f - progress), right = pillSize.width) {
+                drawRoundRect(body, size = pillSize, cornerRadius = corner, alpha = alpha)
+            }
+        }
+    }
+}
 
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 internal fun RuntimeShader.setPillUniforms(size: Size, density: Float, progress: Float, alpha: Float, flash: Float, body: Color, light: Color) {

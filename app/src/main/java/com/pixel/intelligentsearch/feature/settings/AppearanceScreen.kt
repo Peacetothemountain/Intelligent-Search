@@ -176,9 +176,12 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         icon = Symbols.Outlined.Wallpaper,
                         isChecked = showWall,
                         onCheckedChange = { showWall = it },
-                        showDivider = true
+                        showDivider = false
                     )
+                }
 
+                SettingsSectionHeader("Discover Overlay")
+                SettingsCard {
                     TodaySettingsRows()
                 }
 

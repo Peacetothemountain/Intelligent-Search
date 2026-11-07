@@ -16,8 +16,8 @@ import com.pixel.intelligentsearch.feature.search.rememberCalendarAllowed
 import com.pixel.intelligentsearch.feature.search.today.TodayIcon
 
 /**
- * The last rows of Appearance's Search Overlay card: the switch for the Today button in the search bar, then, while
- * it is on, one switch per part of the Today page. Up Next reads the calendar, so it shows as on only while the
+ * Appearance's Discover Overlay card, under Search Overlay: the switch for the button in the search bar that opens the
+ * Discover Overlay (the Today page), then, while it is on, one switch per part of the page. Up Next reads the calendar, so it shows as on only while the
  * calendar is allowed, and turning it on without that asks for it the app's usual way.
  */
 @Composable
@@ -25,7 +25,7 @@ internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() 
     var button by rememberSetting(SettingsManager.TODAY_BUTTON)
     val scheme = MaterialTheme.colorScheme
     SettingsRowToggle(
-        title = "Today Button",
+        title = "Discover Overlay",
         subtitle = "Adds a Button to the Search Bar That Opens Your Day.",
         customIcon = {
             // A still afternoon sun: the row names the button, it needn't tell the time.

@@ -9,8 +9,8 @@ Update these in the same commit as a change that improves them. Never let one ge
 
 | Metric | Value | Measured at |
 |---|---|---|
-| Lines of test code | 52,060 | 2026-11-06, B15; replaces the `@Test` count (owner: root causes over more tests) |
-| CI time, `Run Build & Check` | 527s (was 1118s) | run 42277305877 on `8de98e0a` |
+| Lines of test code | 51,924 | 2026-11-06, B17; replaces the `@Test` count (owner: root causes over more tests) |
+| CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 1003s on one that changes app code | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 19 | `0260afa7`, 2026-11-05 |
@@ -37,7 +37,7 @@ with the strongest evidence.
 | B10 | Plain copy for Quick App Panel, Context Aware Quick Apps and Files | Pixel 11, 2026-11-05: "Fixed Applications Sourced from Application Search Menu", "User's App Opening Cycles", "via System Pickers" explain internals, against memory `user-copy-results-not-internals`. | 4 | 2026-11-05 |
 | B11 | Add tests for At a Glance media | The part of B3 still open: `glanceMedia` and `scaledArtwork` (`core/glance/GlanceSource.kt`) have 0 references in `app/src/test` on 2026-11-06. The decline helpers from B3 are now covered. | 2 | 2026-11-06 |
 | B12 | Stop CI downloading Android runtimes it should have cached | CI run 42256710298 failed on `0b9b1148`: `OverlayWaitsForPermissionGrantTest > classMethod`, `IOException` in Robolectric's `MavenArtifactFetcher`. The re-run passed with no code change. `sdk = [31]` was added 2026-10-30, but `.github/workflows/ci.yml` keys the cache `robolectric-<version>-sdk34`, and that entry (592 MB) dates from 2026-10-22 and is never rewritten. So SDK 31 is very likely fetched from the network on every run (inferred; the cache's contents weren't opened). 1 failure in the last 40 runs. Proof: the key changes with the set of SDKs in use, and a run shows the new cache holding `android-all` for 31. | 1 | 2026-11-06 |
-| B13 | Run `assembleRelease` beside the tests, not during them | Tests took 20 minutes with R8 overlapping and 13 with R8 cached on the same commit, before the `settle` fix. Parallel jobs under one aggregator named `Build & Check`, which must check `needs` results (a skipped job counts as passing). Saving smaller now: measure first. | 2 | 2026-11-06 |
+| B13 | Run `assembleRelease` beside the tests, not during them | Tests took 20 minutes with R8 overlapping and 13 with R8 cached on the same commit, before the `settle` fix. Parallel jobs under one aggregator named `Build & Check`, which must check `needs` results (a skipped job counts as passing). Measured 2026-11-06 on `b19aaa19`, an app code change: 1003s in all, with `minifyReleaseWithR8` starting at 433s and `assembleRelease` at 949s, so about 516s of R8 overlapping the tests. On `8de98e0a`, tests only, R8 came from cache and the whole run took 526s. | 2 | 2026-11-06 |
 | B14 | One `FileResultPicture` instead of 4 copies of `if (filesThumbnails)` | `OverlayBestMatchCard:274`, `OverlayDetailPane:261`, `OverlayPinnedRow:112`, `OverlaySearchResults:690`. Then `FileThumbnailsScopeTest`, which greps source lines, can go. | 2 | 2026-11-06 |
 | B15 | One `SettingsTopBar` and a small lint module | 18 raw `TopAppBar(` calls, with drift: 16 Outlined back arrows, 2 Filled. Replaces `SettingsPageTitleTest` and `LayeringTest`, which read source text. | 2 | 2026-11-06 |
 | B16 | Inject dispatchers so tests can stop polling in real time | 117 `Dispatchers.*` uses and no seam. `SearchViewModelTest.runOn` and `FileTypeFilterTest:181` assert nothing happened after about 250ms, which passes wrongly on a slow machine. Large. | 2 | 2026-11-06 |
@@ -245,6 +245,25 @@ with the strongest evidence.
 - Retry only if: a golden changes on a settings page, or a raw `TopAppBar` turns up in settings
 - Commit: see `One top bar for settings pages` in `git log dev`
 - Lesson: check that drift a backlog item names can actually be seen before counting it as evidence. Here it couldn't, and the real gain was less code.
+
+### 2026-11-06: B17, every setting through one backup round trip
+- Command: owner said "Continue"
+- Target and evidence: B17. Round trips were written one setting at a time, so a new setting had none unless someone remembered. How many settings had none wasn't counted; the strength is the missing guarantee, not a known bug. Chosen over B13 and B16 as the next backlog item, before B13's new numbers below were known
+- Prior work checked: this ledger, `git log dev -S"SettingsManager.ALL" -- app/src/test`, claude-mem search (no earlier attempt). CI green on `b19aaa19` before committing
+- Research: `createBackupPayload` copies the whole settings file, so a setting can't be forgotten on export. What can go wrong is on restore: the name-based blocks, the type and range checks, the opt-in list, and the older snapshot pass that runs after them
+- Models used: inline (Opus 5.5); fable/xhigh for one independent review, as charter section 6 asks for backup data (about 200k tokens)
+- Usage level: owner said they have full use with no limits; no figure visible. Normal mode
+- Change: new `EverySettingBackupTest`, over `SettingsManager.ALL`: both values of every setting, old spellings, out-of-range numbers, removed names, and a named list of what a restore holds back. No app code changed
+- Result of the first run: every declared setting already behaves correctly, so this found no bug
+- Proof it can fail: restore broken on purpose, then put back, 7 ways: an opt-in a file can switch on, a setting silently dropped, a device-local setting exported, removed names restored, ranges unchecked, ranges clamped instead of rejected, old spellings left behind. The first version missed old spellings, and the review found it would pass a clamp; both were fixed, and all 7 are now caught
+- Tests removed, 18, all asserting what the new test or `BackupPreferenceSchemaTest` asserts, or restating a constant: all 3 in `KeyboardOptionsBackupTest` (file deleted); `theSettingIsAKnownString`; 3 in `AtAGlanceSettingsBackupTest`; 2 in `InstantAnswersBackupTest`; 3 in `LaunchPortalBackupTest`; 2 in `LiveCurrencyRatesBackupTest`; `aBackupRestoresTheAppsButNotTheSkippedFoldersOrTheOldFileTypes`; `countdownWidgetEventsStayOnThisPhone`; 2 in `WidgetShapeBackupTest`. Tests with logic of their own stay (pill opacity, quick panel, widget color, currency schedule, `characterization/`)
+- Not covered: keys outside `ALL`, such as the per-design widget colors; their own tests stay. Also no longer pinned: `SHOW_KEYBOARD_ON_OPEN` defaulting to on, and individual names staying in `REMOVED_NAMES`. The review found nothing reads those names, so one slipping out would be an unused leftover
+- Before -> after: settings with a restore test, not counted -> all in `ALL`; test code 52,060 -> 51,924 lines; backup tests 105 -> 92 (18 out, 5 in), all passing locally; the rest of the suite, lint and goldens left to CI; app code, APK and lint baseline unchanged
+- CI on `b19aaa19` (B15, entry above): green, 1003s. Not a regression, and it answers the 721s left unexplained on `0aac9df7`: see the ratchet row and B13
+- Result: kept, pending CI
+- Retry only if: a setting needs a restore rule of its own; add it to the test's named lists
+- Commit: see `One backup test for every setting` in `git log dev`
+- Lesson: break the code on purpose before trusting a new test. This one passed first time while missing two of the failures it was written to catch.
 
 <!--
 Copy this for each cycle, newest at the bottom.

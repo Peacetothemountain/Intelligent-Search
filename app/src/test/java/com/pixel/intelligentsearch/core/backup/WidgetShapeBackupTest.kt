@@ -17,10 +17,8 @@ import com.pixel.intelligentsearch.core.data.widget.WidgetProfiles
 import com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
 import com.pixel.intelligentsearch.core.system.WidgetUpdater
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertFalse
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,11 +26,7 @@ import org.robolectric.RobolectricTestRunner
 import java.io.File
 import java.time.LocalDate
 
-/**
- * The widget's outline, corners and profiles are settings like any other: a backup carries them back (countdown events
- * not at all), a backup can't plant an outline or corner the sliders couldn't set, and the removed favourite apps and
- * media rows never come back.
- */
+/** The widget's outline, corners and profiles come back from a backup; countdown events don't. */
 @RunWith(RobolectricTestRunner::class)
 class WidgetShapeBackupTest {
 
@@ -81,43 +75,6 @@ class WidgetShapeBackupTest {
         assertEquals(dusk, restoredProfiles.design(1, live))
         // A countdown belongs to a widget placed on this phone, by its id: it stays with the phone.
         assertEquals(null, CountdownEventStore(prefs).get(5))
-    }
-
-    @Test
-    fun anOutlineOrCornerOutOfRangeIsNotRestored() = runBlocking {
-        // Values written straight to storage, as a crafted file would carry them; the sliders can't set them.
-        prefs.edit()
-            .putInt(SettingsManager.WIDGET_SYSTEM_OUTLINE_THICKNESS.name, 999)
-            .putInt(SettingsManager.WIDGET_SYSTEM_CORNER_RADIUS.name, -4)
-            .commit()
-        backup.exportToFile(uri, PASSPHRASE).getOrThrow()
-        prefs.edit().clear().commit()
-        backup.importFromFile(uri, PASSPHRASE).getOrThrow()
-
-        assertFalse(prefs.contains(SettingsManager.WIDGET_SYSTEM_OUTLINE_THICKNESS.name))
-        assertFalse(prefs.contains(SettingsManager.WIDGET_SYSTEM_CORNER_RADIUS.name))
-        assertEquals(SettingsManager.WIDGET_SYSTEM_OUTLINE_THICKNESS.default, prefs[SettingsManager.WIDGET_SYSTEM_OUTLINE_THICKNESS])
-    }
-
-    @Test
-    fun theRemovedFavouriteAppsAndMediaRowsAreNeitherBackedUpNorRestored() = runBlocking {
-        val removed = listOf(
-            "widget_system_favourite_apps", "widget_material_favourite_apps",
-            "widget_system_show_media", "widget_material_show_media"
-        )
-        for (name in removed) assertTrue(name, name in SettingsManager.REMOVED_NAMES)
-        // An older build's values, as a phone updated from it still holds them.
-        prefs.edit()
-            .putString("widget_system_favourite_apps", "com.example.mail")
-            .putString("widget_material_favourite_apps", "com.example.maps")
-            .putBoolean("widget_system_show_media", true)
-            .putBoolean("widget_material_show_media", true)
-            .commit()
-        backup.exportToFile(uri, PASSPHRASE).getOrThrow()
-        prefs.edit().clear().commit()
-        backup.importFromFile(uri, PASSPHRASE).getOrThrow()
-
-        for (name in removed) assertFalse(name, prefs.contains(name))
     }
 
     private companion object {

@@ -18,16 +18,9 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
 
-/** Pinned results travel in backups like every other setting. */
+/** Pinned results read back right after a restore, though the store keeps them decoded between changes. */
 @RunWith(RobolectricTestRunner::class)
 class ResultShortcutsBackupTest {
-
-    @Test
-    fun theSettingIsAKnownString() {
-        assertEquals("STRING", BackupPreferenceSchema.expectedType(SettingsManager.RESULT_SHORTCUTS.name))
-        assertEquals(SettingsManager.RESULT_SHORTCUTS, SettingsManager.keyFor("result_shortcuts_json"))
-        assertTrue(SettingsManager.RESULT_SHORTCUTS in SettingsManager.ALL)
-    }
 
     @Test
     fun pinsAreBackedUpAndRestored() = runBlocking {

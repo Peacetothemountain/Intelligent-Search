@@ -505,9 +505,10 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             if (changed != null && isMirroredForWidgets(changed)) copyEntry(sp, deviceProtectedPrefs, changed)
         }
         // Full copy first, so the mirror is complete even for values changed by older versions.
-        val editor = deviceProtectedPrefs.edit().clear()
-        credentialPrefs.all.forEach { (name, value) -> if (isMirroredForWidgets(name)) putEntry(editor, name, value) }
-        editor.apply()
+        deviceProtectedPrefs.edit {
+            clear()
+            credentialPrefs.all.forEach { (name, value) -> if (isMirroredForWidgets(name)) putEntry(this, name, value) }
+        }
         credentialPrefs.registerOnSharedPreferenceChangeListener(mirror)
         directBootMirror = mirror
     }
@@ -523,9 +524,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
     private fun isMirroredForWidgets(name: String): Boolean = name.startsWith("widget") || name in widgetAppWideNames
 
     private fun copyEntry(from: SharedPreferences, to: SharedPreferences, name: String) {
-        val editor = to.edit()
-        if (from.contains(name)) putEntry(editor, name, from.all[name]) else editor.remove(name)
-        editor.apply()
+        to.edit { if (from.contains(name)) putEntry(this, name, from.all[name]) else remove(name) }
     }
 
     private fun putEntry(editor: SharedPreferences.Editor, name: String, value: Any?) {

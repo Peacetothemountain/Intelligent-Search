@@ -50,7 +50,8 @@ import com.pixel.intelligentsearch.core.ui.expressive.expressivePress
  */
 @Composable
 fun SettingsCard(
-    modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+    // Goes inside the card's own full width and 4dp side inset.
+    modifier: Modifier = Modifier,
     // A page's main cards, the ones holding its settings, have the light behind them; a card that only holds a
     // selector (a design switch, an icon picker) doesn't.
     lit: Boolean = true,
@@ -60,7 +61,7 @@ fun SettingsCard(
 ) {
     com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
         // Not clipped here: the shell clips its own content, and the light behind it has to show around the edge.
-        modifier = modifier,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp).then(modifier),
         shape = ExpressiveCornerTokens.ShapeExtraLarge,
         containerColor = MaterialTheme.colorScheme.pageContainer,
         border = com.pixel.intelligentsearch.core.ui.expressive.MatteShellDefaults.border(),
@@ -231,13 +232,13 @@ fun SettingsSectionHeader(text: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun SettingsRow(
-    onLongClick: (() -> Unit)? = null,
     title: String,
     subtitle: String,
     icon: Any?,
     onClick: () -> Unit,
     showDivider: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null
 ) {
     val iconBitmap = remember(icon) {
         if (icon is android.graphics.drawable.Drawable) {
@@ -454,13 +455,13 @@ fun SettingsDropdownRow(
 fun SettingsRowToggle(
     title: String,
     subtitle: String,
-    icon: Any? = null,
-    customIcon: (@Composable () -> Unit)? = null,
     isChecked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    icon: Any? = null,
+    customIcon: (@Composable () -> Unit)? = null,
     onClick: (() -> Unit)? = null,
-    showDivider: Boolean = true,
-    modifier: Modifier = Modifier
+    showDivider: Boolean = true
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val view = androidx.compose.ui.platform.LocalView.current

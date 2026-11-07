@@ -499,7 +499,7 @@ fun BackupRestoreScreen(
             // room kept for it and the shadows under its feet.
             bugdroid = if (isBugdroidVideoSupported) { { BackupBugdroid(backupExoPlayer) } } else null
         ) {
-            SettingsCard(modifier = Modifier.backupCard("backup_card_passphrase")) {
+            SettingsCard(modifier = Modifier.testTag("backup_card_passphrase")) {
                 BackupCardTitle("Encryption")
                 BackupCardDescription(encryptionCardDescription(passkeySupported, passkeySetUp, keyHolder))
                 // A passkey first, the passphrase as the other way in (or the only one, below Android 14).
@@ -695,7 +695,7 @@ fun BackupRestoreScreen(
                 }
             }
 
-            SettingsCard(modifier = Modifier.backupCard("backup_card_export")) {
+            SettingsCard(modifier = Modifier.testTag("backup_card_export")) {
                 BackupCardTitle("Export Configuration")
                 BackupCardDescription("Settings, History, Shortcuts, and Priority Weights.")
                 Spacer(modifier = Modifier.height(4.dp))
@@ -730,7 +730,7 @@ fun BackupRestoreScreen(
                 }
             }
 
-            SettingsCard(modifier = Modifier.backupCard("backup_card_restore")) {
+            SettingsCard(modifier = Modifier.testTag("backup_card_restore")) {
                 BackupCardTitle("Restore from Backup")
                 BackupCardDescription("Decrypted and SHA-256 Verified Before Restoring.")
                 Spacer(modifier = Modifier.height(4.dp))
@@ -866,6 +866,3 @@ internal fun BackupCardDescription(text: String) {
         modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
     )
 }
-
-/** [SettingsCard]'s own width and inset, tagged so tests can check that the page's cards line up. */
-internal fun Modifier.backupCard(tag: String): Modifier = fillMaxWidth().padding(horizontal = 4.dp).testTag(tag)

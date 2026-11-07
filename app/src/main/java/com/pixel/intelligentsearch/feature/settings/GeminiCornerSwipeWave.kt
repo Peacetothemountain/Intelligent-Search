@@ -73,11 +73,11 @@ private const val GEMINI_CORNER_SWIPE_SHADER = """
 
 @Composable
 fun GeminiCornerSwipeWaveLayer(
+    modifier: Modifier = Modifier,
     colorPrimary: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.primary,
     colorSecondary: androidx.compose.ui.graphics.Color = colorPrimary,
     colorTertiary: androidx.compose.ui.graphics.Color = colorPrimary,
-    colorAccent: androidx.compose.ui.graphics.Color = colorPrimary,
-    modifier: Modifier = Modifier
+    colorAccent: androidx.compose.ui.graphics.Color = colorPrimary
 ) {
     val shader = remember {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {

@@ -2,61 +2,6 @@
 <issues format="6" by="lint 9.4.1" type="baseline" client="gradle" dependencies="false" name="AGP (9.4.1)" variant="all" version="9.4.1">
 
     <issue
-        id="ModifierParameter"
-        message="Modifier parameter should be the first optional parameter"
-        errorLine1="    modifier: Modifier = Modifier"
-        errorLine2="    ~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/GeminiCornerSwipeWave.kt"
-            line="80"
-            column="5"/>
-    </issue>
-
-    <issue
-        id="ModifierParameter"
-        message="Modifier parameter should be the first optional parameter"
-        errorLine1="    modifier: Modifier = Modifier,"
-        errorLine2="    ~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/ui/OneBoxCards.kt"
-            line="193"
-            column="5"/>
-    </issue>
-
-    <issue
-        id="ModifierParameter"
-        message="Optional Modifier parameter should have a default value of `Modifier`"
-        errorLine1="    modifier: Modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),"
-        errorLine2="    ~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsComponents.kt"
-            line="53"
-            column="5"/>
-    </issue>
-
-    <issue
-        id="ModifierParameter"
-        message="Modifier parameter should be the first optional parameter"
-        errorLine1="    modifier: Modifier = Modifier"
-        errorLine2="    ~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsComponents.kt"
-            line="205"
-            column="5"/>
-    </issue>
-
-    <issue
-        id="ModifierParameter"
-        message="Modifier parameter should be the first optional parameter"
-        errorLine1="    modifier: Modifier = Modifier"
-        errorLine2="    ~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/feature/settings/SettingsComponents.kt"
-            line="428"
-            column="5"/>
-    </issue>
-
-    <issue
         id="DiscouragedApi"
         message="Use of this function is discouraged because resource reflection makes it harder to perform build optimizations and compile-time verification of code. It is much more efficient to retrieve resources by identifier (e.g. `R.foo.bar`) than by name (e.g. `getIdentifier(&quot;bar&quot;, &quot;foo&quot;, null)`)."
         errorLine1="                resId = iconPackRes.getIdentifier(drawableName, &quot;drawable&quot;, iconPackPackage)"
@@ -112,17 +57,6 @@
     </issue>
 
     <issue
-        id="UseCompatLoadingForDrawables"
-        message="Use `ResourcesCompat.getDrawable()`"
-        errorLine1="                val drawable = iconPackRes.getDrawable(resId, iconPackContext?.theme)"
-        errorLine2="                               ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/util/IconPackManager.kt"
-            line="135"
-            column="32"/>
-    </issue>
-
-    <issue
         id="UseKtx"
         message="Use the KTX extension function `String.toUri` instead?"
         errorLine1="            data = Uri.parse(&quot;smsto:&quot; + (number?.let { Uri.encode(it) } ?: &quot;&quot;))"
@@ -175,28 +109,6 @@
             file="src/main/java/com/pixel/intelligentsearch/core/search/NaturalLanguageIntentParser.kt"
             line="1284"
             column="19"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        val editor = deviceProtectedPrefs.edit().clear()"
-        errorLine2="                     ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
-            line="508"
-            column="22"/>
-    </issue>
-
-    <issue
-        id="UseKtx"
-        message="Use the KTX extension function `SharedPreferences.edit` instead?"
-        errorLine1="        val editor = to.edit()"
-        errorLine2="                     ~~~~~~~~~">
-        <location
-            file="src/main/java/com/pixel/intelligentsearch/core/data/SettingsManager.kt"
-            line="526"
-            column="22"/>
     </issue>
 
     <issue

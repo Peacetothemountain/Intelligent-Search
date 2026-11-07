@@ -31,6 +31,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.pixel.intelligentsearch.core.backup.AutoBackup
@@ -99,7 +100,7 @@ internal fun AutoBackupCard(passkeySetUp: Boolean = false, obtainPassphrase: (on
         }
     }
 
-    SettingsCard(modifier = Modifier.backupCard("backup_card_auto")) {
+    SettingsCard(modifier = Modifier.testTag("backup_card_auto")) {
         BackupCardTitle("Automatic Backup")
         BackupCardDescription(
             if (passkeySetUp) {

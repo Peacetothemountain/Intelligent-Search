@@ -25,15 +25,11 @@ expected to behave. No change is finished until it passes.
 
 ## Getting a change onto `main`
 
-`main` is protected: GitHub rejects any commit that hasn't already passed the `Build & Check` CI job, and force pushes
-are blocked. The owner's merge is the last approval, so Claude never merges or pushes to `main`. So:
+`main` only takes a pull request that has passed `Build & Check` and that the owner has approved. Nobody pushes to it
+directly, and Claude never approves or merges. `.github/workflows/improve.yml` does everything up to that question, on
+GitHub: the owner approves the pull request for yes, or closes it for no.
 
-1. Commit on `dev` and push `dev`.
-2. `CI Check & Build` runs on that commit. Don't spend turns waiting on it.
-3. Once it is green, `/review-candidate` reviews it, moves the `candidate` branch to it, and opens or updates the pull request to `main`.
-4. The owner reads the pull request and merges it.
-
-If CI fails, fix it on `dev` and repeat. `docs/IMPROVEMENT.md` section 9 has the layers of checking.
+Work the owner asks for in a session goes on `dev` as usual. The next run that delivers reviews everything since `main`, including it.
 
 ## Finding your way through the history
 

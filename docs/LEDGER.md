@@ -205,6 +205,20 @@ with the strongest evidence.
 - Commit: see `Stop spending turns waiting on CI` in `git log dev`
 - Lesson: a wait is only free if nothing has to wake up afterward.
 
+### 2026-11-07: Replaced the local setup with one workflow on GitHub
+- Command: owner said the setup was overly complicated and less secure, that using their local key on a public project is dangerous, and that the process should be automated with checks, ending in only "do you want to merge, yes or no"
+- Target and evidence: the setup in the two entries above ran an unattended agent with full access on the owner's PC, holding their signing keystore and their GitHub login (`repo` and `workflow` scopes), and only a deny list stopped it merging. It also dropped CI for pull requests to `main`, so an outside pull request would have run no checks. Waiting for CI restarted sessions and spent usage
+- Prior work checked: the two entries above. Pushed files, history and tags: the keystore and `local.properties` were never committed
+- Research: `anthropics/claude-code-action` docs and `action.yml`. `GITHUB_TOKEN` can't change workflow files or approve its own pull request, and needs nothing from the owner
+- Models used: inline (Opus 5.5); haiku for the docs lookup
+- Usage level: no figure visible. Lean mode
+- Change: `improve.yml`, `declined.yml`, `smoke.sh`; removed `scripts/run-env.ps1`, `/review-candidate`, `.claude/settings.json` and the `candidate` idea; restored CI for pull requests to `main`; both T3 scheduled tasks paused
+- Before -> after: unattended runs holding the owner's keystore and login: yes -> no. Merge without the owner: stopped by a deny list -> refused by GitHub. Claude usage spent waiting: at least one prompt per run -> none
+- Result: kept, proof of the full run recorded below when it has run
+- Retry only if: n/a
+- Commit: see `Run improvements on GitHub, ending in one question` in `git log dev`
+- Lesson: when asked to remove blocks, don't remove them by handing an agent the owner's keys. Move the work somewhere the keys aren't.
+
 <!--
 Copy this for each cycle, newest at the bottom.
 

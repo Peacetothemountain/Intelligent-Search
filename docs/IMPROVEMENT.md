@@ -86,32 +86,30 @@ Rules:
 - A target marked `rejected` or `reverted` isn't tried again unless its `Retry only if` condition has come true.
   Write down which evidence makes it true.
 - Two failed attempts at the same target: stop, write what was learned, mark it `blocked`, and move on.
-- One target per cycle, one commit per cycle. "Nothing worth changing" is a valid result. A cycle that changed nothing
-  reports that in its run and commits only if a ledger line would stop a later run repeating the same work.
+- One target per cycle, one commit per cycle. "Nothing worth changing" is a valid result, and a run that changes nothing
+  commits nothing.
 - The owner doesn't prompt each cycle. Choose the best course, keep going on `dev`, and leave the ledger as the record
-  for them to read later. What still needs the owner: merging to `main`, `v*` tags and releases, using the phone,
+  for them to read later. What still needs the owner: approving the merge to `main`, `v*` tags and releases, using the phone,
   anything in section 3, and choices a later reader couldn't undo.
 
-### Scheduled runs
+### How runs work
 
-A task in T3 Code's scheduled tasks, `Improve Intelligent Search`, starts one fresh cycle every 4 hours. Nobody is there
-to answer, so each run follows these rules:
+`.github/workflows/improve.yml` runs every 4 hours on GitHub. It uses nothing from the owner's PC, GitHub login or signing
+key, and each step starts only when the one before it passes, so waiting costs no Claude usage:
 
-- Each run has its own T3 worktree, so it can't disturb the owner's checkout at `F:\Intelligent-Search`. Work only in the
-  worktree, and don't change anything in that checkout.
-- Start with `git status` and `git log origin/dev..HEAD`. Uncommitted changes to tracked files or unpushed commits mean an
-  earlier run stopped mid-work: change nothing and end the run saying what was found. Otherwise
-  `git switch --detach origin/dev`, because the worktree starts from an older commit, then run `scripts/run-env.ps1`. It
-  sets up the JDK and release signing, and says what is missing.
-- Finish with `git push origin HEAD:dev`. If `dev` has moved, rebase the run's own commit onto `origin/dev` and push
-  again. Never force a push.
-- If CI failed on the newest `dev` commit, fixing that is the target.
-- A target that needs the owner goes in the ledger as waiting on them, and the run takes the next candidate.
-- Don't wait for CI, and never schedule or poll anything to find out when something finishes. Every wake-up is a new
-  prompt that spends tokens to learn nothing. Push and end the run. The next run reads the result first, and `main` can't
-  take a failing commit in the meantime.
-- When no candidate has evidence behind it, add a ledger entry saying so, pause the task, and tell the owner in the
-  run's report.
+| Step | Claude? | What it can do |
+|---|---|---|
+| Decide | no | Stops when `MAX_WAITING` changes already wait on the owner |
+| Work | yes | Reads and edits files. No shell, no GitHub writes |
+| Commit | no | Refuses edits to `.github`, `.claude` and the Gradle wrapper; pushes the rest to a throwaway branch |
+| CI | no | Lint, every test, screenshot comparisons, minified build |
+| Smoke | no | Installs that build on an emulator, signed with a key made for the run, and checks that it opens |
+| Review | yes, fresh | Read-only. Can only stop the run |
+| Deliver | no | Moves `dev` forward and asks the owner in one pull request |
+
+Only code that passes all of it reaches `dev`, so a failed run leaves nothing behind. Approving the pull request merges
+it. Closing it takes those changes back out of `dev` and records them as declined (`declined.yml`). GitHub emails the
+owner when a run fails.
 
 ## 5. Research before acting
 
@@ -164,35 +162,13 @@ Write the usage level in each ledger entry, so later cycles can see what each ki
    tests only for logic the design can't make safe.
 3. Update the ratchet values in `docs/LEDGER.md` and add the cycle's entry.
 4. One short, plain commit on `dev`, American spelling, attribution as the session's current instructions say.
-   Push `dev` and let CI run. `main` is reached only as section 9 says.
+   Push `dev` and let CI run. `main` is reached only by the pull request the owner approves.
 5. See it working on the emulator without the phone (`docs/DEVICE_TESTING.md`). Install on the phone only as `MEMORY.md`
    says (release build, only when the owner allows, once per batch).
 
 ## 9. Layers of checking
 
-Bad code has to get past every layer below. A layer's job is to stop it, not to generate work: most of what a layer
-reports isn't worth acting on, and acting on all of it would bury the history in commits.
-
-| Layer | Runs | Stops |
-|---|---|---|
-| 1. Compiler | every change | code that can't work |
-| 2. Lint, unit tests, goldens, minified release build | CI on every `dev` commit | regressions and visual changes |
-| 3. Emulator, signed release build | changes people can see | what only a running app shows |
-| 4. Claude's review, each finding then challenged by a fresh agent | `/review-candidate`, daily | bugs no check covers |
-| 5. The owner's merge | when they choose | everything else: this is the only approval |
-
-Rules for every layer:
-
-- **Only the best gets through.** Act on what is confirmed and serious: a failing check, a crash or ANR, lost or exposed
-  data, a wrong result for the user, a security hole, or a change to something locked or declined.
-- **Drop the rest silently.** Style, naming, tidying, "could be a problem someday" and anything unconfirmed get no commit,
-  comment or ledger line. A real problem that doesn't block can take one backlog line if it has strong evidence.
-- **Few commits.** All of a pass's fixes go in one commit. Never one commit or one reply per finding.
-- **One round.** A review pass fixes up to 3 blockers once and ends. The next review checks that fix. More than 3 means
-  the candidate isn't ready: it stops there, and the blockers become the next target.
-
-`candidate` is what the owner sees. `/review-candidate` fast-forwards it to the commit it reviewed, so new `dev` commits
-can't slip into an open pull request after the review. GitHub requires `Build & Check` on those commits and allows only
-merge commits, so `dev` and `main` never need to be rewritten to match. `.claude/settings.json` refuses `gh pr merge` and
-pushes to `main` for Claude. That is a guard against mistakes, not a security boundary: Claude runs under the owner's
-GitHub login, so GitHub can't tell the two apart.
+Each layer in the table above exists to stop bad code, not to create work. Most of what a layer reports isn't worth acting
+on. Act on what is confirmed and serious: a failing check, a crash or ANR, lost or exposed data, a wrong result for the
+user, a security hole, a weakened test, or a change to something off limits. Drop the rest with no commit, comment or
+ledger line. Never one commit or one reply per finding.

@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.pixel.intelligentsearch.core.data.FileItem
 
 /** Frees the in-memory icon and thumbnail caches (called when the system asks for memory). */
 fun clearAllUiMemoryCaches() {
@@ -23,9 +24,19 @@ fun clearAllUiMemoryCaches() {
 internal fun fileThumbnailSource(uri: String, mimeType: String): ThumbnailSource? =
     if (mimeType.startsWith("image/") || mimeType.startsWith("video/")) ThumbnailSource.MediaFile(uri, mimeType) else null
 
+/**
+ * A file's picture in the overlay. File Search's Show Thumbnails switch is read here and nowhere else in the overlay, and
+ * only for a [FileItem], so it can't reach the pictures of people, songs or web suggestions. [whenOff] is what each place
+ * shows with the switch off.
+ */
+@Composable
+internal fun FileResultPicture(s: OverlayScope, file: FileItem, size: Dp = 40.dp, whenOff: @Composable () -> Unit) {
+    if (s.settingsState.filesThumbnails) FileIconThumbnail(file.uri, file.mimeType, size) else whenOff()
+}
+
 /** A file result's picture: the image or a video frame in a matte circle, else the file icon. */
 @Composable
-fun FileIconThumbnail(uri: String, mimeType: String, size: Dp = 40.dp) {
+private fun FileIconThumbnail(uri: String, mimeType: String, size: Dp = 40.dp) {
     ResultThumbnail(fileThumbnailSource(uri, mimeType), size) {
         Box(modifier = Modifier.size(size).background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
             Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)

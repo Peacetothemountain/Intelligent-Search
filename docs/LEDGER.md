@@ -9,7 +9,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 
 | Metric | Value | Measured at |
 |---|---|---|
-| Lines of test code | 52,098 | 2026-11-06, replaces the `@Test` count (owner: root causes over more tests) |
+| Lines of test code | 52,078 | 2026-11-06, B14; replaces the `@Test` count (owner: root causes over more tests) |
 | CI time, `Run Build & Check` | 527s (was 1118s) | run 42277305877 on `8de98e0a` |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
@@ -161,6 +161,22 @@ with the strongest evidence.
 - Retry only if: T3 Code has been restarted, then `device_open` on `IS_Pixel_XL`. Wireless debugging is also untested: the owner has to pair the phone once
 - Commit: see `Add a way to test without plugging in the phone` in `git log dev`
 - Lesson: an updated JDK leaves running apps with the old path; check the machine's value before calling an environment variable wrong.
+
+### 2026-11-06: B14, one place reads File Search's Show Thumbnails
+- Command: /improve (scheduled run)
+- Target and evidence: B14. Four copies of `if (filesThumbnails)` in the overlay, guarded by `FileThumbnailsScopeTest`, which greps source lines and only catches a web picture read on the same line as `imageUrl`, `showThumbnail` or `Web(`. Chosen over B11 and B13 to B17: it is the smallest, it removes a cause, and it takes test code down
+- Prior work checked: this ledger, `git log dev -S"FileResultPicture"` (only this ledger's backlog), claude-mem #23374, #24408. CI green on `5a9f0753` before starting
+- Research: read all 4 call sites and `FileIconThumbnail`. Their off-state pictures differ (size, container color, symbol), so each stays as a `whenOff` slot, moved word for word; merging them would be a visual change nobody asked for
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Lean mode
+- Change: new `FileResultPicture(s, file, size, whenOff)` takes a `FileItem` and is the only reader of the switch in the overlay; `FileIconThumbnail` is now private to its file; `FileThumbnailsScopeTest` removed
+- Test removed, 1: the failure is now much harder to write, since the picture can't be drawn around the switch and the switch isn't read at the call sites. It isn't strictly impossible: new code could still read `settingsState.filesThumbnails` directly. No test now references the switch at all. No golden draws a file with it off, so CI doesn't prove the 4 `whenOff` slots; they were checked by reading the diff
+- Before -> after: readers of the switch in the overlay 4 -> 1; test code 52,108 (the 52,098 above was already out of date) -> 52,078; app code 76,502 -> 76,507 lines, the KDoc and signature; release APK, unsigned local builds of `5a9f0753` and this change, 12,908,309 -> 12,908,309 bytes, with `classes2.dex` up 628 bytes (4,892,612 -> 4,893,240) and absorbed by zip alignment; lint baseline 19 -> 19. The 12,920,597 in the ratchet is a signed build, so it isn't comparable and stays as it is
+- Result: kept, pending CI
+- Emulator: not used. `device_list` now shows `IS_Pixel_XL`, but `device_open` still fails: "Failed to allocate an emulator port for IS_Pixel_XL", from `avdmanager list avd`: "JAVA_HOME is set to an invalid directory: C:\Program Files\Microsoft\jdk-17.0.20.101-hotspot\". This run's own environment holds the same old path. Whether T3 Code was restarted since the last entry isn't known
+- Retry only if: a change to the switch needs its off state proven; then render one file result with it off
+- Commit: see `Read file thumbnails switch in one place` in `git log dev`
+- Lesson: an APK can keep its exact size when its code changes, so compare dex sizes and checksums before believing two builds really differed.
 
 <!--
 Copy this for each cycle, newest at the bottom.

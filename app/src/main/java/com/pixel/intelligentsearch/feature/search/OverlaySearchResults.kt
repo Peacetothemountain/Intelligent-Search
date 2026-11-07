@@ -687,9 +687,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                         .padding(horizontal = 16.dp, vertical = 14.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    if (settingsState.filesThumbnails) {
-                                        FileIconThumbnail(file.uri, file.mimeType)
-                                    } else {
+                                    FileResultPicture(s, file) {
                                         Box(modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(16.dp)), contentAlignment = Alignment.Center) {
                                             Icon(imageVector = Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                         }

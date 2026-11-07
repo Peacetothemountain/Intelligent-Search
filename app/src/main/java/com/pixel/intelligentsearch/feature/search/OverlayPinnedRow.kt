@@ -109,8 +109,7 @@ internal fun OverlayPinnedRow(s: OverlayScope) {
                             ContactAvatar(result, 48.dp) { TileSymbol(Icons.Outlined.Person) }
                         }
                         is FileItem -> PinnedTile(result.name, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }, modifier = highlight) {
-                            if (s.settingsState.filesThumbnails) FileIconThumbnail(result.uri, result.mimeType, size = 48.dp)
-                            else TileSymbol(Icons.AutoMirrored.Outlined.InsertDriveFile)
+                            FileResultPicture(s, result, size = 48.dp) { TileSymbol(Icons.AutoMirrored.Outlined.InsertDriveFile) }
                         }
                         is AndroidSettingResult -> PinnedTile(result.title, openMenu, { openResult(context, s, result, LaunchSource.keyboard()) }, spokenLabel = result.spokenLabel, modifier = highlight) {
                             TileSymbol(androidSettingIcon(result.iconType))

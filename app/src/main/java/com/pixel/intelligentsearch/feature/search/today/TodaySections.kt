@@ -464,17 +464,19 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
 }
 
 /**
- * Do Not Disturb, the flashlight, the hotspot and Battery Saver. The flashlight and Do Not Disturb (once allowed)
- * switch here, their tiles turning round when on; Android lets only its own Settings switch the hotspot and Battery
- * Saver, so those open the page that does. Android doesn't tell apps whether the hotspot is on, so its tile says
- * neither on nor off.
+ * Do Not Disturb, the flashlight (on a phone that has one), the hotspot and Battery Saver. The flashlight and Do Not
+ * Disturb (once allowed) switch here, their tiles turning round when on; Android lets only its own Settings switch the
+ * hotspot and Battery Saver, so those open the page that does. Android doesn't tell apps whether the hotspot is on, so
+ * its tile says neither on nor off.
  */
 @Composable
 internal fun QuickControls(controls: TodayControls) {
     val context = LocalContext.current
     // Live, so a switch flipped in the notification shade while the page is open shows here too.
     val dnd by remember(controls) { controls.doNotDisturb() }.collectAsState(initial = false)
-    val torch by remember(controls) { controls.flashlight() }.collectAsState(initial = false)
+    // A phone without a flashlight has no tile for it rather than one that does nothing.
+    val flashlight = remember(controls) { controls.flashlight() }
+    val torch = flashlight?.collectAsState(initial = false)?.value
     val saver by remember(controls) { controls.batterySaver() }.collectAsState(initial = false)
     Column {
         SectionTitle("Quick controls")
@@ -483,7 +485,9 @@ internal fun QuickControls(controls: TodayControls) {
             ControlTile("Do Not Disturb", Icons.Outlined.DoNotDisturbOn, dnd, Modifier.weight(1f)) {
                 controls.setDoNotDisturb(!dnd)?.let { launchSafeIntent(context, it) }
             }
-            ControlTile("Flashlight", Icons.Outlined.FlashlightOn, torch, Modifier.weight(1f)) { controls.setFlashlight(!torch) }
+            if (torch != null) {
+                ControlTile("Flashlight", Icons.Outlined.FlashlightOn, torch, Modifier.weight(1f)) { controls.setFlashlight(!torch) }
+            }
             ControlTile("Hotspot", Icons.Outlined.WifiTethering, null, Modifier.weight(1f)) {
                 launchSafeIntent(context, Intent(Settings.ACTION_WIRELESS_SETTINGS))
             }

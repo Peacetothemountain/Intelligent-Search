@@ -137,7 +137,8 @@ interface TodayControls {
     fun doNotDisturb(): Flow<Boolean>
     /** Switches Do Not Disturb, when the app may; otherwise the Android page to send the user to ([DoNotDisturb.switch]). */
     fun setDoNotDisturb(on: Boolean): Intent?
-    fun flashlight(): Flow<Boolean>
+    /** The flashlight's state, or null on a phone without one, which then has no Flashlight tile. */
+    fun flashlight(): Flow<Boolean>?
     fun setFlashlight(on: Boolean)
     fun batterySaver(): Flow<Boolean>
 }
@@ -283,21 +284,18 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
 
         override fun setDoNotDisturb(on: Boolean): Intent? = DoNotDisturb.switch(app, on)
 
-        override fun flashlight(): Flow<Boolean> = callbackFlow {
-            val manager = cameras
-            val id = flashCamera
-            if (manager == null || id == null) {
-                trySend(false)
-                awaitClose { }
-                return@callbackFlow
-            }
-            val callback = object : CameraManager.TorchCallback() {
-                override fun onTorchModeChanged(cameraId: String, enabled: Boolean) {
-                    if (cameraId == id) trySend(enabled)
+        override fun flashlight(): Flow<Boolean>? {
+            val manager = cameras ?: return null
+            val id = flashCamera ?: return null
+            return callbackFlow {
+                val callback = object : CameraManager.TorchCallback() {
+                    override fun onTorchModeChanged(cameraId: String, enabled: Boolean) {
+                        if (cameraId == id) trySend(enabled)
+                    }
                 }
+                manager.registerTorchCallback(callback, Handler(Looper.getMainLooper()))
+                awaitClose { manager.unregisterTorchCallback(callback) }
             }
-            manager.registerTorchCallback(callback, Handler(Looper.getMainLooper()))
-            awaitClose { manager.unregisterTorchCallback(callback) }
         }
 
         override fun setFlashlight(on: Boolean) {

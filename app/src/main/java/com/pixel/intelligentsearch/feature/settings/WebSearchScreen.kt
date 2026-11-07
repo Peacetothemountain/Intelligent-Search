@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,7 +26,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WebSearchScreen(
     prefs: SharedPreferences,
@@ -39,13 +37,7 @@ fun WebSearchScreen(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.ime),
         topBar = {
-            TopAppBar(
-                colors = settingsTopBarColors(),
-                title = { SettingsPageTitle("Web Search") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                }
-            )
+            SettingsTopBar("Web Search", onBack)
         }
     ) { padding ->
         val scroll = rememberScrollState()

@@ -22,23 +22,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.*
 
 import androidx.compose.ui.semantics.*
-import androidx.compose.ui.text.font.FontWeight
 
 import com.pixel.intelligentsearch.core.data.SettingsManager
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DebugScreen(prefs: SharedPreferences, onBack: () -> Unit, onDisableDebug: () -> Unit) {
     Scaffold(containerColor = Color.Transparent, topBar = {
-            TopAppBar(
-                title = { SettingsPageTitle("Developer Settings", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Normal) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(imageVector = Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = settingsTopBarColors()
-            )
+            SettingsTopBar("Developer Settings", onBack, smallTitle = true)
         }
     ) { padding ->
         Column(

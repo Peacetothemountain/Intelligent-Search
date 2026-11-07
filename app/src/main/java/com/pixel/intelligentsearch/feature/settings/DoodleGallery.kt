@@ -39,7 +39,6 @@ import androidx.compose.material.icons.outlined.Shuffle
 import androidx.compose.material.icons.outlined.Widgets
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -49,7 +48,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
@@ -112,7 +110,6 @@ internal fun DoodleGalleryDialog(previewing: Occasion?, onPreview: (Occasion?) -
  * Doodles can be searched (by name, group or country), filtered by group or to the ones coming up here, stepped
  * through, shuffled, or found by date with the calendar, which picks the doodle that day gets on this phone.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun DoodleGallery(
     previewing: Occasion?,
@@ -178,11 +175,12 @@ internal fun DoodleGallery(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
-                title = { SettingsPageTitle("Doodle Gallery", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Normal) },
-                navigationIcon = {
-                    IconButton(onClick = onClose) { Icon(Symbols.Outlined.Close, contentDescription = "Close") }
-                },
+            SettingsTopBar(
+                "Doodle Gallery",
+                onBack = onClose,
+                backIcon = Symbols.Outlined.Close,
+                backDescription = "Close",
+                smallTitle = true,
                 actions = {
                     IconButton(onClick = { lightPill = !lightPill }) {
                         Icon(Symbols.Outlined.Contrast, contentDescription = if (lightPill) "Show on a Dark Pill" else "Show on a Light Pill")
@@ -195,8 +193,7 @@ internal fun DoodleGallery(
                     }) {
                         Icon(Symbols.Outlined.Shuffle, contentDescription = "Pick a Random Doodle")
                     }
-                },
-                colors = settingsTopBarColors()
+                }
             )
         }
     ) { padding ->

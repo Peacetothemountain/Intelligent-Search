@@ -32,17 +32,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Check
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -69,7 +65,6 @@ import kotlinx.coroutines.withContext
 private class HiddenAppRow(val app: AppItem, val icon: ImageBitmap?)
 
 /** [loadApps] lists the installed apps; tests pass their own. */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageHiddenAppsScreen(
     prefs: SharedPreferences,
@@ -154,13 +149,9 @@ fun ManageHiddenAppsScreen(
 
     Scaffold(containerColor = Color.Transparent, topBar = {
         Column {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = handleBack) {
-                        Icon(Symbols.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            SettingsTopBar(
+                title = null,
+                onBack = handleBack,
                 actions = {
                     // Nothing to search or save until the page is unlocked.
                     if (isAuthenticated) {
@@ -178,8 +169,7 @@ fun ManageHiddenAppsScreen(
                             saveDescription = "Save Hidden Apps"
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                }
             )
             // The title on its own line, flush left under Back, with Enable All just after it: beside the bar's
             // buttons there's no room for both at a readable size. Search opens at the bottom, so it stays put.

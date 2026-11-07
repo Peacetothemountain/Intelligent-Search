@@ -14,7 +14,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
-| Release APK size | 11,346,076 bytes, unsigned | local build 2026-11-07, activities are plain `ComponentActivity` (11,675,957 before, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
+| Release APK size | 10,619,341 bytes, unsigned | local build 2026-11-07, themes built on Android's own Material theme (11,346,076 before, 11,675,957 before the activities were plain `ComponentActivity`, 12,134,709 before the Bugdroid player held only what the clips need, 12,183,861 before the app's serialization, navigation and Room keep rules went, 12,233,013 before three other keep rules, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
@@ -451,6 +451,21 @@ with the strongest evidence.
 
 <!--
 Copy this for each cycle, newest at the bottom.
+
+### 2026-11-07: The window theme kept Material Components' view styles
+- Command: /improve (scheduled run)
+- Target and evidence: release APK size. After the AppCompat cut, `androidx.appcompat` (36,900 bytes) and most of `com.google.android.material` still shipped, held by `aapt_rules.txt` keep rules for the views in library layouts (`Toolbar`, `MaterialButton`, `Chip` and others), and R8's `resources.txt` showed 1,397 resources reachable, most of them widget styles, drawables and colors reached from `Theme.Material3.DayNight.NoActionBar`. Every screen is Compose and no platform view takes a color from the theme, so the window theme only needs window attributes
+- Prior work checked: this ledger (the AppCompat entry above left the theme untouched), `git log origin/dev -S"optimizedResourceShrinking"` (none), claude-mem
+- Research: the M3 theme's platform root is AppCompat's `Platform.V25.AppCompat(.Light)`, `android:Theme.Material(.Light).NoActionBar`, so the app themes now sit on exactly that, day and night. From the M3 chain only two window values show: `android:colorBackground` (neutral98 `#FEF7FF`, neutral6 `#141218`, Settings' window and launch screen) and `android:backgroundDimAmount` 0.32 (Compose dialogs take their window from the theme's `android:dialogTheme`, which neither library overrides, so it is the platform's in both). Both are now set in the app's themes. System bars come from `enableEdgeToEdge` at runtime; widget layouts set fonts and colors themselves. `DynamicColors.applyToActivityIfAvailable` reads M3's `dynamicColorThemeOverlay`, which the platform theme lacks, and in all three activities it ran after `enableEdgeToEdge` had already built the window, so it never changed what the window drew: the three calls are gone. `DynamicColors.isDynamicColorAvailable` and the color utilities stay
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: `Platform.IntelligentSearch` (values, values-night) parents both app themes; Theme.IntelligentSearch keeps M3's background and scrim, the overlay its scrim; the AppCompat-only `fontFamily` items and the three dead `applyToActivityIfAvailable` calls removed
+- Before -> after: release APK, unsigned local builds, 11,346,076 -> 10,619,341 bytes (-726,735); dex 6,414,348 -> 6,334,336 compressed; `resources.arsc` 593,336 -> 220,700; res files 1,594 -> 1,031; `androidx.appcompat` 36,900 -> 0; lint baseline 11 -> 11, lint clean; test code 51,986 -> 51,986
+- Emulator: not checked. `IS_Pixel_XL` booted on 5580 and the debug build installed, but `agent-device open` returned `DEVICE_IN_USE` again, held by session `t3-e822f319011a4059b97668d8`, and `device_screenshot` failed with "The device hub could not complete the request". Emulator shut down
+- Result: kept, pending CI and a look at Settings (no title bar, background before the first frame, dialog scrim in light and dark) and the search overlay
+- Retry only if: a title bar appears, Settings flashes a different color while opening, or a dialog's scrim looks lighter or darker; compare the window attributes with `Base.V14.Theme.Material3.Light` in material 1.14.0 before going back to it
+- Commit: see `Build the themes on Android's own Material theme` in `git log dev`
+- Lesson: R8 can't drop a library's view classes while its layouts are reachable; the theme parent is what made them reachable. Check `resources.txt` for what a theme pulls in before blaming keep rules.
 
 ### YYYY-MM-DD: <short target>
 - Command: /improve | /debug | /audit

@@ -6,10 +6,18 @@
         <item name="android:activityCloseEnterAnimation">@anim/slide_in_left</item>
         <item name="android:activityCloseExitAnimation">@anim/slide_out_right</item>
     </style>
-    <style name="Theme.IntelligentSearch" parent="Theme.Material3.DayNight.NoActionBar">
+    <!-- Android's own Material theme, the one Material Components' theme was built on. Every screen is drawn with
+         Compose, so the window needs nothing from that library, and its theme kept hundreds of its view styles and
+         drawables in the app. The dark version is in values-night. -->
+    <style name="Platform.IntelligentSearch" parent="@android:style/Theme.Material.Light.NoActionBar" />
+    <style name="Theme.IntelligentSearch" parent="Platform.IntelligentSearch">
         <!-- Text drawn by Android's own views in the app's windows is Google Sans Flex too, like the Compose text. -->
         <item name="android:fontFamily">@font/google_sans_flex</item>
-        <item name="fontFamily">@font/google_sans_flex</item>
+        <!-- Material 3's background, shown behind Settings before its first frame and on its launch screen. -->
+        <item name="android:colorBackground">@color/window_background</item>
+        <item name="android:windowBackground">?android:attr/colorBackground</item>
+        <!-- Material 3's scrim behind dialogs. -->
+        <item name="android:backgroundDimAmount">0.32</item>
         <item name="android:windowAnimationStyle">@style/Theme.IntelligentSearch.Animation</item>
     </style>
     <style name="Theme.IntelligentSearch.Animation.None">
@@ -37,14 +45,15 @@
         <item name="android:wallpaperIntraCloseExitAnimation">@anim/no_anim</item>
     </style>
 
-    <style name="Theme.IntelligentSearch.Overlay" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.IntelligentSearch.Overlay" parent="Platform.IntelligentSearch">
         <!-- Recents screenshots are off, so Android draws the Recents card from these when its live preview ends;
-             Material's lavender status bar color would show as a lavender header on it. -->
+             the theme's own status bar color would show as a colored header on it. -->
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <!-- Text drawn by Android's own views in the app's windows is Google Sans Flex too, like the Compose text. -->
         <item name="android:fontFamily">@font/google_sans_flex</item>
-        <item name="fontFamily">@font/google_sans_flex</item>
+        <!-- Material 3's scrim behind dialogs. -->
+        <item name="android:backgroundDimAmount">0.32</item>
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowShowWallpaper">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>

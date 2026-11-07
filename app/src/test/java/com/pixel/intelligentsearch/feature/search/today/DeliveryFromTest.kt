@@ -18,6 +18,8 @@ class DeliveryFromTest {
             "Your package is out for delivery" to 2,
             "Your package will be delivered today" to 2,
             "Out for delivery: will be delivered by 8 PM" to 2,
+            "Your package is delayed" to 1, "Your delivery is running late" to 1, "Your delivery has been rescheduled" to 1,
+            "Delayed, now arriving today" to 2,
             "Your package was delivered" to 3,
             "Delivered: your order is at the front door" to 3,
             "Your package could not be delivered" to null,

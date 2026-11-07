@@ -142,13 +142,15 @@ private val NOT_DELIVERED = Regex(
 )
 private val TO_BE_DELIVERED = Regex("\\b(?:will|to|should)\\s+be\\s+delivered\\b", RegexOption.IGNORE_CASE)
 private val OUT_FOR_DELIVERY = Regex("out for delivery|arriving today|arrives today|will arrive today|delivery today|be delivered today", RegexOption.IGNORE_CASE)
+/** A package held up: still coming, but not when it said. Read after [OUT_FOR_DELIVERY], so "delayed, now arriving today" stays today. */
+private val DELAYED = Regex("\\bdelayed\\b|\\brunning\\s+late\\b|\\bbehind\\s+schedule\\b|\\brescheduled\\b", RegexOption.IGNORE_CASE)
 private val ON_THE_WAY = Regex("\\bshipped\\b|on (its|the) way|in transit|arriving (tomorrow|on)|has left|departed|be delivered", RegexOption.IGNORE_CASE)
 private val PACKAGE = Regex("package|parcel|order|shipment|delivery", RegexOption.IGNORE_CASE)
 
 /**
- * The newest package news among the notifications from the last two days, if any: delivered, out for delivery, or on
- * its way. Only notifications that speak of a package, order or delivery count. When the newest says it couldn't be
- * delivered (in any of [NOT_DELIVERED]'s words), no step says that, so there is no tile rather than an older, happier one.
+ * The newest package news among the notifications from the last two days, if any: delivered, out for delivery,
+ * delayed, or on its way. Only notifications that speak of a package, order or delivery count. When the newest says it
+ * couldn't be delivered (in any of [NOT_DELIVERED]'s words), no step says that, so there is no tile rather than an older, happier one.
  */
 internal fun deliveryFrom(entries: List<IndexedNotification>, now: Long): TodayDelivery? {
     for (entry in entries.filter { now - it.postedAt in 0..DELIVERY_WINDOW_MS }.sortedByDescending { it.postedAt }) {
@@ -158,6 +160,7 @@ internal fun deliveryFrom(entries: List<IndexedNotification>, now: Long): TodayD
         return when {
             DELIVERED.containsMatchIn(TO_BE_DELIVERED.replace(text, "")) -> TodayDelivery(3, "Delivered", entry.appLabel, entry)
             OUT_FOR_DELIVERY.containsMatchIn(text) -> TodayDelivery(2, "Arriving today", "Out for delivery", entry)
+            DELAYED.containsMatchIn(text) -> TodayDelivery(1, "Delayed", entry.appLabel, entry)
             ON_THE_WAY.containsMatchIn(text) -> TodayDelivery(1, "On the way", entry.appLabel, entry)
             else -> continue
         }

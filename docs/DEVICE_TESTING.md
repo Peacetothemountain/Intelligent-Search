@@ -41,6 +41,13 @@ T3 Code passes its own environment to `avdmanager`. If it was started before a J
 `avdmanager` crashes on the `android-37.0` image ("null"), so this AVD's `.ini` and `config.ini` were written by hand from
 another Android 17 AVD. Recreate it the same way if it is ever lost.
 
+To show the app notifications (Catch Up, the package tile), grant its listener with `adb shell cmd notification
+allow_listener com.pixel.intelligentsearch/com.pixel.intelligentsearch.core.glance.NotificationAccessListener`, run
+`adb unroot` (this image's adbd runs as root, and `cmd notification post` then fails as package "root"), then
+`adb shell pm grant com.android.shell android.permission.POST_NOTIFICATIONS` and
+`adb shell "cmd notification post -t 'Title' <tag> 'Text'"`. `cmd notification list` shows what is live. Undo the
+listener and the grant afterwards (`disallow_listener`, `pm revoke`).
+
 Unlike the phone, driving the emulator can't turn off the owner's app lock, and it holds none of their real data.
 
 ## 2. What needs the real phone

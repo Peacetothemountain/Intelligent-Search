@@ -192,6 +192,19 @@ with the strongest evidence.
 - Commit: see `Set up runs and a review before main` in `git log dev`
 - Lesson: an error's first line isn't always its cause. The port error was really `JAVA_HOME`, and the helper failure after it was really `DEVICE_IN_USE`, two lines higher in the output.
 
+### 2026-11-06: No turns spent waiting
+- Command: owner said scheduled messages shouldn't spend tokens, and neither should a new prompt that only says something is still being waited on
+- Target and evidence: runs were told to wait for CI. A wait longer than 10 minutes moves to the background and restarts the session with a new prompt when it ends, re-reading its whole context to learn one result. This session did that 3 times
+- Prior work checked: charter section 4; the next run already reads CI on the newest commit first, so the wait added nothing
+- Models used: inline (Opus 5.5)
+- Usage level: no figure visible. Lean mode
+- Change: runs and reviews push and end; the next run reads the result; the 4-hour task's prompt says the same
+- Before -> after: prompts spent per run waiting on CI, at least 1 -> 0
+- Result: kept. For the two entries above marked pending: CI `Build & Check` green on `0aac9df7` (721s against the ratchet's 527s, with no test or workflow change to explain it; not investigated) and on `0621f24c`
+- Retry only if: failing commits sit on `dev` long enough to hold up a review
+- Commit: see `Stop spending turns waiting on CI` in `git log dev`
+- Lesson: a wait is only free if nothing has to wake up afterward.
+
 <!--
 Copy this for each cycle, newest at the bottom.
 

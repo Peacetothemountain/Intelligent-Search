@@ -107,7 +107,9 @@ to answer, so each run follows these rules:
   again. Never force a push.
 - If CI failed on the newest `dev` commit, fixing that is the target.
 - A target that needs the owner goes in the ledger as waiting on them, and the run takes the next candidate.
-- Wait for CI on the run's own commit before finishing. Leave no failing commit behind.
+- Don't wait for CI, and never schedule or poll anything to find out when something finishes. Every wake-up is a new
+  prompt that spends tokens to learn nothing. Push and end the run. The next run reads the result first, and `main` can't
+  take a failing commit in the meantime.
 - When no candidate has evidence behind it, add a ledger entry saying so, pause the task, and tell the owner in the
   run's report.
 
@@ -186,8 +188,8 @@ Rules for every layer:
 - **Drop the rest silently.** Style, naming, tidying, "could be a problem someday" and anything unconfirmed get no commit,
   comment or ledger line. A real problem that doesn't block can take one backlog line if it has strong evidence.
 - **Few commits.** All of a pass's fixes go in one commit. Never one commit or one reply per finding.
-- **One round.** A review pass fixes up to 3 blockers once, then checks only that fix. More than that means the candidate
-  isn't ready: it stops there, and the blockers become the next target.
+- **One round.** A review pass fixes up to 3 blockers once and ends. The next review checks that fix. More than 3 means
+  the candidate isn't ready: it stops there, and the blockers become the next target.
 
 `candidate` is what the owner sees. `/review-candidate` fast-forwards it to the commit it reviewed, so new `dev` commits
 can't slip into an open pull request after the review. GitHub requires `Build & Check` on those commits and allows only

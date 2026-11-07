@@ -28,8 +28,8 @@ commit, comment or ledger line. A real problem that doesn't block can take one b
 ## 3. Act on the result
 
 - Nothing blocks: go to step 4.
-- 1 to 3 blockers with a clear fix: fix them all in one commit on `dev`, wait for CI, check only that fix, and go to step 4
-  with that commit. One round only.
+- 1 to 3 blockers with a clear fix: fix them all in one commit on `dev`, leave `candidate` and the pull request alone, and
+  end the run. Don't wait for CI: the next review starts from the newest green commit and checks the fix.
 - More than 3, or a fix that isn't clear: leave `candidate` and the pull request alone, add one ledger entry naming the
   blockers, and stop. The candidate isn't ready, and the next cycle's target is those blockers.
 

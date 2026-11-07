@@ -29,8 +29,8 @@ expected to behave. No change is finished until it passes.
 are blocked. The owner's merge is the last approval, so Claude never merges or pushes to `main`. So:
 
 1. Commit on `dev` and push `dev`.
-2. Wait for the `CI Check & Build` run on that commit to go green (`gh run watch`).
-3. `/review-candidate` reviews it, moves the `candidate` branch to it, and opens or updates the pull request to `main`.
+2. `CI Check & Build` runs on that commit. Don't spend turns waiting on it.
+3. Once it is green, `/review-candidate` reviews it, moves the `candidate` branch to it, and opens or updates the pull request to `main`.
 4. The owner reads the pull request and merges it.
 
 If CI fails, fix it on `dev` and repeat. `docs/IMPROVEMENT.md` section 9 has the layers of checking.

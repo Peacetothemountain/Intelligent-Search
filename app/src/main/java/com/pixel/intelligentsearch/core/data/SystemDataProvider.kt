@@ -78,7 +78,7 @@ data class CalendarEvent(
     val eventId: Long = 0L,
     val beginMillis: Long = 0L,
     val allDay: Boolean = false,
-    /** Where the event is, as typed in the calendar; empty when it has no place. */
+    /** Where the event is, as typed in the calendar but without an online meeting's link or name; empty when it has no place. */
     val location: String = "",
     /** A phone number found in the event's place or notes, to call; empty when it has none. */
     val phone: String = ""
@@ -303,15 +303,37 @@ object SystemDataProvider {
         combined.take(6)
     }
 
-    /** The first phone number in [text] with at least seven digits, as written there; empty when it has none. */
+    /**
+     * The first phone number in [text] with at least seven digits, as written there; empty when it has none. Digits
+     * inside a link and a meeting's ID, passcode or PIN are not numbers to call.
+     */
     internal fun phoneIn(text: String): String {
-        val matcher = android.util.Patterns.PHONE.matcher(text)
+        val plain = android.util.Patterns.WEB_URL.matcher(text).replaceAll(" ")
+        val matcher = android.util.Patterns.PHONE.matcher(plain)
         while (matcher.find()) {
             val found = matcher.group().trim()
-            if (found.count { it.isDigit() } >= 7) return found
+            val label = plain.substring(maxOf(0, matcher.start() - 16), matcher.start())
+            if (found.count { it.isDigit() } >= 7 && !MEETING_CODE_LABEL.containsMatchIn(label)) return found
         }
         return ""
     }
+
+    /** "Meeting ID:", "Passcode", "PIN:" and the like, just before a run of digits. */
+    private val MEETING_CODE_LABEL = Regex("""(\bid|\bpin|passcode|password|\bcode)\s*[:#]?\s*$""", RegexOption.IGNORE_CASE)
+
+    /**
+     * The places in an event's [location], as typed, without its online meeting: a link, or the name calendar apps put
+     * there for one ("Microsoft Teams Meeting", "Zoom"). Empty when that is all it holds.
+     */
+    internal fun placeIn(location: String): String = location.split(';')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() && !ONLINE_MEETING.matches(it) && !android.util.Patterns.WEB_URL.matcher(it).matches() }
+        .joinToString("; ")
+
+    private val ONLINE_MEETING = Regex(
+        """(microsoft teams|teams|zoom|google meet|webex|skype|skype for business)( meeting)?|online( meeting)?""",
+        RegexOption.IGNORE_CASE
+    )
 
     /**
      * Calendar instances from now to the end of tomorrow, in start order: tomorrow's first event can be more than a day
@@ -367,7 +389,7 @@ object SystemDataProvider {
                     // An all-day event starts at midnight UTC, which local time would show as some odd hour.
                     val timeString = if (allDay) "All day" else timeFormat.format(java.util.Date(startTimeMillis))
 
-                    val location = if (locationIndex >= 0) cursor.getString(locationIndex).orEmpty().trim() else ""
+                    val location = if (locationIndex >= 0) placeIn(cursor.getString(locationIndex).orEmpty()) else ""
                     val description = if (descriptionIndex >= 0) cursor.getString(descriptionIndex).orEmpty() else ""
                     events.add(CalendarEvent(title ?: "Event", timeString, eventId, startTimeMillis, allDay, location, phoneIn(location + "\n" + description)))
                 }

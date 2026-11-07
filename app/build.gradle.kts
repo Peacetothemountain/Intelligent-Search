@@ -21,6 +21,12 @@ android {
         versionName = "9.5.5"
     }
 
+    // The app is written in English only. Without this, every library's translations (about 80 languages)
+    // ship in resources.arsc although no screen of the app is translated.
+    androidResources {
+        localeFilters += "en"
+    }
+
     signingConfigs {
         create("release") {
             val localProperties = Properties()

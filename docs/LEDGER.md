@@ -14,7 +14,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
-| Release APK size | 12,652,905 bytes, unsigned | local build 2026-11-07, Bugdroid tutorial layers at drawn size (12,908,309 unsigned before it). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
+| Release APK size | 12,233,013 bytes, unsigned | local build 2026-11-07, English resources only (12,652,905 before it, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
@@ -372,6 +372,20 @@ with the strongest evidence.
 - Retry only if: the mascot needs to be drawn larger than about 60x84 dp; then go back to the full-size art from `git log` and decode at the size needed
 - Commit: see `Ship the tutorial mascot at the size it's drawn` in `git log dev`
 - Lesson: when code always downsamples an asset, ship the asset downsampled the same way. Check exactness with the platform's own decoder, since a lossless format can still round differently once premultiplied.
+
+### 2026-11-07: Library translations the app never showed
+- Command: /improve (scheduled run)
+- Target and evidence: release APK size. `resources.arsc` was 1,024,008 bytes, stored uncompressed, and `aapt2 dump configurations` listed about 80 languages, all from libraries (Material, AppCompat, Compose, Credentials, Media3). The app's own strings exist only in `values/`, in English. Android's guide recommends keeping only the languages the app supports (https://developer.android.com/build/shrink-code#unused-alt-resources). Chosen because the backlog has nothing left with evidence (B11 only adds tests) and no crash or flaky run is open. CI green on `76aa6448`; `377db522` and `f3a0001d` still running
+- Prior work checked: this ledger, `git log dev -S"localeFilters"` and `-S"resourceConfigurations"` (never tried)
+- Research: AGP 9.4.1 takes `androidResources.localeFilters`. No test or app code picks a resource by locale: the tests that change locale do it for number formats and the app list refresh. Night, size, density and right-to-left resources are kept
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: `localeFilters += "en"` in `app/build.gradle.kts`. A phone set to another language now sees the few library strings (screen reader labels, system dialogs inside the app) in English, matching the rest of the app
+- Before -> after: release APK, unsigned local builds of the same code, 12,652,905 -> 12,233,013 bytes (-419,892); `resources.arsc` 1,024,008 -> 604,116; dex identical; test code 51,986 -> 51,986; lint baseline 11 -> 11 (lintVital clean). An English phone sees no change, so no emulator check; CI goldens run in English
+- Result: kept, pending CI
+- Retry only if: the app gets its own translations; then add those languages to `localeFilters`
+- Commit: see `Ship only the English resources the app uses` in `git log dev`
+- Lesson: an app written in one language still carries every library's translations until the build is told which languages it supports.
 
 <!--
 Copy this for each cycle, newest at the bottom.

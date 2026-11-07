@@ -77,7 +77,9 @@ data class CalendarEvent(
     val startTime: String,
     val eventId: Long = 0L,
     val beginMillis: Long = 0L,
-    val allDay: Boolean = false
+    val allDay: Boolean = false,
+    /** Where the event is, as typed in the calendar; empty when it has no place. */
+    val location: String = ""
 )
 
 @Immutable
@@ -317,7 +319,8 @@ object SystemDataProvider {
                 CalendarContract.Instances.TITLE,
                 CalendarContract.Instances.BEGIN,
                 CalendarContract.Instances.EVENT_ID,
-                CalendarContract.Instances.ALL_DAY
+                CalendarContract.Instances.ALL_DAY,
+                CalendarContract.Instances.EVENT_LOCATION
             )
 
             context.contentResolver.query(
@@ -332,6 +335,7 @@ object SystemDataProvider {
                 val dtStartIndex = cursor.getColumnIndex(CalendarContract.Instances.BEGIN)
                 val eventIdIndex = cursor.getColumnIndex(CalendarContract.Instances.EVENT_ID)
                 val allDayIndex = cursor.getColumnIndex(CalendarContract.Instances.ALL_DAY)
+                val locationIndex = cursor.getColumnIndex(CalendarContract.Instances.EVENT_LOCATION)
                 // Honours the user's 12/24-hour preference and locale instead of always printing AM/PM.
                 val timeFormat = android.text.format.DateFormat.getTimeFormat(context)
 
@@ -343,7 +347,8 @@ object SystemDataProvider {
                     // An all-day event starts at midnight UTC, which local time would show as some odd hour.
                     val timeString = if (allDay) "All day" else timeFormat.format(java.util.Date(startTimeMillis))
 
-                    events.add(CalendarEvent(title ?: "Event", timeString, eventId, startTimeMillis, allDay))
+                    val location = if (locationIndex >= 0) cursor.getString(locationIndex).orEmpty().trim() else ""
+                    events.add(CalendarEvent(title ?: "Event", timeString, eventId, startTimeMillis, allDay, location))
                 }
             }
         } catch (_: Throwable) {}

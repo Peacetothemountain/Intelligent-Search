@@ -113,7 +113,7 @@ internal val LocalGlanceClock = staticCompositionLocalOf { GlanceClock(System::c
  * is on screen (started): the search is kept between looks, and its rows shouldn't wake the phone in the background.
  */
 @Composable
-private fun rememberGlanceNow(periodMs: Long, enabled: Boolean = true): Long {
+internal fun rememberGlanceNow(periodMs: Long, enabled: Boolean = true): Long {
     val clock = LocalGlanceClock.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     return produceState(clock.now(), clock, periodMs, enabled, lifecycle) {
@@ -133,7 +133,7 @@ private fun rememberGlanceNow(periodMs: Long, enabled: Boolean = true): Long {
  * Android's settings while the search is kept between looks.
  */
 @Composable
-private fun rememberCalendarAllowed(): Boolean {
+internal fun rememberCalendarAllowed(): Boolean {
     val context = LocalContext.current
     var granted by remember(context) { mutableStateOf(calendarAllowed(context)) }
     val lifecycleOwner = LocalLifecycleOwner.current

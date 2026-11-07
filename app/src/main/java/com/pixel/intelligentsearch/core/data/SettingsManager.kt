@@ -231,6 +231,13 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** The clock's face, as a GlanceClockStyle's stored value. */
         val GLANCE_CLOCK_STYLE = StringSetting("glance.clock_style", "cookie")
         /**
+         * Today: the small button in the search's top start corner that opens the Today page, your day on one page.
+         * Off until the user turns it on; the search itself doesn't change.
+         */
+        val TODAY_BUTTON = BooleanSetting("today.button", false)
+        /** Today's Up Next card and Rest of Your Day timeline, read from the calendar (shown only while it is allowed). */
+        val TODAY_UP_NEXT = BooleanSetting("today.up_next", true)
+        /**
          * AI Answers: questions ("…?", "ask …") offer an Ask row that, only when tapped, sends that one question to
          * [AI_PROVIDER] with the user's own key (kept in AiKeyVault, never here). Off by default; a backup can't
          * switch it on.
@@ -296,6 +303,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,
             DEBUG_MOCK_TRENDING, APP_FUNCTIONS_SHARE_CONTACTS, GLANCE_ENABLED, GLANCE_ALARM,
             GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_CALENDAR, GLANCE_BIRTHDAYS, GLANCE_CLOCK, GLANCE_CLOCK_STYLE,
+            TODAY_BUTTON, TODAY_UP_NEXT,
             RESULT_SHORTCUTS, WEATHER_HOME_LOCATION, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,

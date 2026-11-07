@@ -123,7 +123,7 @@ internal fun rememberNotifications(sources: TodaySources, enabled: Boolean): Lis
     return entries
 }
 
-/** A package on its way, read from a shipping notification: how far along it is (0 to 3) and what it said. */
+/** A package on its way, read from a shipping notification: how far along it is (1 on the way, 2 out for delivery, 3 delivered) and what it said. */
 @Immutable
 internal data class TodayDelivery(val step: Int, val headline: String, val detail: String, val entry: IndexedNotification)
 
@@ -175,20 +175,22 @@ internal fun DeliveryTile(delivery: TodayDelivery, modifier: Modifier) {
         Spacer(Modifier.weight(1f, fill = false).height(10.dp))
         val on = scheme.primary
         val off = scheme.surfaceContainerHighest
+        // One dot per label below it: Shipped (step 1), Today (2), Here (3).
+        val current = delivery.step - 1
         Canvas(Modifier.fillMaxWidth().height(14.dp)) {
             val r = 5.dp.toPx()
             val y = size.height / 2
-            val xs = (0..3).map { r + it * (size.width - 2 * r) / 3f }
-            for (i in 0 until 3) drawLine(if (i < delivery.step) on else off, Offset(xs[i], y), Offset(xs[i + 1], y), strokeWidth = 3.dp.toPx())
+            val xs = (0..2).map { r + it * (size.width - 2 * r) / 2f }
+            for (i in 0 until 2) drawLine(if (i < current) on else off, Offset(xs[i], y), Offset(xs[i + 1], y), strokeWidth = 3.dp.toPx())
             xs.forEachIndexed { i, x ->
-                if (i == delivery.step && pulse > 0f) drawCircle(on.copy(alpha = 0.5f * (1 - pulse)), r + 9.dp.toPx() * pulse, Offset(x, y))
-                drawCircle(if (i <= delivery.step) on else off, r, Offset(x, y))
+                if (i == current && pulse > 0f) drawCircle(on.copy(alpha = 0.5f * (1 - pulse)), r + 9.dp.toPx() * pulse, Offset(x, y))
+                drawCircle(if (i <= current) on else off, r, Offset(x, y))
             }
         }
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("Shipped", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
-            Text("Today", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
-            Text("Here", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
+        Box(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+            Text("Shipped", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, modifier = Modifier.align(Alignment.CenterStart))
+            Text("Today", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, modifier = Modifier.align(Alignment.Center))
+            Text("Here", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, modifier = Modifier.align(Alignment.CenterEnd))
         }
     }
 }

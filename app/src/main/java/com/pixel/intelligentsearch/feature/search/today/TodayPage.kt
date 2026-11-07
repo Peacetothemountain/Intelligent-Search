@@ -195,7 +195,6 @@ internal fun TodayLayer(
     val discoverOn by rememberSetting(SettingsManager.TODAY_BUTTON)
     val weatherOn by rememberSetting(SettingsManager.TODAY_WEATHER)
     val memoriesOn by rememberSetting(SettingsManager.TODAY_MEMORIES)
-    val extrasOn by rememberSetting(SettingsManager.TODAY_EXTRAS)
     val photosOk = rememberPermissionState(::photosAllowed)
     var weather by remember { mutableStateOf<Pair<WeatherReport, WeatherReport?>?>(null) }
     var weatherAt by remember { mutableLongStateOf(0L) }
@@ -209,8 +208,8 @@ internal fun TodayLayer(
         }
     }
     var memory by remember { mutableStateOf<TodayMemory?>(null) }
-    LaunchedEffect(discoverOn, memoriesOn, extrasOn, photosOk, open) {
-        if (discoverOn && memoriesOn && extrasOn && photosOk && (memory == null || open)) {
+    LaunchedEffect(discoverOn, memoriesOn, photosOk, open) {
+        if (discoverOn && memoriesOn && photosOk && (memory == null || open)) {
             memory = sources.memory(java.time.LocalDate.now())
         }
     }
@@ -349,8 +348,8 @@ internal fun TodayPage(
         value = if (upNext != null && leaveByOn && active) sources.trip(upNext) else null
     }.value
     val photosOk = rememberPermissionState(::photosAllowed)
-    val ownMemory = produceState<TodayMemory?>(null, preloadedMemory == null, today, memoriesOn, extrasOn, active, photosOk) {
-        if (preloadedMemory == null && memoriesOn && extrasOn && active && photosOk) value = sources.memory(today)
+    val ownMemory = produceState<TodayMemory?>(null, preloadedMemory == null, today, memoriesOn, active, photosOk) {
+        if (preloadedMemory == null && memoriesOn && active && photosOk) value = sources.memory(today)
     }.value
     val memory = (preloadedMemory ?: ownMemory)?.takeIf { memoriesOn && photosOk }
     val photosRequest = rememberPhotosRequest { }
@@ -404,6 +403,9 @@ internal fun TodayPage(
                 Enter(index++) { WordOfTheDay(wordOfTheDay(today), onSearch) }
                 val countdown = remember(today) { sources.countdown(today) }
                 Enter(index++) { YearTiles(today, countdown, memory, askPhotos) }
+            } else if (memory != null) {
+                // On This Day has its own switch, so its photo shows without Word of the Day and Countdown.
+                Enter(index++) { YearTiles(today, null, memory) }
             }
             if (alarmTomorrow != null || tomorrowWeather != null || tomorrowEvent != null) {
                 Enter(index) { Tomorrow(today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather?.takeIf { weatherOn }, tomorrowEvent) }

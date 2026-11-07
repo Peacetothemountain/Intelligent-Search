@@ -334,7 +334,6 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         disableLegacyStatusBarContrastScrim()
         // Intentionally NOT setShowWhenLocked(true): the overlay surfaces contacts, files and
         // history, so Android must require device unlock before it is shown from the keyguard.
-        com.google.android.material.color.DynamicColors.applyToActivityIfAvailable(this)
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         applySoftInputMode(keyboardVisible = keyboardVisibleOnOpen(prefs))
         super.onCreate(savedInstanceState)

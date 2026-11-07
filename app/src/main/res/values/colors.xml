@@ -7,4 +7,6 @@
     <color name="widget_countdown_preview_surface">@android:color/system_neutral1_50</color>
     <color name="widget_countdown_preview_hero">@android:color/system_accent1_600</color>
     <color name="widget_countdown_preview_text">@android:color/system_neutral1_900</color>
+    <!-- Material 3's background behind Settings' window (see themes.xml). -->
+    <color name="window_background">#FFFEF7FF</color>
 </resources>

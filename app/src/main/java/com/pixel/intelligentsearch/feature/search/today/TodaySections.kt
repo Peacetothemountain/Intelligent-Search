@@ -932,7 +932,7 @@ private fun TomorrowRow(icon: ImageVector, text: String, detail: String?) {
 }
 
 
-/** Photos from this date in another year: the first as the tile's picture, how long ago and how many. Tap opens it. */
+/** Photos from the past: the first as the tile's picture, its label, how long ago and how many. Tap opens it. */
 @Composable
 private fun MemoryTile(memory: TodayMemory, modifier: Modifier) {
     val scheme = MaterialTheme.colorScheme
@@ -957,7 +957,7 @@ private fun MemoryTile(memory: TodayMemory, modifier: Modifier) {
         }
         val text = if (memory.thumbnail != null) Color.White else scheme.onSurface
         Text(
-            "ON THIS DAY",
+            memory.label.uppercase(LocalConfiguration.current.locales[0]),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.6.sp,

@@ -51,9 +51,25 @@ data class TodayBattery(
 @Immutable
 data class TodayTrip(val leaveAt: Long, val minutes: Int)
 
-/** A photo from the past for On This Day: what to call it ("3 years ago"), a line under that, the photo to open and its thumbnail. */
+/**
+ * A photo from the past for On This Day: what to call it ("3 years ago"), a line under that, the photo to open, its
+ * thumbnail, and the tile's label, which says how the photo was picked ("On this day", "This week", "This month" or
+ * "From your photos"), so a photo from another day never reads as one from this day.
+ */
 @Immutable
-data class TodayMemory(val title: String, val detail: String, val uri: android.net.Uri, val thumbnail: androidx.compose.ui.graphics.ImageBitmap?)
+data class TodayMemory(
+    val title: String,
+    val detail: String,
+    val uri: android.net.Uri,
+    val thumbnail: androidx.compose.ui.graphics.ImageBitmap?,
+    val label: String = ON_THIS_DAY
+)
+
+/** On This Day's label for photos taken on this date in an earlier year. */
+internal const val ON_THIS_DAY = "On this day"
+
+/** The photos On This Day picked, the label saying how they were picked, and the tile's title and detail lines. */
+internal data class MemoryPick(val photos: List<LibraryPhoto>, val label: String, val title: String, val detail: String)
 
 /** A photo in the library: its id and when it was taken (or added, when the camera didn't say). */
 internal data class LibraryPhoto(val id: Long, val takenAt: java.time.LocalDate)
@@ -61,9 +77,10 @@ internal data class LibraryPhoto(val id: Long, val takenAt: java.time.LocalDate)
 /**
  * The photos On This Day shows on [today], best first: those taken on this date in an earlier year (the latest such
  * year), else in the same week in an earlier year, else in the same month, else one photo from the library chosen by
- * the date, so there is a picture every day. Returns the photos and what to call them.
+ * the date, so there is a picture every day. Returns the photos, the label naming which of these it is, and what to
+ * call them.
  */
-internal fun pickMemory(photos: List<LibraryPhoto>, today: LocalDate): Triple<List<LibraryPhoto>, String, String>? {
+internal fun pickMemory(photos: List<LibraryPhoto>, today: LocalDate): MemoryPick? {
     fun yearsAgo(years: Int) = if (years == 1) "1 year ago" else "$years years ago"
     fun count(list: List<LibraryPhoto>) = if (list.size == 1) "1 photo" else "${list.size} photos"
     // Each match says how many years back a photo is (null when it doesn't match); the fewest years win.
@@ -73,21 +90,21 @@ internal fun pickMemory(photos: List<LibraryPhoto>, today: LocalDate): Triple<Li
         return hits.filter { it.second == years }.map { it.first } to years
     }
     latest { if (it.takenAt.monthValue == today.monthValue && it.takenAt.dayOfMonth == today.dayOfMonth) today.year - it.takenAt.year else null }?.let { (list, years) ->
-        return Triple(list, yearsAgo(years), count(list))
+        return MemoryPick(list, ON_THIS_DAY, yearsAgo(years), count(list))
     }
     // The week around today a whole number of years back, so Dec 30 is in the week of Jan 2 a year later.
     latest { photo ->
         val years = Math.round(ChronoUnit.DAYS.between(photo.takenAt, today) / 365.2425).toInt()
         years.takeIf { kotlin.math.abs(ChronoUnit.DAYS.between(photo.takenAt.plusYears(it.toLong()), today)) <= 3 }
-    }?.let { (list, years) -> return Triple(list, "This week, " + yearsAgo(years), count(list)) }
+    }?.let { (list, years) -> return MemoryPick(list, "This week", yearsAgo(years), count(list)) }
     latest { if (it.takenAt.monthValue == today.monthValue) today.year - it.takenAt.year else null }?.let { (list, years) ->
-        return Triple(list, "This month, " + yearsAgo(years), count(list))
+        return MemoryPick(list, "This month", yearsAgo(years), count(list))
     }
     val older = photos.filter { java.time.temporal.ChronoUnit.DAYS.between(it.takenAt, today) >= 30 }.ifEmpty { photos }
     if (older.isEmpty()) return null
     val pick = older[Math.floorMod(today.toEpochDay(), older.size.toLong()).toInt()]
     val month = pick.takenAt.month.getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault())
-    return Triple(listOf(pick), "From your photos", "$month ${pick.takenAt.year}")
+    return MemoryPick(listOf(pick), "From your photos", "$month ${pick.takenAt.year}", "1 photo")
 }
 
 /** The next big holiday, [days] from today. */
@@ -276,12 +293,12 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
                 }
             }
         }
-        val (picked, title, detail) = pickMemory(photos, today) ?: return@withContext null
+        val (picked, label, title, detail) = pickMemory(photos, today) ?: return@withContext null
         val first = android.content.ContentUris.withAppendedId(uri, picked.first().id)
         val thumbnail = runCatching {
             app.contentResolver.loadThumbnail(first, android.util.Size(360, 360), null).asImageBitmap()
         }.getOrNull()
-        TodayMemory(title, detail, first, thumbnail)
+        TodayMemory(title, detail, first, thumbnail, label)
     }
 
     override fun countdown(today: LocalDate): TodayCountdown? =

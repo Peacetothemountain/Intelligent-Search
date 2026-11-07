@@ -90,7 +90,8 @@ data class TodayCountdown(val name: String, val days: Int, val date: LocalDate)
 interface TodaySources {
     /** Today's and tomorrow's weather where the user set it (or roughly where the phone is, if allowed); null with Web Suggestions off. */
     suspend fun weather(): Pair<WeatherReport, WeatherReport?>?
-    fun battery(): TodayBattery?
+    /** The battery now, and again whenever its level, charging or Battery Saver changes; null when Android won't say. */
+    fun battery(): Flow<TodayBattery?>
     /** Today's screen time, or null without Usage Access. */
     fun screenTime(): ScreenTimeReport?
     /** What the notification index holds now; empty without notification access. */
@@ -173,7 +174,10 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
     override suspend fun weather(): Pair<WeatherReport, WeatherReport?>? =
         runCatching { app.appEntryPoint.liveAnswerEngine().weatherHere() }.getOrNull()
 
-    override fun battery(): TodayBattery? {
+    override fun battery(): Flow<TodayBattery?> =
+        broadcastState(Intent.ACTION_BATTERY_CHANGED, PowerManager.ACTION_POWER_SAVE_MODE_CHANGED) { readBattery() }
+
+    private fun readBattery(): TodayBattery? {
         val status = app.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return null
         val level = status.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
         val scale = status.getIntExtra(BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
@@ -310,14 +314,15 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
         }
     }
 
-    /** [read] now, and again each time Android broadcasts [action], for as long as it is collected. */
-    private fun broadcastState(action: String, read: () -> Boolean): Flow<Boolean> = callbackFlow {
+    /** [read] now, and again each time Android broadcasts one of [actions], for as long as it is collected. */
+    private fun <T> broadcastState(vararg actions: String, read: () -> T): Flow<T> = callbackFlow {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 trySend(read())
             }
         }
-        ContextCompat.registerReceiver(app, receiver, IntentFilter(action), ContextCompat.RECEIVER_NOT_EXPORTED)
+        val filter = IntentFilter().apply { actions.forEach(::addAction) }
+        ContextCompat.registerReceiver(app, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
         trySend(read())
         awaitClose { app.unregisterReceiver(receiver) }
     }.distinctUntilChanged()

@@ -129,7 +129,7 @@ class TodayGoldenTest(private val dark: Boolean) {
         )
 
         override suspend fun weather() = today to tomorrow
-        override fun battery() = TodayBattery(level = 78, charging = false)
+        override fun battery(): Flow<TodayBattery?> = flowOf(TodayBattery(level = 78, charging = false))
         override fun screenTime() = ScreenTimeReport(
             134 * MINUTE,
             listOf(ScreenTimeApp("a", "YouTube", 52 * MINUTE), ScreenTimeApp("b", "Chrome", 31 * MINUTE), ScreenTimeApp("c", "Messages", 18 * MINUTE))

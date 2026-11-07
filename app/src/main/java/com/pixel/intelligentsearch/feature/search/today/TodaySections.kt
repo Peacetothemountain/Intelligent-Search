@@ -532,7 +532,8 @@ private fun ControlTile(label: String, icon: ImageVector, on: Boolean, modifier:
 internal fun PhoneToday(sources: TodaySources, active: Boolean) {
     val context = LocalContext.current
     val phoneSeen = remember { mutableStateOf(false) }
-    val battery = produceState(sources.battery(), active) { value = sources.battery() }.value
+    val battery = remember(sources, active) { if (active) sources.battery() else kotlinx.coroutines.flow.emptyFlow() }
+        .collectAsState(initial = null).value
     val screenTime = produceState<ScreenTimeReport?>(null, active) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { sources.screenTime() }
     }.value

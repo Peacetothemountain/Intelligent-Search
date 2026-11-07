@@ -14,7 +14,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 11 | 2026-11-07, B19 |
-| Release APK size | 12,233,013 bytes, unsigned | local build 2026-11-07, English resources only (12,652,905 before it, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
+| Release APK size | 12,183,861 bytes, unsigned | local build 2026-11-07, three app keep rules removed (12,233,013 before, 12,652,905 before English resources only, 12,908,309 before the Bugdroid tutorial layers). The older signed figure was 12,920,597 on `8fc5df48`; compare unsigned with unsigned |
 | Known Play crashes without a traced fix | 0 | `docs/HISTORY.md` crash table |
 | Cold start / jank / memory | not yet measured | first cycle the owner allows phone use; write the device, build and method here |
 
@@ -386,6 +386,22 @@ with the strongest evidence.
 - Retry only if: the app gets its own translations; then add those languages to `localeFilters`
 - Commit: see `Ship only the English resources the app uses` in `git log dev`
 - Lesson: an app written in one language still carries every library's translations until the build is told which languages it supports.
+
+### 2026-11-07: Keep rules that only kept code from shrinking
+- Command: /improve (scheduled run)
+- Target and evidence: release APK size. `app/proguard-rules.pro` held three rules with nothing behind them: `-keepnames class androidx.navigation.compose.** { *; }` (340 of 3,291 entries in `seeds.txt`, and every navigation-compose class kept its full name), `-keep class ...DynamicColors { *; }` (the app calls it directly, no reflection), and `-keepclassmembers` for every `ViewModel` constructor (both view models are `@HiltViewModel`, built by Hilt's generated factories). Chosen because the backlog has nothing left with evidence (B11 only adds tests) and no crash or flaky run is open. CI green on `76aa6448`; `377db522`, `f3a0001d` and `71851d2f` still running
+- Prior work checked: this ledger, `git log origin/dev -S` on each rule (all from the initial commit or release 9.1, with no reason given), claude-mem (no earlier attempt)
+- Research: navigation-common's own consumer rules keep every `Navigator` subclass with its `@Navigator.Name` annotation, which is all navigation reads by reflection; lifecycle-viewmodel's consumer rules keep the constructors its default factory needs
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: the three rules removed. No code changed
+- Before -> after: release APK, unsigned local builds of the same code, 12,233,013 -> 12,183,861 bytes (-49,152); dex 7,261,528 -> 7,221,932 (-39,596); test code, app code and lint baseline unchanged
+- Emulator: the minified build, signed with the local debug key (not the owner's), on `IS_Pixel_XL`: search for "battery" with its answer and web suggestions, Settings opened, Appearance and Search Sources opened and closed with Back, and after `am kill` in the background the Appearance page came back and Back went to Settings. Nothing in the crash buffer. The owner-signed 9.5.5 on the emulator had to be uninstalled for this, as `docs/DEVICE_TESTING.md` allows
+- Result: kept, pending CI
+- Retry only if: a release build fails to open a settings page or loses its place after a process restart; then add back only the navigation rule and look at what it kept
+- Commit: see `Drop three keep rules R8 didn't need` in `git log dev`
+- Lesson: a keep rule copied from an old template outlives the library version that needed it. Check the library's own consumer rules before keeping one.
+- Note for the owner: `377db522` and `71851d2f`, from earlier runs, carry a Co-Authored-By line against memory `commit-style-no-attribution`. Pushed history isn't rewritten; this commit has none
 
 <!--
 Copy this for each cycle, newest at the bottom.

@@ -37,8 +37,6 @@ import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import com.pixel.intelligentsearch.feature.search.today.TodayLayer
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.compose.ui.input.pointer.pointerInput
@@ -747,9 +745,6 @@ fun SearchOverlayScreen(
 
     val quickAppPanelContent = @Composable { OverlayQuickAppPanel(sections) }
 
-    val todayButton by rememberSetting(SettingsManager.TODAY_BUTTON)
-    // The search bar's bottom edge in the top-bar layout, measured as it is laid out.
-    var searchBarBottom by remember { mutableStateOf(0.dp) }
 
     val searchResultsContent = @Composable { OverlaySearchResults(sections) }
 
@@ -972,15 +967,11 @@ fun SearchOverlayScreen(
                         if (!settingsState.bottomSearch) {
                             Spacer(modifier = Modifier.statusBarsPadding())
                             Spacer(modifier = Modifier.height(8.dp))
-                            Box(modifier = Modifier
-                                .graphicsLayer {
-                                    val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
-                                    alpha = p
-                                    translationY = (1f - p) * contentOffsetPx
-                                }
-                                // Where the bar ends, so Today's button sits just under it.
-                                .onGloballyPositioned { searchBarBottom = with(density) { it.boundsInRoot().bottom.toDp() } }
-                            ) { searchBarContent() }
+                            Box(modifier = Modifier.graphicsLayer {
+                                val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
+                                alpha = p
+                                translationY = (1f - p) * contentOffsetPx
+                            }) { searchBarContent() }
                             Box(modifier = Modifier.graphicsLayer {
                                 val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
                                 val a = (p - 0.1f).coerceIn(0f, 0.9f) / 0.9f
@@ -1051,18 +1042,20 @@ fun SearchOverlayScreen(
                 } else {
                     searchColumn(Modifier.fillMaxSize())
                 }
-                // Today: the optional button in the top start corner, and the page it opens over the search.
-                val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+                // Today, opened from its button in the search bar, over the search.
                 TodayLayer(
-                    showButton = todayButton && uiState.query.isEmpty() && !showTutorial,
-                    buttonTop = if (settingsState.bottomSearch) statusBarTop + 4.dp else searchBarBottom + 4.dp,
+                    open = ui.todayOpen,
+                    origin = ui.todayOrigin,
                     hiddenApps = settingsState.hiddenApps,
-                    onOpening = {
-                        isKeyboardDismissedByUser = true
-                        focusManager.clearFocus(force = true)
-                        keyboardController?.hide()
+                    recentSearches = distinctRecents,
+                    onClose = { ui.todayOpen = false },
+                    onSearch = { query ->
+                        ui.todayOpen = false
+                        textFieldValue = androidx.compose.ui.text.input.TextFieldValue(query, androidx.compose.ui.text.TextRange(query.length))
+                        hasStartedTyping = true
+                        viewModel.onQueryChanged(query)
                     },
-                    onOpenSettings = { onOpenSettings("search_behavior") }
+                    onOpenSettings = { onOpenSettings("appearance") }
                 )
             }
         }

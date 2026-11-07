@@ -176,8 +176,10 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         icon = Symbols.Outlined.Wallpaper,
                         isChecked = showWall,
                         onCheckedChange = { showWall = it },
-                        showDivider = false
+                        showDivider = true
                     )
+
+                    TodaySettingsRows()
                 }
 
                 SettingsSectionHeader("Background")

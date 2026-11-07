@@ -1,6 +1,21 @@
 package com.pixel.intelligentsearch.screenshots
 
 import android.Manifest
+import android.app.Notification
+import com.pixel.intelligentsearch.core.answers.ForecastDay
+import com.pixel.intelligentsearch.core.answers.ScreenTimeApp
+import com.pixel.intelligentsearch.core.answers.ScreenTimeReport
+import com.pixel.intelligentsearch.core.answers.TemperatureUnit
+import com.pixel.intelligentsearch.core.answers.WeatherHour
+import com.pixel.intelligentsearch.core.answers.WeatherReport
+import com.pixel.intelligentsearch.core.glance.IndexedNotification
+import com.pixel.intelligentsearch.feature.search.today.LocalTodaySources
+import com.pixel.intelligentsearch.feature.search.today.TodayBattery
+import com.pixel.intelligentsearch.feature.search.today.TodayControls
+import com.pixel.intelligentsearch.feature.search.today.TodayCountdown
+import com.pixel.intelligentsearch.feature.search.today.TodaySources
+import kotlinx.coroutines.flow.Flow
+import java.time.LocalDateTime
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -41,14 +56,15 @@ import java.time.LocalDate
 import java.util.TimeZone
 
 /**
- * Golden images of the Today page with one of everything it reads (a birthday, the next event with a place, two more
- * later today, a running timer, the next alarm and what is playing), in both themes, at a fixed time and zone. See
- * [SettingsGoldenTest] for recording.
+ * Golden images of the whole Today page with one of everything it reads (a birthday, the weather, the next event with a
+ * place and two more later today, a running timer, the next alarm, what is playing, notifications to catch up on, the
+ * controls, the battery and screen time, recent searches, the word and countdown, and tomorrow), in both themes, at a
+ * fixed time and zone, drawn in one tall window. See [SettingsGoldenTest] for recording.
  */
 @HiltAndroidTest
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
-@Config(application = HiltTestApplication::class, qualifiers = "w412dp-h915dp-xhdpi")
+@Config(application = HiltTestApplication::class, qualifiers = "w412dp-h2600dp-xhdpi")
 class TodayGoldenTest(private val dark: Boolean) {
 
     @get:Rule(order = 0) val hilt = HiltAndroidRule(this)
@@ -96,6 +112,39 @@ class TodayGoldenTest(private val dark: Boolean) {
         birthdays = listOf(GlanceBirthday(7, "lk", "Ana Lima", 0, LocalDate.of(2027, 1, 15), turning = 30))
     )
 
+    /** Everything Today reads besides At a Glance, fixed. */
+    private object FixedSources : TodaySources {
+        private val start = LocalDateTime.of(2027, 1, 15, 15, 0)
+        private val today = WeatherReport(
+            "Johnson City", TemperatureUnit.FAHRENHEIT, ForecastDay.TODAY, 63.0, 61.0, 0, true, 68.0, 39.0,
+            listOf(65.0, 66.0, 68.0, 66.0, 61.0, 57.0).mapIndexed { i, t -> WeatherHour(start.plusHours(i.toLong()), t, if (i < 4) 0 else 3, i < 3) }
+        )
+        private val tomorrow = WeatherReport(
+            "Johnson City", TemperatureUnit.FAHRENHEIT, ForecastDay.TOMORROW, 58.0, null, 61, true, 58.0, 41.0, emptyList()
+        )
+
+        override fun weather(day: ForecastDay): Flow<WeatherReport> = flowOf(if (day == ForecastDay.TODAY) today else tomorrow)
+        override fun battery() = TodayBattery(level = 78, charging = false)
+        override fun screenTime() = ScreenTimeReport(
+            134 * MINUTE,
+            listOf(ScreenTimeApp("a", "YouTube", 52 * MINUTE), ScreenTimeApp("b", "Chrome", 31 * MINUTE), ScreenTimeApp("c", "Messages", 18 * MINUTE))
+        )
+        override fun notifications(): Flow<List<IndexedNotification>> = flowOf(
+            listOf(
+                IndexedNotification("1", "com.example.dialer", "Phone", "Mom", "Missed call", NOW - 118 * MINUTE, Notification.CATEGORY_MISSED_CALL),
+                IndexedNotification("2", "com.example.chat", "Messages", "Sam", "Are we still on for 6?", NOW - 20 * MINUTE, Notification.CATEGORY_MESSAGE)
+            )
+        )
+        override fun countdown(today: LocalDate) = TodayCountdown("Valentine's Day", 30, today.plusDays(30))
+        override val controls = object : TodayControls {
+            override fun doNotDisturb() = false
+            override fun setDoNotDisturb(on: Boolean) = false
+            override fun flashlight(): Flow<Boolean> = flowOf(false)
+            override fun setFlashlight(on: Boolean) {}
+            override fun batterySaver() = true
+        }
+    }
+
     @Test
     fun page() {
         compose.mainClock.autoAdvance = false
@@ -103,9 +152,13 @@ class TodayGoldenTest(private val dark: Boolean) {
             IntelligentSearchTheme(darkTheme = dark) {
                 CompositionLocalProvider(
                     LocalGlanceClock provides GlanceClock({ NOW }, ticks = false, elapsed = { 0L }),
-                    LocalGlanceSource provides GlanceSource { _, _ -> flowOf(snapshot) }
+                    LocalGlanceSource provides GlanceSource { _, _ -> flowOf(snapshot) },
+                    LocalTodaySources provides FixedSources
                 ) {
-                    TodayPage(active = true, hiddenApps = emptySet(), onBack = {}, onOpenSettings = {})
+                    TodayPage(
+                        active = true, hiddenApps = emptySet(), onBack = {}, onOpenSettings = {},
+                        recentSearches = listOf("obama speech", "pizza near me", "weather tomorrow")
+                    )
                 }
             }
         }

@@ -32,7 +32,7 @@ internal const val SMART_CLIPBOARD_DIALOG_TEXT =
         "search the text or picture. It looks only while search is open, and passwords copied from a password " +
         "manager are left out."
 
-/** Search Behavior: the overlay's layout and suggestions, then the Keyboard, At a Glance and Today cards. */
+/** Search Behavior: the overlay's layout and suggestions, then the Keyboard and At a Glance cards. */
 @Composable
 fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     Scaffold(
@@ -128,7 +128,6 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             }
             KeyboardSettingsCard()
             AtAGlanceSettingsCard()
-            TodaySettingsCard()
         }
     }
 }

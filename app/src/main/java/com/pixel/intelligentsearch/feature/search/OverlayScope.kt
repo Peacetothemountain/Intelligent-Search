@@ -32,6 +32,10 @@ internal class OverlayUiState(
     var showTorInstallPopup by mutableStateOf(false)
     /** The result the arrow keys have highlighted ([NavStop.key]); null while the search field alone has focus. */
     var highlightedKey by mutableStateOf<String?>(null)
+    /** Whether the Today page is open over the search. */
+    var todayOpen by mutableStateOf(false)
+    /** Where Today opens out of: its button's center, in the window's coordinates. */
+    var todayOrigin by mutableStateOf(androidx.compose.ui.geometry.Offset.Unspecified)
 }
 
 /**

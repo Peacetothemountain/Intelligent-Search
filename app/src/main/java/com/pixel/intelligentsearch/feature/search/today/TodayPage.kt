@@ -79,7 +79,6 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInParent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -92,7 +91,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -130,6 +128,12 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.hypot
+import kotlin.math.roundToInt
+import com.pixel.intelligentsearch.core.answers.WeatherReport
+import com.pixel.intelligentsearch.core.answers.WeatherCodes
+import com.pixel.intelligentsearch.core.answers.ForecastDay
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.layout.positionInRoot
 
 /** Test tags for the Today button, page and bar. */
 internal const val TODAY_BUTTON_TAG = "today_button"
@@ -142,23 +146,23 @@ private const val OPEN_MS = 560
 private const val CLOSE_MS = 380
 
 /**
- * Today, layered over the search panel: the small button in its top start corner ([showButton], [buttonTop] from the
- * panel's top) and the Today page, which opens out of the button as a growing circle and closes back into it (at
- * once with animations off). Back closes it. [onOpening] runs as it opens (the search puts its keyboard away);
- * [onOpenSettings] opens Today's settings.
+ * The Today page over the search panel, opening out of its button in the search bar ([origin], in the window's
+ * coordinates) as a growing circle and closing back into it (at once with animations off). Back closes it.
+ * [recentSearches] feed Pick Up Where You Left Off, whose cards search again with [onSearch].
  */
 @Composable
 internal fun TodayLayer(
-    showButton: Boolean,
-    buttonTop: Dp,
+    open: Boolean,
+    origin: Offset,
     hiddenApps: Set<String>,
-    onOpening: () -> Unit,
+    recentSearches: List<String>,
+    onClose: () -> Unit,
+    onSearch: (String) -> Unit,
     onOpenSettings: () -> Unit
 ) {
-    var open by rememberSaveable { mutableStateOf(false) }
     val animate by rememberAnimationsEnabled()
     val reveal = remember { Animatable(if (open) 1f else 0f) }
-    var buttonCenter by remember { mutableStateOf(Offset.Unspecified) }
+    var layerTopLeft by remember { mutableStateOf(Offset.Zero) }
     LaunchedEffect(open, animate) {
         val spec = when {
             !animate -> snap()
@@ -167,27 +171,15 @@ internal fun TodayLayer(
         }
         reveal.animateTo(if (open) 1f else 0f, spec)
     }
-    BackHandler(enabled = open) { open = false }
+    BackHandler(enabled = open) { onClose() }
 
-    Box(Modifier.fillMaxSize()) {
-        if (showButton) {
-            TodayButton(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = 12.dp, top = buttonTop)
-                    .onGloballyPositioned { buttonCenter = it.boundsInParent().center },
-                onClick = {
-                    onOpening()
-                    open = true
-                }
-            )
-        }
+    Box(Modifier.fillMaxSize().onGloballyPositioned { layerTopLeft = it.positionInRoot() }) {
         if (open || reveal.value > 0f) {
             Box(
                 Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        val center = if (buttonCenter.isSpecified) buttonCenter else Offset(36.dp.toPx(), buttonTop.toPx() + 20.dp.toPx())
+                        val center = if (origin != Offset.Unspecified) origin - layerTopLeft else Offset(size.width * 0.1f, size.height - 40.dp.toPx())
                         val far = hypot(maxOf(center.x, size.width - center.x), maxOf(center.y, size.height - center.y))
                         shape = CircleReveal(center, far * reveal.value)
                         clip = true
@@ -196,15 +188,15 @@ internal fun TodayLayer(
                 TodayPage(
                     active = open,
                     hiddenApps = hiddenApps,
-                    onBack = { open = false },
+                    recentSearches = recentSearches,
+                    onBack = onClose,
+                    onSearch = onSearch,
                     onOpenSettings = onOpenSettings
                 )
             }
         }
     }
 }
-
-private val Offset.isSpecified: Boolean get() = this != Offset.Unspecified
 
 /** A circle of [radius] around [center], the Today page's edge as it opens out of its button. */
 private class CircleReveal(private val center: Offset, private val radius: Float) : Shape {
@@ -213,57 +205,78 @@ private class CircleReveal(private val center: Offset, private val radius: Float
 }
 
 /**
- * The small round button that opens Today: the sun on its arc ([TodayIcon]), placed by the time of day, rising to
- * it as the search opens. A tonal 40 dp circle with a 48 dp touch target.
+ * Today's button in the search bar, to the left of the lens: the sun on its arc ([TodayIcon]), placed by the time of
+ * day and rising to it as the search opens, drawn at the bar's own icon size (24 dp) and weight, in its icon color.
  */
 @Composable
-internal fun TodayButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
+internal fun TodayBarButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val now = rememberGlanceNow(60_000L)
     val animate by rememberAnimationsEnabled()
-    val container = scheme.surfaceContainerHigh
     Box(
         modifier = modifier
-            .size(48.dp)
+            .size(36.dp)
+            .clip(CircleShape)
             .semantics { contentDescription = "Today" }
             .bouncyClickable(shape = CircleShape, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Box(Modifier.size(40.dp).background(container, CircleShape), contentAlignment = Alignment.Center) {
-            TodayIcon(
-                hour = hourOfDay(now),
-                color = scheme.onSurfaceVariant,
-                background = container,
-                rise = animate,
-                modifier = Modifier.size(22.dp)
-            )
-        }
+        TodayIcon(
+            hour = hourOfDay(now),
+            color = MaterialTheme.colorScheme.onSurface,
+            rise = animate,
+            modifier = Modifier.size(24.dp)
+        )
     }
 }
 
 /** The page's look: Up Next on the primary container, other cards on the container colors, round 24 to 28 dp corners. */
-private val CardShape = RoundedCornerShape(24.dp)
+internal val CardShape = RoundedCornerShape(24.dp)
 private val HeroShape = RoundedCornerShape(28.dp)
 
 /**
- * The Today page: the day's greeting and what is coming, then what is running and playing, each part only when it
- * has something to show. Read from the same sources as At a Glance, while [active] and on screen. The bar at the
- * bottom goes back to the search or to Today's settings.
+ * The Today page: the day's greeting and what is coming, the weather ahead, what is running and playing, what to catch
+ * up on, quick controls, the phone's day, where you left off, a word and a countdown, and tomorrow. Each part shows
+ * only when it has something to show and its switch (Appearance > Search Overlay > Today Button) is on. Read while
+ * [active] and on screen. The bar at the bottom goes back to the search or to Today's settings.
  */
 @Composable
-internal fun TodayPage(active: Boolean, hiddenApps: Set<String>, onBack: () -> Unit, onOpenSettings: () -> Unit) {
+internal fun TodayPage(
+    active: Boolean,
+    hiddenApps: Set<String>,
+    onBack: () -> Unit,
+    onOpenSettings: () -> Unit,
+    recentSearches: List<String> = emptyList(),
+    onSearch: (String) -> Unit = {}
+) {
     val scheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val sources = LocalTodaySources.current ?: remember(context) { AndroidTodaySources(context) }
     val now = rememberGlanceNow(30_000L)
     val snapshot = rememberTodaySnapshot(hiddenApps, active)
     val upNextOn by rememberSetting(SettingsManager.TODAY_UP_NEXT)
+    val weatherOn by rememberSetting(SettingsManager.TODAY_WEATHER)
+    val catchUpOn by rememberSetting(SettingsManager.TODAY_CATCH_UP)
+    val controlsOn by rememberSetting(SettingsManager.TODAY_CONTROLS)
+    val phoneOn by rememberSetting(SettingsManager.TODAY_PHONE)
+    val leftOffOn by rememberSetting(SettingsManager.TODAY_LEFT_OFF)
+    val extrasOn by rememberSetting(SettingsManager.TODAY_EXTRAS)
+    val weather = rememberWeather(sources, ForecastDay.TODAY, active && weatherOn)
+    val tomorrowWeather = rememberWeather(sources, ForecastDay.TOMORROW, active && weatherOn)
+    val catchUp = rememberCatchUp(sources, active && catchUpOn, now)
+
     val zone = ZoneId.systemDefault()
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     val events = snapshot.events.filter { !it.allDay && it.beginMillis > now }
     val upNext = events.firstOrNull()?.takeIf { upNextOn }
     val laterToday = events.filter { Instant.ofEpochMilli(it.beginMillis).atZone(zone).toLocalDate() == today }
+    val tomorrowEvent = events.firstOrNull { Instant.ofEpochMilli(it.beginMillis).atZone(zone).toLocalDate() == today.plusDays(1) }
+        ?.takeIf { upNextOn }
     val birthdaysToday = snapshot.birthdays.filter { it.daysAway == 0 }
     val timer = snapshot.timers.firstOrNull()
     val alarm = snapshot.alarm?.takeIf { it.triggerAt > now && it.triggerAt - now < 24 * 3_600_000L }
+    val alarmTomorrow = snapshot.alarm?.takeIf {
+        Instant.ofEpochMilli(it.triggerAt).atZone(zone).toLocalDate() == today.plusDays(1)
+    }
     val primary = scheme.primaryContainer
 
     Box(
@@ -281,7 +294,7 @@ internal fun TodayPage(active: Boolean, hiddenApps: Set<String>, onBack: () -> U
             }
             // Taps on the page stay on it rather than reaching the search beneath.
             .pointerInput(Unit) { detectTapGestures { } }
-            .semantics { }
+            .testTag(TODAY_PAGE_TAG)
     ) {
         Column(
             Modifier
@@ -292,13 +305,23 @@ internal fun TodayPage(active: Boolean, hiddenApps: Set<String>, onBack: () -> U
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             var index = 0
-            Enter(index++) { Greeting(now, birthdaysToday) }
+            Enter(index++) { Greeting(now, weather.takeIf { weatherOn }, birthdaysToday) }
             if (upNext != null) Enter(index++) { UpNextCard(upNext, now) }
             if (upNextOn && laterToday.size >= 2) Enter(index++) { RestOfDay(laterToday, now) }
+            if (weatherOn && weather != null && weather.hours.size >= 3) Enter(index++) { WeatherAhead(weather) }
             if (timer != null || alarm != null) Enter(index++) { TimerAlarmTiles(timer, alarm?.let { GlanceItem.Alarm(it) }, now) }
             snapshot.media?.let { media -> Enter(index++) { NowPlaying(media) } }
-            if (upNext == null && timer == null && alarm == null && snapshot.media == null) {
-                Enter(index) { QuietDay() }
+            if (catchUpOn && catchUp.isNotEmpty()) Enter(index++) { CatchUp(catchUp, now) }
+            if (controlsOn) Enter(index++) { QuickControls(sources.controls) }
+            if (phoneOn) Enter(index++) { PhoneToday(sources, active) }
+            if (leftOffOn && recentSearches.isNotEmpty()) Enter(index++) { LeftOff(recentSearches.take(6), onSearch) }
+            if (extrasOn) {
+                Enter(index++) { WordOfTheDay(wordOfTheDay(today), onSearch) }
+                val countdown = remember(today) { sources.countdown(today) }
+                Enter(index++) { YearTiles(today, countdown) }
+            }
+            if (alarmTomorrow != null || tomorrowWeather != null || tomorrowEvent != null) {
+                Enter(index) { Tomorrow(today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather?.takeIf { weatherOn }, tomorrowEvent) }
             }
         }
         // The page fades under the bar as it scrolls.
@@ -368,7 +391,7 @@ private fun Enter(index: Int, content: @Composable () -> Unit) {
 
 /** The date, a greeting for the time of day, and a chip for each birthday today. */
 @Composable
-private fun Greeting(now: Long, birthdays: List<GlanceBirthday>) {
+private fun Greeting(now: Long, weather: WeatherReport?, birthdays: List<GlanceBirthday>) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
@@ -390,8 +413,17 @@ private fun Greeting(now: Long, birthdays: List<GlanceBirthday>) {
             color = scheme.onSurface,
             modifier = Modifier.padding(top = 2.dp, bottom = 10.dp).semantics { heading() }
         )
-        if (birthdays.isNotEmpty()) {
+        if (birthdays.isNotEmpty() || weather != null) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (weather != null) {
+                    TodayChip(
+                        icon = weatherIcon(weather.code, weather.isDay),
+                        text = "${weather.temperature.roundToInt()}° ${WeatherCodes.describe(weather.code)}",
+                        detail = "H ${weather.high.roundToInt()}°",
+                        spin = WeatherCodes.kind(weather.code) == WeatherCodes.Kind.CLEAR && weather.isDay,
+                        onClick = { openWeather(context) }
+                    )
+                }
                 for (birthday in birthdays) {
                     val first = birthday.name.substringBefore(' ')
                     TodayChip(
@@ -407,7 +439,7 @@ private fun Greeting(now: Long, birthdays: List<GlanceBirthday>) {
 }
 
 @Composable
-private fun TodayChip(icon: ImageVector, text: String, detail: String?, onClick: () -> Unit) {
+internal fun TodayChip(icon: ImageVector, text: String, detail: String?, spin: Boolean = false, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Row(
         Modifier
@@ -419,7 +451,8 @@ private fun TodayChip(icon: ImageVector, text: String, detail: String?, onClick:
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(Modifier.size(26.dp).background(scheme.tertiaryContainer, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = null, tint = scheme.onTertiaryContainer, modifier = Modifier.size(17.dp))
+            val turn = rememberSlowTurn(spin)
+            Icon(icon, contentDescription = null, tint = scheme.onTertiaryContainer, modifier = Modifier.size(17.dp).graphicsLayer { rotationZ = turn() })
         }
         Spacer(Modifier.width(8.dp))
         Text(text, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface)
@@ -726,27 +759,6 @@ private fun NowPlaying(media: GlanceMedia) {
         media.progress?.let { progress ->
             SquigglySeekBar(progress = progress, playing = media.isPlaying, onSeek = media.controls::seekTo, modifier = Modifier.padding(top = 4.dp))
         }
-    }
-}
-
-/** When nothing is coming up, running or playing. */
-@Composable
-private fun QuietDay() {
-    val scheme = MaterialTheme.colorScheme
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(CardShape)
-            .background(scheme.surfaceContainer)
-            .padding(16.dp)
-    ) {
-        Text("Nothing coming up", style = MaterialTheme.typography.titleMedium, color = scheme.onSurface)
-        Text(
-            "Your next event, timers and what's playing show here.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = scheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 2.dp)
-        )
     }
 }
 

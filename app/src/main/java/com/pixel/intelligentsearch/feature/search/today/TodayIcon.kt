@@ -9,7 +9,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -55,14 +58,13 @@ internal fun hourOfDay(epochMs: Long, zone: java.time.ZoneId = java.time.ZoneId.
 /**
  * Today's icon: the sun on its arc across the sky, placed by the time of day ([hour]), the arc solid behind it and
  * dotted ahead of it, so it shows how much of the day has gone; at night a crescent moon with a small sparkle. The sun
- * keeps a little of [background] around it so the arc never runs into it. When [rise] is on it glides up its arc from
+ * keeps a little clear sky around it so the arc never runs into it. When [rise] is on it glides up its arc from
  * the start of the day (or night) to now as it first appears, in about half a second.
  */
 @Composable
 internal fun TodayIcon(
     hour: Float,
     color: Color,
-    background: Color,
     modifier: Modifier = Modifier,
     rise: Boolean = false
 ) {
@@ -76,10 +78,11 @@ internal fun TodayIcon(
         }
     }
     val day = isDayHour(hour)
-    Canvas(modifier) {
+    // Drawn in its own layer, so the clear sky around the sun cuts only the icon, not what is behind it.
+    Canvas(modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
         val unit = size.minDimension / 24f
         val inset = Offset((size.width - unit * 24f) / 2f, (size.height - unit * 24f) / 2f)
-        drawDayArc(shown.value, day, color, background, unit, inset)
+        drawDayArc(shown.value, day, color, unit, inset)
     }
 }
 
@@ -88,30 +91,31 @@ private const val RISE_MS = 560
 /** Material's emphasized decelerate curve: quick out of the start, settling gently. */
 private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 
-private fun DrawScope.drawDayArc(fraction: Float, day: Boolean, color: Color, background: Color, unit: Float, inset: Offset) {
+private fun DrawScope.drawDayArc(fraction: Float, day: Boolean, color: Color, unit: Float, inset: Offset) {
     fun p(x: Float, y: Float) = Offset(inset.x + x * unit, inset.y + y * unit)
     // The horizon.
-    drawLine(color, p(2.4f, HORIZON_Y), p(21.6f, HORIZON_Y), strokeWidth = 1.7f * unit, cap = StrokeCap.Round)
+    drawLine(color, p(2.4f, HORIZON_Y), p(21.6f, HORIZON_Y), strokeWidth = HORIZON_STROKE * unit, cap = StrokeCap.Round)
     // The arc already travelled, solid.
     val topLeft = p(ARC_CENTER_X - ARC_RADIUS, HORIZON_Y - ARC_RADIUS)
     val arcSize = Size(ARC_RADIUS * 2 * unit, ARC_RADIUS * 2 * unit)
     drawArc(color, startAngle = 180f, sweepAngle = 180f * fraction, useCenter = false, topLeft = topLeft, size = arcSize,
-        style = Stroke(width = 1.6f * unit, cap = StrokeCap.Round))
+        style = Stroke(width = ARC_STROKE * unit, cap = StrokeCap.Round))
     // The arc still ahead, as dots every 2.6 units.
     val ahead = (PI * ARC_RADIUS * (1 - fraction)).toFloat()
     val dots = (ahead / DOT_SPACING).toInt()
     for (i in 1..dots) {
         val f = fraction + (1 - fraction) * (i * DOT_SPACING / ahead)
         val d = dayArcPoint(f.coerceAtMost(1f))
-        drawCircle(color.copy(alpha = color.alpha * 0.75f), radius = 0.75f * unit, center = p(d.x, d.y))
+        drawCircle(color.copy(alpha = color.alpha * 0.75f), radius = ARC_STROKE / 2f * unit, center = p(d.x, d.y))
     }
     val c = dayArcPoint(fraction)
     val center = p(c.x, c.y)
-    // A little clear sky around the sun or moon, so the arc stops short of it.
-    drawCircle(background, radius = 3.6f * unit, center = center)
+    // A little clear sky around the sun or moon, so the arc stops short of it: cut out of what is drawn so far, so
+    // it works on any background (the search bar's plate is a gradient).
+    drawCircle(Color.Black, radius = 3.4f * unit, center = center, blendMode = BlendMode.Clear)
     if (day) {
-        drawCircle(color.copy(alpha = color.alpha * 0.2f), radius = 3.6f * unit, center = center)
-        drawCircle(color, radius = 2.35f * unit, center = center)
+        drawCircle(color.copy(alpha = color.alpha * 0.2f), radius = 3.4f * unit, center = center)
+        drawCircle(color, radius = 2.2f * unit, center = center)
     } else {
         drawGlyph(moonPath(c.x, c.y), color, unit, inset)
         val sx = if (c.x < 12f) c.x + 5.2f else c.x - 5.4f
@@ -120,6 +124,10 @@ private fun DrawScope.drawDayArc(fraction: Float, day: Boolean, color: Color, ba
 }
 
 private const val DOT_SPACING = 2.6f
+
+/** Line weights in the 24-unit box: the search bar's Settings bars are a 1.3 stroke, and these match them. */
+private const val HORIZON_STROKE = 1.4f
+private const val ARC_STROKE = 1.35f
 
 /** A crescent moon centered near ([x], [y]): a disc with a bite out of its upper right. */
 private fun moonPath(x: Float, y: Float): String =

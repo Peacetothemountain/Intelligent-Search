@@ -8,6 +8,8 @@ import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.feature.settings.tutorialTarget
@@ -205,6 +207,20 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     modifier = Modifier.size(36.dp)
                 ) { Icon(Icons.Default.Close, contentDescription = "Cancel voice search", modifier = Modifier.size(20.dp)) }
             } else {
+                val todayButton by rememberSetting(SettingsManager.TODAY_BUTTON)
+                if (todayButton) {
+                    // Today, to the left of the lens: the bar's own icon size and weight.
+                    com.pixel.intelligentsearch.feature.search.today.TodayBarButton(
+                        onClick = {
+                            isKeyboardDismissedByUser = true
+                            focusManager.clearFocus(force = true)
+                            keyboardController?.hide()
+                            s.ui.todayOpen = true
+                        },
+                        modifier = Modifier.onGloballyPositioned { s.ui.todayOrigin = it.boundsInRoot().center }
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                }
                 SearchOverlayLensIcon(
                     modifier = Modifier.size(28.dp)
                 )

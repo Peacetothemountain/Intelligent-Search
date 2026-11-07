@@ -111,7 +111,7 @@ private fun PartRow(key: BooleanSetting, title: String, subtitle: String, icon: 
 
 /** Whether [allowed] says yes, read again each time the page resumes (the user can change it in Android's settings). */
 @Composable
-private fun rememberPermissionState(allowed: (android.content.Context) -> Boolean): Boolean {
+internal fun rememberPermissionState(allowed: (android.content.Context) -> Boolean): Boolean {
     val context = androidx.compose.ui.platform.LocalContext.current
     var granted by androidx.compose.runtime.remember(context) { androidx.compose.runtime.mutableStateOf(allowed(context)) }
     val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current

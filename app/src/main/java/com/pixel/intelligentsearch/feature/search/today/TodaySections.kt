@@ -109,18 +109,6 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 
-/** The weather for [day] while [enabled] and on screen; null until it comes (or with Web Suggestions off). */
-@Composable
-internal fun rememberWeather(sources: TodaySources, day: ForecastDay, enabled: Boolean): WeatherReport? {
-    val lifecycle = LocalLifecycleOwner.current.lifecycle
-    return produceState<WeatherReport?>(null, sources, day, enabled, lifecycle) {
-        if (!enabled) return@produceState
-        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
-            sources.weather(day).collect { value = it }
-        }
-    }.value
-}
-
 /** The notification index while [enabled]: Catch Up and the delivery tile read it. */
 @Composable
 internal fun rememberNotifications(sources: TodaySources, enabled: Boolean): List<IndexedNotification> {
@@ -713,7 +701,7 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
 
 /** The days until the next big holiday, and how far through the year today is. */
 @Composable
-internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: TodayMemory? = null) {
+internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: TodayMemory? = null, askPhotos: (() -> Unit)? = null) {
     val scheme = MaterialTheme.colorScheme
     val shown = rememberDrawIn(300, 1000)
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -737,6 +725,10 @@ internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: Tod
         }
         if (memory != null) {
             MemoryTile(memory, Modifier.weight(1f))
+            return@Row
+        }
+        if (askPhotos != null) {
+            AskPhotosTile(askPhotos, Modifier.weight(1f))
             return@Row
         }
         val dayOfYear = today.dayOfYear
@@ -844,16 +836,37 @@ private fun MemoryTile(memory: TodayMemory, modifier: Modifier) {
             modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 14.dp, vertical = 13.dp)
         )
         Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 14.dp, vertical = 12.dp)) {
-            Text(
-                if (memory.yearsAgo == 1) "1 year ago" else "${memory.yearsAgo} years ago",
-                style = MaterialTheme.typography.titleMedium,
-                color = text
-            )
-            Text(
-                if (memory.count == 1) "1 photo" else "${memory.count} photos",
-                style = MaterialTheme.typography.bodySmall,
-                color = text.copy(alpha = 0.85f)
-            )
+            Text(memory.title, style = MaterialTheme.typography.titleMedium, color = text)
+            Text(memory.detail, style = MaterialTheme.typography.bodySmall, color = text.copy(alpha = 0.85f))
         }
+    }
+}
+
+/** On This Day before photos may be read: what it would show, and a button that asks for photo access. */
+@Composable
+private fun AskPhotosTile(onAllow: () -> Unit, modifier: Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier
+            .heightIn(min = 120.dp)
+            .clip(CardShape)
+            .background(scheme.surfaceContainer)
+            .bouncyClickable(shape = CardShape, onClick = onAllow)
+            .padding(horizontal = 14.dp, vertical = 13.dp)
+    ) {
+        TileLabel(Icons.Filled.History, "On this day")
+        Text(
+            "A photo from your past, every day",
+            style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onSurface,
+            modifier = Modifier.padding(top = 6.dp)
+        )
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "Allow Photos",
+            style = MaterialTheme.typography.labelLarge,
+            color = scheme.onPrimary,
+            modifier = Modifier.clip(CircleShape).background(scheme.primary).padding(horizontal = 14.dp, vertical = 8.dp)
+        )
     }
 }

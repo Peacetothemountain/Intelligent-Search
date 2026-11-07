@@ -78,7 +78,7 @@ class TodayGoldenTest(private val dark: Boolean) {
         hilt.inject()
         disableHandRolledAnimations()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
-        shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).grantPermissions(Manifest.permission.READ_CALENDAR)
+        shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).grantPermissions(Manifest.permission.READ_CALENDAR, Manifest.permission.READ_MEDIA_IMAGES)
     }
 
     @After fun tearDown() = TimeZone.setDefault(zone)
@@ -128,7 +128,7 @@ class TodayGoldenTest(private val dark: Boolean) {
             "Johnson City", TemperatureUnit.FAHRENHEIT, ForecastDay.TOMORROW, 58.0, null, 61, true, 58.0, 41.0, emptyList()
         )
 
-        override fun weather(day: ForecastDay): Flow<WeatherReport> = flowOf(if (day == ForecastDay.TODAY) today else tomorrow)
+        override suspend fun weather() = today to tomorrow
         override fun battery() = TodayBattery(level = 78, charging = false)
         override fun screenTime() = ScreenTimeReport(
             134 * MINUTE,
@@ -143,7 +143,7 @@ class TodayGoldenTest(private val dark: Boolean) {
         )
         override fun countdown(today: LocalDate) = TodayCountdown("Valentine's Day", 30, today.plusDays(30))
         override suspend fun trip(event: CalendarEvent) = TodayTrip(event.beginMillis - 22 * MINUTE, 22)
-        override suspend fun memory(today: LocalDate) = TodayMemory(3, 24, android.net.Uri.EMPTY, photo())
+        override suspend fun memory(today: LocalDate) = TodayMemory("3 years ago", "24 photos", android.net.Uri.EMPTY, photo())
         override val controls = object : TodayControls {
             override fun doNotDisturb() = false
             override fun setDoNotDisturb(on: Boolean) = false

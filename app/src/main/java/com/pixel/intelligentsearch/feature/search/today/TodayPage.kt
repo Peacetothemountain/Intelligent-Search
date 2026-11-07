@@ -128,15 +128,17 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.hypot
-import kotlinx.coroutines.launch
+import com.pixel.intelligentsearch.feature.settings.rememberTodayLocationRequest
+import com.pixel.intelligentsearch.feature.settings.rememberPhotosRequest
+import com.pixel.intelligentsearch.feature.settings.rememberPermissionState
+import com.pixel.intelligentsearch.feature.settings.photosAllowed
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.animation.core.LinearEasing
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.feature.settings.drawSearchPill
 import com.pixel.intelligentsearch.feature.settings.SearchEasing
 import com.pixel.intelligentsearch.feature.settings.SEARCH_MILLIS
-import com.pixel.intelligentsearch.feature.settings.SEARCH_FADE_MILLIS
 import com.pixel.intelligentsearch.feature.settings.PILL_TEXT
 import com.pixel.intelligentsearch.feature.settings.PILL_SIDE
 import com.pixel.intelligentsearch.feature.settings.PILL_MARGIN
@@ -183,6 +185,33 @@ internal fun TodayLayer(
     val animate by rememberAnimationsEnabled()
     val reveal = remember { Animatable(if (open) 1f else 0f) }
     var layerTopLeft by remember { mutableStateOf(Offset.Zero) }
+
+    // The weather and the day's photo are read while the search is open with the Discover Overlay on, so the page has
+    // them as it opens; read again on opening once they are a quarter of an hour old.
+    val context = LocalContext.current
+    val sources = LocalTodaySources.current ?: remember(context) { AndroidTodaySources(context) }
+    val discoverOn by rememberSetting(SettingsManager.TODAY_BUTTON)
+    val weatherOn by rememberSetting(SettingsManager.TODAY_WEATHER)
+    val memoriesOn by rememberSetting(SettingsManager.TODAY_MEMORIES)
+    val extrasOn by rememberSetting(SettingsManager.TODAY_EXTRAS)
+    val photosOk = rememberPermissionState(::photosAllowed)
+    var weather by remember { mutableStateOf<Pair<WeatherReport, WeatherReport?>?>(null) }
+    var weatherAt by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(discoverOn, weatherOn, open) {
+        val now = System.currentTimeMillis()
+        if (discoverOn && weatherOn && (weather == null || now - weatherAt > REFRESH_MS)) {
+            sources.weather()?.let {
+                weather = it
+                weatherAt = now
+            }
+        }
+    }
+    var memory by remember { mutableStateOf<TodayMemory?>(null) }
+    LaunchedEffect(discoverOn, memoriesOn, extrasOn, photosOk, open) {
+        if (discoverOn && memoriesOn && extrasOn && photosOk && (memory == null || open)) {
+            memory = sources.memory(java.time.LocalDate.now())
+        }
+    }
     LaunchedEffect(open, animate) {
         val spec = when {
             !animate -> snap()
@@ -211,12 +240,17 @@ internal fun TodayLayer(
                     recentSearches = recentSearches,
                     onBack = onClose,
                     onSearch = onSearch,
-                    onOpenSettings = onOpenSettings
+                    onOpenSettings = onOpenSettings,
+                    preloadedWeather = weather,
+                    preloadedMemory = memory
                 )
             }
         }
     }
 }
+
+/** How old the weather may get before opening the page reads it again. */
+private const val REFRESH_MS = 15 * 60_000L
 
 /** A circle of [radius] around [center], the Today page's edge as it opens out of its button. */
 private class CircleReveal(private val center: Offset, private val radius: Float) : Shape {
@@ -266,7 +300,9 @@ internal fun TodayPage(
     onBack: () -> Unit,
     onOpenSettings: () -> Unit,
     recentSearches: List<String> = emptyList(),
-    onSearch: (String) -> Unit = {}
+    onSearch: (String) -> Unit = {},
+    preloadedWeather: Pair<WeatherReport, WeatherReport?>? = null,
+    preloadedMemory: TodayMemory? = null
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
@@ -282,8 +318,11 @@ internal fun TodayPage(
     val extrasOn by rememberSetting(SettingsManager.TODAY_EXTRAS)
     val leaveByOn by rememberSetting(SettingsManager.TODAY_LEAVE_BY)
     val memoriesOn by rememberSetting(SettingsManager.TODAY_MEMORIES)
-    val weather = rememberWeather(sources, ForecastDay.TODAY, active && weatherOn)
-    val tomorrowWeather = rememberWeather(sources, ForecastDay.TOMORROW, active && weatherOn)
+    val loadedWeather = produceState(preloadedWeather, preloadedWeather, active, weatherOn) {
+        if (preloadedWeather == null && active && weatherOn) value = sources.weather()
+    }.value
+    val weather = loadedWeather?.first
+    val tomorrowWeather = loadedWeather?.second
     val notifications = rememberNotifications(sources, active && catchUpOn)
     val catchUp = remember(notifications, now) { catchUpFrom(notifications, now) }
     val delivery = remember(notifications, now) { deliveryFrom(notifications, now) }
@@ -304,9 +343,15 @@ internal fun TodayPage(
     val trip = produceState<TodayTrip?>(null, upNext?.eventId, upNext?.beginMillis, upNext?.location, leaveByOn, active) {
         value = if (upNext != null && leaveByOn && active) sources.trip(upNext) else null
     }.value
-    val memory = produceState<TodayMemory?>(null, today, memoriesOn, extrasOn, active) {
-        value = if (memoriesOn && extrasOn && active) sources.memory(today) else null
+    val photosOk = rememberPermissionState(::photosAllowed)
+    val memory = produceState(preloadedMemory, preloadedMemory, today, memoriesOn, extrasOn, active, photosOk) {
+        if (preloadedMemory == null && memoriesOn && extrasOn && active && photosOk) value = sources.memory(today)
     }.value
+    val photosRequest = rememberPhotosRequest { }
+    val askPhotos = if (memoriesOn && extrasOn && !photosOk) ({ photosRequest.request() }) else null
+    val locationOk = rememberPermissionState { com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(it).permitted() }
+    val locationRequest = rememberTodayLocationRequest { }
+    val askLocation = if (leaveByOn && !locationOk) ({ locationRequest.request() }) else null
     val sunset = weather?.sunset?.atZone(zone)?.toInstant()?.toEpochMilli()?.takeIf { it > now && weatherOn }
     val primary = scheme.primaryContainer
 
@@ -337,7 +382,7 @@ internal fun TodayPage(
         ) {
             var index = 0
             Enter(index++) { Greeting(now, weather.takeIf { weatherOn }, sunset, birthdaysToday) }
-            if (upNext != null) Enter(index++) { UpNextCard(upNext, now, trip) }
+            if (upNext != null) Enter(index++) { UpNextCard(upNext, now, trip, askLocation) }
             if (upNextOn && laterToday.size + (if (sunset != null) 1 else 0) >= 2) Enter(index++) { RestOfDay(laterToday, now, sunset) }
             if (weatherOn && weather != null && weather.hours.size >= 3) Enter(index++) { WeatherAhead(weather) }
             if (timer != null || alarm != null || delivery != null) {
@@ -351,7 +396,7 @@ internal fun TodayPage(
             if (extrasOn) {
                 Enter(index++) { WordOfTheDay(wordOfTheDay(today), onSearch) }
                 val countdown = remember(today) { sources.countdown(today) }
-                Enter(index++) { YearTiles(today, countdown, memory) }
+                Enter(index++) { YearTiles(today, countdown, memory, askPhotos) }
             }
             if (alarmTomorrow != null || tomorrowWeather != null || tomorrowEvent != null) {
                 Enter(index) { Tomorrow(today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather?.takeIf { weatherOn }, tomorrowEvent) }
@@ -518,7 +563,7 @@ internal fun TodayChip(
 
 /** The next event: how long until it starts, when and where, and one tap to directions (when it has a place) or the event. */
 @Composable
-private fun UpNextCard(event: CalendarEvent, now: Long, trip: TodayTrip?) {
+private fun UpNextCard(event: CalendarEvent, now: Long, trip: TodayTrip?, askLocation: (() -> Unit)?) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val time = remember(event.beginMillis) {
@@ -572,7 +617,19 @@ private fun UpNextCard(event: CalendarEvent, now: Long, trip: TodayTrip?) {
                 )
             }
         }
-        if (trip != null) LeaveBy(trip, now)
+        if (trip != null) {
+            LeaveBy(trip, now)
+        } else if (askLocation != null && event.location.isNotBlank()) {
+            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "See when to leave",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onPrimaryContainer,
+                    modifier = Modifier.weight(1f)
+                )
+                PillButton("Allow Location", Icons.Outlined.LocationOn, filled = false, onClick = askLocation)
+            }
+        }
         FlowRow(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (event.location.isNotBlank()) {
                 PillButton("Directions", Icons.Filled.Directions, filled = true) {
@@ -879,9 +936,8 @@ private val BAR_BUTTON = 48.dp
 
 /**
  * Today's bar, in the look of the search pill on Manage Hidden Apps and Add Applications ([BottomSearchPill]): the
- * same body color, 72 dp, 14 dp from the sides, 20 sp text, no shadow. It forms out of the morph's halftone from the
- * right as that pill does ("Back to Search", the back arrow and the Settings bars), flashes as it lands, then after a
- * moment goes down the same way in reverse: its right end dissolves back toward the left, the light leading it and
+ * same body color, 72 dp, 14 dp from the sides, 20 sp text, no shadow. It is there as the page opens ("Back to
+ * Search", the back arrow and the Settings bars), then after a moment goes down the way that pill closes: its right end dissolves back toward the left, the light leading it and
  * Settings riding it, until only Back and Settings are left, where it flashes again. Same timing and curve as the
  * search pill; at once with animations off. A tap on it while full, or on Back, returns to the search; Settings opens
  * Today's settings.
@@ -890,26 +946,18 @@ private val BAR_BUTTON = 48.dp
 private fun TodayBar(onBack: () -> Unit, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
     val animate by rememberAnimationsEnabled()
-    val reveal = remember { Animatable(if (animate) 0f else 1f) }
-    val fade = remember { Animatable(if (animate) 0f else 1f) }
+    // The bar is there as the page opens; only its going down to Back and Settings is animated.
+    val reveal = remember { Animatable(1f) }
+    val fade = remember { Animatable(1f) }
     val flash = remember { Animatable(0f) }
     val shrink = remember { Animatable(0f) }
     val landing = remember { Animatable(0f) }
     LaunchedEffect(animate) {
+        delay(BAR_SHRINK_DELAY_MS)
         if (!animate) {
-            reveal.snapTo(1f)
-            fade.snapTo(1f)
-            delay(BAR_SHRINK_DELAY_MS)
             shrink.snapTo(1f)
             return@LaunchedEffect
         }
-        // Forms once the page has mostly opened.
-        delay(OPEN_MS * 2L / 3)
-        launch { fade.animateTo(1f, tween(SEARCH_FADE_MILLIS, easing = LinearEasing)) }
-        reveal.animateTo(1f, tween(SEARCH_MILLIS, easing = SearchEasing))
-        flash.snapTo(1f)
-        flash.animateTo(0f, tween(FLASH_MILLIS, easing = FlashDecay))
-        delay(BAR_SHRINK_DELAY_MS)
         shrink.animateTo(1f, tween(SEARCH_MILLIS, easing = SearchEasing))
         landing.snapTo(1f)
         landing.animateTo(0f, tween(FLASH_MILLIS, easing = FlashDecay))

@@ -148,6 +148,29 @@ class LiveAnswerEngine internal constructor(
             ?.let { emit(LiveAnswer.Weather(query, it, here = question.place == null)) }
     }
 
+    /**
+     * Today's and tomorrow's weather where the user set it, else roughly where the phone is, for the Discover
+     * Overlay: no wait for typing to stop, the phone's last known location first, and one forecast for both days. Null
+     * with Web Suggestions off or no place to ask for.
+     */
+    suspend fun weatherHere(): Pair<WeatherReport, WeatherReport?>? = withContext(ioDispatcher) {
+        val settings = prefs()
+        if (!NetworkPolicy.webAnswersAllowed(settings)) return@withContext null
+        val unit = TemperatureUnit.forLocale(locale())
+        var onDisk = true
+        val place = HomeLocationCodec.decode(settings[SettingsManager.WEATHER_HOME_LOCATION])
+            ?: (if (location.permitted()) location.quick() else null)
+                ?.let { (latitude, longitude) -> GeoPlace(YOUR_LOCATION, null, null, latitude, longitude) }
+                ?.also { onDisk = false }
+            ?: return@withContext null
+        val forecast = weather.peekForecast(place.latitude, place.longitude, unit)
+            ?: (if (onDisk) weather.cachedForecast(place.latitude, place.longitude, unit) else null)
+            ?: weather.fetchForecast(place.latitude, place.longitude, unit, onDisk)
+            ?: return@withContext null
+        val today = WeatherReport.from(forecast, place.shortName, unit, ForecastDay.TODAY) ?: return@withContext null
+        today to WeatherReport.from(forecast, place.shortName, unit, ForecastDay.TOMORROW)
+    }
+
     /** The phone's approximate location for "the weather", when the user allowed it. */
     private suspend fun deviceLocation(): GeoPlace? {
         if (!location.permitted()) return null

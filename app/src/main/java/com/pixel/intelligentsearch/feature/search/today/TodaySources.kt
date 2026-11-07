@@ -13,9 +13,6 @@ import android.os.PowerManager
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.staticCompositionLocalOf
-import com.pixel.intelligentsearch.core.answers.ForecastDay
-import com.pixel.intelligentsearch.core.answers.LiveAnswer
-import com.pixel.intelligentsearch.core.answers.LiveAnswerQuery
 import com.pixel.intelligentsearch.core.answers.ScreenTimeReport
 import com.pixel.intelligentsearch.core.answers.ScreenTimeRepository
 import com.pixel.intelligentsearch.core.answers.WeatherReport
@@ -26,9 +23,6 @@ import com.pixel.intelligentsearch.di.appEntryPoint
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.flow.map
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.temporal.ChronoUnit
@@ -42,9 +36,43 @@ data class TodayBattery(val level: Int, val charging: Boolean, val minutesToFull
 @Immutable
 data class TodayTrip(val leaveAt: Long, val minutes: Int)
 
-/** Photos from this date [yearsAgo] years ago: how many, the first to open, and its thumbnail. */
+/** A photo from the past for On This Day: what to call it ("3 years ago"), a line under that, the photo to open and its thumbnail. */
 @Immutable
-data class TodayMemory(val yearsAgo: Int, val count: Int, val uri: android.net.Uri, val thumbnail: androidx.compose.ui.graphics.ImageBitmap?)
+data class TodayMemory(val title: String, val detail: String, val uri: android.net.Uri, val thumbnail: androidx.compose.ui.graphics.ImageBitmap?)
+
+/** A photo in the library: its id and when it was taken (or added, when the camera didn't say). */
+internal data class LibraryPhoto(val id: Long, val takenAt: java.time.LocalDate)
+
+/**
+ * The photos On This Day shows on [today], best first: those taken on this date in an earlier year (the latest such
+ * year), else in the same week in an earlier year, else in the same month, else one photo from the library chosen by
+ * the date, so there is a picture every day. Returns the photos and what to call them.
+ */
+internal fun pickMemory(photos: List<LibraryPhoto>, today: LocalDate): Triple<List<LibraryPhoto>, String, String>? {
+    val earlier = photos.filter { it.takenAt.year < today.year }
+    fun yearsAgo(year: Int) = (today.year - year).let { if (it == 1) "1 year ago" else "$it years ago" }
+    fun count(list: List<LibraryPhoto>) = if (list.size == 1) "1 photo" else "${list.size} photos"
+    fun latestYear(match: (LibraryPhoto) -> Boolean): List<LibraryPhoto>? {
+        val hits = earlier.filter(match)
+        val year = hits.maxOfOrNull { it.takenAt.year } ?: return null
+        return hits.filter { it.takenAt.year == year }
+    }
+    latestYear { it.takenAt.monthValue == today.monthValue && it.takenAt.dayOfMonth == today.dayOfMonth }?.let {
+        return Triple(it, yearsAgo(it.first().takenAt.year), count(it))
+    }
+    latestYear {
+        val sameDay = runCatching { it.takenAt.withYear(today.year) }.getOrNull() ?: return@latestYear false
+        kotlin.math.abs(java.time.temporal.ChronoUnit.DAYS.between(sameDay, today)) <= 3
+    }?.let { return Triple(it, "This week, " + yearsAgo(it.first().takenAt.year).lowercase(), count(it)) }
+    latestYear { it.takenAt.monthValue == today.monthValue }?.let {
+        return Triple(it, "This month, " + yearsAgo(it.first().takenAt.year).lowercase(), count(it))
+    }
+    val older = photos.filter { java.time.temporal.ChronoUnit.DAYS.between(it.takenAt, today) >= 30 }.ifEmpty { photos }
+    if (older.isEmpty()) return null
+    val pick = older[Math.floorMod(today.toEpochDay(), older.size.toLong()).toInt()]
+    val month = pick.takenAt.month.getDisplayName(java.time.format.TextStyle.FULL, Locale.getDefault())
+    return Triple(listOf(pick), "From your photos", "$month ${pick.takenAt.year}")
+}
 
 /** The next big holiday, [days] from today. */
 @Immutable
@@ -56,8 +84,8 @@ data class TodayCountdown(val name: String, val days: Int, val date: LocalDate)
  * data.
  */
 interface TodaySources {
-    /** The weather for [day] where the user set it (or roughly where the phone is, if allowed); empty with Web Suggestions off. */
-    fun weather(day: ForecastDay): Flow<WeatherReport>
+    /** Today's and tomorrow's weather where the user set it (or roughly where the phone is, if allowed); null with Web Suggestions off. */
+    suspend fun weather(): Pair<WeatherReport, WeatherReport?>?
     fun battery(): TodayBattery?
     /** Today's screen time, or null without Usage Access. */
     fun screenTime(): ScreenTimeReport?
@@ -130,12 +158,8 @@ internal fun nextCountdown(today: LocalDate, zone: ZoneId, region: String, name:
 class AndroidTodaySources(private val context: Context) : TodaySources {
     private val app = context.applicationContext
 
-    override fun weather(day: ForecastDay): Flow<WeatherReport> = runCatching {
-        app.appEntryPoint.liveAnswerEngine()
-            .answer(LiveAnswerQuery.Weather(place = null, day = day), "weather")
-            .filterIsInstance<LiveAnswer.Weather>()
-            .map { it.report }
-    }.getOrDefault(emptyFlow())
+    override suspend fun weather(): Pair<WeatherReport, WeatherReport?>? =
+        runCatching { app.appEntryPoint.liveAnswerEngine().weatherHere() }.getOrNull()
 
     override fun battery(): TodayBattery? {
         val status = app.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return null
@@ -195,37 +219,31 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
     override suspend fun memory(today: LocalDate): TodayMemory? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         if (!com.pixel.intelligentsearch.feature.settings.photosAllowed(app)) return@withContext null
         val zone = ZoneId.systemDefault()
-        // The same date in each of the last fifteen years, as one query.
-        val years = (1..15).mapNotNull { back ->
-            runCatching { today.minusYears(back.toLong()) }.getOrNull()?.takeIf { it.dayOfMonth == today.dayOfMonth }
-        }
-        if (years.isEmpty()) return@withContext null
-        val selection = years.joinToString(" OR ") { "(${android.provider.MediaStore.Images.Media.DATE_TAKEN} >= ? AND ${android.provider.MediaStore.Images.Media.DATE_TAKEN} < ?)" }
-        val args = years.flatMap { day ->
-            val start = day.atStartOfDay(zone).toInstant().toEpochMilli()
-            listOf(start.toString(), (start + 86_400_000L).toString())
-        }.toTypedArray()
         val uri = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        val found = mutableListOf<Pair<Long, Long>>()
+        val photos = ArrayList<LibraryPhoto>()
         runCatching {
             app.contentResolver.query(
                 uri,
-                arrayOf(android.provider.MediaStore.Images.Media._ID, android.provider.MediaStore.Images.Media.DATE_TAKEN),
-                selection, args,
-                "${android.provider.MediaStore.Images.Media.DATE_TAKEN} DESC"
+                arrayOf(
+                    android.provider.MediaStore.Images.Media._ID,
+                    android.provider.MediaStore.Images.Media.DATE_TAKEN,
+                    android.provider.MediaStore.Images.Media.DATE_ADDED
+                ),
+                null, null, null
             )?.use { cursor ->
-                while (cursor.moveToNext()) found += cursor.getLong(0) to cursor.getLong(1)
+                while (cursor.moveToNext()) {
+                    val taken = cursor.getLong(1).takeIf { it > 0 } ?: (cursor.getLong(2) * 1000L)
+                    if (taken <= 0) continue
+                    photos += LibraryPhoto(cursor.getLong(0), java.time.Instant.ofEpochMilli(taken).atZone(zone).toLocalDate())
+                }
             }
         }
-        if (found.isEmpty()) return@withContext null
-        // The latest year that has any.
-        val year = java.time.Instant.ofEpochMilli(found.first().second).atZone(zone).year
-        val thatYear = found.filter { java.time.Instant.ofEpochMilli(it.second).atZone(zone).year == year }
-        val first = android.content.ContentUris.withAppendedId(uri, thatYear.first().first)
+        val (picked, title, detail) = pickMemory(photos, today) ?: return@withContext null
+        val first = android.content.ContentUris.withAppendedId(uri, picked.first().id)
         val thumbnail = runCatching {
             app.contentResolver.loadThumbnail(first, android.util.Size(360, 360), null).asImageBitmap()
         }.getOrNull()
-        TodayMemory(today.year - year, thatYear.size, first, thumbnail)
+        TodayMemory(title, detail, first, thumbnail)
     }
 
     override fun countdown(today: LocalDate): TodayCountdown? =

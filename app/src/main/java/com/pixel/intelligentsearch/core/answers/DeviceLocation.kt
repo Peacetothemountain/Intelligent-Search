@@ -19,6 +19,9 @@ interface DeviceLocation {
 
     /** Latitude and longitude to about a kilometre, or null when the phone can't tell soon enough. */
     suspend fun approximate(): Pair<Double, Double>?
+
+    /** Where the phone roughly is, at once when Android remembers a recent fix, else as [approximate]. */
+    suspend fun quick(): Pair<Double, Double>? = approximate()
 }
 
 /**
@@ -41,6 +44,15 @@ class AndroidDeviceLocation(context: Context) : DeviceLocation {
         val fresh = withTimeoutOrNull(FIX_TIMEOUT_MS) { currentLocation(manager, provider) }
         val location = fresh ?: runCatching { manager.getLastKnownLocation(provider) }.getOrNull() ?: return null
         return location.latitude to location.longitude
+    }
+
+    @android.annotation.SuppressLint("MissingPermission")
+    override suspend fun quick(): Pair<Double, Double>? {
+        if (!permitted()) return null
+        val manager = appContext.getSystemService(LocationManager::class.java) ?: return null
+        val known = listOf(LocationManager.FUSED_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
+            .firstNotNullOfOrNull { runCatching { manager.getLastKnownLocation(it) }.getOrNull() }
+        return known?.let { it.latitude to it.longitude } ?: approximate()
     }
 
     @android.annotation.SuppressLint("MissingPermission")

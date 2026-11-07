@@ -14,8 +14,11 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 import java.net.URLEncoder
+import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.Locale
 
 /** The temperature scale answers use: Fahrenheit where people read it (the US and a few others), else Celsius. */
@@ -91,9 +94,9 @@ data class WeatherDay(
     val code: Int,
     val high: Double,
     val low: Double,
-    /** When the sun rises and sets that day, in the place's own time; null when the forecast didn't say. */
-    val sunrise: LocalDateTime? = null,
-    val sunset: LocalDateTime? = null
+    /** When the sun rises and sets that day; null when the forecast didn't say. */
+    val sunrise: Instant? = null,
+    val sunset: Instant? = null
 )
 
 /** What Open-Meteo said for a place: conditions now (in the place's own time), hour by hour, and day by day. */
@@ -122,9 +125,9 @@ data class WeatherReport(
     val high: Double,
     val low: Double,
     val hours: List<WeatherHour>,
-    /** The day's sunrise and sunset, in the place's own time, when the forecast gave them. */
-    val sunrise: LocalDateTime? = null,
-    val sunset: LocalDateTime? = null
+    /** The day's sunrise and sunset, when the forecast gave them. */
+    val sunrise: Instant? = null,
+    val sunset: Instant? = null
 ) {
     companion object {
         /** Hours shown on the card. */
@@ -232,7 +235,12 @@ object OpenMeteoParser {
         val lows = dailyObj.array("temperature_2m_min")
         val sunrises = dailyObj.array("sunrise")
         val sunsets = dailyObj.array("sunset")
-        fun timeAt(list: List<JsonElement>, i: Int) = list.getOrNull(i)?.text()?.let { runCatching { LocalDateTime.parse(it) }.getOrNull() }
+        // Daily times come in the place's own time (timezone=auto), which the answer names
+        val zone = root.string("timezone")?.let { runCatching { ZoneId.of(it) }.getOrNull() }
+            ?: (root["utc_offset_seconds"] as? JsonPrimitive)?.intOrNull?.let { runCatching { ZoneOffset.ofTotalSeconds(it) }.getOrNull() }
+        fun timeAt(list: List<JsonElement>, i: Int) = zone?.let { place ->
+            list.getOrNull(i)?.text()?.let { runCatching { LocalDateTime.parse(it).atZone(place).toInstant() }.getOrNull() }
+        }
         val daily = dates.indices.mapNotNull { i ->
             val date = dates[i].text()?.let { runCatching { LocalDate.parse(it) }.getOrNull() } ?: return@mapNotNull null
             WeatherDay(

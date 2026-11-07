@@ -358,7 +358,7 @@ internal fun TodayPage(
     val locationOk = rememberPermissionState { com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(it).permitted() }
     val locationRequest = rememberTodayLocationRequest { }
     val askLocation = if (leaveByOn && !locationOk) ({ locationRequest.request() }) else null
-    val sunset = weather?.sunset?.atZone(zone)?.toInstant()?.toEpochMilli()?.takeIf { it > now && weatherOn }
+    val sunset = weather?.sunset?.toEpochMilli()?.takeIf { it > now && weatherOn }
     val warm = if (scheme.surface.luminance() < 0.5f) Color(0xFFF2B872) else Color(0xFFB5651D)
     val scroll = rememberScrollState()
     val density = LocalDensity.current

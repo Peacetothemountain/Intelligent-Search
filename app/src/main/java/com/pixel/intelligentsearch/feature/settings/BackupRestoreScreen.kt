@@ -358,7 +358,7 @@ fun BackupRestoreScreen(
                         )
                     }
                     Spacer(modifier = Modifier.height(16.dp))
-                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.text.LocalAutofillHighlightColor provides MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)) {
+                    androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.text.LocalAutofillHighlightBrush provides androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))) {
                     OutlinedTextField(
                         value = dialogPassphrase,
                         onValueChange = {
@@ -504,7 +504,7 @@ fun BackupRestoreScreen(
                 )
                 // Autofill's highlight is drawn over the whole field, so clipping the field to its own pill shape makes
                 // the highlight a pill; the colour is a light, see-through tint of the theme instead of yellow.
-                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.text.LocalAutofillHighlightColor provides MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)) {
+                androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.text.LocalAutofillHighlightBrush provides androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))) {
                 OutlinedTextField(
                     value = passphrase,
                     onValueChange = { passphrase = it },

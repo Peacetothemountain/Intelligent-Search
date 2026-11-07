@@ -71,12 +71,12 @@ fun rememberProtectedPageUnlock(
         // window already marked so (by a page underneath) is left as it is.
         val root = activity?.window?.decorView
         val markedHere = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && root != null && !root.isAccessibilityDataSensitive
-        if (markedHere) root?.setAccessibilityDataSensitive(View.ACCESSIBILITY_DATA_SENSITIVE_YES)
+        if (markedHere) root.setAccessibilityDataSensitive(View.ACCESSIBILITY_DATA_SENSITIVE_YES)
         onDispose {
             activity?.window?.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
             runCatching { activity?.window?.setHideOverlayWindows(false) }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) activity?.setRecentsScreenshotEnabled(true)
-            if (markedHere) root?.setAccessibilityDataSensitive(View.ACCESSIBILITY_DATA_SENSITIVE_AUTO)
+            if (markedHere) root.setAccessibilityDataSensitive(View.ACCESSIBILITY_DATA_SENSITIVE_AUTO)
         }
     }
 

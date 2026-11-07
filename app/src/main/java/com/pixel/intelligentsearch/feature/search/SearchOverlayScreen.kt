@@ -679,7 +679,7 @@ fun SearchOverlayScreen(
                 openFileResult(context, prefs, match)
             }
             else -> when {
-                results.instantAnswer?.iconType == "url" -> results.instantAnswer?.let { answer -> openWebAddress(answer.title) }
+                results.instantAnswer?.iconType == "url" -> openWebAddress(results.instantAnswer.title)
                 settingsState.appQuickLaunch && apps.isNotEmpty() -> apps.first().let { app -> performAppLaunch(app, LaunchSource.keyboard(LaunchIconKeys.app(app))) }
                 else -> launchWebSearch(submittedQuery)
             }

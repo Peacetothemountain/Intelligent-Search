@@ -118,7 +118,7 @@ internal object SplashLooks {
             if (foregroundOnly) {
                 val scale = if (front.opaqueShare < ENLARGE_FOREGROUND_THRESHOLD) NO_BACKGROUND_SCALE else 1f
                 val size = (iconSize * scale + 0.5f).toInt()
-                return SplashLook(themeColor, size, size.toFloat(), iconPainter(foreground!!.mutate(), iconBackground, themeColor, size, defaultIconSize))
+                return SplashLook(themeColor, size, size.toFloat(), iconPainter(foreground.mutate(), iconBackground, themeColor, size, defaultIconSize))
             }
             return SplashLook(themeColor, iconSize, iconSize.toFloat(), iconPainter(icon, iconBackground, themeColor, iconSize, defaultIconSize))
         }

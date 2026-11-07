@@ -51,8 +51,9 @@ fun sendPendingIntent(context: Context, intent: PendingIntent): Boolean = try {
         Build.VERSION.SDK_INT >= 36 -> ActivityOptions.makeBasic()
             .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE)
             .toBundle()
+        // Android 14 and 15 have no narrower mode; Android 16 deprecated this one for the line above.
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> ActivityOptions.makeBasic()
-            .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+            .setPendingIntentBackgroundActivityStartMode(@Suppress("DEPRECATION") ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
             .toBundle()
         else -> null
     }

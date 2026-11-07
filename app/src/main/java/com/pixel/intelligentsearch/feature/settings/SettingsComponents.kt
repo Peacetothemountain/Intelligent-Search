@@ -114,8 +114,43 @@ fun androidx.compose.foundation.layout.ColumnScope.AttachedRows(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun settingsTopBarColors(): TopAppBarColors =
+private fun settingsTopBarColors(): TopAppBarColors =
     TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent, scrolledContainerColor = Color.Transparent)
+
+/**
+ * A settings page's top bar. Its [title] is always a [SettingsPageTitle]; null is for a page that shows its title
+ * under the bar instead, which then makes it the heading and pane title itself. [onTitleFitsInBar] is
+ * [SettingsPageTitle]'s `onFitsInBar`, for a bar crowded with buttons.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsTopBar(
+    title: String?,
+    onBack: () -> Unit,
+    backIcon: ImageVector = Symbols.AutoMirrored.Outlined.ArrowBack,
+    backDescription: String = "Back",
+    smallTitle: Boolean = false,
+    onTitleFitsInBar: ((Boolean) -> Unit)? = null,
+    actions: @Composable RowScope.() -> Unit = {}
+) {
+    TopAppBar(
+        colors = settingsTopBarColors(),
+        title = {
+            if (title != null) {
+                SettingsPageTitle(
+                    title,
+                    style = if (smallTitle) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
+                    fontWeight = if (smallTitle) FontWeight.Normal else FontWeight.Bold,
+                    onFitsInBar = onTitleFitsInBar
+                )
+            }
+        },
+        navigationIcon = {
+            IconButton(onClick = onBack) { Icon(backIcon, contentDescription = backDescription) }
+        },
+        actions = actions
+    )
+}
 
 /**
  * A settings page's title in its top bar: one line, shrinking to fit, and both the page's heading and its pane title,

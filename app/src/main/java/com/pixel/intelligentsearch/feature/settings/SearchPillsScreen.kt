@@ -84,7 +84,6 @@ data class AppPickerItem(
     val label: String
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchPillsScreen(
     prefs: SharedPreferences,
@@ -208,31 +207,23 @@ fun SearchPillsScreen(
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                colors = settingsTopBarColors(),
-                title = {
+            SettingsTopBar(
+                when {
+                    showAppPicker && multiSelectMode -> "${selectedApps.size} Selected"
+                    showAppPicker -> "Add Applications"
+                    else -> "Application Search"
+                },
+                onBack = {
                     if (showAppPicker && multiSelectMode) {
-                        SettingsPageTitle("${selectedApps.size} Selected")
+                        multiSelectMode = false
+                        selectedApps = emptySet()
                     } else if (showAppPicker) {
-                        SettingsPageTitle("Add Applications")
+                        showAppPicker = false
                     } else {
-                        SettingsPageTitle("Application Search")
+                        onBack()
                     }
                 },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        if (showAppPicker && multiSelectMode) {
-                            multiSelectMode = false
-                            selectedApps = emptySet()
-                        } else if (showAppPicker) {
-                            showAppPicker = false
-                        } else {
-                            onBack()
-                        }
-                    }) {
-                        Icon(if (showAppPicker && multiSelectMode) Symbols.Outlined.Close else Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back")
-                    }
-                },
+                backIcon = if (showAppPicker && multiSelectMode) Symbols.Outlined.Close else Symbols.AutoMirrored.Outlined.ArrowBack,
                 actions = {
                     if (showAppPicker && multiSelectMode) {
                         IconButton(onClick = {

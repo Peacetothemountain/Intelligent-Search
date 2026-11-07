@@ -238,7 +238,6 @@ internal fun widgetPreviewColors(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val context = LocalContext.current
@@ -473,19 +472,11 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     var titleFitsInBar by remember { mutableStateOf(true) }
 
     Scaffold(containerColor = Color.Transparent, topBar = {
-            TopAppBar(
-                title = {
-                    SettingsPageTitle(
-                        "Widget Customization",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Normal,
-                        onFitsInBar = { titleFitsInBar = it }
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
-                navigationIcon = {
-                    IconButton(onClick = handleBack) { Icon(Symbols.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
-                },
+            SettingsTopBar(
+                "Widget Customization",
+                onBack = handleBack,
+                smallTitle = true,
+                onTitleFitsInBar = { titleFitsInBar = it },
                 actions = {
                     // As on Application Search: Reset puts the profile's saved state in the editor (Save puts it on
                     // the widget), and the save button records the editor's design as that saved state.

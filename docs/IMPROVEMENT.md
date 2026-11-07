@@ -146,8 +146,8 @@ set `model` and `effort` on Agent calls.
 ## 7. Usage budget
 
 The owner's Claude plan has weekly and session limits. Check them at the start of each cycle: the claude-mem start-up
-notice reports weekly usage, and `/usage` in Claude Code shows both limits. If a scheduled run can't see a figure, it
-works in Lean mode and writes "no figure visible" in the ledger.
+notice reports weekly usage, and `/usage` in Claude Code shows both limits. The owner has full use with no limits (2026-11-06), so a
+scheduled run that can't see a figure works in Normal mode and writes "no figure visible" in the ledger.
 
 | Weekly usage | Mode |
 |---|---|

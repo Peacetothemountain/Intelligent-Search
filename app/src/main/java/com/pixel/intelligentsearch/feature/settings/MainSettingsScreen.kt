@@ -34,7 +34,6 @@ import androidx.core.net.toUri
 // -----------------------------------------------------------------------------------------
 // MAIN SETTINGS
 // -----------------------------------------------------------------------------------------
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainSettingsScreen(
     prefs: SharedPreferences,
@@ -54,17 +53,14 @@ fun MainSettingsScreen(
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = { SettingsPageTitle("Settings") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") }
-                },
+            SettingsTopBar(
+                "Settings",
+                onBack = onBack,
                 actions = {
                     IconButton(onClick = { showInfoDialog = true }) {
                         Icon(Symbols.Outlined.Info, contentDescription = "Developer Note")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                }
             )
         }
     ) { padding ->

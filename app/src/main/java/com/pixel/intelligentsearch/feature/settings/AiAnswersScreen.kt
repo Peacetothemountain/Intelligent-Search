@@ -15,19 +15,16 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Key
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.PrivacyTip
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -61,7 +58,6 @@ import kotlinx.coroutines.withContext
  * AI Answers, reached from Web Search: the opt-in switch, the provider and model, and the user's own API key, saved
  * encrypted on the phone (never in backups) and shown masked, with Remove Key. Off while Tor is the search engine or Web is off.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiAnswersScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -79,11 +75,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
-                TopAppBar(
-                    colors = settingsTopBarColors(),
-                    title = { SettingsPageTitle("AI Answers") },
-                    navigationIcon = { IconButton(onClick = onBack) { Icon(Symbols.AutoMirrored.Outlined.ArrowBack, contentDescription = "Back") } }
-                )
+                SettingsTopBar("AI Answers", onBack)
             }
         ) { padding ->
             CardsAboveMorphAnimation(morphAnimationEnabled = morphAnimationEnabled, modifier = Modifier.fillMaxSize().padding(padding)) {

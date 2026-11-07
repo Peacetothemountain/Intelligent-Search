@@ -9,7 +9,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 
 | Metric | Value | Measured at |
 |---|---|---|
-| Lines of test code | 52,078 | 2026-11-06, B14; replaces the `@Test` count (owner: root causes over more tests) |
+| Lines of test code | 52,060 | 2026-11-06, B15; replaces the `@Test` count (owner: root causes over more tests) |
 | CI time, `Run Build & Check` | 527s (was 1118s) | run 42277305877 on `8de98e0a` |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
@@ -228,6 +228,23 @@ with the strongest evidence.
 - Retry only if: the owner asks for runs with the PC off
 - Commit: see `Review here before merging, not on GitHub` in `git log dev`
 - Lesson: when a request can be read two ways and the build is large, say the plan in one line first. Two rebuilds came from not doing that.
+
+### 2026-11-06: B15, one top bar for settings pages
+- Command: /improve (scheduled run)
+- Target and evidence: B15. 18 settings pages each wrote out their own `TopAppBar`, title and back button, guarded by `everySettingsTopBarTitleIsAPageTitle`, which reads source text with a regex. Chosen over B11 (only adds tests, against the owner's rule), B13 (saving is small, measure first), B16 (large) and B17 (backup data, wants its own run)
+- Prior work checked: this ledger, `git log dev -S"SettingsTopBar"` (ledger text only), claude-mem search (no earlier attempt). CI green on `821bbc59` before starting
+- Research: read all 18 calls. The drift B15 listed isn't visible: `Filled` and `Outlined` `ArrowBack` in `Symbols.kt` have identical path data. The two color forms differ only in the scrolled color, and no bar here has a `scrollBehavior`, so it is never used. All 18 already resolve to the same package `IconButton`, so haptics don't change
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: owner said during this run they have full use with no limits; no figure visible. Normal mode, and charter section 7 now says so for runs that can't see a figure
+- Change: new `SettingsTopBar(title, onBack, ...)` takes the title as a `String` and draws it as a `SettingsPageTitle`; every page uses it; `settingsTopBarColors` is private; `@OptIn` and imports it left unused are gone. `CountdownConfigActivity` stays as it is: it is its own activity, outside settings, and was never in the 18
+- Test changed, assertion untouched: `aPageTitleIsTheHeadingAndPaneTitle` now renders the real bar. It passes locally, as do all 16 tests in `SearchPillsScreenTest`, which covers the rewritten title in its picker states. The rest of the suite, lint and the goldens are left to CI
+- Test removed, 1: the source grep. A page using `SettingsTopBar` can't get the title wrong. It isn't strictly impossible: new code could still call `TopAppBar` itself, and nothing now catches that
+- The lint module half of B15: not built. It would be larger than the 48 lines of `SettingsPageTitleTest` and `LayeringTest` it replaces and add a module to every CI build, so `LayeringTest` stays
+- Before -> after: raw `TopAppBar` in settings 18 -> 1; app code 76,507 -> 76,372 lines; test code 52,078 -> 52,060; release APK, unsigned local builds, 12,908,309 -> 12,908,309 bytes, with `classes2.dex` down 6,436 bytes (4,893,240 -> 4,886,804); lint baseline 19 -> 19
+- Result: kept, pending CI. Nothing should look different, so no emulator check; the goldens are the proof
+- Retry only if: a golden changes on a settings page, or a raw `TopAppBar` turns up in settings
+- Commit: see `One top bar for settings pages` in `git log dev`
+- Lesson: check that drift a backlog item names can actually be seen before counting it as evidence. Here it couldn't, and the real gain was less code.
 
 <!--
 Copy this for each cycle, newest at the bottom.

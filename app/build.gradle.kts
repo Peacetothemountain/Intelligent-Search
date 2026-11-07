@@ -235,6 +235,12 @@ dependencies {
   ksp(libs.androidx.appfunctions.compiler)
 }
 
+// The app's own code compiles with no warnings, as lint runs with none outside its baseline: a deprecation or a
+// nullability mismatch fails the build where it is written. A use that has to stay names its reason in a @Suppress.
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+  if (!name.contains("UnitTest") && !name.contains("AndroidTest")) compilerOptions.allWarningsAsErrors.set(true)
+}
+
 tasks.register<Zip>("packageNativeDebugSymbols") {
     archiveFileName.set("native-debug-symbols.zip")
     destinationDirectory.set(file("${layout.buildDirectory.get()}/outputs/native-debug-symbols/release"))

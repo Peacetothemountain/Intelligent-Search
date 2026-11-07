@@ -155,13 +155,12 @@ fun Modifier.shellShadow(shape: Shape, radius: Dp, color: Color, offset: DpOffse
     val path = if (uniform || outline is Outline.Rectangle) null else when (outline) {
         is Outline.Rounded -> androidx.compose.ui.graphics.Path().apply { addRoundRect(outline.roundRect) }
         is Outline.Generic -> outline.path
-        else -> null
-    }?.asAndroidPath()
+    }.asAndroidPath()
     onDrawBehind {
         drawIntoCanvas { canvas ->
             canvas.nativeCanvas.withTranslation(dx, dy) {
                 when {
-                    uniform && rounded != null -> drawRoundRect(
+                    uniform -> drawRoundRect(
                         rounded.left, rounded.top, rounded.right, rounded.bottom,
                         rounded.topLeftCornerRadius.x, rounded.topLeftCornerRadius.y, paint
                     )

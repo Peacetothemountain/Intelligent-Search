@@ -464,7 +464,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 HighlightedCard(s, ResultListKeys.MATH) {
                     MathResultOneBox(
                         expression = uiState.query,
-                        result = uiState.mathResult ?: "",
+                        result = uiState.mathResult,
                         onOpenCalculator = {
                             hasStartedTyping = false
                             try {

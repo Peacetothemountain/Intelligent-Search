@@ -30,7 +30,7 @@ class WidgetLaunchReceiver : BroadcastReceiver() {
         val target = IntentCompat.getParcelableExtra(intent, EXTRA_TARGET, Intent::class.java) ?: return
         // The home app changed since the bar was drawn: redrawn, its taps go back to activities, which always open.
         if (!homeIsPixelLauncher(context)) refreshWidgets(context)
-        val overlay = target.component?.className in OVERLAY_ENTRIES
+        val overlay = target.component?.className.let { it != null && it in OVERLAY_ENTRIES }
         if (overlay) closeLeftoverOverlays(context)
         try {
             // The overlay brings its own entrance; Lens, voice and shortcuts open with Android's usual motion.
@@ -58,7 +58,7 @@ class WidgetLaunchReceiver : BroadcastReceiver() {
     private fun closeLeftoverOverlays(context: Context) {
         runCatching {
             context.getSystemService(ActivityManager::class.java).appTasks
-                .filter { it.taskInfo?.baseActivity?.className in OVERLAY_ENTRIES }
+                .filter { task -> task.taskInfo?.baseActivity?.className.let { it != null && it in OVERLAY_ENTRIES } }
                 .forEach { it.finishAndRemoveTask() }
         }
     }

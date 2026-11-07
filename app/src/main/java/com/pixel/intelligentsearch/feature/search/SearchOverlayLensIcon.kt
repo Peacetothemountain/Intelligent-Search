@@ -63,7 +63,7 @@ internal fun rememberSearchIconPalette(): SearchIconPalette {
 
     val prefs = remember(context) { context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE) }
     // Follow the icon theme of whichever widget design is active, as saved by Widget Customization.
-    val isMaterialWidget = prefs[SettingsManager.WIDGET_THEME_STYLE]?.startsWith("Material") == true
+    val isMaterialWidget = prefs[SettingsManager.WIDGET_THEME_STYLE].startsWith("Material")
     val effectiveTheme = (if (isMaterialWidget) {
         prefs.getString("widget_material_material_g_icon", prefs.getString("widget_material_g_icon", null))
     } else {

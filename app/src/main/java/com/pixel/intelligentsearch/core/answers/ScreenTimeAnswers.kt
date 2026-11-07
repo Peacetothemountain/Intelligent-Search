@@ -112,7 +112,7 @@ class ScreenTimeRepository(private val context: Context) {
     /** Whether Usage Access is granted. */
     fun hasUsageAccess(): Boolean {
         val appOps = context.getSystemService(AppOpsManager::class.java) ?: return false
-        val mode = appOps.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.packageName)
+        val mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.packageName)
         return if (mode == AppOpsManager.MODE_DEFAULT) {
             context.checkSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) == android.content.pm.PackageManager.PERMISSION_GRANTED
         } else mode == AppOpsManager.MODE_ALLOWED

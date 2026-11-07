@@ -558,6 +558,21 @@ with the strongest evidence.
 - Commit: see `Ship the tutorial mascot layers as lossless WebP` in `git log dev`
 - Lesson: lossless WebP gives back the same RGBA bytes, but Android premultiplies it with different rounding than PNG, so compare what gets drawn (`copyPixelsToBuffer`), not `getPixels`.
 
+### 2026-11-07: The app's code compiled with 18 warnings
+- Command: /improve (scheduled run)
+- Target and evidence: compiler warnings, a platform rule broken today (`IMPROVEMENT.md` section 1, item 3). `compileReleaseKotlin --rerun` printed 18: 3 deprecated APIs (`AppOpsManager.unsafeCheckOpNoThrow`, deprecated in SDK 37 for `checkOpNoThrow`; `ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED`, deprecated in 36; Compose's `LocalAutofillHighlightColor`, twice), 2 nullability mismatches passing a `String?` class name where Kotlin reads Android's `String` (`WidgetLaunchReceiver`), and 12 redundant `!!`, `?.`, `?:`, `else` and always-true checks. Lint fails on any new warning; the compiler didn't. Chosen because the backlog has nothing left with evidence (B11 only adds tests), no crash or flaky run is open, and the APK breakdown (`apkanalyzer dex packages` with the mapping) has nothing large left that isn't Compose, the app's own code, or a library holding user data or routes (Room, Navigation, serialization). CI green on `bb776bce` and everything before it; `df8c0bb3` still running
+- Prior work checked: this ledger (no compiler warnings entry), `git log origin/dev -S"allWarningsAsErrors"` and `-S"unsafeCheckOpNoThrow"` (only the commit that added it), claude-mem
+- Research: SDK 37 source: `checkOpNoThrow(String, int, String)` and `unsafeCheckOpNoThrow` have the same body, and the first has been there since API 19, so Usage Access reads the same on every version. Android 14 and 15 have no mode narrower than `MODE_BACKGROUND_ACTIVITY_START_ALLOWED` (`ALLOW_IF_VISIBLE` is 36), so that branch keeps it under a `@Suppress` that says why. Compose foundation 1.12.1 bytecode: `CoreTextField` reads both locals and `resolveAutofillHighlight` turns a provided color into `SolidColor`, so providing the brush draws the same tint. The nullable class names now check for null before the set lookup, same result
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: the 18 fixed in 13 files; `app/build.gradle.kts` sets `allWarningsAsErrors` on the app's Kotlin compiles (debug and release, not test sources), so a new deprecation or mismatch fails the build where it is written, as lint already does. Checked that it bites: removing the `else` left a redundant `?.` that failed both compiles until fixed
+- Before -> after: Kotlin compiler warnings in the app's code 18 -> 0, debug and release. Release APK, unsigned local builds, 9,672,793 -> 9,672,793 bytes. Test code 51,916 -> 51,916; test sources compile; lint clean apart from the run's own `local.properties` path (`PropertyEscape`, not committed), baseline 11 -> 11
+- Emulator: not run. Nothing should look or behave differently; the one drawn change, the autofill tint, resolves to the same brush
+- Result: kept, pending CI
+- Retry only if: a library update brings deprecations that can't be fixed in the same commit; then suppress each with its reason rather than turning the flag off
+- Commit: see `Compile the app with no warnings` in `git log dev`
+- Lesson: `--rerun` on the compile task lists every warning in about 30 s; Gradle's cache hides them on a normal build, which is how 18 piled up.
+
 <!--
 Copy this for each cycle, newest at the bottom.
 

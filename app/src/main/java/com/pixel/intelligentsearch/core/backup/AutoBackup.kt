@@ -157,7 +157,7 @@ class AutoBackup internal constructor(
 
         var unfinished: Uri? = null
         val result = try {
-            val raw = if (hasPassphraseKey) unwrap(iv!!, wrapped!!) else null
+            val raw = if (hasPassphraseKey) unwrap(iv, wrapped) else null
             val passphraseKey = raw?.let { SecretKeySpec(it, "AES") to salt!! }
             val writtenId = try {
                 val treeDoc = DocumentsContract.buildDocumentUriUsingTree(folder, DocumentsContract.getTreeDocumentId(folder))

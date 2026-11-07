@@ -48,7 +48,7 @@ object SecurityPosture {
         // Boot state, lock and patch level come from the attestation certificate. With no certificate there is nothing
         // to read; with a chain that doesn't verify back to a hardware root, what it claims is unconfirmed.
         val hasCertificate = attestation != null && attestation.certificateCount > 0
-        val trusted = hasCertificate && attestation?.isHardwareAttested == true
+        val trusted = hasCertificate && attestation.isHardwareAttested
         return listOf(
             when (keyLevel) {
                 HardwareSecurityLevel.STRONGBOX -> AxisScore(Axis.KeyStorage, 1f, "StrongBox", Rating.Good)

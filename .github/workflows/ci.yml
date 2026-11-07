@@ -1,12 +1,13 @@
 name: CI Check & Build
 
 # Pushes run on dev only: main requires this job green on the exact commit, and a commit reaches main only after
-# passing here (git push origin dev:main), so a run on main would repeat the same check on the same code.
+# passing here. The pull request from candidate to main holds those same commits, so GitHub reads this result from them,
+# and a run for that pull request or on main would repeat the same check on the same code.
 on:
   push:
     branches: [ dev ]
   pull_request:
-    branches: [ main, dev ]
+    branches: [ dev ]
   workflow_dispatch:
 
 permissions:

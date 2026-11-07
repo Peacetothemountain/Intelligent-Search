@@ -739,7 +739,8 @@ private fun PillButton(label: String, icon: ImageVector, filled: Boolean, onClic
 
 /**
  * The rest of today's events on one line from now: the part already gone filled in, a pin and label for each event
- * (labels taking turns above and below the line so neighbors don't collide), and a dot for now.
+ * (labels taking turns above and below the line, a label with no room in either row left out so none collide), and a
+ * dot for now.
  */
 @Composable
 private fun RestOfDay(calendar: List<CalendarEvent>, now: Long, sunset: Long?) {
@@ -791,10 +792,21 @@ private fun RestOfDay(calendar: List<CalendarEvent>, now: Long, sunset: Long?) {
                 drawCircle(fill.copy(alpha = 0.25f), 12.dp.toPx(), Offset(size.width * nowAt * shown, y))
                 drawCircle(fill, 8.dp.toPx(), Offset(size.width * nowAt * shown, y))
             }
+            // Each label takes the row across from the one before it, or the other row when that one has no room left;
+            // a label with no room in either keeps only its pin, so no two labels ever cover each other.
+            val labelWidth = 96.dp
+            var aboveEnd = (-1).dp
+            var belowEnd = (-1).dp
+            var preferAbove = true
             events.forEachIndexed { i, event ->
-                val above = i % 2 == 0
-                val labelWidth = 96.dp
                 val x = (width * at(event.beginMillis) - labelWidth / 2).coerceIn(0.dp, width - labelWidth)
+                val above = when {
+                    x >= (if (preferAbove) aboveEnd else belowEnd) -> preferAbove
+                    x >= (if (preferAbove) belowEnd else aboveEnd) -> !preferAbove
+                    else -> return@forEachIndexed
+                }
+                if (above) aboveEnd = x + labelWidth else belowEnd = x + labelWidth
+                preferAbove = !above
                 Column(
                     Modifier
                         .width(labelWidth)

@@ -466,7 +466,8 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
 /**
  * Do Not Disturb, the flashlight, the hotspot and Battery Saver. The flashlight and Do Not Disturb (once allowed)
  * switch here, their tiles turning round when on; Android lets only its own Settings switch the hotspot and Battery
- * Saver, so those open the page that does.
+ * Saver, so those open the page that does. Android doesn't tell apps whether the hotspot is on, so its tile says
+ * neither on nor off.
  */
 @Composable
 internal fun QuickControls(controls: TodayControls) {
@@ -483,7 +484,7 @@ internal fun QuickControls(controls: TodayControls) {
                 if (!controls.setDoNotDisturb(!dnd)) launchSafeIntent(context, Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS))
             }
             ControlTile("Flashlight", Icons.Outlined.FlashlightOn, torch, Modifier.weight(1f)) { controls.setFlashlight(!torch) }
-            ControlTile("Hotspot", Icons.Outlined.WifiTethering, false, Modifier.weight(1f)) {
+            ControlTile("Hotspot", Icons.Outlined.WifiTethering, null, Modifier.weight(1f)) {
                 launchSafeIntent(context, Intent(Settings.ACTION_WIRELESS_SETTINGS))
             }
             ControlTile("Battery Saver", Icons.Outlined.BatterySaver, saver, Modifier.weight(1f)) {
@@ -493,8 +494,10 @@ internal fun QuickControls(controls: TodayControls) {
     }
 }
 
+/** A quick control; [state] is null for one the app can't read, which then claims neither on nor off. */
 @Composable
-private fun ControlTile(label: String, icon: ImageVector, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun ControlTile(label: String, icon: ImageVector, state: Boolean?, modifier: Modifier, onClick: () -> Unit) {
+    val on = state == true
     val scheme = MaterialTheme.colorScheme
     val animate by rememberAnimationsEnabled()
     val corner by androidx.compose.animation.core.animateDpAsState(
@@ -503,7 +506,7 @@ private fun ControlTile(label: String, icon: ImageVector, on: Boolean, modifier:
         label = "control shape"
     )
     Column(
-        modifier.semantics { stateDescription = if (on) "On" else "Off" },
+        modifier.semantics { if (state != null) stateDescription = if (on) "On" else "Off" },
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(

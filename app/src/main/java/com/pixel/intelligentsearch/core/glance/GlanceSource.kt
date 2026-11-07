@@ -64,7 +64,7 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
     }
 
     /**
-     * The next day's events, read as the search comes into view and again whenever the calendar changes while it is
+     * Events to the end of tomorrow, read as the search comes into view and again whenever the calendar changes while it is
      * on screen (an event synced or edited), so the card never shows one the user has just moved.
      */
     private fun eventFlow(): Flow<List<CalendarEvent>> = callbackFlow {

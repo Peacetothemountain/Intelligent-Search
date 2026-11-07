@@ -111,6 +111,7 @@ import com.pixel.intelligentsearch.core.glance.GlanceMedia
 import com.pixel.intelligentsearch.core.glance.GlanceSnapshot
 import com.pixel.intelligentsearch.core.glance.GlanceTimer
 import com.pixel.intelligentsearch.core.glance.GlanceToggles
+import com.pixel.intelligentsearch.core.glance.GLANCE_EVENT_WINDOW_MS
 import com.pixel.intelligentsearch.core.glance.timerReading
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
@@ -334,7 +335,7 @@ internal fun TodayPage(
     val zone = ZoneId.systemDefault()
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     val events = snapshot.events.filter { !it.allDay && it.beginMillis > now }
-    val upNext = events.firstOrNull()?.takeIf { upNextOn }
+    val upNext = events.firstOrNull()?.takeIf { upNextOn && it.beginMillis - now < GLANCE_EVENT_WINDOW_MS }
     val laterToday = events.filter { Instant.ofEpochMilli(it.beginMillis).atZone(zone).toLocalDate() == today }
     val tomorrowEvent = events.firstOrNull { Instant.ofEpochMilli(it.beginMillis).atZone(zone).toLocalDate() == today.plusDays(1) }
         ?.takeIf { upNextOn }

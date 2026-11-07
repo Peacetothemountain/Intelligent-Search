@@ -138,6 +138,9 @@ const val GLANCE_ALARM_WINDOW_MS = 12 * 60 * 60 * 1000L
 const val GLANCE_MAX_TIMERS = 3
 const val GLANCE_MAX_EVENTS = 3
 
+/** How far ahead calendar events show: the next day. */
+const val GLANCE_EVENT_WINDOW_MS = 24 * 60 * 60 * 1000L
+
 /**
  * What At a Glance shows at [now], in order: running timers and stopwatches, the next alarm within
  * [GLANCE_ALARM_WINDOW_MS], what is playing, the next day's calendar events and birthdays this week, the order of
@@ -150,7 +153,7 @@ fun glanceItems(snapshot: GlanceSnapshot, toggles: GlanceToggles, now: Long): Li
         if (toggles.timersOn) snapshot.timers.take(GLANCE_MAX_TIMERS).forEach { add(GlanceItem.Timer(it)) }
         snapshot.alarm?.takeIf { toggles.alarmOn && it.triggerAt - now in 0..GLANCE_ALARM_WINDOW_MS }?.let { add(GlanceItem.Alarm(it)) }
         snapshot.media?.takeIf { toggles.mediaOn }?.let { add(GlanceItem.Media(it)) }
-        if (toggles.calendarOn) snapshot.events.map { GlanceItem.Event(it) }.distinctBy { it.key }.take(GLANCE_MAX_EVENTS).forEach(::add)
+        if (toggles.calendarOn) snapshot.events.filter { it.beginMillis - now < GLANCE_EVENT_WINDOW_MS }.map { GlanceItem.Event(it) }.distinctBy { it.key }.take(GLANCE_MAX_EVENTS).forEach(::add)
         if (toggles.birthdaysOn) snapshot.birthdays.forEach { add(GlanceItem.Birthday(it)) }
     }
 }

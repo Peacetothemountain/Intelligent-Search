@@ -313,6 +313,10 @@ object SystemDataProvider {
         return ""
     }
 
+    /**
+     * Calendar instances from now to the end of tomorrow, in start order: tomorrow's first event can be more than a day
+     * away, and the Discover Overlay's Tomorrow card needs it. Each reader keeps the span it shows.
+     */
     suspend fun getUpcomingEvents(context: Context): List<CalendarEvent> = withContext(Dispatchers.IO) {
         val events = mutableListOf<CalendarEvent>()
         if (context.checkSelfPermission(android.Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) {
@@ -321,7 +325,8 @@ object SystemDataProvider {
 
         try {
             val now = System.currentTimeMillis()
-            val tomorrow = now + 1000 * 60 * 60 * 24
+            val zone = java.time.ZoneId.systemDefault()
+            val tomorrow = java.time.LocalDate.now(zone).plusDays(2).atStartOfDay(zone).toInstant().toEpochMilli()
 
             val builder = CalendarContract.Instances.CONTENT_URI.buildUpon()
             android.content.ContentUris.appendId(builder, now)
@@ -353,7 +358,7 @@ object SystemDataProvider {
                 // Honours the user's 12/24-hour preference and locale instead of always printing AM/PM.
                 val timeFormat = android.text.format.DateFormat.getTimeFormat(context)
 
-                // Every instance in the window: At a Glance shows the first few, the Discover Overlay the timed ones ahead.
+                // Every instance in the window: At a Glance shows the first few of the next day, the Discover Overlay the timed ones ahead.
                 while (cursor.moveToNext()) {
                     val title = if (titleIndex >= 0) cursor.getString(titleIndex) else null
                     val startTimeMillis = if (dtStartIndex >= 0) cursor.getLong(dtStartIndex) else 0L

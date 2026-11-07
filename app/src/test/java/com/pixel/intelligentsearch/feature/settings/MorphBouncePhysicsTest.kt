@@ -10,13 +10,6 @@ import kotlin.random.Random
 /** The rules of the Material Morph animation, checked against the physics directly. */
 class MorphBouncePhysicsTest {
 
-    /** An area like the one under the cards on a settings page: 411 by 160 dp, 4.11 m by 1.6 m. */
-    private val phone = morphSceneFor(411f * 3f, 160f * 3f, 3f)!!
-
-    private fun world(seed: Int = 7) = MorphBouncePhysics(Random(seed)).apply {
-        resize(phone.widthMetres, phone.heightMetres, phone.radiiMetres)
-    }
-
     /** The same area with nothing dropping in by itself, for tests that study one shape. */
     private fun quietWorld(seed: Int = 7, width: Float = phone.widthMetres, height: Float = phone.heightMetres, radii: List<Float> = phone.radiiMetres) =
         MorphBouncePhysics(Random(seed), autoSpawn = false).apply { resize(width, height, radii) }
@@ -41,17 +34,192 @@ class MorphBouncePhysicsTest {
     @Test
     fun neverMoreThanFourShapesAndTheyKeepComingWhileThePageStaysOpen() {
         assertEquals(4, MorphBouncePhysics.MAX_SHAPES)
-        for (seed in 1..8) {
-            val physics = world(seed)
+        verify(fourAtMostAndNoQuietWindow)
+    }
+
+    @Test
+    fun theFirstTwoLandingsAreOnScreen() = verify(firstTwoLandingsOnScreen)
+
+    @Test
+    fun shapesNeverRiseAboveTheBottomCard() = verify(neverAboveTheCard)
+
+    @Test
+    fun noShapeSitsOnTheFloorAndBouncesAreRealFlightsApart() = verify(nothingSitsAndBouncesFlyApart)
+
+    @Test
+    fun aReleasedDentOnlyEverClosesEvenWhenANewShapeLandsOnIt() = verify(releasedDentsOnlyClose)
+
+    @Test
+    fun aShapeSparklesOnceBrieflyAfterItsSecondBounce() = verify(oneBriefSparkleAfterTheSecondBounce)
+
+    @Test
+    fun theShapeChangesAsItLeavesTheRubberAfterEveryBounce() = verify(newShapeAsItLeavesTheRubber)
+
+    private companion object {
+        /** An area like the one under the cards on a settings page: 411 by 160 dp, 4.11 m by 1.6 m. */
+        val phone = morphSceneFor(411f * 3f, 160f * 3f, 3f)!!
+
+        fun world(seed: Int = 7) = MorphBouncePhysics(Random(seed)).apply {
+            resize(phone.widthMetres, phone.heightMetres, phone.radiiMetres)
+        }
+
+        /**
+         * A rule watched over the first [seconds] of [world] for each of [seeds], then [afterAll]. Nearly all of a run's
+         * time goes on planning drops, and a seed always gives the same run, so the rules share one run per seed.
+         */
+        class Rule(val seeds: IntRange, val seconds: Float, val afterAll: () -> Unit, val watch: (Int, MorphBouncePhysics) -> Watch)
+        class Watch(val frame: () -> Unit, val bounce: (MorphBouncePhysics.Body) -> Unit = {}, val end: () -> Unit = {})
+
+        val rules = ArrayList<Rule>()
+        fun rule(seeds: IntRange, seconds: Float, afterAll: () -> Unit = {}, watch: (seed: Int, physics: MorphBouncePhysics) -> Watch) =
+            Rule(seeds, seconds, afterAll, watch).also { rules += it }
+
+        /** Each rule's first failure. A rule that fails stops being watched; the run goes on for the others. */
+        val failures: Map<Rule, Throwable> by lazy {
+            val failed = HashMap<Rule, Throwable>()
+            fun Rule.check(part: () -> Unit) {
+                if (this !in failed) try { part() } catch (e: Throwable) { failed[this] = e }
+            }
+            for (seed in 1..rules.maxOf { it.seeds.last }) {
+                val physics = world(seed)
+                val watches = rules.filter { seed in it.seeds }.map { it to it.watch(seed, physics) }
+                var now = watches
+                val listener = MorphBouncePhysics.BounceListener { b, _ -> for ((r, w) in now) r.check { w.bounce(b) } }
+                for (n in 0 until watches.maxOf { (it.first.seconds * 120f).toInt() }) {
+                    now = watches.filter { n < (it.first.seconds * 120f).toInt() }
+                    physics.advance(1f / 120f, listener)
+                    for ((r, w) in now) r.check(w.frame)
+                }
+                for ((r, w) in watches) r.check(w.end)
+            }
+            for (r in rules) r.check(r.afterAll)
+            failed
+        }
+
+        fun verify(rule: Rule) {
+            failures[rule]?.let { throw it }
+        }
+
+        val fourAtMostAndNoQuietWindow = rule(1..8, 60f) { seed, physics ->
             var maxAlive = 0
             val bouncesByWindow = IntArray(6)
             var t = 0f
-            run(physics, 60f, onFrame = {
+            Watch(frame = {
                 t += 1f / 120f
                 maxAlive = maxOf(maxAlive, physics.bodies.size)
-            }, listener = { _, _ -> bouncesByWindow[(t / 10f).toInt().coerceAtMost(5)]++ })
-            assertTrue("seed $seed: max alive $maxAlive", maxAlive <= 4)
-            for ((i, n) in bouncesByWindow.withIndex()) assertTrue("seed $seed: window $i had no bounces: ${bouncesByWindow.toList()}", n > 0)
+            }, bounce = { bouncesByWindow[(t / 10f).toInt().coerceAtMost(5)]++ }, end = {
+                assertTrue("seed $seed: max alive $maxAlive", maxAlive <= 4)
+                for ((i, n) in bouncesByWindow.withIndex()) assertTrue("seed $seed: window $i had no bounces: ${bouncesByWindow.toList()}", n > 0)
+            })
+        }
+
+        var landingsChecked = 0
+        val firstTwoLandingsOnScreen = rule(1..10, 30f, afterAll = { assertTrue("only $landingsChecked shapes", landingsChecked > 50) }) { seed, physics ->
+            val alive = HashMap<Int, MorphBouncePhysics.Body>()
+            Watch(frame = {
+                for (b in physics.bodies) alive[b.id] = b
+                for (id in alive.keys - physics.bodies.map { it.id }.toSet()) {
+                    val b = alive.remove(id)!!
+                    assertTrue("seed $seed: shape $id touched down ${b.landCount} times", b.landCount >= 2)
+                    for (x in listOf(b.landX0, b.landX1)) assertTrue("seed $seed: shape $id landed at $x", x >= b.radius && x <= physics.width - b.radius)
+                    landingsChecked++
+                }
+            })
+        }
+
+        val neverAboveTheCard = rule(1..12, 30f) { seed, physics ->
+            val entered = mutableSetOf<Int>()
+            Watch(frame = {
+                for (b in physics.bodies) {
+                    // A shape enters from just under the card (center at -radius); once fully in, its top stays in.
+                    if (b.y - b.radius >= 0f) entered += b.id
+                    if (b.id in entered) assertTrue("seed $seed: shape ${b.id} rose to ${b.y - b.radius}", b.y - b.radius >= -1e-3f)
+                }
+            })
+        }
+
+        val nothingSitsAndBouncesFlyApart = rule(1..12, 30f) { seed, physics ->
+            val contactTime = mutableMapOf<Int, Float>()
+            val lastBounceAt = mutableMapOf<Int, Float>()
+            var t = 0f
+            Watch(frame = {
+                t += 1f / 120f
+                for (b in physics.bodies) {
+                    contactTime[b.id] = if (b.inContact) (contactTime[b.id] ?: 0f) + 1f / 120f else 0f
+                    assertTrue("seed $seed: shape ${b.id} on the floor for ${contactTime[b.id]}s", contactTime[b.id]!! <= MorphBouncePhysics.STUCK_TIME)
+                }
+            }, bounce = { b ->
+                val previous = lastBounceAt[b.id]
+                if (previous != null) assertTrue("seed $seed: shape ${b.id} bounced again after ${t - previous}s", t - previous >= MorphBouncePhysics.MIN_FLIGHT)
+                lastBounceAt[b.id] = t
+            })
+        }
+
+        var dentsChecked = 0
+        val releasedDentsOnlyClose = rule(1..10, 40f, afterAll = { assertTrue("only $dentsChecked checks", dentsChecked > 1000) }) { seed, physics ->
+            val last = IdentityHashMap<MorphBouncePhysics.Imprint, Pair<Float, Float>>()
+            Watch(frame = {
+                for (imprint in physics.imprints) {
+                    if (!imprint.active || imprint.holding) { last.remove(imprint); continue }
+                    val before = last[imprint]
+                    // The same silhouette (not one reused for a new landing): its hollow never grows back.
+                    if (before != null && imprint.sincePressed >= before.second) {
+                        assertTrue("seed $seed: a dent grew back from ${before.first} to ${imprint.shrink}", imprint.shrink <= before.first + 1e-6f)
+                        dentsChecked++
+                    }
+                    last[imprint] = imprint.shrink to imprint.sincePressed
+                }
+            })
+        }
+
+        var sparkledShapes = 0
+        val oneBriefSparkleAfterTheSecondBounce = rule(1..6, 30f, afterAll = { assertTrue("only $sparkledShapes shapes sparkled", sparkledShapes > 30) }) { seed, physics ->
+            val sparkles = HashMap<Int, Int>()
+            val bouncesAtSparkle = HashMap<Int, Int>()
+            val seenSparkling = IdentityHashMap<MorphBouncePhysics.Imprint, Float>()
+            Watch(frame = {
+                for (imprint in physics.imprints) {
+                    if (!imprint.active || imprint.sparklePhase < 0f || imprint in seenSparkling) continue
+                    seenSparkling[imprint] = imprint.sincePressed
+                    sparkles[imprint.bodyId] = (sparkles[imprint.bodyId] ?: 0) + 1
+                    physics.bodies.firstOrNull { it.id == imprint.bodyId }?.let { bouncesAtSparkle[it.id] = it.bounces }
+                }
+                // Gone again within the moment.
+                for (imprint in physics.imprints) if (imprint.active && imprint.sparkleAge > 0f) {
+                    assertTrue("seed $seed: sparkling for ${imprint.sparkleAge}s", imprint.sparkleAge <= MorphBouncePhysics.SPARKLE_TIME + 1f / 120f)
+                }
+                // A silhouette reused for a later landing is a new one.
+                seenSparkling.keys.removeAll { !it.active || it.holding }
+            }, end = {
+                for ((id, n) in sparkles) {
+                    assertEquals("seed $seed: shape $id sparkled $n times", 1, n)
+                    bouncesAtSparkle[id]?.let { assertEquals("seed $seed: shape $id sparkled after bounce $it", 2, it) }
+                    sparkledShapes++
+                }
+            })
+        }
+
+        val newShapeAsItLeavesTheRubber = rule(1..6, 30f) { seed, physics ->
+            val lastShape = HashMap<Int, Int>()
+            val wasInContact = HashMap<Int, Boolean>()
+            val lastContacts = HashMap<Int, Int>()
+            var changes = 0
+            Watch(frame = {
+                for (b in physics.bodies) {
+                    val before = lastShape[b.id]
+                    if (before != null && b.shapeIndex != before) {
+                        assertEquals("seed $seed: shape ${b.id} skipped a shape", before + 1, b.shapeIndex)
+                        // Never while the rubber holds it: it changes as it leaves.
+                        // At a lift-off: in the rubber a moment before or after, never in mid-flight.
+                        assertTrue("seed $seed: shape ${b.id} changed in mid-flight", b.inContact || wasInContact[b.id] == true || b.contacts > (lastContacts[b.id] ?: 0))
+                        assertTrue("seed $seed: morph ${b.morphProgress}", b.morphProgress < 0.5f)
+                        changes++
+                    }
+                    lastShape[b.id] = b.shapeIndex
+                    wasInContact[b.id] = b.inContact
+                    lastContacts[b.id] = b.contacts
+                }
+            }, end = { assertTrue("seed $seed: only $changes changes", changes > 10) })
         }
     }
 
@@ -125,61 +293,6 @@ class MorphBouncePhysicsTest {
     }
 
     @Test
-    fun theFirstTwoLandingsAreOnScreen() {
-        var checked = 0
-        for (seed in 1..10) {
-            val physics = world(seed)
-            val alive = HashMap<Int, MorphBouncePhysics.Body>()
-            run(physics, 30f, onFrame = {
-                for (b in physics.bodies) alive[b.id] = b
-                for (id in alive.keys - physics.bodies.map { it.id }.toSet()) {
-                    val b = alive.remove(id)!!
-                    assertTrue("seed $seed: shape $id touched down ${b.landCount} times", b.landCount >= 2)
-                    for (x in listOf(b.landX0, b.landX1)) assertTrue("seed $seed: shape $id landed at $x", x >= b.radius && x <= physics.width - b.radius)
-                    checked++
-                }
-            })
-        }
-        assertTrue("only $checked shapes", checked > 50)
-    }
-
-    @Test
-    fun shapesNeverRiseAboveTheBottomCard() {
-        for (seed in 1..12) {
-            val physics = world(seed)
-            val entered = mutableSetOf<Int>()
-            run(physics, 30f, onFrame = {
-                for (b in physics.bodies) {
-                    // A shape enters from just under the card (center at -radius); once fully in, its top stays in.
-                    if (b.y - b.radius >= 0f) entered += b.id
-                    if (b.id in entered) assertTrue("seed $seed: shape ${b.id} rose to ${b.y - b.radius}", b.y - b.radius >= -1e-3f)
-                }
-            })
-        }
-    }
-
-    @Test
-    fun noShapeSitsOnTheFloorAndBouncesAreRealFlightsApart() {
-        for (seed in 1..12) {
-            val physics = world(seed)
-            val contactTime = mutableMapOf<Int, Float>()
-            val lastBounceAt = mutableMapOf<Int, Float>()
-            var t = 0f
-            run(physics, 30f, onFrame = {
-                t += 1f / 120f
-                for (b in physics.bodies) {
-                    contactTime[b.id] = if (b.inContact) (contactTime[b.id] ?: 0f) + 1f / 120f else 0f
-                    assertTrue("seed $seed: shape ${b.id} on the floor for ${contactTime[b.id]}s", contactTime[b.id]!! <= MorphBouncePhysics.STUCK_TIME)
-                }
-            }, listener = { b, _ ->
-                val previous = lastBounceAt[b.id]
-                if (previous != null) assertTrue("seed $seed: shape ${b.id} bounced again after ${t - previous}s", t - previous >= MorphBouncePhysics.MIN_FLIGHT)
-                lastBounceAt[b.id] = t
-            })
-        }
-    }
-
-    @Test
     fun theShapesFallUnderRealGravity() {
         val physics = quietWorld(1, width = 4f, height = 20f, radii = listOf(0.1f))
         val body = MorphBouncePhysics.Body(0, 0.1f, 75f * MorphBouncePhysics.POUND).apply { x = 2f; y = 1f; prevX = x; prevY = y }
@@ -229,59 +342,6 @@ class MorphBouncePhysicsTest {
         }
         assertTrue("the rubber kept a dent of only $kept m", kept > 0.01)
         assertTrue("still dented ${physics.sheet.rest.max()} m after 6 s", physics.sheet.rest.max() < kept * 0.05)
-    }
-
-    @Test
-    fun aReleasedDentOnlyEverClosesEvenWhenANewShapeLandsOnIt() {
-        var checked = 0
-        for (seed in 1..10) {
-            val physics = world(seed)
-            val last = IdentityHashMap<MorphBouncePhysics.Imprint, Pair<Float, Float>>()
-            run(physics, 40f, onFrame = {
-                for (imprint in physics.imprints) {
-                    if (!imprint.active || imprint.holding) { last.remove(imprint); continue }
-                    val before = last[imprint]
-                    // The same silhouette (not one reused for a new landing): its hollow never grows back.
-                    if (before != null && imprint.sincePressed >= before.second) {
-                        assertTrue("seed $seed: a dent grew back from ${before.first} to ${imprint.shrink}", imprint.shrink <= before.first + 1e-6f)
-                        checked++
-                    }
-                    last[imprint] = imprint.shrink to imprint.sincePressed
-                }
-            })
-        }
-        assertTrue("only $checked checks", checked > 1000)
-    }
-
-    @Test
-    fun aShapeSparklesOnceBrieflyAfterItsSecondBounce() {
-        var shapes = 0
-        for (seed in 1..6) {
-            val physics = world(seed)
-            val sparkles = HashMap<Int, Int>()
-            val bouncesAtSparkle = HashMap<Int, Int>()
-            val seenSparkling = java.util.IdentityHashMap<MorphBouncePhysics.Imprint, Float>()
-            run(physics, 30f, onFrame = {
-                for (imprint in physics.imprints) {
-                    if (!imprint.active || imprint.sparklePhase < 0f || imprint in seenSparkling) continue
-                    seenSparkling[imprint] = imprint.sincePressed
-                    sparkles[imprint.bodyId] = (sparkles[imprint.bodyId] ?: 0) + 1
-                    physics.bodies.firstOrNull { it.id == imprint.bodyId }?.let { bouncesAtSparkle[it.id] = it.bounces }
-                }
-                // Gone again within the moment.
-                for (imprint in physics.imprints) if (imprint.active && imprint.sparkleAge > 0f) {
-                    assertTrue("seed $seed: sparkling for ${imprint.sparkleAge}s", imprint.sparkleAge <= MorphBouncePhysics.SPARKLE_TIME + 1f / 120f)
-                }
-                // A silhouette reused for a later landing is a new one.
-                seenSparkling.keys.removeAll { !it.active || it.holding }
-            })
-            for ((id, n) in sparkles) {
-                assertEquals("seed $seed: shape $id sparkled $n times", 1, n)
-                bouncesAtSparkle[id]?.let { assertEquals("seed $seed: shape $id sparkled after bounce $it", 2, it) }
-                shapes++
-            }
-        }
-        assertTrue("only $shapes shapes sparkled", shapes > 30)
     }
 
     @Test
@@ -419,34 +479,6 @@ class MorphBouncePhysicsTest {
         b.y = 0.72f; b.vx = -2f; b.vy = 0f
         run(physics, 0.4f)
         assertTrue("spins ${a.spin} ${b.spin}", abs(a.spin) > 0.5f && abs(b.spin) > 0.5f)
-    }
-
-    @Test
-    fun theShapeChangesAsItLeavesTheRubberAfterEveryBounce() {
-        for (seed in 1..6) {
-            val physics = world(seed)
-            val lastShape = HashMap<Int, Int>()
-            val wasInContact = HashMap<Int, Boolean>()
-            val lastContacts = HashMap<Int, Int>()
-            var changes = 0
-            run(physics, 30f, onFrame = {
-                for (b in physics.bodies) {
-                    val before = lastShape[b.id]
-                    if (before != null && b.shapeIndex != before) {
-                        assertEquals("seed $seed: shape ${b.id} skipped a shape", before + 1, b.shapeIndex)
-                        // Never while the rubber holds it: it changes as it leaves.
-                        // At a lift-off: in the rubber a moment before or after, never in mid-flight.
-                        assertTrue("seed $seed: shape ${b.id} changed in mid-flight", b.inContact || wasInContact[b.id] == true || b.contacts > (lastContacts[b.id] ?: 0))
-                        assertTrue("seed $seed: morph ${b.morphProgress}", b.morphProgress < 0.5f)
-                        changes++
-                    }
-                    lastShape[b.id] = b.shapeIndex
-                    wasInContact[b.id] = b.inContact
-                    lastContacts[b.id] = b.contacts
-                }
-            })
-            assertTrue("seed $seed: only $changes changes", changes > 10)
-        }
     }
 
     @Test

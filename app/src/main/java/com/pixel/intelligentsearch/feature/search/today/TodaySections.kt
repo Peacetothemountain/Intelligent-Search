@@ -102,6 +102,7 @@ import com.pixel.intelligentsearch.core.ui.icons.outlined.WifiTethering
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.util.initialOf
+import com.pixel.intelligentsearch.feature.search.digitalWellbeingIntent
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -537,6 +538,9 @@ internal fun PhoneToday(sources: TodaySources, active: Boolean) {
     val screenTime = produceState<ScreenTimeReport?>(null, active) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { sources.screenTime() }
     }.value
+    // The tile shows only with Usage Access, so a tap opens the full breakdown in Digital Wellbeing, as the search's
+    // screen time answer does; a phone without it has nowhere better to go, so the tile isn't a button there.
+    val wellbeing = remember(context) { digitalWellbeingIntent(context) }
     if (battery == null && screenTime == null) return
     Column(Modifier.onFirstSeen { phoneSeen.value = true }) {
         SectionTitle("Your phone today")
@@ -544,9 +548,7 @@ internal fun PhoneToday(sources: TodaySources, active: Boolean) {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (battery != null) BatteryTile(battery, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value)
             if (screenTime != null) {
-                ScreenTimeTile(screenTime, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value) {
-                    launchSafeIntent(context, Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
-                }
+                ScreenTimeTile(screenTime, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value, wellbeing?.let { { launchSafeIntent(context, it) } })
             }
         }
     }
@@ -608,7 +610,7 @@ private fun BatteryTile(battery: TodayBattery, modifier: Modifier, seen: Boolean
 }
 
 @Composable
-private fun ScreenTimeTile(report: ScreenTimeReport, modifier: Modifier, seen: Boolean, onClick: () -> Unit) {
+private fun ScreenTimeTile(report: ScreenTimeReport, modifier: Modifier, seen: Boolean, onClick: (() -> Unit)?) {
     val scheme = MaterialTheme.colorScheme
     val shown = rememberDrawIn(300, 900, seen)
     val top = report.topApps.take(3)
@@ -618,7 +620,7 @@ private fun ScreenTimeTile(report: ScreenTimeReport, modifier: Modifier, seen: B
             .heightIn(min = 108.dp)
             .clip(CardShape)
             .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
-            .bouncyClickable(shape = CardShape, onClick = onClick)
+            .then(if (onClick != null) Modifier.bouncyClickable(shape = CardShape, onClick = onClick) else Modifier)
             .padding(horizontal = 14.dp, vertical = 13.dp)
     ) {
         TileLabel(Icons.Filled.HourglassBottom, "Screen time")

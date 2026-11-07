@@ -49,23 +49,24 @@ internal data class LibraryPhoto(val id: Long, val takenAt: java.time.LocalDate)
  * the date, so there is a picture every day. Returns the photos and what to call them.
  */
 internal fun pickMemory(photos: List<LibraryPhoto>, today: LocalDate): Triple<List<LibraryPhoto>, String, String>? {
-    val earlier = photos.filter { it.takenAt.year < today.year }
-    fun yearsAgo(year: Int) = (today.year - year).let { if (it == 1) "1 year ago" else "$it years ago" }
+    fun yearsAgo(years: Int) = if (years == 1) "1 year ago" else "$years years ago"
     fun count(list: List<LibraryPhoto>) = if (list.size == 1) "1 photo" else "${list.size} photos"
-    fun latestYear(match: (LibraryPhoto) -> Boolean): List<LibraryPhoto>? {
-        val hits = earlier.filter(match)
-        val year = hits.maxOfOrNull { it.takenAt.year } ?: return null
-        return hits.filter { it.takenAt.year == year }
+    // Each match says how many years back a photo is (null when it doesn't match); the fewest years win.
+    fun latest(yearsBack: (LibraryPhoto) -> Int?): Pair<List<LibraryPhoto>, Int>? {
+        val hits = photos.mapNotNull { photo -> yearsBack(photo)?.takeIf { it >= 1 }?.let { photo to it } }
+        val years = hits.minOfOrNull { it.second } ?: return null
+        return hits.filter { it.second == years }.map { it.first } to years
     }
-    latestYear { it.takenAt.monthValue == today.monthValue && it.takenAt.dayOfMonth == today.dayOfMonth }?.let {
-        return Triple(it, yearsAgo(it.first().takenAt.year), count(it))
+    latest { if (it.takenAt.monthValue == today.monthValue && it.takenAt.dayOfMonth == today.dayOfMonth) today.year - it.takenAt.year else null }?.let { (list, years) ->
+        return Triple(list, yearsAgo(years), count(list))
     }
-    latestYear {
-        val sameDay = runCatching { it.takenAt.withYear(today.year) }.getOrNull() ?: return@latestYear false
-        kotlin.math.abs(java.time.temporal.ChronoUnit.DAYS.between(sameDay, today)) <= 3
-    }?.let { return Triple(it, "This week, " + yearsAgo(it.first().takenAt.year).lowercase(), count(it)) }
-    latestYear { it.takenAt.monthValue == today.monthValue }?.let {
-        return Triple(it, "This month, " + yearsAgo(it.first().takenAt.year).lowercase(), count(it))
+    // The week around today a whole number of years back, so Dec 30 is in the week of Jan 2 a year later.
+    latest { photo ->
+        val years = Math.round(ChronoUnit.DAYS.between(photo.takenAt, today) / 365.2425).toInt()
+        years.takeIf { kotlin.math.abs(ChronoUnit.DAYS.between(photo.takenAt.plusYears(it.toLong()), today)) <= 3 }
+    }?.let { (list, years) -> return Triple(list, "This week, " + yearsAgo(years), count(list)) }
+    latest { if (it.takenAt.monthValue == today.monthValue) today.year - it.takenAt.year else null }?.let { (list, years) ->
+        return Triple(list, "This month, " + yearsAgo(years), count(list))
     }
     val older = photos.filter { java.time.temporal.ChronoUnit.DAYS.between(it.takenAt, today) >= 30 }.ifEmpty { photos }
     if (older.isEmpty()) return null

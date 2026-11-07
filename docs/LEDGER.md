@@ -10,7 +10,7 @@ Update these in the same commit as a change that improves them. Never let one ge
 | Metric | Value | Measured at |
 |---|---|---|
 | Lines of test code | 51,924 | 2026-11-06, B17; replaces the `@Test` count (owner: root causes over more tests) |
-| CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 1003s on one that changes app code | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change |
+| CI time, `Run Build & Check` | 527s (was 1118s) on a commit that changes only tests; 1003s on one that changes app code | runs 42277305877 on `8de98e0a` and 42335671213 on `b19aaa19`. Only compare like with like: app compile and R8 come from cache when app code didn't change. Since B13 there is no single step to time: measure from the start of the run to `Build & Check` finishing |
 | Flaky CI failures | 1 in the last 40 runs (B12) | 2026-11-06 |
 | Screenshot goldens | 232 | `519e738d`, 2026-11-01 |
 | Lint baseline issues | 19 | `0260afa7`, 2026-11-05 |
@@ -264,6 +264,22 @@ with the strongest evidence.
 - Retry only if: a setting needs a restore rule of its own; add it to the test's named lists
 - Commit: see `One backup test for every setting` in `git log dev`
 - Lesson: break the code on purpose before trusting a new test. This one passed first time while missing two of the failures it was written to catch.
+
+### 2026-11-07: B13, the minified build runs beside the tests
+- Command: /improve (scheduled run)
+- Target and evidence: B13. `testDebugUnitTest` took 649s on `b19aaa19`, where R8 ran 510s on the same four cores, and 398s on `fca3e3da`, where R8 came from cache. Chosen over B11 (only adds tests, against the owner's rule), B16 (large, wants its own run) and B18 (marked lowest priority, saves less)
+- Prior work checked: this ledger; `git log origin/dev -S"assembleRelease" -- .github/workflows/ci.yml`; claude-mem search (#31271, no earlier attempt). CI green on `fca3e3da` before starting
+- Research: read both runs' logs and step times. Branch protection requires the context `Build & Check` from GitHub Actions, with `strict: false`, so the job name must stay. No test or doc depends on the job layout. `setup-gradle` keys its home cache by job and falls back to any entry on the same OS, so a new job starts warm
+- Models used: inline (Opus 5.5), no subagents
+- Usage level: no figure visible. Normal mode
+- Change: `ci.yml` has jobs `Lint & Tests` and `Minified Build` in parallel, and a `Build & Check` job that needs both, runs with `always()` and fails unless both report `success`. Without `always()` a failure would skip it, and a skipped required check counts as passing. Shared setup moved word for word to `.github/actions/gradle`, so its pinned versions can't drift between the jobs. No app or test code changed
+- Before -> after: whole `Run Build & Check` step on an app code commit, 1003s -> about 750s expected, an estimate from the log (tests started 354s in, plus 398s), NOT measured yet. Gate script run locally under `bash -e`, as Actions runs it: only `success success` exits 0; failure, cancelled or skipped in either job exits 1. The real gate, the composite action and the Gradle cache have not run on GitHub yet. Test code, app code, APK and lint baseline unchanged
+- Trade, written per charter section 2: a commit with R8 cached or docs only gains nothing and takes a few seconds longer for the third job, and every commit uses more runner minutes (free on this public repo). Actions cache was already 10.5 GB in 77 entries, over GitHub's usual 10 GB, so old entries are being evicted; the second job's entries add to that, though the newest ones are what a run needs
+- How to read the result: this commit touches no app code, so it can't show the saving, and `minifyReleaseWithR8` should come `FROM-CACHE`. Measure on the next commit that changes app code: start of the run to `Build & Check` finished, against 1003s
+- Result: kept, pending CI
+- Retry only if: `Build & Check` fails while both jobs passed, or passes while one failed (fix at once, since it gates `main`); or the next app code commit isn't faster than 1003s (then revert this)
+- Commit: see `Run the minified build beside the tests` in `git log dev`
+- Lesson: check a shell gate under the same flags the runner uses. `set -e` is ignored inside `( ... ) && ...`, so my first check of this one passed cases that really fail.
 
 <!--
 Copy this for each cycle, newest at the bottom.

@@ -127,28 +127,33 @@ internal fun rememberNotifications(sources: TodaySources, enabled: Boolean): Lis
 @Immutable
 internal data class TodayDelivery(val step: Int, val headline: String, val detail: String, val entry: IndexedNotification)
 
+/** "Delivered" said of the past only: "will be delivered" and "could not be delivered" are taken out first. */
 private val DELIVERED = Regex("\\bdelivered\\b", RegexOption.IGNORE_CASE)
-private val OUT_FOR_DELIVERY = Regex("out for delivery|arriving today|arrives today|will arrive today|delivery today", RegexOption.IGNORE_CASE)
-private val ON_THE_WAY = Regex("\\bshipped\\b|on (its|the) way|in transit|arriving (tomorrow|on)|has left|departed", RegexOption.IGNORE_CASE)
+private val NOT_DELIVERED = Regex("(?:\\bnot|n['’]t)\\s+(?:yet\\s+)?(?:been\\s+|be\\s+)?delivered\\b", RegexOption.IGNORE_CASE)
+private val TO_BE_DELIVERED = Regex("\\b(?:will|to|should)\\s+be\\s+delivered\\b", RegexOption.IGNORE_CASE)
+private val OUT_FOR_DELIVERY = Regex("out for delivery|arriving today|arrives today|will arrive today|delivery today|be delivered today", RegexOption.IGNORE_CASE)
+private val ON_THE_WAY = Regex("\\bshipped\\b|on (its|the) way|in transit|arriving (tomorrow|on)|has left|departed|be delivered", RegexOption.IGNORE_CASE)
 private val PACKAGE = Regex("package|parcel|order|shipment|delivery", RegexOption.IGNORE_CASE)
 
 /**
  * The newest package news among the notifications from the last two days, if any: delivered, out for delivery, or on
- * its way. Only notifications that speak of a package, order or delivery count.
+ * its way. Only notifications that speak of a package, order or delivery count. When the newest says it couldn't be
+ * delivered, no step says that, so there is no tile rather than an older, happier one.
  */
-internal fun deliveryFrom(entries: List<IndexedNotification>, now: Long): TodayDelivery? = entries
-    .filter { now - it.postedAt in 0..DELIVERY_WINDOW_MS }
-    .sortedByDescending { it.postedAt }
-    .firstNotNullOfOrNull { entry ->
+internal fun deliveryFrom(entries: List<IndexedNotification>, now: Long): TodayDelivery? {
+    for (entry in entries.filter { now - it.postedAt in 0..DELIVERY_WINDOW_MS }.sortedByDescending { it.postedAt }) {
         val text = "${entry.title} ${entry.text}"
-        if (!PACKAGE.containsMatchIn(text)) return@firstNotNullOfOrNull null
-        when {
-            DELIVERED.containsMatchIn(text) -> TodayDelivery(3, "Delivered", entry.appLabel, entry)
+        if (!PACKAGE.containsMatchIn(text)) continue
+        if (NOT_DELIVERED.containsMatchIn(text)) return null
+        return when {
+            DELIVERED.containsMatchIn(TO_BE_DELIVERED.replace(text, "")) -> TodayDelivery(3, "Delivered", entry.appLabel, entry)
             OUT_FOR_DELIVERY.containsMatchIn(text) -> TodayDelivery(2, "Arriving today", "Out for delivery", entry)
             ON_THE_WAY.containsMatchIn(text) -> TodayDelivery(1, "On the way", entry.appLabel, entry)
-            else -> null
+            else -> continue
         }
     }
+    return null
+}
 
 private const val DELIVERY_WINDOW_MS = 48 * 3_600_000L
 

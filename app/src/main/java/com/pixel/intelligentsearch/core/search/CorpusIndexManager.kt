@@ -205,6 +205,7 @@ class CorpusIndexManager @Inject constructor(
                     android.content.pm.PackageManager.PERMISSION_GRANTED
                 ) {
                     lastContactsIndexAtMs = android.os.SystemClock.elapsedRealtime()
+                    watchContacts()
                 }
                 Log.d(TAG, "Indexed ${contacts.size} contacts into memory")
             } catch (e: CancellationException) {
@@ -245,30 +246,31 @@ class CorpusIndexManager @Inject constructor(
         }
     }
 
-    private fun registerObservers() = synchronized(observerLock) {
-        // Register ContentObserver for Contacts changes with 1000ms conflated debounce
-        try {
-            if (contactsObserver == null) {
-                contactsObserver = object : ContentObserver(mainHandler) {
-                    override fun onChange(selfChange: Boolean, uri: Uri?) {
-                        super.onChange(selfChange, uri)
-                        contactsDebounceJob?.cancel()
-                        contactsDebounceJob = scope.launch(Dispatchers.IO) {
-                            delay(1000L)
-                            reindexContactsInternal()
-                        }
-                    }
+    /**
+     * Android refuses a Contacts observer without READ_CONTACTS, so it is registered from the first read made with
+     * the permission: on start when it is already held, or on the re-read that follows the user granting it.
+     */
+    private fun watchContacts(): Unit = synchronized(observerLock) {
+        if (contactsObserver != null) return
+        val observer = object : ContentObserver(mainHandler) {
+            override fun onChange(selfChange: Boolean, uri: Uri?) {
+                super.onChange(selfChange, uri)
+                contactsDebounceJob?.cancel()
+                contactsDebounceJob = scope.launch(Dispatchers.IO) {
+                    delay(1000L)
+                    reindexContactsInternal()
                 }
-                context.contentResolver.registerContentObserver(
-                    ContactsContract.Contacts.CONTENT_URI,
-                    true,
-                    contactsObserver!!
-                )
             }
+        }
+        try {
+            context.contentResolver.registerContentObserver(ContactsContract.Contacts.CONTENT_URI, true, observer)
+            contactsObserver = observer
         } catch (e: Exception) {
             Log.w(TAG, "Could not register Contacts ContentObserver", e)
         }
+    }
 
+    private fun registerObservers() = synchronized(observerLock) {
         // Rebuild the file index when the user adds or removes folders, picks photos, or toggles Files search.
         try {
             if (filesPrefListener == null) {

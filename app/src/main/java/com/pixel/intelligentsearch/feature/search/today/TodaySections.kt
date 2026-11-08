@@ -116,6 +116,10 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.boundsInParent
+import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.runtime.mutableIntStateOf
@@ -1009,6 +1013,9 @@ private fun TomorrowRow(icon: ImageVector, text: String, detail: String?, spoken
 private fun MemoryTile(memory: TodayMemory, modifier: Modifier) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
+    // Where the label and the title sit, for the scrim behind them.
+    var labelBox by remember { mutableStateOf(Rect.Zero) }
+    var textBox by remember { mutableStateOf(Rect.Zero) }
     Box(
         modifier
             .heightIn(min = 120.dp)
@@ -1025,7 +1032,11 @@ private fun MemoryTile(memory: TodayMemory, modifier: Modifier) {
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier.matchParentSize().kenBurns()
             )
-            Box(Modifier.matchParentSize().background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.15f), Color.Black.copy(alpha = 0.65f)))))
+            // Darker only where a bright photo would wash out the white text above it.
+            Box(Modifier.matchParentSize().drawWithCache {
+                val scrim = photoScrim(picture, size, labelBox, textBox)
+                onDrawBehind { drawRect(scrim) }
+            })
         }
         val text = if (memory.thumbnail != null) Color.White else scheme.onSurface
         Text(
@@ -1034,9 +1045,17 @@ private fun MemoryTile(memory: TodayMemory, modifier: Modifier) {
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.6.sp,
             color = text.copy(alpha = 0.9f),
-            modifier = Modifier.align(Alignment.TopStart).padding(horizontal = 14.dp, vertical = 13.dp)
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(horizontal = 14.dp, vertical = 13.dp)
+                .onPlaced { labelBox = it.boundsInParent() }
         )
-        Column(Modifier.align(Alignment.BottomStart).padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Column(
+            Modifier
+                .align(Alignment.BottomStart)
+                .padding(horizontal = 14.dp, vertical = 12.dp)
+                .onPlaced { textBox = it.boundsInParent() }
+        ) {
             Text(memory.title, style = MaterialTheme.typography.titleMedium, color = text)
             Text(memory.detail, style = MaterialTheme.typography.bodySmall, color = text.copy(alpha = 0.85f))
         }

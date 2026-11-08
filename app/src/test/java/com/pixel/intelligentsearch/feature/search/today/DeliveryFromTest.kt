@@ -2,13 +2,14 @@ package com.pixel.intelligentsearch.feature.search.today
 
 import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import org.junit.Assert.assertEquals
+import java.time.ZoneOffset
 import org.junit.Test
 
 /** How the package tile reads shipping notifications: "delivered" counts only once it has happened. */
 class DeliveryFromTest {
 
     private fun stepOf(text: String): Int? =
-        deliveryFrom(listOf(IndexedNotification("k", "com.shop", "Shop", "Order update", text, NOW - 60_000L)), NOW)?.step
+        deliveryFrom(listOf(IndexedNotification("k", "com.shop", "Shop", "Order update", text, NOW - 60_000L)), NOW, ZONE)?.step
 
     @Test
     fun eachPhrasingReadsAsItsStep() {
@@ -36,11 +37,21 @@ class DeliveryFromTest {
             "Your package is being returned to sender"
         ).forEach { text ->
             val newer = IndexedNotification("b", "com.shop", "Shop", "Your package", text, NOW - 60_000L)
-            assertEquals(text, null, deliveryFrom(listOf(older, newer), NOW))
+            assertEquals(text, null, deliveryFrom(listOf(older, newer), NOW, ZONE))
         }
+    }
+
+    @Test
+    fun outForDeliveryHoldsOnlyOnTheDayItWasPosted() {
+        // NOW is 13:46 UTC: two hours back is this morning, a day back is yesterday.
+        fun stepPostedAgo(ms: Long) =
+            deliveryFrom(listOf(IndexedNotification("k", "com.shop", "Shop", "Your package", "Out for delivery", NOW - ms)), NOW, ZONE)?.step
+        assertEquals(2, stepPostedAgo(2 * 3_600_000L))
+        assertEquals(null, stepPostedAgo(24 * 3_600_000L))
     }
 
     private companion object {
         const val NOW = 1_000_000_000L
+        val ZONE: ZoneOffset = ZoneOffset.UTC
     }
 }

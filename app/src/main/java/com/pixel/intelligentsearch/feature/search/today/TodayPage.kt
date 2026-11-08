@@ -336,9 +336,9 @@ internal fun TodayPage(
     val tomorrowWeather = loadedWeather?.second
     val notifications = rememberNotifications(sources, active && catchUpOn)
     val catchUp = remember(notifications, now) { catchUpFrom(notifications, now) }
-    val delivery = remember(notifications, now) { deliveryFrom(notifications, now) }
 
     val zone = ZoneId.systemDefault()
+    val delivery = remember(notifications, now) { deliveryFrom(notifications, now, zone) }
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     val events = snapshot.events.filter { !it.allDay && it.beginMillis > now }
     val upNext = events.firstOrNull()?.takeIf { upNextOn && it.beginMillis - now < GLANCE_EVENT_WINDOW_MS }

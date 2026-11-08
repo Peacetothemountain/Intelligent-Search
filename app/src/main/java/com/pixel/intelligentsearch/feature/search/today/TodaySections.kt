@@ -112,7 +112,9 @@ import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.util.initialOf
 import com.pixel.intelligentsearch.feature.search.digitalWellbeingIntent
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 import androidx.compose.ui.draw.drawBehind
@@ -162,15 +164,21 @@ private val PACKAGE = Regex("package|parcel|order|shipment|delivery", RegexOptio
  * The newest package news among the notifications from the last two days, if any: delivered, out for delivery,
  * delayed, or on its way. Only notifications that speak of a package, order or delivery count. When the newest says it
  * couldn't be delivered (in any of [NOT_DELIVERED]'s words), no step says that, so there is no tile rather than an older, happier one.
+ * Its "today" is the day it was posted in [zone]: out for delivery on an earlier day, with no news since, says nothing
+ * true about today, so there is no tile either.
  */
-internal fun deliveryFrom(entries: List<IndexedNotification>, now: Long): TodayDelivery? {
+internal fun deliveryFrom(entries: List<IndexedNotification>, now: Long, zone: ZoneId): TodayDelivery? {
+    val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     for (entry in entries.filter { now - it.postedAt in 0..DELIVERY_WINDOW_MS }.sortedByDescending { it.postedAt }) {
         val text = "${entry.title} ${entry.text}"
         if (!PACKAGE.containsMatchIn(text)) continue
         if (NOT_DELIVERED.containsMatchIn(text)) return null
         return when {
             DELIVERED.containsMatchIn(TO_BE_DELIVERED.replace(text, "")) -> TodayDelivery(3, "Delivered", entry.appLabel, entry)
-            OUT_FOR_DELIVERY.containsMatchIn(text) -> TodayDelivery(2, "Arriving today", "Out for delivery", entry)
+            OUT_FOR_DELIVERY.containsMatchIn(text) ->
+                if (Instant.ofEpochMilli(entry.postedAt).atZone(zone).toLocalDate() == today) {
+                    TodayDelivery(2, "Arriving today", "Out for delivery", entry)
+                } else null
             DELAYED.containsMatchIn(text) -> TodayDelivery(1, "Delayed", entry.appLabel, entry)
             ON_THE_WAY.containsMatchIn(text) -> TodayDelivery(1, "On the way", entry.appLabel, entry)
             else -> continue

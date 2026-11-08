@@ -156,6 +156,7 @@ import androidx.compose.ui.graphics.luminance
 import kotlin.math.roundToInt
 import com.pixel.intelligentsearch.core.answers.WeatherReport
 import com.pixel.intelligentsearch.core.answers.WeatherCodes
+import com.pixel.intelligentsearch.core.answers.HighLow
 import com.pixel.intelligentsearch.core.answers.ForecastDay
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.positionInRoot
@@ -533,7 +534,8 @@ private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthday
                     TodayChip(
                         icon = weatherIcon(weather.code, weather.isDay),
                         text = "${weather.temperature.roundToInt()}° ${WeatherCodes.describe(weather.code)}",
-                        detail = "H ${weather.high.roundToInt()}°",
+                        detail = HighLow.drawn(weather.high),
+                        spokenDetail = HighLow.spoken(weather.high),
                         spin = WeatherCodes.kind(weather.code) == WeatherCodes.Kind.CLEAR && weather.isDay,
                         onClick = { openWeather(context) }
                     )
@@ -567,6 +569,8 @@ internal fun TodayChip(
     icon: ImageVector?,
     text: String,
     detail: String?,
+    /** What TalkBack hears for [detail], when its short drawn form would read as letters. */
+    spokenDetail: String? = detail,
     spin: Boolean = false,
     leading: (@Composable (Color) -> Unit)? = null,
     onClick: () -> Unit
@@ -597,7 +601,7 @@ internal fun TodayChip(
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant,
                 // TalkBack hears the detail, not the drawn separator before it.
-                modifier = Modifier.clearAndSetSemantics { this.text = AnnotatedString(detail) }
+                modifier = Modifier.clearAndSetSemantics { this.text = AnnotatedString(spokenDetail ?: detail) }
             )
         }
     }

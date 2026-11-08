@@ -13,6 +13,7 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
+import kotlin.math.roundToInt
 import java.net.URLEncoder
 import java.time.Instant
 import java.time.LocalDate
@@ -202,6 +203,18 @@ object WeatherCodes {
         96, 99 -> "Thunderstorms with Hail"
         else -> "Cloudy"
     }
+}
+
+/**
+ * A day's high, and its low when given: [drawn] short, as the cards show it ("H 62°  L 52°"), and [spoken] in words for
+ * TalkBack ("High 62°, low 52°"), which would otherwise read the H and L as letters.
+ */
+object HighLow {
+    fun drawn(high: Double, low: Double? = null): String =
+        "H ${high.roundToInt()}°" + low?.let { "  L ${it.roundToInt()}°" }.orEmpty()
+
+    fun spoken(high: Double, low: Double? = null): String =
+        "High ${high.roundToInt()}°" + low?.let { ", low ${it.roundToInt()}°" }.orEmpty()
 }
 
 /** Reads Open-Meteo's forecast and geocoding answers. Anything malformed reads as null (no answer). */

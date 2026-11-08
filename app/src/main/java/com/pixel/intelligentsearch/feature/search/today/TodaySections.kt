@@ -77,6 +77,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import com.pixel.intelligentsearch.core.answers.ForecastDay
+import com.pixel.intelligentsearch.core.answers.HighLow
 import com.pixel.intelligentsearch.core.answers.ScreenTimeReport
 import com.pixel.intelligentsearch.core.answers.WeatherCodes
 import com.pixel.intelligentsearch.core.answers.WeatherReport
@@ -370,12 +371,20 @@ internal fun WeatherAhead(report: WeatherReport) {
         val falling = if (rainAt >= 0 && WeatherCodes.kind(hours[rainAt].code) == WeatherCodes.Kind.SNOW) "Snow" else "Rain"
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("Weather ahead", style = MaterialTheme.typography.titleSmall, color = scheme.onSurface, modifier = Modifier.weight(1f))
-            Text(
-                if (rainAt >= 0) "$falling likely around ${hours[rainAt].time.withZoneSameInstant(zone).format(DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h a", locale))}"
-                else "H ${report.high.roundToInt()}°  L ${report.low.roundToInt()}°",
-                style = MaterialTheme.typography.labelLarge,
-                color = scheme.onSurfaceVariant
-            )
+            if (rainAt >= 0) {
+                Text(
+                    "$falling likely around ${hours[rainAt].time.withZoneSameInstant(zone).format(DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h a", locale))}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = scheme.onSurfaceVariant
+                )
+            } else {
+                Text(
+                    HighLow.drawn(report.high, report.low),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = scheme.onSurfaceVariant,
+                    modifier = Modifier.clearAndSetSemantics { text = AnnotatedString(HighLow.spoken(report.high, report.low)) }
+                )
+            }
         }
         Canvas(
             Modifier

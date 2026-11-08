@@ -58,9 +58,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.text
+import androidx.compose.ui.text.AnnotatedString
+import com.pixel.intelligentsearch.core.answers.HighLow
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.layout.Layout
@@ -407,11 +411,15 @@ fun WeatherOneBox(
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                val details = buildList {
-                    report.feelsLike?.let { add("Feels like ${degrees(it)}") }
-                    add("H ${degrees(report.high)}  L ${degrees(report.low)}")
-                }.joinToString(" · ")
-                Text(text = details, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                val feelsLike = report.feelsLike?.let { "Feels like ${degrees(it)}" }
+                val details = listOfNotNull(feelsLike, HighLow.drawn(report.high, report.low)).joinToString(" · ")
+                val spoken = listOfNotNull(feelsLike, HighLow.spoken(report.high, report.low)).joinToString(", ")
+                Text(
+                    text = details,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.clearAndSetSemantics { text = AnnotatedString(spoken) }
+                )
             }
         }
         if (report.hours.isNotEmpty()) {

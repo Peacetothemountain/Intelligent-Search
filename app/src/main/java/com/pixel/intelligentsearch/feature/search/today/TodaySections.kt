@@ -381,6 +381,10 @@ internal fun WeatherAhead(report: WeatherReport) {
         val pattern = if (is24) "HH" else if (i == 0) "h a" else "h"
         h.time.withZoneSameInstant(zone).format(DateTimeFormatter.ofPattern(pattern, locale))
     }
+    // Laid out once per set of hours: the floating line redraws every frame, and the measurer keeps only a few
+    // layouts, fewer than a forecast's labels, so measuring while drawing laid every label out again each frame.
+    val tempTexts = remember(temps, labelStyle, measurer) { temps.map { measurer.measure("${it.roundToInt()}°", labelStyle) } }
+    val hourTexts = remember(labels, hourStyle, measurer) { labels.map { measurer.measure(it, hourStyle) } }
     Column(
         Modifier
             .fillMaxWidth()
@@ -484,9 +488,9 @@ internal fun WeatherAhead(report: WeatherReport) {
                 val pop = popIn(visible)
                 drawCircle(warm, 3.6.dp.toPx() * pop, p)
                 drawCircle(scheme.surfaceContainer, 2.dp.toPx() * pop, p)
-                val temp = measurer.measure("${temps[i].roundToInt()}°", labelStyle)
+                val temp = tempTexts[i]
                 drawText(temp, topLeft = Offset(p.x - temp.size.width / 2f, p.y - 8.dp.toPx() - temp.size.height), alpha = visible)
-                val hour = measurer.measure(labels[i], hourStyle)
+                val hour = hourTexts[i]
                 drawText(hour, topLeft = Offset(p.x - hour.size.width / 2f, size.height - hour.size.height), alpha = visible)
             }
         }

@@ -30,6 +30,7 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.util.IconPackManager
 import com.pixel.intelligentsearch.core.util.MaterialOutlineManager
 import androidx.core.graphics.createBitmap
+import androidx.core.graphics.drawable.toDrawable
 
 /** Largest icon edge kept in memory; icons are shown far smaller than this. */
 private const val MAX_ICON_PX = 192
@@ -59,7 +60,7 @@ private fun drawableToBitmap(drawable: Drawable): Bitmap {
  * a 480 dpi screen) even in a process that never shows a screen; this keeps about 150 KB.
  */
 fun compactAppIcon(icon: Drawable, resources: android.content.res.Resources): Drawable =
-    runCatching { BitmapDrawable(resources, drawableToBitmap(icon)) }.getOrDefault(icon)
+    runCatching { drawableToBitmap(icon).toDrawable(resources) }.getOrDefault(icon)
 
 /** An app icon ready to draw; monochrome icons are tinted to the theme. */
 data class AppIconResult(val bitmap: ImageBitmap, val isMonochrome: Boolean)

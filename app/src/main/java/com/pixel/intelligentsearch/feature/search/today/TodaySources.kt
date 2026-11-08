@@ -284,7 +284,12 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
                     android.provider.MediaStore.Images.Media.DATE_TAKEN,
                     android.provider.MediaStore.Images.Media.DATE_ADDED
                 ),
-                null, null, null
+                // A screenshot is a picture of the screen, not a photo from the user's past: Android files them in a
+                // Screenshots folder (Pictures/Screenshots, or DCIM/Screenshots on some phones) and dates them like photos.
+                "${android.provider.MediaStore.Images.Media.RELATIVE_PATH} IS NULL OR " +
+                    "${android.provider.MediaStore.Images.Media.RELATIVE_PATH} NOT LIKE ?",
+                arrayOf("%Screenshots/%"),
+                null
             )?.use { cursor ->
                 while (cursor.moveToNext()) {
                     val taken = cursor.getLong(1).takeIf { it > 0 } ?: (cursor.getLong(2) * 1000L)

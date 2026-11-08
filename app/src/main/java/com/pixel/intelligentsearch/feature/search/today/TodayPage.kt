@@ -252,16 +252,19 @@ internal fun TodayLayer(
             ) {
                 // The page reads from the layer's sources, so what they keep lasts while the search is open.
                 CompositionLocalProvider(LocalTodaySources provides sources) {
-                    TodayPage(
-                        active = open,
-                        hiddenApps = hiddenApps,
-                        recentSearches = recentSearches,
-                        onBack = onClose,
-                        onSearch = onSearch,
-                        onOpenSettings = onOpenSettings,
-                        preloadedWeather = weather,
-                        preloadedMemory = memory
-                    )
+                    // One frame loop drives all of the page's endless motion.
+                    SharedLoops {
+                        TodayPage(
+                            active = open,
+                            hiddenApps = hiddenApps,
+                            recentSearches = recentSearches,
+                            onBack = onClose,
+                            onSearch = onSearch,
+                            onOpenSettings = onOpenSettings,
+                            preloadedWeather = weather,
+                            preloadedMemory = memory
+                        )
+                    }
                 }
             }
         }

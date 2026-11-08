@@ -1,7 +1,6 @@
 package com.pixel.intelligentsearch.feature.search.today
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
@@ -83,19 +82,12 @@ internal fun TodayIcon(
         }
     }
     val day = isDayHour(hour)
-    val glow = if (pulse) {
-        val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "sun glow")
-        transition.animateFloat(
-            0.82f, 1.12f,
-            androidx.compose.animation.core.infiniteRepeatable(tween(1_500), androidx.compose.animation.core.RepeatMode.Reverse),
-            label = "glow"
-        )
-    } else null
+    val glow = if (pulse) rememberLoop(1_500, reverse = true) else null
     // Drawn in its own layer, so the clear sky around the sun cuts only the icon, not what is behind it.
     Canvas(modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
         val unit = size.minDimension / 24f
         val inset = Offset((size.width - unit * 24f) / 2f, (size.height - unit * 24f) / 2f)
-        drawDayArc(shown.value, day, color, sunColor, glow?.value ?: 1f, unit, inset)
+        drawDayArc(shown.value, day, color, sunColor, if (glow != null) 0.82f + 0.30f * glow() else 1f, unit, inset)
     }
 }
 

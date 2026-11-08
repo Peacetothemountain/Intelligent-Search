@@ -8,10 +8,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -133,7 +129,6 @@ import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.VolumeUp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.State
 
 /** The notification index while [enabled]: Catch Up and the delivery tile read it. */
 @Composable
@@ -201,9 +196,7 @@ internal fun DeliveryTile(delivery: TodayDelivery, modifier: Modifier) {
     val context = LocalContext.current
     val animate by rememberAnimationsEnabled()
     // Read only where the dot is drawn, so the pulse redraws the dots and never rebuilds the tile.
-    val pulse: State<Float>? = if (animate && delivery.step < 3) {
-        rememberInfiniteTransition(label = "delivery").animateFloat(0f, 1f, infiniteRepeatable(tween(1800), RepeatMode.Restart), label = "pulse")
-    } else null
+    val pulse: LoopReader? = if (animate && delivery.step < 3) rememberLoop(1_800) else null
     Column(
         modifier
             .heightIn(min = 108.dp)
@@ -224,7 +217,7 @@ internal fun DeliveryTile(delivery: TodayDelivery, modifier: Modifier) {
             val r = 5.dp.toPx()
             val y = size.height / 2
             val xs = (0..2).map { r + it * (size.width - 2 * r) / 2f }
-            val beat = pulse?.value ?: 0f
+            val beat = if (pulse != null) pulse() else 0f
             for (i in 0 until 2) drawLine(if (i < current) on else off, Offset(xs[i], y), Offset(xs[i + 1], y), strokeWidth = 3.dp.toPx())
             xs.forEachIndexed { i, x ->
                 if (i == current && beat > 0f) drawCircle(on.copy(alpha = 0.5f * (1 - beat)), r + 9.dp.toPx() * beat, Offset(x, y))
@@ -269,12 +262,11 @@ private const val CATCH_UP_WINDOW_MS = 12 * 3_600_000L
 
 /** A slow full turn every 14 seconds while [on] and animations are on, read as a rotation in degrees. */
 @Composable
-internal fun rememberSlowTurn(on: Boolean): () -> Float {
+internal fun rememberSlowTurn(on: Boolean): LoopReader {
     val animate by rememberAnimationsEnabled()
-    if (!on || !animate) return { 0f }
-    val transition = rememberInfiniteTransition(label = "slow turn")
-    val turn by transition.animateFloat(0f, 360f, infiniteRepeatable(tween(14_000, easing = LinearEasing), RepeatMode.Restart), label = "turn")
-    return { turn }
+    if (!on || !animate) return LoopReader { 0f }
+    val turn = rememberLoop(14_000, LinearEasing)
+    return remember(turn) { LoopReader { 360f * turn() } }
 }
 
 /** The weather's icon for a WMO [code], by day or night. */
@@ -376,10 +368,7 @@ internal fun WeatherAhead(report: WeatherReport) {
     val animate by rememberAnimationsEnabled()
     // Once drawn, the line floats: each hour rises and falls a little in turn, a slow wave every 5 seconds. Read only
     // in the drawing, so the wave redraws the curve and never rebuilds the card.
-    val wave: State<Float>? = if (animate && drawn) {
-        val transition = rememberInfiniteTransition(label = "float")
-        transition.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(5_000, easing = LinearEasing)), label = "wave")
-    } else null
+    val wave: LoopReader? = if (animate && drawn) rememberLoop(5_000, LinearEasing) else null
     val measurer = rememberTextMeasurer()
     val dark = scheme.surface.luminance() < 0.5f
     val warm = if (dark) Color(0xFFF2B872) else Color(0xFFB5651D)
@@ -463,9 +452,9 @@ internal fun WeatherAhead(report: WeatherReport) {
                     onDrawBehind {
                         val shown = drawIn()
                         val filled = fillIn()
-                        val phase = wave?.value
+                        val phase = if (wave != null) wave() * (2 * Math.PI).toFloat() else 0f
                         for (i in temps.indices) {
-                            val float = if (phase != null) kotlin.math.sin(phase + i * 0.8f) * lift else 0f
+                            val float = if (wave != null) kotlin.math.sin(phase + i * 0.8f) * lift else 0f
                             ys[i] = bottom - ((temps[i] - lo) / (hi - lo)).toFloat() * (bottom - top) + float
                         }
                         val last = xs.size - 1
@@ -876,16 +865,14 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
                 }
             }
             // Read only where the ring is drawn, so it redraws the ring and never rebuilds the card.
-            val ripple: State<Float>? = if (speaking) {
-                rememberInfiniteTransition(label = "speaking").animateFloat(0f, 1f, infiniteRepeatable(tween(1_000)), label = "ring")
-            } else null
+            val ripple: LoopReader? = if (speaking) rememberLoop(1_000) else null
             val ring = scheme.primary
             Box(
                 Modifier
                     .size(44.dp)
                     .drawBehind {
-                        val r = ripple?.value
-                        if (r != null) {
+                        if (ripple != null) {
+                            val r = ripple()
                             drawCircle(ring.copy(alpha = 1f - r), radius = size.minDimension / 2f * (1f + 0.35f * r), style = Stroke(2.dp.toPx()))
                         }
                     }

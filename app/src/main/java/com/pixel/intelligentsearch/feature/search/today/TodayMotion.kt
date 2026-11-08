@@ -1,12 +1,10 @@
 package com.pixel.intelligentsearch.feature.search.today
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Easing
+import androidx.compose.animation.core.withInfiniteAnimationFrameNanos
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -19,9 +17,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.MotionDurationScale
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
@@ -56,8 +57,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
+import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.coroutineContext
+import kotlin.coroutines.resume
 import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.random.Random
@@ -67,6 +72,113 @@ internal const val CARD_ALPHA = 0.88f
 
 /** The page's spring for things arriving: quick, with a little bounce. */
 internal fun <T> arriveSpring() = spring<T>(dampingRatio = 0.62f, stiffness = 240f)
+
+/** Reads a loop where it is drawn. A plain `() -> Float` would box its value on every read, so every frame. */
+internal fun interface LoopReader {
+    operator fun invoke(): Float
+}
+
+/** A [LoopClock]'s endless loop: [duration] nanoseconds each way, eased by [easing], back and forth when [reverse]. */
+internal class Loop(val duration: Long, val easing: Easing, val reverse: Boolean) {
+    /** The frame it started on, the first after it joined its clock. */
+    var start = UNSET
+}
+
+private const val UNSET = Long.MIN_VALUE
+
+/**
+ * One frame loop for all of the page's endless motion: the living light, the sun's glow, the weather line, the sheen
+ * and the rest. Each of them ran an infinite transition, a frame loop of its own, so the page woke several coroutines
+ * and boxed several values on every frame while it sat open. Each [Loop] keeps its own start, from the first frame
+ * after it joins, as an infinite transition does, so the motion is the same.
+ */
+internal class LoopClock {
+    private val loops = ArrayList<Loop>()
+    private var waiting: CancellableContinuation<Unit>? = null
+    private var scale = 1f
+
+    /** The latest frame's time. Reading it is what redraws a loop's reader on every frame. */
+    private var frameNanos by mutableLongStateOf(0L)
+
+    fun add(loop: Loop) {
+        loop.start = UNSET
+        loops += loop
+        waiting?.let {
+            waiting = null
+            it.resume(Unit)
+        }
+    }
+
+    fun remove(loop: Loop) {
+        loops -= loop
+    }
+
+    /** Ticks while any loop is in it, and waits without asking for frames while none is. */
+    suspend fun run() {
+        while (true) {
+            if (loops.isEmpty()) {
+                suspendCancellableCoroutine { cont ->
+                    waiting = cont
+                    cont.invokeOnCancellation { waiting = null }
+                }
+            }
+            // Animator duration scale, as an infinite transition reads it: a change starts every loop again.
+            val s = coroutineContext[MotionDurationScale]?.scaleFactor ?: 1f
+            withInfiniteAnimationFrameNanos { now ->
+                if (s != scale) {
+                    scale = s
+                    for (loop in loops) loop.start = UNSET
+                }
+                for (loop in loops) if (loop.start == UNSET) loop.start = now
+                frameNanos = now
+            }
+        }
+    }
+
+    /** Where [loop] is now, from 0 to 1 after its easing. Read it in drawing or layout. */
+    fun fraction(loop: Loop): Float {
+        val now = frameNanos
+        if (scale == 0f) return 1f
+        val start = loop.start
+        if (start == UNSET) return loop.easing.transform(0f)
+        val played = ((now - start) / scale).toLong()
+        val turns = played / loop.duration
+        var f = (played - turns * loop.duration).toFloat() / loop.duration
+        if (loop.reverse && turns % 2 == 1L) f = 1f - f
+        return loop.easing.transform(f)
+    }
+}
+
+/** The page's one [LoopClock]; without one, each loop has its own. */
+internal val LocalLoopClock = staticCompositionLocalOf<LoopClock?> { null }
+
+/** Gives [content] one [LoopClock] for all of its endless motion. */
+@Composable
+internal fun SharedLoops(content: @Composable () -> Unit) {
+    val clock = remember { LoopClock() }
+    LaunchedEffect(clock) { clock.run() }
+    CompositionLocalProvider(LocalLoopClock provides clock, content = content)
+}
+
+/**
+ * An endless loop from 0 to 1 over [durationMs], eased by [easing], back and forth when [reverse], as
+ * `infiniteRepeatable(tween(durationMs, easing = easing))` would run it. Returns a reader: read it in drawing or layout,
+ * so the loop redraws and never recomposes.
+ */
+@Composable
+internal fun rememberLoop(durationMs: Int, easing: Easing = FastOutSlowInEasing, reverse: Boolean = false): LoopReader {
+    val clock = LocalLoopClock.current ?: run {
+        val own = remember { LoopClock() }
+        LaunchedEffect(own) { own.run() }
+        own
+    }
+    val loop = remember(durationMs, easing, reverse) { Loop(durationMs * 1_000_000L, easing, reverse) }
+    DisposableEffect(clock, loop) {
+        clock.add(loop)
+        onDispose { clock.remove(loop) }
+    }
+    return remember(clock, loop) { LoopReader { clock.fraction(loop) } }
+}
 
 /**
  * The light behind the page: three soft glows (the accent, the tertiary and a warm one) drifting very slowly on
@@ -81,12 +193,8 @@ internal fun LivingLight(warm: Color, modifier: Modifier = Modifier) {
     val b = androidx.compose.ui.graphics.lerp(scheme.tertiaryContainer, scheme.tertiary, 0.3f).copy(alpha = if (dark) 0.45f else 0.5f)
     val c = warm.copy(alpha = if (dark) 0.18f else 0.3f)
     val t = if (animate) {
-        val transition = rememberInfiniteTransition(label = "living light")
-        val ta by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(48_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "a")
-        val tb by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(60_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "b")
-        val tc by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(40_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "c")
-        Triple({ ta }, { tb }, { tc })
-    } else Triple({ 0.3f }, { 0.3f }, { 0.3f })
+        Triple(rememberLoop(48_000, reverse = true), rememberLoop(60_000, reverse = true), rememberLoop(40_000, reverse = true))
+    } else LoopReader { 0.3f }.let { Triple(it, it, it) }
     // Each glow's gradient is made once per size, around the origin at its smallest radius, then moved and scaled to
     // where the glow is on each frame. A gradient made new every frame kept the collector busy while the page sat open.
     Spacer(
@@ -240,12 +348,11 @@ private fun kotlinx.coroutines.CoroutineScope.launchLater(delayMs: Long, block: 
 internal fun Modifier.sheen(): Modifier = composed {
     val animate by rememberAnimationsEnabled()
     if (!animate) return@composed this
-    val transition = rememberInfiniteTransition(label = "sheen")
-    val p by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(5_000, easing = LinearEasing)), label = "sweep")
+    val p = rememberLoop(5_000, LinearEasing)
     drawWithContent {
         drawContent()
         // Sweeps in the last 30% of each cycle.
-        val s = ((p - 0.7f) / 0.3f).coerceIn(0f, 1f)
+        val s = ((p() - 0.7f) / 0.3f).coerceIn(0f, 1f)
         if (s <= 0f || s >= 1f) return@drawWithContent
         val x = -size.width * 0.6f + s * size.width * 2.2f
         drawRect(
@@ -262,9 +369,9 @@ internal fun Modifier.sheen(): Modifier = composed {
 internal fun Modifier.breathe(): Modifier = composed {
     val animate by rememberAnimationsEnabled()
     if (!animate) return@composed this
-    val transition = rememberInfiniteTransition(label = "breathe")
-    val s by transition.animateFloat(1f, 1.06f, infiniteRepeatable(tween(1_200, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "s")
+    val breath = rememberLoop(1_200, reverse = true)
     graphicsLayer {
+        val s = 1f + 0.06f * breath()
         scaleX = s
         scaleY = s
     }
@@ -274,9 +381,9 @@ internal fun Modifier.breathe(): Modifier = composed {
 internal fun Modifier.kenBurns(): Modifier = composed {
     val animate by rememberAnimationsEnabled()
     if (!animate) return@composed this
-    val transition = rememberInfiniteTransition(label = "ken burns")
-    val p by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(12_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "p")
+    val zoom = rememberLoop(12_000, reverse = true)
     graphicsLayer {
+        val p = zoom()
         val s = 1f + 0.14f * p
         scaleX = s
         scaleY = s

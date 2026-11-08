@@ -56,6 +56,15 @@ reads, so read where the emulator thinks it is (`adb shell dumpsys location | gr
 address within a few hours' drive of it; a farther one rightly gets no leave-by time. Delete the event and revoke both
 afterwards.
 
+To see what TalkBack actually says, turn on TalkBack settings > Display speech output (open
+`com.google.android.marvin.talkback/com.android.talkback.TalkBackPreferencesActivity`), set up the screen with TalkBack off,
+then `adb shell am force-stop com.callstack.agentdevice.snapshothelper` (while it runs, Android keeps TalkBack unbound) and
+`adb shell settings put secure enabled_accessibility_services com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService`.
+A panel at the bottom then shows each spoken line; read it with `adb exec-out screencap`. `adb shell input tap` and key
+shortcuts bypass TalkBack (a tap clicks), so touch with `adb emu event mouse <x> <y> 0 1` then `... 0 0`, and step to the
+next item by sending a row of `event mouse` moves left to right with the button held. Scroll with TalkBack off. Afterwards
+set the services back to `null` and turn Display speech output off.
+
 Unlike the phone, driving the emulator can't turn off the owner's app lock, and it holds none of their real data.
 
 ## 2. What needs the real phone

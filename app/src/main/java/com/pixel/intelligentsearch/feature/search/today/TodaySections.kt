@@ -507,13 +507,7 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
                     }
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                         Text(entry.title, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            listOfNotNull(previewLine(entry), Durations.ago(now - entry.postedAt)).joinToString(" · "),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = scheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        DetailLine(previewLine(entry), Durations.ago(now - entry.postedAt))
                     }
                     Box(
                         Modifier.size(40.dp).background(scheme.primaryContainer, CircleShape).semantics { contentDescription = label },
@@ -979,10 +973,13 @@ internal fun Tomorrow(date: LocalDate, alarmAt: Long?, weather: WeatherReport?, 
         )
         if (alarmAt != null) TomorrowRow(Icons.Filled.Alarm, "Alarm", timeFormat.format(java.util.Date(alarmAt)))
         if (weather != null) {
+            val kind = WeatherCodes.describe(weather.code).lowercase(locale)
             TomorrowRow(
                 weatherIcon(weather.code, true),
-                "${weather.high.roundToInt()}° / ${weather.low.roundToInt()}°, ${WeatherCodes.describe(weather.code).lowercase(locale)}",
-                null
+                "${weather.high.roundToInt()}° / ${weather.low.roundToInt()}°, $kind",
+                null,
+                // Read aloud, "53° / 43°" doesn't say which is the high.
+                spoken = "${HighLow.spoken(weather.high, weather.low)}, $kind"
             )
         }
         if (firstEvent != null) TomorrowRow(Icons.Filled.Event, firstEvent.title, timeFormat.format(java.util.Date(firstEvent.beginMillis)))
@@ -990,11 +987,18 @@ internal fun Tomorrow(date: LocalDate, alarmAt: Long?, weather: WeatherReport?, 
 }
 
 @Composable
-private fun TomorrowRow(icon: ImageVector, text: String, detail: String?) {
+private fun TomorrowRow(icon: ImageVector, text: String, detail: String?, spoken: String = text) {
     val scheme = MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth().padding(vertical = 5.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = scheme.primary, modifier = Modifier.size(20.dp))
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(start = 10.dp))
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(start = 10.dp).clearAndSetSemantics { this.text = AnnotatedString(spoken) }
+        )
         if (detail != null) Text(detail, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
     }
 }

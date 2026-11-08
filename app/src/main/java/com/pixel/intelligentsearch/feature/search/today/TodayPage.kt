@@ -564,6 +564,23 @@ private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthday
     }
 }
 
+/**
+ * A small one-line detail: [parts] (blank ones left out) drawn with dots between them. TalkBack hears them with pauses
+ * instead, as it would otherwise be handed each dot to speak.
+ */
+@Composable
+internal fun DetailLine(vararg parts: String?, modifier: Modifier = Modifier) {
+    val shown = parts.filterNotNull().filter { it.isNotBlank() }
+    Text(
+        shown.joinToString(" · "),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier.clearAndSetSemantics { text = AnnotatedString(shown.joinToString(", ")) }
+    )
+}
+
 @Composable
 internal fun TodayChip(
     icon: ImageVector?,
@@ -653,7 +670,8 @@ private fun UpNextCard(event: CalendarEvent, now: Long, trip: TodayTrip?, askLoc
             Icon(Icons.Outlined.Schedule, null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(17.dp))
             Text(" $time", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer)
             if (event.location.isNotBlank()) {
-                Text("  ·  ", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer.copy(alpha = 0.6f))
+                // Drawn only: TalkBack hears the time and the place with a pause between them.
+                Text("  ·  ", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer.copy(alpha = 0.6f), modifier = Modifier.clearAndSetSemantics {})
                 Icon(Icons.Outlined.LocationOn, null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(17.dp))
                 Text(
                     " ${event.location}",
@@ -886,7 +904,7 @@ private fun TimerTile(timer: GlanceTimer, modifier: Modifier) {
         Row(verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
                 Text(reading, style = MaterialTheme.typography.headlineMedium, color = scheme.onSurface, modifier = Modifier.padding(top = 6.dp))
-                Text(listOf(kind, timer.appLabel).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                DetailLine(kind, timer.appLabel)
             }
             // A ring sweeping once a minute, so the tile is visibly running.
             val sweep = (now % 60_000L) / 60_000f
@@ -958,13 +976,7 @@ private fun NowPlaying(media: GlanceMedia) {
                     .bouncyClickable { media.controls.open() }
             ) {
                 Text(media.title, style = MaterialTheme.typography.titleMedium, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    listOf(media.artist, media.appLabel).filter { it.isNotBlank() }.joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                DetailLine(media.artist, media.appLabel)
             }
             Box(
                 Modifier

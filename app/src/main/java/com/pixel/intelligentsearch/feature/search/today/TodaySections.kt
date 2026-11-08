@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -314,11 +316,16 @@ private fun Card(modifier: Modifier = Modifier, padding: Int = 14, content: @Com
 
 /** Grows from 0 to 1 once [start] is true, after [delayMs] (at once with animations off). */
 @Composable
-private fun rememberDrawIn(delayMs: Int = 200, durationMs: Int = 1000, start: Boolean = true): Float {
+private fun rememberDrawIn(
+    delayMs: Int = 200,
+    durationMs: Int = 1000,
+    start: Boolean = true,
+    easing: Easing = CubicBezierEasing(0.3f, 0f, 0.1f, 1f)
+): Float {
     val animate by rememberAnimationsEnabled()
     val shown = remember { Animatable(if (animate) 0f else 1f) }
     LaunchedEffect(start, animate) {
-        if (animate && start) shown.animateTo(1f, tween(durationMs, delayMillis = delayMs, easing = androidx.compose.animation.core.CubicBezierEasing(0.3f, 0f, 0.1f, 1f)))
+        if (animate && start) shown.animateTo(1f, tween(durationMs, delayMillis = delayMs, easing = easing))
     }
     return shown.value
 }
@@ -337,7 +344,7 @@ private fun popIn(t: Float): Float {
 
 /**
  * The next hours' temperatures as a smooth curve that draws itself in from the left, a dot and a temperature at each
- * hour and the hour under it, over a soft fill. Tap opens the weather app.
+ * hour and the hour under it, over a soft fill that fades in behind it. Tap opens the weather app.
  */
 @Composable
 internal fun WeatherAhead(report: WeatherReport) {
@@ -347,6 +354,8 @@ internal fun WeatherAhead(report: WeatherReport) {
     val is24 = android.text.format.DateFormat.is24HourFormat(context)
     var seen by remember { mutableStateOf(false) }
     val shown = rememberDrawIn(delayMs = 250, durationMs = 1300, start = seen)
+    // The fill under the line fades in on its own while the line is still drawing, as in the approved design.
+    val filled = rememberDrawIn(delayMs = 700, durationMs = 800, start = seen, easing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f))
     val animate by rememberAnimationsEnabled()
     // Once drawn, the line floats: each hour rises and falls a little in turn, a slow wave every 5 seconds.
     val wave = if (animate && shown >= 1f) {
@@ -445,8 +454,8 @@ internal fun WeatherAhead(report: WeatherReport) {
                 lineTo(points.first().x, bottom + 12.dp.toPx())
                 close()
             }
+            drawPath(area, Brush.verticalGradient(listOf(warm.copy(alpha = 0.32f), Color.Transparent), startY = top, endY = bottom + 12.dp.toPx()), alpha = filled)
             clipRect(right = size.width * shown) {
-                drawPath(area, Brush.verticalGradient(listOf(warm.copy(alpha = 0.32f), Color.Transparent), startY = top, endY = bottom + 12.dp.toPx()))
                 drawPath(line, warm, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
             }
             // Rain chances as short bars along the bottom, growing in after the line. The lag behind the dots is inside

@@ -7,9 +7,14 @@ import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import org.intellij.lang.annotations.Language
 
@@ -33,6 +38,7 @@ object AGSLBackdropShader {
     const val AGSL_PROGRESSIVE_BLUR_SHADER = """
         uniform shader compositedImage;
         uniform float2 uResolution;
+        uniform float2 uOrigin; // where this layer's (0, 0) sits in the uResolution-sized area it blurs
         uniform float uMaxBlurPx;
         uniform float uStartFraction;
         uniform float uEndFraction;
@@ -44,7 +50,7 @@ object AGSLBackdropShader {
         }
 
         half4 main(float2 fragCoord) {
-            float2 uv = fragCoord / max(uResolution, float2(1.0, 1.0));
+            float2 uv = (fragCoord + uOrigin) / max(uResolution, float2(1.0, 1.0));
             float progress = 0.0;
             if (uDirection == 0) {
                 // Top to bottom: top has max blur, fading to zero at bottom
@@ -110,8 +116,8 @@ object AGSLBackdropShader {
 
 /**
  * Per-modifier cache for [progressiveEdgeBlur]. The blur band is a fixed height in px, so the
- * normalized fractions depend on the layer size; the effect is rebuilt only when the size changes
- * (Skia snapshots uniforms at effect creation).
+ * normalized fractions depend on the content's size; the effect is rebuilt only when the size changes
+ * (Skia snapshots uniforms at effect creation). [originY] is where the band's layer starts in the content.
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 private class EdgeBlurEffectCache(
@@ -124,7 +130,7 @@ private class EdgeBlurEffectCache(
     private var lastHeight = -1f
     private var effect: androidx.compose.ui.graphics.RenderEffect? = null
 
-    fun effectFor(width: Float, height: Float): androidx.compose.ui.graphics.RenderEffect? {
+    fun effectFor(width: Float, height: Float, originY: Float): androidx.compose.ui.graphics.RenderEffect? {
         val cached = effect
         if (cached != null && width == lastWidth && height == lastHeight) return cached
         val frac = (edgePx / height).coerceIn(0.001f, 1f)
@@ -135,6 +141,7 @@ private class EdgeBlurEffectCache(
         val rebuilt = runCatching {
             shader.setColorUniform("uMonetTint", 0)
             shader.setFloatUniform("uResolution", width, height)
+            shader.setFloatUniform("uOrigin", 0f, originY)
             shader.setFloatUniform("uMaxBlurPx", maxBlurPx)
             shader.setFloatUniform("uStartFraction", start)
             shader.setFloatUniform("uEndFraction", end)
@@ -182,6 +189,7 @@ private object DissolveShader {
         return runCatching {
             shader.setColorUniform("uMonetTint", 0)
             shader.setFloatUniform("uResolution", width.coerceAtLeast(1f), height.coerceAtLeast(1f))
+            shader.setFloatUniform("uOrigin", 0f, 0f)
             shader.setFloatUniform("uMaxBlurPx", blurPx)
             shader.setFloatUniform("uStartFraction", 0f)
             shader.setFloatUniform("uEndFraction", 1f)
@@ -198,6 +206,11 @@ private object DissolveShader {
  * of Compose 1.13's `Modifier.blur(BlurRadiusSpec.verticalGradient(...))`). Content passing under
  * the [edge] dissolves progressively from sharp to [maxBlur] across [edgeHeight], while the rest of
  * the content stays pixel-sharp. Below API 33 this is a no-op (content stays sharp).
+ *
+ * Only the band goes through an offscreen layer: the rest of the content is drawn straight, and the layer holds the
+ * band plus [maxBlur] of content beyond it, as far as the strongest blur samples. Blurring the whole content in one
+ * layer looked the same but kept two or three content-sized surfaces in use on every frame (20 MB with the search
+ * results showing, on a 1344x2992 screen).
  */
 @Composable
 fun Modifier.progressiveEdgeBlur(
@@ -215,11 +228,26 @@ fun Modifier.progressiveEdgeBlur(
     val effectCache = remember(shader, blurPx, edgePx, edge) {
         EdgeBlurEffectCache(shader, blurPx, edgePx, edge)
     }
+    val band = rememberGraphicsLayer()
 
-    return this.graphicsLayer {
-        renderEffect = effectCache.effectFor(
-            width = size.width.coerceAtLeast(1f),
-            height = size.height.coerceAtLeast(1f)
-        )
+    return this.drawWithContent {
+        val width = size.width.coerceAtLeast(1f)
+        val height = size.height.coerceAtLeast(1f)
+        val fromBottom = edge == ProgressiveBlurDirection.BottomToTop
+        val blurred = edgePx.coerceAtMost(height)
+        val layerHeight = (edgePx + blurPx).coerceAtMost(height)
+        val layerTop = if (fromBottom) height - layerHeight else 0f
+        val bandTop = if (fromBottom) height - blurred else 0f
+
+        clipRect(0f, if (fromBottom) 0f else blurred, width, if (fromBottom) bandTop else height) {
+            this@drawWithContent.drawContent()
+        }
+        band.renderEffect = effectCache.effectFor(width, height, layerTop)
+        band.record(IntSize(kotlin.math.ceil(width).toInt(), kotlin.math.ceil(layerHeight).toInt())) {
+            translate(top = -layerTop) { this@drawWithContent.drawContent() }
+        }
+        clipRect(0f, bandTop, width, bandTop + blurred) {
+            translate(top = layerTop) { drawLayer(band) }
+        }
     }
 }

@@ -11,7 +11,8 @@ import javax.inject.Singleton
 
 /**
  * What the notification index keeps of one active notification: the words it shows and what tapping it does.
- * [chronometer] is set for a clock app's running timer or stopwatch.
+ * [chronometer] is set for a clock app's running timer or stopwatch. [newest] is what it says now: a conversation's
+ * newest message, where [text] holds its last few for search, or else all of [text].
  */
 data class IndexedNotification(
     val key: String,
@@ -22,7 +23,8 @@ data class IndexedNotification(
     val postedAt: Long,
     val category: String? = null,
     val contentIntent: PendingIntent? = null,
-    val chronometer: Chronometer? = null
+    val chronometer: Chronometer? = null,
+    val newest: String = text
 ) {
     /** A running chronometer: a timer counting down to [baseTime], or a stopwatch counting up from it (wall clock). */
     data class Chronometer(val countDown: Boolean, val baseTime: Long)

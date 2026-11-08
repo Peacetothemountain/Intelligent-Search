@@ -168,12 +168,13 @@ private val PACKAGE = Regex("package|parcel|order|shipment|delivery", RegexOptio
  * delayed, or on its way. Only notifications that speak of a package, order or delivery count. When the newest says it
  * couldn't be delivered (in any of [NOT_DELIVERED]'s words), no step says that, so there is no tile rather than an older, happier one.
  * Its "today" is the day it was posted in [zone]: out for delivery on an earlier day, with no news since, says nothing
- * true about today, so there is no tile either.
+ * true about today, so there is no tile either. A conversation is read by its newest message alone: an older one in the
+ * same thread (yesterday's attempt, last week's delivery, a chat's earlier words) is not news about this package.
  */
 internal fun deliveryFrom(entries: List<IndexedNotification>, now: Long, zone: ZoneId): TodayDelivery? {
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
     for (entry in entries.filter { now - it.postedAt in 0..DELIVERY_WINDOW_MS }.sortedByDescending { it.postedAt }) {
-        val text = "${entry.title} ${entry.text}"
+        val text = "${entry.title} ${entry.newest}"
         if (!PACKAGE.containsMatchIn(text)) continue
         if (NOT_DELIVERED.containsMatchIn(text)) return null
         return when {
@@ -246,13 +247,11 @@ internal fun catchUpFrom(entries: List<IndexedNotification>, now: Long): List<In
     .take(3)
 
 /**
- * The one line of [entry] a Catch Up row has room for: a conversation's newest message (the index keeps its last few,
- * oldest first), or an email's or call's first line, its subject. All of it on one line would show only the first.
+ * The one line of [entry] a Catch Up row has room for: the first line of a conversation's newest message, or of an
+ * email or call, its subject. All of it on one line would show only the first.
  */
-private fun previewLine(entry: IndexedNotification): String? {
-    val lines = entry.text.lines().filter { it.isNotBlank() }
-    return (if (entry.category == Notification.CATEGORY_MESSAGE) lines.lastOrNull() else lines.firstOrNull())?.trim()
-}
+private fun previewLine(entry: IndexedNotification): String? =
+    entry.newest.lineSequence().firstOrNull { it.isNotBlank() }?.trim()
 
 /**
  * [title]'s initial when it starts with a name, a letter or an emoji, else null: an unsaved number ("(650) 555-1234",

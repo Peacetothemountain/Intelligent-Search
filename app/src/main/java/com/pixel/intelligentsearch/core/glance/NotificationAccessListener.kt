@@ -236,7 +236,8 @@ internal class NotificationExtractor(
                 postedAt = postedAt,
                 category = notification.category,
                 contentIntent = notification.contentIntent,
-                chronometer = chronometer
+                chronometer = chronometer,
+                newest = messages.lastOrNull()?.trim()?.take(MAX_TEXT) ?: text
             )
         }
 

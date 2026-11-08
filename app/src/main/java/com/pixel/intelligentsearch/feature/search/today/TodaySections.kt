@@ -310,6 +310,9 @@ private fun rememberDrawIn(delayMs: Int = 200, durationMs: Int = 1000, start: Bo
     return shown.value
 }
 
+/** How many hours each rain bar in [WeatherAhead] starts behind its hour's dot. */
+private const val RAIN_LAG = 1.5f
+
 /** An overshooting ease for things that pop in: past full size a little, then back. */
 private fun popIn(t: Float): Float {
     if (t <= 0f) return 0f
@@ -379,7 +382,17 @@ internal fun WeatherAhead(report: WeatherReport) {
                 .fillMaxWidth()
                 .height(118.dp)
                 .padding(top = 6.dp)
-                .semantics { contentDescription = hours.joinToString { "${labels[hours.indexOf(it)]} ${it.temperature.roundToInt()}°" } }
+                // TalkBack hears each hour in full and its chance of rain or snow, which the bars show only by height.
+                .semantics {
+                    contentDescription = hours.joinToString { hour ->
+                        val time = hour.time.withZoneSameInstant(zone).format(DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h a", locale))
+                        val chance = hour.precipitation?.takeIf { it > 0 }?.let { percent ->
+                            val kind = if (WeatherCodes.kind(hour.code) == WeatherCodes.Kind.SNOW) "snow" else "rain"
+                            ", $percent% chance of $kind"
+                        }.orEmpty()
+                        "$time ${hour.temperature.roundToInt()}°$chance"
+                    }
+                }
         ) {
             val left = 16.dp.toPx()
             val right = size.width - 16.dp.toPx()
@@ -415,13 +428,14 @@ internal fun WeatherAhead(report: WeatherReport) {
                 drawPath(area, Brush.verticalGradient(listOf(warm.copy(alpha = 0.32f), Color.Transparent), startY = top, endY = bottom + 12.dp.toPx()))
                 drawPath(line, warm, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
             }
-            // Rain chances as short bars along the bottom, growing in after the line.
+            // Rain chances as short bars along the bottom, growing in after the line. The lag behind the dots is inside
+            // the draw-in, so every bar, the last one too, is at its full height once the line is drawn.
             val rainTop = bottom + 10.dp.toPx()
             val rainBottom = size.height - 18.dp.toPx()
             hours.forEachIndexed { i, hour ->
                 val chance = hour.precipitation ?: return@forEachIndexed
                 if (chance <= 0) return@forEachIndexed
-                val grow = popIn(((shown * points.size) - i - 1.5f).coerceIn(0f, 1f))
+                val grow = popIn((shown * (points.size + RAIN_LAG) - i - RAIN_LAG).coerceIn(0f, 1f))
                 val h = (rainBottom - rainTop) * chance / 100f * grow
                 drawRoundRect(
                     rain.copy(alpha = 0.75f),

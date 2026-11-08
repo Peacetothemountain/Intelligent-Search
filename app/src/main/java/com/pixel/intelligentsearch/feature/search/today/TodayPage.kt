@@ -86,9 +86,12 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.text
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -589,7 +592,13 @@ internal fun TodayChip(
         Spacer(Modifier.width(8.dp))
         Text(text, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface)
         if (detail != null) {
-            Text(" · $detail", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+            Text(
+                " · $detail",
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.onSurfaceVariant,
+                // TalkBack hears the detail, not the drawn separator before it.
+                modifier = Modifier.clearAndSetSemantics { this.text = AnnotatedString(detail) }
+            )
         }
     }
 }

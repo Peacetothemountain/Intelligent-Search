@@ -410,7 +410,7 @@ internal fun ConfettiHost(content: @Composable BoxScope.() -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val animate by rememberAnimationsEnabled()
     val pieces = remember { mutableStateListOf<Piece>() }
-    var now by remember { mutableStateOf(0L) }
+    var now by remember { mutableLongStateOf(0L) }
     var origin by remember { mutableStateOf(Offset.Zero) }
     val colors = listOf(scheme.primary, scheme.tertiary, Color(0xFFF2B872), Color(0xFF9DD7A6))
     val confetti = remember(animate) {

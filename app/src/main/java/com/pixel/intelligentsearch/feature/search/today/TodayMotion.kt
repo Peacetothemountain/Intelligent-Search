@@ -79,6 +79,13 @@ internal const val CARD_ALPHA = 0.88f
 internal val ColorScheme.onPage: Color
     get() = onSurface
 
+/**
+ * Accent text drawn on the page itself (Catch up's "From your notifications"). primary fell to about 4.4:1 under the
+ * living light on Android 17's schemes, light and dark; onPrimaryContainer is the same hue a step further from the page.
+ */
+internal val ColorScheme.accentOnPage: Color
+    get() = onPrimaryContainer
+
 /** The page's spring for things arriving: quick, with a little bounce. */
 internal fun <T> arriveSpring() = spring<T>(dampingRatio = 0.62f, stiffness = 240f)
 

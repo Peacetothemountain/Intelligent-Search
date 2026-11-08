@@ -293,7 +293,7 @@ private fun SectionTitle(text: String, detail: String? = null) {
     val scheme = MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 10.dp, bottom = 0.dp), verticalAlignment = Alignment.Bottom) {
         Text(text, style = MaterialTheme.typography.titleSmall, color = scheme.onPage, modifier = Modifier.weight(1f))
-        if (detail != null) Text(detail, style = MaterialTheme.typography.labelMedium, color = scheme.primary)
+        if (detail != null) Text(detail, style = MaterialTheme.typography.labelMedium, color = scheme.accentOnPage)
     }
 }
 

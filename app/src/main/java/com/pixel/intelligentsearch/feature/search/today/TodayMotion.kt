@@ -13,6 +13,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,12 +30,16 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.boundsInWindow
@@ -82,16 +87,35 @@ internal fun LivingLight(warm: Color, modifier: Modifier = Modifier) {
         val tc by transition.animateFloat(0f, 1f, infiniteRepeatable(tween(40_000, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "c")
         Triple({ ta }, { tb }, { tc })
     } else Triple({ 0.3f }, { 0.3f }, { 0.3f })
-    Canvas(modifier.fillMaxSize()) {
-        val w = size.width
-        fun glow(color: Color, center: Offset, radius: Float) =
-            drawCircle(Brush.radialGradient(listOf(color, Color.Transparent), center = center, radius = radius), radius, center)
-        val pa = t.first()
-        glow(a, Offset(w * (-0.05f + 0.16f * pa), size.height * (0.02f + 0.1f * pa)), w * (0.75f + 0.08f * sin(pa * 3.14f)))
-        val pb = t.second()
-        glow(b, Offset(w * (1.02f - 0.18f * pb), size.height * (0.22f + 0.07f * pb)), w * (0.62f + 0.1f * pb))
-        val pc = t.third()
-        glow(c, Offset(w * (0.2f + 0.3f * pc), size.height * (0.1f - 0.02f * pc)), w * (0.5f + 0.06f * pc))
+    // Each glow's gradient is made once per size, around the origin at its smallest radius, then moved and scaled to
+    // where the glow is on each frame. A gradient made new every frame kept the collector busy while the page sat open.
+    Spacer(
+        modifier.fillMaxSize().drawWithCache {
+            val w = size.width
+            val ra = w * 0.75f
+            val rb = w * 0.62f
+            val rc = w * 0.5f
+            val ga = Brush.radialGradient(listOf(a, Color.Transparent), center = Offset.Zero, radius = ra)
+            val gb = Brush.radialGradient(listOf(b, Color.Transparent), center = Offset.Zero, radius = rb)
+            val gc = Brush.radialGradient(listOf(c, Color.Transparent), center = Offset.Zero, radius = rc)
+            onDrawBehind {
+                val pa = t.first()
+                glow(ga, ra, w * (-0.05f + 0.16f * pa), size.height * (0.02f + 0.1f * pa), w * (0.75f + 0.08f * sin(pa * 3.14f)))
+                val pb = t.second()
+                glow(gb, rb, w * (1.02f - 0.18f * pb), size.height * (0.22f + 0.07f * pb), w * (0.62f + 0.1f * pb))
+                val pc = t.third()
+                glow(gc, rc, w * (0.2f + 0.3f * pc), size.height * (0.1f - 0.02f * pc), w * (0.5f + 0.06f * pc))
+            }
+        }
+    )
+}
+
+/** Draws [brush], a radial gradient of [made] radius around the origin, as a glow of [radius] centered at [x], [y]. */
+private fun DrawScope.glow(brush: Brush, made: Float, x: Float, y: Float, radius: Float) {
+    translate(x, y) {
+        scale(radius / made, pivot = Offset.Zero) {
+            drawCircle(brush, made, Offset.Zero)
+        }
     }
 }
 

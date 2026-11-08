@@ -429,7 +429,7 @@ internal fun WeatherAhead(report: WeatherReport) {
                 )
             }
         }
-        Canvas(
+        Spacer(
             Modifier
                 .fillMaxWidth()
                 .height(118.dp)
@@ -445,72 +445,81 @@ internal fun WeatherAhead(report: WeatherReport) {
                         "$time ${hour.temperature.roundToInt()}°$chance"
                     }
                 }
-        ) {
-            val shown = drawIn()
-            val filled = fillIn()
-            val left = 16.dp.toPx()
-            val right = size.width - 16.dp.toPx()
-            val top = 26.dp.toPx()
-            val bottom = 60.dp.toPx()
-            val step = if (hours.size > 1) (right - left) / (hours.size - 1) else 0f
-            val lift = 3.dp.toPx()
-            val phase = wave?.value
-            val points = temps.mapIndexed { i, t ->
-                val float = if (phase != null) kotlin.math.sin(phase + i * 0.8f) * lift else 0f
-                Offset(left + i * step, bottom - ((t - lo) / (hi - lo)).toFloat() * (bottom - top) + float)
-            }
-            val line = Path().apply {
-                moveTo(points[0].x, points[0].y)
-                for (i in 0 until points.size - 1) {
-                    val p0 = points[maxOf(0, i - 1)]
-                    val p1 = points[i]
-                    val p2 = points[i + 1]
-                    val p3 = points[minOf(points.size - 1, i + 2)]
-                    cubicTo(
-                        p1.x + (p2.x - p0.x) / 6f, p1.y + (p2.y - p0.y) / 6f,
-                        p2.x - (p3.x - p1.x) / 6f, p2.y - (p3.y - p1.y) / 6f,
-                        p2.x, p2.y
-                    )
+                // The paths, the fill's gradient and the stroke are made once per size and refilled each frame: the
+                // floating line redraws every frame, and new ones each time kept the collector busy at rest.
+                .drawWithCache {
+                    val left = 16.dp.toPx()
+                    val right = size.width - 16.dp.toPx()
+                    val top = 26.dp.toPx()
+                    val bottom = 60.dp.toPx()
+                    val step = if (hours.size > 1) (right - left) / (hours.size - 1) else 0f
+                    val lift = 3.dp.toPx()
+                    val xs = FloatArray(temps.size) { left + it * step }
+                    val ys = FloatArray(temps.size)
+                    val line = Path()
+                    val area = Path()
+                    val fill = Brush.verticalGradient(listOf(warm.copy(alpha = 0.32f), Color.Transparent), startY = top, endY = bottom + 12.dp.toPx())
+                    val stroke = Stroke(3.dp.toPx(), cap = StrokeCap.Round)
+                    onDrawBehind {
+                        val shown = drawIn()
+                        val filled = fillIn()
+                        val phase = wave?.value
+                        for (i in temps.indices) {
+                            val float = if (phase != null) kotlin.math.sin(phase + i * 0.8f) * lift else 0f
+                            ys[i] = bottom - ((temps[i] - lo) / (hi - lo)).toFloat() * (bottom - top) + float
+                        }
+                        val last = xs.size - 1
+                        line.rewind()
+                        line.moveTo(xs[0], ys[0])
+                        for (i in 0 until last) {
+                            val i0 = maxOf(0, i - 1)
+                            val i3 = minOf(last, i + 2)
+                            line.cubicTo(
+                                xs[i] + (xs[i + 1] - xs[i0]) / 6f, ys[i] + (ys[i + 1] - ys[i0]) / 6f,
+                                xs[i + 1] - (xs[i3] - xs[i]) / 6f, ys[i + 1] - (ys[i3] - ys[i]) / 6f,
+                                xs[i + 1], ys[i + 1]
+                            )
+                        }
+                        area.rewind()
+                        area.addPath(line)
+                        area.lineTo(xs[last], bottom + 12.dp.toPx())
+                        area.lineTo(xs[0], bottom + 12.dp.toPx())
+                        area.close()
+                        drawPath(area, fill, alpha = filled)
+                        clipRect(right = size.width * shown) {
+                            drawPath(line, warm, style = stroke)
+                        }
+                        // Rain chances as short bars along the bottom, growing in after the line. The lag behind the dots is inside
+                        // the draw-in, so every bar, the last one too, is at its full height once the line is drawn.
+                        val rainTop = bottom + 10.dp.toPx()
+                        val rainBottom = size.height - 18.dp.toPx()
+                        for (i in hours.indices) {
+                            val chance = hours[i].precipitation ?: continue
+                            if (chance <= 0) continue
+                            val grow = popIn((shown * (xs.size + RAIN_LAG) - i - RAIN_LAG).coerceIn(0f, 1f))
+                            val h = (rainBottom - rainTop) * chance / 100f * grow
+                            drawRoundRect(
+                                rain.copy(alpha = 0.75f),
+                                topLeft = Offset(xs[i] - 5.dp.toPx(), rainBottom - h),
+                                size = Size(10.dp.toPx(), h),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
+                            )
+                        }
+                        for (i in xs.indices) {
+                            val visible = ((shown * xs.size) - i).coerceIn(0f, 1f)
+                            if (visible <= 0f) continue
+                            val p = Offset(xs[i], ys[i])
+                            val pop = popIn(visible)
+                            drawCircle(warm, 3.6.dp.toPx() * pop, p)
+                            drawCircle(scheme.surfaceContainer, 2.dp.toPx() * pop, p)
+                            val temp = tempTexts[i]
+                            drawText(temp, topLeft = Offset(p.x - temp.size.width / 2f, p.y - 8.dp.toPx() - temp.size.height), alpha = visible)
+                            val hour = hourTexts[i]
+                            drawText(hour, topLeft = Offset(p.x - hour.size.width / 2f, size.height - hour.size.height), alpha = visible)
+                        }
+                    }
                 }
-            }
-            val area = Path().apply {
-                addPath(line)
-                lineTo(points.last().x, bottom + 12.dp.toPx())
-                lineTo(points.first().x, bottom + 12.dp.toPx())
-                close()
-            }
-            drawPath(area, Brush.verticalGradient(listOf(warm.copy(alpha = 0.32f), Color.Transparent), startY = top, endY = bottom + 12.dp.toPx()), alpha = filled)
-            clipRect(right = size.width * shown) {
-                drawPath(line, warm, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
-            }
-            // Rain chances as short bars along the bottom, growing in after the line. The lag behind the dots is inside
-            // the draw-in, so every bar, the last one too, is at its full height once the line is drawn.
-            val rainTop = bottom + 10.dp.toPx()
-            val rainBottom = size.height - 18.dp.toPx()
-            hours.forEachIndexed { i, hour ->
-                val chance = hour.precipitation ?: return@forEachIndexed
-                if (chance <= 0) return@forEachIndexed
-                val grow = popIn((shown * (points.size + RAIN_LAG) - i - RAIN_LAG).coerceIn(0f, 1f))
-                val h = (rainBottom - rainTop) * chance / 100f * grow
-                drawRoundRect(
-                    rain.copy(alpha = 0.75f),
-                    topLeft = Offset(points[i].x - 5.dp.toPx(), rainBottom - h),
-                    size = Size(10.dp.toPx(), h),
-                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(3.dp.toPx())
-                )
-            }
-            points.forEachIndexed { i, p ->
-                val visible = ((shown * points.size) - i).coerceIn(0f, 1f)
-                if (visible <= 0f) return@forEachIndexed
-                val pop = popIn(visible)
-                drawCircle(warm, 3.6.dp.toPx() * pop, p)
-                drawCircle(scheme.surfaceContainer, 2.dp.toPx() * pop, p)
-                val temp = tempTexts[i]
-                drawText(temp, topLeft = Offset(p.x - temp.size.width / 2f, p.y - 8.dp.toPx() - temp.size.height), alpha = visible)
-                val hour = hourTexts[i]
-                drawText(hour, topLeft = Offset(p.x - hour.size.width / 2f, size.height - hour.size.height), alpha = visible)
-            }
-        }
+        )
     }
 }
 

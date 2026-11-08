@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -43,7 +44,12 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -105,7 +111,10 @@ internal fun Modifier.onFirstSeen(onSeen: () -> Unit): Modifier = composed {
     }
 }
 
-/** [text], each letter rising into place one after another as it first shows (all at once with animations off). */
+/**
+ * [text], each letter rising into place one after another as it first shows, inking in from a light 250 weight to
+ * [style]'s own as it rises (all at once with animations off). A settled letter is drawn in [style] itself.
+ */
 @Composable
 internal fun SettleText(text: String, style: TextStyle, color: Color, modifier: Modifier = Modifier, delayMs: Long = 120) {
     val animate by rememberAnimationsEnabled()
@@ -118,11 +127,14 @@ internal fun SettleText(text: String, style: TextStyle, color: Color, modifier: 
             launchLater(i * 28L) { letter.animateTo(1f, arriveSpring()) }
         }
     }
+    val rest = (style.fontWeight ?: FontWeight.Normal).weight
     Row(modifier.clearAndSetSemantics { contentDescription = text }) {
         text.forEachIndexed { i, c ->
+            // Recomposes only when the letter reaches the next weight step, not on every frame.
+            val weight by remember(letters, rest) { derivedStateOf { settleWeight(letters[i].value, rest) } }
             Text(
                 c.toString(),
-                style = style,
+                style = if (weight >= rest) style else style.copy(fontFamily = SettleFamily, fontWeight = FontWeight(weight)),
                 color = color,
                 modifier = Modifier.graphicsLayer {
                     val p = letters[i].value
@@ -133,6 +145,40 @@ internal fun SettleText(text: String, style: TextStyle, color: Color, modifier: 
         }
     }
 }
+
+/** The lightest weight a [SettleText] letter starts from, as in the approved design. */
+private const val SETTLE_FROM = 250
+
+/** How far apart the weights a settling letter passes through are: fine enough to read as one smooth inking in. */
+private const val SETTLE_STEP = 25
+
+/** A letter's weight at [progress] of its settle toward [rest], on [SETTLE_STEP] steps from [SETTLE_FROM]. */
+private fun settleWeight(progress: Float, rest: Int): Int {
+    if (rest <= SETTLE_FROM) return rest
+    val w = SETTLE_FROM + (rest - SETTLE_FROM) * progress.coerceIn(0f, 1f)
+    return (SETTLE_FROM + ((w - SETTLE_FROM) / SETTLE_STEP).toInt() * SETTLE_STEP).coerceAtMost(rest)
+}
+
+/**
+ * Google Sans Flex at each step a settling letter passes through, with the same axis settings as [GoogleSansFlex],
+ * whose own weights start at 300. Each weight's typeface is made the first time it is drawn.
+ */
+@OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
+private val SettleFamily = FontFamily(
+    (SETTLE_FROM until 700 step SETTLE_STEP).map { w ->
+        Font(
+            R.font.google_sans_flex,
+            FontWeight(w),
+            variationSettings = FontVariation.Settings(
+                FontVariation.weight(w),
+                FontVariation.width(100f),
+                FontVariation.slant(0f),
+                FontVariation.grade(0),
+                FontVariation.Setting("ROND", 0f)
+            )
+        )
+    }
+)
 
 /** [text] whose letters hop one after another each time [hops] changes. */
 @Composable

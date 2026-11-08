@@ -750,7 +750,8 @@ internal fun LeftOff(searches: List<String>, onSearch: (String) -> Unit) {
 
 /**
  * Today's word, what kind of word it is and what it means, on the page's own card color with the word in the accent
- * color. Hear It says it aloud (Android's text to speech); a tap on the card looks it up.
+ * color. Hear It says it aloud (Android's text to speech), Look it up searches its definition, and a tap anywhere else
+ * on the card makes the letters hop.
  */
 @Composable
 internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
@@ -795,7 +796,10 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
                         "  ·  Look it up",
                         style = MaterialTheme.typography.bodyMedium,
                         color = scheme.primary,
-                        modifier = Modifier.bouncyClickable { onSearch("define ${word.word}") }
+                        // TalkBack hears the link's words, not the drawn separator before them.
+                        modifier = Modifier
+                            .bouncyClickable { onSearch("define ${word.word}") }
+                            .clearAndSetSemantics { text = AnnotatedString("Look it up") }
                     )
                 }
             }

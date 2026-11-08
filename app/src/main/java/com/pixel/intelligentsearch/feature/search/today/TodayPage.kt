@@ -558,7 +558,7 @@ private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthday
     Column(Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 2.dp)) {
       Row(verticalAlignment = Alignment.Bottom) {
        Column(Modifier.weight(1f)) {
-        Text(date, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = scheme.onSurfaceVariant)
+        Text(date, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = scheme.onPage)
         SettleText(
             greeting,
             style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Normal),

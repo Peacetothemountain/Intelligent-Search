@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -69,6 +70,14 @@ import kotlin.random.Random
 
 /** The page's cards let a little of the living light through. */
 internal const val CARD_ALPHA = 0.88f
+
+/**
+ * The quieter text drawn on the page itself rather than on a card (the date, section titles, control labels). The
+ * living light drifts under it and brings onSurfaceVariant down to about 3:1 on Android 17's schemes, light and dark,
+ * so it takes onSurface, which stays over 5:1 with [LivingLight]'s glows no stronger than they are.
+ */
+internal val ColorScheme.onPage: Color
+    get() = onSurface
 
 /** The page's spring for things arriving: quick, with a little bounce. */
 internal fun <T> arriveSpring() = spring<T>(dampingRatio = 0.62f, stiffness = 240f)
@@ -182,15 +191,16 @@ internal fun rememberLoop(durationMs: Int, easing: Easing = FastOutSlowInEasing,
 
 /**
  * The light behind the page: three soft glows (the accent, the tertiary and a warm one) drifting very slowly on
- * their own paths, 40 to 60 seconds each way. Still with animations off.
+ * their own paths, 40 to 60 seconds each way. Still with animations off. In dark mode the accent and tertiary glows
+ * are as strong as text drawn over them ([onPage]) allows while keeping over 5:1.
  */
 @Composable
 internal fun LivingLight(warm: Color, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
     val animate by rememberAnimationsEnabled()
     val dark = scheme.surface.luminance() < 0.5f
-    val a = androidx.compose.ui.graphics.lerp(scheme.primaryContainer, scheme.primary, 0.3f).copy(alpha = if (dark) 0.75f else 0.6f)
-    val b = androidx.compose.ui.graphics.lerp(scheme.tertiaryContainer, scheme.tertiary, 0.3f).copy(alpha = if (dark) 0.45f else 0.5f)
+    val a = androidx.compose.ui.graphics.lerp(scheme.primaryContainer, scheme.primary, 0.3f).copy(alpha = if (dark) 0.65f else 0.6f)
+    val b = androidx.compose.ui.graphics.lerp(scheme.tertiaryContainer, scheme.tertiary, 0.3f).copy(alpha = if (dark) 0.4f else 0.5f)
     val c = warm.copy(alpha = if (dark) 0.18f else 0.3f)
     val t = if (animate) {
         Triple(rememberLoop(48_000, reverse = true), rememberLoop(60_000, reverse = true), rememberLoop(40_000, reverse = true))

@@ -48,6 +48,14 @@ allow_listener com.pixel.intelligentsearch/com.pixel.intelligentsearch.core.glan
 `adb shell "cmd notification post -t 'Title' <tag> 'Text'"`. `cmd notification list` shows what is live. Undo the
 listener and the grant afterwards (`disallow_listener`, `pm revoke`).
 
+To show Up Next and its leave-by time, add an event to the emulator's local calendar (`_id=1`, "Test") with
+`adb shell "content insert --uri content://com.android.calendar/events --bind calendar_id:i:1 --bind title:s:Dinner
+--bind dtstart:l:<ms> --bind dtend:l:<ms> --bind eventTimezone:s:America/New_York --bind eventLocation:s:'<place>'"`,
+then `pm grant` the app `READ_CALENDAR` and `ACCESS_COARSE_LOCATION`. `adb emu geo fix` doesn't move the fused fix the app
+reads, so read where the emulator thinks it is (`adb shell dumpsys location | grep "last location"`) and choose a real
+address within a few hours' drive of it; a farther one rightly gets no leave-by time. Delete the event and revoke both
+afterwards.
+
 Unlike the phone, driving the emulator can't turn off the owner's app lock, and it holds none of their real data.
 
 ## 2. What needs the real phone

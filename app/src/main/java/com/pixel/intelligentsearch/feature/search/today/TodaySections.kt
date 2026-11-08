@@ -674,7 +674,8 @@ private fun ScreenTimeTile(report: ScreenTimeReport, modifier: Modifier, seen: B
             .heightIn(min = 108.dp)
             .clip(CardShape)
             .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
-            .then(if (onClick != null) Modifier.bouncyClickable(shape = CardShape, onClick = onClick) else Modifier)
+            // Without a page to open it is still one stop for TalkBack, as the Battery tile beside it is.
+            .then(if (onClick != null) Modifier.bouncyClickable(shape = CardShape, onClick = onClick) else Modifier.semantics(mergeDescendants = true) {})
             .padding(horizontal = 14.dp, vertical = 13.dp)
     ) {
         TileLabel(Icons.Filled.HourglassBottom, "Screen time")
@@ -695,7 +696,9 @@ private fun ScreenTimeTile(report: ScreenTimeReport, modifier: Modifier, seen: B
         }
         Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             for (app in top) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // The bar is drawn only, so TalkBack hears each app's time beside its name.
+                val heard = "${app.label}, ${Durations.minutes(app.durationMs)}"
+                Row(Modifier.clearAndSetSemantics { contentDescription = heard }, verticalAlignment = Alignment.CenterVertically) {
                     Text(app.label, style = labelStyle, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = nameColumn)
                     Box(Modifier.weight(1f).height(8.dp)) {
                         Box(

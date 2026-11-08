@@ -61,9 +61,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.text
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -209,7 +211,8 @@ internal fun DeliveryTile(delivery: TodayDelivery, modifier: Modifier) {
                 drawCircle(if (i <= current) on else off, r, Offset(x, y))
             }
         }
-        Box(Modifier.fillMaxWidth().padding(top = 4.dp)) {
+        // The headline already names the step; read here, the three names would sound like three steps done.
+        Box(Modifier.fillMaxWidth().padding(top = 4.dp).clearAndSetSemantics {}) {
             Text("Shipped", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, modifier = Modifier.align(Alignment.CenterStart))
             Text("Today", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, modifier = Modifier.align(Alignment.Center))
             Text("Here", style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant, modifier = Modifier.align(Alignment.CenterEnd))
@@ -872,7 +875,13 @@ internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: Tod
                     .padding(horizontal = 14.dp, vertical = 13.dp)
             ) {
                 TileLabel(Icons.Filled.Event, "Countdown")
-                Text("${(countdown.days * shown).roundToInt()}", style = MaterialTheme.typography.displaySmall, color = scheme.onSurface, modifier = Modifier.padding(top = 4.dp))
+                Text(
+                    "${(countdown.days * shown).roundToInt()}",
+                    style = MaterialTheme.typography.displaySmall,
+                    color = scheme.onSurface,
+                    // TalkBack hears the real count, not the number partway through drawing in.
+                    modifier = Modifier.padding(top = 4.dp).clearAndSetSemantics { text = AnnotatedString("${countdown.days}") }
+                )
                 Text(
                     if (countdown.days == 1) "day until ${countdown.name}" else "days until ${countdown.name}",
                     style = MaterialTheme.typography.bodySmall,

@@ -61,7 +61,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -548,17 +550,17 @@ private fun ControlTile(label: String, icon: ImageVector, state: Boolean?, modif
         if (animate) spring(dampingRatio = 0.6f, stiffness = 420f) else snap(),
         label = "control shape"
     )
-    Column(
-        modifier.semantics { if (state != null) stateDescription = if (on) "On" else "Off" },
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        // The button TalkBack lands on says its name and, for a control the app can read, that it is a switch and
+        // whether it is on; the label under it is the same name, so it isn't a second stop.
         Box(
             Modifier
                 .fillMaxWidth()
                 .height(56.dp)
                 .clip(RoundedCornerShape(corner))
                 .background(if (on) scheme.primary else scheme.surfaceContainerHigh)
-                .bouncyClickable(shape = RoundedCornerShape(corner), onClick = onClick),
+                .bouncyClickable(shape = RoundedCornerShape(corner), role = if (state != null) Role.Switch else Role.Button, onClick = onClick)
+                .semantics { if (state != null) toggleableState = ToggleableState(on) },
             contentAlignment = Alignment.Center
         ) {
             Icon(icon, contentDescription = label, tint = if (on) scheme.onPrimary else scheme.onSurface, modifier = Modifier.size(24.dp))
@@ -569,7 +571,7 @@ private fun ControlTile(label: String, icon: ImageVector, state: Boolean?, modif
             color = scheme.onSurfaceVariant,
             maxLines = 2,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-            modifier = Modifier.padding(top = 6.dp)
+            modifier = Modifier.padding(top = 6.dp).clearAndSetSemantics {}
         )
     }
 }

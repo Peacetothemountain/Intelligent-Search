@@ -5,7 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.hardware.camera2.CameraCharacteristics
+import android.content.pm.PackageManager
 import android.hardware.camera2.CameraManager
 import android.os.BatteryManager
 import android.os.Handler
@@ -310,13 +310,9 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
     override val controls: TodayControls = object : TodayControls {
         private val notifications = app.getSystemService(NotificationManager::class.java)
         private val cameras = app.getSystemService(CameraManager::class.java)
-        private val flashCamera: String? by lazy {
-            runCatching {
-                cameras?.cameraIdList?.firstOrNull { id ->
-                    cameras.getCameraCharacteristics(id).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
-                }
-            }.getOrNull()
-        }
+        // The camera whose flash is the flashlight: the first the torch callback names. Android names only cameras
+        // with a flash unit there, so the page never asks the camera service about each camera while it opens.
+        private var flashCamera: String? = null
 
         override fun doNotDisturb(): Flow<Boolean> = broadcastState(NotificationManager.ACTION_INTERRUPTION_FILTER_CHANGED) {
             DoNotDisturb.isOn(notifications)
@@ -326,11 +322,18 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
 
         override fun flashlight(): Flow<Boolean>? {
             val manager = cameras ?: return null
-            val id = flashCamera ?: return null
+            if (!app.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_FLASH)) return null
             return callbackFlow {
+                // Android calls this at once for each camera with a flash unit, then again whenever one switches.
                 val callback = object : CameraManager.TorchCallback() {
                     override fun onTorchModeChanged(cameraId: String, enabled: Boolean) {
-                        if (cameraId == id) trySend(enabled)
+                        if (flashCamera == null) flashCamera = cameraId
+                        if (cameraId == flashCamera) trySend(enabled)
+                    }
+
+                    // A flash camera that another app holds is named here instead.
+                    override fun onTorchModeUnavailable(cameraId: String) {
+                        if (flashCamera == null) flashCamera = cameraId
                     }
                 }
                 manager.registerTorchCallback(callback, Handler(Looper.getMainLooper()))

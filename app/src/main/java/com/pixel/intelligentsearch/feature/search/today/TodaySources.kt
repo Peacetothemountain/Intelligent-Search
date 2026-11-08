@@ -234,8 +234,6 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
 
     override fun notifications(): Flow<List<IndexedNotification>> = app.appEntryPoint.notificationIndex().entries
 
-    private val places = java.util.concurrent.ConcurrentHashMap<String, Pair<Double, Double>>()
-
     override suspend fun trip(event: com.pixel.intelligentsearch.core.data.CalendarEvent): TodayTrip? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         if (event.location.isBlank()) return@withContext null
         val here = com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(app)
@@ -362,4 +360,9 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
         trySend(read())
         awaitClose { app.unregisterReceiver(receiver) }
     }.distinctUntilChanged()
+
+    private companion object {
+        /** Where each event address is, kept while the app runs: an address doesn't move between openings of the page. */
+        val places = java.util.concurrent.ConcurrentHashMap<String, Pair<Double, Double>>()
+    }
 }

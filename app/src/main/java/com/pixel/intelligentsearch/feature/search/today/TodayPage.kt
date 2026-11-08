@@ -56,6 +56,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -240,16 +241,19 @@ internal fun TodayLayer(
                         clip = true
                     }
             ) {
-                TodayPage(
-                    active = open,
-                    hiddenApps = hiddenApps,
-                    recentSearches = recentSearches,
-                    onBack = onClose,
-                    onSearch = onSearch,
-                    onOpenSettings = onOpenSettings,
-                    preloadedWeather = weather,
-                    preloadedMemory = memory
-                )
+                // The page reads from the layer's sources, so what they keep lasts while the search is open.
+                CompositionLocalProvider(LocalTodaySources provides sources) {
+                    TodayPage(
+                        active = open,
+                        hiddenApps = hiddenApps,
+                        recentSearches = recentSearches,
+                        onBack = onClose,
+                        onSearch = onSearch,
+                        onOpenSettings = onOpenSettings,
+                        preloadedWeather = weather,
+                        preloadedMemory = memory
+                    )
+                }
             }
         }
     }

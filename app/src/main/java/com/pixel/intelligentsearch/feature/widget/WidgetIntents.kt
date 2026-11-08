@@ -246,14 +246,14 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
             if (intent != null) {
                 intent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
             } else {
-                Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=com.google.android.apps.books".toUri()).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                playStorePage("com.google.android.apps.books")
             }
         }
         "Homework" -> {
             val pm = context.packageManager
             val intent = pm.getLaunchIntentForPackage("com.google.android.apps.labs.language.tailwind")
             intent?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-                ?: Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=com.google.android.apps.labs.language.tailwind".toUri()).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                ?: playStorePage("com.google.android.apps.labs.language.tailwind")
         }
         "Finance" -> torTopicSearch(context, "Finance")
             ?: Intent(Intent.ACTION_VIEW, "https://www.google.com/finance".toUri()).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
@@ -310,9 +310,12 @@ fun isDiscoverAvailable(context: Context): Boolean = context.packageManager.getL
  */
 fun getDiscoverIntent(context: Context): Intent =
     context.packageManager.getLaunchIntentForPackage(GoogleApps.GOOGLE_APP)?.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
-        ?: Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$GoogleApps.GOOGLE_APP".toUri()).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
+        ?: playStorePage(GoogleApps.GOOGLE_APP)
+
+/** The Play Store page of [packageName], for a shortcut whose app isn't installed. */
+private fun playStorePage(packageName: String): Intent =
+    Intent(Intent.ACTION_VIEW, "https://play.google.com/store/apps/details?id=$packageName".toUri())
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
 fun getCustomIntentOrDefault(context: Context, shortcut: String, defaultIntent: () -> Intent): Intent {
     val prefs = com.pixel.intelligentsearch.core.data.SettingsManager.storedPrefs(context)

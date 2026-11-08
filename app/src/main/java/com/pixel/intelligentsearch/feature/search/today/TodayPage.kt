@@ -738,7 +738,8 @@ private fun LeaveBy(trip: TodayTrip, now: Long) {
     val window = 60 * 60_000L
     val target = ((now - (trip.leaveAt - window)).toFloat() / window).coerceIn(0f, 1f)
     val animate by rememberAnimationsEnabled()
-    val fill by animateFloatAsState(target, if (animate) tween(800, delayMillis = 300) else snap(), label = "leave by")
+    // Read as the bar is laid out, so filling it never rebuilds the card.
+    val fill = animateFloatAsState(target, if (animate) tween(800, delayMillis = 300) else snap(), label = "leave by")
     Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(
             if (trip.leaveAt <= now) "Leave now" else "Leave by $time",
@@ -753,7 +754,7 @@ private fun LeaveBy(trip: TodayTrip, now: Long) {
                 .clip(CircleShape)
                 .background(scheme.onPrimaryContainer.copy(alpha = 0.18f))
         ) {
-            Box(Modifier.fillMaxWidth(fill).height(6.dp).clip(CircleShape).background(scheme.onPrimaryContainer))
+            Box(Modifier.fillWidth { fill.value }.height(6.dp).clip(CircleShape).background(scheme.onPrimaryContainer))
         }
         Text("About ${Durations.minutes(trip.minutes * 60_000L)}", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer)
     }
@@ -1034,6 +1035,8 @@ private fun TodayBar(onBack: () -> Unit, onOpenSettings: () -> Unit, modifier: M
     val flash = remember { Animatable(0f) }
     val shrink = remember { Animatable(0f) }
     val landing = remember { Animatable(0f) }
+    // Whether the full bar still takes a tap: read here, the shrink would rebuild the bar on every frame of it.
+    val tappable by remember { derivedStateOf { shrink.value < 0.5f } }
     LaunchedEffect(animate) {
         delay(BAR_SHRINK_DELAY_MS)
         if (!animate) {
@@ -1079,7 +1082,7 @@ private fun TodayBar(onBack: () -> Unit, onOpenSettings: () -> Unit, modifier: M
                     }
                 }
                 .then(
-                    if (shrink.value < 0.5f) {
+                    if (tappable) {
                         Modifier.pointerInput(Unit) { detectTapGestures { onBack() } }
                     } else Modifier
                 )

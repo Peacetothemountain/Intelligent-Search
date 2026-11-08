@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -316,20 +317,33 @@ private fun Card(modifier: Modifier = Modifier, padding: Int = 14, content: @Com
     ) { content() }
 }
 
-/** Grows from 0 to 1 once [start] is true, after [delayMs] (at once with animations off). */
+/**
+ * Grows from 0 to 1 once [start] is true, after [delayMs] (at once with animations off). Read as the part is drawn or
+ * laid out, so drawing in redraws it and never rebuilds the card around it.
+ */
 @Composable
 private fun rememberDrawIn(
     delayMs: Int = 200,
     durationMs: Int = 1000,
     start: Boolean = true,
     easing: Easing = CubicBezierEasing(0.3f, 0f, 0.1f, 1f)
-): Float {
+): () -> Float {
     val animate by rememberAnimationsEnabled()
     val shown = remember { Animatable(if (animate) 0f else 1f) }
     LaunchedEffect(start, animate) {
         if (animate && start) shown.animateTo(1f, tween(durationMs, delayMillis = delayMs, easing = easing))
     }
-    return shown.value
+    return remember(shown) { { shown.value } }
+}
+
+/** [fillMaxWidth] at a [fraction] read as the layout is measured, so a bar drawing in measures itself again and nothing else. */
+internal fun Modifier.fillWidth(fraction: () -> Float): Modifier = layout { measurable, constraints ->
+    val inner = if (constraints.hasBoundedWidth) {
+        val width = (constraints.maxWidth * fraction()).roundToInt().coerceIn(constraints.minWidth, constraints.maxWidth)
+        constraints.copy(minWidth = width, maxWidth = width)
+    } else constraints
+    val placeable = measurable.measure(inner)
+    layout(placeable.width, placeable.height) { placeable.place(0, 0) }
 }
 
 /** How many hours each rain bar in [WeatherAhead] starts behind its hour's dot. */
@@ -355,13 +369,14 @@ internal fun WeatherAhead(report: WeatherReport) {
     val locale = LocalConfiguration.current.locales[0]
     val is24 = android.text.format.DateFormat.is24HourFormat(context)
     var seen by remember { mutableStateOf(false) }
-    val shown = rememberDrawIn(delayMs = 250, durationMs = 1300, start = seen)
+    val drawIn = rememberDrawIn(delayMs = 250, durationMs = 1300, start = seen)
     // The fill under the line fades in on its own while the line is still drawing, as in the approved design.
-    val filled = rememberDrawIn(delayMs = 700, durationMs = 800, start = seen, easing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f))
+    val fillIn = rememberDrawIn(delayMs = 700, durationMs = 800, start = seen, easing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f))
+    val drawn by remember(drawIn) { derivedStateOf { drawIn() >= 1f } }
     val animate by rememberAnimationsEnabled()
     // Once drawn, the line floats: each hour rises and falls a little in turn, a slow wave every 5 seconds. Read only
     // in the drawing, so the wave redraws the curve and never rebuilds the card.
-    val wave: State<Float>? = if (animate && shown >= 1f) {
+    val wave: State<Float>? = if (animate && drawn) {
         val transition = rememberInfiniteTransition(label = "float")
         transition.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(5_000, easing = LinearEasing)), label = "wave")
     } else null
@@ -431,6 +446,8 @@ internal fun WeatherAhead(report: WeatherReport) {
                     }
                 }
         ) {
+            val shown = drawIn()
+            val filled = fillIn()
             val left = 16.dp.toPx()
             val right = size.width - 16.dp.toPx()
             val top = 26.dp.toPx()
@@ -700,7 +717,7 @@ private fun BatteryTile(battery: TodayBattery, modifier: Modifier, seen: Boolean
                     val inset = stroke / 2
                     val arc = Size(size.width - stroke, size.height - stroke)
                     drawArc(track, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(stroke))
-                    drawArc(fill, -90f, 360f * battery.level / 100f * shown, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
+                    drawArc(fill, -90f, 360f * battery.level / 100f * shown(), false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
                 }
                 Text("${battery.level}%", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = scheme.onSurface)
             }
@@ -749,7 +766,7 @@ private fun ScreenTimeTile(report: ScreenTimeReport, modifier: Modifier, seen: B
                     Box(Modifier.weight(1f).height(8.dp)) {
                         Box(
                             Modifier
-                                .fillMaxWidth(app.durationMs.toFloat() / longest * shown)
+                                .fillWidth { app.durationMs.toFloat() / longest * shown() }
                                 .height(8.dp)
                                 .clip(CircleShape)
                                 .background(scheme.primary)
@@ -849,16 +866,18 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
                     )
                 }
             }
-            val ripple = if (speaking) {
-                rememberInfiniteTransition(label = "speaking").animateFloat(0f, 1f, infiniteRepeatable(tween(1_000)), label = "ring").value
-            } else 0f
+            // Read only where the ring is drawn, so it redraws the ring and never rebuilds the card.
+            val ripple: State<Float>? = if (speaking) {
+                rememberInfiniteTransition(label = "speaking").animateFloat(0f, 1f, infiniteRepeatable(tween(1_000)), label = "ring")
+            } else null
             val ring = scheme.primary
             Box(
                 Modifier
                     .size(44.dp)
                     .drawBehind {
-                        if (speaking) {
-                            drawCircle(ring.copy(alpha = 1f - ripple), radius = size.minDimension / 2f * (1f + 0.35f * ripple), style = Stroke(2.dp.toPx()))
+                        val r = ripple?.value
+                        if (r != null) {
+                            drawCircle(ring.copy(alpha = 1f - r), radius = size.minDimension / 2f * (1f + 0.35f * r), style = Stroke(2.dp.toPx()))
                         }
                     }
                     .clip(CircleShape)
@@ -928,13 +947,7 @@ internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: Tod
                     .padding(horizontal = 14.dp, vertical = 13.dp)
             ) {
                 TileLabel(Icons.Filled.Event, "Countdown")
-                Text(
-                    "${(countdown.days * shown).roundToInt()}",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = scheme.onSurface,
-                    // TalkBack hears the real count, not the number partway through drawing in.
-                    modifier = Modifier.padding(top = 4.dp).clearAndSetSemantics { text = AnnotatedString("${countdown.days}") }
-                )
+                CountUp(countdown.days, shown)
                 Text(
                     if (countdown.days == 1) "day until ${countdown.name}" else "days until ${countdown.name}",
                     style = MaterialTheme.typography.bodySmall,
@@ -967,10 +980,23 @@ internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: Tod
             Text("Day $dayOfYear of $daysInYear", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
             Spacer(Modifier.height(10.dp))
             Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(scheme.surfaceContainerHighest)) {
-                Box(Modifier.fillMaxWidth(fraction * shown).height(6.dp).clip(CircleShape).background(scheme.tertiary))
+                Box(Modifier.fillWidth { fraction * shown() }.height(6.dp).clip(CircleShape).background(scheme.tertiary))
             }
         }
     }
+}
+
+/** The countdown's number, counting up to [days] as [shown] draws in; only it recomposes as the number changes. */
+@Composable
+private fun CountUp(days: Int, shown: () -> Float) {
+    val count by remember(days, shown) { derivedStateOf { (days * shown()).roundToInt() } }
+    Text(
+        "$count",
+        style = MaterialTheme.typography.displaySmall,
+        color = MaterialTheme.colorScheme.onSurface,
+        // TalkBack hears the real count, not the number partway through drawing in.
+        modifier = Modifier.padding(top = 4.dp).clearAndSetSemantics { text = AnnotatedString("$days") }
+    )
 }
 
 /** Tomorrow: the alarm, the forecast and the first event, those it has. */

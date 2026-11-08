@@ -1049,10 +1049,11 @@ fun SearchOverlayScreen(
 
         // Today, opened from its button in the search bar, over the search. Edge to edge, outside the search's
         // keyboard padding: it pads for the system bars itself and has no field, so the keyboard leaving as it
-        // opens doesn't resize it.
+        // opens doesn't resize it. It reads whether it is open and where its button is itself, so the screen doesn't
+        // recompose on each frame the button slides down with the keyboard.
         TodayLayer(
-            open = ui.todayOpen,
-            origin = ui.todayOrigin,
+            isOpen = { ui.todayOpen },
+            origin = { ui.todayOrigin },
             hiddenApps = settingsState.hiddenApps,
             recentSearches = distinctRecents,
             onClose = { ui.todayOpen = false },

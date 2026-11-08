@@ -57,6 +57,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -176,22 +177,26 @@ private const val SUNSET = "Sunset"
 private const val CLOSE_MS = 380
 
 /**
- * The Today page over the search panel, opening out of its button in the search bar ([origin], in the window's
- * coordinates) as a growing circle and closing back into it (at once with animations off). Back closes it.
- * [recentSearches] feed Pick Up Where You Left Off, whose cards search again with [onSearch].
+ * The Today page over the search panel, open while [isOpen], opening out of its button in the search bar ([origin], in
+ * the window's coordinates) as a growing circle and closing back into it (at once with animations off). Back closes it.
+ * [recentSearches] feed Pick Up Where You Left Off, whose cards search again with [onSearch]. [isOpen] and [origin] are
+ * read here, the origin only as the circle is drawn, so the button moving doesn't recompose the screen around it.
  */
 @Composable
 internal fun TodayLayer(
-    open: Boolean,
-    origin: Offset,
+    isOpen: () -> Boolean,
+    origin: () -> Offset,
     hiddenApps: Set<String>,
     recentSearches: List<String>,
     onClose: () -> Unit,
     onSearch: (String) -> Unit,
     onOpenSettings: () -> Unit
 ) {
+    val open = isOpen()
     val animate by rememberAnimationsEnabled()
     val reveal = remember { Animatable(if (open) 1f else 0f) }
+    // Whether any of the circle shows, so closing recomposes once at its end rather than on every frame.
+    val revealed by remember { derivedStateOf { reveal.value > 0f } }
     var layerTopLeft by remember { mutableStateOf(Offset.Zero) }
 
     // The weather and the day's photo are read while the search is open with the Discover Overlay on, so the page has
@@ -230,12 +235,13 @@ internal fun TodayLayer(
     BackHandler(enabled = open) { onClose() }
 
     Box(Modifier.fillMaxSize().onGloballyPositioned { layerTopLeft = it.positionInRoot() }) {
-        if (open || reveal.value > 0f) {
+        if (open || revealed) {
             Box(
                 Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        val center = if (origin != Offset.Unspecified) origin - layerTopLeft else Offset(size.width * 0.1f, size.height - 40.dp.toPx())
+                        val from = origin()
+                        val center = if (from != Offset.Unspecified) from - layerTopLeft else Offset(size.width * 0.1f, size.height - 40.dp.toPx())
                         val far = hypot(maxOf(center.x, size.width - center.x), maxOf(center.y, size.height - center.y))
                         shape = CircleReveal(center, far * reveal.value)
                         clip = true

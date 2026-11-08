@@ -53,6 +53,14 @@ private fun drawableToBitmap(drawable: Drawable): Bitmap {
     return bitmap
 }
 
+/**
+ * [icon] as one bitmap of at most [MAX_ICON_PX] per side, the size themed icons are kept at, for an app list that is
+ * held while the process lives. A loaded adaptive icon keeps every layer decoded at full size (about 640 KB an app on
+ * a 480 dpi screen) even in a process that never shows a screen; this keeps about 150 KB.
+ */
+fun compactAppIcon(icon: Drawable, resources: android.content.res.Resources): Drawable =
+    runCatching { BitmapDrawable(resources, drawableToBitmap(icon)) }.getOrDefault(icon)
+
 /** An app icon ready to draw; monochrome icons are tinted to the theme. */
 data class AppIconResult(val bitmap: ImageBitmap, val isMonochrome: Boolean)
 

@@ -10,6 +10,7 @@ import android.provider.CalendarContract
 import android.provider.ContactsContract
 import android.provider.MediaStore
 import androidx.annotation.VisibleForTesting
+import com.pixel.intelligentsearch.core.ui.compactAppIcon
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -196,7 +197,7 @@ object SystemDataProvider {
                     try {
                         val label = it.loadLabel(pm).toString()
                         val packageName = it.activityInfo.packageName
-                        val icon = it.loadIcon(pm)
+                        val icon = compactAppIcon(it.loadIcon(pm), context.resources)
                         mergedMap[packageName] = AppItem(
                             name = label,
                             packageName = packageName,
@@ -270,7 +271,7 @@ object SystemDataProvider {
                     }
                     val label = pm.getApplicationLabel(appInfo).toString()
                     val packageName = stat.packageName
-                    val icon = pm.getApplicationIcon(appInfo)
+                    val icon = compactAppIcon(pm.getApplicationIcon(appInfo), context.resources)
                     recentApps.add(
                         AppItem(
                             name = label,

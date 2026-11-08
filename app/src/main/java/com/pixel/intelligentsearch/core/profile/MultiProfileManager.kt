@@ -20,6 +20,7 @@ import android.util.Log
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ProfileType
 import com.pixel.intelligentsearch.core.data.SystemDataProvider
+import com.pixel.intelligentsearch.core.ui.compactAppIcon
 import com.pixel.intelligentsearch.core.ui.evictThemedAppIcon
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -204,7 +205,7 @@ class MultiProfileManager @Inject constructor(
                     val activityName = activity.componentName.className
 
                     // getBadgedIcon already applies the profile badge; badging it again would draw two badges.
-                    val badgedIcon: Drawable = activity.getBadgedIcon(0)
+                    val badgedIcon: Drawable = compactAppIcon(activity.getBadgedIcon(0), appContext.resources)
 
                     appList.add(
                         AppItem(

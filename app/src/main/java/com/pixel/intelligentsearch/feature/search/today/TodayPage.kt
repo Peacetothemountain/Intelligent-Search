@@ -59,8 +59,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -377,6 +380,9 @@ internal fun TodayPage(
     val warm = if (scheme.surface.luminance() < 0.5f) Color(0xFFF2B872) else Color(0xFFB5651D)
     val scroll = rememberScrollState()
     val density = LocalDensity.current
+    val animate by rememberAnimationsEnabled()
+    val parts = remember { PartsInTurn(all = !animate) }
+    LaunchedEffect(parts) { parts.composeInTurn() }
 
     Box(
         Modifier
@@ -402,29 +408,29 @@ internal fun TodayPage(
                 translationY = scroll.value * 0.35f
                 alpha = (1f - scroll.value / with(density) { 260.dp.toPx() }).coerceIn(0f, 1f)
             }) {
-                Enter(index++) { Greeting(now, weather, sunset, birthdaysToday, warm) }
+                Enter(index++, parts) { Greeting(now, weather, sunset, birthdaysToday, warm) }
             }
-            if (upNext != null) Enter(index++) { UpNextCard(upNext, now, trip, askLocation) }
-            if (upNextOn && laterToday.size + (if (sunset != null) 1 else 0) >= 2) Enter(index++) { RestOfDay(laterToday, now, sunset) }
-            if (weather != null && weather.hours.size >= 3) Enter(index++) { WeatherAhead(weather) }
+            if (upNext != null) Enter(index++, parts) { UpNextCard(upNext, now, trip, askLocation) }
+            if (upNextOn && laterToday.size + (if (sunset != null) 1 else 0) >= 2) Enter(index++, parts) { RestOfDay(laterToday, now, sunset) }
+            if (weather != null && weather.hours.size >= 3) Enter(index++, parts) { WeatherAhead(weather) }
             if (timer != null || alarm != null || delivery != null) {
-                Enter(index++) { TimerAlarmTiles(timer, alarm?.let { GlanceItem.Alarm(it) }, delivery, now) }
+                Enter(index++, parts) { TimerAlarmTiles(timer, alarm?.let { GlanceItem.Alarm(it) }, delivery, now) }
             }
-            snapshot.media?.let { media -> Enter(index++) { NowPlaying(media) } }
-            if (catchUpOn && catchUp.isNotEmpty()) Enter(index++) { CatchUp(catchUp, now) }
-            if (controlsOn) Enter(index++) { QuickControls(sources.controls) }
-            if (phoneOn) Enter(index++) { PhoneToday(sources, active) }
-            if (leftOffOn && recentSearches.isNotEmpty()) Enter(index++) { LeftOff(recentSearches.take(6), onSearch) }
+            snapshot.media?.let { media -> Enter(index++, parts) { NowPlaying(media) } }
+            if (catchUpOn && catchUp.isNotEmpty()) Enter(index++, parts) { CatchUp(catchUp, now) }
+            if (controlsOn) Enter(index++, parts) { QuickControls(sources.controls) }
+            if (phoneOn) Enter(index++, parts) { PhoneToday(sources, active) }
+            if (leftOffOn && recentSearches.isNotEmpty()) Enter(index++, parts) { LeftOff(recentSearches.take(6), onSearch) }
             if (extrasOn) {
-                Enter(index++) { WordOfTheDay(wordOfTheDay(today), onSearch) }
+                Enter(index++, parts) { WordOfTheDay(wordOfTheDay(today), onSearch) }
                 val countdown = remember(today) { sources.countdown(today) }
-                Enter(index++) { YearTiles(today, countdown, memory, askPhotos) }
+                Enter(index++, parts) { YearTiles(today, countdown, memory, askPhotos) }
             } else if (memory != null) {
                 // On This Day has its own switch, so its photo shows without Word of the Day and Countdown.
-                Enter(index++) { YearTiles(today, null, memory) }
+                Enter(index++, parts) { YearTiles(today, null, memory) }
             }
             if (alarmTomorrow != null || tomorrowWeather != null || tomorrowEvent != null) {
-                Enter(index) { Tomorrow(today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather, tomorrowEvent) }
+                Enter(index, parts) { Tomorrow(today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather, tomorrowEvent) }
             }
         }
       }
@@ -471,21 +477,50 @@ private fun rememberTodaySnapshot(hiddenApps: Set<String>, active: Boolean): Gla
 }
 
 /**
+ * Which of the page's parts have been built so far: one more on each frame as the page opens, the greeting first, so
+ * no single frame builds the whole page. Each part shows only after its turn in [Enter] (80 ms and more), so none is
+ * seen late. With animations off, [all] of them are built at once, as the page shows at once.
+ */
+@Stable
+private class PartsInTurn(all: Boolean) {
+    var built by mutableIntStateOf(if (all) Int.MAX_VALUE else 1)
+        private set
+
+    suspend fun composeInTurn() {
+        while (built < IN_TURN) {
+            withFrameNanos { }
+            built++
+        }
+        built = Int.MAX_VALUE
+    }
+
+    private companion object {
+        /** Frames after which any parts left are built together; the page has 13 parts at most. */
+        const val IN_TURN = 14
+    }
+}
+
+/**
  * Each part springs up into place as it comes into view: those on screen as the page opens one after another, 70 ms
- * apart, the rest as the user scrolls to them (at once with animations off).
+ * apart, the rest as the user scrolls to them (at once with animations off). Its content is built on its turn in
+ * [parts]; until then it takes no space.
  */
 @Composable
-private fun Enter(index: Int, content: @Composable () -> Unit) {
+private fun Enter(index: Int, parts: PartsInTurn, content: @Composable () -> Unit) {
     val animate by rememberAnimationsEnabled()
     val shown = remember { Animatable(if (animate) 0f else 1f) }
     var seenAt by remember { mutableLongStateOf(0L) }
     val opened = remember { System.currentTimeMillis() }
+    val built by remember(index) { derivedStateOf { index < parts.built } }
+    // How long after the page opened this part was built, which its turn below doesn't wait again.
+    val late = remember(built) { if (built) System.currentTimeMillis() - opened else 0L }
     LaunchedEffect(seenAt) {
         if (!animate || seenAt == 0L) return@LaunchedEffect
         // On screen from the start: in turn. Scrolled to later: at once.
-        if (seenAt - opened < 400) delay(80L + index * 70L)
+        if (seenAt - opened - late < 400) delay((80L + index * 70L - late).coerceAtLeast(0L))
         shown.animateTo(1f, arriveSpring())
     }
+    if (!built) return
     val density = LocalDensity.current
     Box(
         Modifier

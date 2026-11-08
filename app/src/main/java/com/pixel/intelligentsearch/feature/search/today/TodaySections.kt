@@ -132,6 +132,7 @@ import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.VolumeUp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.State
 
 /** The notification index while [enabled]: Catch Up and the delivery tile read it. */
 @Composable
@@ -197,9 +198,10 @@ internal fun DeliveryTile(delivery: TodayDelivery, modifier: Modifier) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val animate by rememberAnimationsEnabled()
-    val pulse = if (animate && delivery.step < 3) {
-        rememberInfiniteTransition(label = "delivery").animateFloat(0f, 1f, infiniteRepeatable(tween(1800), RepeatMode.Restart), label = "pulse").value
-    } else 0f
+    // Read only where the dot is drawn, so the pulse redraws the dots and never rebuilds the tile.
+    val pulse: State<Float>? = if (animate && delivery.step < 3) {
+        rememberInfiniteTransition(label = "delivery").animateFloat(0f, 1f, infiniteRepeatable(tween(1800), RepeatMode.Restart), label = "pulse")
+    } else null
     Column(
         modifier
             .heightIn(min = 108.dp)
@@ -220,9 +222,10 @@ internal fun DeliveryTile(delivery: TodayDelivery, modifier: Modifier) {
             val r = 5.dp.toPx()
             val y = size.height / 2
             val xs = (0..2).map { r + it * (size.width - 2 * r) / 2f }
+            val beat = pulse?.value ?: 0f
             for (i in 0 until 2) drawLine(if (i < current) on else off, Offset(xs[i], y), Offset(xs[i + 1], y), strokeWidth = 3.dp.toPx())
             xs.forEachIndexed { i, x ->
-                if (i == current && pulse > 0f) drawCircle(on.copy(alpha = 0.5f * (1 - pulse)), r + 9.dp.toPx() * pulse, Offset(x, y))
+                if (i == current && beat > 0f) drawCircle(on.copy(alpha = 0.5f * (1 - beat)), r + 9.dp.toPx() * beat, Offset(x, y))
                 drawCircle(if (i <= current) on else off, r, Offset(x, y))
             }
         }
@@ -357,10 +360,11 @@ internal fun WeatherAhead(report: WeatherReport) {
     // The fill under the line fades in on its own while the line is still drawing, as in the approved design.
     val filled = rememberDrawIn(delayMs = 700, durationMs = 800, start = seen, easing = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f))
     val animate by rememberAnimationsEnabled()
-    // Once drawn, the line floats: each hour rises and falls a little in turn, a slow wave every 5 seconds.
-    val wave = if (animate && shown >= 1f) {
+    // Once drawn, the line floats: each hour rises and falls a little in turn, a slow wave every 5 seconds. Read only
+    // in the drawing, so the wave redraws the curve and never rebuilds the card.
+    val wave: State<Float>? = if (animate && shown >= 1f) {
         val transition = rememberInfiniteTransition(label = "float")
-        transition.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(5_000, easing = LinearEasing)), label = "wave").value
+        transition.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(5_000, easing = LinearEasing)), label = "wave")
     } else null
     val measurer = rememberTextMeasurer()
     val dark = scheme.surface.luminance() < 0.5f
@@ -430,8 +434,9 @@ internal fun WeatherAhead(report: WeatherReport) {
             val bottom = 60.dp.toPx()
             val step = if (hours.size > 1) (right - left) / (hours.size - 1) else 0f
             val lift = 3.dp.toPx()
+            val phase = wave?.value
             val points = temps.mapIndexed { i, t ->
-                val float = if (wave != null) kotlin.math.sin(wave + i * 0.8f) * lift else 0f
+                val float = if (phase != null) kotlin.math.sin(phase + i * 0.8f) * lift else 0f
                 Offset(left + i * step, bottom - ((t - lo) / (hi - lo)).toFloat() * (bottom - top) + float)
             }
             val line = Path().apply {

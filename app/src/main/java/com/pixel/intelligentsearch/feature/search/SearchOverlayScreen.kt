@@ -1044,23 +1044,26 @@ fun SearchOverlayScreen(
                 } else {
                     searchColumn(Modifier.fillMaxSize())
                 }
-                // Today, opened from its button in the search bar, over the search.
-                TodayLayer(
-                    open = ui.todayOpen,
-                    origin = ui.todayOrigin,
-                    hiddenApps = settingsState.hiddenApps,
-                    recentSearches = distinctRecents,
-                    onClose = { ui.todayOpen = false },
-                    onSearch = { query ->
-                        ui.todayOpen = false
-                        textFieldValue = androidx.compose.ui.text.input.TextFieldValue(query, androidx.compose.ui.text.TextRange(query.length))
-                        hasStartedTyping = true
-                        viewModel.onQueryChanged(query)
-                    },
-                    onOpenSettings = { onOpenSettings("appearance") }
-                )
             }
         }
+
+        // Today, opened from its button in the search bar, over the search. Edge to edge, outside the search's
+        // keyboard padding: it pads for the system bars itself and has no field, so the keyboard leaving as it
+        // opens doesn't resize it.
+        TodayLayer(
+            open = ui.todayOpen,
+            origin = ui.todayOrigin,
+            hiddenApps = settingsState.hiddenApps,
+            recentSearches = distinctRecents,
+            onClose = { ui.todayOpen = false },
+            onSearch = { query ->
+                ui.todayOpen = false
+                textFieldValue = androidx.compose.ui.text.input.TextFieldValue(query, androidx.compose.ui.text.TextRange(query.length))
+                hasStartedTyping = true
+                viewModel.onQueryChanged(query)
+            },
+            onOpenSettings = { onOpenSettings("appearance") }
+        )
 
         AnimatedVisibility(
             visible = showHistoryClearedSnackbar,

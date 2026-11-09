@@ -125,8 +125,11 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.runtime.mutableIntStateOf
 import com.pixel.intelligentsearch.core.ui.icons.filled.LocalShipping
-import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.VolumeUp
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 
@@ -811,24 +814,67 @@ internal fun LeftOff(searches: List<String>, onSearch: (String) -> Unit) {
 
 /**
  * Today's word, what kind of word it is and what it means, on the page's own card color with the word in the accent
- * color. Hear It says it aloud (Android's text to speech), Look it up searches its definition, and a tap anywhere else
- * on the card makes the letters hop.
+ * color. Hear It says it aloud in Google's iob voice ([WordVoice]) while the voice nebula floats up around the mark
+ * ([NebulaPainter]) and moves with the voice, resting a moment after the word before it settles away. Look it up
+ * searches its definition, and a tap anywhere else on the card makes the letters hop.
  */
 @Composable
 internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
-    var speech by remember { mutableStateOf<android.speech.tts.TextToSpeech?>(null) }
-    var speaking by remember { mutableStateOf(false) }
+    val voice = remember { WordVoice(context.applicationContext) }
     var hops by remember { mutableIntStateOf(0) }
-    DisposableEffect(Unit) { onDispose { speech?.shutdown() } }
-    // The ring turns only while the engine has the word: a speak it refuses never calls back to stop it.
-    fun say(tts: android.speech.tts.TextToSpeech) {
-        speaking = true
-        if (tts.speak(word.word, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "word") != android.speech.tts.TextToSpeech.SUCCESS) {
-            speaking = false
+    DisposableEffect(voice) { onDispose { voice.release() } }
+    val animations by rememberAnimationsEnabled()
+    // Up from the tap, at rest a moment after the word, then away; the loop only runs while it shows.
+    var shown by remember { mutableStateOf(false) }
+    var awake by remember { mutableStateOf(false) }
+    LaunchedEffect(voice.speaking) {
+        if (voice.speaking) {
+            awake = true
+            shown = true
+        } else if (awake) {
+            kotlinx.coroutines.delay(NEBULA_REST_MS)
+            shown = false
+            kotlinx.coroutines.delay(NEBULA_FADE_MS)
+            awake = false
         }
     }
+    val appear = androidx.compose.animation.core.animateFloatAsState(
+        if (shown) 1f else 0f,
+        if (animations) spring(dampingRatio = 0.7f, stiffness = 220f) else snap(),
+        label = "word_nebula"
+    )
+    // The nebula and the mark are drawn over the whole card, at the mark's place: the card clips what it holds to its
+    // shape, and the nebula's glow spills softly past its edge. Read only while drawing, so they never rebuild the card.
+    val clock: LoopReader? = if (awake || voice.speaking) rememberLoop(NEBULA_LOOP_MS, LinearEasing) else null
+    val nebula = remember { NebulaPainter() }
+    val mark = remember { VoiceMark() }
+    val spot = remember { MarkSpot() }
+    val sound = remember { FloatArray(SpeechEnvelope.VALUES) }
+    val hue = remember(scheme.primary) { hueOf(scheme.primary) }
+    val dark = scheme.surface.luminance() < 0.5f
+    val markColor = scheme.onSurface
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .onPlaced { spot.card = it }
+            .drawWithContent {
+                drawContent()
+                val at = spot.center() ?: return@drawWithContent
+                val seconds = (clock?.invoke() ?: 0f) * NEBULA_LOOP_MS / 1000f
+                val talking = voice.speaking
+                if (clock != null && appear.value > 0.01f) {
+                    voice.sample(sound, seconds)
+                    drawIntoCanvas {
+                        nebula.draw(it.nativeCanvas, at.x, at.y, NEBULA_SIZE.toPx(), seconds, sound, talking, dark, hue, animations, appear.value)
+                    }
+                }
+                translate(at.x - center.x, at.y - center.y) {
+                    mark.draw(this, MARK_SIZE.toPx(), markColor, talking, animations, seconds)
+                }
+            }
+    ) {
     Column(
         Modifier
             .fillMaxWidth()
@@ -864,62 +910,43 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
                     )
                 }
             }
-            // Read only where the ring is drawn, so it redraws the ring and never rebuilds the card.
-            val ripple: LoopReader? = if (speaking) rememberLoop(1_000) else null
-            val ring = scheme.primary
+            // Hear It's place and touch target; the mark itself is drawn over the card above.
             Box(
                 Modifier
                     .size(44.dp)
-                    .drawBehind {
-                        if (ripple != null) {
-                            val r = ripple()
-                            drawCircle(ring.copy(alpha = 1f - r), radius = size.minDimension / 2f * (1f + 0.35f * r), style = Stroke(2.dp.toPx()))
-                        }
-                    }
-                    .clip(CircleShape)
-                    .background(scheme.primaryContainer)
+                    .onPlaced { spot.mark = it }
                     .bouncyClickable(shape = CircleShape) {
-                        val ready = speech
-                        if (ready != null) {
-                            say(ready)
-                        } else {
-                            // A failed start can call back inside the constructor, before `made` is set: keep only an
-                            // engine that started, so the next tap tries again.
-                            var made: android.speech.tts.TextToSpeech? = null
-                            var failed = false
-                            made = android.speech.tts.TextToSpeech(context.applicationContext) { status ->
-                                val tts = made
-                                if (status != android.speech.tts.TextToSpeech.SUCCESS) {
-                                    failed = true
-                                    if (tts != null) {
-                                        tts.shutdown()
-                                        if (speech === tts) speech = null
-                                    }
-                                    return@TextToSpeech
-                                }
-                                if (tts == null) return@TextToSpeech
-                                tts.language = java.util.Locale.US
-                                tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
-                                    override fun onStart(utteranceId: String?) {}
-                                    override fun onDone(utteranceId: String?) { speaking = false }
-                                    @Deprecated("Deprecated in Java")
-                                    override fun onError(utteranceId: String?) { speaking = false }
-                                })
-                                say(tts)
-                            }
-                            if (failed) made.shutdown() else speech = made
-                        }
+                        voice.say(word.word)
                         hops++
                     }
-                    .semantics { contentDescription = "Hear It" },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.AutoMirrored.Outlined.VolumeUp, null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
-            }
+                    .semantics { contentDescription = "Hear It" }
+            )
         }
         Text(word.meaning, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface, modifier = Modifier.padding(top = 8.dp))
     }
+    }
 }
+
+/** Where Hear It sits inside the Word of the day card, kept from layout for drawing; not state, so it never recomposes. */
+private class MarkSpot {
+    var card: androidx.compose.ui.layout.LayoutCoordinates? = null
+    var mark: androidx.compose.ui.layout.LayoutCoordinates? = null
+
+    fun center(): Offset? {
+        val c = card ?: return null
+        val m = mark ?: return null
+        if (!c.isAttached || !m.isAttached) return null
+        return c.localPositionOf(m, Offset(m.size.width / 2f, m.size.height / 2f))
+    }
+}
+
+/** The nebula's square around the mark, the mark itself, and how long the nebula rests after the word and fades. */
+private val NEBULA_SIZE = 150.dp
+private val MARK_SIZE = 28.dp
+private const val NEBULA_REST_MS = 2_600L
+private const val NEBULA_FADE_MS = 700L
+/** The nebula's clock: a long, even loop read as seconds. */
+private const val NEBULA_LOOP_MS = 600_000
 
 /** The days until the next big holiday, and how far through the year today is, side by side at the taller one's height. */
 @Composable

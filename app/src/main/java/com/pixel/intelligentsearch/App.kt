@@ -55,6 +55,9 @@ class App : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Discover's widget reader runs in its own short-lived process; it needs none of the app's start-up work, and
+        // settings written from a second process could clash with the app's own.
+        if (getProcessName().endsWith(":reader")) return
         appListLocales = resources.configuration.locales
 
         setupStrictMode()

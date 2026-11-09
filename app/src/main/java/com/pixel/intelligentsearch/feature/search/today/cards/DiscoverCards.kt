@@ -1,0 +1,322 @@
+package com.pixel.intelligentsearch.feature.search.today.cards
+
+import android.content.ComponentName
+import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
+import kotlinx.coroutines.flow.StateFlow
+
+/*
+ * Discover's cards: every part of the page is a card the user can move, resize, give a Material shape, hide, and add
+ * to from an app's home-screen widget or a website. This file is the contract the page, the grid, the shaped
+ * renderer and the two readers share.
+ *
+ * NG Designs
+ */
+
+/** Columns across Discover's grid of square cells, as a launcher's widget grid. */
+internal const val GRID_COLUMNS = 4
+
+/** The most rows a card can take. */
+internal const val GRID_MAX_ROWS = 8
+
+/**
+ * What a card shows. The built-in kinds are the page's own parts; [APP] and [SITE] are added by the user. [shaped] kinds
+ * have a small design that re-forms around a Material shape when the card is about as tall as it is wide.
+ * [minNaturalColumns] is the narrowest the built-in design (as tall as its content) still reads well at.
+ */
+internal enum class CardKind(val key: String, val builtIn: Boolean, val shaped: Boolean, val label: String, val minNaturalColumns: Int) {
+    UP_NEXT("up_next", true, false, "Up next", 4),
+    REST_OF_DAY("rest_of_day", true, false, "Rest of your day", 4),
+    WEATHER("weather", true, true, "Weather ahead", 4),
+    TILES("tiles", true, true, "Timer and alarm", 4),
+    NOW_PLAYING("now_playing", true, true, "Now playing", 4),
+    CATCH_UP("catch_up", true, false, "Catch up", 4),
+    CONTROLS("controls", true, false, "Quick controls", 4),
+    PHONE("phone", true, true, "Your phone today", 4),
+    LEFT_OFF("left_off", true, false, "Pick up where you left off", 2),
+    WORD("word", true, true, "Word of the day", 2),
+    YEAR("year", true, true, "Countdown", 4),
+    TOMORROW("tomorrow", true, false, "Tomorrow", 2),
+    APP("app", false, true, "App", 1),
+    SITE("site", false, true, "Website", 1);
+
+    companion object {
+        fun of(key: String): CardKind? = entries.firstOrNull { it.key == key }
+
+        /** The built-in cards in today's page order: Discover's default layout. */
+        val PAGE_ORDER = listOf(UP_NEXT, REST_OF_DAY, WEATHER, TILES, NOW_PLAYING, CATCH_UP, CONTROLS, PHONE, LEFT_OFF, WORD, YEAR, TOMORROW)
+    }
+}
+
+/** How much of the grid a card takes. */
+@Immutable
+internal sealed interface CardSize {
+    val columns: Int
+
+    /** [columns] wide and as tall as its content: the built-in cards' own designs, as the page has always drawn them. */
+    data class Natural(override val columns: Int = GRID_COLUMNS) : CardSize
+
+    /** [columns] by [rows] square cells. */
+    data class Cells(override val columns: Int, val rows: Int) : CardSize
+}
+
+/** How a card draws at its size. */
+internal enum class CardMode {
+    /** The built-in design, as tall as its content. */
+    NATURAL,
+
+    /** The small design inside a Material shape. */
+    SHAPED,
+
+    /** A box design filling its cells (app and website cards wider than they are tall). */
+    BOX
+}
+
+/**
+ * The mode a card of [kind] draws in at [size]: shaped when the kind has a shaped design and the cells are about square
+ * (less than 1.5 times as wide as tall), the built-in design for built-in kinds otherwise, and the box design for the
+ * user's own cards otherwise.
+ */
+internal fun modeFor(kind: CardKind, size: CardSize): CardMode = when (size) {
+    is CardSize.Natural -> if (kind.builtIn) CardMode.NATURAL else CardMode.BOX
+    is CardSize.Cells -> when {
+        kind.shaped && size.columns < size.rows * 1.5f -> CardMode.SHAPED
+        kind.builtIn -> CardMode.NATURAL
+        else -> CardMode.BOX
+    }
+}
+
+/** The Material shapes a shaped card can take, by the names the layout stores. */
+internal val CARD_SHAPES = listOf(
+    "circle", "square", "cookie4", "cookie6", "cookie9", "cookie12", "clover4", "clover8",
+    "sunny", "verysunny", "softburst", "flower", "pentagon", "gem", "arch"
+)
+
+/**
+ * One card on the page. [id] is stable for the card's life. An [CardKind.APP] card holds its bound [widgetId] and the
+ * widget's [provider] (flattened component name); a [CardKind.SITE] card holds its https [url]. [private] cards are
+ * covered (never blurred) until tapped.
+ */
+@Immutable
+internal data class CardSpec(
+    val id: String,
+    val kind: CardKind,
+    val size: CardSize,
+    val shape: String = "circle",
+    val private: Boolean = false,
+    val widgetId: Int = 0,
+    val provider: String? = null,
+    val url: String? = null
+) {
+    val mode: CardMode get() = modeFor(kind, size)
+}
+
+/**
+ * The page's cards in reading order, and the built-in kinds the user hid (added back from Add card). Order is strict:
+ * each card takes the first free spot at or after the one before it, never an earlier gap.
+ */
+@Immutable
+internal data class DiscoverLayout(val cards: List<CardSpec>, val hidden: Set<CardKind> = emptySet()) {
+    companion object {
+        /** Today's page: every built-in part, full width, as tall as its content. */
+        val DEFAULT = DiscoverLayout(CardKind.PAGE_ORDER.map { CardSpec(id = it.key, kind = it, size = CardSize.Natural()) })
+    }
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// App cards, read from home-screen widgets
+
+/** Where an app card stands. */
+internal enum class AppCardState {
+    /** Fresh from the widget. */
+    READY,
+
+    /** Bound, first read on its way. */
+    UPDATING,
+
+    /** The last good values, kept because a later read couldn't be trusted (or the read failed); dimmed. */
+    STALE,
+
+    /** The widget wants a choice made in its app first. */
+    SETUP,
+
+    /** The app is gone; the card offers to remove itself. */
+    REMOVED,
+
+    /** The widget's app is in the work profile, which is paused. */
+    PAUSED
+}
+
+/** How the reader understood a widget. */
+internal enum class SnapLayout { HERO, LIST, MONTH, CLOCK }
+
+/** One row of a list widget: its [value] ("51,285.73"), its [name] ("Dow Jones") and a [change] ("-0.46%"), if any. */
+@Immutable
+internal data class SnapRow(val value: String, val name: String = "", val change: String? = null)
+
+/**
+ * What a widget shows, read into a few slots. All text is plain, stripped of control and direction characters and capped
+ * at 80 characters by the reader. A [HERO][SnapLayout.HERO] has its main [hero] text and, when that is a number, its
+ * [number] (and [from], the number before an update, so the card counts from old to new), [unit] and [decimals]; a
+ * [duration] number is minutes. A [LIST][SnapLayout.LIST] has a [title] and [rows]. A [MONTH][SnapLayout.MONTH] has the
+ * month's [title], today's [day] and [weekday] (1 Monday to 7 Sunday). A [CLOCK][SnapLayout.CLOCK] shows the time now in
+ * the phone's format. [labels] are the widget's other lines, most important first.
+ */
+@Immutable
+internal data class SnapModel(
+    val layout: SnapLayout,
+    val hero: String = "",
+    val number: Double? = null,
+    val from: Double? = null,
+    val unit: String = "",
+    val decimals: Int = 0,
+    val duration: Boolean = false,
+    val labels: List<String> = emptyList(),
+    val title: String = "",
+    val rows: List<SnapRow> = emptyList(),
+    val day: Int = 0,
+    val weekday: Int = 0
+)
+
+/**
+ * An app card's data: the widget [widgetId] of [packageName] ([appLabel], the widget's own [widgetLabel]), the card's
+ * [accent] color (ARGB, from the app's icon), where it stands, and the last good [model] (kept while [state] is
+ * [AppCardState.STALE]), read at [updatedAt] (wall clock, 0 before the first good read).
+ */
+@Immutable
+internal data class AppCardData(
+    val widgetId: Int,
+    val packageName: String,
+    val appLabel: String,
+    val widgetLabel: String,
+    val accent: Int,
+    val state: AppCardState,
+    val model: SnapModel?,
+    val updatedAt: Long
+)
+
+/** A widget the user can make a card from: [provider] of [packageName], named [appLabel] and [widgetLabel]. */
+@Immutable
+internal data class WidgetChoice(
+    val provider: ComponentName,
+    val packageName: String,
+    val appLabel: String,
+    val widgetLabel: String,
+    val accent: Int,
+    val icon: ImageBitmap?
+)
+
+/**
+ * Discover's app cards. Widgets are bound to a host that never shows them; their updates are read in a separate,
+ * short-lived process ([refresh]) into [SnapModel]s, which are cached app-private, out of every backup, and deleted when
+ * the card is removed or its app uninstalled. A widget's own buttons (its PendingIntents) never run from Discover: a
+ * tap opens the app through the safe launch path.
+ */
+internal interface WidgetCards {
+    /** Every bound card's data by widget id, from the cache at once and updated as reads come in. */
+    val cards: StateFlow<Map<Int, AppCardData>>
+
+    /** Reads [widgetIds] again in the reader process; returns at once. */
+    fun refresh(widgetIds: Collection<Int>)
+
+    /** The widgets that can become cards: text-built widgets of apps in this profile, without static and picture-only ones. */
+    suspend fun choices(): List<WidgetChoice>
+
+    /** Unbinds [widgetId] and deletes everything read from it. */
+    fun remove(widgetId: Int)
+
+    /**
+     * Unbinds every widget that isn't one of [widgetIds] (the layout's) and deletes what was read from it, leaving
+     * widgets an add in progress holds.
+     */
+    fun keepOnly(widgetIds: Set<Int>)
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Website cards
+
+/**
+ * A website card's data: the page at [url] on [domain], with its [title], [description] and header [image] read once,
+ * signed out, and again daily. [accent] (ARGB) is taken from the image, or from the domain when there is none.
+ * [failed] when the last read failed (the card keeps what it had, dimmed, as an app card's stale state).
+ */
+@Immutable
+internal data class SiteData(
+    val url: String,
+    val domain: String,
+    val title: String,
+    val description: String,
+    val image: ImageBitmap?,
+    val accent: Int,
+    val readAt: Long,
+    val failed: Boolean = false
+)
+
+/**
+ * Discover's website cards. A page is read over https only, with no cookies and no scripts, only as far as its header,
+ * within size and time limits, and never from a local or private address. What is read is cached app-private, out of
+ * every backup, and deleted with the card.
+ */
+internal interface SiteCards {
+    /** Every site card's data by url. */
+    val sites: StateFlow<Map<String, SiteData>>
+
+    /** Reads [urls] again when their last read is a day old; returns at once. */
+    fun refresh(urls: Collection<String>)
+
+    /**
+     * Reads what the user typed ("weekend.recipes", "https://example.com/page") as a site card: the normalized https
+     * url and its data, or a failure whose message says what to do, in the app's plain words.
+     */
+    suspend fun add(input: String): Result<SiteData>
+
+    /** Forgets [url] and deletes what was read from it. */
+    fun remove(url: String)
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The shaped designs' data
+
+/**
+ * What a shaped card draws: one per kind with a shaped design. The page fills these from the same sources the
+ * built-in designs read; app and site cards carry their reader's data.
+ */
+@Immutable
+internal sealed interface ShapedContent {
+    /** The weather now: [temperature] (with its degree sign), its [icon], the hours ahead ([hours] temperatures with [rain] flags), and a [headline] such as "Rain at 8 PM". */
+    data class Weather(val temperature: String, val icon: ImageVector, val headline: String, val hours: List<Int>, val rain: List<Boolean>) : ShapedContent
+
+    /** A running timer or stopwatch: its [reading] now ("4:59"), its [label], and how far through the minute it is ([sweep], 0 to 1). */
+    data class Timer(val reading: String, val label: String, val sweep: Float) : ShapedContent
+
+    /** The next alarm at [time] ("7:00"), on [day] ("Tomorrow"), [until] ("in 16 hr 22 min"); [fraction] of the way from now round the dial. */
+    data class Alarm(val time: String, val day: String, val until: String, val fraction: Float) : ShapedContent
+
+    /** A package on its way: [headline] ("Arriving today") and [detail]. */
+    data class Delivery(val headline: String, val detail: String) : ShapedContent
+
+    /** What is playing: [title], [artist], its [artwork], [progress] (0 to 1, null when unknown) and whether it is [playing]. */
+    data class Media(val title: String, val artist: String, val artwork: ImageBitmap?, val progress: Float?, val playing: Boolean) : ShapedContent
+
+    /** The battery at [level] percent, [charging] or not, with a [detail] ("Full by 4:10 PM"). */
+    data class Battery(val level: Int, val charging: Boolean, val detail: String) : ShapedContent
+
+    /** The word of the day: [word], its [kind] ("adjective") and [meaning]. */
+    data class Word(val word: String, val kind: String, val meaning: String) : ShapedContent
+
+    /** [days] until [name]. */
+    data class Countdown(val days: Int, val name: String) : ShapedContent
+
+    /** A photo from the past: its [photo], [title] ("3 years ago") and [detail]. */
+    data class Memory(val photo: ImageBitmap?, val title: String, val detail: String) : ShapedContent
+
+    /** How far through the [year] the day is: [percent], "Day [day] of [days]". */
+    data class Year(val year: Int, val percent: Int, val day: Int, val days: Int) : ShapedContent
+
+    /** An app card. [icon] is the app's icon for states that show it. */
+    data class App(val data: AppCardData, val icon: ImageBitmap?) : ShapedContent
+
+    /** A website card. */
+    data class Site(val data: SiteData) : ShapedContent
+}

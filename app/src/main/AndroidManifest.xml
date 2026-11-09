@@ -510,6 +510,13 @@
             </intent-filter>
         </service>
 
+        <!-- Discover's app cards: reads the widgets the user added in its own short-lived process, so widget views and
+             their memory never enter the app's. Only this app can bind it; the process ends when it is unbound. -->
+        <service
+            android:name=".feature.search.today.cards.widget.WidgetReaderService"
+            android:process=":reader"
+            android:exported="false" />
+
         <!-- Runs the scheduled jobs (AppJobs.kt); only JobScheduler may bind it. -->
         <service
             android:name="com.pixel.intelligentsearch.AppJobService"

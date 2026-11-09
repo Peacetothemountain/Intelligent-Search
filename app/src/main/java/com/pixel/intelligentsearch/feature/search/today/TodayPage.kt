@@ -138,6 +138,28 @@ import com.pixel.intelligentsearch.feature.search.rememberGlanceNow
 import com.pixel.intelligentsearch.feature.search.rememberNotificationAccessGranted
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.ImageBitmap
+import com.pixel.intelligentsearch.feature.search.today.cards.AppCardState
+import com.pixel.intelligentsearch.feature.search.today.cards.CardKind
+import com.pixel.intelligentsearch.feature.search.today.cards.CardMode
+import com.pixel.intelligentsearch.feature.search.today.cards.CardSpec
+import com.pixel.intelligentsearch.feature.search.today.cards.ShapedContent
+import com.pixel.intelligentsearch.feature.search.today.cards.grid.DiscoverEditChrome
+import com.pixel.intelligentsearch.feature.search.today.cards.grid.DiscoverGrid
+import com.pixel.intelligentsearch.feature.search.today.cards.grid.cardLayoutStore
+import com.pixel.intelligentsearch.feature.search.today.cards.grid.rememberDiscoverEditState
+import com.pixel.intelligentsearch.feature.search.today.cards.shape.AppCardBox
+import com.pixel.intelligentsearch.feature.search.today.cards.shape.ProvideAmbientBudget
+import com.pixel.intelligentsearch.feature.search.today.cards.shape.ShapedCard
+import com.pixel.intelligentsearch.feature.search.today.cards.shape.SiteCardBox
+import com.pixel.intelligentsearch.feature.search.today.cards.site.siteCards
+import com.pixel.intelligentsearch.feature.search.today.cards.widget.appCardIcon
+import com.pixel.intelligentsearch.feature.search.today.cards.widget.rememberWidgetAdder
+import com.pixel.intelligentsearch.feature.search.today.cards.widget.rememberWidgetSetup
+import com.pixel.intelligentsearch.feature.search.today.cards.widget.widgetCards
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -397,6 +419,68 @@ internal fun TodayPage(
     val parts = remember { PartsInTurn(all = !animate) }
     LaunchedEffect(parts) { parts.composeInTurn() }
 
+    // The cards: the layout the user made, the app cards read from widgets and the website cards.
+    val cardStore = remember(context) { cardLayoutStore(context.applicationContext) }
+    val cardLayout by cardStore.layout.collectAsState()
+    val editState = rememberDiscoverEditState()
+    val widgets = remember(context) { widgetCards(context.applicationContext) }
+    val apps by widgets.cards.collectAsState()
+    val siteSource = remember(context) { siteCards(context.applicationContext) }
+    val sites by siteSource.sites.collectAsState()
+    // Read again when the page opens or a card is added, not on every move or resize: each read wakes the widgets' apps.
+    val widgetIds = remember(cardLayout.cards) { cardLayout.cards.filter { it.kind == CardKind.APP }.map { it.widgetId }.toSet() }
+    val siteUrls = remember(cardLayout.cards) { cardLayout.cards.mapNotNull { it.url }.toSet() }
+    LaunchedEffect(active, widgetIds, siteUrls) {
+        if (!active) return@LaunchedEffect
+        if (widgetIds.isNotEmpty()) widgets.refresh(widgetIds)
+        if (siteUrls.isNotEmpty()) siteSource.refresh(siteUrls)
+    }
+    // Widgets bound for cards that no longer exist (an add left halfway, a card removed while the app was closing) are
+    // let go, with what was read from them, once the saved layout is known.
+    LaunchedEffect(cardStore.isLoaded, widgetIds) {
+        if (cardStore.isLoaded) widgets.keepOnly(widgetIds)
+    }
+    val appPackages = remember(apps) { apps.values.map { it.packageName }.toSet() }
+    val appIcons by produceState(emptyMap<String, ImageBitmap?>(), appPackages) {
+        value = appPackages.associateWith { appCardIcon(context, it) }
+    }
+    // The battery, read here only for a shaped phone card (the phone card's own design reads it for itself).
+    val phoneShaped = cardLayout.cards.any { it.kind == CardKind.PHONE && it.mode == CardMode.SHAPED }
+    val battery = remember(sources, active && phoneShaped) {
+        if (active && phoneShaped) sources.battery() else kotlinx.coroutines.flow.flowOf(null)
+    }.collectAsState(initial = null).value
+    // Private cards show for a few seconds after a tap, then cover again.
+    var revealed by remember { mutableStateOf(emptySet<String>()) }
+    val scope = rememberCoroutineScope()
+    fun reveal(spec: CardSpec) {
+        revealed = revealed + spec.id
+        scope.launch {
+            delay(PRIVATE_SHOWN_MS)
+            revealed = revealed - spec.id
+        }
+    }
+    fun removeCard(spec: CardSpec) {
+        cardStore.edit { now -> now.copy(cards = now.cards.filterNot { it.id == spec.id }) }
+        forgetCard(spec, cardStore.layout.value, widgets, siteSource)
+    }
+    val setUpWidget = rememberWidgetSetup()
+    val addWidget = rememberWidgetAdder(
+        onAdded = { id, provider ->
+            cardStore.edit { now -> now.copy(cards = now.cards + newAppCard(id, provider)) }
+        },
+        onFailed = { message -> android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show() }
+    )
+    // A tap on a shaped or box card: a private card shows itself first; an app card that needs a choice opens it.
+    fun Modifier.cardTap(spec: CardSpec, content: ShapedContent, onSearch: (String) -> Unit, reveal: (CardSpec) -> Unit, remove: (CardSpec) -> Unit): Modifier =
+        this.bouncyClickable {
+            when {
+                spec.private && spec.id !in revealed -> reveal(spec)
+                content is ShapedContent.App && content.data.state == AppCardState.REMOVED -> remove(spec)
+                content is ShapedContent.App && content.data.state == AppCardState.SETUP -> setUpWidget(content.data.widgetId)
+                else -> openShapedCard(context, content, snapshot.media, timer, alarm, onSearch)
+            }
+        }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -406,7 +490,7 @@ internal fun TodayPage(
             .testTag(TODAY_PAGE_TAG)
     ) {
       LivingLight(warm)
-      ConfettiHost {
+      ConfettiHost { ProvideAmbientBudget {
         Column(
             Modifier
                 .fillMaxSize()
@@ -423,30 +507,106 @@ internal fun TodayPage(
             }) {
                 Enter(index++, parts) { Greeting(now, weather, sunset, birthdaysToday, warm) }
             }
-            if (upNext != null) Enter(index++, parts) { UpNextCard(upNext, now, trip, askLocation) }
-            if (upNextOn && laterToday.size + (if (sunset != null) 1 else 0) >= 2) Enter(index++, parts) { RestOfDay(laterToday, now, sunset) }
-            if (weather != null && weather.hours.size >= 3) Enter(index++, parts) { WeatherAhead(weather) }
-            if (timer != null || alarm != null || delivery != null) {
-                Enter(index++, parts) { TimerAlarmTiles(timer, alarm?.let { GlanceItem.Alarm(it) }, delivery, now) }
-            }
-            snapshot.media?.let { media -> Enter(index++, parts) { NowPlaying(media) } }
-            if (catchUpOn && catchUp.isNotEmpty()) Enter(index++, parts) { CatchUp(catchUp, now) }
-            if (controlsOn) Enter(index++, parts) { QuickControls(sources.controls) }
-            if (phoneOn) Enter(index++, parts) { PhoneToday(sources, active) }
-            if (leftOffOn && recentSearches.isNotEmpty()) Enter(index++, parts) { LeftOff(recentSearches.take(6), onSearch) }
-            if (extrasOn) {
-                Enter(index++, parts) { WordOfTheDay(wordOfTheDay(today), onSearch) }
-                val countdown = remember(today) { sources.countdown(today) }
-                Enter(index++, parts) { YearTiles(today, countdown, memory, askPhotos) }
-            } else if (memory != null) {
+            // Each part is a card the user can move, resize, shape and hide (long-press). Shown in the layout's order,
+            // the ones with something to show; the default layout is the page as it always was.
+            val countdown = remember(today, extrasOn) { if (extrasOn) sources.countdown(today) else null }
+            val word = remember(today) { wordOfTheDay(today) }
+            fun shown(spec: CardSpec): Boolean = when (spec.kind) {
+                CardKind.UP_NEXT -> upNext != null
+                CardKind.REST_OF_DAY -> upNextOn && laterToday.size + (if (sunset != null) 1 else 0) >= 2
+                CardKind.WEATHER -> weather != null && weather.hours.size >= 3
+                CardKind.TILES -> timer != null || alarm != null || delivery != null
+                CardKind.NOW_PLAYING -> snapshot.media != null
+                CardKind.CATCH_UP -> catchUpOn && catchUp.isNotEmpty()
+                CardKind.CONTROLS -> controlsOn
+                CardKind.PHONE -> phoneOn && (spec.mode != CardMode.SHAPED || battery != null)
+                CardKind.LEFT_OFF -> leftOffOn && recentSearches.isNotEmpty()
+                CardKind.WORD -> extrasOn
                 // On This Day has its own switch, so its photo shows without Word of the Day and Countdown.
-                Enter(index++, parts) { YearTiles(today, null, memory) }
+                CardKind.YEAR -> extrasOn || memory != null
+                CardKind.TOMORROW -> alarmTomorrow != null || tomorrowWeather != null || tomorrowEvent != null
+                CardKind.APP -> spec.widgetId in apps
+                CardKind.SITE -> spec.url in sites
             }
-            if (alarmTomorrow != null || tomorrowWeather != null || tomorrowEvent != null) {
-                Enter(index, parts) { Tomorrow(today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather, tomorrowEvent) }
+            // Each shown card's turn to be built and spring in, after the greeting's.
+            val turns = remember(cardLayout, upNext, weather, timer, alarm, delivery, snapshot.media, catchUp, recentSearches, memory, tomorrowWeather, battery, apps, sites) {
+                cardLayout.cards.filter(::shown).withIndex().associate { (i, spec) -> spec.id to index + i }
+            }
+
+            /** The design of a built-in card at its full, natural size: the page's own parts. */
+            @Composable
+            fun natural(kind: CardKind) {
+                when (kind) {
+                    CardKind.UP_NEXT -> upNext?.let { UpNextCard(it, now, trip, askLocation) }
+                    CardKind.REST_OF_DAY -> RestOfDay(laterToday, now, sunset)
+                    CardKind.WEATHER -> weather?.let { WeatherAhead(it) }
+                    CardKind.TILES -> TimerAlarmTiles(timer, alarm?.let { GlanceItem.Alarm(it) }, delivery, now)
+                    CardKind.NOW_PLAYING -> snapshot.media?.let { NowPlaying(it) }
+                    CardKind.CATCH_UP -> CatchUp(catchUp, now)
+                    CardKind.CONTROLS -> QuickControls(sources.controls)
+                    CardKind.PHONE -> PhoneToday(sources, active)
+                    CardKind.LEFT_OFF -> LeftOff(recentSearches.take(6), onSearch)
+                    CardKind.WORD -> WordOfTheDay(word, onSearch)
+                    CardKind.YEAR -> if (extrasOn) YearTiles(today, countdown, memory, askPhotos) else YearTiles(today, null, memory)
+                    CardKind.TOMORROW -> Tomorrow(today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather, tomorrowEvent)
+                    CardKind.APP, CardKind.SITE -> Unit
+                }
+            }
+
+            /** What a card draws in its shape, or null when it has nothing to draw one from. */
+            fun shapedContent(spec: CardSpec): ShapedContent? = when (spec.kind) {
+                CardKind.WEATHER -> weather?.let { shapedWeather(context, it, now) }
+                CardKind.TILES -> timer?.let { shapedTimer(it, now) } ?: alarm?.let { shapedAlarm(context, it, now) } ?: delivery?.let(::shapedDelivery)
+                CardKind.NOW_PLAYING -> snapshot.media?.let(::shapedMedia)
+                CardKind.PHONE -> battery?.let(::shapedBattery)
+                CardKind.WORD -> shapedWord(word)
+                CardKind.YEAR -> shapedYear(today, countdown, memory)
+                CardKind.APP -> apps[spec.widgetId]?.let { ShapedContent.App(it, appIcons[it.packageName]) }
+                CardKind.SITE -> sites[spec.url]?.let { ShapedContent.Site(it) }
+                else -> null
+            }
+            DiscoverGrid(
+                state = editState,
+                layout = cardLayout,
+                onLayoutChange = cardStore::update,
+                shown = ::shown,
+                fits = { spec, size -> cardFits(spec, size, shapedContent(spec), density) },
+                label = { spec -> cardLabel(spec, apps, sites) },
+                scroll = scroll
+            ) { spec, cardModifier ->
+                Enter(turns[spec.id] ?: index, parts) {
+                    when (spec.mode) {
+                        CardMode.NATURAL -> Box(cardModifier) { natural(spec.kind) }
+                        CardMode.SHAPED -> {
+                            val content = shapedContent(spec)
+                            if (content != null) {
+                                ShapedCard(
+                                    content = content,
+                                    shape = spec.shape,
+                                    private = spec.private,
+                                    revealed = spec.id in revealed,
+                                    modifier = cardModifier.cardTap(spec, content, onSearch, ::reveal, ::removeCard)
+                                )
+                            }
+                        }
+                        CardMode.BOX -> when (val content = shapedContent(spec)) {
+                            is ShapedContent.App -> AppCardBox(
+                                content.data, content.icon,
+                                modifier = cardModifier.cardTap(spec, content, onSearch, ::reveal, ::removeCard),
+                                private = spec.private, revealed = spec.id in revealed
+                            )
+                            is ShapedContent.Site -> SiteCardBox(
+                                content.data,
+                                modifier = cardModifier.cardTap(spec, content, onSearch, ::reveal, ::removeCard),
+                                private = spec.private, revealed = spec.id in revealed
+                            )
+                            else -> Box(cardModifier) { natural(spec.kind) }
+                        }
+                    }
+                }
             }
         }
-      }
+      } }
         // The page fades under the bar as it scrolls.
         Box(
             Modifier
@@ -459,6 +619,23 @@ internal fun TodayPage(
             onBack = onBack,
             onOpenSettings = onOpenSettings,
             modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding()
+        )
+        // Edit mode's bar, its drop target and its sheets, over the page.
+        DiscoverEditChrome(
+            state = editState,
+            layout = cardLayout,
+            onLayoutChange = cardStore::update,
+            widgetChoices = { widgets.choices() },
+            onAddWidget = addWidget,
+            onAddSite = { input ->
+                siteSource.add(input).mapCatching { data ->
+                    // The same page twice would share one reading, and removing either would blank the other.
+                    if (cardStore.layout.value.cards.any { it.url == data.url }) throw IllegalStateException(SITE_ALREADY_ADDED)
+                    cardStore.edit { now -> now.copy(cards = now.cards + newSiteCard(data.url)) }
+                }
+            },
+            onRemoveCustom = { forgetCard(it, cardStore.layout.value, widgets, siteSource) },
+            modifier = Modifier.fillMaxSize()
         )
     }
 }

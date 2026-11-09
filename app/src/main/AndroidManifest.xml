@@ -259,6 +259,18 @@
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
             android:exported="false" />
 
+        <!-- The search bar's voice search: a see-through layer over the home screen where Google's recognizer listens
+             behind the voice nebula, then Google's search opens. Gone from Recents and gone once left. -->
+        <activity
+            android:name="com.pixel.intelligentsearch.feature.widget.VoiceNebulaActivity"
+            android:theme="@style/Theme.IntelligentSearch.Overlay.WidgetLaunch"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
+            android:launchMode="singleTask"
+            android:taskAffinity="com.pixel.intelligentsearch.voicesearch"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:exported="false" />
+
         <!-- "Intelligent Search" in other apps' text selection menu and share sheet. Shows no window: it hands the
              cleaned text to the overlay and finishes. Always on: start-up re-enables it where an older version's
              Search from Selected Text switch turned it off. -->

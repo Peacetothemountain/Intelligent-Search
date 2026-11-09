@@ -32,6 +32,8 @@ class WidgetLaunchReceiver : BroadcastReceiver() {
         if (!homeIsPixelLauncher(context)) refreshWidgets(context)
         val overlay = target.component?.className.let { it != null && it in OVERLAY_ENTRIES }
         if (overlay) closeLeftoverOverlays(context)
+        // Where the tap came from, so the voice nebula can sit right above the bar.
+        if (target.sourceBounds == null) target.sourceBounds = intent.sourceBounds
         try {
             // The overlay brings its own entrance; Lens, voice and shortcuts open with Android's usual motion.
             target.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -74,8 +76,8 @@ class WidgetLaunchReceiver : BroadcastReceiver() {
         private const val EXTRA_TARGET = "com.pixel.intelligentsearch.extra.WIDGET_LAUNCH_TARGET"
         private const val PIXEL_LAUNCHER = "com.google.android.apps.nexuslauncher"
 
-        /** The activities the overlay opens as. */
-        private val OVERLAY_ENTRIES = setOf(MainActivity::class.java.name, SearchActivity::class.java.name, WidgetActivity::class.java.name)
+        /** The activities the overlay opens as, and the voice search's see-through layer, which brings its own entrance too. */
+        private val OVERLAY_ENTRIES = setOf(MainActivity::class.java.name, SearchActivity::class.java.name, WidgetActivity::class.java.name, VoiceNebulaActivity::class.java.name)
 
         /**
          * Whether the home screen is Pixel Launcher, which lets a broadcast tap start an activity (it sends widget taps
@@ -94,8 +96,16 @@ class WidgetLaunchReceiver : BroadcastReceiver() {
                 .putExtra(EXTRA_TARGET, target)
                 .setIdentifier(target.identifier)
                 .addFlags(Intent.FLAG_RECEIVER_FOREGROUND),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            PendingIntent.FLAG_UPDATE_CURRENT or tapFlags(target)
         )
+
+        /**
+         * Immutable, except the mic's tap: the launcher adds where the tap came from to a tap's intent, and only a
+         * mutable one keeps it, so the voice nebula can sit right above the bar. Both are explicit, and what this app
+         * set (the target) can't be replaced by what the launcher adds.
+         */
+        fun tapFlags(target: Intent): Int =
+            if (target.component?.className == VoiceNebulaActivity::class.java.name) PendingIntent.FLAG_MUTABLE else PendingIntent.FLAG_IMMUTABLE
     }
 }
 

@@ -955,7 +955,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
             } else {
                 PendingIntent.getActivity(
                     context, requestCode, intent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+                    PendingIntent.FLAG_UPDATE_CURRENT or WidgetLaunchReceiver.tapFlags(intent),
                     getPendingIntentActivityOptions(context)
                 )
             }

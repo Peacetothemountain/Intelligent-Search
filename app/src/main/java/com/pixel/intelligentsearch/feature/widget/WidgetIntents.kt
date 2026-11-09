@@ -11,7 +11,14 @@ import com.pixel.intelligentsearch.core.system.GoogleApps
 import com.pixel.intelligentsearch.core.util.queryIntentActivitiesCompat
 import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 
+/**
+ * The search bar's mic. With a speech recognizer on the phone it opens [VoiceNebulaActivity]: Google's recognizer listens
+ * behind the voice nebula and Google's search starts with the words. Otherwise Google's voice page, as before.
+ */
 fun getVoiceSearchIntent(context: Context): Intent {
+    if (runCatching { android.speech.SpeechRecognizer.isRecognitionAvailable(context) }.getOrDefault(false)) {
+        return Intent(context, VoiceNebulaActivity::class.java)
+    }
     val googleVoice = Intent(Intent.ACTION_MAIN).apply {
         setClassName(GoogleApps.GOOGLE_APP, GoogleApps.VOICE_SEARCH_ACTIVITY)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

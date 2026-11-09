@@ -111,9 +111,13 @@ import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 
-/** How far setup has come: 0 nothing done, 1 USB debugging on, 2 on the search engine list, 3 the default search engine. */
-internal fun setupStepReached(usbDebugging: Boolean, listed: Boolean, isDefault: Boolean): Int = when {
-    isDefault -> 3
+/**
+ * How far setup has come: 0 nothing done, 1 USB debugging on, 2 on the search engine list, 3 the default search engine.
+ * Without a search engine picker (below Android 17 QPR2) there is nothing to choose: the list commands already select
+ * the app, so being listed completes all three.
+ */
+internal fun setupStepReached(usbDebugging: Boolean, listed: Boolean, isDefault: Boolean, hasPicker: Boolean = true): Int = when {
+    isDefault || (listed && !hasPicker) -> 3
     listed -> 2
     usbDebugging -> 1
     else -> 0
@@ -171,7 +175,8 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
         setupStepReached(
             usbDebugging = usbDebugging,
             listed = SearchRoleManager.isListedAsSearchEngine(context),
-            isDefault = SearchRoleManager.isSearchRoleHeld(context)
+            isDefault = SearchRoleManager.isSearchRoleHeld(context),
+            hasPicker = SearchRoleManager.getAvailableSearchRole(context) != null
         )
     }
     SetupStatusCard(context, step, usbDebugging, modifier)

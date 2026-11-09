@@ -121,9 +121,12 @@ import com.pixel.intelligentsearch.core.glance.GlanceTimer
 import com.pixel.intelligentsearch.core.glance.GlanceToggles
 import com.pixel.intelligentsearch.core.glance.GLANCE_EVENT_WINDOW_MS
 import com.pixel.intelligentsearch.core.glance.timerReading
+import com.pixel.intelligentsearch.core.system.ComesBackContext
+import com.pixel.intelligentsearch.core.system.WaitsForPermissionGrant
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import com.pixel.intelligentsearch.core.util.Durations
+import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.feature.search.LocalGlanceSource
 import com.pixel.intelligentsearch.feature.search.SquigglySeekBar
@@ -188,6 +191,8 @@ private const val CLOSE_MS = 380
 @Composable
 internal fun TodayLayer(
     isOpen: () -> Boolean,
+    /** Whether a close is at once, with no circle closing in (a new search opened while the page was up). */
+    closesAtOnce: () -> Boolean,
     origin: () -> Offset,
     hiddenApps: Set<String>,
     recentSearches: List<String>,
@@ -206,6 +211,9 @@ internal fun TodayLayer(
     // them as it opens; read again on opening once they are a quarter of an hour old.
     val context = LocalContext.current
     val sources = LocalTodaySources.current ?: remember(context) { AndroidTodaySources(context) }
+    val comesBack = remember(context) {
+        (context.findActivity() as? WaitsForPermissionGrant)?.let { ComesBackContext(context, it) } ?: context
+    }
     val discoverOn by rememberSetting(SettingsManager.TODAY_BUTTON)
     val weatherOn by rememberSetting(SettingsManager.TODAY_WEATHER)
     val memoriesOn by rememberSetting(SettingsManager.TODAY_MEMORIES)
@@ -229,7 +237,7 @@ internal fun TodayLayer(
     }
     LaunchedEffect(open, animate) {
         val spec = when {
-            !animate -> snap()
+            !animate || (!open && closesAtOnce()) -> snap()
             open -> tween(OPEN_MS, easing = EmphasizedDecelerate)
             else -> tween<Float>(CLOSE_MS, easing = EmphasizedAccelerate)
         }
@@ -250,8 +258,10 @@ internal fun TodayLayer(
                         clip = true
                     }
             ) {
-                // The page reads from the layer's sources, so what they keep lasts while the search is open.
-                CompositionLocalProvider(LocalTodaySources provides sources) {
+                // The page reads from the layer's sources, so what they keep lasts while the search is open. Whatever
+                // it opens (the weather, an event, a notification, a player, one of Android's pages) comes Back to it:
+                // the search waits behind instead of closing.
+                CompositionLocalProvider(LocalTodaySources provides sources, LocalContext provides comesBack) {
                     // One frame loop drives all of the page's endless motion.
                     SharedLoops {
                         TodayPage(
@@ -577,7 +587,12 @@ private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthday
         )
       }
         if (birthdays.isNotEmpty() || weather != null || sunset != null) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                // The weather pill is taller, with the moon under it; the pills beside it center on it.
+                itemVerticalAlignment = Alignment.CenterVertically
+            ) {
                 if (weather != null) {
                     TodayChip(
                         icon = weatherIcon(weather.code, weather.isDay),
@@ -585,6 +600,16 @@ private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthday
                         detail = HighLow.drawn(weather.high),
                         spokenDetail = HighLow.spoken(weather.high),
                         spin = WeatherCodes.kind(weather.code) == WeatherCodes.Kind.CLEAR && weather.isDay,
+                        // Tonight's moon under the weather, as an almanac words the day.
+                        below = {
+                            val moon = remember(time.toLocalDate()) { moonPhase(time.toLocalDate(), time.zone) }
+                            val color = MaterialTheme.colorScheme.onSurfaceVariant
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                MoonPhaseIcon(moon.age, color, Modifier.size(13.dp))
+                                Spacer(Modifier.width(5.dp))
+                                Text(moon.name, style = MaterialTheme.typography.bodySmall, color = color)
+                            }
+                        },
                         onClick = { openWeather(context) }
                     )
                 }
@@ -638,36 +663,44 @@ internal fun TodayChip(
     spokenDetail: String? = detail,
     spin: Boolean = false,
     leading: (@Composable (Color) -> Unit)? = null,
+    /** A second line under [text] (the weather's moon); the pill grows a little to hold it. */
+    below: (@Composable () -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
+    val tall = below != null
     Row(
         Modifier
             .clip(CircleShape)
             .background(scheme.surfaceContainerHigh)
             .bouncyClickable(shape = CircleShape, onClick = onClick)
             .heightIn(min = 38.dp)
-            .padding(start = 6.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+            .padding(start = if (tall) 8.dp else 6.dp, end = if (tall) 18.dp else 12.dp, top = if (tall) 9.dp else 6.dp, bottom = if (tall) 9.dp else 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(Modifier.size(26.dp).background(scheme.tertiaryContainer, CircleShape), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(if (tall) 34.dp else 26.dp).background(scheme.tertiaryContainer, CircleShape), contentAlignment = Alignment.Center) {
             val turn = rememberSlowTurn(spin)
             if (icon != null) {
-                Icon(icon, contentDescription = null, tint = scheme.onTertiaryContainer, modifier = Modifier.size(17.dp).graphicsLayer { rotationZ = turn() })
+                Icon(icon, contentDescription = null, tint = scheme.onTertiaryContainer, modifier = Modifier.size(if (tall) 21.dp else 17.dp).graphicsLayer { rotationZ = turn() })
             } else {
                 leading?.invoke(scheme.onTertiaryContainer)
             }
         }
-        Spacer(Modifier.width(8.dp))
-        Text(text, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface)
-        if (detail != null) {
-            Text(
-                " · $detail",
-                style = MaterialTheme.typography.bodySmall,
-                color = scheme.onSurfaceVariant,
-                // TalkBack hears the detail, not the drawn separator before it.
-                modifier = Modifier.clearAndSetSemantics { this.text = AnnotatedString(spokenDetail ?: detail) }
-            )
+        Spacer(Modifier.width(if (tall) 10.dp else 8.dp))
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface)
+                if (detail != null) {
+                    Text(
+                        " · $detail",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = scheme.onSurfaceVariant,
+                        // TalkBack hears the detail, not the drawn separator before it.
+                        modifier = Modifier.clearAndSetSemantics { this.text = AnnotatedString(spokenDetail ?: detail) }
+                    )
+                }
+            }
+            below?.invoke()
         }
     }
 }
@@ -988,6 +1021,7 @@ private fun AlarmTile(alarm: GlanceItem.Alarm, now: Long, modifier: Modifier) {
 /** What is playing: the cover, title and artist (a tap opens the player), Play or Pause, and the flowing seek bar. */
 @Composable
 private fun NowPlaying(media: GlanceMedia) {
+    val context = LocalContext.current
     val scheme = MaterialTheme.colorScheme
     val animate by rememberAnimationsEnabled()
     val corner by animateDpAsState(
@@ -1008,7 +1042,7 @@ private fun NowPlaying(media: GlanceMedia) {
                     .size(46.dp)
                     .clip(CircleShape)
                     .background(scheme.surfaceContainerHigh)
-                    .bouncyClickable(shape = CircleShape) { media.controls.open() },
+                    .bouncyClickable(shape = CircleShape) { media.controls.open(context) },
                 contentAlignment = Alignment.Center
             ) {
                 val artwork = media.artwork
@@ -1022,7 +1056,7 @@ private fun NowPlaying(media: GlanceMedia) {
                 Modifier
                     .weight(1f)
                     .padding(horizontal = 12.dp)
-                    .bouncyClickable { media.controls.open() }
+                    .bouncyClickable { media.controls.open(context) }
             ) {
                 Text(media.title, style = MaterialTheme.typography.titleMedium, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 DetailLine(media.artist, media.appLabel)

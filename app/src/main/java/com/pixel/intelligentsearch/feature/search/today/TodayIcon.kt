@@ -8,10 +8,12 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -21,6 +23,7 @@ import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.animation.core.CubicBezierEasing
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -147,5 +150,38 @@ private fun DrawScope.drawGlyph(path: String, color: Color, unit: Float, inset: 
     val shape = PathParser().parsePathString(path).toPath()
     translate(left = inset.x, top = inset.y) {
         scale(unit, unit, pivot = Offset.Zero) { drawPath(shape, color) }
+    }
+}
+
+/**
+ * The moon as it shows tonight, [age] through its cycle ([MoonPhase.age]): the lit part in [color] over a faint whole
+ * disc, lit on the right while it waxes and on the left as it wanes, as it looks from the northern hemisphere.
+ */
+@Composable
+internal fun MoonPhaseIcon(age: Double, color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier) {
+        val radius = size.minDimension / 2f * 0.84f
+        drawCircle(color.copy(alpha = 0.3f), radius, center)
+        drawPath(moonLitPath(center, radius, age), color)
+    }
+}
+
+/** The lit part of a moon of [radius] at [center], [age] through its cycle. */
+private fun moonLitPath(center: Offset, radius: Float, age: Double): Path {
+    val waxing = age < 0.5
+    // 1 at new moon, 0 at the quarters, -1 at full: how far the terminator bows from the middle, and which way.
+    val bow = cos(2 * PI * age).toFloat()
+    val halfWidth = radius * abs(bow)
+    return Path().apply {
+        moveTo(center.x, center.y - radius)
+        // The lit edge of the disc, top to bottom on the lit side.
+        arcTo(Rect(center, radius), -90f, if (waxing) 180f else -180f, false)
+        // Back up the terminator: bowing toward the lit side for a crescent, away from it once past a quarter.
+        val bowsRight = waxing == (bow > 0)
+        arcTo(
+            Rect(center.x - halfWidth, center.y - radius, center.x + halfWidth, center.y + radius),
+            90f, if (bowsRight) -180f else 180f, false
+        )
+        close()
     }
 }

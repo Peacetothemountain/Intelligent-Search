@@ -81,7 +81,7 @@ class AtAGlanceGoldenTest(private val state: String, private val dark: Boolean) 
         override fun next() {}
         override fun previous() {}
         override fun seekTo(positionMs: Long) {}
-        override fun open() {}
+        override fun open(from: android.content.Context) {}
     }
 
     /** A two-tone stand-in cover: a disc on a square. */

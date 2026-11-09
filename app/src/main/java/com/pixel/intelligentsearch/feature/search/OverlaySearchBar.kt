@@ -215,6 +215,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                             isKeyboardDismissedByUser = true
                             focusManager.clearFocus(force = true)
                             keyboardController?.hide()
+                            s.ui.todayClosesAtOnce = false
                             s.ui.todayOpen = true
                         },
                         modifier = Modifier.onGloballyPositioned { s.ui.todayOrigin = it.boundsInRoot().center }

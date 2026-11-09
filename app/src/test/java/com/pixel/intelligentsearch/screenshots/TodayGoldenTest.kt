@@ -89,7 +89,7 @@ class TodayGoldenTest(private val dark: Boolean) {
         override fun next() {}
         override fun previous() {}
         override fun seekTo(positionMs: Long) {}
-        override fun open() {}
+        override fun open(from: android.content.Context) {}
     }
 
     private fun cover() = Bitmap.createBitmap(80, 80, Bitmap.Config.ARGB_8888).apply {

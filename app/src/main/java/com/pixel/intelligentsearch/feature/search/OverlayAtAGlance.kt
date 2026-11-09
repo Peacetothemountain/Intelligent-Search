@@ -361,7 +361,7 @@ internal fun openGlanceItem(context: Context, item: GlanceItem) {
         is GlanceItem.Alarm -> item.alarm.showIntent.let { show ->
             openPendingOrApp(context, show, show?.creatorPackage.orEmpty(), fallback = Intent(AlarmClock.ACTION_SHOW_ALARMS))
         }
-        is GlanceItem.Media -> item.media.controls.open()
+        is GlanceItem.Media -> item.media.controls.open(context)
         is GlanceItem.Event -> launchSafeIntent(context, calendarEventIntent(item.event))
         is GlanceItem.Birthday -> item.birthday.lookupUri.takeIf { it.isNotEmpty() }
             ?.let { launchSafeIntent(context, Intent(Intent.ACTION_VIEW, it.toUri())) }

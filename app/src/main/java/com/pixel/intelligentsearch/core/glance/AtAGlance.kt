@@ -52,8 +52,8 @@ interface MediaControls {
     fun previous()
     /** Moves to [positionMs] into the track, when the player takes a seek. */
     fun seekTo(positionMs: Long)
-    /** Opens the player: the session's own activity, or the app. */
-    fun open()
+    /** Opens the player from [from], the screen tapped: the session's own activity, or the app. */
+    fun open(from: android.content.Context)
 }
 
 /** Everything At a Glance may show, as last read; [glanceItems] decides what does show. */

@@ -443,6 +443,18 @@ fun SearchOverlayScreen(
             ui.isKeyboardDismissedByUser = false
         },
     )
+    // A new search opened onto this screen while it waited behind a page opened from the Discover Overlay starts on
+    // the search, as a fresh one would.
+    val freshOpens by viewModel.freshOpens.collectAsStateWithLifecycle()
+    var freshOpensSeen by remember { mutableIntStateOf(freshOpens) }
+    LaunchedEffect(freshOpens) {
+        if (freshOpens == freshOpensSeen) return@LaunchedEffect
+        freshOpensSeen = freshOpens
+        if (ui.todayOpen) {
+            ui.todayClosesAtOnce = true
+            ui.todayOpen = false
+        }
+    }
     val voiceRequests by viewModel.voiceRequests.collectAsStateWithLifecycle()
     LaunchedEffect(voiceRequests) {
         // Each request is claimed once, so recreating the screen doesn't start listening again.
@@ -1053,6 +1065,7 @@ fun SearchOverlayScreen(
         // recompose on each frame the button slides down with the keyboard.
         TodayLayer(
             isOpen = { ui.todayOpen },
+            closesAtOnce = { ui.todayClosesAtOnce },
             origin = { ui.todayOrigin },
             hiddenApps = settingsState.hiddenApps,
             recentSearches = distinctRecents,

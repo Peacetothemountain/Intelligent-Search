@@ -214,6 +214,16 @@ class SearchViewModel @Inject constructor(
     }
     fun takeVoiceRequest(): Boolean = voiceRequestPending.also { voiceRequestPending = false }
 
+    private val _freshOpens = MutableStateFlow(0)
+    /**
+     * Bumps for each search opened onto a screen that is still there, waiting behind a page opened from the Discover
+     * Overlay, say: the search starts fresh, with the Discover Overlay closed.
+     */
+    val freshOpens: StateFlow<Int> = _freshOpens.asStateFlow()
+    fun openFresh() {
+        _freshOpens.value++
+    }
+
     private val _calculatorKeyboard = MutableStateFlow(false)
     /**
      * Whether the search field asks for the number pad: the widget's Calculator shortcut opened the screen. A plain

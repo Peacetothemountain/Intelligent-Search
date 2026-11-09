@@ -230,6 +230,7 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         setIntent(intent)
         if (handleIntent(intent)) return
         if (checkAndForwardIfSearchOverlayDisabled()) return
+        searchViewModel.openFresh()
         val queryExtra = (intent.getStringExtra("query") ?: intent.getStringExtra(SearchManager.QUERY) ?: intent.getStringExtra(Intent.EXTRA_TEXT))?.take(512)
         clearConsumedQuery()
         if (!queryExtra.isNullOrBlank()) {

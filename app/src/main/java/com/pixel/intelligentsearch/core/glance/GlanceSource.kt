@@ -136,7 +136,7 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
             packageName = controller.packageName,
             isPlaying = playing,
             artwork = artworks.artwork(controller.packageName, title, metadata),
-            controls = SessionControls(context, controller),
+            controls = SessionControls(controller),
             progress = MediaSessionAccess.progressOf(controller)
         )
     }
@@ -159,14 +159,14 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
     }
 
     /** A session's transport controls; equal for the same session. */
-    private class SessionControls(private val context: Context, private val controller: MediaController) : MediaControls {
+    private class SessionControls(private val controller: MediaController) : MediaControls {
         override fun play() = controller.transportControls.play()
         override fun pause() = controller.transportControls.pause()
         override fun next() = controller.transportControls.skipToNext()
         override fun previous() = controller.transportControls.skipToPrevious()
         override fun seekTo(positionMs: Long) = MediaSessionAccess.seekTo(controller, positionMs)
-        override fun open() {
-            openPendingOrApp(context, controller.sessionActivity, controller.packageName)
+        override fun open(from: Context) {
+            openPendingOrApp(from, controller.sessionActivity, controller.packageName)
         }
         override fun equals(other: Any?) = other is SessionControls && other.controller.sessionToken == controller.sessionToken
         override fun hashCode() = controller.sessionToken.hashCode()

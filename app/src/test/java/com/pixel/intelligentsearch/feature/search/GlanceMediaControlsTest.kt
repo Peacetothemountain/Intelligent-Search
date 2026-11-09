@@ -59,7 +59,7 @@ class GlanceMediaControlsTest {
         override fun next() { calls += "next" }
         override fun previous() { calls += "previous" }
         override fun seekTo(positionMs: Long) { seeks += positionMs }
-        override fun open() { calls += "open" }
+        override fun open(from: android.content.Context) { calls += "open" }
     }
 
     private fun media(controls: MediaControls, playing: Boolean = true, canSeek: Boolean = true) = GlanceMedia(

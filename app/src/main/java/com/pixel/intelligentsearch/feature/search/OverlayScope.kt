@@ -34,6 +34,8 @@ internal class OverlayUiState(
     var highlightedKey by mutableStateOf<String?>(null)
     /** Whether the Today page is open over the search. */
     var todayOpen by mutableStateOf(false)
+    /** Whether Today's next close is at once, with no circle: a new search opened while it was up behind a page. */
+    var todayClosesAtOnce by mutableStateOf(false)
     /** Where Today opens out of: its button's center, in the window's coordinates. */
     var todayOrigin by mutableStateOf(androidx.compose.ui.geometry.Offset.Unspecified)
 }

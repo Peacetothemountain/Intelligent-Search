@@ -32,7 +32,7 @@ class AtAGlanceTest {
         override fun next() {}
         override fun previous() {}
         override fun seekTo(positionMs: Long) {}
-        override fun open() {}
+        override fun open(from: android.content.Context) {}
     }
 
     private val timer = GlanceTimer("t", GlanceTimer.Kind.Timer, "5 min timer", now + 120_000L, "Clock", "com.google.android.deskclock", null)

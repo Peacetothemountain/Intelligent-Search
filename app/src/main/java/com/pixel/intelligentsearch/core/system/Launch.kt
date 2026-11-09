@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.core.system
 import android.app.ActivityOptions
 import android.app.PendingIntent
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -19,14 +20,14 @@ import com.pixel.intelligentsearch.core.util.findActivity
 private const val TAG = "Launch"
 
 /** Starts [intent]; returns false when nothing could handle it so callers can fall back. */
-fun launchSafeIntent(context: Context, intent: Intent, options: Bundle? = null): Boolean {
+fun launchSafeIntent(context: Context, intent: Intent, options: Bundle? = null): Boolean = opening(context) {
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    return try {
+    try {
         if (options != null) context.startActivity(intent, options) else context.startActivity(intent)
         true
     } catch (e: Exception) {
         try {
-            val activity = context.findActivity() ?: return false
+            val activity = context.findActivity() ?: return@opening false
             activity.startActivity(intent, options)
             true
         } catch (e2: Exception) {
@@ -34,6 +35,29 @@ fun launchSafeIntent(context: Context, intent: Intent, options: Bundle? = null):
             false
         }
     }
+}
+
+/**
+ * The context a page hands everything on it when whatever it opens should come Back to it (the Discover Overlay): the
+ * screen it belongs to, one that closes once it's out of sight ([WaitsForPermissionGrant]), waits behind what opened
+ * instead, be it an app, one of Android's pages, or a notification's or player's own action, so Back from there
+ * returns to the page as it was.
+ */
+class ComesBackContext(base: Context, val screen: WaitsForPermissionGrant) : ContextWrapper(base)
+
+private tailrec fun Context.comesBack(): ComesBackContext? = when (this) {
+    is ComesBackContext -> this
+    is ContextWrapper -> baseContext?.comesBack()
+    else -> null
+}
+
+/** Runs [open] from [context]; from a [ComesBackContext] its screen waits behind what opened, and not if nothing did. */
+private inline fun opening(context: Context, open: () -> Boolean): Boolean {
+    val screen = context.comesBack()?.screen
+    screen?.waitWhileGranting(true)
+    val opened = open()
+    if (!opened) screen?.waitWhileGranting(false)
+    return opened
 }
 
 /** Opens [packageName]'s launcher activity; false if it has none. */
@@ -46,23 +70,25 @@ fun launchApp(context: Context, packageName: String): Boolean {
  * Sends another app's [intent] (a notification's tap action, a player's activity) from the search on screen. From
  * Android 14 the sender has to say it lets the intent open an activity; the search is in front, so it may.
  */
-fun sendPendingIntent(context: Context, intent: PendingIntent): Boolean = try {
-    val options = when {
-        Build.VERSION.SDK_INT >= 36 -> ActivityOptions.makeBasic()
-            .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE)
-            .toBundle()
-        // Android 14 and 15 have no narrower mode; Android 16 deprecated this one for the line above.
-        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> ActivityOptions.makeBasic()
-            .setPendingIntentBackgroundActivityStartMode(@Suppress("DEPRECATION") ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
-            .toBundle()
-        else -> null
+fun sendPendingIntent(context: Context, intent: PendingIntent): Boolean = opening(context) {
+    try {
+        val options = when {
+            Build.VERSION.SDK_INT >= 36 -> ActivityOptions.makeBasic()
+                .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOW_IF_VISIBLE)
+                .toBundle()
+            // Android 14 and 15 have no narrower mode; Android 16 deprecated this one for the line above.
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> ActivityOptions.makeBasic()
+                .setPendingIntentBackgroundActivityStartMode(@Suppress("DEPRECATION") ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+                .toBundle()
+            else -> null
+        }
+        intent.send(context, 0, null, null, null, null, options)
+        true
+    } catch (_: PendingIntent.CanceledException) {
+        false
+    } catch (_: RuntimeException) {
+        false
     }
-    intent.send(context, 0, null, null, null, null, options)
-    true
-} catch (_: PendingIntent.CanceledException) {
-    false
-} catch (_: RuntimeException) {
-    false
 }
 
 /**
@@ -84,7 +110,8 @@ fun openSettingsPage(context: Context, vararg pages: Intent): Boolean =
 
 /**
  * A screen that closes once it's out of sight (the search overlay), which can be asked to wait instead while the user
- * turns on a permission on one of Android's pages, so Back from there comes back to it as it was.
+ * turns on a permission on one of Android's pages, or is on a page opened from the Discover Overlay
+ * ([ComesBackContext]), so Back from there comes back to it as it was.
  */
 interface WaitsForPermissionGrant {
     /** Whether the screen waits, rather than closes, the next time it goes out of sight; cleared once it's back. */

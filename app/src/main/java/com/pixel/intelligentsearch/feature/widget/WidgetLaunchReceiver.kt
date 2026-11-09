@@ -100,8 +100,8 @@ class WidgetLaunchReceiver : BroadcastReceiver() {
         )
 
         /**
-         * Immutable, except the mic's tap: the launcher adds where the tap came from to a tap's intent, and only a
-         * mutable one keeps it, so the voice nebula can sit right above the bar. Both are explicit, and what this app
+         * Immutable, except the Voice Nebula shortcut's tap: the launcher adds where the tap came from to a tap's
+         * intent, and only a mutable one keeps it, so the voice nebula can sit right above the bar. Both are explicit, and what this app
          * set (the target) can't be replaced by what the launcher adds.
          */
         fun tapFlags(target: Intent): Int =

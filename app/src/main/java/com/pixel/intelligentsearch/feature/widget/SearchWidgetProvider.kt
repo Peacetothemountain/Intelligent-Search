@@ -939,6 +939,7 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 "News" -> context.getString(R.string.widget_talkback_news)
                 "Calculator" -> context.getString(R.string.widget_talkback_calculator)
                 "Discover" -> context.getString(R.string.widget_talkback_discover)
+                "Voice Nebula" -> context.getString(R.string.widget_talkback_voice_nebula)
                 else -> key
             }
         }

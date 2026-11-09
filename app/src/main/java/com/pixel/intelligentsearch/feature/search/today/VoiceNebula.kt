@@ -6,13 +6,7 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.RadialGradient
 import android.graphics.Shader
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.withTransform
 import java.util.Random
 import kotlin.math.PI
 import kotlin.math.ceil
@@ -25,9 +19,9 @@ import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
- * The voice nebula that floats around the Word of the day's mark while the word is said: two to four soft light
- * volumes in deep tones of the theme color orbit and blend, adding up to a core in the color's light tone and fading
- * out wide, with pinpoint stardust and a faint stipple (the Material Morph's diamond dot grid) inside. Speaking, it
+ * The voice nebula that floats above the search bar while its Voice Nebula shortcut listens
+ * ([com.pixel.intelligentsearch.feature.widget.VoiceNebulaActivity]): two to four soft light volumes in deep tones of
+ * the theme color orbit and blend, adding up to a core in the color's light tone and fading out wide, with pinpoint stardust and a faint stipple (the Material Morph's diamond dot grid) inside. Speaking, it
  * grows and brightens, each lobe pulled by low, middle or high sound and pushed at each syllable's start, so loud words
  * stretch it into lopsided triangle and heart forms, and the stardust sparkles and drifts outward. Silent, the sparkle
  * fades, it contracts a little and breathes slowly. Every shader is made once per color and moved into place with its
@@ -247,47 +241,4 @@ internal fun hueOf(color: Color): Float {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(android.graphics.Color.argb(255, (color.red * 255).toInt(), (color.green * 255).toInt(), (color.blue * 255).toInt()), hsv)
     return hsv[0]
-}
-
-/**
- * The Gemini voice mark: three rounded bars and a four-point sparkle, no circle behind it. While [speaking] the bars
- * bounce at three different speeds and the sparkle twinkles, from [seconds] of the page's clock.
- */
-internal class VoiceMark {
-    private val sparkle = Path().apply {
-        moveTo(19.3f, 2.2f)
-        cubicTo(19.7f, 4.7f, 20.6f, 5.6f, 23.1f, 6f)
-        cubicTo(20.6f, 6.4f, 19.7f, 7.3f, 19.3f, 9.8f)
-        cubicTo(18.9f, 7.3f, 18f, 6.4f, 15.5f, 6f)
-        cubicTo(18f, 5.6f, 18.9f, 4.7f, 19.3f, 2.2f)
-        close()
-    }
-
-    fun draw(scope: DrawScope, markPx: Float, color: Color, speaking: Boolean, moving: Boolean, seconds: Float) = with(scope) {
-        val k = markPx / 24f
-        val left = center.x - markPx / 2f
-        val top = center.y - markPx / 2f
-        for (i in 0 until 3) {
-            val bounce = if (speaking && moving) 0.45f + 0.7f * (0.5f + 0.5f * sin(seconds * BAR_SPEED[i] + i * 1.3f)) else 1f
-            val h = BAR_H[i] * k * bounce
-            val cy = top + BAR_CY[i] * k
-            drawRoundRect(color, Offset(left + BAR_X[i] * k, cy - h / 2f), Size(2.4f * k, h), CornerRadius(1.2f * k))
-        }
-        val twinkle = if (speaking && moving) 1f - 0.3f * (0.5f - 0.5f * cos(seconds * 2f * PI.toFloat() / 1.2f)) else 1f
-        // the sparkle twinkles about its own center, in the mark's 24-unit space
-        withTransform({
-            translate(left, top)
-            scale(k, k, Offset.Zero)
-            scale(twinkle, twinkle, Offset(19.3f, 6f))
-        }) {
-            drawPath(sparkle, color)
-        }
-    }
-
-    private companion object {
-        val BAR_X = floatArrayOf(5.3f, 9.6f, 13.9f)
-        val BAR_H = floatArrayOf(8.8f, 13.2f, 6f)
-        val BAR_CY = floatArrayOf(14f, 14f, 14f)
-        val BAR_SPEED = floatArrayOf(2f * PI.toFloat() / 1f, 2f * PI.toFloat() / 0.76f, 2f * PI.toFloat() / 0.88f)
-    }
 }

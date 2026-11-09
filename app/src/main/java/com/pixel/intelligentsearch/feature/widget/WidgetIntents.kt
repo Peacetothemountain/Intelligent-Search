@@ -11,14 +11,7 @@ import com.pixel.intelligentsearch.core.system.GoogleApps
 import com.pixel.intelligentsearch.core.util.queryIntentActivitiesCompat
 import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 
-/**
- * The search bar's mic. With a speech recognizer on the phone it opens [VoiceNebulaActivity]: Google's recognizer listens
- * behind the voice nebula and Google's search starts with the words. Otherwise Google's voice page, as before.
- */
 fun getVoiceSearchIntent(context: Context): Intent {
-    if (runCatching { android.speech.SpeechRecognizer.isRecognitionAvailable(context) }.getOrDefault(false)) {
-        return Intent(context, VoiceNebulaActivity::class.java)
-    }
     val googleVoice = Intent(Intent.ACTION_MAIN).apply {
         setClassName(GoogleApps.GOOGLE_APP, GoogleApps.VOICE_SEARCH_ACTIVITY)
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -93,6 +86,7 @@ fun getShortcutIconRes(shortcut: String, isMaterialYou: Boolean = true): Int {
         "News" -> R.drawable.ic_news
         "Calculator" -> R.drawable.ic_calculator
         "Discover" -> R.drawable.ic_discover
+        "Voice Nebula" -> R.drawable.ic_voice_nebula
         else -> R.drawable.ic_camera
     }
 }
@@ -269,6 +263,7 @@ fun getShortcutIntent(context: Context, shortcut: String): Intent {
             ?: Intent(Intent.ACTION_VIEW, "https://news.google.com".toUri()).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         "Calculator" -> getCalculatorIntent(context)
         "Discover" -> getDiscoverIntent(context)
+        "Voice Nebula" -> Intent(context, VoiceNebulaActivity::class.java)
         else -> getLensSearchIntent(context)
     }
 }

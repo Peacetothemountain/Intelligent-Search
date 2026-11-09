@@ -259,7 +259,7 @@
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
             android:exported="false" />
 
-        <!-- The search bar's voice search: a see-through layer over the home screen where Google's recognizer listens
+        <!-- The search bar's Voice Nebula shortcut: a see-through layer over the home screen where Google's recognizer listens
              behind the voice nebula, then Google's search opens. Gone from Recents and gone once left. -->
         <activity
             android:name="com.pixel.intelligentsearch.feature.widget.VoiceNebulaActivity"

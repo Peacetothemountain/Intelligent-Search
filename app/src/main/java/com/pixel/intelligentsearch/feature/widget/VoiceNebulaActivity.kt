@@ -22,12 +22,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -35,14 +30,11 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
@@ -50,26 +42,23 @@ import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import com.pixel.intelligentsearch.core.system.GoogleApps
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 import com.pixel.intelligentsearch.feature.search.today.NebulaPainter
-import com.pixel.intelligentsearch.feature.search.today.SpeechEnvelope
 import com.pixel.intelligentsearch.feature.search.today.hueOf
 import com.pixel.intelligentsearch.feature.search.today.rememberLoop
 import kotlin.math.max
 import kotlin.math.min
 
 /**
- * The search bar's voice search. Google's own speech recognizer listens while the voice nebula floats, small, centered
- * right above the bar (placed from where the tap came from), and the words appear above it as Google hears them. The
- * moment it has them, the nebula settles into the bar and Google's search starts with them. Google's voice page is
- * never shown, unless the phone has no recognizer or the microphone isn't allowed: then it opens instead, as before.
+ * The search bar's Voice Nebula shortcut. Google's own speech recognizer listens while the voice nebula floats, small,
+ * centered right above the bar (placed from where the tap came from), with no words shown. The moment it has the words,
+ * the nebula settles into the bar and Google's search starts with them. Google's voice page is never shown, unless the
+ * phone has no recognizer or the microphone isn't allowed: then it opens instead, as the mic does.
  */
 class VoiceNebulaActivity : ComponentActivity() {
     private enum class Phase { Listening, Searching, Closing }
@@ -223,7 +212,7 @@ class VoiceNebulaActivity : ComponentActivity() {
         val animations by rememberAnimationsEnabled()
         val clock = rememberLoop(LOOP_MS, LinearEasing)
         val painter = remember { NebulaPainter() }
-        val sound = remember { FloatArray(SpeechEnvelope.VALUES) }
+        val sound = remember { FloatArray(SOUND_VALUES) }
         val last = remember { FloatArray(1) }
         val hue = remember(scheme.primary) { hueOf(scheme.primary) }
         val shown = remember { Animatable(0f) }
@@ -250,11 +239,11 @@ class VoiceNebulaActivity : ComponentActivity() {
                     .fillMaxSize()
                     .drawBehind {
                         val a = shown.value
-                        // Shade gathered around the nebula and the words, wherever the bar is, so both stand out on any wallpaper.
+                        // Shade gathered around the nebula, wherever the bar is, so it stands out on any wallpaper.
                         drawRect(
                             Brush.radialGradient(
                                 0f to Color.Black.copy(alpha = 0.55f), 0.6f to Color.Black.copy(alpha = 0.25f), 1f to Color.Transparent,
-                                center = androidx.compose.ui.geometry.Offset(size.width / 2f, centerY - WORDS_ABOVE.toPx() / 2f),
+                                center = androidx.compose.ui.geometry.Offset(size.width / 2f, centerY),
                                 radius = size.width * 0.95f
                             ),
                             alpha = a
@@ -271,38 +260,18 @@ class VoiceNebulaActivity : ComponentActivity() {
                         }
                     }
             )
-            val wordsBottom = with(density) { (centerY - WORDS_ABOVE.toPx()).toDp() }
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(WORDS_HEIGHT)
-                    .offset(y = wordsBottom - WORDS_HEIGHT)
-                    .padding(horizontal = 24.dp),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Text(
-                    heard.ifEmpty { "Listening…" },
-                    color = if (heard.isEmpty()) Color.White.copy(alpha = 0.65f) else Color.White,
-                    fontSize = 22.sp,
-                    lineHeight = 29.sp,
-                    textAlign = TextAlign.Center,
-                    maxLines = 2,
-                    style = MaterialTheme.typography.headlineSmall.copy(shadow = Shadow(Color.Black.copy(alpha = 0.55f), blurRadius = 12f)),
-                    modifier = Modifier.graphicsLayer { alpha = shown.value }
-                )
-            }
         }
     }
 
     private companion object {
         const val SETTLE_MS = 380L
         const val LOOP_MS = 600_000
+        /** What [NebulaPainter] reads from the voice: loudness, low, middle and high sound, and a syllable's start. */
+        const val SOUND_VALUES = 5
         val NEBULA = 150.dp
         /** The nebula's center above the bar's top edge: its glow rests on the bar. */
         val ABOVE_BAR = 58.dp
         val DEFAULT_BAR_FROM_BOTTOM = 96.dp
         val SETTLE_DROP = 24.dp
-        val WORDS_ABOVE = 70.dp
-        val WORDS_HEIGHT = 72.dp
     }
 }

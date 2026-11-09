@@ -33,6 +33,7 @@
     <string name="widget_talkback_open_web">Open %1$s</string>
     <string name="widget_talkback_calculator">Calculate in search</string>
     <string name="widget_talkback_discover">Google Discover</string>
+    <string name="widget_talkback_voice_nebula">Search by voice</string>
 
     <!-- The countdown widget: "9" over "days" under "Halloween" (in one row, "9 days · Halloween"). -->
     <string name="widget_countdown_label">Countdown</string>

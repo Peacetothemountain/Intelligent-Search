@@ -265,6 +265,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         "Saved" to Symbols.Filled.Bookmark,
         "News" to Symbols.AutoMirrored.Filled.Article,
         "Calculator" to Symbols.Filled.Calculate,
+        "Voice Nebula" to ImageVector.vectorResource(id = com.pixel.intelligentsearch.R.drawable.ic_voice_nebula),
         ("Discover" to Symbols.Filled.Explore).takeIf { discoverAvailable }
     )
 

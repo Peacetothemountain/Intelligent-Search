@@ -316,7 +316,8 @@ private fun ShapeStrip(state: DiscoverEditState, spec: CardSpec) {
     val scheme = MaterialTheme.colorScheme
     val list = rememberLazyListState()
     val current = if (spec.form == CardForm.SHAPE) CARD_SHAPES.indexOf(spec.shape) + 1 else 0
-    LaunchedEffect(spec.id) { if (current > 2) list.scrollToItem(current - 2) }
+    // Opened at its start, so the full card is always in view, unless the shape it has now is past the screen.
+    LaunchedEffect(spec.id) { if (current > 6) list.scrollToItem(current - 3) }
     Surface(shape = RoundedCornerShape(28.dp), color = scheme.surfaceContainerHighest, shadowElevation = 10.dp, tonalElevation = 2.dp) {
         LazyRow(
             state = list,

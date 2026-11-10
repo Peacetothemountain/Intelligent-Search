@@ -41,8 +41,8 @@ import kotlinx.coroutines.withContext
 private val LiveShape = RoundedCornerShape(24.dp)
 
 /**
- * The live widget [widgetId], filling [modifier]'s bounds, on the page's card color (for widgets with no background of
- * their own), cut to the card's rounded corners. A [private] card is covered until [revealed]. [onGone] draws instead
+ * The live widget [widgetId], filling [modifier]'s bounds as it draws itself on a home screen, cut to the card's
+ * rounded corners. A [private] card is covered until [revealed]. [onGone] draws instead
  * when the widget no longer exists (its app was removed).
  */
 @Composable
@@ -74,7 +74,8 @@ internal fun LiveWidget(
     val density = LocalDensity.current
     var size by remember { mutableStateOf(IntSize.Zero) }
     var told by remember { mutableStateOf(IntSize.Zero) }
-    CoveredBox(private && !revealed, LiveShape, modifier.clip(LiveShape).background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = CARD_ALPHA))) {
+    // No backing of the page's own: a widget draws its own background and margins, as it does on the home screen.
+    CoveredBox(private && !revealed, LiveShape, modifier.clip(LiveShape)) {
         AndroidView(
             factory = { ctx ->
                 cards.host.createView(ctx, widgetId, provider).apply {

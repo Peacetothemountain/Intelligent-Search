@@ -627,7 +627,8 @@ private fun FitHeight(content: @Composable () -> Unit) {
                 )
             }
     ) { measurables, constraints ->
-        val child = measurables.first()
+        // Nothing yet while the page builds its cards one by one as it opens.
+        val child = measurables.firstOrNull() ?: return@Layout layout(constraints.minWidth, constraints.minHeight) {}
         if (!constraints.hasBoundedHeight || constraints.minHeight != constraints.maxHeight) {
             if (cut.value) cut.value = false
             val placeable = child.measure(constraints)

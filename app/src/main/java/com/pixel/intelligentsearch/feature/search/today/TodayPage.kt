@@ -441,9 +441,13 @@ internal fun TodayPage(
         if (siteUrls.isNotEmpty()) siteSource.refresh(siteUrls)
     }
     // Widgets bound for cards that no longer exist (an add left halfway, a card removed while the app was closing) are
-    // let go, with what was read from them, once the saved layout is known.
+    // let go, with what was read from them, once the saved layout is known. Judged by the store's own layout: the one
+    // this screen shows can be a frame behind it, still the default with no app cards just after the saved one is
+    // read, and judging by that unbound every app card's widget when the app started.
     LaunchedEffect(cardStore.isLoaded, widgetIds) {
-        if (cardStore.isLoaded) widgets.keepOnly(widgetIds + listOfNotNull(editState.pendingWidget))
+        if (!cardStore.isLoaded) return@LaunchedEffect
+        val saved = cardStore.layout.value.cards.filter { it.kind == CardKind.APP }.map { it.widgetId }.toSet()
+        widgets.keepOnly(saved + widgetIds + listOfNotNull(editState.pendingWidget))
     }
     val appPackages = remember(apps) { apps.values.map { it.packageName }.toSet() }
     val appIcons by produceState(emptyMap<String, ImageBitmap?>(), appPackages) {

@@ -609,7 +609,7 @@ internal class DiscoverEditState(
 
     internal companion object {
         /** How long a message with Undo stays. */
-        const val UNDO_MS = 5_000L
+        const val UNDO_MS = 8_000L
 
         /** How near (dp) a card's edge comes to a line before it lines up with it. */
         const val SNAP_DP = 10f

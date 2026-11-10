@@ -14,32 +14,26 @@ import kotlinx.coroutines.flow.StateFlow
  * NG Designs
  */
 
-/** Columns across Discover's grid of square cells, as a launcher's widget grid. */
-internal const val GRID_COLUMNS = 4
-
-/** The most rows a card can take. */
-internal const val GRID_MAX_ROWS = 8
-
 /**
  * What a card shows. The built-in kinds are the page's own parts; [APP] and [SITE] are added by the user. [shaped] kinds
- * have a small design that re-forms around a Material shape when the card is about as tall as it is wide.
- * [minNaturalColumns] is the narrowest the built-in design (as tall as its content) still reads well at.
+ * have a small design that re-forms around a Material shape. [minCardDp] is the narrowest the full card design still
+ * reads well at.
  */
-internal enum class CardKind(val key: String, val builtIn: Boolean, val shaped: Boolean, val label: String, val minNaturalColumns: Int) {
-    UP_NEXT("up_next", true, false, "Up next", 4),
-    REST_OF_DAY("rest_of_day", true, false, "Rest of your day", 4),
-    WEATHER("weather", true, true, "Weather ahead", 4),
-    TILES("tiles", true, true, "Timer and alarm", 4),
-    NOW_PLAYING("now_playing", true, true, "Now playing", 4),
-    CATCH_UP("catch_up", true, false, "Catch up", 4),
-    CONTROLS("controls", true, false, "Quick controls", 4),
-    PHONE("phone", true, true, "Your phone today", 4),
-    LEFT_OFF("left_off", true, false, "Pick up where you left off", 2),
-    WORD("word", true, true, "Word of the day", 2),
-    YEAR("year", true, true, "Countdown", 4),
-    TOMORROW("tomorrow", true, false, "Tomorrow", 2),
-    APP("app", false, true, "App", 1),
-    SITE("site", false, true, "Website", 1);
+internal enum class CardKind(val key: String, val builtIn: Boolean, val shaped: Boolean, val label: String, val minCardDp: Int) {
+    UP_NEXT("up_next", true, true, "Up next", 280),
+    REST_OF_DAY("rest_of_day", true, true, "Rest of your day", 290),
+    WEATHER("weather", true, true, "Weather ahead", 270),
+    TILES("tiles", true, true, "Timer and alarm", 290),
+    NOW_PLAYING("now_playing", true, true, "Now playing", 250),
+    CATCH_UP("catch_up", true, true, "Catch up", 260),
+    CONTROLS("controls", true, false, "Quick controls", 290),
+    PHONE("phone", true, true, "Your phone today", 290),
+    LEFT_OFF("left_off", true, true, "Pick up where you left off", 160),
+    WORD("word", true, true, "Word of the day", 300),
+    YEAR("year", true, true, "Countdown", 290),
+    TOMORROW("tomorrow", true, true, "Tomorrow", 170),
+    APP("app", false, true, "App", 150),
+    SITE("site", false, true, "Website", 150);
 
     companion object {
         fun of(key: String): CardKind? = entries.firstOrNull { it.key == key }
@@ -49,19 +43,20 @@ internal enum class CardKind(val key: String, val builtIn: Boolean, val shaped: 
     }
 }
 
-/** How much of the grid a card takes. */
+/** Whether a card is its full design or the small design inside a Material shape. */
+internal enum class CardForm { CARD, SHAPE }
+
+/**
+ * Where a card sits on Discover's freeform page and how big it is. [x] and [width] are fractions of the page's width
+ * (each card's place includes half the gap between cards on every side, so two halves sit side by side with the gap
+ * between them). A card falls up the page until it meets a card above it (or the top), then sits [gap] dp further down,
+ * so a card that empties out or is hidden leaves no hole. [height] (dp) is an app or website box's height; full designs
+ * are as tall as their content and shapes are square.
+ */
 @Immutable
-internal sealed interface CardSize {
-    val columns: Int
+internal data class CardFrame(val x: Float = 0f, val width: Float = 1f, val height: Float = 0f, val gap: Float = 0f)
 
-    /** [columns] wide and as tall as its content: the built-in cards' own designs, as the page has always drawn them. */
-    data class Natural(override val columns: Int = GRID_COLUMNS) : CardSize
-
-    /** [columns] by [rows] square cells. */
-    data class Cells(override val columns: Int, val rows: Int) : CardSize
-}
-
-/** How a card draws at its size. */
+/** How a card draws. */
 internal enum class CardMode {
     /** The built-in design, as tall as its content. */
     NATURAL,
@@ -69,22 +64,8 @@ internal enum class CardMode {
     /** The small design inside a Material shape. */
     SHAPED,
 
-    /** A box design filling its cells (app and website cards wider than they are tall). */
+    /** A box design (app and website cards in the card form). */
     BOX
-}
-
-/**
- * The mode a card of [kind] draws in at [size]: shaped when the kind has a shaped design and the cells are about square
- * (less than 1.5 times as wide as tall), the built-in design for built-in kinds otherwise, and the box design for the
- * user's own cards otherwise.
- */
-internal fun modeFor(kind: CardKind, size: CardSize): CardMode = when (size) {
-    is CardSize.Natural -> if (kind.builtIn) CardMode.NATURAL else CardMode.BOX
-    is CardSize.Cells -> when {
-        kind.shaped && size.columns < size.rows * 1.5f -> CardMode.SHAPED
-        kind.builtIn -> CardMode.NATURAL
-        else -> CardMode.BOX
-    }
 }
 
 /** The Material shapes a shaped card can take, by the names the layout stores. */
@@ -102,25 +83,31 @@ internal val CARD_SHAPES = listOf(
 internal data class CardSpec(
     val id: String,
     val kind: CardKind,
-    val size: CardSize,
+    val frame: CardFrame = CardFrame(),
+    val form: CardForm = CardForm.CARD,
     val shape: String = "circle",
     val private: Boolean = false,
     val widgetId: Int = 0,
     val provider: String? = null,
     val url: String? = null
 ) {
-    val mode: CardMode get() = modeFor(kind, size)
+    val mode: CardMode
+        get() = when {
+            form == CardForm.SHAPE && kind.shaped -> CardMode.SHAPED
+            kind.builtIn -> CardMode.NATURAL
+            else -> CardMode.BOX
+        }
 }
 
 /**
- * The page's cards in reading order, and the built-in kinds the user hid (added back from Add card). Order is strict:
- * each card takes the first free spot at or after the one before it, never an earlier gap.
+ * The page's cards, top to bottom, and the built-in kinds the user hid (added back from Add card). Each card falls up
+ * against the ones before it that it sits under.
  */
 @Immutable
 internal data class DiscoverLayout(val cards: List<CardSpec>, val hidden: Set<CardKind> = emptySet()) {
     companion object {
-        /** Today's page: every built-in part, full width, as tall as its content. */
-        val DEFAULT = DiscoverLayout(CardKind.PAGE_ORDER.map { CardSpec(id = it.key, kind = it, size = CardSize.Natural()) })
+        /** Today's page: every built-in part, full width, in the page's order. */
+        val DEFAULT = DiscoverLayout(CardKind.PAGE_ORDER.map { CardSpec(id = it.key, kind = it) })
     }
 }
 
@@ -313,6 +300,21 @@ internal sealed interface ShapedContent {
 
     /** How far through the [year] the day is: [percent], "Day [day] of [days]". */
     data class Year(val year: Int, val percent: Int, val day: Int, val days: Int) : ShapedContent
+
+    /** The next event, [title], at [time] ("3:30 PM"), [until] it starts ("in 52 min"); [fraction] of the last hour before it gone. */
+    data class Event(val title: String, val time: String, val until: String, val fraction: Float) : ShapedContent
+
+    /** The rest of the day: [count] things left, the next at [next] ("6:00 PM") named [nextTitle]; [hours] are their hours of the day (0 to 24). */
+    data class Agenda(val count: Int, val next: String, val nextTitle: String, val hours: List<Float>) : ShapedContent
+
+    /** [count] things to catch up on, the latest from [who]. */
+    data class CatchUp(val count: Int, val who: String) : ShapedContent
+
+    /** The last search, [query], to search again. */
+    data class Search(val query: String) : ShapedContent
+
+    /** Tomorrow: its [day] ("Saturday"), the weather's [icon] and [temperatures] ("58° / 41°") if known, and the first [detail] ("Alarm 7:00 AM"). */
+    data class Tomorrow(val day: String, val icon: ImageVector?, val temperatures: String, val detail: String) : ShapedContent
 
     /** An app card. [icon] is the app's icon for states that show it. */
     data class App(val data: AppCardData, val icon: ImageBitmap?) : ShapedContent

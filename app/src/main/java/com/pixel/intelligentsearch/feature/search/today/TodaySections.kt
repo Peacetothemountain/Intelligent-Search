@@ -31,6 +31,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.semantics.heading
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -93,6 +95,9 @@ import com.pixel.intelligentsearch.core.ui.icons.filled.Call
 import com.pixel.intelligentsearch.core.ui.icons.filled.Cloud
 import com.pixel.intelligentsearch.core.ui.icons.filled.Email
 import com.pixel.intelligentsearch.core.ui.icons.filled.Event
+import com.pixel.intelligentsearch.core.ui.icons.filled.Forum
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Tune
+import com.pixel.intelligentsearch.core.ui.icons.outlined.CalendarMonth
 import com.pixel.intelligentsearch.core.ui.icons.filled.History
 import com.pixel.intelligentsearch.core.ui.icons.filled.HourglassBottom
 import com.pixel.intelligentsearch.core.ui.icons.filled.NightsStay
@@ -287,16 +292,6 @@ internal fun openWeather(context: Context) {
     }
 }
 
-/** A section's title over its card. */
-@Composable
-private fun SectionTitle(text: String, detail: String? = null) {
-    val scheme = MaterialTheme.colorScheme
-    Row(Modifier.fillMaxWidth().padding(start = 6.dp, end = 6.dp, top = 10.dp, bottom = 0.dp), verticalAlignment = Alignment.Bottom) {
-        Text(text, style = MaterialTheme.typography.titleSmall, color = scheme.onPage, modifier = Modifier.weight(1f))
-        if (detail != null) Text(detail, style = MaterialTheme.typography.labelMedium, color = scheme.accentOnPage)
-    }
-}
-
 /** A plain card on the container color. */
 @Composable
 private fun Card(modifier: Modifier = Modifier, padding: Int = 14, content: @Composable () -> Unit) {
@@ -402,20 +397,14 @@ internal fun WeatherAhead(report: WeatherReport) {
         val rainAt = hours.indexOfFirst { (it.precipitation ?: 0) >= 50 }
         val falling = if (rainAt >= 0 && WeatherCodes.kind(hours[rainAt].code) == WeatherCodes.Kind.SNOW) "Snow" else "Rain"
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Weather ahead", style = MaterialTheme.typography.titleSmall, color = scheme.onSurface, modifier = Modifier.weight(1f))
             if (rainAt >= 0) {
-                Text(
-                    "$falling likely around ${hours[rainAt].time.withZoneSameInstant(zone).format(DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h a", locale))}",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = scheme.onSurfaceVariant
+                CardLabel(
+                    weatherIcon(report.code, report.isDay),
+                    "Weather ahead",
+                    detail = "$falling around ${hours[rainAt].time.withZoneSameInstant(zone).format(DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h a", locale))}"
                 )
             } else {
-                Text(
-                    HighLow.drawn(report.high, report.low),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = scheme.onSurfaceVariant,
-                    modifier = Modifier.clearAndSetSemantics { text = AnnotatedString(HighLow.spoken(report.high, report.low)) }
-                )
+                CardLabel(weatherIcon(report.code, report.isDay), "Weather ahead", detail = HighLow.drawn(report.high, report.low), spokenDetail = HighLow.spoken(report.high, report.low))
             }
         }
         Spacer(
@@ -520,9 +509,8 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     Column {
-        SectionTitle("Catch up", "From your notifications")
-        Spacer(Modifier.height(8.dp))
         Card(padding = 6) {
+            CardLabel(Icons.Filled.Forum, "Catch up", detail = "${entries.size} new", modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 4.dp))
             entries.forEachIndexed { i, entry ->
                 val (icon, label) = when (entry.category) {
                     Notification.CATEGORY_MISSED_CALL -> Icons.Filled.Call to "Call back"
@@ -583,9 +571,8 @@ internal fun QuickControls(controls: TodayControls) {
     val flashlight = remember(controls) { controls.flashlight() }
     val torch = flashlight?.collectAsState(initial = false)?.value
     val saver by remember(controls) { controls.batterySaver() }.collectAsState(initial = false)
-    Column {
-        SectionTitle("Quick controls")
-        Spacer(Modifier.height(8.dp))
+    Card {
+        CardLabel(Icons.Outlined.Tune, "Quick controls", modifier = Modifier.padding(bottom = 12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ControlTile("Do Not Disturb", Icons.Outlined.DoNotDisturbOn, dnd, Modifier.weight(1f)) {
                 controls.setDoNotDisturb(!dnd)?.let { launchSafeIntent(context, it) }
@@ -655,8 +642,6 @@ internal fun PhoneToday(sources: TodaySources, active: Boolean) {
     val wellbeing = remember(context) { digitalWellbeingIntent(context) }
     if (battery == null && screenTime == null) return
     Column(Modifier.onFirstSeen { phoneSeen.value = true }) {
-        SectionTitle("Your phone today")
-        Spacer(Modifier.height(8.dp))
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (battery != null) BatteryTile(battery, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value)
             if (screenTime != null) {
@@ -667,19 +652,40 @@ internal fun PhoneToday(sources: TodaySources, active: Boolean) {
 }
 
 @Composable
-private fun TileLabel(icon: ImageVector, label: String) {
+private fun TileLabel(icon: ImageVector, label: String) = CardLabel(icon, label)
+
+/**
+ * Every Discover card's label, at its top inside it: a small icon in the accent color and the card's name in small
+ * capitals, with an optional [detail] at the far end ([spokenDetail] is what TalkBack hears for it, when the drawn form
+ * would read badly).
+ */
+@Composable
+internal fun CardLabel(icon: ImageVector, label: String, modifier: Modifier = Modifier, detail: String? = null, spokenDetail: String? = detail) {
     val scheme = MaterialTheme.colorScheme
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(6.dp))
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = scheme.primary, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(7.dp))
         Text(
             label.uppercase(LocalConfiguration.current.locales[0]),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.6.sp,
             color = scheme.onSurfaceVariant,
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false).semantics { heading() }
         )
+        if (detail != null) {
+            Spacer(Modifier.weight(1f).widthIn(min = 8.dp))
+            Text(
+                detail,
+                style = MaterialTheme.typography.labelMedium,
+                color = scheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clearAndSetSemantics { text = AnnotatedString(spokenDetail ?: detail) }
+            )
+        }
     }
 }
 
@@ -780,20 +786,21 @@ private fun ScreenTimeTile(report: ScreenTimeReport, modifier: Modifier, seen: B
 @Composable
 internal fun LeftOff(searches: List<String>, onSearch: (String) -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    Column {
-        SectionTitle("Pick up where you left off")
-        Spacer(Modifier.height(8.dp))
+    Card(padding = 0) {
+        CardLabel(Icons.Filled.History, "Pick up where you left off", modifier = Modifier.padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 10.dp))
         Row(
-            Modifier.horizontalScroll(rememberScrollState()),
+            Modifier
+                .horizontalScroll(rememberScrollState())
+                .padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             for (query in searches) {
                 Column(
                     Modifier
                         .width(128.dp)
-                        .height(100.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
+                        .height(96.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(scheme.surfaceContainerHigh)
                         .bouncyClickable(shape = RoundedCornerShape(20.dp)) { onSearch(query) }
                         .padding(11.dp)
                 ) {
@@ -1006,16 +1013,10 @@ internal fun Tomorrow(date: LocalDate, alarmAt: Long?, weather: WeatherReport?, 
         Modifier
             .fillMaxWidth()
             .clip(CardShape)
-            .background(scheme.surfaceContainerHigh)
+            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
             .padding(14.dp)
     ) {
-        Text(
-            "TOMORROW",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.6.sp,
-            color = scheme.onSurfaceVariant
-        )
+        CardLabel(Icons.Outlined.CalendarMonth, "Tomorrow")
         Text(
             date.format(DateTimeFormatter.ofPattern("EEEE, MMMM d", locale)),
             style = MaterialTheme.typography.titleLarge,

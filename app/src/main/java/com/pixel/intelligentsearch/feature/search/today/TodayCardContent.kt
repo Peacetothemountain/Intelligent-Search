@@ -4,7 +4,9 @@ import android.content.Context
 import android.os.SystemClock
 import com.pixel.intelligentsearch.core.answers.WeatherCodes
 import com.pixel.intelligentsearch.core.answers.WeatherReport
+import com.pixel.intelligentsearch.core.data.CalendarEvent
 import com.pixel.intelligentsearch.core.glance.GlanceAlarm
+import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import com.pixel.intelligentsearch.core.glance.GlanceMedia
 import com.pixel.intelligentsearch.core.glance.GlanceTimer
 import com.pixel.intelligentsearch.core.glance.timerReading
@@ -123,3 +125,62 @@ internal fun shapedWord(word: TodayWord): ShapedContent.Word = ShapedContent.Wor
 
 /** A package on its way. */
 internal fun shapedDelivery(delivery: TodayDelivery): ShapedContent.Delivery = ShapedContent.Delivery(delivery.headline, delivery.detail)
+
+/** The next event: its time, its name, how long until it, and how much of the hour before it has gone. */
+internal fun shapedEvent(context: Context, event: CalendarEvent, now: Long): ShapedContent.Event {
+    val time = android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(event.beginMillis))
+    val left = (event.beginMillis - now).coerceAtLeast(0L)
+    return ShapedContent.Event(
+        title = event.title,
+        time = time,
+        until = Durations.until(left),
+        fraction = 1f - (left / 3_600_000f).coerceIn(0f, 1f)
+    )
+}
+
+/** The rest of today: how many things are left (sunset among them), the next one, and their hours of the day. */
+internal fun shapedAgenda(context: Context, events: List<CalendarEvent>, sunset: Long?): ShapedContent.Agenda? {
+    val zone = ZoneId.systemDefault()
+    val times = (events.map { it.beginMillis to it.title } + listOfNotNull(sunset?.let { it to "Sunset" })).sortedBy { it.first }
+    val first = times.firstOrNull() ?: return null
+    val format = android.text.format.DateFormat.getTimeFormat(context)
+    return ShapedContent.Agenda(
+        count = times.size,
+        next = format.format(java.util.Date(first.first)),
+        nextTitle = first.second,
+        hours = times.map { (at, _) ->
+            val t = Instant.ofEpochMilli(at).atZone(zone)
+            t.hour + t.minute / 60f
+        }
+    )
+}
+
+/** What there is to catch up on: how many, and who the latest is from. */
+internal fun shapedCatchUp(entries: List<IndexedNotification>): ShapedContent.CatchUp? {
+    val latest = entries.maxByOrNull { it.postedAt } ?: return null
+    return ShapedContent.CatchUp(entries.size, latest.title.ifBlank { latest.appLabel })
+}
+
+/** Tomorrow: its day, its weather, and the first of the alarm and the first event. */
+internal fun shapedTomorrow(
+    context: Context,
+    date: LocalDate,
+    alarmAt: Long?,
+    weather: WeatherReport?,
+    firstEvent: CalendarEvent?
+): ShapedContent.Tomorrow {
+    val locale = context.resources.configuration.locales[0]
+    val format = android.text.format.DateFormat.getTimeFormat(context)
+    val detail = when {
+        alarmAt != null -> "Alarm " + format.format(java.util.Date(alarmAt))
+        firstEvent != null -> firstEvent.title + " " + format.format(java.util.Date(firstEvent.beginMillis))
+        weather != null -> WeatherCodes.describe(weather.code)
+        else -> ""
+    }
+    return ShapedContent.Tomorrow(
+        day = date.format(java.time.format.DateTimeFormatter.ofPattern("EEEE", locale)),
+        icon = weather?.let { weatherIcon(it.code, true) },
+        temperatures = weather?.let { "${it.high.roundToInt()}° / ${it.low.roundToInt()}°" } ?: "",
+        detail = detail
+    )
+}

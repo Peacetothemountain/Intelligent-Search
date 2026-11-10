@@ -148,6 +148,8 @@ import com.pixel.intelligentsearch.feature.search.today.cards.CardMode
 import com.pixel.intelligentsearch.feature.search.today.cards.CardSpec
 import com.pixel.intelligentsearch.feature.search.today.cards.ShapedContent
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.DiscoverEditChrome
+import com.pixel.intelligentsearch.feature.search.today.cards.grid.EditIcons
+import com.pixel.intelligentsearch.core.system.openPendingOrApp
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.DiscoverGrid
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.cardLayoutStore
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.rememberDiscoverEditState
@@ -477,7 +479,7 @@ internal fun TodayPage(
                 spec.private && spec.id !in revealed -> reveal(spec)
                 content is ShapedContent.App && content.data.state == AppCardState.REMOVED -> remove(spec)
                 content is ShapedContent.App && content.data.state == AppCardState.SETUP -> setUpWidget(content.data.widgetId)
-                else -> openShapedCard(context, content, snapshot.media, timer, alarm, onSearch)
+                else -> openShapedCard(context, content, snapshot.media, timer, alarm, upNext, { catchUp.firstOrNull()?.let { openPendingOrApp(context, it.contentIntent, it.packageName) } }, onSearch)
             }
         }
 
@@ -555,6 +557,11 @@ internal fun TodayPage(
 
             /** What a card draws in its shape, or null when it has nothing to draw one from. */
             fun shapedContent(spec: CardSpec): ShapedContent? = when (spec.kind) {
+                CardKind.UP_NEXT -> upNext?.let { shapedEvent(context, it, now) }
+                CardKind.REST_OF_DAY -> shapedAgenda(context, laterToday, sunset)
+                CardKind.CATCH_UP -> shapedCatchUp(catchUp)
+                CardKind.LEFT_OFF -> recentSearches.firstOrNull()?.let { ShapedContent.Search(it) }
+                CardKind.TOMORROW -> shapedTomorrow(context, today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather, tomorrowEvent)
                 CardKind.WEATHER -> weather?.let { shapedWeather(context, it, now) }
                 CardKind.TILES -> timer?.let { shapedTimer(it, now) } ?: alarm?.let { shapedAlarm(context, it, now) } ?: delivery?.let(::shapedDelivery)
                 CardKind.NOW_PLAYING -> snapshot.media?.let(::shapedMedia)
@@ -570,7 +577,7 @@ internal fun TodayPage(
                 layout = cardLayout,
                 onLayoutChange = cardStore::update,
                 shown = ::shown,
-                fits = { spec, size -> cardFits(spec, size, shapedContent(spec), density) },
+                minShape = { spec -> leastShapeDp(shapedContent(spec), density.fontScale) },
                 label = { spec -> cardLabel(spec, apps, sites) },
                 scroll = scroll
             ) { spec, cardModifier ->
@@ -619,6 +626,11 @@ internal fun TodayPage(
             onBack = onBack,
             onOpenSettings = onOpenSettings,
             modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding()
+        )
+        EditButton(
+            visible = !editState.editing,
+            onClick = { editState.enter(null) },
+            modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding()
         )
         // Edit mode's bar, its drop target and its sheets, over the page.
         DiscoverEditChrome(
@@ -1059,8 +1071,7 @@ private fun RestOfDay(calendar: List<CalendarEvent>, now: Long, sunset: Long?) {
             .padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Rest of your day", style = MaterialTheme.typography.titleSmall, color = scheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-            Text(if (calendar.size == 1) "1 event" else "${calendar.size} events", style = MaterialTheme.typography.labelMedium, color = scheme.primary)
+            CardLabel(Icons.Outlined.Schedule, "Rest of your day", detail = if (calendar.size == 1) "1 event" else "${calendar.size} events", modifier = Modifier.weight(1f))
         }
         BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 6.dp).height(96.dp)) {
             val width = maxWidth
@@ -1372,6 +1383,51 @@ private fun TodayBar(onBack: () -> Unit, onOpenSettings: () -> Unit, modifier: M
                 .graphicsLayer { alpha = formed() }
         ) {
             Icon(painterResource(R.drawable.ic_three_bars), contentDescription = "Discover Overlay Settings", tint = onPill)
+        }
+    }
+}
+
+/**
+ * Edit Discover: a round button at the bottom right, in the bar's body color, that comes in as the bar goes down to
+ * Back and Settings (at once with animations off) and steps aside while editing.
+ */
+@Composable
+private fun EditButton(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val animate by rememberAnimationsEnabled()
+    var ready by remember { mutableStateOf(!animate) }
+    LaunchedEffect(Unit) {
+        if (!ready) {
+            delay(BAR_SHRINK_DELAY_MS + SEARCH_MILLIS / 2)
+            ready = true
+        }
+    }
+    val shown by animateFloatAsState(
+        if (visible && ready) 1f else 0f,
+        if (animate) spring(dampingRatio = 0.7f, stiffness = 500f) else snap(),
+        label = "edit button"
+    )
+    if (shown <= 0f && !(visible && ready)) return
+    Box(
+        modifier.padding(end = PILL_SIDE, bottom = PILL_MARGIN).height(PILL_HEIGHT),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            Modifier
+                .size(56.dp)
+                .graphicsLayer {
+                    alpha = shown.coerceIn(0f, 1f)
+                    val s = 0.7f + 0.3f * shown
+                    scaleX = s
+                    scaleY = s
+                }
+                .clip(CircleShape)
+                .background(scheme.surfaceVariant)
+                .bouncyClickable(shape = CircleShape, onClick = onClick)
+                .semantics { contentDescription = "Edit Discover" },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(EditIcons.Edit, contentDescription = null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
         }
     }
 }

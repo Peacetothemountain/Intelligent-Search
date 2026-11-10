@@ -193,6 +193,11 @@ private fun Stage.design(content: ShapedContent, extras: CardExtras, alarmDegree
         is ShapedContent.Countdown -> countdown(content)
         is ShapedContent.Memory -> memory(content)
         is ShapedContent.Year -> year(content)
+        is ShapedContent.Event -> event(content)
+        is ShapedContent.Agenda -> agenda(content)
+        is ShapedContent.CatchUp -> catchUp(content)
+        is ShapedContent.Search -> search(content)
+        is ShapedContent.Tomorrow -> tomorrow(content)
         is ShapedContent.App -> app(content, extras)
         is ShapedContent.Site -> site(content, extras)
     }
@@ -209,7 +214,7 @@ private fun designOf(content: ShapedContent): String = when (content) {
 
 /** Whether [content]'s design has ambient motion to keep (the living light, a spinning record, a shimmer). */
 private fun wantsAmbient(content: ShapedContent): Boolean = when (content) {
-    is ShapedContent.Battery, is ShapedContent.Word -> true
+    is ShapedContent.Battery, is ShapedContent.Word, is ShapedContent.Search -> true
     is ShapedContent.Media -> content.playing
     is ShapedContent.App -> content.data.state == AppCardState.READY || content.data.state == AppCardState.STALE || content.data.state == AppCardState.UPDATING
     else -> false

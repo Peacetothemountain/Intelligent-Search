@@ -2,19 +2,23 @@ package com.pixel.intelligentsearch.feature.search.today.cards.grid
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -25,13 +29,18 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -48,46 +57,46 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.pixel.intelligentsearch.core.ui.icons.filled.Close
 import com.pixel.intelligentsearch.core.ui.icons.filled.Lock
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Delete
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Interests
 import com.pixel.intelligentsearch.core.ui.icons.outlined.VisibilityOff
-import com.pixel.intelligentsearch.feature.search.today.cards.CardMode
+import com.pixel.intelligentsearch.feature.search.today.cards.CARD_SHAPES
+import com.pixel.intelligentsearch.feature.search.today.cards.CardForm
 import com.pixel.intelligentsearch.feature.search.today.cards.CardSpec
 import com.pixel.intelligentsearch.feature.search.today.cards.DiscoverLayout
 import com.pixel.intelligentsearch.feature.search.today.cards.WidgetChoice
-import com.pixel.intelligentsearch.feature.search.today.cards.shape.CardOutlineShape
+import com.pixel.intelligentsearch.feature.search.today.cards.shape.ShapeSwatch
 import kotlinx.coroutines.delay
+import kotlin.math.roundToInt
 
 /*
- * What edit mode draws over Discover: the top bar (Edit Discover, Add card, Done) that turns into the Remove or Hide
- * target while a card is held, the held card itself (above the bar), a short message at the bottom, and the sheets.
+ * What edit mode draws over Discover: the top bar (Add and Done, icons only) with a short hint that fades, the selected
+ * card's toolbar (Shape, Private, Hide), the shapes a card can take, popping up over it the moment a full card is
+ * pinched smaller, a short message at the bottom, and the sheets.
  *
  * NG Designs
  */
@@ -95,12 +104,16 @@ import kotlinx.coroutines.delay
 /** The top bar's slide: quick, with a touch of overshoot. */
 private val BarEasing = CubicBezierEasing(0.2f, 0.9f, 0.3f, 1.1f)
 
+/** How long the hint under the top bar stays. */
+private const val HINT_MS = 4_500L
+
 /**
  * Edit mode's layer over Discover, filling the page above its scrolling column: the top bar that slides down while
- * editing, the card being moved, short messages, and the Shape, Add card and actions sheets. Back stops editing
- * before it closes the page. [widgetChoices] lists the widgets a card can be made from and [onAddWidget] makes one;
- * [onAddSite] reads a website the user typed into a card (its failure's message is shown under the field);
- * [onRemoveCustom] lets the page let go of a removed app or website card. Edits go to [onLayoutChange].
+ * editing, the selected card's toolbar and shapes, short messages, and the Add card and actions sheets. Back puts the
+ * shapes away, then lets the selected card go, then stops editing, before it closes the page. [widgetChoices] lists
+ * the widgets a card can be made from and [onAddWidget] makes one; [onAddSite] reads a website the user typed into a
+ * card (its failure's message is shown under the field); [onRemoveCustom] lets the page let go of a removed app or
+ * website card. Edits go to [onLayoutChange].
  */
 @Composable
 internal fun DiscoverEditChrome(
@@ -115,10 +128,16 @@ internal fun DiscoverEditChrome(
 ) {
     state.onLayoutChange = onLayoutChange
     state.onRemoveCustom = onRemoveCustom
-    BackHandler(enabled = state.editing && state.sheet == null) { state.exit() }
+    BackHandler(enabled = state.editing && state.sheet == null) {
+        when {
+            state.strip != null -> state.strip = null
+            state.selectedId != null -> state.select(null)
+            else -> state.exit()
+        }
+    }
     Box(modifier.fillMaxSize().onGloballyPositioned { state.chromeCoords = it }) {
+        CardTools(state, layout)
         EditTopBar(state, Modifier.align(Alignment.TopCenter))
-        HeldCard(state, Modifier.fillMaxSize())
         EditToast(state, Modifier.align(Alignment.BottomCenter))
         Announcer(state)
     }
@@ -126,8 +145,8 @@ internal fun DiscoverEditChrome(
 }
 
 /**
- * The top bar while editing, sliding down over the page: "Edit Discover", Add card and Done. While a card is held it
- * is the Remove (the user's own cards) or Hide (the page's own parts) target, red with the card over it.
+ * The top bar while editing, sliding down over the page: Add card on the left and Done on the right, icons only, and
+ * between them, for a few seconds, how editing works.
  */
 @Composable
 private fun EditTopBar(state: DiscoverEditState, modifier: Modifier) {
@@ -136,108 +155,213 @@ private fun EditTopBar(state: DiscoverEditState, modifier: Modifier) {
     val shown = remember { Animatable(if (editing) 1f else 0f) }
     LaunchedEffect(editing) {
         val target = if (editing) 1f else 0f
-        if (state.animate) shown.animateTo(target, tween(300, easing = BarEasing)) else shown.snapTo(target)
+        if (state.animate) shown.animateTo(target, tween(320, easing = BarEasing)) else shown.snapTo(target)
+    }
+    var hint by remember { mutableStateOf(false) }
+    LaunchedEffect(editing) {
+        hint = editing
+        if (editing) {
+            delay(HINT_MS)
+            hint = false
+        }
     }
     val out by remember { derivedStateOf { shown.value <= 0f } }
     if (out && !editing) return
-    val held = state.drag
     val page = scheme.surface
     Box(
         modifier
             .fillMaxWidth()
             .graphicsLayer { translationY = -(1f - shown.value) * size.height }
             // Solid behind the buttons, fading out only in the margin below them, so no page text shows through.
-            .background(Brush.verticalGradient(0f to page.copy(alpha = 0.97f), 0.78f to page.copy(alpha = 0.97f), 1f to page.copy(alpha = 0f)))
+            .background(Brush.verticalGradient(0f to page.copy(alpha = 0.96f), 0.72f to page.copy(alpha = 0.96f), 1f to page.copy(alpha = 0f)))
             .onGloballyPositioned { state.topBarBottom = it.boundsInRoot().bottom }
             // The bar takes the touches over it, as the page under it is covered.
             .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
             .statusBarsPadding()
-            .padding(start = 14.dp, end = 14.dp, top = 12.dp, bottom = 26.dp)
+            .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 26.dp)
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .graphicsLayer { alpha = if (held != null) 0f else 1f },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "Edit Discover",
-                style = MaterialTheme.typography.titleMedium,
-                color = scheme.onSurface,
-                modifier = Modifier.weight(1f).semantics { heading() }
-            )
-            FilledTonalButton(
-                onClick = { state.open(EditSheet.ADD) },
-                contentPadding = PaddingValues(start = 12.dp, end = 16.dp)
-            ) {
-                Icon(EditIcons.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text("Add card")
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            FilledTonalIconButton(onClick = { state.open(EditSheet.ADD) }, modifier = Modifier.size(48.dp)) {
+                Icon(EditIcons.Add, contentDescription = "Add a card")
             }
-            Spacer(Modifier.width(6.dp))
-            Button(onClick = { state.exit() }) { Text("Done") }
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                androidx.compose.animation.AnimatedVisibility(hint, enter = fadeIn(tween(250)), exit = fadeOut(tween(600))) {
+                    Text(
+                        "Drag to move. Pinch to resize.",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = scheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        modifier = Modifier.clearAndSetSemantics { }
+                    )
+                }
+            }
+            FilledIconButton(onClick = { state.exit() }, modifier = Modifier.size(48.dp)) {
+                Icon(EditIcons.Check, contentDescription = "Done")
+            }
         }
-        if (held != null) DropTarget(state, held, Modifier.matchParentSize())
-    }
-}
-
-/** Remove or Hide, where a held card is dropped to take it off the page: red while the card is over it. */
-@Composable
-private fun DropTarget(state: DiscoverEditState, held: CardDrag, modifier: Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    val builtIn = state.spec(held.id)?.kind?.builtIn != false
-    val hot = held.hot
-    val back by animateColorAsState(if (hot) scheme.error.copy(alpha = 0.32f) else Color.Transparent, tween(150), label = "drop target")
-    val ink by animateColorAsState(if (hot) scheme.error else scheme.onSurface, tween(150), label = "drop target ink")
-    Row(
-        modifier
-            .clip(CircleShape)
-            .background(back)
-            .clearAndSetSemantics { },
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(Icons.Filled.Close, contentDescription = null, tint = ink, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(if (builtIn) "Hide" else "Remove", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, color = ink)
     }
 }
 
 /**
- * The card being moved, drawn over the page and its top bar from the layer the card records: lifted (a little larger,
- * with a shadow in its own shape), following the finger, shrunk over the Remove or Hide target, and gliding home when
- * let go.
+ * Over the selected card: its toolbar (Shape for kinds that have one, Private, and Hide or Remove), and above it the
+ * shapes it can take when they are offered. The shapes follow a card being pinched, so they are there the moment a
+ * full card is pinched smaller; the toolbar steps aside while a card moves.
  */
 @Composable
-private fun HeldCard(state: DiscoverEditState, modifier: Modifier) {
-    val held = state.drag ?: return
-    val spec = state.spec(held.id)
-    val density = LocalDensity.current
-    val direction = LocalLayoutDirection.current
-    val size = Size(held.size.width.toFloat(), held.size.height.toFloat())
-    val outline = remember(spec?.mode, spec?.shape, size, density, direction) {
-        val shape = if (spec?.mode == CardMode.SHAPED) CardOutlineShape(spec.shape) else RoundedCornerShape(24.dp)
-        shape.createOutline(size, direction, density)
-    }
-    Spacer(
-        modifier.drawBehind {
-            val origin = state.chromeCoords?.takeIf { it.isAttached }?.positionInRoot() ?: Offset.Zero
-            val topLeft = (held.landing?.value ?: (held.finger - held.grab)) - origin
-            val layer = held.layer
-            layer.scaleX = held.scale.value
-            layer.scaleY = held.scale.value
-            layer.alpha = held.alpha.value
-            layer.shadowElevation = 14.dp.toPx()
-            when (outline) {
-                is Outline.Rounded -> {
-                    val r = outline.roundRect
-                    layer.setRoundRectOutline(Offset(r.left, r.top), Size(r.width, r.height), r.topLeftCornerRadius.x)
-                }
-                is Outline.Generic -> layer.setPathOutline(outline.path)
-                is Outline.Rectangle -> layer.setRectOutline(Offset(outline.rect.left, outline.rect.top), outline.rect.size)
+private fun CardTools(state: DiscoverEditState, layout: DiscoverLayout) {
+    val id = state.selectedId?.takeIf { state.editing }
+    val spec = id?.let { layout.cards.firstOrNull { it.id == id } }
+    val active = state.active
+    val stripOn = spec != null && state.strip == spec.id && spec.kind.shaped
+    val toolsOn = spec != null && active == null
+    if (spec == null) return
+    Layout(
+        content = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.animation.AnimatedVisibility(
+                    stripOn,
+                    enter = fadeIn(tween(160)) + scaleIn(spring(dampingRatio = 0.7f, stiffness = 700f), initialScale = 0.85f),
+                    exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.9f)
+                ) { ShapeStrip(state, spec) }
+                androidx.compose.animation.AnimatedVisibility(
+                    toolsOn,
+                    enter = fadeIn(tween(160)) + scaleIn(spring(dampingRatio = 0.7f, stiffness = 700f), initialScale = 0.85f),
+                    exit = fadeOut(tween(100))
+                ) { Toolbar(state, spec) }
             }
-            translate(topLeft.x, topLeft.y) { drawLayer(layer) }
         }
+    ) { measurables, constraints ->
+        val margin = 12.dp.roundToPx()
+        val placeable = measurables.first().measure(Constraints(maxWidth = (constraints.maxWidth - 2 * margin).coerceAtLeast(0)))
+        layout(constraints.maxWidth, constraints.maxHeight) {
+            // Read as it is placed, so scrolling moves the tools with the card without rebuilding them.
+            state.scroll?.value
+            val card = toolsTarget(state, spec.id) ?: return@layout
+            val x = (card.center.x - placeable.width / 2f).roundToInt().coerceIn(margin, (constraints.maxWidth - margin - placeable.width).coerceAtLeast(margin))
+            val above = card.top - margin - placeable.height
+            val top = state.topBarBottom - (state.chromeCoords?.takeIf { it.isAttached }?.let { it.boundsInRoot().top } ?: 0f)
+            val y = when {
+                above >= top -> above
+                card.bottom + margin + placeable.height <= constraints.maxHeight - 120.dp.toPx() -> card.bottom + margin
+                else -> top + margin
+            }
+            placeable.place(IntOffset(x, y.roundToInt()), zIndex = 3f)
+        }
+    }
+}
+
+/** Where card [id] is drawn, in the chrome's coordinates: following the fingers while it is moved or pinched. */
+private fun toolsTarget(state: DiscoverEditState, id: String): Rect? {
+    val grid = state.gridCoords?.takeIf { it.isAttached } ?: return null
+    val chrome = state.chromeCoords?.takeIf { it.isAttached } ?: return null
+    val active = state.active?.takeIf { it.id == id }
+    val slot = active?.rect ?: state.slots[id]?.let { Rect(it.left.toFloat(), it.top.toFloat(), it.right.toFloat(), it.bottom.toFloat()) } ?: return null
+    val drawn = Rect(slot.left, slot.top, slot.right - state.gap, slot.bottom - state.gap)
+    val origin = chrome.localPositionOf(grid, Offset.Zero)
+    return drawn.translate(origin)
+}
+
+/** The selected card's toolbar: Shape (kinds that have one), Private, and Hide (the page's parts) or Remove (the user's own). */
+@Composable
+private fun Toolbar(state: DiscoverEditState, spec: CardSpec) {
+    val scheme = MaterialTheme.colorScheme
+    Surface(shape = CircleShape, color = scheme.surfaceContainerHighest, shadowElevation = 8.dp, tonalElevation = 2.dp) {
+        Row(Modifier.padding(5.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (spec.kind.shaped) ToolButton(Icons.Outlined.Interests, "Shapes", on = state.strip == spec.id) { state.toggleStrip(spec.id) }
+            ToolButton(Icons.Filled.Lock, "Private", on = spec.private) { state.togglePrivate(spec.id) }
+            if (spec.kind.builtIn) {
+                ToolButton(Icons.Outlined.VisibilityOff, "Hide") { state.removeCard(spec.id) }
+            } else {
+                ToolButton(Icons.Outlined.Delete, "Remove") { state.removeCard(spec.id) }
+            }
+        }
+    }
+}
+
+/** One of the toolbar's buttons, an icon only; [on] for a switch, lit while on. TalkBack hears [description]. */
+@Composable
+private fun ToolButton(icon: ImageVector, description: String, on: Boolean? = null, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val lit = on == true
+    val action = if (on != null) {
+        Modifier.toggleable(value = lit, role = Role.Switch, onValueChange = { onClick() })
+    } else {
+        Modifier.clickable(role = Role.Button, onClick = onClick)
+    }
+    Box(
+        Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(if (lit) scheme.primaryContainer else Color.Transparent)
+            .then(action)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = null, tint = if (lit) scheme.onPrimaryContainer else scheme.onSurface, modifier = Modifier.size(21.dp))
+    }
+}
+
+/**
+ * The forms a card can take, in a row that scrolls: its full card first, then every Material shape, the one it has now
+ * marked. A tap turns it at once; the row stays, so another can be tried.
+ */
+@Composable
+private fun ShapeStrip(state: DiscoverEditState, spec: CardSpec) {
+    val scheme = MaterialTheme.colorScheme
+    val list = rememberLazyListState()
+    val current = if (spec.form == CardForm.SHAPE) CARD_SHAPES.indexOf(spec.shape) + 1 else 0
+    LaunchedEffect(spec.id) { if (current > 2) list.scrollToItem(current - 2) }
+    Surface(shape = RoundedCornerShape(28.dp), color = scheme.surfaceContainerHighest, shadowElevation = 10.dp, tonalElevation = 2.dp) {
+        LazyRow(
+            state = list,
+            modifier = Modifier.widthIn(max = 400.dp).selectableGroup(),
+            contentPadding = PaddingValues(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            item(key = "card") {
+                StripItem(selected = current == 0, description = "Full card", onClick = { state.setForm(spec.id, CardForm.CARD) }) {
+                    CardSwatch(current == 0, Modifier.fillMaxSize())
+                }
+            }
+            items(CARD_SHAPES, key = { it }) { name ->
+                val selected = spec.form == CardForm.SHAPE && spec.shape == name
+                StripItem(selected = selected, description = "${shapeName(name)} shape", onClick = { state.setForm(spec.id, CardForm.SHAPE, name) }) {
+                    ShapeSwatch(name, selected, Modifier.fillMaxSize())
+                }
+            }
+        }
+    }
+}
+
+/** One choice in the shapes row. */
+@Composable
+private fun StripItem(selected: Boolean, description: String, onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        Modifier
+            .size(46.dp)
+            .clip(RoundedCornerShape(13.dp))
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .semantics { contentDescription = description }
+    ) { content() }
+}
+
+/** The full card, drawn small as the shapes are: a wide rounded box on the same tile. */
+@Composable
+private fun CardSwatch(selected: Boolean, modifier: Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val tile = if (selected) scheme.secondaryContainer else scheme.onSurface.copy(alpha = 0.04f)
+    val fill = scheme.onSurfaceVariant
+    Spacer(
+        modifier
+            .clip(RoundedCornerShape(13.dp))
+            .then(if (selected) Modifier.border(2.dp, scheme.primary, RoundedCornerShape(13.dp)) else Modifier)
+            .drawBehind {
+                drawRect(tile)
+                val w = size.width * 0.74f
+                val h = size.height * 0.46f
+                drawRoundRect(fill, Offset((size.width - w) / 2f, (size.height - h) / 2f), Size(w, h), CornerRadius(h * 0.3f))
+            }
     )
 }
 
@@ -307,54 +431,4 @@ private fun Announcer(state: DiscoverEditState) {
                 if (text.isNotEmpty()) contentDescription = text
             }
     )
-}
-
-/**
- * The selected card's toolbar: Shape (shaped cards), Size (the next preset size that fits), Hide (the page's own
- * parts) or Private (the user's own cards), and More, the actions sheet.
- */
-@Composable
-internal fun EditToolbar(state: DiscoverEditState, spec: CardSpec, modifier: Modifier = Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    Surface(modifier, shape = CircleShape, color = scheme.surfaceContainerHighest, shadowElevation = 8.dp) {
-        Row(Modifier.padding(4.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            if (spec.mode == CardMode.SHAPED) ToolButton(Icons.Outlined.Interests, "Shape") { state.open(EditSheet.SHAPE) }
-            ToolButton(EditIcons.OpenInFull, "Size") { state.cycleSize(spec.id) }
-            if (spec.kind.builtIn) {
-                ToolButton(Icons.Outlined.VisibilityOff, "Hide") { state.removeCard(spec.id) }
-            } else {
-                ToolButton(Icons.Filled.Lock, "Private", on = spec.private) { state.togglePrivate(spec.id) }
-            }
-            ToolButton(EditIcons.MoreHoriz, null, description = "More actions") { state.open(EditSheet.ACTIONS) }
-        }
-    }
-}
-
-/** One of the toolbar's buttons; [on] for a switch that is on. */
-@Composable
-private fun ToolButton(icon: ImageVector, label: String?, on: Boolean? = null, description: String? = null, onClick: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    val lit = on == true
-    val ink = if (lit) scheme.onPrimaryContainer else scheme.onSurface
-    val action = if (on != null) {
-        Modifier.toggleable(value = lit, role = Role.Switch, onValueChange = { onClick() })
-    } else {
-        Modifier.clickable(role = Role.Button, onClick = onClick)
-    }
-    Row(
-        Modifier
-            .clip(CircleShape)
-            .background(if (lit) scheme.primaryContainer else Color.Transparent)
-            .then(action)
-            .then(if (description != null) Modifier.semantics { contentDescription = description } else Modifier)
-            .heightIn(min = 40.dp)
-            .padding(horizontal = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, contentDescription = null, tint = ink, modifier = Modifier.size(16.dp))
-        if (label != null) {
-            Spacer(Modifier.width(4.dp))
-            Text(label, style = MaterialTheme.typography.labelMedium, fontSize = 12.sp, color = ink)
-        }
-    }
 }

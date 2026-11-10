@@ -2,14 +2,12 @@ package com.pixel.intelligentsearch.feature.search.today.cards.grid
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -60,25 +58,19 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.ui.LOADING_INDICATOR_TAG
 import com.pixel.intelligentsearch.core.ui.icons.outlined.VisibilityOff
-import com.pixel.intelligentsearch.feature.search.today.cards.CARD_SHAPES
 import com.pixel.intelligentsearch.feature.search.today.cards.CardKind
-import com.pixel.intelligentsearch.feature.search.today.cards.CardMode
 import com.pixel.intelligentsearch.feature.search.today.cards.DiscoverLayout
 import com.pixel.intelligentsearch.feature.search.today.cards.WidgetChoice
-import com.pixel.intelligentsearch.feature.search.today.cards.shape.ShapeSwatch
 import androidx.compose.ui.platform.testTag
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /*
- * Edit mode's sheets: the Material shapes for a shaped card, Add card (an app's widget, a website, or a hidden part
+ * Edit mode's sheets: Add card (an app's widget, a website, or a hidden part
  * back), and every edit of the selected card as a plain button, for TalkBack, Switch Access and keyboards.
  *
  * NG Designs
  */
-
-/** Shapes per row in the Shape sheet. */
-private const val SHAPES_PER_ROW = 7
 
 /**
  * The open sheet ([DiscoverEditState.sheet]), if any, as a modal bottom sheet. [layout] is the page's layout, which
@@ -108,7 +100,6 @@ internal fun EditSheets(
                     .padding(start = 16.dp, end = 16.dp, bottom = 20.dp)
             ) {
                 when (which) {
-                    EditSheet.SHAPE -> ShapeSheet(state, layout)
                     EditSheet.ADD -> AddSheet(state, layout, widgetChoices, onAddWidget, onAddSite, close)
                     EditSheet.ACTIONS -> ActionsSheet(state, layout, close)
                 }
@@ -132,39 +123,6 @@ private fun SheetHeading(title: String, note: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(bottom = 12.dp)
     )
-}
-
-/** The Material shapes the selected shaped card can take, seven to a row; picking one morphs the card to it. */
-@Composable
-private fun ShapeSheet(state: DiscoverEditState, layout: DiscoverLayout) {
-    val scheme = MaterialTheme.colorScheme
-    val spec = layout.cards.firstOrNull { it.id == state.selectedId }?.takeIf { it.mode == CardMode.SHAPED }
-    SheetHeading("Shape", "Small cards can take any shape. Their design re-forms around it.")
-    if (spec == null) return
-    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        for (row in CARD_SHAPES.chunked(SHAPES_PER_ROW)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                for (name in row) {
-                    val selected = spec.shape == name
-                    val tile = RoundedCornerShape(13.dp)
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .aspectRatio(1f)
-                            .clip(tile)
-                            .background(if (selected) scheme.primaryContainer else scheme.onSurface.copy(alpha = 0.05f))
-                            .then(if (selected) Modifier.border(2.dp, scheme.primary, tile) else Modifier)
-                            .selectable(selected = selected, role = Role.RadioButton) { state.setShape(spec.id, name) }
-                            .semantics { contentDescription = shapeName(name) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        ShapeSwatch(name, selected, Modifier.fillMaxSize(0.7f))
-                    }
-                }
-                repeat(SHAPES_PER_ROW - row.size) { Spacer(Modifier.weight(1f)) }
-            }
-        }
-    }
 }
 
 /**

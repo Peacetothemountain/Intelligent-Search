@@ -44,6 +44,16 @@ internal object EditIcons {
         icon("Filled.Crop169", "M19,6H5c-1.1,0 -2,0.9 -2,2v8c0,1.1 0.9,2 2,2h14c1.1,0 2,-0.9 2,-2V8c0,-1.1 -0.9,-2 -2,-2zM19,16H5V8h14v8z")
     }
 
+    val ArrowBack: ImageVector by lazy { icon("Filled.ArrowBack", "M20,11H7.83l5.59,-5.59L12,4l-8,8 8,8 1.41,-1.41L7.83,13H20v-2z") }
+
+    val ArrowForward: ImageVector by lazy { icon("Filled.ArrowForward", "M12,4l-1.41,1.41L16.17,11H4v2h12.17l-5.58,5.59L12,20l8,-8z") }
+
+    val Edit: ImageVector by lazy {
+        icon("Outlined.Edit", "M14.06,9.02l0.92,0.92L5.92,19H5v-0.92l9.06,-9.06M17.66,3c-0.25,0 -0.51,0.1 -0.7,0.29l-1.83,1.83 3.75,3.75 1.83,-1.83c0.39,-0.39 0.39,-1.02 0,-1.41l-2.34,-2.34c-0.2,-0.2 -0.45,-0.29 -0.71,-0.29zM14.06,6.19L3,17.25V21h3.75L17.81,9.94l-3.75,-3.75z")
+    }
+
+    val Check: ImageVector by lazy { icon("Filled.Check", "M9,16.17L4.83,12l-1.42,1.41L9,19 21,7l-1.41,-1.41z") }
+
     val CropPortrait: ImageVector by lazy {
         icon("Filled.CropPortrait", "M17,3H7c-1.1,0 -1.99,0.9 -1.99,2L5,19c0,1.1 0.89,2 1.99,2H17c1.1,0 2,-0.9 2,-2V5c0,-1.1 -0.9,-2 -2,-2zM17,19H7V5h10v14z")
     }

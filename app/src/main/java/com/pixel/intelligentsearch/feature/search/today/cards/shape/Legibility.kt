@@ -36,6 +36,11 @@ internal fun mainUnits(content: ShapedContent): Float = when (content) {
     is ShapedContent.Countdown -> if (content.days <= 0) 30f else 46f
     is ShapedContent.Memory -> 16f
     is ShapedContent.Year -> 42f
+    is ShapedContent.Event -> 30f
+    is ShapedContent.Agenda -> 44f
+    is ShapedContent.CatchUp -> 44f
+    is ShapedContent.Search -> 15f
+    is ShapedContent.Tomorrow -> 20f
     is ShapedContent.Site -> 14f
     is ShapedContent.App -> {
         val d = content.data

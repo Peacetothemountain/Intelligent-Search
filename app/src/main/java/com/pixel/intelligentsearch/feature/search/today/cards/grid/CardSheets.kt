@@ -214,7 +214,9 @@ private fun AddSheet(
                 close()
             }.onFailure {
                 state.haptic(EditHaptic.REJECT)
-                error = it.message ?: "That website couldn't be added. Check the address and try again."
+                val why = it.message ?: "That website couldn't be added. Check the address and try again."
+                error = why
+                state.announce(why)
             }
         }
     }
@@ -252,7 +254,7 @@ private fun AddSheet(
                             state.addBack(kind)
                             close()
                         }
-                        .heightIn(min = 44.dp)
+                        .heightIn(min = 48.dp)
                         .padding(start = 12.dp, end = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -298,10 +300,9 @@ private fun AddSheet(
                         first = i == 0,
                         last = i == groups.lastIndex,
                         onToggle = { open = if (open == app.packageName) null else app.packageName },
+                        // Said once the card is really added (the page does): Android can still ask, and be refused.
                         onAdd = { choice ->
                             onAddWidget(choice)
-                            state.haptic(EditHaptic.CONFIRM)
-                            state.announce("${choice.appLabel} added")
                             close()
                         }
                     )
@@ -382,7 +383,7 @@ private fun AddRow(
         leading()
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleSmall, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (detail != null) Text(detail, style = MaterialTheme.typography.bodySmall, color = detailColor, maxLines = 2)
+            if (detail != null) Text(detail, style = MaterialTheme.typography.bodySmall, color = detailColor, maxLines = 4, overflow = TextOverflow.Ellipsis)
         }
         if (busy) {
             CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)

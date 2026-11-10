@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -371,7 +373,8 @@ internal fun WeatherAhead(report: WeatherReport) {
     // layouts, fewer than a forecast's labels, so measuring while drawing laid every label out again each frame.
     val tempTexts = remember(temps, labelStyle, measurer) { temps.map { measurer.measure("${it.roundToInt()}°", labelStyle) } }
     val hourTexts = remember(labels, hourStyle, measurer) { labels.map { measurer.measure(it, hourStyle) } }
-    Column(
+    // The chart takes any height the card is given beyond its own.
+    StretchColumn(
         Modifier
             .fillMaxWidth()
             .clip(CardShape)
@@ -394,10 +397,11 @@ internal fun WeatherAhead(report: WeatherReport) {
                 CardLabel(weatherIcon(report.code, report.isDay), "Weather ahead", detail = HighLow.drawn(report.high, report.low), spokenDetail = HighLow.spoken(report.high, report.low))
             }
         }
-        Spacer(
+        // A Box, not a Spacer: a Spacer is only as tall as a fixed height, and this one is at least 118 dp.
+        Box(
             Modifier
                 .fillMaxWidth()
-                .height(118.dp)
+                .heightIn(min = 118.dp)
                 .padding(top = 6.dp)
                 // TalkBack hears each hour in full and its chance of rain or snow, which the bars show only by height.
                 .semantics {
@@ -416,7 +420,8 @@ internal fun WeatherAhead(report: WeatherReport) {
                     val left = 16.dp.toPx()
                     val right = size.width - 16.dp.toPx()
                     val top = 26.dp.toPx()
-                    val bottom = 60.dp.toPx()
+                    // The curve keeps its place over the rain bars and hours, and grows with a taller chart.
+                    val bottom = size.height - 52.dp.toPx()
                     val step = if (hours.size > 1) (right - left) / (hours.size - 1) else 0f
                     val lift = 3.dp.toPx()
                     val xs = FloatArray(temps.size) { left + it * step }
@@ -488,6 +493,29 @@ internal fun WeatherAhead(report: WeatherReport) {
     }
 }
 
+
+/**
+ * A card's parts one under another, the last one taking any height the card was given beyond its content's own, so a
+ * card made taller shows a taller picture rather than an empty band under it.
+ */
+@Composable
+private fun StretchColumn(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Layout(content, modifier) { measurables, constraints ->
+        val loose = Constraints(maxWidth = constraints.maxWidth, maxHeight = constraints.maxHeight)
+        val heads = measurables.dropLast(1).map { it.measure(loose) }
+        val used = heads.sumOf { it.height }
+        val last = measurables.lastOrNull()?.measure(loose.copy(minHeight = (constraints.minHeight - used).coerceAtLeast(0)))
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else maxOf(heads.maxOfOrNull { it.width } ?: 0, last?.width ?: 0, constraints.minWidth)
+        layout(width, (used + (last?.height ?: 0)).coerceIn(constraints.minHeight, constraints.maxHeight)) {
+            var y = 0
+            for (head in heads) {
+                head.place(0, y)
+                y += head.height
+            }
+            last?.place(0, y)
+        }
+    }
+}
 
 /** Missed calls, unread messages and emails, each opening where it came from. */
 @Composable

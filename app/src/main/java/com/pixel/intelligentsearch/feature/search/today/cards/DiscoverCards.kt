@@ -50,8 +50,8 @@ internal enum class CardForm { CARD, SHAPE }
  * Where a card sits on Discover's freeform page and how big it is. [x] and [width] are fractions of the page's width
  * (each card's place includes half the gap between cards on every side, so two halves sit side by side with the gap
  * between them). A card falls up the page until it meets a card above it (or the top), then sits [gap] dp further down,
- * so a card that empties out or is hidden leaves no hole. [height] (dp) is an app or website box's height; full designs
- * are as tall as their content and shapes are square.
+ * so a card that empties out or is hidden leaves no hole. [height] (dp) is a height of the card's own: a full design
+ * with none (0) is as tall as its content, an app's or website's box takes a usual height, and shapes are square.
  */
 @Immutable
 internal data class CardFrame(val x: Float = 0f, val width: Float = 1f, val height: Float = 0f, val gap: Float = 0f)
@@ -195,10 +195,10 @@ internal data class WidgetChoice(
 )
 
 /**
- * Discover's app cards. Widgets are bound to a host that never shows them; their updates are read in a separate,
- * short-lived process ([refresh]) into [SnapModel]s, which are cached app-private, out of every backup, and deleted when
- * the card is removed or its app uninstalled. A widget's own buttons (its PendingIntents) never run from Discover: a
- * tap opens the app through the safe launch path.
+ * Discover's app cards. As a full card a widget is shown live, as a launcher shows it, and its own buttons work
+ * (LiveWidget). For a card in a shape, its updates are read in a separate, short-lived process ([refresh]) into
+ * [SnapModel]s, which are cached app-private, out of every backup, and deleted when the card is removed or its app
+ * uninstalled; a tap on a shape opens the app through the safe launch path.
  */
 internal interface WidgetCards {
     /** Every bound card's data by widget id, from the cache at once and updated as reads come in. */

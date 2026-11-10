@@ -54,6 +54,16 @@ internal object EditIcons {
 
     val Check: ImageVector by lazy { icon("Filled.Check", "M9,16.17L4.83,12l-1.42,1.41L9,19 21,7l-1.41,-1.41z") }
 
+    val Expand: ImageVector by lazy { icon("Filled.Expand", "M4,20h16v2H4V20zM4,2h16v2H4V2zM13,9h3l-4,-4l-4,4h3v6H8l4,4l4,-4h-3V9z") }
+
+    val Compress: ImageVector by lazy {
+        icon("Filled.Compress", "M8,19h3v3h2v-3h3l-4,-4L8,19zM16,4h-3V1h-2v3H8l4,4L16,4zM4,9v2h16V9H4zM4,12h16v2H4V12z")
+    }
+
+    val FitHeight: ImageVector by lazy {
+        icon("Filled.UnfoldLess", "M7.41,18.59L8.83,20 12,16.83 15.17,20l1.41,-1.41L12,14l-4.59,4.59zM16.59,5.41L15.17,4 12,7.17 8.83,4 7.41,5.41 12,10l4.59,-4.59z")
+    }
+
     val CropPortrait: ImageVector by lazy {
         icon("Filled.CropPortrait", "M17,3H7c-1.1,0 -1.99,0.9 -1.99,2L5,19c0,1.1 0.89,2 1.99,2H17c1.1,0 2,-0.9 2,-2V5c0,-1.1 -0.9,-2 -2,-2zM17,19H7V5h10v14z")
     }

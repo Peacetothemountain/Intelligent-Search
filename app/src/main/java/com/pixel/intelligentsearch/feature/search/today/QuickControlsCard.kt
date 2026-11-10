@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -215,7 +216,12 @@ internal fun QuickControls(controls: TodayControls) {
     val resumes = rememberResumes()
     var flips by remember { mutableIntStateOf(0) }
     val shown = chosen.filter { available(context, it, torch) }
-    val states = remember(shown, resumes, flips) { shown.associateWith { readState(context, it) } }
+    // Read off the main thread (each is a call to Android), and again when the page comes back or its window is looked
+    // at again: the notification shade covers the page without pausing it.
+    val focused = LocalWindowInfo.current.isWindowFocused
+    val states by produceState(emptyMap<QuickControl, Boolean?>(), shown, resumes, flips, focused) {
+        value = withContext(Dispatchers.IO) { shown.associateWith { readState(context, it) } }
+    }
 
     fun state(control: QuickControl): Boolean? = when (control) {
         QuickControl.DND -> dnd

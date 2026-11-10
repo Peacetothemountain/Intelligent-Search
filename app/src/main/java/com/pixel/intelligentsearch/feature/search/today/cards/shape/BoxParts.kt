@@ -6,6 +6,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -20,6 +21,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
@@ -107,6 +112,34 @@ internal fun CoveredBox(covered: Boolean, shape: androidx.compose.ui.graphics.Sh
     Box(modifier) {
         if (!hidden) content()
         if (showing) PrivateCover(shape, Modifier.matchParentSize().graphicsLayer { alpha = cover.value })
+    }
+}
+
+/**
+ * One of the page's own cards under the Private cover. Unlike [CoveredBox], [content] stays laid out while covered (a
+ * full card is as tall as its content, and the cover takes that size), but none of it is drawn, TalkBack hears none of
+ * it, and no touch or key reaches it: a tap is the card's own, to show it.
+ */
+@Composable
+internal fun CoveredCard(covered: Boolean, shape: androidx.compose.ui.graphics.Shape, modifier: Modifier, content: @Composable () -> Unit) {
+    val cover = rememberCoverFade(covered)
+    val hidden by remember(cover) { derivedStateOf { cover.value >= 1f } }
+    val showing by remember(cover) { derivedStateOf { cover.value > 0f } }
+    Box(modifier, propagateMinConstraints = true) {
+        // A group that refuses focus: turning focus off would reach only the first button down, not the ones inside it.
+        val under = if (hidden) {
+            Modifier.drawWithContent { }.clearAndSetSemantics { }.focusProperties { onEnter = { cancelFocusChange() } }.focusGroup()
+        } else Modifier
+        Box(under, propagateMinConstraints = true) { content() }
+        if (showing) {
+            PrivateCover(
+                shape,
+                Modifier
+                    .matchParentSize()
+                    .graphicsLayer { alpha = cover.value }
+                    .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
+            )
+        }
     }
 }
 

@@ -87,6 +87,13 @@ internal fun Stage.app(c: ShapedContent.App, x: CardExtras) {
     val dimmed = if (stale) 0.78f else 1f
     var lobedList = false
     alpha = outer * dimmed * p(80f, 500f)
+    // The note that says a card is kept from earlier isn't dimmed with what it kept, so it stays readable.
+    fun undimmed(draw: () -> Unit) {
+        val was = alpha
+        alpha = was / dimmed
+        draw()
+        alpha = was
+    }
     content {
         when (m.layout) {
             SnapLayout.HERO -> {
@@ -97,7 +104,7 @@ internal fun Stage.app(c: ShapedContent.App, x: CardExtras) {
                 text(hero, MID, MID + if (spiky) 8f else 10f, if (hero.length > 5) 28f else 34f, colors.on, maxWidth = 128f, main = true)
                 val labelY = MID + if (spiky) 26f else 30f
                 if (stale && tight) {
-                    text(note, MID, labelY, 11f, colors.amber, maxWidth = 116f)
+                    undimmed { text(note, MID, labelY, 11f, colors.warn, maxWidth = 116f) }
                 } else {
                     m.labels.firstOrNull()?.let { text(it, MID, labelY, 11.5f, colors.sub, maxWidth = 116f) }
                 }
@@ -114,7 +121,7 @@ internal fun Stage.app(c: ShapedContent.App, x: CardExtras) {
                         // The rows fill the lobes, so the app's name sits under the title rather than curving below.
                         lobedList = true
                         text(title, MID, MID - 1f, 9.5f, colors.sub, weight = W_SEMIBOLD, maxWidth = 70f, spacing = 0.8f)
-                        text(d.appLabel, MID, MID + 11f, 8.5f, colors.mut, maxWidth = 70f)
+                        text(d.appLabel, MID, MID + 11f, 8.5f, colors.sub, maxWidth = 70f)
                     }
                     else -> {
                         text(title, MID, MID - 28f, 9.5f, colors.sub, weight = W_SEMIBOLD, maxWidth = 110f, spacing = 0.8f)
@@ -135,7 +142,11 @@ internal fun Stage.app(c: ShapedContent.App, x: CardExtras) {
         }
         // Tight middles have no room for the curved name: it steps aside (a stale hero's note took the label's line).
         if (!tight && (stale || !lobedList)) {
-            curved(if (stale) note else d.appLabel, 10.5f, if (stale) colors.amber else colors.mut, top = false, inset = 0.74f, spacing = 0.4f)
+            if (stale) {
+                undimmed { curved(note, 10.5f, colors.warn, top = false, inset = 0.74f, spacing = 0.4f) }
+            } else {
+                curved(d.appLabel, 10.5f, colors.sub, top = false, inset = 0.74f, spacing = 0.4f)
+            }
         }
     }
     if (lobedList) {
@@ -252,7 +263,7 @@ private fun Stage.appState(c: ShapedContent.App, x: CardExtras, accent: Color) {
             if (state == AppCardState.REMOVED) colors.sub else colors.on, maxWidth = 124f, main = true
         )
         text(sub, MID, MID + 29f, 11f, colors.sub, maxWidth = 116f)
-        if (!CardShapes.isTight(shapeName)) curved(d.appLabel, 10.5f, colors.mut, top = false, inset = 0.74f, spacing = 0.4f)
+        if (!CardShapes.isTight(shapeName)) curved(d.appLabel, 10.5f, colors.sub, top = false, inset = 0.74f, spacing = 0.4f)
     }
     alpha = outer
 }

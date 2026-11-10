@@ -66,6 +66,8 @@ internal class ShapedColors(
     val acc: Color,
     val ink: Color,
     val amber: Color,
+    /** [amber] for words: on the light page's cards amber itself is 3.8 to 1, enough for a picture, not for small text. */
+    val warn: Color,
     val rose: Color,
     val neg: Color,
     val pos: Color,
@@ -89,6 +91,7 @@ internal class ShapedColors(
                 acc = scheme.primary,
                 ink = scheme.onPrimary,
                 amber = warm(dark),
+                warn = if (dark) warm(true) else Color(0xFF8B4A0E),
                 rose = if (dark) Color(0xFFF4A3B4) else Color(0xFFA8364F),
                 neg = scheme.error,
                 pos = if (dark) Color(0xFF8FD6A8) else Color(0xFF146C2E),

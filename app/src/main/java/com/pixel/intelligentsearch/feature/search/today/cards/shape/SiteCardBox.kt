@@ -71,17 +71,18 @@ internal fun SiteCardBox(data: SiteData, modifier: Modifier = Modifier, private:
                     .weight(1f - IMAGE_SHARE)
                     .fillMaxHeight()
                     .padding(14.dp)
-                    .alpha(if (data.failed) 0.78f else 1f)
             ) {
-                Text(data.domain.uppercase(locale), style = labelStyle(), color = colors.sub, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // What was read before dims after a failed read; the note that says so doesn't, so it stays readable.
+                val kept = Modifier.alpha(if (data.failed) 0.78f else 1f)
+                Text(data.domain.uppercase(locale), style = labelStyle(), color = colors.sub, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = kept)
                 Text(
                     data.title.ifBlank { data.domain },
                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = 16.sp, lineHeight = 21.sp),
                     color = colors.on, maxLines = 3, overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 8.dp)
+                    modifier = Modifier.padding(top = 8.dp).then(kept)
                 )
                 if (data.failed) {
-                    Text(updatedNote(ago), style = smallStyle(), color = colors.amber, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                    Text(updatedNote(ago), style = smallStyle(), color = colors.warn, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
                 } else if (data.description.isNotBlank()) {
                     Text(data.description, style = smallStyle(), color = colors.sub, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
                 }

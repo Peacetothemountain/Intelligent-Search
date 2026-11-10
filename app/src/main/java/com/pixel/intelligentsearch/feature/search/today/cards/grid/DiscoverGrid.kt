@@ -8,6 +8,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -52,6 +53,8 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isAltPressed
@@ -59,6 +62,7 @@ import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.AwaitPointerEventScope
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
@@ -81,14 +85,17 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
+import com.pixel.intelligentsearch.feature.search.today.cards.CardKind
 import com.pixel.intelligentsearch.feature.search.today.cards.CardMode
 import com.pixel.intelligentsearch.feature.search.today.cards.CardSpec
 import com.pixel.intelligentsearch.feature.search.today.cards.DiscoverLayout
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.CardOutlineShape
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.CardShapes
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -110,6 +117,9 @@ private const val EDIT_HOLD_MS = 220L
 /** A card let go less than this far (dp) under the one above it sits right against it. */
 private val STICK = 40.dp
 
+/** How long a selected card can be off the page before it is let go. */
+private const val GONE_MS = 800L
+
 /** A box card's height before it has one of its own. */
 private const val BOX_DEFAULT_DP = 170f
 
@@ -126,7 +136,7 @@ private enum class Part { DROP, FRAME, GUIDES }
 private data class GripKey(val grip: Grip)
 
 /** A grip's touch area, and how far its middle sits in from the card's bottom (and, for the corner, its right) edge. */
-private val GRIP_TOUCH = 44.dp
+private val GRIP_TOUCH = 48.dp
 private val GRIP_INSET = 14.dp
 
 /**
@@ -171,6 +181,14 @@ internal fun DiscoverGrid(
     val onPage = layout.cards.filter(shown).distinctBy { it.id }
     val order = onPage.withIndex().associate { it.value.id to it.index }
     val selected = state.selectedId?.takeIf { id -> editing && onPage.any { it.id == id } }
+    // A selected card that leaves the page (it has nothing to show any more) is let go: Back would be spent on nothing.
+    // Not at once: a card can be off the page for a moment as it changes form (its shape's content is still being read).
+    val gone = editing && state.selectedId != null && selected == null
+    LaunchedEffect(gone) {
+        if (!gone) return@LaunchedEffect
+        delay(GONE_MS)
+        if (state.active == null) state.select(null)
+    }
 
     NewCards(state, layout)
     Reveal(state, scroll)
@@ -306,8 +324,10 @@ internal fun DiscoverGrid(
             val half = gap / 2f
             val placed = HashMap<Grip, Rect>()
             if (gripCard != null) {
+                // On a narrow card the bar steps left of the corner, so each keeps a whole touch area of its own.
+                val cornerX = gripCard.right - gap - inset
                 for ((grip, placeable) in grips) {
-                    val cx = if (grip == Grip.CORNER) gripCard.right - gap - inset else gripCard.left + (gripCard.width - gap) / 2
+                    val cx = if (grip == Grip.CORNER) cornerX else min(gripCard.left + (gripCard.width - gap) / 2, cornerX - touch)
                     val cy = gripCard.bottom - gap - inset
                     placeable.place(cx - touch / 2, cy - touch / 2, zIndex = 12f)
                     placed[grip] = Rect(cx - touch / 2f + half, cy - touch / 2f + half, cx + touch / 2f + half, cy + touch / 2f + half)
@@ -399,10 +419,14 @@ private fun Reveal(state: DiscoverEditState, scroll: ScrollState) {
     }
 }
 
-/** While a card is moved near the top or bottom of the screen, the page scrolls under it, faster nearer the edge. */
+/**
+ * While a card is moved near the top or bottom of the screen, the page scrolls under it, faster nearer the edge. Not
+ * while it is pinched or sized by a grip: the page scrolling under a grip would go on growing the card with the finger
+ * held still.
+ */
 @Composable
 private fun AutoScroll(state: DiscoverEditState, scroll: ScrollState) {
-    val moving = state.active?.takeIf { !it.pinching }
+    val moving = state.active?.takeIf { !it.pinching && it.grip == null }
     val current by rememberUpdatedState(moving)
     LaunchedEffect(moving?.id) {
         if (moving == null) return@LaunchedEffect
@@ -472,7 +496,8 @@ private suspend fun PointerInputScope.cardGestures(state: DiscoverEditState) {
             while (true) {
                 val event = awaitPointerEvent(PointerEventPass.Initial)
                 if (event.changes.count { it.pressed } > 1) {
-                    event.changes.forEach { it.consume() }
+                    // While browsing nothing is taken yet: the two fingers must really pinch first.
+                    if (editing) event.changes.forEach { it.consume() }
                     return@withTimeoutOrNull Press.PINCH
                 }
                 val change = event.changes.firstOrNull { it.id == down.id } ?: return@withTimeoutOrNull Press.OTHER
@@ -503,7 +528,10 @@ private suspend fun PointerInputScope.cardGestures(state: DiscoverEditState) {
                 state.moveTo(onPage(last))
             }
             Press.PINCH -> {
-                if (!state.editing) state.enter(id)
+                if (!state.editing) {
+                    if (!pinchBegins(slop)) return@awaitEachGesture
+                    state.enter(id)
+                }
                 state.select(id)
             }
         }
@@ -540,6 +568,35 @@ private suspend fun PointerInputScope.cardGestures(state: DiscoverEditState) {
         } finally {
             if (state.active?.id == id) state.end()
         }
+    }
+}
+
+/**
+ * While browsing, two fingers on a card start an edit only once they really pinch: each has moved more than [slop],
+ * against the other, and the space between them has changed by more than [slop]. A second finger resting on the page
+ * hasn't moved, and two scrolling it together move the same way, so neither changes anything or takes anything from the
+ * page. A pinch made with one finger held still isn't told from that resting finger, so it starts no edit here either: a
+ * long press does, and once editing every pinch sizes at once. False when a finger lifts first.
+ */
+private suspend fun AwaitPointerEventScope.pinchBegins(slop: Float): Boolean {
+    var event = currentEvent
+    val from = HashMap<Long, Offset>()
+    var first = -1f
+    while (true) {
+        val pressed = event.changes.filter { it.pressed }
+        if (pressed.size < 2) return false
+        val a = pressed[0]
+        val b = pressed[1]
+        val spread = (a.position - b.position).getDistance()
+        if (first < 0f) first = spread
+        val movedA = a.position - from.getOrPut(a.id.value) { a.position }
+        val movedB = b.position - from.getOrPut(b.id.value) { b.position }
+        val against = movedA.x * movedB.x + movedA.y * movedB.y < 0f
+        if (abs(spread - first) > slop && movedA.getDistance() > slop && movedB.getDistance() > slop && against) {
+            event.changes.forEach { it.consume() }
+            return true
+        }
+        event = awaitPointerEvent(PointerEventPass.Initial)
     }
 }
 
@@ -595,15 +652,21 @@ private fun CardHost(
             } ?: emptyList()
         }
     } else {
+        // A full card and an app's live widget are named here, over their own parts. Every other card (a shape, a
+        // website's box, a covered private card) is one button that carries the name itself: named here too, TalkBack
+        // would stop twice, on the name and then on a button with none.
+        val named = (spec.mode == CardMode.NATURAL || (spec.mode == CardMode.BOX && spec.kind == CardKind.APP)) && !spec.private
         Modifier.semantics {
-            contentDescription = state.label(spec)
             traversalIndex = index.toFloat()
-            customActions = listOf(
-                CustomAccessibilityAction("Edit Discover") {
-                    state.enter(id)
-                    true
-                }
-            )
+            if (named) {
+                contentDescription = state.label(spec)
+                customActions = listOf(
+                    CustomAccessibilityAction("Edit Discover") {
+                        state.enter(id)
+                        true
+                    }
+                )
+            }
         }
     }
 
@@ -627,15 +690,23 @@ private fun CardHost(
                         .onPreviewKeyEvent { event ->
                             event.type == KeyEventType.KeyDown && cardKey(state, id, event.key, event.isAltPressed, event.isShiftPressed)
                         }
+                        // The card a keyboard is on is the selected one, so its frame shows where the keys will act.
+                        .onFocusChanged { if (it.isFocused && state.selectedId != id) state.select(id) }
                         .focusable()
                 } else Modifier
             )
     ) {
+        // While editing a keyboard stops on the card, not on the buttons inside it, which take no touches either: a
+        // group that refuses focus, as turning focus off reaches only the first button down, not the ones inside it.
+        val quiet = if (editing) Modifier.focusProperties { onEnter = { cancelFocusChange() } }.focusGroup() else Modifier
         if (spec.mode == CardMode.NATURAL) {
             val least = with(LocalDensity.current) { spec.kind.minCardDp.dp.roundToPx() }
-            FitHeight { ShrinkToFit(least) { card(spec, Modifier.fillMaxWidth()) } }
+            // Cut short, a card's content says how tall it would be, so its height can snap back to fitting it.
+            FitHeight({ if (state.active?.id != id) state.naturalHeights[id] = it + state.gap }) {
+                ShrinkToFit(least) { card(spec, Modifier.fillMaxWidth().then(quiet)) }
+            }
         } else {
-            card(spec, Modifier.fillMaxSize())
+            card(spec, Modifier.fillMaxSize().then(quiet))
         }
         if (editing) {
             // While editing, the card's own buttons take no touches: the card is being arranged, not used.
@@ -647,10 +718,10 @@ private fun CardHost(
 /**
  * A full card's content at the height the page gives it: as tall as itself when the height is free; stretched to a
  * height of its own when that is taller (the card's surface grows with it); and when that is shorter, cut to the card's
- * rounded shape with its bottom fading out, so it never ends on half a line.
+ * rounded shape with its bottom fading out, so it never ends on half a line, and [onCut] is told how tall it would be.
  */
 @Composable
-private fun FitHeight(content: @Composable () -> Unit) {
+private fun FitHeight(onCut: (Int) -> Unit, content: @Composable () -> Unit) {
     val cut = remember { androidx.compose.runtime.mutableStateOf(false) }
     Layout(
         content = content,
@@ -685,6 +756,7 @@ private fun FitHeight(content: @Composable () -> Unit) {
         val placeable = child.measure(constraints.copy(minHeight = height, maxHeight = Constraints.Infinity))
         val short = placeable.height > height
         if (cut.value != short) cut.value = short
+        if (short) onCut(placeable.height)
         layout(constraints.maxWidth, height) { placeable.place(0, 0) }
     }
 }
@@ -721,7 +793,9 @@ private fun ShrinkToFit(least: Int, content: @Composable () -> Unit) {
 /**
  * One of the selected card's grips, inside its bottom edge: a short bar in the middle that sizes its height alone, and
  * a corner at its bottom right that sizes its width and height together. Each takes its own drag, kept clear of
- * Android's back gesture so a grip near the screen's edge never goes back. Drawn only when [visible].
+ * Android's back gesture so a grip near the screen's edge never goes back. Drawn only when [visible]. TalkBack isn't
+ * offered them: a grip does nothing when tapped, and the card's own actions (Make taller, Make shorter, Make bigger,
+ * Make smaller) size it without a drag.
  */
 @Composable
 private fun GripHandle(state: DiscoverEditState, id: String, grip: Grip, visible: Boolean, modifier: Modifier) {
@@ -731,10 +805,11 @@ private fun GripHandle(state: DiscoverEditState, id: String, grip: Grip, visible
         modifier
             .onGloballyPositioned { me[0] = it }
             .systemGestureExclusion()
-            .semantics { contentDescription = if (grip == Grip.HEIGHT) "Resize height" else "Resize" }
+            .clearAndSetSemantics { }
             .pointerInput(id, grip) {
                 awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
+                    // Only a press of its own: a finger of a pinch or a move that lands here is theirs, already taken.
+                    val down = awaitFirstDown()
                     down.consume()
                     fun onPage(p: Offset): Offset? {
                         val grid = state.gridCoords?.takeIf { it.isAttached } ?: return null
@@ -744,6 +819,7 @@ private fun GripHandle(state: DiscoverEditState, id: String, grip: Grip, visible
                     }
                     val start = onPage(down.position) ?: return@awaitEachGesture
                     state.beginGrip(id, grip, start)
+                    if (state.active?.grip == null) return@awaitEachGesture
                     try {
                         while (true) {
                             val event = awaitPointerEvent()
@@ -786,13 +862,18 @@ private fun GripHandle(state: DiscoverEditState, id: String, grip: Grip, visible
     }
 }
 
-/** A key pressed on a card while editing: Alt and an arrow move it, plus and minus resize it, the menu key opens its actions. */
+/**
+ * A key pressed on a card while editing: Alt and an arrow move it, plus and minus make it wider and narrower (with Alt,
+ * taller and shorter), the menu key opens its actions.
+ */
 private fun cardKey(state: DiscoverEditState, id: String, key: Key, alt: Boolean, shift: Boolean): Boolean {
     when {
         alt && key == Key.DirectionUp -> state.move(id, -1)
         alt && key == Key.DirectionDown -> state.move(id, 1)
         alt && key == Key.DirectionLeft -> state.nudge(id, -1)
         alt && key == Key.DirectionRight -> state.nudge(id, 1)
+        alt && (key == Key.Plus || key == Key.Equals || key == Key.NumPadAdd) -> state.stretch(id, 1)
+        alt && (key == Key.Minus || key == Key.NumPadSubtract) -> state.stretch(id, -1)
         key == Key.Plus || key == Key.Equals || key == Key.NumPadAdd -> state.resize(id, 1)
         key == Key.Minus || key == Key.NumPadSubtract -> state.resize(id, -1)
         key == Key.Enter || key == Key.Spacebar -> state.select(id)

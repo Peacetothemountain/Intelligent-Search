@@ -135,7 +135,7 @@ private fun Head(data: AppCardData, icon: ImageBitmap?, accent: Color, note: Str
         }
         if (note != null) {
             Icon(Icons.Filled.History, contentDescription = null, tint = colors.amber, modifier = Modifier.padding(start = 6.dp).size(13.dp))
-            Text(note, style = smallStyle(), color = colors.amber, maxLines = 1, modifier = Modifier.padding(start = 3.dp))
+            Text(note, style = smallStyle(), color = colors.warn, maxLines = 1, modifier = Modifier.padding(start = 3.dp))
         }
     }
 }

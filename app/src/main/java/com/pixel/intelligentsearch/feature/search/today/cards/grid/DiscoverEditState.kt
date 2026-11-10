@@ -109,6 +109,7 @@ internal class ActiveCard(val id: String, start: Rect, internal var grab: Offset
     /** The height the card measured at its live width (a full design is as tall as its content). Layout only. */
     internal var measured: Int = start.height.roundToInt()
     internal var atLeast = false
+    internal var atFloor = false
     internal var snappedTo: List<Int> = emptyList()
     internal var pinch: PinchStart? = null
     internal var grip: GripStart? = null
@@ -220,6 +221,12 @@ internal class DiscoverEditState(
         message = EditMessage(text, undo)
     }
 
+    /**
+     * How long a message stays for one that would stay [ms]: longer for people who have asked Android for more time to
+     * read and act (Accessibility, Time to take action). [action] for a message with a button.
+     */
+    internal var timeout: (ms: Long, action: Boolean) -> Long = { ms, _ -> ms }
+
     /** A removed app or website card, let go (its widget unbound, what was read deleted) once its Undo has gone. */
     private var pendingRemoval: Pair<CardSpec, Job>? = null
 
@@ -311,8 +318,14 @@ internal class DiscoverEditState(
         }
     )
 
-    /** A box's least and most height, in pixels of its place. */
-    private val boxLeast get() = gap + px(BOX_MIN_DP)
+    /**
+     * The least height (dp) [spec] can be given: an app's widget can be one short row, as it is on a home screen; a
+     * website's box keeps room for its picture and words.
+     */
+    private fun leastHeightDp(spec: CardSpec): Float = if (spec.mode == CardMode.BOX && spec.kind != CardKind.APP) BOX_MIN_DP else MIN_HEIGHT_DP
+
+    /** A card's least and a box's most height, in pixels of its place. */
+    private fun leastHeight(spec: CardSpec) = gap + px(leastHeightDp(spec))
     private val boxMost get() = gap + px(BOX_MAX_DP)
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -370,7 +383,9 @@ internal class DiscoverEditState(
         val sx = if (start.heightOnly) 1f else (abs(a.x - b.x) + soft) / (start.across + soft)
         val sy = if (start.widthOnly) 1f else (abs(a.y - b.y) + soft) / (start.down + soft)
         val middle = (a + b) / 2f - start.middle
-        val least = leastWidth(spec)
+        // A card already narrower than its least (the text size went up since) is never made wider by sizing it.
+        val least = min(leastWidth(spec), start.rect.width)
+        val floor = leastHeight(spec)
         val reach = px(SNAP_DP).roundToInt()
         val others = othersThan(card.id)
         val page = page.toFloat()
@@ -384,16 +399,14 @@ internal class DiscoverEditState(
                 // back to fitting it exactly. A pinch that is all sideways leaves a card that fits its content fitting it.
                 val natural = naturalHeights[card.id]?.toFloat()
                 val wasAuto = spec.frame.height <= 0f
-                val tall = (start.rect.height * sy).coerceIn(gap + px(MIN_HEIGHT_DP), gap + px(MAX_HEIGHT_DP))
+                val tall = (start.rect.height * sy).coerceIn(floor, gap + px(MAX_HEIGHT_DP))
+                atFloor(card, start.rect.height * sy < floor)
                 val auto = (wasAuto && (start.widthOnly || abs(sy - 1f) < 0.04f)) || (natural != null && abs(tall - natural) < px(SNAP_HEIGHT_DP))
                 if (auto && !card.autoHeight && !wasAuto) haptic(EditHaptic.TICK)
                 card.autoHeight = auto
                 height = if (auto) card.measured.toFloat() else tall
                 // Pinched narrower, a full card offers its shapes at once; one that has none says it's as narrow as it goes.
-                if (sx < SHRINK_OFFERS && spec.kind.shaped && strip != card.id) {
-                    strip = card.id
-                    haptic(EditHaptic.TICK)
-                }
+                offerShapes(card, spec, sx < SHRINK_OFFERS)
                 atLeast(card, wanted < least, if (spec.kind.shaped) EditHaptic.TICK else EditHaptic.REJECT)
             }
             CardMode.SHAPED -> {
@@ -404,8 +417,13 @@ internal class DiscoverEditState(
                 atLeast(card, wanted < least, EditHaptic.REJECT)
             }
             CardMode.BOX -> {
-                width = (start.rect.width * sx).coerceIn(least, page)
-                height = (start.rect.height * sy).coerceIn(boxLeast, boxMost)
+                val wanted = start.rect.width * sx
+                width = wanted.coerceIn(least, page)
+                height = (start.rect.height * sy).coerceIn(floor, boxMost)
+                // An app's or a website's full card offers its shapes as the page's own cards do.
+                offerShapes(card, spec, sx < SHRINK_OFFERS)
+                atLeast(card, wanted < least, EditHaptic.TICK)
+                atFloor(card, start.rect.height * sy < floor)
             }
         }
         width = snapWidth(width.roundToInt(), page.roundToInt(), others, reach, least.roundToInt()).toFloat().coerceAtMost(page)
@@ -423,11 +441,12 @@ internal class DiscoverEditState(
 
     /** Starts sizing [id] by its [grip], the finger at [finger] (page pixels). */
     internal fun beginGrip(id: String, grip: Grip, finger: Offset) {
-        val rect = active?.takeIf { it.id == id }?.rect ?: slots[id]?.toRect() ?: return
+        // A card held by a move or a pinch stays theirs: a pinch's second finger can come down on a grip.
+        if (active != null) return
+        val rect = slots[id]?.toRect() ?: return
         select(id)
         val card = ActiveCard(id, rect, Offset.Zero, slots, spec(id)?.frame?.height?.let { it <= 0f } ?: true)
         card.grip = GripStart(grip, rect, finger)
-        card.pinching = true
         active = card
         haptic(EditHaptic.LONG_PRESS)
     }
@@ -444,7 +463,8 @@ internal class DiscoverEditState(
         val d = finger - start.finger
         val page = page.toFloat()
         val left = start.rect.left
-        val least = leastWidth(spec)
+        val least = min(leastWidth(spec), start.rect.width)
+        val floor = leastHeight(spec)
         val corner = start.grip == Grip.CORNER
         val wanted = if (corner) start.rect.width + d.x else start.rect.width
         var width = wanted.coerceIn(least.coerceAtMost(page - left), page - left)
@@ -452,29 +472,50 @@ internal class DiscoverEditState(
         when (spec.mode) {
             CardMode.NATURAL -> {
                 val natural = naturalHeights[card.id]?.toFloat()
-                val tall = (start.rect.height + d.y).coerceIn(gap + px(MIN_HEIGHT_DP), gap + px(MAX_HEIGHT_DP))
-                val auto = natural != null && abs(tall - natural) < px(SNAP_HEIGHT_DP) && abs(width - start.rect.width) < 1f
+                val tall = (start.rect.height + d.y).coerceIn(floor, gap + px(MAX_HEIGHT_DP))
+                atFloor(card, start.rect.height + d.y < floor)
+                // A card that fits its content goes on fitting it while the grip moves sideways only (its words wrap
+                // anew at the new width), as a sideways pinch leaves it; and any card snaps back to fitting its content
+                // when its height is brought near it.
+                val wasAuto = spec.frame.height <= 0f
+                val auto = (wasAuto && abs(d.y) < px(SNAP_HEIGHT_DP)) ||
+                    (natural != null && abs(tall - natural) < px(SNAP_HEIGHT_DP) && abs(width - start.rect.width) < 1f)
                 if (auto && !card.autoHeight) haptic(EditHaptic.TICK)
                 card.autoHeight = auto
                 height = if (auto) card.measured.toFloat() else tall
-                if (corner && width < start.rect.width * SHRINK_OFFERS && spec.kind.shaped && strip != card.id) {
-                    strip = card.id
-                    haptic(EditHaptic.TICK)
-                }
+                offerShapes(card, spec, corner && width < start.rect.width * SHRINK_OFFERS)
             }
             CardMode.SHAPED -> {
                 width = (start.rect.width + (d.x + d.y) / 2f).coerceIn(least.coerceAtMost(page - left), page - left)
                 height = width
             }
-            CardMode.BOX -> height = (start.rect.height + d.y).coerceIn(boxLeast, boxMost)
+            CardMode.BOX -> {
+                height = (start.rect.height + d.y).coerceIn(floor, boxMost)
+                atFloor(card, start.rect.height + d.y < floor)
+                offerShapes(card, spec, corner && width < start.rect.width * SHRINK_OFFERS)
+            }
         }
         atLeast(card, wanted < least, EditHaptic.REJECT)
         if (corner && spec.mode != CardMode.SHAPED) {
             val reach = px(SNAP_DP).roundToInt()
-            width = snapWidth(width.roundToInt(), (page - left).roundToInt(), othersThan(card.id), reach, least.roundToInt()).toFloat()
+            width = snapWidth(width.roundToInt(), page.roundToInt(), othersThan(card.id), reach, least.roundToInt(), most = (page - left).roundToInt()).toFloat()
         }
         if (spec.mode == CardMode.SHAPED) height = width
         card.rect = Rect(left, start.rect.top, left + width, start.rect.top + height)
+    }
+
+    /** A full card made narrower ([shrunk]) offers its shapes at once, with a tick as they come up. */
+    private fun offerShapes(card: ActiveCard, spec: CardSpec, shrunk: Boolean) {
+        if (shrunk && spec.kind.shaped && strip != card.id) {
+            strip = card.id
+            haptic(EditHaptic.TICK)
+        }
+    }
+
+    /** A card went past its least height ([below]): one haptic as it gets there, so the grip doesn't just go dead. */
+    private fun atFloor(card: ActiveCard, below: Boolean) {
+        if (below && !card.atFloor) haptic(EditHaptic.REJECT)
+        card.atFloor = below
     }
 
     /** A pinch went past the least size ([below]): one [kind] haptic as it gets there. */
@@ -548,6 +589,9 @@ internal class DiscoverEditState(
         commit(layout.copy(cards = layout.cards.map { if (it.id == id) change(it) else it }))
     }
 
+    /** Each card's size as a full card, kept while its shapes are tried, so Full card puts it back as it was. */
+    private val fullFrames = HashMap<String, CardFrame>()
+
     /** Makes [id] its full card, or its design in [shape]: a full card becomes a shape half the page wide (or as small as it reads). */
     internal fun setForm(id: String, form: CardForm, shape: String? = null) {
         val spec = spec(id) ?: return
@@ -557,12 +601,15 @@ internal class DiscoverEditState(
         reframe(id) { card ->
             val turned = card.copy(form = form, shape = shape ?: card.shape)
             val least = leastWidth(turned) / page
+            if (card.form == CardForm.CARD && form == CardForm.SHAPE) fullFrames[id] = card.frame
+            // Back to a full card, it is the size it was before its shapes were tried, where it is now.
+            val was = if (card.form == CardForm.SHAPE && form == CardForm.CARD) fullFrames.remove(id) else null
             val width = when {
                 card.form == form -> card.frame.width
                 form == CardForm.SHAPE -> max(least, min(card.frame.width, 0.5f))
-                else -> max(least, card.frame.width)
+                else -> max(least, was?.width ?: card.frame.width)
             }.coerceAtMost(1f)
-            turned.copy(frame = card.frame.copy(x = card.frame.x.coerceIn(0f, 1f - width), width = width))
+            turned.copy(frame = card.frame.copy(x = card.frame.x.coerceIn(0f, 1f - width), width = width, height = was?.height ?: card.frame.height))
         }
         haptic(EditHaptic.CONFIRM)
         announce(if (form == CardForm.SHAPE) "${shapeName(shape ?: spec.shape)} shape" else "Full card")
@@ -572,10 +619,11 @@ internal class DiscoverEditState(
     internal fun resize(id: String, delta: Int) {
         val spec = spec(id) ?: return
         val page = page.toFloat().takeIf { it > 0f } ?: return
-        val least = leastWidth(spec) / page
+        val least = min(leastWidth(spec) / page, spec.frame.width)
         val width = (spec.frame.width + delta * 0.1f).coerceIn(least.coerceAtMost(1f), 1f)
         if (width == spec.frame.width) {
             haptic(EditHaptic.REJECT)
+            announce(if (delta < 0) "As small as it goes" else "As wide as it goes")
             return
         }
         reframe(id) { it.copy(frame = it.frame.copy(x = it.frame.x.coerceIn(0f, 1f - width), width = width)) }
@@ -583,28 +631,76 @@ internal class DiscoverEditState(
         announce("${(width * 100).roundToInt()} percent wide")
     }
 
+    /** Makes a full card or a box a step taller ([delta] 1) or shorter (-1), from the height it has now. */
+    internal fun stretch(id: String, delta: Int) {
+        val spec = spec(id) ?: return
+        // A shape is as tall as it is wide: taller is bigger.
+        if (spec.mode == CardMode.SHAPED) return resize(id, delta)
+        val now = spec.frame.height.takeIf { it > 0f } ?: slots[id]?.let { dp((it.height - gap).toFloat()) } ?: return
+        val most = if (spec.mode == CardMode.BOX) BOX_MAX_DP else MAX_HEIGHT_DP
+        val height = (now + delta * HEIGHT_STEP_DP).coerceIn(leastHeightDp(spec), most)
+        if (height == now) {
+            haptic(EditHaptic.REJECT)
+            announce(if (delta > 0) "As tall as it goes" else "As short as it goes")
+            return
+        }
+        reframe(id) { it.copy(frame = it.frame.copy(height = height)) }
+        haptic(EditHaptic.TICK)
+        announce(if (delta > 0) "Taller" else "Shorter")
+    }
+
+    /** Makes a full card as tall as its content again, after it was given a height of its own. */
+    internal fun fitHeight(id: String) {
+        val spec = spec(id) ?: return
+        if (!hasOwnHeight(spec)) return
+        reframe(id) { it.copy(frame = it.frame.copy(height = 0f)) }
+        haptic(EditHaptic.CONFIRM)
+        announce("Fits its content")
+    }
+
+    /** Whether [spec] is a full card with a height of its own, which [fitHeight] takes away. */
+    internal fun hasOwnHeight(spec: CardSpec): Boolean = spec.mode == CardMode.NATURAL && spec.frame.height > 0f
+
     /** Moves [id] a tenth of the page left ([delta] -1) or right (1). */
     internal fun nudge(id: String, delta: Int) {
         val spec = spec(id) ?: return
         val x = (spec.frame.x + delta * 0.1f).coerceIn(0f, 1f - spec.frame.width)
-        if (x == spec.frame.x) return
+        if (x == spec.frame.x) {
+            haptic(EditHaptic.REJECT)
+            announce(if (delta < 0) "Already at the left edge" else "Already at the right edge")
+            return
+        }
         reframe(id) { it.copy(frame = it.frame.copy(x = x)) }
         haptic(EditHaptic.TICK)
+        announce(if (delta < 0) "Moved left" else "Moved right")
     }
 
     /** Moves [id] above ([delta] -1) or below (1) the next card it sits over or under. */
     internal fun move(id: String, delta: Int) {
-        val mine = slots[id] ?: return
         val cards = layout.cards
         val at = cards.indexOfFirst { it.id == id }
-        val near = if (delta < 0) (at - 1 downTo 0) else (at + 1 until cards.size)
-        val other = near.map { cards[it] }.firstOrNull { c -> slots[c.id]?.let { overlapsAcross(it, mine.left, mine.right) } == true } ?: return
+        val other = neighbor(id, delta)
+        if (at < 0 || other == null) {
+            haptic(EditHaptic.REJECT)
+            announce(if (delta < 0) "Already at the top" else "Already at the bottom")
+            return
+        }
         val rest = cards.filter { it.id != id }.toMutableList()
         val to = rest.indexOf(other) + if (delta < 0) 0 else 1
         rest.add(to, cards[at].copy(frame = cards[at].frame.copy(gap = 0f)))
         commit(layout.copy(cards = rest))
         haptic(EditHaptic.TICK)
         announce(if (delta < 0) "Moved up" else "Moved down")
+    }
+
+    /** The next card above ([delta] -1) or below (1) that [id] sits under or over, if there is one to move past. */
+    private fun neighbor(id: String, delta: Int): CardSpec? {
+        val mine = slots[id] ?: return null
+        val cards = layout.cards
+        val at = cards.indexOfFirst { it.id == id }
+        if (at < 0) return null
+        val near = if (delta < 0) (at - 1 downTo 0) else (at + 1 until cards.size)
+        return near.map { cards[it] }.firstOrNull { c -> slots[c.id]?.let { overlapsAcross(it, mine.left, mine.right) } == true }
     }
 
     /** Covers [id] until tapped, or stops covering it. */
@@ -623,12 +719,15 @@ internal class DiscoverEditState(
     internal fun removeCard(id: String) {
         val spec = spec(id) ?: return
         val at = layout.cards.indexOfFirst { it.id == id }
+        // Undo puts it back under the card it was under, wherever that is by then: the order can change before Undo.
+        val above = layout.cards.getOrNull(at - 1)?.id
         val cards = layout.cards.filter { it.id != id }
         flushRemoval()
         val undo = {
             val now = layout
             if (now.cards.none { it.id == id }) {
-                val back = now.cards.toMutableList().apply { add(at.coerceIn(0, size), spec) }
+                val under = above?.let { a -> now.cards.indexOfFirst { it.id == a } }?.takeIf { it >= 0 }?.plus(1)
+                val back = now.cards.toMutableList().apply { add((under ?: at).coerceIn(0, size), spec) }
                 commit(DiscoverLayout(back, now.hidden - spec.kind))
                 if (pendingRemoval?.first?.id == id) {
                     pendingRemoval?.second?.cancel()
@@ -645,7 +744,7 @@ internal class DiscoverEditState(
         } else {
             commit(layout.copy(cards = cards))
             pendingRemoval = spec to scope.launch {
-                delay(UNDO_MS + 500)
+                delay(timeout(UNDO_MS, true) + 500)
                 if (pendingRemoval?.first?.id == id) flushRemoval()
             }
             say("Card removed", undo)
@@ -660,9 +759,14 @@ internal class DiscoverEditState(
         val spec = CardSpec(id = kind.key, kind = kind)
         commit(DiscoverLayout(layout.cards.filter { it.id != spec.id } + spec, layout.hidden - kind))
         haptic(EditHaptic.CONFIRM)
-        announce("${kind.label} added")
-        select(spec.id)
-        reveal = spec.id
+        if (shown(spec)) {
+            announce("${kind.label} added")
+            select(spec.id)
+            reveal = spec.id
+        } else {
+            // Nothing to select or scroll to: said on the page, or the tap would look as if it did nothing.
+            say("${kind.label} is back. It has nothing to show right now.")
+        }
     }
 
     /** Every edit of [spec], for the actions sheet and TalkBack's actions. */
@@ -670,13 +774,18 @@ internal class DiscoverEditState(
         val id = spec.id
         val wide = spec.frame.width < 0.999f
         val out = arrayListOf(
-            CardAction("Move up", EditIcons.ArrowUpward, true) { move(id, -1) },
-            CardAction("Move down", EditIcons.ArrowDownward, true) { move(id, 1) },
+            CardAction("Move up", EditIcons.ArrowUpward, neighbor(id, -1) != null) { move(id, -1) },
+            CardAction("Move down", EditIcons.ArrowDownward, neighbor(id, 1) != null) { move(id, 1) },
             CardAction("Move left", EditIcons.ArrowBack, wide && spec.frame.x > 0.001f) { nudge(id, -1) },
             CardAction("Move right", EditIcons.ArrowForward, wide && spec.frame.x + spec.frame.width < 0.999f) { nudge(id, 1) },
             CardAction("Make bigger", EditIcons.ZoomOutMap, wide) { resize(id, 1) },
             CardAction("Make smaller", EditIcons.CloseFullscreen, true) { resize(id, -1) }
         )
+        if (spec.mode != CardMode.SHAPED) {
+            out += CardAction("Make taller", EditIcons.Expand, true) { stretch(id, 1) }
+            out += CardAction("Make shorter", EditIcons.Compress, true) { stretch(id, -1) }
+        }
+        if (hasOwnHeight(spec)) out += CardAction("Fit height to content", EditIcons.FitHeight, true) { fitHeight(id) }
         if (spec.kind.shaped) {
             out += if (spec.form == CardForm.SHAPE) {
                 CardAction("Make it a full card", EditIcons.CropSquare, true) { setForm(id, CardForm.CARD) }
@@ -708,6 +817,9 @@ internal class DiscoverEditState(
         const val MIN_HEIGHT_DP = 64f
         const val MAX_HEIGHT_DP = 900f
         const val SNAP_HEIGHT_DP = 14f
+
+        /** How much taller or shorter one step of Make taller and Make shorter is (dp). */
+        const val HEIGHT_STEP_DP = 40f
 
         /** How much a pinch's spread is softened, so fingers close together don't make a jumpy size (dp). */
         const val PINCH_SOFTEN_DP = 16f

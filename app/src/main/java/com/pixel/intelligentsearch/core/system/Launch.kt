@@ -5,11 +5,16 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.ContextWrapper
 import android.content.Intent
+import android.content.IntentSender
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import com.pixel.intelligentsearch.core.util.findActivity
 
 /**
@@ -43,7 +48,43 @@ fun launchSafeIntent(context: Context, intent: Intent, options: Bundle? = null):
  * instead, be it an app, one of Android's pages, or a notification's or player's own action, so Back from there
  * returns to the page as it was.
  */
-class ComesBackContext(base: Context, val screen: WaitsForPermissionGrant) : ContextWrapper(base)
+class ComesBackContext(base: Context, val screen: WaitsForPermissionGrant) : ContextWrapper(base) {
+    // What is started straight from this context waits behind too: an app's live widget on the page sends its own
+    // intents (a tap on its album art opens its app) from the context its views were made with.
+    override fun startActivity(intent: Intent?) = waitingBehind { super.startActivity(intent) }
+
+    override fun startActivity(intent: Intent?, options: Bundle?) = waitingBehind { super.startActivity(intent, options) }
+
+    override fun startIntentSender(intent: IntentSender?, fillInIntent: Intent?, flagsMask: Int, flagsValues: Int, extraFlags: Int) =
+        waitingBehind { super.startIntentSender(intent, fillInIntent, flagsMask, flagsValues, extraFlags) }
+
+    override fun startIntentSender(intent: IntentSender?, fillInIntent: Intent?, flagsMask: Int, flagsValues: Int, extraFlags: Int, options: Bundle?) =
+        waitingBehind { super.startIntentSender(intent, fillInIntent, flagsMask, flagsValues, extraFlags, options) }
+
+    /**
+     * Runs [start] with the screen waiting behind whatever it opens. A widget's button can as well send a broadcast
+     * (play, skip), which opens nothing: if the screen is still in front a moment later, it stops waiting, so it
+     * closes as usual the next time it goes out of sight.
+     */
+    private inline fun waitingBehind(start: () -> Unit) {
+        screen.waitWhileGranting(true)
+        try {
+            start()
+        } catch (e: Exception) {
+            screen.waitWhileGranting(false)
+            throw e
+        }
+        val lifecycle = (screen as? LifecycleOwner)?.lifecycle ?: return
+        Handler(Looper.getMainLooper()).postDelayed({
+            if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) screen.waitWhileGranting(false)
+        }, STILL_IN_FRONT_MS)
+    }
+
+    private companion object {
+        /** How long after a start the screen is checked for still being in front: nothing opened over it. */
+        const val STILL_IN_FRONT_MS = 1_500L
+    }
+}
 
 private tailrec fun Context.comesBack(): ComesBackContext? = when (this) {
     is ComesBackContext -> this

@@ -140,14 +140,14 @@ internal fun snapLeft(left: Int, width: Int, page: Int, others: Collection<IntRe
 
 /**
  * A card's width for [width] on a page [page] wide, pulled within [reach] to the page's whole, half, thirds and quarters,
- * and to the widths of [others]; never under [least].
+ * and to the widths of [others]; never under [least] or over [most] (the room it has to its right).
  */
-internal fun snapWidth(width: Int, page: Int, others: Collection<IntRect>, reach: Int, least: Int): Int {
+internal fun snapWidth(width: Int, page: Int, others: Collection<IntRect>, reach: Int, least: Int, most: Int = page): Int {
     var best = width
     var bestDistance = reach + 1
     val candidates = listOf(page, page / 2, page / 3, page * 2 / 3, page / 4, page * 3 / 4) + others.map { it.width }
     for (candidate in candidates) {
-        if (candidate < least || candidate > page) continue
+        if (candidate < least || candidate > most) continue
         val d = abs(candidate - width)
         if (d < bestDistance) {
             best = candidate

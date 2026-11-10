@@ -241,7 +241,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val TODAY_WEATHER = BooleanSetting("today.weather", true)
         /** Today's Catch Up: missed calls, messages and emails from the notifications (needs notification access). */
         val TODAY_CATCH_UP = BooleanSetting("today.catch_up", true)
-        /** Today's Quick Controls: Do Not Disturb, the flashlight, the hotspot and Battery Saver. */
+        /** Today's Quick Controls: the switches the user chose for the card. */
         val TODAY_CONTROLS = BooleanSetting("today.controls", true)
         /** Today's Your Phone Today: the battery and screen time (screen time needs Usage Access). */
         val TODAY_PHONE = BooleanSetting("today.phone", true)
@@ -251,7 +251,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val TODAY_EXTRAS = BooleanSetting("today.extras", true)
         /** Up Next's leave-by time, from the phone's approximate location (shown only while location is allowed). */
         val TODAY_LEAVE_BY = BooleanSetting("today.leave_by", true)
-        /** Today's On This Day: a photo from the past each day, from this date when there is one (shown only while photos may be read). */
+        /** No longer read: On This Day was taken off the page. Kept so saved settings and backups that hold it still load. */
         val TODAY_MEMORIES = BooleanSetting("today.memories", true)
         /**
          * AI Answers: questions ("…?", "ask …") offer an Ask row that, only when tapped, sends that one question to

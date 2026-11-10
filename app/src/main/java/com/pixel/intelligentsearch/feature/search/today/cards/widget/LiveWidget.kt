@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -27,6 +28,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.pixel.intelligentsearch.feature.search.today.CARD_ALPHA
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.CoveredBox
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /*
@@ -73,30 +75,35 @@ internal fun LiveWidget(
     }
     val density = LocalDensity.current
     var size by remember { mutableStateOf(IntSize.Zero) }
-    var told by remember { mutableStateOf(IntSize.Zero) }
+    var view by remember { mutableStateOf<AppWidgetHostView?>(null) }
+    val told = remember { arrayOf(IntSize.Zero) }
+    // Told its size in dp, as a launcher tells it: at once the first time, and after that only once a resize has
+    // settled. Each telling is a call to Android and wakes the widget's app to draw again, far too much per finger move.
+    LaunchedEffect(size, view) {
+        val host = view ?: return@LaunchedEffect
+        if (size == told[0] || size.width <= 0 || size.height <= 0) return@LaunchedEffect
+        if (told[0] != IntSize.Zero) delay(SIZE_SETTLED_MS)
+        told[0] = size
+        runCatching { host.updateAppWidgetSize(Bundle(), listOf(SizeF(size.width / density.density, size.height / density.density))) }
+    }
     // No backing of the page's own: a widget draws its own background and margins, as it does on the home screen.
     CoveredBox(private && !revealed, LiveShape, modifier.clip(LiveShape)) {
         AndroidView(
             factory = { ctx ->
                 cards.host.createView(ctx, widgetId, provider).apply {
                     setPadding(0, 0, 0, 0)
+                    view = this
                 }
             },
             modifier = Modifier
                 .fillMaxSize()
-                .onSizeChanged { size = it },
-            update = { view: AppWidgetHostView ->
-                // Told its size in dp, as a launcher tells it, each time it changes, so its layout fits the card.
-                if (size != told && size.width > 0 && size.height > 0) {
-                    told = size
-                    val w = size.width / density.density
-                    val h = size.height / density.density
-                    runCatching { view.updateAppWidgetSize(Bundle(), listOf(SizeF(w, h))) }
-                }
-            }
+                .onSizeChanged { size = it }
         )
     }
 }
+
+/** How long a live widget's size holds still before the widget is told it. */
+private const val SIZE_SETTLED_MS = 250L
 
 /** The info a widget has before it is looked up: a marker, never a real widget. */
 private val UNLOOKED = android.appwidget.AppWidgetProviderInfo()

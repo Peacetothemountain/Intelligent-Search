@@ -87,11 +87,14 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -154,9 +157,11 @@ import com.pixel.intelligentsearch.feature.search.today.cards.AppCardData
 import com.pixel.intelligentsearch.feature.search.today.cards.CardForm
 import com.pixel.intelligentsearch.core.system.openPendingOrApp
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.DiscoverGrid
+import com.pixel.intelligentsearch.feature.search.today.cards.grid.EditHaptic
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.cardLayoutStore
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.rememberDiscoverEditState
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.AppCardBox
+import com.pixel.intelligentsearch.feature.search.today.cards.shape.CoveredCard
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.ProvideAmbientBudget
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.ShapedCard
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.SiteCardBox
@@ -232,8 +237,8 @@ internal fun TodayLayer(
     val revealed by remember { derivedStateOf { reveal.value > 0f } }
     var layerTopLeft by remember { mutableStateOf(Offset.Zero) }
 
-    // The weather and the day's photo are read while the search is open with the Discover Overlay on, so the page has
-    // them as it opens; read again on opening once they are a quarter of an hour old.
+    // The weather is read while the search is open with the Discover Overlay on, so the page has
+    // it as it opens; read again on opening once it is a quarter of an hour old.
     val context = LocalContext.current
     val sources = LocalTodaySources.current ?: remember(context) { AndroidTodaySources(context) }
     val comesBack = remember(context) {
@@ -441,10 +446,12 @@ internal fun TodayPage(
     // Private cards show for a few seconds after a tap, then cover again.
     var revealed by remember { mutableStateOf(emptySet<String>()) }
     val scope = rememberCoroutineScope()
+    val accessibility = LocalAccessibilityManager.current
     fun reveal(spec: CardSpec) {
         revealed = revealed + spec.id
         scope.launch {
-            delay(PRIVATE_SHOWN_MS)
+            // Longer for people who have asked Android for more time to read (Accessibility, Time to take action).
+            delay(accessibility?.calculateRecommendedTimeoutMillis(PRIVATE_SHOWN_MS, containsIcons = true, containsText = true, containsControls = true) ?: PRIVATE_SHOWN_MS)
             revealed = revealed - spec.id
         }
     }
@@ -457,12 +464,33 @@ internal fun TodayPage(
         onAdded = { id, provider ->
             val info = runCatching { android.appwidget.AppWidgetManager.getInstance(context).getAppWidgetInfo(id) }.getOrNull()
             cardStore.edit { now -> now.copy(cards = now.cards + newAppCard(id, provider, info, density.density)) }
+            editState.haptic(EditHaptic.CONFIRM)
+            editState.announce("Card added")
         },
         onFailed = { message -> android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show() }
     )
-    // A tap on a shaped or box card: a private card shows itself first; an app card that needs a choice opens it.
-    fun Modifier.cardTap(spec: CardSpec, content: ShapedContent, onSearch: (String) -> Unit, reveal: (CardSpec) -> Unit, remove: (CardSpec) -> Unit): Modifier =
-        this.bouncyClickable {
+    // A card that is one thing to TalkBack says itself: only "Private card" while it is covered; once shown, its name
+    // and, for a shape (whose drawing TalkBack can't see), what it shows. Editing can start from it, as from any card.
+    fun Modifier.named(spec: CardSpec, content: ShapedContent? = null): Modifier = semantics {
+        val covered = spec.private && spec.id !in revealed
+        val name = cardLabel(if (covered) spec else spec.copy(private = false), apps, sites)
+        contentDescription = if (covered || content == null) name else listOfNotNull(name, shapedSpoken(content)).joinToString(", ")
+        customActions = listOf(
+            CustomAccessibilityAction("Edit Discover") {
+                editState.enter(spec.id)
+                true
+            }
+        )
+    }
+    // A tap on a shaped or box card: a private card shows itself first; an app card that needs a choice opens it. A
+    // card with nowhere to go (a countdown, tomorrow, a package) is no button: nothing would answer the tap.
+    // [name] unless the card is already named over it (a full app card whose app is gone).
+    fun Modifier.cardTap(spec: CardSpec, content: ShapedContent, onSearch: (String) -> Unit, reveal: (CardSpec) -> Unit, remove: (CardSpec) -> Unit, name: Boolean = true): Modifier {
+        val said = if (name) named(spec, content) else this
+        val covered = spec.private && spec.id !in revealed
+        val state = (content as? ShapedContent.App)?.data?.state
+        if (!covered && !opensSomething(content) && state != AppCardState.REMOVED && state != AppCardState.SETUP) return said
+        return said.bouncyClickable {
             when {
                 spec.private && spec.id !in revealed -> reveal(spec)
                 content is ShapedContent.App && content.data.state == AppCardState.REMOVED -> remove(spec)
@@ -470,6 +498,7 @@ internal fun TodayPage(
                 else -> openShapedCard(context, content, snapshot.media, timer, alarm, upNext, { catchUp.firstOrNull()?.let { openPendingOrApp(context, it.contentIntent, it.packageName) } }, onSearch)
             }
         }
+    }
 
     Box(
         Modifier
@@ -570,7 +599,15 @@ internal fun TodayPage(
             ) { spec, cardModifier ->
                 Enter(turns[spec.id] ?: index, parts) {
                     when (spec.mode) {
-                        CardMode.NATURAL -> Box(cardModifier, propagateMinConstraints = true) { natural(spec.kind) }
+                        // A private card is covered whole until tapped, as shapes and app cards are.
+                        CardMode.NATURAL -> {
+                            val covered = spec.private && spec.id !in revealed
+                            // A private card says itself here, covered or shown: the grid names only cards that aren't private.
+                            val own = if (spec.private) cardModifier.named(spec) else cardModifier
+                            CoveredCard(covered, CardShape, if (covered) own.bouncyClickable(shape = CardShape) { reveal(spec) } else own) {
+                                natural(spec.kind)
+                            }
+                        }
                         CardMode.SHAPED -> {
                             val content = shapedContent(spec)
                             if (content != null) {
@@ -588,14 +625,21 @@ internal fun TodayPage(
                             val covered = spec.private && spec.id !in revealed
                             LiveWidget(
                                 widgetId = spec.widgetId,
-                                modifier = if (covered) cardModifier.bouncyClickable { reveal(spec) } else cardModifier,
+                                modifier = (if (spec.private) cardModifier.named(spec) else cardModifier).let { own ->
+                                    if (covered) own.bouncyClickable { reveal(spec) } else own
+                                },
                                 private = spec.private,
                                 revealed = spec.id in revealed,
                                 onGone = { m ->
                                     val gone = apps[spec.widgetId]?.copy(state = AppCardState.REMOVED)
                                         ?: AppCardData(spec.widgetId, "", "App", "", 0xFF8A8A8A.toInt(), AppCardState.REMOVED, null, 0L)
                                     val content = ShapedContent.App(gone, null)
-                                    AppCardBox(gone, null, modifier = m.cardTap(spec, content, onSearch, ::reveal, ::removeCard))
+                                    // Covered like any private card: its app's name is still on it.
+                                    AppCardBox(
+                                        gone, null,
+                                        modifier = m.cardTap(spec, content, onSearch, ::reveal, ::removeCard, name = spec.private),
+                                        private = spec.private, revealed = spec.id in revealed
+                                    )
                                 }
                             )
                         } else when (val content = shapedContent(spec)) {

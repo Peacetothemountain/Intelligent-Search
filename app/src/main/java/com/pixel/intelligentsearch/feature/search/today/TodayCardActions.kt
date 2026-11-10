@@ -22,6 +22,7 @@ import com.pixel.intelligentsearch.feature.search.today.cards.DiscoverLayout
 import com.pixel.intelligentsearch.feature.search.today.cards.ShapedContent
 import com.pixel.intelligentsearch.feature.search.today.cards.SiteCards
 import com.pixel.intelligentsearch.feature.search.today.cards.SiteData
+import com.pixel.intelligentsearch.feature.search.today.cards.SnapLayout
 import com.pixel.intelligentsearch.feature.search.today.cards.WidgetCards
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.shapedFits
 import com.pixel.intelligentsearch.feature.search.today.cards.widget.openAppCard
@@ -119,6 +120,42 @@ internal fun openShapedCard(
         is ShapedContent.Countdown, is ShapedContent.Delivery -> Unit
         is ShapedContent.App -> openAppCard(context, content.data)
         is ShapedContent.Site -> launchSafeIntent(context, Intent(Intent.ACTION_VIEW, content.data.url.toUri()))
+    }
+}
+
+/** Whether a tap on [content]'s card has somewhere to go ([openShapedCard]); one that hasn't is no button. */
+internal fun opensSomething(content: ShapedContent): Boolean =
+    content !is ShapedContent.Tomorrow && content !is ShapedContent.Countdown && content !is ShapedContent.Delivery
+
+/**
+ * What a card in a shape shows, in words: TalkBack can't see the drawing, so the card says its values after its name.
+ * Null when it shows nothing its name doesn't say.
+ */
+internal fun shapedSpoken(content: ShapedContent): String? {
+    fun said(vararg parts: String?): String? = parts.filterNot { it.isNullOrBlank() }.joinToString(", ").takeIf { it.isNotEmpty() }
+    return when (content) {
+        is ShapedContent.Weather -> said(content.temperature, content.headline)
+        is ShapedContent.Timer -> said(content.label, content.reading)
+        is ShapedContent.Alarm -> said("${content.time} ${content.day}", content.until)
+        is ShapedContent.Delivery -> said(content.headline, content.detail)
+        is ShapedContent.Media -> said(content.title, content.artist, if (content.playing) "playing" else "paused")
+        is ShapedContent.Battery -> said("${content.level} percent", content.detail)
+        is ShapedContent.Word -> said(content.word, content.kind, content.meaning)
+        is ShapedContent.Countdown -> if (content.days == 1) "1 day until ${content.name}" else "${content.days} days until ${content.name}"
+        is ShapedContent.Event -> said(content.title, content.time, content.until)
+        is ShapedContent.Agenda -> said(if (content.count == 1) "1 left today" else "${content.count} left today", "next ${content.nextTitle} at ${content.next}")
+        is ShapedContent.CatchUp -> said(if (content.count == 1) "1 new" else "${content.count} new", content.who)
+        is ShapedContent.Search -> said(content.query)
+        is ShapedContent.Tomorrow -> said(content.day, content.temperatures, content.detail)
+        is ShapedContent.App -> content.data.model?.let { model ->
+            when (model.layout) {
+                SnapLayout.HERO -> said(model.hero, model.labels.firstOrNull())
+                SnapLayout.LIST -> said(model.title, *model.rows.take(3).map { said(it.name, it.value, it.change) }.toTypedArray())
+                SnapLayout.MONTH -> said(model.title, model.day.takeIf { it > 0 }?.toString())
+                SnapLayout.CLOCK -> said(model.labels.firstOrNull())
+            }
+        }
+        is ShapedContent.Site -> if (content.data.failed) "not updated" else null
     }
 }
 

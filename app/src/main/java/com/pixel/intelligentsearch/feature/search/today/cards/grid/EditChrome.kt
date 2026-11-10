@@ -72,6 +72,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -107,6 +108,9 @@ import kotlin.math.roundToInt
 /** The top bar's slide: quick, with a touch of overshoot. */
 private val BarEasing = CubicBezierEasing(0.2f, 0.9f, 0.3f, 1.1f)
 
+/** How long what TalkBack was told stays on the page for it to pick up. */
+private const val SAID_MS = 3_000L
+
 /** How long the hint under the top bar stays. */
 private const val HINT_MS = 4_500L
 
@@ -131,6 +135,11 @@ internal fun DiscoverEditChrome(
 ) {
     state.onLayoutChange = onLayoutChange
     state.onRemoveCustom = onRemoveCustom
+    // Messages stay as long as Android's Time to take action setting asks, for people who need longer.
+    val accessibility = LocalAccessibilityManager.current
+    state.timeout = { ms, action ->
+        accessibility?.calculateRecommendedTimeoutMillis(ms, containsIcons = false, containsText = true, containsControls = action) ?: ms
+    }
     BackHandler(enabled = state.editing && state.sheet == null) {
         when {
             state.strip != null -> state.strip = null
@@ -196,7 +205,7 @@ private fun EditTopBar(state: DiscoverEditState, modifier: Modifier) {
                         style = MaterialTheme.typography.labelLarge,
                         color = scheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
-                        maxLines = 1,
+                        maxLines = 2,
                         modifier = Modifier.clearAndSetSemantics { }
                     )
                 }
@@ -267,13 +276,18 @@ private fun toolsTarget(state: DiscoverEditState, id: String): Rect? {
     return drawn.translate(origin)
 }
 
-/** The selected card's toolbar: Shape (kinds that have one), Private, and Hide (the page's parts) or Remove (the user's own). */
+/**
+ * The selected card's toolbar: Shape (kinds that have one), Fit height (a card given a height of its own), Private, and
+ * Hide (the page's parts) or Remove (the user's own).
+ */
 @Composable
 private fun Toolbar(state: DiscoverEditState, spec: CardSpec) {
     val scheme = MaterialTheme.colorScheme
     Surface(shape = CircleShape, color = scheme.surfaceContainerHighest, shadowElevation = 8.dp, tonalElevation = 2.dp) {
         Row(Modifier.padding(5.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             if (spec.kind.shaped) ToolButton(Icons.Outlined.Interests, "Shapes", on = state.strip == spec.id) { state.toggleStrip(spec.id) }
+            // Only for a card given a height of its own: back to as tall as its content.
+            if (state.hasOwnHeight(spec)) ToolButton(EditIcons.FitHeight, "Fit height to content") { state.fitHeight(spec.id) }
             ToolButton(Icons.Filled.Lock, "Private", on = spec.private) { state.togglePrivate(spec.id) }
             if (spec.kind.builtIn) {
                 ToolButton(Icons.Outlined.VisibilityOff, "Hide") { state.removeCard(spec.id) }
@@ -296,7 +310,7 @@ private fun ToolButton(icon: ImageVector, description: String, on: Boolean? = nu
     }
     Box(
         Modifier
-            .size(44.dp)
+            .size(48.dp)
             .clip(CircleShape)
             .background(if (lit) scheme.primaryContainer else Color.Transparent)
             .then(action)
@@ -345,7 +359,7 @@ private fun ShapeStrip(state: DiscoverEditState, spec: CardSpec) {
 private fun StripItem(selected: Boolean, description: String, onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
         Modifier
-            .size(46.dp)
+            .size(48.dp)
             .clip(RoundedCornerShape(13.dp))
             .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
             .semantics { contentDescription = description }
@@ -387,7 +401,7 @@ private fun EditToast(state: DiscoverEditState, modifier: Modifier) {
         text = message.text
         undo = message.undo
         visible = true
-        delay(if (message.undo != null) DiscoverEditState.UNDO_MS else 2_000)
+        delay(if (message.undo != null) state.timeout(DiscoverEditState.UNDO_MS, true) else state.timeout(2_000, false))
         visible = false
     }
     AnimatedVisibility(
@@ -448,6 +462,9 @@ private fun Announcer(state: DiscoverEditState) {
         text = ""
         withFrameNanos { }
         text = note.text
+        // Gone once said, so TalkBack doesn't find the last thing said waiting here as it reads down the page.
+        delay(SAID_MS)
+        text = ""
     }
     Box(
         Modifier

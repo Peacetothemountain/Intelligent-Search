@@ -214,6 +214,10 @@ internal fun WidgetShortcutsTab(
                                     .weight(1f)
                                     // Dragging the handle is touch-only, so the card also offers Move up and Move
                                     // down to TalkBack and switch access.
+                                    .reorderKeys(
+                                        up = if (currentPositionIndex > 0) ({ moveSlot(slotKey, -1) }) else null,
+                                        down = if (currentPositionIndex in 0 until currentOrderList.lastIndex) ({ moveSlot(slotKey, 1) }) else null
+                                    )
                                     .semantics {
                                         customActions = buildList {
                                             if (currentPositionIndex > 0) {
@@ -259,7 +263,7 @@ internal fun WidgetShortcutsTab(
                                     )
                                     Text(
                                         text = cardSubtext,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 12.sp
                                     )
                                 }

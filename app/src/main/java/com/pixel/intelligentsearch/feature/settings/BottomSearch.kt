@@ -228,7 +228,7 @@ internal fun BottomSearchPill(
         ) {
             val onPill = MaterialTheme.colorScheme.onSurfaceVariant
             if (query.isEmpty()) {
-                Text(placeholder, color = onPill.copy(alpha = 0.6f), fontSize = PILL_TEXT, fontFamily = GoogleSansFlex, maxLines = 1)
+                Text(placeholder, color = onPill, fontSize = PILL_TEXT, fontFamily = GoogleSansFlex, maxLines = 1)
             }
             BasicTextField(
                 value = query,

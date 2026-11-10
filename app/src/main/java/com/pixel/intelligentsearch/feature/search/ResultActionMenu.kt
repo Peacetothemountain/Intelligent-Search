@@ -72,7 +72,8 @@ internal sealed interface ResultMenuTarget {
     val title: String
 
     data class App(val app: AppItem) : ResultMenuTarget {
-        override val key: String = ResultKeys.app(app)
+        // A pin is kept with the settings and goes into every backup, so a Private Space app can't be pinned.
+        override val key: String? = if (app.inPrivateSpace) null else ResultKeys.app(app)
         override val title: String = app.name
     }
 
@@ -129,7 +130,8 @@ internal fun resultMenuCommands(
     val open = if (splitScreen) listOf(ResultCommand.SPLIT_SCREEN) else emptyList()
     val manage = buildList {
         add(ResultCommand.APP_INFO)
-        add(ResultCommand.HIDE)
+        // Hiding keeps the package's name with the settings, and in every backup: not for a Private Space app.
+        if (!target.app.inPrivateSpace) add(ResultCommand.HIDE)
         if (canUninstall) add(ResultCommand.UNINSTALL)
     }
     return listOf(personal, open, manage).filter { it.isNotEmpty() }

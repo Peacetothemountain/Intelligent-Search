@@ -652,6 +652,13 @@ fun SearchPillsScreen(
                                         com.pixel.intelligentsearch.core.ui.expressive.MatteShell(
                                             modifier = Modifier
                                                 .fillMaxWidth()
+                                                // A keyboard can't swipe or drag it either: Ctrl+Up, Ctrl+Down and Delete.
+                                                .reorderKeys(
+                                                    up = if (itemIndex > 0) ({ movePill(packageName, -1) }) else null,
+                                                    down = if (itemIndex < localPillList.lastIndex) ({ movePill(packageName, 1) }) else null,
+                                                    remove = { bounce.dismiss(-1f) },
+                                                    ownFocus = RoundedCornerShape(24.dp)
+                                                )
                                                 // TalkBack can't swipe or drag the row, so removing and moving it are actions on it.
                                                 .semantics(mergeDescendants = true) {
                                                     customActions = buildList {
@@ -699,7 +706,7 @@ fun SearchPillsScreen(
                                                                 text = packageName.breakableAtDots(),
                                                                 style = MaterialTheme.typography.bodySmall,
                                                                 fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
-                                                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                                                color = MaterialTheme.colorScheme.onSurfaceVariant
                                                             )
                                                         }
                                                     }

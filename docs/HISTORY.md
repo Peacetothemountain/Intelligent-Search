@@ -20,15 +20,15 @@ checkpoints), and those hold copies of commits that were never on GitHub.
 ## Tags
 
 - **`v<versionName>-<versionCode>`**: an annotated tag on that version's release commit, for example `v9.3.1-125`.
-  9.4.1 (127), 9.5 (128), 9.5.2 (130) and 9.5.3 (131) were never tagged; their `Release` commits are in the table below.
+  9.4.1 (127), 9.5 (128), 9.5.2 (130), 9.5.3 (131) and 9.5.5 (133) were never tagged; their `Release` commits are in the
+  table below.
 - **`9.1.9`**: an older lightweight tag that the 9.1.9 GitHub Release is attached to. `v9.1.9-121` is the same commit.
 - **`main-before-dev`**: the code `main` held on 2026-10-17, before the then `dev` line was adopted as `main`: one
   commit off the main line. `v9.3-123` is likewise one commit off the main line, as 9.3 was released from that old
   `main`.
 - **`gemini-search-plate-golden-v1`**: the reference commit for the locked Gemini search plate shader
   (`AGSL_GEMINI_PLATE` in `DynamicMeshShader.kt`).
-- **`dev-test-<date>-<commit>`**: test builds for the phone, each published as a non-latest pre-release. Only the newest
-  is kept.
+- **`dev-test-<date>-<topic>`**: test builds for the phone, each published as a non-latest pre-release.
 
 ## Versions
 
@@ -59,7 +59,7 @@ checkpoints), and those hold copies of commits that were never on GitHub.
 | 9.5.2 | 130 | `f552d950` | 2026-10-30 |
 | 9.5.3 | 131 | `9ce6a1c5` | 2026-10-30 |
 | 9.5.4 | 132 | see `Release 9.5.4 (132)` | 2026-11-01 |
-| 9.5.5 | 133 | see `Release 9.5.5 (133)` | 2026-11-06 |
+| 9.5.5 | 133 | `b85345e2` | 2026-11-06 |
 
 Some codes that reached Google Play were never committed with their number: 9.06 (105), 9.1.1 (109), and 111, 117 and
 119. A crash report from one of them belongs to the code between the tags either side of it: 105 sits between

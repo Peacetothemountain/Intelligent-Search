@@ -118,12 +118,10 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
 
     private fun glanceMedia(controller: MediaController, artworks: ArtworkCache): GlanceMedia? {
         val metadata = runCatching { controller.metadata }.getOrNull() ?: return null
-        val title = MediaSessionAccess.titleOf(controller) ?: return null
-        val playing = MediaSessionAccess.playingState(
-            runCatching { controller.playbackState?.state }.getOrNull(),
-            runCatching { controller.playbackState?.lastPositionUpdateTime }.getOrNull(),
-            SystemClock.elapsedRealtime()
-        ) == true
+        // Read once each and handed on: every read is a call to the player's app, and the metadata's carries the art.
+        val title = MediaSessionAccess.titleOf(metadata) ?: return null
+        val playback = runCatching { controller.playbackState }.getOrNull()
+        val playing = MediaSessionAccess.playingState(playback?.state, playback?.lastPositionUpdateTime, SystemClock.elapsedRealtime()) == true
         val artist = glanceArtistOf(metadata)
         val appLabel = runCatching {
             val pm = context.packageManager
@@ -137,7 +135,7 @@ class AndroidGlanceSource(private val context: Context, private val index: Notif
             isPlaying = playing,
             artwork = artworks.artwork(controller.packageName, title, metadata),
             controls = SessionControls(controller),
-            progress = MediaSessionAccess.progressOf(controller)
+            progress = MediaSessionAccess.progressOf(metadata, playback)
         )
     }
 

@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
 import android.content.SharedPreferences
@@ -102,9 +104,16 @@ internal fun WidgetEditorDialogs(
                     items(shortcutOptions.size) { index ->
                         val option = shortcutOptions[index]
                         val isCustomizable = option.first in listOf("Weather", "Sports", "Dictionary")
+                        // The slot's shortcut as it stands: said as selected, and ringed, since the two circle colors
+                        // are the same lightness and differ in hue alone (WCAG 1.4.1).
+                        val isCurrent = option.first == when (activeShortcutSlot) {
+                            1 -> localShortcut1
+                            2 -> localShortcut2
+                            else -> localShortcut3
+                        }
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.bouncyClickable {
+                            modifier = Modifier.semantics { selected = isCurrent }.bouncyClickable {
                                 if (isCustomizable) {
                                     expandedDropdownFor = option.first
                                 } else {
@@ -131,6 +140,10 @@ internal fun WidgetEditorDialogs(
                                         .background(
                                             if (currentShortcutSlotVal == option.first) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                                             androidx.compose.foundation.shape.CircleShape
+                                        )
+                                        .then(
+                                            if (isCurrent) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, androidx.compose.foundation.shape.CircleShape)
+                                            else Modifier
                                         )
                                         .padding(16.dp),
                                     tint = if (currentShortcutSlotVal == option.first) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant

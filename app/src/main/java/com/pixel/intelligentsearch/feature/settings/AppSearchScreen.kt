@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
@@ -165,6 +167,8 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                             )
                         }
                     }
+                    // The reset button's touch area is 48dp, 8dp past the row it sits in: kept clear of the slider's.
+                    Spacer(Modifier.height(8.dp))
                     // 1 to 20, the most apps Application Search lets you choose: past six the pills shrink to fit, and
                     // the panel scrolls for the rest.
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {

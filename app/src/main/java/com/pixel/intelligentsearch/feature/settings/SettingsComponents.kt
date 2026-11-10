@@ -1,5 +1,12 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.Key
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.util.clampSafely
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
@@ -929,11 +936,33 @@ fun Android17Slider(
     }
 
     val cachedPath = remember { androidx.compose.ui.graphics.Path() }
+    val keyboardFocused = remember { mutableStateOf(false) }
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
+            // Left and Right move a focused slider one step, so a keyboard can set what a tap or a drag sets
+            // (WCAG 2.1.1). The track isn't mirrored for right-to-left, so Right always raises the value.
+            .onFocusChanged { keyboardFocused.value = it.isFocused }
+            .focusRing(RoundedCornerShape(12.dp)) { keyboardFocused.value }
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                val up = when (event.key) {
+                    Key.DirectionRight -> true
+                    Key.DirectionLeft -> false
+                    else -> return@onKeyEvent false
+                }
+                val span = valueRange.endInclusive - valueRange.start
+                val by = if (steps > 0) stepSize else if (span >= 10f) 1f else span / 20f
+                val moved = snapValue(((currentValue + (if (up) by else -by) - valueRange.start) / span).coerceIn(0f, 1f))
+                if (moved != currentValue) {
+                    currentOnValueChange(moved)
+                    currentOnValueChangeFinished?.invoke()
+                }
+                true
+            }
+            .focusable()
             .semantics(mergeDescendants = true) {
                 if (label != null) contentDescription = label
                 if (valueDescription != null) stateDescription = valueDescription

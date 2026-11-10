@@ -457,7 +457,11 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
                                     }
                                 },
                                 onLaunchApp = { packageName, user, activityName, launch ->
-                                    searchViewModel.notifyAppLaunch(packageName)
+                                    // A Private Space app leaves no trace: its launches aren't counted for suggestions.
+                                    val inPrivateSpace = multiProfileManager.profilesState.value.any {
+                                        it.userHandle == user && it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE
+                                    }
+                                    if (!inPrivateSpace) searchViewModel.notifyAppLaunch(packageName)
                                     // The results stay as they are while the app opens out of the tapped icon (App
                                     // Animations); the query is cleared once the overlay is out of sight (onStop).
                                     try {

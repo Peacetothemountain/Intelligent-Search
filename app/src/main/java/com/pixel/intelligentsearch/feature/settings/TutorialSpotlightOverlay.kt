@@ -745,7 +745,7 @@ fun TutorialSpotlightOverlay(
 
                         // Primary / Advance Action Button (Guaranteed min 48x48dp touch target)
                         val isFinalStep = currentStep >= TutorialManager.TOTAL_STEPS - 1
-                        val buttonLabel = if (isFinalStep) "Got it" else "Next"
+                        val buttonLabel = if (isFinalStep) TUTORIAL_FINISH_LABEL else "Next"
                         val buttonDesc = if (isFinalStep) "Finish tutorial" else "Next tutorial step"
                         Button(
                             onClick = advanceToNextStep,
@@ -775,3 +775,6 @@ fun TutorialSpotlightOverlay(
         }
     }
 }
+
+/** The tutorial's last button, as its last step names it too. */
+internal const val TUTORIAL_FINISH_LABEL = "Got it"

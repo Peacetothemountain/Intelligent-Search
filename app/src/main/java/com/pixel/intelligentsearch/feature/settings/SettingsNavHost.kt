@@ -75,7 +75,7 @@ internal val SETTINGS_TUTORIAL_STEPS = mapOf(
     ),
     4 to TutorialStepInfo(
         "Make It Yours",
-        "Tap Got it to see every category and fine-tune Intelligent Search to the way you search. You're all set!",
+        "Tap $TUTORIAL_FINISH_LABEL to see every category and fine-tune Intelligent Search to the way you search. You're all set!",
         Alignment.Center,
         showArrow = false
     )
@@ -210,7 +210,8 @@ fun SettingsScreensHub(
         val handleExitBack: () -> Unit = {
             ClickDebouncer.recordClick()
             val act = context.findActivity() ?: (context as? Activity)
-            val isBackToOverlay = prefs[SettingsManager.BACK_TO_SEARCH_OVERLAY]
+            // With the search overlay switched off the search screen only forwards to Google, so Back goes home then.
+            val isBackToOverlay = prefs[SettingsManager.BACK_TO_SEARCH_OVERLAY] && prefs[SettingsManager.SEARCH_OVERLAY_ENABLED]
             if (act != null) {
                 if (isBackToOverlay) {
                     if (act.isTaskRoot || !fromSearchOverlay) {

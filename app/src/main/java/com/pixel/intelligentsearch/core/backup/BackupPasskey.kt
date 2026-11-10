@@ -24,16 +24,26 @@ class BackupPasskey internal constructor(
     context: Context,
     /** The Keystore key the passkey's backup key is wrapped with; tests pass a software key. */
     private val wrapKey: () -> SecretKey,
-    private val prf: PasskeyPrf = CredentialManagerPasskeyPrf()
+    private val prf: PasskeyPrf = CredentialManagerPasskeyPrf(),
+    /** Deletes the Keystore key above, once nothing is wrapped with it any more. */
+    private val forgetWrapKey: () -> Unit = {}
 ) {
 
-    constructor(context: Context) : this(context, {
-        context.appEntryPoint.strongBoxSecurityManager().getOrCreateSymmetricKey(WRAP_KEY_ALIAS, purgeIfUnrecoverable = false).first
-    })
+    constructor(context: Context) : this(
+        context,
+        { context.appEntryPoint.strongBoxSecurityManager().getOrCreateSymmetricKey(WRAP_KEY_ALIAS, purgeIfUnrecoverable = false).first },
+        forgetWrapKey = { context.appEntryPoint.strongBoxSecurityManager().deleteKey(WRAP_KEY_ALIAS) }
+    )
 
     private val state = context.getSharedPreferences(STATE_FILE, Context.MODE_PRIVATE)
 
     val isSetUp: Boolean get() = state.contains(KEY_CREDENTIAL) && state.contains(KEY_WRAPPED)
+
+    /**
+     * Whether this phone can still read the passkey's kept key, which a new backup's passkey slot needs. False for a
+     * passkey that is set up but whose Keystore key was lost or replaced: only setting the passkey up again mends that.
+     */
+    val canWrap: Boolean get() = isSetUp && runCatching { backupKey() }.getOrNull() != null
     val createdMs: Long get() = state.getLong(KEY_CREATED, 0L)
 
     /**
@@ -50,6 +60,9 @@ class BackupPasskey internal constructor(
     /** Forgets the passkey on this phone. Backups already made still restore with it. */
     fun forget() {
         state.edit { clear() }
+        // Nothing is wrapped with the Keystore key any more. One that exists but can no longer be loaded is never
+        // replaced while it protects something, so left in place it made every new passkey fail to be kept.
+        runCatching(forgetWrapKey)
     }
 
     /** The key-slot for a new backup's [contentKey], or null when no passkey is set up (or its key can't be read). */
@@ -101,6 +114,9 @@ class BackupPasskey internal constructor(
             prfOutput.fill(0)
         }
         val raw = kek.encoded
+        // A Keystore key left by an earlier Remove, wrapping nothing now: one that exists but can't be loaded is never
+        // replaced while it protects something, so it would refuse every new passkey.
+        if (!state.contains(KEY_WRAPPED)) runCatching(forgetWrapKey)
         try {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, wrapKey())
@@ -130,6 +146,9 @@ class BackupPasskey internal constructor(
 
     companion object {
         private const val TAG = "BackupPasskey"
+
+        /** What the user is told when the passkey's kept key can't be read ([canWrap]). */
+        const val UNREADABLE = "This phone can't read its backup passkey's key. Set up the passkey again."
 
         /**
          * The website passkeys are made for. Its /.well-known/assetlinks.json names this app's signing certificates,

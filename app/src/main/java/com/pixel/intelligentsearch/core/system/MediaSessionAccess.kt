@@ -98,11 +98,13 @@ object MediaSessionAccess {
     }
 
     /** The session's track title, or null when it has none to show. */
-    fun titleOf(controller: MediaController): String? {
-        val metadata = runCatching { controller.metadata }.getOrNull() ?: return null
-        return (metadata.getString(MediaMetadata.METADATA_KEY_TITLE) ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE))
+    fun titleOf(controller: MediaController): String? =
+        runCatching { controller.metadata }.getOrNull()?.let(::titleOf)
+
+    /** [titleOf] for metadata already read: each read of a session's metadata is a call to its app that carries the cover art. */
+    fun titleOf(metadata: MediaMetadata): String? =
+        (metadata.getString(MediaMetadata.METADATA_KEY_TITLE) ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE))
             ?.trim()?.takeIf { it.isNotEmpty() }
-    }
 
     /** What [pickIndex] looks at in a session: its title and playback state, and when its position last changed. */
     data class SessionState(val title: String?, val state: Int?, val lastUpdateElapsed: Long?)
@@ -179,8 +181,14 @@ object MediaSessionAccess {
 
     /** [controller]'s [Progress], or null without a length or a known position. */
     fun progressOf(controller: MediaController): Progress? {
-        val duration = durationOf(controller) ?: return null
-        val playback = runCatching { controller.playbackState }.getOrNull() ?: return null
+        val metadata = runCatching { controller.metadata }.getOrNull() ?: return null
+        return progressOf(metadata, runCatching { controller.playbackState }.getOrNull())
+    }
+
+    /** [progressOf] for a session's [metadata] and [playback] state already read. */
+    fun progressOf(metadata: MediaMetadata, playback: PlaybackState?): Progress? {
+        val duration = runCatching { metadata.getLong(MediaMetadata.METADATA_KEY_DURATION) }.getOrNull()?.takeIf { it > 0L } ?: return null
+        if (playback == null) return null
         return progressOf(duration, playback.state, playback.position, playback.lastPositionUpdateTime, playback.playbackSpeed, playback.actions)
     }
 

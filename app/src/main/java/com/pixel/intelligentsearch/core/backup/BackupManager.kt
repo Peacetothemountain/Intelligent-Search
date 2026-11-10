@@ -335,22 +335,29 @@ class BackupManager @Inject constructor(
      * [salt]. The file is the same as a passphrase export, so it restores on any phone with that passphrase.
      */
     suspend fun exportWithDerivedKey(uri: Uri, key: javax.crypto.SecretKey, salt: ByteArray): Result<Unit> =
-        exportAutomatic(uri, key to salt)
+        exportAutomatic(uri, key to salt).map { }
+
+    /** Which of the user's keys open an automatic backup just written. */
+    data class WrittenFor(val passkey: Boolean, val passphrase: Boolean)
 
     /**
      * Writes an automatic backup to [uri]: with the backup passkey when one is set up (plus the passphrase key
-     * [passphraseKey] when given), otherwise with [passphraseKey] alone, as a passphrase export would.
+     * [passphraseKey] when given), otherwise with [passphraseKey] alone, as a passphrase export would. A passkey whose
+     * key this phone can no longer read ([BackupPasskey.canWrap]) doesn't stop a backup that has a passphrase too: that
+     * one is written for the passphrase alone, which still restores it on any phone. Returns which keys open the file.
      */
-    suspend fun exportAutomatic(uri: Uri, passphraseKey: Pair<javax.crypto.SecretKey, ByteArray>?): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun exportAutomatic(uri: Uri, passphraseKey: Pair<javax.crypto.SecretKey, ByteArray>?): Result<WrittenFor> = withContext(Dispatchers.IO) {
         backupResult("exportAutomatic") {
             val plainJson = serializePayload(createBackupPayload())
             val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
+            val withPasskey = backupPasskey.isSetUp && (passphraseKey == null || backupPasskey.canWrap)
             val envelope = when {
-                backupPasskey.isSetUp -> keySlotEnvelope(plainJson, hwInfo, passphraseKey)
+                withPasskey -> keySlotEnvelope(plainJson, hwInfo, passphraseKey)
                 passphraseKey != null -> passphraseEnvelope(plainJson, passphraseKey.first, passphraseKey.second, hwInfo)
                 else -> throw IllegalStateException("Automatic backup has no passkey or passphrase to encrypt with")
             }
             writeEnvelope(uri, envelope)
+            WrittenFor(passkey = withPasskey, passphrase = passphraseKey != null)
         }
     }
 
@@ -366,7 +373,7 @@ class BackupManager @Inject constructor(
         val contentKey = BackupKeySlots.newContentKey()
         try {
             val passkeySlot = backupPasskey.slotFor(contentKey)
-                ?: throw SecurityException("This phone can't read its backup passkey's key. Set up the passkey again.")
+                ?: throw PasskeyException(BackupPasskey.UNREADABLE)
             val passphraseSlot = passphraseKey?.let { (key, salt) ->
                 val (iv, wrapped) = BackupKeySlots.wrap(contentKey, key, KeySlot.TYPE_PASSPHRASE)
                 KeySlot(

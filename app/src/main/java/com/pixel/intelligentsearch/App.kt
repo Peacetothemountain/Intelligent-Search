@@ -16,8 +16,11 @@ import com.pixel.intelligentsearch.core.system.DirectBootManager
 import com.pixel.intelligentsearch.core.system.SystemToggleManager
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
@@ -48,6 +51,7 @@ class App : Application() {
     private companion object {
         const val MAINTENANCE_PREFS = "app_maintenance"
         const val KEY_RETIRED_SECRETS_REMOVED = "retired_secrets_removed_v1"
+        const val APPS_SETTLED_MS = 2_000L
     }
 
     /** The languages the cached app list's labels are in; null until known. */
@@ -114,6 +118,24 @@ class App : Application() {
         }
     }
 
+    /**
+     * A widget's taps point at other apps as they were when it was drawn, so a tap on a shortcut whose app has since
+     * been removed or disabled did nothing. The widgets are drawn again once a burst of changes (an evening of app
+     * updates) has been quiet for a moment. An app removed while this process wasn't running went unheard: with the
+     * Pixel Launcher the failed tap itself redraws the widgets (WidgetLaunchReceiver); with another home app taps open
+     * their targets directly, so there the widgets are drawn once as the process starts.
+     */
+    private fun redrawWidgetsWhenAppsChange() {
+        appScope.launch {
+            val changes = multiProfileManager.get().packageChanges
+            val heard = if (com.pixel.intelligentsearch.feature.widget.WidgetLaunchReceiver.homeIsPixelLauncher(this@App)) changes else changes.onStart { emit(Unit) }
+            heard.collectLatest {
+                delay(APPS_SETTLED_MS)
+                widgetUpdater.updateAll()
+            }
+        }
+    }
+
     /** Deletes Keystore keys and stores left by removed features, once per install. */
     private fun removeRetiredSecretsOnce() {
         val maintenance = getSharedPreferences(MAINTENANCE_PREFS, MODE_PRIVATE)
@@ -148,6 +170,7 @@ class App : Application() {
                 // profile manager is built lazily.
                 SystemToggleManager.clearLegacyNightModeOverrideIfNeeded(this@App)
                 multiProfileManager.get().refreshProfiles()
+                redrawWidgetsWhenAppsChange()
                 removeRetiredSecretsOnce()
                 SystemDataProvider.getAllApps(this@App, forceRefresh = false)
             } catch (e: Exception) {

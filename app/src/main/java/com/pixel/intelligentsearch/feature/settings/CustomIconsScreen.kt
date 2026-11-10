@@ -299,6 +299,10 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 }
                                             }
                                         }
+                                        .reorderKeys(
+                                            up = if (position > 0) ({ movePack(packageName, -1) }) else null,
+                                            down = if (position in 0 until localPillList.lastIndex) ({ movePack(packageName, 1) }) else null
+                                        )
                                         .bouncyClickable(role = Role.RadioButton) { activatePack(packageName) }
                                         .padding(16.dp),
                                     verticalAlignment = Alignment.CenterVertically,

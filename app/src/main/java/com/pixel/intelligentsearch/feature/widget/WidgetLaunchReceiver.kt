@@ -41,6 +41,10 @@ class WidgetLaunchReceiver : BroadcastReceiver() {
             context.startActivity(target)
         } catch (e: Exception) {
             Log.w(TAG, "The search bar's tap couldn't open its target", e)
+            // Its app was removed or disabled after the bar was drawn and before this process could hear of it: drawn
+            // again, the slot points at what it falls back to, and no launch animation is owed for this tap.
+            refreshWidgets(context)
+            return
         }
         try {
             context.startActivity(

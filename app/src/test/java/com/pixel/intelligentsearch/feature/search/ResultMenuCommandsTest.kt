@@ -48,7 +48,7 @@ class ResultMenuCommandsTest {
     @Test
     fun aPinnedResultOffersUnpin() {
         val app = ResultMenuTarget.App(spotify)
-        val set = ResultShortcuts.EMPTY.withPinned(app.key, "Spotify", true)
+        val set = ResultShortcuts.EMPTY.withPinned(app.key!!, "Spotify", true)
         assertEquals(listOf(ResultCommand.UNPIN), resultMenuCommands(app, set).first())
     }
 

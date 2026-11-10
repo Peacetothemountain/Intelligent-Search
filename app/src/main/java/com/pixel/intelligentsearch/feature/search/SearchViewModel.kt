@@ -126,15 +126,19 @@ data class SearchUiState(
  * This state without anything from the Private Space: its apps and the App Info rows for them in the settings
  * results. What stays on screen once the Private Space locks, until the next search.
  */
-internal fun SearchUiState.withoutPrivateProfile(): SearchUiState {
-    fun AppItem.isPrivate() = isPrivateProfile || profileType == ProfileType.PRIVATE
-    return copy(
-        allApps = allApps.filterNot { it.isPrivate() },
-        recentApps = recentApps.filterNot { it.isPrivate() },
-        filteredApps = filteredApps.filterNot { it.isPrivate() },
-        androidSettings = androidSettings.filterNot { it.app?.isPrivate() == true }
-    )
-}
+internal fun SearchUiState.withoutPrivateProfile(): SearchUiState = copy(
+    allApps = allApps.filterNot { it.inPrivateSpace },
+    recentApps = recentApps.filterNot { it.inPrivateSpace },
+    filteredApps = filteredApps.filterNot { it.inPrivateSpace },
+    pinned = pinned.filterNot { it is AppItem && it.inPrivateSpace },
+    androidSettings = androidSettings.filterNot { it.app?.inPrivateSpace == true }
+)
+
+/**
+ * Whether this app lives in the Private Space. Such an app leaves no trace outside it: it is never pinned, and what was
+ * typed to open it is kept neither in the search history nor for ranking.
+ */
+internal val AppItem.inPrivateSpace: Boolean get() = isPrivateProfile || profileType == ProfileType.PRIVATE
 
 /** How long typing must pause before a query is spell checked for "Did you mean". */
 private const val SPELLING_PAUSE_MS = 450L
@@ -376,6 +380,7 @@ class SearchViewModel @Inject constructor(
             var previousLocked = multiProfileManager.profilesState.value
                 .any { it.profileType == ProfileType.PRIVATE && it.isLocked }
             multiProfileManager.profilesState.collect { profiles ->
+                forgetPrivatePins(profiles.filter { it.profileType == ProfileType.PRIVATE }.map { it.userHandle })
                 val hasLocked = profiles.any { it.profileType == ProfileType.PRIVATE && it.isLocked }
                 if (hasLocked) {
                     unifiedSearchCoordinator.purgePrivateProfileItems()
@@ -1148,11 +1153,13 @@ class SearchViewModel @Inject constructor(
 
     /**
      * Records a search, unless the user turned Search History off or searches through Tor: a Tor user expects
-     * no local trace, so nothing is kept while Tor is the search engine.
+     * no local trace, so nothing is kept while Tor is the search engine. Nor is what was typed to open [opened] when
+     * that is a Private Space app: its name in Recent Searches would outlast the space being locked.
      */
-    fun addSearchHistory(query: String) {
+    fun addSearchHistory(query: String, opened: Any? = null) {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return
+        if ((opened as? AppItem)?.inPrivateSpace == true) return
         val settings = settingsState.value
         if (!settings.searchPreviousSearches || com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(settings.searchEngine)) return
         _uiState.update { state ->
@@ -1255,6 +1262,21 @@ class SearchViewModel @Inject constructor(
     }
 
     /**
+     * Takes the pins of apps in [privateUsers]' profiles out of the store. A Private Space app can't be pinned
+     * ([ResultMenuTarget.App.key]), but one pinned by an earlier version would stay, with its name, in the settings and
+     * in every backup, and its menu no longer offers Unpin.
+     */
+    private fun forgetPrivatePins(privateUsers: List<android.os.UserHandle>) {
+        if (privateUsers.isEmpty()) return
+        val endings = privateUsers.map { "@" + it.hashCode() }
+        val stale = resultShortcutStore.current.entries.map { it.key }.filter { key ->
+            com.pixel.intelligentsearch.core.search.ResultKeys.kindOf(key) == com.pixel.intelligentsearch.core.search.ResultKind.APP &&
+                endings.any(key::endsWith)
+        }
+        if (stale.isNotEmpty()) resultShortcutStore.update { shortcuts -> stale.fold(shortcuts) { kept, key -> kept.without(key) } }
+    }
+
+    /**
      * The result a [com.pixel.intelligentsearch.core.search.ResultKeys] key names, if it can be offered now: an
      * [AppItem], [ContactItem], [FileItem] or [com.pixel.intelligentsearch.core.search.AndroidSettingResult]. Its
      * source must be on, and a hidden app stays hidden.
@@ -1325,7 +1347,7 @@ class SearchViewModel @Inject constructor(
      */
     fun recordOpened(result: Any) {
         val key = when (result) {
-            is AppItem -> if (result.isPrivateProfile || result.profileType == ProfileType.PRIVATE) null else com.pixel.intelligentsearch.core.search.ResultKeys.app(result)
+            is AppItem -> if (result.inPrivateSpace) null else com.pixel.intelligentsearch.core.search.ResultKeys.app(result)
             is ContactItem -> com.pixel.intelligentsearch.core.search.ResultKeys.contact(result)
             is FileItem -> com.pixel.intelligentsearch.core.search.ResultKeys.file(result)
             else -> null

@@ -24,7 +24,10 @@ import com.pixel.intelligentsearch.core.ui.compactAppIcon
 import com.pixel.intelligentsearch.core.ui.evictThemedAppIcon
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
@@ -58,47 +61,62 @@ class MultiProfileManager @Inject constructor(
     private val _profilesState = MutableStateFlow<List<ProfileDescriptor>>(emptyList())
     val profilesState: StateFlow<List<ProfileDescriptor>> = _profilesState.asStateFlow()
 
+    private val _packageChanges = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /**
+     * Fires when an app was installed, removed, updated, disabled or suspended. The widgets' taps name other apps (a
+     * shortcut's app, Translate, the Google app) as resolved when a widget was drawn, so they are drawn again then.
+     */
+    val packageChanges: SharedFlow<Unit> = _packageChanges
+
     // An install, update or removal can change an app's icon, and nothing else drops a cached icon while the
     // process lives, so those events forget the package's icon along with the app list.
     private val launcherCallback = object : LauncherApps.Callback() {
         override fun onPackageRemoved(packageName: String, user: UserHandle) {
             refreshProfiles()
             SystemDataProvider.invalidateAppsCache()
+            _packageChanges.tryEmit(Unit)
             evictThemedAppIcon(packageName)
         }
 
         override fun onPackageAdded(packageName: String, user: UserHandle) {
             refreshProfiles()
             SystemDataProvider.invalidateAppsCache()
+            _packageChanges.tryEmit(Unit)
             evictThemedAppIcon(packageName)
         }
 
         override fun onPackageChanged(packageName: String, user: UserHandle) {
             refreshProfiles()
             SystemDataProvider.invalidateAppsCache()
+            _packageChanges.tryEmit(Unit)
             evictThemedAppIcon(packageName)
         }
 
         override fun onPackagesAvailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) {
             refreshProfiles()
             SystemDataProvider.invalidateAppsCache()
+            _packageChanges.tryEmit(Unit)
             packageNames.forEach(::evictThemedAppIcon)
         }
 
         override fun onPackagesUnavailable(packageNames: Array<out String>, user: UserHandle, replacing: Boolean) {
             refreshProfiles()
             SystemDataProvider.invalidateAppsCache()
+            _packageChanges.tryEmit(Unit)
             packageNames.forEach(::evictThemedAppIcon)
         }
 
         override fun onPackagesSuspended(packageNames: Array<out String>, user: UserHandle) {
             refreshProfiles()
             SystemDataProvider.invalidateAppsCache()
+            _packageChanges.tryEmit(Unit)
         }
 
         override fun onPackagesUnsuspended(packageNames: Array<out String>, user: UserHandle) {
             refreshProfiles()
             SystemDataProvider.invalidateAppsCache()
+            _packageChanges.tryEmit(Unit)
         }
     }
 

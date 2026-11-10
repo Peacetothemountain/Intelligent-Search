@@ -681,22 +681,37 @@ fun SearchOverlayScreen(
             // Nothing typed; the highlight was handled by onEnter before the results settled.
             else -> return@submit
         }
-        viewModel.addSearchHistory(submittedQuery)
+        // What was typed is kept as a search, except for a Private Space app (addSearchHistory), so each branch says
+        // what it opened.
         when (val match = bestMatchIn(results, apps)) {
             is ContactItem -> {
+                viewModel.addSearchHistory(submittedQuery)
                 viewModel.recordOpened(match)
                 // A spoken name can be misheard, so voice opens the contact rather than calling straight away.
                 ContactActions.open(context, match, directCall = settingsState.contactDirectCall && !fromVoice)
             }
-            is AppItem -> performAppLaunch(match, LaunchSource.keyboard(LaunchIconKeys.BEST_MATCH, LaunchIconKeys.app(match)))
+            is AppItem -> {
+                viewModel.addSearchHistory(submittedQuery, opened = match)
+                performAppLaunch(match, LaunchSource.keyboard(LaunchIconKeys.BEST_MATCH, LaunchIconKeys.app(match)))
+            }
             is FileItem -> {
+                viewModel.addSearchHistory(submittedQuery)
                 viewModel.recordOpened(match)
                 openFileResult(context, prefs, match)
             }
             else -> when {
-                results.instantAnswer?.iconType == "url" -> openWebAddress(results.instantAnswer.title)
-                settingsState.appQuickLaunch && apps.isNotEmpty() -> apps.first().let { app -> performAppLaunch(app, LaunchSource.keyboard(LaunchIconKeys.app(app))) }
-                else -> launchWebSearch(submittedQuery)
+                results.instantAnswer?.iconType == "url" -> {
+                    viewModel.addSearchHistory(submittedQuery)
+                    openWebAddress(results.instantAnswer.title)
+                }
+                settingsState.appQuickLaunch && apps.isNotEmpty() -> apps.first().let { app ->
+                    viewModel.addSearchHistory(submittedQuery, opened = app)
+                    performAppLaunch(app, LaunchSource.keyboard(LaunchIconKeys.app(app)))
+                }
+                else -> {
+                    viewModel.addSearchHistory(submittedQuery)
+                    launchWebSearch(submittedQuery)
+                }
             }
         }
     }

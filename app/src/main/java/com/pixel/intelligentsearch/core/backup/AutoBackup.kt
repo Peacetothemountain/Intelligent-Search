@@ -35,14 +35,18 @@ class AutoBackup internal constructor(
     private val context: Context,
     /** Whether a backup passkey is set up, so backups can be made with it alone. */
     private val hasPasskey: () -> Boolean = { BackupPasskey(context).isSetUp },
+    /** Deletes the Keystore key below, once nothing is wrapped with it any more. */
+    private val forgetWrapKey: () -> Unit = {},
     /** The Keystore key the derived key is wrapped with; tests pass a software key. */
     private val wrapKey: () -> SecretKey
 ) {
 
     // Never replaced silently: a new key could not unwrap the stored one, and the job reports that instead.
-    constructor(context: Context) : this(context, wrapKey = {
-        context.appEntryPoint.strongBoxSecurityManager().getOrCreateSymmetricKey(WRAP_KEY_ALIAS, purgeIfUnrecoverable = false).first
-    })
+    constructor(context: Context) : this(
+        context,
+        forgetWrapKey = { context.appEntryPoint.strongBoxSecurityManager().deleteKey(WRAP_KEY_ALIAS) },
+        wrapKey = { context.appEntryPoint.strongBoxSecurityManager().getOrCreateSymmetricKey(WRAP_KEY_ALIAS, purgeIfUnrecoverable = false).first }
+    )
 
     private val state = context.getSharedPreferences(STATE_FILE, Context.MODE_PRIVATE)
 
@@ -53,7 +57,10 @@ class AutoBackup internal constructor(
     val usesPassphrase: Boolean get() = state.contains(KEY_WRAPPED)
     val folderUri: Uri? get() = state.getString(KEY_FOLDER, null)?.let(Uri::parse)
     val lastSuccessMs: Long get() = state.getLong(KEY_LAST_SUCCESS, 0L)
-    /** A short reason the last run failed, or null when it succeeded (or never ran). */
+    /**
+     * A short reason the last run failed, or [PASSPHRASE_ONLY] or [PASSKEY_ONLY] after one that was made for one of the
+     * user's two keys alone; null when it succeeded in full (or never ran).
+     */
     val lastFailure: String? get() = state.getString(KEY_LAST_FAILURE, null)
 
     /** Name of the chosen folder as the user knows it, e.g. "Backups". */
@@ -83,6 +90,9 @@ class AutoBackup internal constructor(
             MemorySanitizer.wipe(passphrase)
         }
         val raw = derived.encoded
+        // A Keystore key left by an earlier turn-off, wrapping nothing now: one that exists but can't be loaded is
+        // never replaced while it protects something, so it would refuse every new key.
+        if (!state.contains(KEY_WRAPPED)) runCatching(forgetWrapKey)
         val wrapped = try {
             wrap(raw)
         } catch (e: Exception) {
@@ -123,6 +133,7 @@ class AutoBackup internal constructor(
             remove(KEY_WRAP_IV)
             remove(KEY_LAST_FAILURE)
         }
+        runCatching(forgetWrapKey)
         schedule(context)
         return true
     }
@@ -138,6 +149,9 @@ class AutoBackup internal constructor(
             runCatching { context.contentResolver.releasePersistableUriPermission(uri, release) }
         }
         state.edit { clear() }
+        // Nothing is wrapped with the Keystore key any more. A key that exists but can no longer be loaded is never
+        // replaced while it protects something, so left in place it made turning backups on again fail for good.
+        runCatching(forgetWrapKey)
     }
 
     /**
@@ -156,8 +170,19 @@ class AutoBackup internal constructor(
         }
 
         var unfinished: Uri? = null
+        var note: String? = null
+        var passphraseUnread = false
         val result = try {
-            val raw = if (hasPassphraseKey) unwrap(iv, wrapped) else null
+            // The passphrase's key can be lost with the Keystore key that wraps it; with a passkey as well, the backup
+            // is still made, for the passkey alone.
+            val raw = if (!hasPassphraseKey) null else try {
+                unwrap(iv, wrapped)
+            } catch (e: Exception) {
+                if (!hasPasskey()) throw e
+                passphraseUnread = true
+                Log.w(TAG, "The passphrase's key can't be read: ${e.javaClass.simpleName}")
+                null
+            }
             val passphraseKey = raw?.let { SecretKeySpec(it, "AES") to salt!! }
             val writtenId = try {
                 val treeDoc = DocumentsContract.buildDocumentUriUsingTree(folder, DocumentsContract.getTreeDocumentId(folder))
@@ -166,8 +191,14 @@ class AutoBackup internal constructor(
                     ?: throw IllegalStateException("The backup folder can't be written to")
                 unfinished = file
                 val id = DocumentsContract.getDocumentId(file)
-                backupManager.exportAutomatic(file, passphraseKey).getOrThrow()
+                val written = backupManager.exportAutomatic(file, passphraseKey).getOrThrow()
                 unfinished = null
+                // Made, but for one key of the two the user set up: the page says which, and what to mend.
+                note = when {
+                    hasPassphraseKey && !written.passphrase -> PASSKEY_ONLY
+                    hasPasskey() && !written.passkey -> PASSPHRASE_ONLY
+                    else -> null
+                }
                 id
             } finally {
                 raw?.fill(0)
@@ -188,9 +219,10 @@ class AutoBackup internal constructor(
         state.edit {
             if (result.isSuccess) {
                 putLong(KEY_LAST_SUCCESS, System.currentTimeMillis())
-                remove(KEY_LAST_FAILURE)
+                if (note != null) putString(KEY_LAST_FAILURE, note) else remove(KEY_LAST_FAILURE)
             } else {
-                putString(KEY_LAST_FAILURE, failureText(result.exceptionOrNull()))
+                val e = result.exceptionOrNull()
+                putString(KEY_LAST_FAILURE, if (passphraseUnread && e is PasskeyException) BOTH_UNREADABLE else failureText(e))
             }
         }
         result
@@ -242,6 +274,8 @@ class AutoBackup internal constructor(
     }
 
     private fun failureText(e: Throwable?): String = when (e) {
+        // The passkey alone protects these backups and its key can't be read: choosing the folder again wouldn't help.
+        is PasskeyException -> e.message ?: BackupPasskey.UNREADABLE
         is SecurityException -> "Lost access to the backup folder. Choose it again."
         is java.io.FileNotFoundException -> "The backup folder was moved or deleted. Choose it again."
         is javax.crypto.AEADBadTagException, is java.security.GeneralSecurityException -> "The backup key is no longer available. Turn automatic backup off and on again."
@@ -251,6 +285,12 @@ class AutoBackup internal constructor(
     companion object {
         private const val TAG = "AutoBackup"
         const val KEEP = 4
+        /** Shown under a backup that was made, but for the passphrase alone, since the passkey's key couldn't be read. */
+        const val PASSPHRASE_ONLY = "Saved for your passphrase only: this phone couldn't read its backup passkey's key. If this stays, set up the passkey again."
+        /** Shown under a backup that was made, but for the passkey alone, since the passphrase's key couldn't be read. */
+        const val PASSKEY_ONLY = "Saved for your passkey only: this phone couldn't read the key for your passphrase. If this stays, turn automatic backup off and on again."
+        /** Shown when no backup could be made because neither of the two keys could be read. */
+        const val BOTH_UNREADABLE = "This phone can't read the keys for your passphrase or your backup passkey. Turn automatic backup off and on again, and set up the passkey again."
         const val MIN_PASSPHRASE_LENGTH = 10
         const val FILE_PREFIX = "IntelligentSearch-auto-"
         const val FILE_SUFFIX = ".json"

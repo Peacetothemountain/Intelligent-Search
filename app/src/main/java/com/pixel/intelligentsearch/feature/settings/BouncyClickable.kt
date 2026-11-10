@@ -1,5 +1,14 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.draw.drawWithCache
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
@@ -196,4 +205,29 @@ fun Modifier.expressiveRowClickable(
             onLongClick = longClickAction,
             onClick = clickAction
         )
+}
+
+/**
+ * Lets a keyboard reorder a row the user otherwise drags (WCAG 2.1.1): while the row or something in it has focus,
+ * Ctrl+Up and Ctrl+Down call [up] and [down] (null at the list's ends) and Delete calls [remove]. It goes before the
+ * row's own clickable; a row with nothing in it that takes focus passes [ownFocus], its outline, and takes focus
+ * itself, with the focus ring along it.
+ */
+fun Modifier.reorderKeys(up: (() -> Unit)?, down: (() -> Unit)?, remove: (() -> Unit)? = null, ownFocus: Shape? = null): Modifier {
+    val keys = onKeyEvent { event ->
+        if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+        val act = when {
+            event.isCtrlPressed && event.key == Key.DirectionUp -> up
+            event.isCtrlPressed && event.key == Key.DirectionDown -> down
+            event.key == Key.Delete -> remove
+            else -> null
+        } ?: return@onKeyEvent false
+        act()
+        true
+    }
+    if (ownFocus == null) return keys
+    return keys.composed {
+        val focused = remember { mutableStateOf(false) }
+        onFocusChanged { focused.value = it.isFocused }.focusRing(ownFocus) { focused.value }.focusable()
+    }
 }

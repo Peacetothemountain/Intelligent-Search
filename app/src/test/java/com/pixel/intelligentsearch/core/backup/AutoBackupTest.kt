@@ -226,6 +226,66 @@ class AutoBackupTest {
         db.close()
     }
 
+    /**
+     * The passkey's kept key can be lost (its Keystore key replaced) while the passphrase's is still good, or the other
+     * way round. The weekly backup is then made for the key that still works and says so; it used to fail every week,
+     * telling the user to choose the folder again. With the passkey alone there is nothing to fall back on, and the
+     * failure names the passkey.
+     */
+    @Test
+    fun aPasskeyThisPhoneCantReadFallsBackToThePassphrase() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        Robolectric.setupContentProvider(FakeBackupFolderProvider::class.java, FakeBackupFolderProvider.AUTHORITY)
+        context.getSharedPreferences("backup_passkey_state", Context.MODE_PRIVATE).edit().clear().commit()
+        val db = Room.inMemoryDatabaseBuilder(context, IntelligentSearchDatabase::class.java).allowMainThreadQueries().build()
+        val backupManager = BackupManager(context, SettingsManager(context), db.historyDao(), StrongBoxSecurityManager(context), WidgetUpdater { })
+        val keys = KeyGenerator.getInstance("AES").apply { init(256) }
+        var autoWrapKey = keys.generateKey()
+        val readablePasskeyKey = keys.generateKey()
+        var passkeyWrapKey = readablePasskeyKey
+        val prf = object : PasskeyPrf {
+            override suspend fun create(activity: android.app.Activity, userId: ByteArray, prfSalt: ByteArray) = PasskeyPrfResult("cred", ByteArray(32) { 5 })
+            override suspend fun evaluate(activity: android.app.Activity, credentialIds: List<String>, prfSalt: ByteArray) = PasskeyPrfResult("cred", ByteArray(32) { 5 })
+        }
+        val passkey = BackupPasskey(context, { passkeyWrapKey }, prf)
+        backupManager.backupPasskey = passkey
+        val tree = DocumentsContract.buildTreeDocumentUri(FakeBackupFolderProvider.AUTHORITY, FakeBackupFolderProvider.ROOT_ID)
+        val autoBackup = AutoBackup(context, hasPasskey = { passkey.isSetUp }) { autoWrapKey }
+        passkey.create(Robolectric.buildActivity(android.app.Activity::class.java).get())
+        assertTrue(autoBackup.enable(tree, "correct horse battery".toCharArray()))
+        val folder = File(context.cacheDir, "picked-folder")
+
+        passkeyWrapKey = keys.generateKey()
+        autoBackup.runOnce(backupManager).getOrThrow()
+
+        val written = folder.listFiles().orEmpty().single { it.length() > 0 }
+        assertNull(backupManager.inspectBackupEnvelope(Uri.fromFile(written)).getOrThrow().passkeySlot)
+        assertTrue(backupManager.importFromFile(Uri.fromFile(written), "correct horse battery").isSuccess)
+        assertEquals(AutoBackup.PASSPHRASE_ONLY, autoBackup.lastFailure)
+        assertTrue(autoBackup.lastSuccessMs > 0L)
+
+        written.delete()
+        passkeyWrapKey = readablePasskeyKey
+        autoWrapKey = keys.generateKey()
+        autoBackup.runOnce(backupManager).getOrThrow()
+
+        val forPasskey = folder.listFiles().orEmpty().single { it.length() > 0 }
+        val envelope = backupManager.inspectBackupEnvelope(Uri.fromFile(forPasskey)).getOrThrow()
+        assertNotNull(envelope.passkeySlot)
+        assertNull(envelope.passphraseSlot)
+        assertEquals(AutoBackup.PASSKEY_ONLY, autoBackup.lastFailure)
+
+        forPasskey.delete()
+        passkeyWrapKey = keys.generateKey()
+        assertTrue(autoBackup.runOnce(backupManager).isFailure)
+        assertEquals(AutoBackup.BOTH_UNREADABLE, autoBackup.lastFailure)
+        assertTrue(autoBackup.enableWithPasskey(tree))
+        assertTrue(autoBackup.runOnce(backupManager).isFailure)
+        assertEquals(BackupPasskey.UNREADABLE, autoBackup.lastFailure)
+        assertEquals(emptyList<File>(), folder.listFiles().orEmpty().filter { it.length() > 0 })
+        db.close()
+    }
+
     /** Automatic backup switched on for a folder in [FakeBackupFolderProvider], with a software wrap key. */
     private class AutoBackupSetup {
         val context: Context = ApplicationProvider.getApplicationContext()

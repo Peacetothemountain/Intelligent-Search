@@ -394,6 +394,7 @@ internal fun WebQuickShortcutsCard() {
                                                 customActions = listOf(CustomAccessibilityAction("Remove") { removeShortcut(bang); true })
                                             }
                                             // The card's own shape, so the ripple doesn't spill past its corners.
+                                            .reorderKeys(up = null, down = null, remove = { removeShortcut(bang) })
                                             .bouncyClickable(shape = RoundedCornerShape(24.dp)) {
                                                 editingBang = bang
                                                 showAddDialog = true
@@ -454,7 +455,7 @@ internal fun WebQuickShortcutsCard() {
                                                     }
                                                     Text(
                                                         text = subtext,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                                                         fontSize = 12.sp,
                                                         maxLines = 1,
                                                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis

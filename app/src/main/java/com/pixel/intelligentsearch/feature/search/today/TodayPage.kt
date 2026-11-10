@@ -149,6 +149,9 @@ import com.pixel.intelligentsearch.feature.search.today.cards.CardSpec
 import com.pixel.intelligentsearch.feature.search.today.cards.ShapedContent
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.DiscoverEditChrome
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.EditIcons
+import com.pixel.intelligentsearch.feature.search.today.cards.widget.LiveWidget
+import com.pixel.intelligentsearch.feature.search.today.cards.AppCardData
+import com.pixel.intelligentsearch.feature.search.today.cards.CardForm
 import com.pixel.intelligentsearch.core.system.openPendingOrApp
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.DiscoverGrid
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.cardLayoutStore
@@ -440,7 +443,7 @@ internal fun TodayPage(
     // Widgets bound for cards that no longer exist (an add left halfway, a card removed while the app was closing) are
     // let go, with what was read from them, once the saved layout is known.
     LaunchedEffect(cardStore.isLoaded, widgetIds) {
-        if (cardStore.isLoaded) widgets.keepOnly(widgetIds)
+        if (cardStore.isLoaded) widgets.keepOnly(widgetIds + listOfNotNull(editState.pendingWidget))
     }
     val appPackages = remember(apps) { apps.values.map { it.packageName }.toSet() }
     val appIcons by produceState(emptyMap<String, ImageBitmap?>(), appPackages) {
@@ -468,7 +471,8 @@ internal fun TodayPage(
     val setUpWidget = rememberWidgetSetup()
     val addWidget = rememberWidgetAdder(
         onAdded = { id, provider ->
-            cardStore.edit { now -> now.copy(cards = now.cards + newAppCard(id, provider)) }
+            val info = runCatching { android.appwidget.AppWidgetManager.getInstance(context).getAppWidgetInfo(id) }.getOrNull()
+            cardStore.edit { now -> now.copy(cards = now.cards + newAppCard(id, provider, info, density.density)) }
         },
         onFailed = { message -> android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show() }
     )
@@ -527,7 +531,7 @@ internal fun TodayPage(
                 // On This Day has its own switch, so its photo shows without Word of the Day and Countdown.
                 CardKind.YEAR -> extrasOn || memory != null
                 CardKind.TOMORROW -> alarmTomorrow != null || tomorrowWeather != null || tomorrowEvent != null
-                CardKind.APP -> spec.widgetId in apps
+                CardKind.APP -> spec.form == CardForm.CARD || spec.widgetId in apps
                 CardKind.SITE -> spec.url in sites
             }
             // Each shown card's turn to be built and spring in, after the greeting's.
@@ -583,7 +587,7 @@ internal fun TodayPage(
             ) { spec, cardModifier ->
                 Enter(turns[spec.id] ?: index, parts) {
                     when (spec.mode) {
-                        CardMode.NATURAL -> Box(cardModifier) { natural(spec.kind) }
+                        CardMode.NATURAL -> Box(cardModifier, propagateMinConstraints = true) { natural(spec.kind) }
                         CardMode.SHAPED -> {
                             val content = shapedContent(spec)
                             if (content != null) {
@@ -596,7 +600,22 @@ internal fun TodayPage(
                                 )
                             }
                         }
-                        CardMode.BOX -> when (val content = shapedContent(spec)) {
+                        // A full app card is the app's own widget, live: it updates, and its buttons work.
+                        CardMode.BOX -> if (spec.kind == CardKind.APP) {
+                            val covered = spec.private && spec.id !in revealed
+                            LiveWidget(
+                                widgetId = spec.widgetId,
+                                modifier = if (covered) cardModifier.bouncyClickable { reveal(spec) } else cardModifier,
+                                private = spec.private,
+                                revealed = spec.id in revealed,
+                                onGone = { m ->
+                                    val gone = apps[spec.widgetId]?.copy(state = AppCardState.REMOVED)
+                                        ?: AppCardData(spec.widgetId, "", "App", "", 0xFF8A8A8A.toInt(), AppCardState.REMOVED, null, 0L)
+                                    val content = ShapedContent.App(gone, null)
+                                    AppCardBox(gone, null, modifier = m.cardTap(spec, content, onSearch, ::reveal, ::removeCard))
+                                }
+                            )
+                        } else when (val content = shapedContent(spec)) {
                             is ShapedContent.App -> AppCardBox(
                                 content.data, content.icon,
                                 modifier = cardModifier.cardTap(spec, content, onSearch, ::reveal, ::removeCard),
@@ -725,7 +744,8 @@ private fun Enter(index: Int, parts: PartsInTurn, content: @Composable () -> Uni
     if (!built) return
     val density = LocalDensity.current
     Box(
-        Modifier
+        propagateMinConstraints = true,
+        modifier = Modifier
             .onFirstSeen { seenAt = System.currentTimeMillis() }
             .graphicsLayer {
                 val p = shown.value

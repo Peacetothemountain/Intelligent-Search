@@ -54,7 +54,7 @@ internal enum class ShapeClass {
  * A shape's outline: its reach [r] in each of [OUTLINE_POINTS] directions (direction i is i degrees clockwise from
  * the +x axis, y down), in the polygon's own units, with the center [cx], [cy] and largest side [span] of its bounds.
  * [opt] is its optical size: the scale that gives it the same visual area as a circle filling the square, so a spiky
- * shape doesn't look smaller than a round one (0.9 to 1.08).
+ * shape doesn't look smaller than a round one, scaled so the largest fills the square exactly (0.83 to 1).
  */
 @Immutable
 internal class CardOutline(val r: FloatArray, val cx: Float, val cy: Float, val span: Float, val opt: Float) {
@@ -113,6 +113,9 @@ internal class CardOutline(val r: FloatArray, val cx: Float, val cy: Float, val 
     companion object {
         const val STEP = (2.0 * PI / OUTLINE_POINTS).toFloat()
 
+        /** The largest optical size a shape may have before every shape is brought back within its square. */
+        private const val OPT_MOST = 1.08f
+
         /** An outline from its reaches, measuring its bounds and optical size. */
         fun of(r: FloatArray): CardOutline {
             var x0 = Float.MAX_VALUE
@@ -129,7 +132,9 @@ internal class CardOutline(val r: FloatArray, val cx: Float, val cy: Float, val 
             }
             val span = max(x1 - x0, y1 - y0).coerceAtLeast(0.01f)
             // Optical size: the same visual area as a circle filling the square, within what the cell can take.
-            val opt = sqrt((PI / 4) / (area / (span * span))).toFloat().coerceIn(0.9f, 1.08f)
+            // Never past the square: the most a shape grows is to fill it, and rounder shapes come down to match, so a
+            // card's shape never reaches into the space between cards or past the screen's edge.
+            val opt = sqrt((PI / 4) / (area / (span * span))).toFloat().coerceIn(0.9f, OPT_MOST) / OPT_MOST
             return CardOutline(r, (x0 + x1) / 2f, (y0 + y1) / 2f, span, opt)
         }
     }

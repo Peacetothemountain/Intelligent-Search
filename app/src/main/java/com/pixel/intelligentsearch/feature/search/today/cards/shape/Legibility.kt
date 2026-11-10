@@ -19,7 +19,7 @@ private const val MIN_MAIN_DP = 11f
  * The least a shaped design's content is scaled by its shape: the smallest optical size, so a design that fits here
  * fits in every shape (narrow middles shrink content further, but the main value still draws).
  */
-private const val LEAST_SHAPE_SCALE = 0.9f
+private const val LEAST_SHAPE_SCALE = 0.83f
 
 /** How much larger the user's font size draws shaped text, as [ShapedCard] draws it. */
 internal fun shapedTextScale(fontScale: Float): Float = fontScale.coerceIn(1f, 1.15f)

@@ -37,6 +37,9 @@ import com.pixel.intelligentsearch.feature.search.today.cards.CardSpec
 import com.pixel.intelligentsearch.feature.search.today.cards.DiscoverLayout
 import androidx.compose.material.icons.Icons
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -64,8 +67,8 @@ internal enum class EditSheet {
 /** Edit mode's haptics. */
 internal enum class EditHaptic { LONG_PRESS, TICK, SETTLE, CONFIRM, TOGGLE_ON, TOGGLE_OFF, REJECT }
 
-/** One message, shown or spoken once even when its words are the same as the last one's. */
-internal class EditMessage(val text: String)
+/** One message, shown or spoken once even when its words are the same as the last one's, with an [undo] if it has one. */
+internal class EditMessage(val text: String, val undo: (() -> Unit)? = null)
 
 /** One edit of a card: its [label], [icon], whether it can be done now ([enabled]), and doing it ([run]). */
 internal class CardAction(val label: String, val icon: ImageVector, val enabled: Boolean, val run: () -> Unit)
@@ -81,7 +84,9 @@ internal class PinchStart(val rect: Rect, val across: Float, val down: Float, va
  * following the fingers, and the lines it lines up with ([guides], page x).
  */
 @Stable
-internal class ActiveCard(val id: String, start: Rect, internal var grab: Offset, internal val reference: Map<String, IntRect>) {
+internal class ActiveCard(val id: String, start: Rect, internal var grab: Offset, internal val reference: Map<String, IntRect>, autoHeight: Boolean) {
+    /** Whether a full card is as tall as its content (no height of its own), as it is being pinched. */
+    var autoHeight by mutableStateOf(autoHeight)
     var rect by mutableStateOf(start)
     var guides by mutableStateOf<List<Int>>(emptyList())
     var pinching by mutableStateOf(false)
@@ -150,6 +155,9 @@ internal class DiscoverEditState(
     /** Where each card on the page is, its place (page pixels), as last laid out, and the order they were laid in. */
     internal var slots by mutableStateOf<Map<String, IntRect>>(emptyMap())
     internal var arranged: Arranged? = null
+
+    /** Each full card's place height when it is as tall as its content, as last laid out, so a pinch can snap back to it. */
+    internal val naturalHeights = HashMap<String, Int>()
     internal var gridCoords: LayoutCoordinates? = null
     internal var chromeCoords: LayoutCoordinates? = null
     internal var topBarBottom: Float = 0f
@@ -187,9 +195,23 @@ internal class DiscoverEditState(
         announcement = EditMessage(text)
     }
 
-    /** Shows [text] briefly at the bottom of the page, and has TalkBack say it. */
-    internal fun say(text: String) {
-        message = EditMessage(text)
+    /** Shows [text] briefly at the bottom of the page, with an Undo button when [undo] is given, and has TalkBack say it. */
+    internal fun say(text: String, undo: (() -> Unit)? = null) {
+        message = EditMessage(text, undo)
+    }
+
+    /** A removed app or website card, let go (its widget unbound, what was read deleted) once its Undo has gone. */
+    private var pendingRemoval: Pair<CardSpec, Job>? = null
+
+    /** The widget of a removed app card whose Undo is still showing, kept bound so Undo can bring the card back. */
+    internal val pendingWidget: Int? get() = pendingRemoval?.first?.widgetId?.takeIf { it != 0 }
+
+    /** Lets go of a removed card now rather than when its Undo goes: the page is closing, or another card was removed. */
+    internal fun flushRemoval() {
+        val (spec, job) = pendingRemoval ?: return
+        pendingRemoval = null
+        job.cancel()
+        onRemoveCustom(spec)
     }
 
     // ---------------------------------------------------------------------------------------------------------------
@@ -287,7 +309,7 @@ internal class DiscoverEditState(
         }
         val rect = slots[id]?.toRect() ?: return
         select(id)
-        active = ActiveCard(id, rect, finger - rect.topLeft, slots)
+        active = ActiveCard(id, rect, finger - rect.topLeft, slots, spec(id)?.frame?.height?.let { it <= 0f } ?: true)
         haptic(EditHaptic.LONG_PRESS)
     }
 
@@ -310,7 +332,7 @@ internal class DiscoverEditState(
         if (card == null || card.id != id) {
             val rect = slots[id]?.toRect() ?: return
             select(id)
-            card = ActiveCard(id, rect, Offset.Zero, slots)
+            card = ActiveCard(id, rect, Offset.Zero, slots, spec(id)?.frame?.height?.let { it <= 0f } ?: true)
             active = card
             haptic(EditHaptic.TICK)
         }
@@ -338,9 +360,17 @@ internal class DiscoverEditState(
             CardMode.NATURAL -> {
                 val wanted = start.rect.width * sx
                 width = wanted.coerceIn(least, page)
-                height = card.measured.toFloat()
-                // Pinched smaller, a full card offers its shapes at once; one that has none says it's as small as it goes.
-                if (sx * sy < SHRINK_OFFERS && spec.kind.shaped && strip != card.id) {
+                // Taller or shorter as the fingers spread or close up and down; near its content's own height it snaps
+                // back to fitting it exactly. A pinch that is all sideways leaves a card that fits its content fitting it.
+                val natural = naturalHeights[card.id]?.toFloat()
+                val wasAuto = spec.frame.height <= 0f
+                val tall = (start.rect.height * sy).coerceIn(gap + px(MIN_HEIGHT_DP), gap + px(MAX_HEIGHT_DP))
+                val auto = (wasAuto && abs(sy - 1f) < 0.08f) || (natural != null && abs(tall - natural) < px(SNAP_HEIGHT_DP))
+                if (auto && !card.autoHeight && !wasAuto) haptic(EditHaptic.TICK)
+                card.autoHeight = auto
+                height = if (auto) card.measured.toFloat() else tall
+                // Pinched narrower, a full card offers its shapes at once; one that has none says it's as narrow as it goes.
+                if (sx < SHRINK_OFFERS && spec.kind.shaped && strip != card.id) {
                     strip = card.id
                     haptic(EditHaptic.TICK)
                 }
@@ -393,7 +423,11 @@ internal class DiscoverEditState(
         val frame = CardFrame(
             x = rect.left.toFloat() / page,
             width = rect.width.toFloat() / page,
-            height = if (spec.mode == CardMode.BOX) dp((rect.height - gap).toFloat()) else spec.frame.height,
+            height = when (spec.mode) {
+                CardMode.BOX -> dp((rect.height - gap).toFloat())
+                CardMode.NATURAL -> if (card.autoHeight) 0f else dp((rect.height - gap).toFloat())
+                CardMode.SHAPED -> spec.frame.height
+            },
             gap = dp(arranged.activeGap.toFloat())
         )
         val moved = spec.copy(frame = frame)
@@ -496,17 +530,39 @@ internal class DiscoverEditState(
         announce(if (private) "Private: covered until tapped" else "No longer private")
     }
 
-    /** Hides a built-in card (it can be added back) or removes one of the user's own. */
+    /**
+     * Hides a built-in card or removes one of the user's own, with Undo for a few seconds: Undo puts it back where it
+     * was. A removed card's widget and what was read for it are let go only once Undo has gone.
+     */
     internal fun removeCard(id: String) {
         val spec = spec(id) ?: return
+        val at = layout.cards.indexOfFirst { it.id == id }
         val cards = layout.cards.filter { it.id != id }
+        flushRemoval()
+        val undo = {
+            val now = layout
+            if (now.cards.none { it.id == id }) {
+                val back = now.cards.toMutableList().apply { add(at.coerceIn(0, size), spec) }
+                commit(DiscoverLayout(back, now.hidden - spec.kind))
+                if (pendingRemoval?.first?.id == id) {
+                    pendingRemoval?.second?.cancel()
+                    pendingRemoval = null
+                }
+                haptic(EditHaptic.CONFIRM)
+                announce(label(spec) + " is back")
+                if (editing) select(id)
+            }
+        }
         if (spec.kind.builtIn) {
             commit(DiscoverLayout(cards, layout.hidden + spec.kind))
-            say("Hidden. Add it back with +.")
+            say("Card hidden", undo)
         } else {
             commit(layout.copy(cards = cards))
-            onRemoveCustom(spec)
-            say("Card removed")
+            pendingRemoval = spec to scope.launch {
+                delay(UNDO_MS + 500)
+                if (pendingRemoval?.first?.id == id) flushRemoval()
+            }
+            say("Card removed", undo)
         }
         haptic(EditHaptic.REJECT)
         if (selectedId == id) select(null)
@@ -551,14 +607,22 @@ internal class DiscoverEditState(
         return out
     }
 
-    private companion object {
+    internal companion object {
+        /** How long a message with Undo stays. */
+        const val UNDO_MS = 5_000L
+
         /** How near (dp) a card's edge comes to a line before it lines up with it. */
         const val SNAP_DP = 10f
+
+        /** A full card's least and most height (dp), and how near its content's height it snaps back to fitting it. */
+        const val MIN_HEIGHT_DP = 64f
+        const val MAX_HEIGHT_DP = 900f
+        const val SNAP_HEIGHT_DP = 14f
 
         /** How much a pinch's spread is softened, so fingers close together don't make a jumpy size (dp). */
         const val PINCH_SOFTEN_DP = 48f
 
-        /** Pinched to less than this much of its area, a full card offers its shapes. */
+        /** Pinched to less than this much of its width, a full card offers its shapes. */
         const val SHRINK_OFFERS = 0.9f
 
         /** A box card's least and most height (dp). */

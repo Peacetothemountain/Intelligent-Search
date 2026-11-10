@@ -1,8 +1,6 @@
 package com.pixel.intelligentsearch.feature.search.today.cards.shape
 
 import androidx.compose.material.icons.Icons
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.StrokeCap
 import com.pixel.intelligentsearch.core.ui.icons.filled.Event
 import com.pixel.intelligentsearch.core.ui.icons.filled.Forum
 import com.pixel.intelligentsearch.core.ui.icons.filled.History
@@ -87,13 +85,6 @@ internal fun Stage.search(c: ShapedContent.Search) {
 internal fun Stage.tomorrow(c: ShapedContent.Tomorrow) {
     fill(colors.card)
     clipped { glow(colors.night, 0.5f, 0.5f, 0.95f, 0.8f) }
-    val r = outline.inner * 0.8f
-    val sweep = p(150f, 900f)
-    if (sweep > 0f) {
-        val from = dialPoint(-60f, r)
-        val to = dialPoint(60f, r)
-        scope.drawLine(dim(colors.amber, 0.35f), Offset(from.x, from.y), Offset(from.x + (to.x - from.x) * sweep, to.y), 2f, cap = StrokeCap.Round)
-    }
     content {
         curved(c.day, 13f, colors.sub, top = true, inset = 0.7f, weight = W_SEMIBOLD, spacing = 0.6f)
         c.icon?.let { icon(it, MID, MID - 12f, 26f, colors.amber) }

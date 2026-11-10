@@ -29,6 +29,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -200,7 +207,22 @@ internal fun DiscoverGrid(
             val slotWidth = if (isLive) live.rect.width.roundToInt() else (spec.frame.width * page).roundToInt()
             val drawnWidth = (slotWidth - gap).coerceIn(1, width.coerceAtLeast(1))
             val placeable = when (spec.mode) {
-                CardMode.NATURAL -> measurable.measure(Constraints(minWidth = drawnWidth, maxWidth = drawnWidth))
+                CardMode.NATURAL -> {
+                    // A full card is as tall as its content, or as tall as the user made it.
+                    val height = when {
+                        isLive && live.autoHeight -> 0
+                        isLive -> live.rect.height.roundToInt() - gap
+                        spec.frame.height > 0f -> spec.frame.height.dp.roundToPx()
+                        else -> 0
+                    }
+                    if (height > 0) {
+                        measurable.measure(Constraints(minWidth = drawnWidth, maxWidth = drawnWidth, minHeight = height, maxHeight = height))
+                    } else {
+                        measurable.measure(Constraints(minWidth = drawnWidth, maxWidth = drawnWidth)).also {
+                            if (!isLive) state.naturalHeights[spec.id] = it.height + gap
+                        }
+                    }
+                }
                 CardMode.SHAPED -> measurable.measure(Constraints.fixed(drawnWidth, drawnWidth))
                 CardMode.BOX -> {
                     val height = if (isLive) live.rect.height.roundToInt() - gap else (spec.frame.height.takeIf { it > 0f } ?: BOX_DEFAULT_DP).dp.roundToPx()
@@ -540,7 +562,8 @@ private fun CardHost(
     }
 
     Box(
-        Modifier
+        propagateMinConstraints = true,
+        modifier = Modifier
             .layoutId(CardKey(id))
             .then(semantics)
             .graphicsLayer {
@@ -562,11 +585,59 @@ private fun CardHost(
                 } else Modifier
             )
     ) {
-        card(spec, if (spec.mode == CardMode.NATURAL) Modifier.fillMaxWidth() else Modifier.fillMaxSize())
+        if (spec.mode == CardMode.NATURAL) {
+            FitHeight { card(spec, Modifier.fillMaxWidth()) }
+        } else {
+            card(spec, Modifier.fillMaxSize())
+        }
         if (editing) {
             // While editing, the card's own buttons take no touches: the card is being arranged, not used.
             Box(Modifier.matchParentSize().pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } })
         }
+    }
+}
+
+/**
+ * A full card's content at the height the page gives it: as tall as itself when the height is free; stretched to a
+ * height of its own when that is taller (the card's surface grows with it); and when that is shorter, cut to the card's
+ * rounded shape with its bottom fading out, so it never ends on half a line.
+ */
+@Composable
+private fun FitHeight(content: @Composable () -> Unit) {
+    val cut = remember { androidx.compose.runtime.mutableStateOf(false) }
+    Layout(
+        content = content,
+        modifier = Modifier
+            .graphicsLayer { compositingStrategy = if (cut.value) CompositingStrategy.Offscreen else CompositingStrategy.Auto }
+            .drawWithContent {
+                if (!cut.value) {
+                    drawContent()
+                    return@drawWithContent
+                }
+                val fade = 40.dp.toPx().coerceAtMost(size.height / 2f)
+                val r = 24.dp.toPx()
+                clipPath(Path().apply { addRoundRect(RoundRect(0f, 0f, size.width, size.height, CornerRadius(r))) }) {
+                    this@drawWithContent.drawContent()
+                }
+                drawRect(
+                    Brush.verticalGradient(0f to Color.Black, 1f to Color.Transparent, startY = size.height - fade, endY = size.height),
+                    topLeft = Offset(0f, size.height - fade),
+                    size = Size(size.width, fade),
+                    blendMode = BlendMode.DstIn
+                )
+            }
+    ) { measurables, constraints ->
+        val child = measurables.first()
+        if (!constraints.hasBoundedHeight || constraints.minHeight != constraints.maxHeight) {
+            if (cut.value) cut.value = false
+            val placeable = child.measure(constraints)
+            return@Layout layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+        }
+        val height = constraints.maxHeight
+        val placeable = child.measure(constraints.copy(minHeight = height, maxHeight = Constraints.Infinity))
+        val short = placeable.height > height
+        if (cut.value != short) cut.value = short
+        layout(constraints.maxWidth, height) { placeable.place(0, 0) }
     }
 }
 

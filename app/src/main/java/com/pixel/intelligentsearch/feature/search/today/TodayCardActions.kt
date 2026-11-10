@@ -35,12 +35,26 @@ import java.util.UUID
 /** How long a private card shows after a tap before it covers itself again. */
 internal const val PRIVATE_SHOWN_MS = 8_000L
 
-/** A new app card for the bound widget [widgetId] of [provider]: half the page wide, in a soft shape. */
-internal fun newAppCard(widgetId: Int, provider: String): CardSpec = CardSpec(
+/**
+ * A new app card for the bound widget [widgetId] of [provider]: its live widget, as wide and tall as the app asks for on
+ * a home screen ([info], its sizes in pixels at [density]): half the page for a widget two cells wide or less, the
+ * whole page otherwise, about 90 dp a row. As a shape it takes a soft cookie.
+ */
+internal fun newAppCard(widgetId: Int, provider: String, info: android.appwidget.AppWidgetProviderInfo?, density: Float): CardSpec {
+    val cellDp = 90f
+    val minWidthDp = (info?.minWidth ?: 0) / density
+    val minHeightDp = (info?.minHeight ?: 0) / density
+    val columns = info?.targetCellWidth?.takeIf { it > 0 } ?: kotlin.math.ceil((minWidthDp + 16f) / cellDp).toInt().coerceAtLeast(2)
+    val rows = info?.targetCellHeight?.takeIf { it > 0 } ?: kotlin.math.ceil((minHeightDp + 16f) / cellDp).toInt().coerceAtLeast(1)
+    return newAppCard(widgetId, provider, if (columns <= 2) 0.5f else 1f, (rows * cellDp).coerceIn(110f, 400f))
+}
+
+/** A new app card for the bound widget [widgetId] of [provider], its live widget [width] of the page and [height] dp tall. */
+internal fun newAppCard(widgetId: Int, provider: String, width: Float, height: Float): CardSpec = CardSpec(
     id = "app-" + UUID.randomUUID(),
     kind = CardKind.APP,
-    frame = CardFrame(width = 0.5f),
-    form = CardForm.SHAPE,
+    frame = CardFrame(width = width, height = height),
+    form = CardForm.CARD,
     shape = "cookie4",
     widgetId = widgetId,
     provider = provider

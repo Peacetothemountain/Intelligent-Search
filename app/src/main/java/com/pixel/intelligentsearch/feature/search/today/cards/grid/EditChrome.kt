@@ -45,6 +45,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -135,6 +138,8 @@ internal fun DiscoverEditChrome(
             else -> state.exit()
         }
     }
+    // A card removed just now is let go as the page closes, rather than left bound.
+    DisposableEffect(state) { onDispose { state.flushRemoval() } }
     Box(modifier.fillMaxSize().onGloballyPositioned { state.chromeCoords = it }) {
         CardTools(state, layout)
         EditTopBar(state, Modifier.align(Alignment.TopCenter))
@@ -365,18 +370,23 @@ private fun CardSwatch(selected: Boolean, modifier: Modifier) {
     )
 }
 
-/** A short message at the bottom of the page ("Card removed"), shown for a moment and read out by TalkBack. */
+/**
+ * A short message at the bottom of the page ("Card hidden"), shown for a moment and read out by TalkBack, with Undo
+ * when it can be undone (it then stays longer).
+ */
 @Composable
 private fun EditToast(state: DiscoverEditState, modifier: Modifier) {
     val scheme = MaterialTheme.colorScheme
     val message = state.message
     var visible by remember { mutableStateOf(false) }
     var text by remember { mutableStateOf("") }
+    var undo by remember { mutableStateOf<(() -> Unit)?>(null) }
     LaunchedEffect(message) {
         if (message == null) return@LaunchedEffect
         text = message.text
+        undo = message.undo
         visible = true
-        delay(2_000)
+        delay(if (message.undo != null) DiscoverEditState.UNDO_MS else 2_000)
         visible = false
     }
     AnimatedVisibility(
@@ -398,14 +408,29 @@ private fun EditToast(state: DiscoverEditState, modifier: Modifier) {
                 .heightIn(min = 48.dp)
                 .semantics { liveRegion = LiveRegionMode.Polite }
         ) {
-            Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = 20.dp, vertical = 13.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(start = 20.dp, end = if (undo != null) 6.dp else 20.dp, top = 4.dp, bottom = 4.dp)
+            ) {
                 Text(
                     text,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Medium,
                     color = scheme.onSurface,
-                    textAlign = TextAlign.Center
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(vertical = 9.dp)
                 )
+                val action = undo
+                if (action != null) {
+                    Spacer(Modifier.width(12.dp))
+                    TextButton(onClick = {
+                        action()
+                        undo = null
+                        visible = false
+                    }) {
+                        Text("Undo", fontWeight = FontWeight.SemiBold)
+                    }
+                }
             }
         }
     }

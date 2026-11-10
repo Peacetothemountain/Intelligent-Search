@@ -30,7 +30,7 @@ import java.util.UUID
 /** The preferences file Discover's layout is kept in. */
 private const val FILE = "discover_cards"
 private const val KEY = "layout"
-private const val VERSION = 2
+private const val VERSION = 3
 
 /**
  * Discover's card layout, kept as JSON in its own app-private preferences file. [layout] starts at
@@ -235,7 +235,16 @@ internal fun decodeLayout(json: String?): DiscoverLayout {
         }
         val hiddenList = root.optJSONArray("hidden") ?: JSONArray()
         val hidden = (0 until hiddenList.length()).mapNotNull { CardKind.of(hiddenList.optString(it)) }.toSet()
-        normalizedLayout(DiscoverLayout(cards, hidden))
+        // Before version 3 an app card's full card was its widget's text redrawn, and new ones started as shapes; app
+        // cards are now the app's live widget, so the ones made before become it once (they can be made shapes again).
+        val live = if (version < 3) {
+            cards.map { card ->
+                if (card.kind == CardKind.APP && card.form == CardForm.SHAPE) {
+                    card.copy(form = CardForm.CARD, frame = card.frame.copy(width = maxOf(card.frame.width, 0.5f)))
+                } else card
+            }
+        } else cards
+        normalizedLayout(DiscoverLayout(live, hidden))
     } catch (_: Exception) {
         DiscoverLayout.DEFAULT
     }

@@ -207,7 +207,7 @@ internal interface WidgetCards {
     /** Reads [widgetIds] again in the reader process; returns at once. */
     fun refresh(widgetIds: Collection<Int>)
 
-    /** The widgets that can become cards: text-built widgets of apps in this profile, without static and picture-only ones. */
+    /** The widgets that can become cards: home-screen widgets of apps in this profile, without search bars and shortcuts. */
     suspend fun choices(): List<WidgetChoice>
 
     /** Unbinds [widgetId] and deletes everything read from it. */

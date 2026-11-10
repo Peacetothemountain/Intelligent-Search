@@ -11,6 +11,7 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
+import android.os.Looper
 import android.os.HandlerThread
 import android.os.IBinder
 import android.os.Message
@@ -79,8 +80,55 @@ internal class AndroidWidgetCards(private val app: Context) : WidgetCards {
     private val workerExecutor = Executor { worker.post(it) }
     private val cacheFile by lazy { File(app.noBackupFilesDir, "discover_app_cards.json") }
 
-    /** Discover's widget host in this process: for adding and removing cards only. It never listens or shows a widget. */
+    /**
+     * Discover's widget host in this process: for adding and removing cards, and for showing full app cards as their live
+     * widgets ([startLive]) while Discover is open.
+     */
     val host: AppWidgetHost by lazy { AppWidgetHost(app, WIDGET_HOST_ID) }
+
+    private val main = Handler(Looper.getMainLooper())
+
+    /** How many live widgets are showing; main thread only. */
+    private var liveUsers = 0
+
+    /** Whether live widgets are showing, read on the worker: the reader would take their updates, so reads wait. */
+    @Volatile
+    private var liveOn = false
+
+    /** Reads asked for while live widgets showed, run once they are gone. Worker only. */
+    private val deferred = LinkedHashSet<Int>()
+
+    private val listen = Runnable { if (liveUsers > 0) runCatching { host.startListening() } }
+
+    /**
+     * A live widget starts showing. The first starts the host listening, so every live widget gets its app's updates
+     * and its buttons work. The reader shares the host's updates, so a read in progress is let go first and reads wait
+     * until no live widget shows. Main thread.
+     */
+    fun startLive() {
+        if (liveUsers++ > 0) return
+        liveOn = true
+        val reading = connection != null
+        worker.post { unbind() }
+        // A reader let go just now stops listening from its own process; listen after it has.
+        main.removeCallbacks(listen)
+        if (reading) main.postDelayed(listen, 450) else listen.run()
+    }
+
+    /** A live widget stops showing; the last stops the host listening and runs the reads that waited. Main thread. */
+    fun stopLive() {
+        if (liveUsers == 0 || --liveUsers > 0) return
+        liveOn = false
+        main.removeCallbacks(listen)
+        runCatching { host.stopListening() }
+        worker.post {
+            if (deferred.isNotEmpty()) {
+                val ids = deferred.toList()
+                deferred.clear()
+                refreshNow(ids)
+            }
+        }
+    }
 
     private val manager: AppWidgetManager get() = AppWidgetManager.getInstance(app)
 
@@ -110,21 +158,19 @@ internal class AndroidWidgetCards(private val app: Context) : WidgetCards {
     }
 
     override suspend fun choices(): List<WidgetChoice> {
-        val left = withContext(workerDispatcher) { verdicts.keys.toHashSet() }
         val candidates = withContext(Dispatchers.IO) {
             val pm = app.packageManager
             val launchable = HashMap<String, Boolean>()
             runCatching { manager.getInstalledProvidersForProfile(Process.myUserHandle()) }.getOrDefault(emptyList())
                 .filter { info ->
-                    info.provider.flattenToString() !in left && offered(info) &&
+                    offered(info) &&
                         launchable.getOrPut(info.provider.packageName) { pm.getLaunchIntentForPackage(info.provider.packageName) != null }
                 }
         }
-        val picture = pictureOnly(candidates.map { it.provider.flattenToString() })
         return withContext(Dispatchers.IO) {
             val pm = app.packageManager
             val looks = HashMap<String, Pair<Int, androidx.compose.ui.graphics.ImageBitmap?>>()
-            candidates.filter { it.provider.flattenToString() !in picture }.map { info ->
+            candidates.map { info ->
                 val pkg = info.provider.packageName
                 val (accent, icon) = looks.getOrPut(pkg) {
                     val bitmap = iconBitmap(app, pkg)
@@ -220,6 +266,10 @@ internal class AndroidWidgetCards(private val app: Context) : WidgetCards {
     }
 
     private fun refreshNow(ids: List<Int>) {
+        if (liveOn) {
+            deferred += ids
+            return
+        }
         val pm = app.packageManager
         val toRead = ArrayList<Int>()
         for (id in ids) {

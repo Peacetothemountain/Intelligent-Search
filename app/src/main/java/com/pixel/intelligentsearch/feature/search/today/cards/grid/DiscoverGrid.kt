@@ -35,6 +35,14 @@ import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.systemGestureExclusion
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -114,6 +122,13 @@ private data class CardKey(val id: String)
 /** The layout ids of the page's edit-mode parts. */
 private enum class Part { DROP, FRAME, GUIDES }
 
+/** The layout id of one of the selected card's grips. */
+private data class GripKey(val grip: Grip)
+
+/** A grip's touch area, and how far its middle sits in from the card's bottom (and, for the corner, its right) edge. */
+private val GRIP_TOUCH = 44.dp
+private val GRIP_INSET = 14.dp
+
 /**
  * Discover's cards in [layout] order, where the user put them across the page, falling up against the cards above them,
  * inside the page's scrolling column ([scroll]). Cards [shown] says aren't on the page today are left out, taking no
@@ -183,6 +198,14 @@ internal fun DiscoverGrid(
                 Spacer(Modifier.layoutId(Part.FRAME).selectionFrame(spec))
             }
             if (active != null) Spacer(Modifier.layoutId(Part.GUIDES).guides(state, active))
+            // Kept while their own drag is on, so the finger holding one stays with it; hidden while the card moves.
+            if (selected != null) {
+                val spec = onPage.first { it.id == selected }
+                val held = active?.takeIf { it.id == selected }
+                val show = held == null || held.grip != null
+                if (spec.mode != CardMode.SHAPED) GripHandle(state, selected, Grip.HEIGHT, show && held?.grip?.grip != Grip.CORNER, Modifier.layoutId(GripKey(Grip.HEIGHT)))
+                GripHandle(state, selected, Grip.CORNER, show && held?.grip?.grip != Grip.HEIGHT, Modifier.layoutId(GripKey(Grip.CORNER)))
+            }
         }
     ) { measurables, constraints ->
         val width = if (constraints.hasBoundedWidth) constraints.maxWidth else 0
@@ -237,6 +260,8 @@ internal fun DiscoverGrid(
         }
         val arranged = arrange(flowCards, live?.id, live?.rect?.top?.roundToInt() ?: 0, STICK.roundToPx(), live?.reference)
         state.arranged = arranged
+        state.flowCards = flowCards
+        state.stick = STICK.roundToPx()
         if (state.slots != arranged.rects) state.slots = arranged.rects
         motion.retain(placeables.keys)
 
@@ -249,6 +274,8 @@ internal fun DiscoverGrid(
         val landing = live?.let { arranged.rects[it.id] }
         val drop = parts[Part.DROP]?.let { m -> landing?.let { m.measure(Constraints.fixed(it.width - gap, it.height - gap)) } }
         val guides = parts[Part.GUIDES]?.measure(Constraints.fixed(width, height))
+        val touch = GRIP_TOUCH.roundToPx()
+        val grips = Grip.entries.mapNotNull { grip -> measurables.firstOrNull { it.layoutId == GripKey(grip) }?.let { grip to it.measure(Constraints.fixed(touch, touch)) } }
         val landed = state.landed
         state.landed = null
 
@@ -270,6 +297,23 @@ internal fun DiscoverGrid(
                 frame.place(motion.peek(selected) - IntOffset(outset, outset), zIndex = 4f)
             }
             guides?.place(0, 0, zIndex = 11f)
+            // The grips sit inside the selected card's bottom edge (where it is drawn now, following a grip's drag).
+            val gripCard = selected?.let { id ->
+                live?.takeIf { it.id == id }?.rect?.let { IntRect(it.left.roundToInt(), it.top.roundToInt(), it.right.roundToInt(), it.bottom.roundToInt()) }
+                    ?: arranged.rects[id]?.let { IntRect(motion.peek(id), IntSize(it.width, it.height)) }
+            }
+            val inset = GRIP_INSET.roundToPx()
+            val half = gap / 2f
+            val placed = HashMap<Grip, Rect>()
+            if (gripCard != null) {
+                for ((grip, placeable) in grips) {
+                    val cx = if (grip == Grip.CORNER) gripCard.right - gap - inset else gripCard.left + (gripCard.width - gap) / 2
+                    val cy = gripCard.bottom - gap - inset
+                    placeable.place(cx - touch / 2, cy - touch / 2, zIndex = 12f)
+                    placed[grip] = Rect(cx - touch / 2f + half, cy - touch / 2f + half, cx + touch / 2f + half, cy + touch / 2f + half)
+                }
+            }
+            state.grips = placed
         }
     }
 }
@@ -405,6 +449,8 @@ private suspend fun PointerInputScope.cardGestures(state: DiscoverEditState) {
         val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
         val half = state.gap / 2f
         fun onPage(p: Offset) = p + Offset(half, half)
+        // A press on a grip is the grip's own.
+        if (state.editing && state.grips.values.any { it.contains(onPage(down.position)) }) return@awaitEachGesture
         val id = state.cardAt(onPage(down.position))
         val editing = state.editing
         if (id == null) {
@@ -586,7 +632,8 @@ private fun CardHost(
             )
     ) {
         if (spec.mode == CardMode.NATURAL) {
-            FitHeight { card(spec, Modifier.fillMaxWidth()) }
+            val least = with(LocalDensity.current) { spec.kind.minCardDp.dp.roundToPx() }
+            FitHeight { ShrinkToFit(least) { card(spec, Modifier.fillMaxWidth()) } }
         } else {
             card(spec, Modifier.fillMaxSize())
         }
@@ -639,6 +686,103 @@ private fun FitHeight(content: @Composable () -> Unit) {
         val short = placeable.height > height
         if (cut.value != short) cut.value = short
         layout(constraints.maxWidth, height) { placeable.place(0, 0) }
+    }
+}
+
+/**
+ * A full card's design at any width: as it is from its own least width ([least], pixels) up, and below that laid out at
+ * its least width and shrunk as a whole to fit, as a thumbnail of itself, so a card can be far narrower than its design
+ * and still show all of it. Heights asked of it are in the card's own pixels.
+ */
+@Composable
+private fun ShrinkToFit(least: Int, content: @Composable () -> Unit) {
+    Layout(content = content) { measurables, constraints ->
+        val child = measurables.firstOrNull() ?: return@Layout layout(constraints.minWidth, constraints.minHeight) {}
+        val width = constraints.maxWidth
+        if (!constraints.hasBoundedWidth || width >= least || width <= 0) {
+            val placeable = child.measure(constraints)
+            return@Layout layout(placeable.width, placeable.height) { placeable.place(0, 0) }
+        }
+        val scale = width.toFloat() / least
+        fun inner(h: Int) = if (h == Constraints.Infinity) h else (h / scale).toInt()
+        val placeable = child.measure(
+            Constraints(minWidth = least, maxWidth = least, minHeight = inner(constraints.minHeight), maxHeight = inner(constraints.maxHeight))
+        )
+        layout(width, (placeable.height * scale).roundToInt()) {
+            placeable.placeWithLayer(0, 0) {
+                scaleX = scale
+                scaleY = scale
+                transformOrigin = TransformOrigin(0f, 0f)
+            }
+        }
+    }
+}
+
+/**
+ * One of the selected card's grips, inside its bottom edge: a short bar in the middle that sizes its height alone, and
+ * a corner at its bottom right that sizes its width and height together. Each takes its own drag, kept clear of
+ * Android's back gesture so a grip near the screen's edge never goes back. Drawn only when [visible].
+ */
+@Composable
+private fun GripHandle(state: DiscoverEditState, id: String, grip: Grip, visible: Boolean, modifier: Modifier) {
+    val scheme = MaterialTheme.colorScheme
+    val me = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    Box(
+        modifier
+            .onGloballyPositioned { me[0] = it }
+            .systemGestureExclusion()
+            .semantics { contentDescription = if (grip == Grip.HEIGHT) "Resize height" else "Resize" }
+            .pointerInput(id, grip) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    fun onPage(p: Offset): Offset? {
+                        val grid = state.gridCoords?.takeIf { it.isAttached } ?: return null
+                        val self = me[0]?.takeIf { it.isAttached } ?: return null
+                        val half = state.gap / 2f
+                        return grid.localPositionOf(self, p) + Offset(half, half)
+                    }
+                    val start = onPage(down.position) ?: return@awaitEachGesture
+                    state.beginGrip(id, grip, start)
+                    try {
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            change.consume()
+                            if (!change.pressed) break
+                            onPage(change.position)?.let(state::gripTo)
+                        }
+                    } finally {
+                        if (state.active?.grip != null) state.end()
+                    }
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        if (visible) {
+            val color = scheme.primary
+            val back = scheme.surface
+            Spacer(
+                Modifier
+                    .size(if (grip == Grip.HEIGHT) 30.dp else 22.dp)
+                    .drawBehind {
+                        val stroke = 4.dp.toPx()
+                        if (grip == Grip.HEIGHT) {
+                            val y = size.height / 2f
+                            drawLine(back, Offset(0f, y), Offset(size.width, y), stroke + 3.dp.toPx(), StrokeCap.Round)
+                            drawLine(color, Offset(0f, y), Offset(size.width, y), stroke, StrokeCap.Round)
+                        } else {
+                            // A rounded corner, as the card's own: the arc of its bottom right.
+                            val path = Path().apply {
+                                moveTo(size.width, 0f)
+                                quadraticTo(size.width, size.height, 0f, size.height)
+                            }
+                            drawPath(path, back, style = Stroke(stroke + 3.dp.toPx(), cap = StrokeCap.Round))
+                            drawPath(path, color, style = Stroke(stroke, cap = StrokeCap.Round))
+                        }
+                    }
+            )
+        }
     }
 }
 

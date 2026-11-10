@@ -116,7 +116,7 @@ internal fun openShapedCard(
         )
         is ShapedContent.CatchUp -> onCatchUp()
         is ShapedContent.Tomorrow -> Unit
-        is ShapedContent.Memory, is ShapedContent.Year, is ShapedContent.Countdown, is ShapedContent.Delivery -> Unit
+        is ShapedContent.Countdown, is ShapedContent.Delivery -> Unit
         is ShapedContent.App -> openAppCard(context, content.data)
         is ShapedContent.Site -> launchSafeIntent(context, Intent(Intent.ACTION_VIEW, content.data.url.toUri()))
     }

@@ -34,8 +34,6 @@ internal fun mainUnits(content: ShapedContent): Float = when (content) {
     is ShapedContent.Battery -> 42f
     is ShapedContent.Word -> 23f
     is ShapedContent.Countdown -> if (content.days <= 0) 30f else 46f
-    is ShapedContent.Memory -> 16f
-    is ShapedContent.Year -> 42f
     is ShapedContent.Event -> 30f
     is ShapedContent.Agenda -> 44f
     is ShapedContent.CatchUp -> 44f

@@ -191,8 +191,6 @@ private fun Stage.design(content: ShapedContent, extras: CardExtras, alarmDegree
         is ShapedContent.Battery -> battery(content)
         is ShapedContent.Word -> word(content)
         is ShapedContent.Countdown -> countdown(content)
-        is ShapedContent.Memory -> memory(content)
-        is ShapedContent.Year -> year(content)
         is ShapedContent.Event -> event(content)
         is ShapedContent.Agenda -> agenda(content)
         is ShapedContent.CatchUp -> catchUp(content)
@@ -224,7 +222,6 @@ private fun wantsAmbient(content: ShapedContent): Boolean = when (content) {
 internal fun mainNumber(content: ShapedContent): Double? = when (content) {
     is ShapedContent.Battery -> content.level.toDouble()
     is ShapedContent.Countdown -> content.days.toDouble().takeIf { content.days > 0 }
-    is ShapedContent.Year -> content.percent.toDouble()
     is ShapedContent.Weather -> splitNumber(content.temperature)?.first?.toDouble()
     is ShapedContent.App -> content.data.model?.takeIf { it.layout == SnapLayout.HERO }?.number
     else -> null

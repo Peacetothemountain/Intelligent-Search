@@ -113,12 +113,8 @@ internal fun shapedBattery(battery: TodayBattery): ShapedContent.Battery {
     return ShapedContent.Battery(battery.level, battery.charging, detail)
 }
 
-/** The year card's shaped design: the day's photo when there is one, else the countdown, else how far through the year. */
-internal fun shapedYear(today: LocalDate, countdown: TodayCountdown?, memory: TodayMemory?): ShapedContent = when {
-    memory != null -> ShapedContent.Memory(memory.thumbnail, memory.title, memory.detail)
-    countdown != null -> ShapedContent.Countdown(countdown.days, countdown.name)
-    else -> ShapedContent.Year(today.year, (today.dayOfYear * 100f / today.lengthOfYear()).roundToInt(), today.dayOfYear, today.lengthOfYear())
-}
+/** Days until the next holiday, as the countdown card's shape draws them. */
+internal fun shapedCountdown(countdown: TodayCountdown): ShapedContent.Countdown = ShapedContent.Countdown(countdown.days, countdown.name)
 
 /** The word of the day. */
 internal fun shapedWord(word: TodayWord): ShapedContent.Word = ShapedContent.Word(word.word, word.kind, word.meaning)

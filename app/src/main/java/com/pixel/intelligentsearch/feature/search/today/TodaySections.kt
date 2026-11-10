@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.feature.search.today
 import android.app.Notification
 import android.content.Context
 import android.content.Intent
-import android.provider.Settings
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
@@ -74,10 +73,6 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
-import com.pixel.intelligentsearch.core.answers.ForecastDay
 import com.pixel.intelligentsearch.core.answers.HighLow
 import com.pixel.intelligentsearch.core.answers.ScreenTimeReport
 import com.pixel.intelligentsearch.core.answers.WeatherCodes
@@ -96,7 +91,6 @@ import com.pixel.intelligentsearch.core.ui.icons.filled.Cloud
 import com.pixel.intelligentsearch.core.ui.icons.filled.Email
 import com.pixel.intelligentsearch.core.ui.icons.filled.Event
 import com.pixel.intelligentsearch.core.ui.icons.filled.Forum
-import com.pixel.intelligentsearch.core.ui.icons.outlined.Tune
 import com.pixel.intelligentsearch.core.ui.icons.outlined.CalendarMonth
 import com.pixel.intelligentsearch.core.ui.icons.filled.History
 import com.pixel.intelligentsearch.core.ui.icons.filled.HourglassBottom
@@ -106,11 +100,7 @@ import com.pixel.intelligentsearch.core.ui.icons.filled.Thunderstorm
 import com.pixel.intelligentsearch.core.ui.icons.filled.Umbrella
 import com.pixel.intelligentsearch.core.ui.icons.filled.WbCloudy
 import com.pixel.intelligentsearch.core.ui.icons.filled.WbSunny
-import com.pixel.intelligentsearch.core.ui.icons.outlined.BatterySaver
 import com.pixel.intelligentsearch.core.ui.icons.outlined.BatteryStd
-import com.pixel.intelligentsearch.core.ui.icons.outlined.DoNotDisturbOn
-import com.pixel.intelligentsearch.core.ui.icons.outlined.FlashlightOn
-import com.pixel.intelligentsearch.core.ui.icons.outlined.WifiTethering
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.util.initialOf
@@ -123,9 +113,6 @@ import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.layout.boundsInParent
-import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.runtime.mutableIntStateOf
@@ -556,43 +543,9 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
     }
 }
 
-/**
- * Do Not Disturb, the flashlight (on a phone that has one), the hotspot and Battery Saver. The flashlight and Do Not
- * Disturb (once allowed) switch here, their tiles turning round when on; Android lets only its own Settings switch the
- * hotspot and Battery Saver, so those open the page that does. Android doesn't tell apps whether the hotspot is on, so
- * its tile says neither on nor off.
- */
-@Composable
-internal fun QuickControls(controls: TodayControls) {
-    val context = LocalContext.current
-    // Live, so a switch flipped in the notification shade while the page is open shows here too.
-    val dnd by remember(controls) { controls.doNotDisturb() }.collectAsState(initial = false)
-    // A phone without a flashlight has no tile for it rather than one that does nothing.
-    val flashlight = remember(controls) { controls.flashlight() }
-    val torch = flashlight?.collectAsState(initial = false)?.value
-    val saver by remember(controls) { controls.batterySaver() }.collectAsState(initial = false)
-    Card {
-        CardLabel(Icons.Outlined.Tune, "Quick controls", modifier = Modifier.padding(bottom = 12.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ControlTile("Do Not Disturb", Icons.Outlined.DoNotDisturbOn, dnd, Modifier.weight(1f)) {
-                controls.setDoNotDisturb(!dnd)?.let { launchSafeIntent(context, it) }
-            }
-            if (torch != null) {
-                ControlTile("Flashlight", Icons.Outlined.FlashlightOn, torch, Modifier.weight(1f)) { controls.setFlashlight(!torch) }
-            }
-            ControlTile("Hotspot", Icons.Outlined.WifiTethering, null, Modifier.weight(1f)) {
-                launchSafeIntent(context, Intent(Settings.ACTION_WIRELESS_SETTINGS))
-            }
-            ControlTile("Battery Saver", Icons.Outlined.BatterySaver, saver, Modifier.weight(1f)) {
-                launchSafeIntent(context, Intent(Settings.ACTION_BATTERY_SAVER_SETTINGS))
-            }
-        }
-    }
-}
-
 /** A quick control; [state] is null for one the app can't read, which then claims neither on nor off. */
 @Composable
-private fun ControlTile(label: String, icon: ImageVector, state: Boolean?, modifier: Modifier, onClick: () -> Unit) {
+internal fun ControlTile(label: String, icon: ImageVector, state: Boolean?, modifier: Modifier, onClick: () -> Unit) {
     val on = state == true
     val scheme = MaterialTheme.colorScheme
     val animate by rememberAnimationsEnabled()
@@ -928,64 +881,31 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
     }
 }
 
-/** The days until the next big holiday, and how far through the year today is, side by side at the taller one's height. */
+/** Days until the next holiday or day to look forward to, counting up as it comes into view; a tap throws confetti. */
 @Composable
-internal fun YearTiles(today: LocalDate, countdown: TodayCountdown?, memory: TodayMemory? = null, askPhotos: (() -> Unit)? = null) {
+internal fun CountdownCard(countdown: TodayCountdown) {
     val scheme = MaterialTheme.colorScheme
     var seen by remember { mutableStateOf(false) }
     val shown = rememberDrawIn(300, 1100, seen)
     val confetti = LocalConfetti.current
-    var tileCenter by remember { mutableStateOf(Offset.Zero) }
-    Row(Modifier.height(IntrinsicSize.Min).onFirstSeen { seen = true }, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (countdown != null) {
-            Column(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .heightIn(min = 120.dp)
-                    .clip(CardShape)
-                    .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
-                    .onGloballyPositioned { tileCenter = it.boundsInWindow().center }
-                    .bouncyClickable(shape = CardShape) { confetti.burst(tileCenter) }
-                    .padding(horizontal = 14.dp, vertical = 13.dp)
-            ) {
-                TileLabel(Icons.Filled.Event, "Countdown")
-                CountUp(countdown.days, shown)
-                Text(
-                    if (countdown.days == 1) "day until ${countdown.name}" else "days until ${countdown.name}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = scheme.onSurfaceVariant
-                )
-            }
-        }
-        if (memory != null) {
-            MemoryTile(memory, Modifier.weight(1f).fillMaxHeight())
-            return@Row
-        }
-        if (askPhotos != null) {
-            AskPhotosTile(askPhotos, Modifier.weight(1f).fillMaxHeight())
-            return@Row
-        }
-        val dayOfYear = today.dayOfYear
-        val daysInYear = today.lengthOfYear()
-        val fraction = dayOfYear / daysInYear.toFloat()
-        Column(
-            Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .heightIn(min = 120.dp)
-                .clip(CardShape)
-                .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
-                .padding(horizontal = 14.dp, vertical = 13.dp)
-        ) {
-            TileLabel(Icons.Filled.HourglassBottom, today.year.toString())
-            Text("${(fraction * 100).roundToInt()}%", style = MaterialTheme.typography.displaySmall, color = scheme.onSurface, modifier = Modifier.padding(top = 4.dp))
-            Text("Day $dayOfYear of $daysInYear", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-            Spacer(Modifier.height(10.dp))
-            Box(Modifier.fillMaxWidth().height(6.dp).clip(CircleShape).background(scheme.surfaceContainerHighest)) {
-                Box(Modifier.fillWidth { fraction * shown() }.height(6.dp).clip(CircleShape).background(scheme.tertiary))
-            }
-        }
+    var center by remember { mutableStateOf(Offset.Zero) }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .onFirstSeen { seen = true }
+            .clip(CardShape)
+            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
+            .onGloballyPositioned { center = it.boundsInWindow().center }
+            .bouncyClickable(shape = CardShape) { confetti.burst(center) }
+            .padding(horizontal = 14.dp, vertical = 13.dp)
+    ) {
+        TileLabel(Icons.Filled.Event, "Countdown")
+        CountUp(countdown.days, shown)
+        Text(
+            if (countdown.days == 1) "day until ${countdown.name}" else "days until ${countdown.name}",
+            style = MaterialTheme.typography.bodySmall,
+            color = scheme.onSurfaceVariant
+        )
     }
 }
 
@@ -1056,85 +976,3 @@ private fun TomorrowRow(icon: ImageVector, text: String, detail: String?, spoken
 }
 
 
-/** Photos from the past: the first as the tile's picture, its label, how long ago and how many. Tap opens it. */
-@Composable
-private fun MemoryTile(memory: TodayMemory, modifier: Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    val context = LocalContext.current
-    // Where the label and the title sit, for the scrim behind them.
-    var labelBox by remember { mutableStateOf(Rect.Zero) }
-    var textBox by remember { mutableStateOf(Rect.Zero) }
-    Box(
-        modifier
-            .heightIn(min = 120.dp)
-            .clip(CardShape)
-            .background(scheme.surfaceContainerHigh)
-            .bouncyClickable(shape = CardShape) {
-                launchSafeIntent(context, Intent(Intent.ACTION_VIEW, memory.uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
-            }
-    ) {
-        memory.thumbnail?.let { picture ->
-            androidx.compose.foundation.Image(
-                picture,
-                contentDescription = null,
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                modifier = Modifier.matchParentSize().kenBurns()
-            )
-            // Darker only where a bright photo would wash out the white text above it.
-            Box(Modifier.matchParentSize().drawWithCache {
-                val scrim = photoScrim(picture, size, labelBox, textBox)
-                onDrawBehind { drawRect(scrim) }
-            })
-        }
-        val text = if (memory.thumbnail != null) Color.White else scheme.onSurface
-        Text(
-            memory.label.uppercase(LocalConfiguration.current.locales[0]),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.6.sp,
-            color = text.copy(alpha = 0.9f),
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(horizontal = 14.dp, vertical = 13.dp)
-                .onPlaced { labelBox = it.boundsInParent() }
-        )
-        Column(
-            Modifier
-                .align(Alignment.BottomStart)
-                .padding(horizontal = 14.dp, vertical = 12.dp)
-                .onPlaced { textBox = it.boundsInParent() }
-        ) {
-            Text(memory.title, style = MaterialTheme.typography.titleMedium, color = text)
-            Text(memory.detail, style = MaterialTheme.typography.bodySmall, color = text.copy(alpha = 0.85f))
-        }
-    }
-}
-
-/** On This Day before photos may be read: what it would show, and a button that asks for photo access. */
-@Composable
-private fun AskPhotosTile(onAllow: () -> Unit, modifier: Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    Column(
-        modifier
-            .heightIn(min = 120.dp)
-            .clip(CardShape)
-            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
-            .bouncyClickable(shape = CardShape, onClick = onAllow)
-            .padding(horizontal = 14.dp, vertical = 13.dp)
-    ) {
-        TileLabel(Icons.Filled.History, "On this day")
-        Text(
-            "A photo from your past, every day",
-            style = MaterialTheme.typography.bodyMedium,
-            color = scheme.onSurface,
-            modifier = Modifier.padding(top = 6.dp)
-        )
-        Spacer(Modifier.height(10.dp))
-        Text(
-            "Allow Photos",
-            style = MaterialTheme.typography.labelLarge,
-            color = scheme.onPrimary,
-            modifier = Modifier.clip(CircleShape).background(scheme.primary).padding(horizontal = 14.dp, vertical = 8.dp)
-        )
-    }
-}

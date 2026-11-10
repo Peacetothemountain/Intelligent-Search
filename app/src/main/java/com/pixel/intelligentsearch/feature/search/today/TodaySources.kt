@@ -12,7 +12,6 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import androidx.compose.runtime.Immutable
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.core.content.ContextCompat
 import com.pixel.intelligentsearch.core.answers.ScreenTimeReport
@@ -50,20 +49,6 @@ data class TodayBattery(
 /** When to leave for an event: at [leaveAt] (wall clock), for a trip of about [minutes]. */
 @Immutable
 data class TodayTrip(val leaveAt: Long, val minutes: Int)
-
-/**
- * A photo from the past for On This Day: what to call it ("3 years ago"), a line under that, the photo to open, its
- * thumbnail, and the tile's label, which says how the photo was picked ("On this day", "This week", "This month" or
- * "From your photos"), so a photo from another day never reads as one from this day.
- */
-@Immutable
-data class TodayMemory(
-    val title: String,
-    val detail: String,
-    val uri: android.net.Uri,
-    val thumbnail: androidx.compose.ui.graphics.ImageBitmap?,
-    val label: String = ON_THIS_DAY
-)
 
 /** On This Day's label for photos taken on this date in an earlier year. */
 internal const val ON_THIS_DAY = "On this day"
@@ -129,8 +114,6 @@ interface TodaySources {
     val controls: TodayControls
     /** When to leave for [event], from the phone's approximate location to its place; null when either is unknown. */
     suspend fun trip(event: com.pixel.intelligentsearch.core.data.CalendarEvent): TodayTrip? = null
-    /** The latest year's photos taken on [today]'s date, when photos may be read and there are any. */
-    suspend fun memory(today: LocalDate): TodayMemory? = null
 }
 
 /**
@@ -267,41 +250,6 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
                 geocoder.getFromLocationName(address, 1)?.firstOrNull()?.let { it.latitude to it.longitude }
             }
         }.getOrNull()
-    }
-
-    override suspend fun memory(today: LocalDate): TodayMemory? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-        if (!com.pixel.intelligentsearch.feature.settings.photosAllowed(app)) return@withContext null
-        val zone = ZoneId.systemDefault()
-        val uri = android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        val photos = ArrayList<LibraryPhoto>()
-        runCatching {
-            app.contentResolver.query(
-                uri,
-                arrayOf(
-                    android.provider.MediaStore.Images.Media._ID,
-                    android.provider.MediaStore.Images.Media.DATE_TAKEN,
-                    android.provider.MediaStore.Images.Media.DATE_ADDED
-                ),
-                // A screenshot is a picture of the screen, not a photo from the user's past: Android files them in a
-                // Screenshots folder (Pictures/Screenshots, or DCIM/Screenshots on some phones) and dates them like photos.
-                "${android.provider.MediaStore.Images.Media.RELATIVE_PATH} IS NULL OR " +
-                    "${android.provider.MediaStore.Images.Media.RELATIVE_PATH} NOT LIKE ?",
-                arrayOf("%Screenshots/%"),
-                null
-            )?.use { cursor ->
-                while (cursor.moveToNext()) {
-                    val taken = cursor.getLong(1).takeIf { it > 0 } ?: (cursor.getLong(2) * 1000L)
-                    if (taken <= 0) continue
-                    photos += LibraryPhoto(cursor.getLong(0), java.time.Instant.ofEpochMilli(taken).atZone(zone).toLocalDate())
-                }
-            }
-        }
-        val (picked, label, title, detail) = pickMemory(photos, today) ?: return@withContext null
-        val first = android.content.ContentUris.withAppendedId(uri, picked.first().id)
-        val thumbnail = runCatching {
-            app.contentResolver.loadThumbnail(first, android.util.Size(360, 360), null).asImageBitmap()
-        }.getOrNull()
-        TodayMemory(title, detail, first, thumbnail, label)
     }
 
     override fun countdown(today: LocalDate): TodayCountdown? =

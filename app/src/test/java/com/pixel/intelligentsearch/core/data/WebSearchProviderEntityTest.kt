@@ -86,9 +86,11 @@ class WebSearchProviderEntityTest {
         WebSearchProvider.getWebSuggestions("obama", timeoutMs = 5_000)
         val cached = WebSearchProvider.getCachedSuggestions("Obama ")
         assertEquals("Barack Obama", cached?.first()?.title)
-        assertEquals(1, requests.get())
+        assertEquals(1, asked.size)
+        // Asked again, the cache answers: the app makes no second request. (Counted where the app asks, not in the
+        // connections the server accepts, which include the JDK's own silent retry of a GET.)
         WebSearchProvider.getWebSuggestions("obama", timeoutMs = 5_000)
-        assertEquals(1, requests.get())
+        assertEquals(1, asked.size)
     }
 
     @Test
@@ -105,6 +107,7 @@ class WebSearchProviderEntityTest {
     fun torAndCustomEnginesNeverAsk() = runBlocking {
         assertTrue(WebSearchProvider.getWebSuggestions("obama", engine = "Tor Browser").isEmpty())
         assertTrue(WebSearchProvider.getWebSuggestions("obama", engine = "Custom").isEmpty())
+        assertEquals(0, asked.size)
         assertEquals(0, requests.get())
     }
 
@@ -120,6 +123,8 @@ class WebSearchProviderEntityTest {
     fun aRedirectIsRefusedNotFollowed() = runBlocking {
         status = "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:${server.localPort}/elsewhere"
         assertTrue(WebSearchProvider.getWebSuggestions("obama", timeoutMs = 5_000).isEmpty())
-        assertEquals(1, requests.get())
+        // One request from the app, and the address it was sent to never asked for.
+        assertEquals(1, asked.size)
+        assertTrue("$headers", headers.none { it.startsWith("GET /elsewhere") })
     }
 }

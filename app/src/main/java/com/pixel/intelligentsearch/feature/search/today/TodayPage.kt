@@ -170,9 +170,7 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.math.hypot
 import com.pixel.intelligentsearch.feature.settings.rememberTodayLocationRequest
-import com.pixel.intelligentsearch.feature.settings.rememberPhotosRequest
 import com.pixel.intelligentsearch.feature.settings.rememberPermissionState
-import com.pixel.intelligentsearch.feature.settings.photosAllowed
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.geometry.CornerRadius
@@ -243,8 +241,6 @@ internal fun TodayLayer(
     }
     val discoverOn by rememberSetting(SettingsManager.TODAY_BUTTON)
     val weatherOn by rememberSetting(SettingsManager.TODAY_WEATHER)
-    val memoriesOn by rememberSetting(SettingsManager.TODAY_MEMORIES)
-    val photosOk = rememberPermissionState(::photosAllowed)
     var weather by remember { mutableStateOf<Pair<WeatherReport, WeatherReport?>?>(null) }
     var weatherAt by remember { mutableLongStateOf(0L) }
     LaunchedEffect(discoverOn, weatherOn, open) {
@@ -254,12 +250,6 @@ internal fun TodayLayer(
                 weather = it
                 weatherAt = now
             }
-        }
-    }
-    var memory by remember { mutableStateOf<TodayMemory?>(null) }
-    LaunchedEffect(discoverOn, memoriesOn, photosOk, open) {
-        if (discoverOn && memoriesOn && photosOk && (memory == null || open)) {
-            memory = sources.memory(java.time.LocalDate.now())
         }
     }
     LaunchedEffect(open, animate) {
@@ -298,8 +288,7 @@ internal fun TodayLayer(
                             onBack = onClose,
                             onSearch = onSearch,
                             onOpenSettings = onOpenSettings,
-                            preloadedWeather = weather,
-                            preloadedMemory = memory
+                            preloadedWeather = weather
                         )
                     }
                 }
@@ -360,8 +349,7 @@ internal fun TodayPage(
     onOpenSettings: () -> Unit,
     recentSearches: List<String> = emptyList(),
     onSearch: (String) -> Unit = {},
-    preloadedWeather: Pair<WeatherReport, WeatherReport?>? = null,
-    preloadedMemory: TodayMemory? = null
+    preloadedWeather: Pair<WeatherReport, WeatherReport?>? = null
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
@@ -376,7 +364,6 @@ internal fun TodayPage(
     val leftOffOn by rememberSetting(SettingsManager.TODAY_LEFT_OFF)
     val extrasOn by rememberSetting(SettingsManager.TODAY_EXTRAS)
     val leaveByOn by rememberSetting(SettingsManager.TODAY_LEAVE_BY)
-    val memoriesOn by rememberSetting(SettingsManager.TODAY_MEMORIES)
     // Weather with no saved place, and the leave-by time, need the phone's location, so allowing it reads both again.
     val locationOk = rememberPermissionState { com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(it).permitted() }
     // What the layer read wins whenever it has it, including when it arrives or refreshes after the page has opened;
@@ -407,13 +394,6 @@ internal fun TodayPage(
     val trip = produceState<TodayTrip?>(null, upNext?.eventId, upNext?.beginMillis, upNext?.location, leaveByOn, active, locationOk) {
         value = if (upNext != null && leaveByOn && active) sources.trip(upNext) else null
     }.value
-    val photosOk = rememberPermissionState(::photosAllowed)
-    val ownMemory = produceState<TodayMemory?>(null, preloadedMemory == null, today, memoriesOn, active, photosOk) {
-        if (preloadedMemory == null && memoriesOn && active && photosOk) value = sources.memory(today)
-    }.value
-    val memory = (preloadedMemory ?: ownMemory)?.takeIf { memoriesOn && photosOk }
-    val photosRequest = rememberPhotosRequest { }
-    val askPhotos = if (memoriesOn && extrasOn && !photosOk) ({ photosRequest.request() }) else null
     val locationRequest = rememberTodayLocationRequest { }
     val askLocation = if (leaveByOn && !locationOk) ({ locationRequest.request() }) else null
     val sunset = weather?.sunset?.toEpochMilli()?.takeIf { it > now }
@@ -532,14 +512,13 @@ internal fun TodayPage(
                 CardKind.PHONE -> phoneOn && (spec.mode != CardMode.SHAPED || battery != null)
                 CardKind.LEFT_OFF -> leftOffOn && recentSearches.isNotEmpty()
                 CardKind.WORD -> extrasOn
-                // On This Day has its own switch, so its photo shows without Word of the Day and Countdown.
-                CardKind.YEAR -> extrasOn || memory != null
+                CardKind.YEAR -> extrasOn && countdown != null
                 CardKind.TOMORROW -> alarmTomorrow != null || tomorrowWeather != null || tomorrowEvent != null
                 CardKind.APP -> spec.form == CardForm.CARD || spec.widgetId in apps
                 CardKind.SITE -> spec.url in sites
             }
             // Each shown card's turn to be built and spring in, after the greeting's.
-            val turns = remember(cardLayout, upNext, weather, timer, alarm, delivery, snapshot.media, catchUp, recentSearches, memory, tomorrowWeather, battery, apps, sites) {
+            val turns = remember(cardLayout, upNext, weather, timer, alarm, delivery, snapshot.media, catchUp, recentSearches, countdown, tomorrowWeather, battery, apps, sites) {
                 cardLayout.cards.filter(::shown).withIndex().associate { (i, spec) -> spec.id to index + i }
             }
 
@@ -557,7 +536,7 @@ internal fun TodayPage(
                     CardKind.PHONE -> PhoneToday(sources, active)
                     CardKind.LEFT_OFF -> LeftOff(recentSearches.take(6), onSearch)
                     CardKind.WORD -> WordOfTheDay(word, onSearch)
-                    CardKind.YEAR -> if (extrasOn) YearTiles(today, countdown, memory, askPhotos) else YearTiles(today, null, memory)
+                    CardKind.YEAR -> countdown?.let { CountdownCard(it) }
                     CardKind.TOMORROW -> Tomorrow(today.plusDays(1), alarmTomorrow?.triggerAt, tomorrowWeather, tomorrowEvent)
                     CardKind.APP, CardKind.SITE -> Unit
                 }
@@ -575,7 +554,7 @@ internal fun TodayPage(
                 CardKind.NOW_PLAYING -> snapshot.media?.let(::shapedMedia)
                 CardKind.PHONE -> battery?.let(::shapedBattery)
                 CardKind.WORD -> shapedWord(word)
-                CardKind.YEAR -> shapedYear(today, countdown, memory)
+                CardKind.YEAR -> countdown?.let(::shapedCountdown)
                 CardKind.APP -> apps[spec.widgetId]?.let { ShapedContent.App(it, appIcons[it.packageName]) }
                 CardKind.SITE -> sites[spec.url]?.let { ShapedContent.Site(it) }
                 else -> null

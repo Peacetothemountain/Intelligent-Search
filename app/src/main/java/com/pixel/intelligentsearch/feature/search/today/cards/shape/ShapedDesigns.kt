@@ -15,11 +15,9 @@ import com.pixel.intelligentsearch.core.ui.icons.filled.LocalShipping
 import com.pixel.intelligentsearch.core.ui.icons.filled.Lock
 import com.pixel.intelligentsearch.core.ui.icons.filled.Timer
 import com.pixel.intelligentsearch.feature.search.today.cards.ShapedContent
-import kotlin.math.PI
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-import kotlin.math.sin
 
 /*
  * The shaped designs of Discover's own parts, each drawn on its 180-unit square round whatever shape the card has:
@@ -279,43 +277,6 @@ internal fun Stage.countdown(c: ShapedContent.Countdown) {
             text("${(count ?: c.days.toDouble()).roundToInt()}", MID, MID + 18f, 46f, colors.on, maxWidth = 130f, main = true)
         }
         curved(c.name, 12.5f, colors.rose, top = false, inset = 0.72f, weight = W_MEDIUM)
-    }
-}
-
-/** A photo from the past, filling the shape and slowly drifting, its title curving along the bottom. */
-internal fun Stage.memory(c: ShapedContent.Memory) {
-    val zoom = 1.08f + 0.06f * sin(2f * PI.toFloat() * now / 30_000f)
-    clipped {
-        val photo = c.photo
-        if (photo != null) {
-            image(photo, MID, MID, DESIGN, zoom)
-        } else {
-            scope.drawRect(
-                Brush.verticalGradient(0f to Color(0xFFF6C98E), 0.5f to Color(0xFFD57F62), 1f to Color(0xFF4A2B45), startY = 0f, endY = DESIGN),
-                Offset.Zero, Size(DESIGN, DESIGN), alpha = alpha
-            )
-        }
-        scope.drawRect(
-            Brush.verticalGradient(0.45f to Color.Transparent, 1f to Color.Black.copy(alpha = 0.5f), startY = 0f, endY = DESIGN),
-            Offset.Zero, Size(DESIGN, DESIGN), alpha = alpha
-        )
-    }
-    content {
-        curved(c.title, 16f, Color.White, top = false, inset = 0.72f, weight = W_MEDIUM, main = true)
-        text(c.detail, MID, MID + 26f, 11f, Color.White.copy(alpha = 0.82f), maxWidth = 116f)
-    }
-}
-
-/** How far through the year the day is: an edge gauge counting round, the percent, the day, the year curving below. */
-internal fun Stage.year(c: ShapedContent.Year) {
-    fill(colors.card)
-    clipped { glow(colors.acc, 0.16f, 0.5f, 0.3f, 0.7f) }
-    val pct = ((count ?: c.percent.toDouble()) / 100.0).toFloat().coerceIn(0f, 1f)
-    gauge(0.84f, colors.acc, 7f, pct)
-    content {
-        percent((count ?: c.percent.toDouble()).roundToInt())
-        text("Day ${c.day} of ${c.days}", MID, MID + 34f, 11.5f, colors.sub, maxWidth = 110f)
-        curved(c.year.toString(), 10.5f, colors.mut, top = false, inset = 0.74f, spacing = 0.4f)
     }
 }
 

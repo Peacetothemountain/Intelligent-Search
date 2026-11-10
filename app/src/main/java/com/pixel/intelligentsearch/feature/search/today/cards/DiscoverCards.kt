@@ -295,12 +295,6 @@ internal sealed interface ShapedContent {
     /** [days] until [name]. */
     data class Countdown(val days: Int, val name: String) : ShapedContent
 
-    /** A photo from the past: its [photo], [title] ("3 years ago") and [detail]. */
-    data class Memory(val photo: ImageBitmap?, val title: String, val detail: String) : ShapedContent
-
-    /** How far through the [year] the day is: [percent], "Day [day] of [days]". */
-    data class Year(val year: Int, val percent: Int, val day: Int, val days: Int) : ShapedContent
-
     /** The next event, [title], at [time] ("3:30 PM"), [until] it starts ("in 52 min"); [fraction] of the last hour before it gone. */
     data class Event(val title: String, val time: String, val until: String, val fraction: Float) : ShapedContent
 

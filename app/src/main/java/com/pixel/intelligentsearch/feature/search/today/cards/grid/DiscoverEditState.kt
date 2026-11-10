@@ -77,7 +77,22 @@ internal class CardAction(val label: String, val icon: ImageVector, val enabled:
 internal val SettleEasing = CubicBezierEasing(0.2f, 0.9f, 0.3f, 1.05f)
 
 /** How a pinch began: the card's place then, how far apart the fingers were across and down, and between them. */
-internal class PinchStart(val rect: Rect, val across: Float, val down: Float, val distance: Float, val middle: Offset)
+internal class PinchStart(val rect: Rect, val across: Float, val down: Float, val distance: Float, val middle: Offset) {
+    /** Which ways the pinch sizes: fingers set side by side size the width only, one above the other the height only. */
+    val widthOnly: Boolean get() = down < across * AXIS_LOCK
+    val heightOnly: Boolean get() = across < down * AXIS_LOCK
+
+    private companion object {
+        /** How much more one way than the other the fingers must be set for the pinch to size that way only. */
+        const val AXIS_LOCK = 0.55f
+    }
+}
+
+/** The grips a selected card has inside its bottom edge: one for its height alone, one at its corner for both. */
+internal enum class Grip { HEIGHT, CORNER }
+
+/** How a grip drag began: the card's place then, and where the finger was (page pixels). */
+internal class GripStart(val grip: Grip, val rect: Rect, val finger: Offset)
 
 /**
  * The card being moved or pinched: its place now ([rect], the page's pixels, the card plus half the gap all round),
@@ -96,6 +111,7 @@ internal class ActiveCard(val id: String, start: Rect, internal var grab: Offset
     internal var atLeast = false
     internal var snappedTo: List<Int> = emptyList()
     internal var pinch: PinchStart? = null
+    internal var grip: GripStart? = null
 }
 
 /**
@@ -155,6 +171,10 @@ internal class DiscoverEditState(
     /** Where each card on the page is, its place (page pixels), as last laid out, and the order they were laid in. */
     internal var slots by mutableStateOf<Map<String, IntRect>>(emptyMap())
     internal var arranged: Arranged? = null
+
+    /** The places the page was last laid out from, and how near a card sticks to the one above (pixels). */
+    internal var flowCards: List<FlowCard> = emptyList()
+    internal var stick: Int = 0
 
     /** Each full card's place height when it is as tall as its content, as last laid out, so a pinch can snap back to it. */
     internal val naturalHeights = HashMap<String, Int>()
@@ -285,7 +305,7 @@ internal class DiscoverEditState(
     /** The narrowest [spec]'s place can be in [mode], in pixels: its design's least width, plus the gap. */
     internal fun leastWidth(spec: CardSpec, mode: CardMode = spec.mode): Float = gap + px(
         when (mode) {
-            CardMode.NATURAL -> spec.kind.minCardDp.toFloat()
+            CardMode.NATURAL -> maxOf(NARROWEST_CARD_DP, spec.kind.minCardDp * SMALLEST_DESIGN_SCALE)
             CardMode.SHAPED -> minShape(spec)
             CardMode.BOX -> spec.kind.minCardDp.toFloat()
         }
@@ -316,7 +336,7 @@ internal class DiscoverEditState(
     /** Moves the card being moved so the finger, now at [finger], holds it where it took it. */
     internal fun moveTo(finger: Offset) {
         val card = active ?: return
-        if (card.pinch != null) return
+        if (card.pinch != null || card.grip != null) return
         val width = card.rect.width
         val raw = finger.x - card.grab.x
         val snapped = snapLeft(raw.roundToInt(), width.roundToInt(), page, othersThan(card.id), px(SNAP_DP).roundToInt())
@@ -347,8 +367,8 @@ internal class DiscoverEditState(
         val start = card.pinch ?: return
         val spec = spec(card.id) ?: return
         val soft = px(PINCH_SOFTEN_DP)
-        val sx = (abs(a.x - b.x) + soft) / (start.across + soft)
-        val sy = (abs(a.y - b.y) + soft) / (start.down + soft)
+        val sx = if (start.heightOnly) 1f else (abs(a.x - b.x) + soft) / (start.across + soft)
+        val sy = if (start.widthOnly) 1f else (abs(a.y - b.y) + soft) / (start.down + soft)
         val middle = (a + b) / 2f - start.middle
         val least = leastWidth(spec)
         val reach = px(SNAP_DP).roundToInt()
@@ -365,7 +385,7 @@ internal class DiscoverEditState(
                 val natural = naturalHeights[card.id]?.toFloat()
                 val wasAuto = spec.frame.height <= 0f
                 val tall = (start.rect.height * sy).coerceIn(gap + px(MIN_HEIGHT_DP), gap + px(MAX_HEIGHT_DP))
-                val auto = (wasAuto && abs(sy - 1f) < 0.08f) || (natural != null && abs(tall - natural) < px(SNAP_HEIGHT_DP))
+                val auto = (wasAuto && (start.widthOnly || abs(sy - 1f) < 0.04f)) || (natural != null && abs(tall - natural) < px(SNAP_HEIGHT_DP))
                 if (auto && !card.autoHeight && !wasAuto) haptic(EditHaptic.TICK)
                 card.autoHeight = auto
                 height = if (auto) card.measured.toFloat() else tall
@@ -398,6 +418,65 @@ internal class DiscoverEditState(
         card.rect = Rect(left, top, left + width, top + height)
     }
 
+    /** Where the selected card's grips are (page pixels), as last laid out, so a press on one isn't taken as a move. */
+    internal var grips: Map<Grip, Rect> = emptyMap()
+
+    /** Starts sizing [id] by its [grip], the finger at [finger] (page pixels). */
+    internal fun beginGrip(id: String, grip: Grip, finger: Offset) {
+        val rect = active?.takeIf { it.id == id }?.rect ?: slots[id]?.toRect() ?: return
+        select(id)
+        val card = ActiveCard(id, rect, Offset.Zero, slots, spec(id)?.frame?.height?.let { it <= 0f } ?: true)
+        card.grip = GripStart(grip, rect, finger)
+        card.pinching = true
+        active = card
+        haptic(EditHaptic.LONG_PRESS)
+    }
+
+    /**
+     * Sizes the card by the grip held, the finger now at [finger]: its top and left edge stay; the height grip changes
+     * the height only, the corner grip the width and height together (a shape stays square). A full card near its
+     * content's height snaps back to fitting it, and one made narrower offers its shapes.
+     */
+    internal fun gripTo(finger: Offset) {
+        val card = active ?: return
+        val start = card.grip ?: return
+        val spec = spec(card.id) ?: return
+        val d = finger - start.finger
+        val page = page.toFloat()
+        val left = start.rect.left
+        val least = leastWidth(spec)
+        val corner = start.grip == Grip.CORNER
+        val wanted = if (corner) start.rect.width + d.x else start.rect.width
+        var width = wanted.coerceIn(least.coerceAtMost(page - left), page - left)
+        var height: Float
+        when (spec.mode) {
+            CardMode.NATURAL -> {
+                val natural = naturalHeights[card.id]?.toFloat()
+                val tall = (start.rect.height + d.y).coerceIn(gap + px(MIN_HEIGHT_DP), gap + px(MAX_HEIGHT_DP))
+                val auto = natural != null && abs(tall - natural) < px(SNAP_HEIGHT_DP) && abs(width - start.rect.width) < 1f
+                if (auto && !card.autoHeight) haptic(EditHaptic.TICK)
+                card.autoHeight = auto
+                height = if (auto) card.measured.toFloat() else tall
+                if (corner && width < start.rect.width * SHRINK_OFFERS && spec.kind.shaped && strip != card.id) {
+                    strip = card.id
+                    haptic(EditHaptic.TICK)
+                }
+            }
+            CardMode.SHAPED -> {
+                width = (start.rect.width + (d.x + d.y) / 2f).coerceIn(least.coerceAtMost(page - left), page - left)
+                height = width
+            }
+            CardMode.BOX -> height = (start.rect.height + d.y).coerceIn(boxLeast, boxMost)
+        }
+        atLeast(card, wanted < least, EditHaptic.REJECT)
+        if (corner && spec.mode != CardMode.SHAPED) {
+            val reach = px(SNAP_DP).roundToInt()
+            width = snapWidth(width.roundToInt(), (page - left).roundToInt(), othersThan(card.id), reach, least.roundToInt()).toFloat()
+        }
+        if (spec.mode == CardMode.SHAPED) height = width
+        card.rect = Rect(left, start.rect.top, left + width, start.rect.top + height)
+    }
+
     /** A pinch went past the least size ([below]): one [kind] haptic as it gets there. */
     private fun atLeast(card: ActiveCard, below: Boolean, kind: EditHaptic) {
         if (below && !card.atLeast) haptic(kind)
@@ -415,8 +494,15 @@ internal class DiscoverEditState(
     internal fun end() {
         val card = active ?: return
         active = null
-        val arranged = arranged
         val spec = spec(card.id)
+        // Where the fingers left it, not where the last frame drew it: a finger can move after that frame, and every
+        // move made between frames would otherwise be lost.
+        val arranged = if (flowCards.any { it.id == card.id } && spec != null) {
+            val live = card.rect
+            val height = if (spec.mode == CardMode.NATURAL && card.autoHeight) card.measured else live.height.roundToInt()
+            val cards = flowCards.map { if (it.id == card.id) FlowCard(it.id, live.left.roundToInt(), live.width.roundToInt(), height) else it }
+            arrange(cards, card.id, live.top.roundToInt(), stick, card.reference)
+        } else arranged
         val rect = arranged?.rects?.get(card.id)
         if (arranged == null || spec == null || rect == null || page <= 0) return
         landed = card.id to card.rect.topLeft
@@ -614,13 +700,17 @@ internal class DiscoverEditState(
         /** How near (dp) a card's edge comes to a line before it lines up with it. */
         const val SNAP_DP = 10f
 
+        /** The narrowest a full card goes (dp), and the least its design is shrunk to get there. */
+        const val NARROWEST_CARD_DP = 120f
+        const val SMALLEST_DESIGN_SCALE = 0.42f
+
         /** A full card's least and most height (dp), and how near its content's height it snaps back to fitting it. */
         const val MIN_HEIGHT_DP = 64f
         const val MAX_HEIGHT_DP = 900f
         const val SNAP_HEIGHT_DP = 14f
 
         /** How much a pinch's spread is softened, so fingers close together don't make a jumpy size (dp). */
-        const val PINCH_SOFTEN_DP = 48f
+        const val PINCH_SOFTEN_DP = 16f
 
         /** Pinched to less than this much of its width, a full card offers its shapes. */
         const val SHRINK_OFFERS = 0.9f

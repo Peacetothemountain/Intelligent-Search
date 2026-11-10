@@ -95,27 +95,10 @@ internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() 
                     }
                 }
             )
-            PartRow(SettingsManager.TODAY_CONTROLS, "Quick Controls", "Do Not Disturb, Flashlight, Hotspot and Battery Saver.", Symbols.Outlined.Tune)
+            PartRow(SettingsManager.TODAY_CONTROLS, "Quick Controls", "The Switches You Choose, From Do Not Disturb and Wi-Fi to Auto-Rotate.", Symbols.Outlined.Tune)
             PartRow(SettingsManager.TODAY_PHONE, "Your Phone Today", "Battery and Screen Time.", Symbols.Outlined.Speed)
             PartRow(SettingsManager.TODAY_LEFT_OFF, "Pick Up Where You Left Off", "Your Last Searches, One Tap to Search Again.", Symbols.Outlined.History)
-            PartRow(SettingsManager.TODAY_EXTRAS, "Word of the Day and Countdown", "A New Word Each Day, and Days Until the Next Holiday.", Symbols.Outlined.Spellcheck)
-            var memories by rememberSetting(SettingsManager.TODAY_MEMORIES)
-            val photos = rememberPermissionState(::photosAllowed)
-            val photosRequest = rememberPhotosRequest { memories = true }
-            SettingsRowToggle(
-                title = "On This Day",
-                subtitle = "A Photo From Your Past Each Day, From This Date When There Is One. Uses Photo Access.",
-                icon = Symbols.Outlined.Image,
-                isChecked = memories && photos,
-                onCheckedChange = { on ->
-                    when {
-                        !on -> memories = false
-                        photos -> memories = true
-                        else -> photosRequest.request()
-                    }
-                },
-                showDivider = false
-            )
+            PartRow(SettingsManager.TODAY_EXTRAS, "Word of the Day and Countdown", "A New Word Each Day, and Days Until the Next Holiday.", Symbols.Outlined.Spellcheck, last = true)
         }
     }
 }

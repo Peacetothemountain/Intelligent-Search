@@ -14,7 +14,6 @@ import com.pixel.intelligentsearch.feature.search.today.TodayBattery
 import com.pixel.intelligentsearch.feature.search.today.TodayControls
 import com.pixel.intelligentsearch.feature.search.today.TodayCountdown
 import com.pixel.intelligentsearch.feature.search.today.TodaySources
-import com.pixel.intelligentsearch.feature.search.today.TodayMemory
 import com.pixel.intelligentsearch.feature.search.today.TodayTrip
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDateTime
@@ -78,7 +77,7 @@ class TodayGoldenTest(private val dark: Boolean) {
         hilt.inject()
         disableHandRolledAnimations()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
-        shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).grantPermissions(Manifest.permission.READ_CALENDAR, Manifest.permission.READ_MEDIA_IMAGES)
+        shadowOf(ApplicationProvider.getApplicationContext<android.app.Application>()).grantPermissions(Manifest.permission.READ_CALENDAR)
     }
 
     @After fun tearDown() = TimeZone.setDefault(zone)
@@ -143,7 +142,6 @@ class TodayGoldenTest(private val dark: Boolean) {
         )
         override fun countdown(today: LocalDate) = TodayCountdown("Valentine's Day", 30, today.plusDays(30))
         override suspend fun trip(event: CalendarEvent) = TodayTrip(event.beginMillis - 22 * MINUTE, 22)
-        override suspend fun memory(today: LocalDate) = TodayMemory("3 years ago", "24 photos", android.net.Uri.EMPTY, photo())
         override val controls = object : TodayControls {
             override fun doNotDisturb(): Flow<Boolean> = flowOf(false)
             override fun setDoNotDisturb(on: Boolean): android.content.Intent? = null
@@ -189,13 +187,3 @@ class TodayGoldenTest(private val dark: Boolean) {
         fun parameters(): List<Array<Any>> = listOf(arrayOf<Any>(false), arrayOf<Any>(true))
     }
 }
-
-/** A stand-in photo: a sun going down behind a hill. */
-private fun photo() = Bitmap.createBitmap(120, 120, Bitmap.Config.ARGB_8888).apply {
-    Canvas(this).apply {
-        drawColor(0xFF9D4F53.toInt())
-        drawCircle(84f, 40f, 16f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFD59A.toInt() })
-        drawCircle(60f, 160f, 80f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFF4A2E4F.toInt() })
-    }
-}.asImageBitmap()
-

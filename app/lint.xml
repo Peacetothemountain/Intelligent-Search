@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!--
+        local.properties is each machine's own file, never committed, and Gradle reads the SDK path as runs write it
+        (sdk.dir=C:/...). Lint would otherwise ask for its colon to be escaped and fail the gate on a file that isn't
+        part of the project.
+    -->
+    <issue id="PropertyEscape">
+        <ignore path="**/local.properties" />
+    </issue>
+</lint>

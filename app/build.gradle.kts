@@ -90,6 +90,7 @@ android {
     // fixing entries. Library-update notices are left to dependency review rather than breaking builds.
     lint {
       baseline = file("lint-baseline.xml")
+      lintConfig = file("lint.xml")
       warningsAsErrors = true
       abortOnError = true
       disable += setOf("GradleDependency", "NewerVersionAvailable", "AndroidGradlePluginVersion")

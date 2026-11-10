@@ -45,11 +45,10 @@ class AiRequestsTest {
     }
 
     @Test
-    fun opusThinksAtLowEffortWithRoomForTheAnswer() {
-        val body = JSONObject(AiRequests.build(AiProvider.ANTHROPIC, "claude-opus-5-5", key, question).body)
-        // Thinking can't be turned off on Opus 5.5, and max_tokens counts it with the answer.
+    fun opusAndFableThinkAtLowEffortWithRoomForTheAnswer() = listOf("claude-opus-5-5", "claude-fable-5-2").forEach { model ->
+        val body = JSONObject(AiRequests.build(AiProvider.ANTHROPIC, model, key, question).body)
+        // Thinking can't be turned off on Opus 5.5 or Fable 5.2, and max_tokens counts it with the answer.
         assertFalse(body.has("thinking"))
-        assertEquals(AiRequests.MAX_OUTPUT_TOKENS_WITH_THINKING, body.getInt("max_tokens"))
         assertEquals(1024, body.getInt("max_tokens"))
         assertEquals("low", body.getJSONObject("output_config").getString("effort"))
         assertEquals("default", body.getString("fallbacks"))
@@ -68,11 +67,11 @@ class AiRequestsTest {
 
     @Test
     fun openAiGetsChatCompletionsWithABearerKey() {
-        val request = AiRequests.build(AiProvider.OPENAI, "gpt-5.1", key, question)
+        val request = AiRequests.build(AiProvider.OPENAI, "gpt-6.1-terra", key, question)
         assertEquals("https://api.openai.com/v1/chat/completions", request.url)
         assertEquals("Bearer $key", request.headers["authorization"])
         val body = JSONObject(request.body)
-        assertEquals("gpt-5.1", body.getString("model"))
+        assertEquals("gpt-6.1-terra", body.getString("model"))
         assertEquals(400, body.getInt("max_completion_tokens"))
         assertEquals("none", body.getString("reasoning_effort"))
         assertTrue(body.getBoolean("stream"))
@@ -80,7 +79,8 @@ class AiRequestsTest {
         assertEquals("developer", messages.getJSONObject(0).getString("role"))
         assertEquals(AiRequests.INSTRUCTIONS, messages.getJSONObject(0).getString("content"))
         assertEquals(question, messages.getJSONObject(1).getString("content"))
-        assertEquals("minimal", JSONObject(AiRequests.build(AiProvider.OPENAI, "gpt-5-mini", key, question).body).getString("reasoning_effort"))
+        val sol = JSONObject(AiRequests.build(AiProvider.OPENAI, "gpt-6.1-sol", key, question).body)
+        assertEquals("Sol refuses none: its lowest, with room", "low" to 1024, sol.getString("reasoning_effort") to sol.getInt("max_completion_tokens"))
     }
 
     @Test
@@ -115,7 +115,7 @@ class AiRequestsTest {
         assertEquals("claude-sonnet-5-5", AiProvider.ANTHROPIC.defaultModel)
         assertEquals("claude-sonnet-5-5", AiProvider.ANTHROPIC.model(""))
         // A model of another provider (or a removed one) falls back to the default.
-        assertEquals("claude-sonnet-5-5", AiProvider.ANTHROPIC.model("gpt-5.1"))
+        assertEquals("gpt-6.1-terra", AiProvider.OPENAI.model("gpt-5.1"))
         assertEquals("claude-opus-5-5", AiProvider.ANTHROPIC.model("claude-opus-5-5"))
     }
 

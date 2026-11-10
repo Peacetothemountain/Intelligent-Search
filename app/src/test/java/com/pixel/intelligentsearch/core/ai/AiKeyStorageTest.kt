@@ -69,7 +69,7 @@ class AiKeyStorageTest {
         settings.prefs.edit()
             .put(SettingsManager.AI_ANSWERS_ENABLED, true)
             .put(SettingsManager.AI_PROVIDER, "openai")
-            .put(SettingsManager.AI_MODEL, "gpt-5-mini")
+            .put(SettingsManager.AI_MODEL, "gpt-6-luna")
             .commit()
         vault.save(AiProvider.OPENAI, apiKey)
 
@@ -88,7 +88,7 @@ class AiKeyStorageTest {
             BackupCryptoEngine.decodeBase64(envelope.encryptedPayloadBase64), key, BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64)
         )
         assertTrue(json, json.contains("ai.answers.provider"))
-        assertTrue(json.contains("gpt-5-mini"))
+        assertTrue(json.contains("gpt-6-luna"))
         assertFalse("the key is in the backup", json.contains(apiKey))
         assertFalse(json.contains("SECRET"))
         assertFalse(json.contains("ai_key_"))
@@ -97,7 +97,7 @@ class AiKeyStorageTest {
         settings.prefs.edit().put(SettingsManager.AI_ANSWERS_ENABLED, false).put(SettingsManager.AI_MODEL, "").commit()
         backups.importFromFile(uri, passphrase).getOrThrow()
         assertFalse(settings[SettingsManager.AI_ANSWERS_ENABLED])
-        assertEquals("gpt-5-mini", settings[SettingsManager.AI_MODEL])
+        assertEquals("gpt-6-luna", settings[SettingsManager.AI_MODEL])
         db.close()
     }
 }

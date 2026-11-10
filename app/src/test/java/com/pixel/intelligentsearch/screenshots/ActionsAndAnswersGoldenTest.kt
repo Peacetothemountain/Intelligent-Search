@@ -48,7 +48,7 @@ internal object AiAnswerSamples {
             ),
             model = "claude-sonnet-5-5"
         ) {}
-        AiAnswerCard(AiAnswerState.Failed(AiProvider.OPENAI, "why is the sky blue?", AiProblem.BAD_KEY), model = "gpt-5.1") {}
+        AiAnswerCard(AiAnswerState.Failed(AiProvider.OPENAI, "why is the sky blue?", AiProblem.BAD_KEY), model = "gpt-6.1-terra") {}
     }
 }
 

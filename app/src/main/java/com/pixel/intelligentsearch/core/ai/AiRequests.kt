@@ -31,8 +31,9 @@ object AiRequests {
     const val MAX_OUTPUT_TOKENS = 400
 
     /**
-     * Opus can't turn thinking off, and `max_tokens` caps its thinking and its answer together, so it gets more room;
-     * at low effort it still thinks briefly and answers in well under this.
+     * Some models can't turn thinking off (Opus, Fable, GPT-6 Astra and 6.1 Sol, Gemini), and the limit caps their
+     * thinking and their answer together, so they get more room; at low effort they think briefly and answer in well
+     * under this.
      */
     const val MAX_OUTPUT_TOKENS_WITH_THINKING = 1024
     const val ANTHROPIC_VERSION = "2026-10-21"
@@ -52,7 +53,7 @@ object AiRequests {
     private fun anthropic(model: String, apiKey: String, question: String): AiRequest {
         // The least thinking each model allows, so the whole limit is for the answer: Sonnet 5.5 turns it off with
         // "between_tools" ("disabled" is refused there), Haiku 5.5 with "disabled" (accepted at low effort), and Opus
-        // can't turn it off at all, so it thinks adaptively at low effort with more room.
+        // and Fable can't turn it off at all, so they think adaptively at low effort with more room.
         val thinking = when {
             model.startsWith("claude-sonnet") -> JSONObject().put("type", "between_tools")
             model.startsWith("claude-haiku") -> JSONObject().put("type", "disabled")
@@ -73,7 +74,7 @@ object AiRequests {
             "content-type" to "application/json",
             "accept" to "text/event-stream"
         )
-        // Haiku has no server-side fallback; Sonnet and Opus re-ask a declined question on another model.
+        // Haiku has no server-side fallback; Sonnet, Opus and Fable re-ask a declined question on another model.
         if (!model.startsWith("claude-haiku")) {
             body.put("fallbacks", "default")
             headers["anthropic-beta"] = ANTHROPIC_FALLBACK_BETA
@@ -82,12 +83,14 @@ object AiRequests {
     }
 
     private fun openAi(model: String, apiKey: String, question: String): AiRequest {
+        // Reasoning tokens count against the limit. Terra and Luna answer without reasoning; Astra and 6.1 Sol can't
+        // turn it off ("none" is refused there), so they reason at their lowest level with more room.
+        val reasons = model == "gpt-6-astra" || model == "gpt-6.1-sol"
         val body = JSONObject()
             .put("model", model)
             .put("stream", true)
-            // Reasoning tokens count against the limit; the least reasoning each model allows keeps room for the answer.
-            .put("max_completion_tokens", MAX_OUTPUT_TOKENS)
-            .put("reasoning_effort", if (model == "gpt-5.1") "none" else "minimal")
+            .put("max_completion_tokens", if (reasons) MAX_OUTPUT_TOKENS_WITH_THINKING else MAX_OUTPUT_TOKENS)
+            .put("reasoning_effort", if (reasons) "low" else "none")
             .put(
                 "messages",
                 JSONArray()
@@ -109,9 +112,9 @@ object AiRequests {
             .put(
                 "generationConfig",
                 JSONObject()
-                    // Gemini 3 can't turn thinking off and counts it within the limit, so it gets Opus's room.
+                    // Gemini can't turn thinking off and counts it within the limit, so it gets Opus's room.
                     .put("maxOutputTokens", MAX_OUTPUT_TOKENS_WITH_THINKING)
-                    // The lowest level both Flash models offer; thinkingBudget is only kept for older models.
+                    // The lowest level every model here offers; thinkingBudget is only kept for older models.
                     .put("thinkingConfig", JSONObject().put("thinkingLevel", "low"))
             )
         // The key goes in its header, never in the address, where it could end up in logs.

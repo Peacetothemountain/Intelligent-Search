@@ -11,11 +11,14 @@ How the branches, tags and releases fit together, so any version, crash report o
 
 History is one line from `Initial commit` (2026-07-30). On 2026-11-01 it was cleaned up to one commit per release
 (`Release <version> (<code>)`) plus the main feature changes between releases, each holding exactly the code it had;
-the small fixes, agent merge commits and failed builds in between were folded into them. The full earlier history (702
+the small fixes, merge commits and failed builds in between were folded into them. The full earlier history (702
 commits) is kept in a backup bundle on the owner's PC, `Downloads/IntelligentSearch-history-backup-2026-11-01.bundle`
-(`git clone` it, or `git fetch` from it, to read the old commits). To read history, use `git log dev` or `git log main`,
-not `git log --all`. On the owner's PC, `--all` also walks refs that T3 Code keeps under `refs/t3/` (its own
-checkpoints), and those hold copies of commits that were never on GitHub.
+(`git clone` it, or `git fetch` from it, to read the old commits). On 2026-11-11 the history was rewritten once more,
+keeping every commit and its code but dropping local working files and commit trailers; every commit ID changed then,
+and the tables below give the new ones. The history as it was before that is in
+`Downloads/IntelligentSearch-history-backup-2026-11-11.bundle`. To read history, use `git log dev` or `git log main`,
+not `git log --all`. On the owner's PC, `--all` also walks local checkpoint refs under `refs/t3/`, which hold copies of
+commits that were never on GitHub.
 
 ## Tags
 
@@ -52,14 +55,14 @@ checkpoints), and those hold copies of commits that were never on GitHub.
 | 9.3 | 123 | `1239667b` (off the main line) | 2026-10-17 |
 | 9.3.1 | 124 | `434b1fca` | 2026-10-17 |
 | 9.3.1 | 125 | `8213cc84` | 2026-10-18 |
-| 9.4 | 126 | `15f7f3a3` | 2026-10-23 |
-| 9.4.1 | 127 | `1cefc68b` | 2026-10-24 |
-| 9.5 | 128 | `8401eb49` | 2026-10-26 |
-| 9.5.1 | 129 | `71f2679b` | 2026-10-26 |
-| 9.5.2 | 130 | `f552d950` | 2026-10-30 |
-| 9.5.3 | 131 | `9ce6a1c5` | 2026-10-30 |
+| 9.4 | 126 | `623d4456` | 2026-10-23 |
+| 9.4.1 | 127 | `c11a4b44` | 2026-10-24 |
+| 9.5 | 128 | `608d9fc3` | 2026-10-26 |
+| 9.5.1 | 129 | `2de7a117` | 2026-10-26 |
+| 9.5.2 | 130 | `d346c35d` | 2026-10-30 |
+| 9.5.3 | 131 | `dc01dfd9` | 2026-10-30 |
 | 9.5.4 | 132 | see `Release 9.5.4 (132)` | 2026-11-01 |
-| 9.5.5 | 133 | `b85345e2` | 2026-11-06 |
+| 9.5.5 | 133 | `610eb61d` | 2026-11-06 |
 | 9.6 | 134 | see `Release 9.6 (134)` | 2026-11-11 |
 
 Some codes that reached Google Play were never committed with their number: 9.06 (105), 9.1.1 (109), and 111, 117 and

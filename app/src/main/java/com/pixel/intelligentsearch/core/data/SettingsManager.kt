@@ -261,8 +261,19 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val AI_ANSWERS_ENABLED = BooleanSetting("ai.answers.enabled", false)
         /** The [com.pixel.intelligentsearch.core.ai.AiProvider] id AI Answers asks. */
         val AI_PROVIDER = StringSetting("ai.answers.provider", "anthropic")
-        /** The chosen model of [AI_PROVIDER]; blank (or another provider's) means its default. */
+        /**
+         * The one model kept before choices were kept per provider. No longer written: AiChoices still reads it for
+         * its own provider until one is chosen in [AI_MODELS], and older backups restore it.
+         */
         val AI_MODEL = StringSetting("ai.answers.model", "")
+        /** The model each provider asks, as "provider=model" (AiChoices), so switching providers keeps each one. */
+        val AI_MODELS = StringSetSetting("ai.answers.models", emptySet())
+        /** How long each model reasons, as "model=level" (AiChoices); a model without one uses its default. */
+        val AI_REASONING = StringSetSetting("ai.answers.reasoning", emptySet())
+        /** The models asked in fast mode, by id; only models that have one use it. */
+        val AI_FAST_MODELS = StringSetSetting("ai.answers.fast", emptySet())
+        /** The models starred as favorites, by id, listed first in the Model menu. */
+        val AI_FAVORITE_MODELS = StringSetSetting("ai.answers.favorites", emptySet())
 
         // Each search bar widget design's outline and corners, kept per design like the rest of its customization
         // (WidgetSettingsStore reads and writes them).
@@ -324,7 +335,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             RESULT_SHORTCUTS, WEATHER_HOME_LOCATION, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,
-            AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL,
+            AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL, AI_MODELS, AI_REASONING, AI_FAST_MODELS, AI_FAVORITE_MODELS,
             NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION
         ) + FILES_OPEN_WITH.values + WIDGET_PROFILE_DESIGNS + WIDGET_PROFILE_SAVED_DESIGNS
 

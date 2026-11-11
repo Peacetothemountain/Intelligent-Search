@@ -67,8 +67,6 @@ import androidx.core.net.toUri
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
-import com.pixel.intelligentsearch.core.data.SettingsManager
-import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.search.AndroidSettingResult
 import com.pixel.intelligentsearch.core.ui.MathResultOneBox
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
@@ -148,10 +146,9 @@ internal fun OverlayDetailPane(s: OverlayScope, modifier: Modifier = Modifier) {
                     ResultListKeys.LIVE_ANSWER -> s.uiState.liveAnswer?.let { OverlayLiveAnswer(s, it) }
                     ResultListKeys.INSTANT_ANSWER -> s.uiState.instantAnswer?.let { OverlayInstantAnswer(s, it) }
                     ResultListKeys.AI_ANSWER -> s.uiState.aiAnswer?.let { answer ->
-                        val aiModel by rememberSetting(SettingsManager.AI_MODEL)
                         AiAnswerCard(
                             answer,
-                            model = answer.provider.model(aiModel),
+                            model = rememberAiModel(answer.provider),
                             onOpenSettings = { page -> s.onOpenSettings(page) },
                             onRetry = { s.viewModel.askAi() }
                         ) { openNavTarget(context, s, stop.target) }

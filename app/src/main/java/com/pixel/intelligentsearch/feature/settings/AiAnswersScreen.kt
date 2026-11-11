@@ -39,7 +39,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import com.pixel.intelligentsearch.core.ai.AiProvider
+import com.pixel.intelligentsearch.core.ai.chosenModel
+import com.pixel.intelligentsearch.core.ai.fastFrom
+import com.pixel.intelligentsearch.core.ai.favoritesFirst
+import com.pixel.intelligentsearch.core.ai.reasoningFrom
+import com.pixel.intelligentsearch.core.ai.toggled
+import com.pixel.intelligentsearch.core.ai.withValue
 import com.pixel.intelligentsearch.core.ui.AiProviderLogo
 import com.pixel.intelligentsearch.core.ui.aiProviderPillColor
 import com.pixel.intelligentsearch.core.data.SettingsManager
@@ -62,10 +73,17 @@ fun AiAnswersScreen(onBack: () -> Unit) {
     val morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED)
     var enabled by rememberSetting(SettingsManager.AI_ANSWERS_ENABLED)
     var providerId by rememberSetting(SettingsManager.AI_PROVIDER)
-    var model by rememberSetting(SettingsManager.AI_MODEL)
+    // Kept per provider and per model, so moving between providers never resets one.
+    var picks by rememberSetting(SettingsManager.AI_MODELS)
+    val legacyModel by rememberSetting(SettingsManager.AI_MODEL)
+    var favorites by rememberSetting(SettingsManager.AI_FAVORITE_MODELS)
+    var reasoningChoices by rememberSetting(SettingsManager.AI_REASONING)
+    var fastModels by rememberSetting(SettingsManager.AI_FAST_MODELS)
     val engine by rememberSetting(SettingsManager.SEARCH_ENGINE)
     val web by rememberSetting(SettingsManager.SEARCH_WEB)
     val provider = AiProvider.fromId(providerId)
+    val spec = provider.spec(provider.chosenModel(picks, legacyModel))
+    val reasoning = spec.reasoningFrom(reasoningChoices)
     val block = NetworkPolicy.aiBlock(web, engine)
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -102,10 +120,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                             options = AiProvider.entries.toList(),
                             selected = provider,
                             onSelect = { chosen ->
-                                if (chosen != provider) {
-                                    providerId = chosen.id
-                                    model = ""
-                                }
+                                if (chosen != provider) providerId = chosen.id
                                 providerTaps[chosen] = (providerTaps[chosen] ?: 0) + 1
                             },
                             label = { it.displayName },
@@ -118,13 +133,50 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                         )
                         SettingsDropdownRow(
                             title = "Model",
-                            subtitle = provider.model(model),
+                            subtitle = spec.id,
                             icon = Symbols.Outlined.Memory,
-                            options = provider.models,
-                            selectedOption = provider.model(model),
-                            onOptionSelected = { model = if (it == provider.defaultModel) "" else it },
+                            options = provider.favoritesFirst(favorites),
+                            selectedOption = spec.id,
+                            onOptionSelected = { picks = picks.withValue(provider.id, it) },
+                            showDivider = true,
+                            optionTrailingIcon = { option ->
+                                FavoriteStar(option in favorites) { favorites = favorites.toggled(option) }
+                            }
+                        )
+                        SettingsDropdownRow(
+                            title = "Reasoning",
+                            subtitle = "${reasoning.label}: ${reasoning.hint}",
+                            icon = Symbols.Outlined.Psychology,
+                            options = spec.reasoning.map { it.label },
+                            selectedOption = reasoning.label,
+                            onOptionSelected = { label ->
+                                spec.reasoning.firstOrNull { it.label == label }?.let {
+                                    reasoningChoices = reasoningChoices.withValue(spec.id, it.id)
+                                }
+                            },
                             showDivider = true
                         )
+                        if (spec.fast) {
+                            val fast = spec.fastFrom(fastModels)
+                            SettingsSelectorRow(
+                                title = "Speed",
+                                subtitle = speedSubtitle(provider, fast),
+                                icon = Symbols.Outlined.Speed,
+                                options = listOf(false, true),
+                                selected = fast,
+                                onSelect = { fastModels = if (it) fastModels + spec.id else fastModels - spec.id },
+                                label = { if (it) "Fast" else "Standard" },
+                                showDivider = true
+                            )
+                        } else {
+                            SettingsInfoRow(
+                                title = "Speed",
+                                subtitle = "Standard. Fast Mode Is Only on " +
+                                    provider.specs.filter { it.fast }.joinToString(" and ") { it.id } + ".",
+                                icon = Symbols.Outlined.Speed,
+                                showDivider = true
+                            )
+                        }
                         ApiKeyRows(vault, provider)
                         // What is sent, and where: information only, so a row without a chevron.
                         SettingsInfoRow(
@@ -139,6 +191,33 @@ fun AiAnswersScreen(onBack: () -> Unit) {
         }
     }
 }
+
+/** A model's star in the Model menu: tap to add it to the favorites, which list first, or take it out. */
+@Composable
+private fun FavoriteStar(isFavorite: Boolean, onToggle: () -> Unit) {
+    IconButton(
+        onClick = onToggle,
+        modifier = Modifier.semantics {
+            role = Role.Switch
+            toggleableState = ToggleableState(isFavorite)
+        }
+    ) {
+        Icon(
+            imageVector = if (isFavorite) Symbols.Filled.Star else Symbols.Outlined.Star,
+            contentDescription = "Favorite",
+            tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+}
+
+/** What Standard or Fast gets the user with [provider]: speed against price, and what Fast needs. */
+private fun speedSubtitle(provider: AiProvider, fast: Boolean): String = when {
+    !fast -> "Answers at the Usual Speed and Price."
+    provider == AiProvider.ANTHROPIC -> "Answers Up to 2.5× Faster, at Twice the Price."
+    provider == AiProvider.OPENAI -> "Answers Faster, at Twice the Price."
+    else -> "Answers Faster, at Up to Twice the Price, with a Key on Gemini's Tier 2 or Above."
+} + if (fast) " When Fast Isn't Available, It Answers at Standard Speed." else ""
 
 /** The key: a masked entry field and Save while none is saved; the masked key and Remove Key once one is. */
 @Composable

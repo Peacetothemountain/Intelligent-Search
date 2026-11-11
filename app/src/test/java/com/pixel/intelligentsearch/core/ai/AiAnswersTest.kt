@@ -44,12 +44,14 @@ class AiAnswersTest {
     private val settings = SettingsManager(context)
     private val vault = AiKeyVault(context, SoftwareAiKeys())
 
-    /** Records every request; answers with [code] and streams [lines], or throws [failure]. */
+    /** Records every request; answers with [code] (or each of [codes] in turn first) and streams [lines], or throws [failure]. */
     private class FakeTransport(var code: Int = 200, var lines: List<String> = emptyList(), var failure: Exception? = null) : AiTransport {
         val requests = mutableListOf<AiRequest>()
+        val codes = ArrayDeque<Int>()
         override fun post(request: AiRequest, call: HttpsCall, onLine: (String) -> Unit): HttpsResponse {
             requests += request
             failure?.let { throw it }
+            val code = codes.removeFirstOrNull() ?: code
             if (code == 200) lines.forEach(onLine)
             return HttpsResponse(code, if (code == 400) """{"error":{"message":"API key not valid","status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}""" else "")
         }
@@ -136,6 +138,37 @@ class AiAnswersTest {
             transport.requests.single().url
         )
         assertEquals("gemini-key-0123456789", transport.requests.single().headers["x-goog-api-key"])
+    }
+
+    @Test
+    fun theProvidersOwnModelLevelAndSpeedAreUsedAndRefusedFastFallsBackOnce() {
+        settings.prefs.edit()
+            .put(SettingsManager.AI_MODEL, "gemini-3.5-flash-lite")
+            .put(SettingsManager.AI_MODELS, setOf("anthropic=claude-opus-5-5", "gemini=gemini-4-argon"))
+            .put(SettingsManager.AI_REASONING, setOf("claude-opus-5-5=high"))
+            .put(SettingsManager.AI_FAST_MODELS, setOf("claude-opus-5-5"))
+            .commit()
+        transport.lines = listOf(
+            """data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"8,849 m"}}""",
+            """data: {"type":"message_delta","delta":{"stop_reason":"end_turn"}}"""
+        )
+        // Fast mode has no room right now: the same question again at standard speed, once.
+        transport.codes += 429
+        val done = ask("how tall is everest?").last() as AiAnswerState.Answer
+        assertEquals("8,849 m", done.text)
+        val (fast, standard) = transport.requests.map { org.json.JSONObject(it.body) }
+        assertEquals("fast", fast.getString("speed"))
+        assertFalse(standard.has("speed"))
+        for (body in listOf(fast, standard)) {
+            assertEquals("claude-opus-5-5", body.getString("model"))
+            assertEquals("high", body.getJSONObject("output_config").getString("effort"))
+        }
+
+        // Refused at standard speed too: one retry only, and the card names the problem.
+        transport.requests.clear()
+        transport.codes += listOf(429, 429)
+        assertEquals(AiProblem.QUOTA, (ask("how tall is everest?").last() as AiAnswerState.Failed).problem)
+        assertEquals(2, transport.requests.size)
     }
 
     @Test

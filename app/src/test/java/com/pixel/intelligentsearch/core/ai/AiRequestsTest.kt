@@ -101,6 +101,41 @@ class AiRequestsTest {
     }
 
     @Test
+    fun theChosenReasoningAndSpeedReachEachProvider() {
+        fun body(provider: AiProvider, model: String, reasoning: AiReasoning, fast: Boolean) =
+            JSONObject(AiRequests.build(provider, model, key, question, reasoning, fast).body)
+
+        // Claude: a thinking level is adaptive thinking at that effort, with room for it; Off is each model's own way.
+        val sonnet = body(AiProvider.ANTHROPIC, "claude-sonnet-5-5", AiReasoning.HIGH, fast = true)
+        assertFalse(sonnet.has("thinking"))
+        assertEquals("high", sonnet.getJSONObject("output_config").getString("effort"))
+        assertEquals(4096, sonnet.getInt("max_tokens"))
+        assertFalse("Sonnet has no fast mode", sonnet.has("speed"))
+        val haiku = body(AiProvider.ANTHROPIC, "claude-haiku-5-5", AiReasoning.OFF, fast = false)
+        assertEquals("disabled", haiku.getJSONObject("thinking").getString("type"))
+        assertEquals("low", haiku.getJSONObject("output_config").getString("effort"))
+        val opus = body(AiProvider.ANTHROPIC, "claude-opus-5-5", AiReasoning.MAX, fast = true)
+        assertEquals("fast", opus.getString("speed"))
+        assertEquals("max", opus.getJSONObject("output_config").getString("effort"))
+        assertEquals(16_000, opus.getInt("max_tokens"))
+
+        val terra = body(AiProvider.OPENAI, "gpt-6.1-terra", AiReasoning.MEDIUM, fast = true)
+        assertEquals("medium", terra.getString("reasoning_effort"))
+        assertEquals(2048, terra.getInt("max_completion_tokens"))
+        assertEquals("fast", terra.getString("service_tier"))
+        assertFalse(body(AiProvider.OPENAI, "gpt-6.1-terra", AiReasoning.OFF, fast = false).has("service_tier"))
+
+        // Gemini's fast mode is its Priority tier, named at the top of the request, not in its config.
+        val argon = body(AiProvider.GEMINI, "gemini-4-argon", AiReasoning.HIGH, fast = true)
+        assertEquals("priority", argon.getString("service_tier"))
+        val config = argon.getJSONObject("generationConfig")
+        assertEquals("high", config.getJSONObject("thinkingConfig").getString("thinkingLevel"))
+        assertEquals(4096, config.getInt("maxOutputTokens"))
+        assertEquals("minimal", body(AiProvider.GEMINI, "gemini-3.5-flash-lite", AiReasoning.MINIMAL, fast = false)
+            .getJSONObject("generationConfig").getJSONObject("thinkingConfig").getString("thinkingLevel"))
+    }
+
+    @Test
     fun everyRequestIsHttpsAndTheKeyNeverPrints() {
         for (provider in AiProvider.entries) {
             val request = AiRequests.build(provider, provider.defaultModel, key, question)

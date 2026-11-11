@@ -105,12 +105,13 @@ class AiAnswers internal constructor(
             return@channelFlow
         }
         send(AiAnswerState.Asking(provider, question))
-        val request = AiRequests.build(provider, provider.model(settings[SettingsManager.AI_MODEL]), key, question)
+        val choice = AiChoices.choiceFor(settings, provider)
         val text = StringBuilder()
         var truncated = false
         var finished = false
         var problem: AiProblem? = null
-        val response = try {
+        suspend fun post(fast: Boolean): HttpsResponse? = try {
+            val request = AiRequests.build(provider, choice.model, key, question, choice.reasoning, fast)
             // Typing on cancels this flow; that cancels the call, which closes the connection mid-stream.
             withHttpsCall { call ->
                 transport.post(request, call) { line ->
@@ -140,6 +141,14 @@ class AiAnswers internal constructor(
         } catch (e: IOException) {
             if (text.isEmpty()) problem = AiProblem.OFFLINE
             null
+        }
+        var response = post(choice.fast)
+        // Fast mode refused before a word came (no room for it right now, or a key it isn't open to): ask once more
+        // at standard speed, so choosing Fast never costs the answer. A refused key or model isn't about speed.
+        if (choice.fast && response != null && response.code !in setOf(200, 401, 404) && text.isEmpty()) {
+            currentCoroutineContext().ensureActive()
+            problem = null
+            response = post(fast = false)
         }
         currentCoroutineContext().ensureActive()
         if (response != null && response.code != 200) problem = problemFor(response)

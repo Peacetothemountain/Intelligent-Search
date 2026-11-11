@@ -23,17 +23,16 @@ sealed interface AiEvent {
 
 /**
  * Builds each provider's streaming request for one question and reads its server-sent events. Pure, so what is sent
- * can be checked exactly: the question and nothing else of the user's, a short answer (at most [MAX_OUTPUT_TOKENS]),
- * no sampling settings, the key only in its header.
+ * can be checked exactly: the question and nothing else of the user's, a short answer (within [outputLimit]), the
+ * user's reasoning level and speed, no sampling settings, the key only in its header.
  */
 object AiRequests {
 
     const val MAX_OUTPUT_TOKENS = 400
 
     /**
-     * Some models can't turn thinking off (Opus, Fable, GPT-6 Astra and 6.1 Sol, Gemini), and the limit caps their
-     * thinking and their answer together, so they get more room; at low effort they think briefly and answer in well
-     * under this.
+     * The limit at the least thinking ([outputLimit]): the limit caps thinking and answer together, so a model that
+     * thinks gets more room; at low effort it thinks briefly and answers in well under this.
      */
     const val MAX_OUTPUT_TOKENS_WITH_THINKING = 1024
     const val ANTHROPIC_VERSION = "2026-10-21"
@@ -44,30 +43,61 @@ object AiRequests {
     const val INSTRUCTIONS = "You answer a question typed into a phone's search bar. Reply in under 150 words: " +
         "the answer first, then at most a few short paragraphs or '-' bullet points. Use **bold** sparingly. No tables."
 
-    fun build(provider: AiProvider, model: String, apiKey: String, question: String): AiRequest = when (provider) {
-        AiProvider.ANTHROPIC -> anthropic(model, apiKey, question)
-        AiProvider.OPENAI -> openAi(model, apiKey, question)
-        AiProvider.GEMINI -> gemini(model, apiKey, question)
+    /**
+     * The request for [question] to [model], reasoning at [reasoning] (the model's default unless given; a level it
+     * doesn't accept is never passed: [AiChoices] reads only accepted ones), in fast mode when [fast] and the model
+     * has one.
+     */
+    fun build(
+        provider: AiProvider,
+        model: String,
+        apiKey: String,
+        question: String,
+        reasoning: AiReasoning = provider.spec(model).defaultReasoning,
+        fast: Boolean = false
+    ): AiRequest {
+        val withFast = fast && provider.spec(model).fast
+        return when (provider) {
+            AiProvider.ANTHROPIC -> anthropic(model, apiKey, question, reasoning, withFast)
+            AiProvider.OPENAI -> openAi(model, apiKey, question, reasoning, withFast)
+            AiProvider.GEMINI -> gemini(model, apiKey, question, reasoning, withFast)
+        }
     }
 
-    private fun anthropic(model: String, apiKey: String, question: String): AiRequest {
-        // The least thinking each model allows, so the whole limit is for the answer: Sonnet 5.5 turns it off with
-        // "between_tools" ("disabled" is refused there), Haiku 5.5 with "disabled" (accepted at low effort), and Opus
-        // and Fable can't turn it off at all, so they think adaptively at low effort with more room.
+    /**
+     * The output limit at [reasoning]: thinking counts within it on every provider, so each level up gets more room,
+     * and the answer itself stays under 150 words ([INSTRUCTIONS]). Only what is used is billed.
+     */
+    fun outputLimit(reasoning: AiReasoning): Int = when (reasoning) {
+        AiReasoning.OFF -> MAX_OUTPUT_TOKENS
+        AiReasoning.MINIMAL, AiReasoning.LOW -> MAX_OUTPUT_TOKENS_WITH_THINKING
+        AiReasoning.MEDIUM -> 2_048
+        AiReasoning.HIGH -> 4_096
+        AiReasoning.XHIGH -> 8_192
+        AiReasoning.MAX -> 16_000
+    }
+
+    private fun anthropic(model: String, apiKey: String, question: String, reasoning: AiReasoning, fast: Boolean): AiRequest {
+        // Off is each model's own way of not thinking: Sonnet 5.5 says "between_tools" ("disabled" is refused there),
+        // Haiku 5.5 "disabled" (accepted at low effort). Every other level thinks adaptively at that effort; Opus and
+        // Fable can't turn thinking off, so they never offer Off.
+        val off = reasoning == AiReasoning.OFF
         val thinking = when {
+            !off -> null
             model.startsWith("claude-sonnet") -> JSONObject().put("type", "between_tools")
-            model.startsWith("claude-haiku") -> JSONObject().put("type", "disabled")
-            else -> null
+            else -> JSONObject().put("type", "disabled")
         }
         val body = JSONObject()
             .put("model", model)
-            .put("max_tokens", if (thinking == null) MAX_OUTPUT_TOKENS_WITH_THINKING else MAX_OUTPUT_TOKENS)
+            .put("max_tokens", outputLimit(reasoning))
             .put("stream", true)
             .put("system", INSTRUCTIONS)
             .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", question)))
-            // Low effort keeps any thinking short, so the answer comes quickly.
-            .put("output_config", JSONObject().put("effort", "low"))
+            // With thinking off, low effort keeps the answer quick; otherwise effort is how long it thinks.
+            .put("output_config", JSONObject().put("effort", if (off) AiReasoning.LOW.id else reasoning.id))
         if (thinking != null) body.put("thinking", thinking)
+        // Fast mode: up to 2.5 times the output speed at twice the price, on Opus 5.5 and Fable 5.2.
+        if (fast) body.put("speed", "fast")
         val headers = linkedMapOf(
             "x-api-key" to apiKey,
             "anthropic-version" to ANTHROPIC_VERSION,
@@ -82,21 +112,21 @@ object AiRequests {
         return AiRequest("https://api.anthropic.com/v1/messages", headers, body.toString())
     }
 
-    private fun openAi(model: String, apiKey: String, question: String): AiRequest {
-        // Reasoning tokens count against the limit. Terra and Luna answer without reasoning; Astra and 6.1 Sol can't
-        // turn it off ("none" is refused there), so they reason at their lowest level with more room.
-        val reasons = model == "gpt-6-astra" || model == "gpt-6.1-sol"
+    private fun openAi(model: String, apiKey: String, question: String, reasoning: AiReasoning, fast: Boolean): AiRequest {
+        // Reasoning tokens count against the limit. Off is "none", which only Terra and Luna accept.
         val body = JSONObject()
             .put("model", model)
             .put("stream", true)
-            .put("max_completion_tokens", if (reasons) MAX_OUTPUT_TOKENS_WITH_THINKING else MAX_OUTPUT_TOKENS)
-            .put("reasoning_effort", if (reasons) "low" else "none")
+            .put("max_completion_tokens", outputLimit(reasoning))
+            .put("reasoning_effort", if (reasoning == AiReasoning.OFF) "none" else reasoning.id)
             .put(
                 "messages",
                 JSONArray()
                     .put(JSONObject().put("role", "developer").put("content", INSTRUCTIONS))
                     .put(JSONObject().put("role", "user").put("content", question))
             )
+        // Fast mode, at twice the price; when it has no room OpenAI answers at standard speed and price instead.
+        if (fast) body.put("service_tier", "fast")
         val headers = linkedMapOf(
             "authorization" to "Bearer $apiKey",
             "content-type" to "application/json",
@@ -105,18 +135,20 @@ object AiRequests {
         return AiRequest("https://api.openai.com/v1/chat/completions", headers, body.toString())
     }
 
-    private fun gemini(model: String, apiKey: String, question: String): AiRequest {
+    private fun gemini(model: String, apiKey: String, question: String, reasoning: AiReasoning, fast: Boolean): AiRequest {
         val body = JSONObject()
             .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", INSTRUCTIONS))))
             .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", question)))))
             .put(
                 "generationConfig",
                 JSONObject()
-                    // Gemini can't turn thinking off and counts it within the limit, so it gets Opus's room.
-                    .put("maxOutputTokens", MAX_OUTPUT_TOKENS_WITH_THINKING)
-                    // The lowest level every model here offers; thinkingBudget is only kept for older models.
-                    .put("thinkingConfig", JSONObject().put("thinkingLevel", "low"))
+                    // Gemini can't turn thinking off and counts it within the limit.
+                    .put("maxOutputTokens", outputLimit(reasoning))
+                    // thinkingBudget is only kept for older models.
+                    .put("thinkingConfig", JSONObject().put("thinkingLevel", reasoning.id))
             )
+        // Google's fast mode is its Priority tier, for keys on Tier 2 and up; past its allowance it answers at standard.
+        if (fast) body.put("service_tier", "priority")
         // The key goes in its header, never in the address, where it could end up in logs.
         val headers = linkedMapOf(
             "x-goog-api-key" to apiKey,

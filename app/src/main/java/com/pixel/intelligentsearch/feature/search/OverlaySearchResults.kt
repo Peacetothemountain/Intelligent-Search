@@ -115,7 +115,6 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     val mockTrendingUnlocked by rememberSetting(SettingsManager.DEBUG_UNLOCKED)
     val mockTrendingSwitch by rememberSetting(SettingsManager.DEBUG_MOCK_TRENDING)
     val mockTrendingOn = mockTrendingUnlocked && mockTrendingSwitch
-    val aiModel by rememberSetting(SettingsManager.AI_MODEL)
     var showHistoryClearedSnackbar by s.ui::showHistoryClearedSnackbar
     val context = LocalContext.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -328,7 +327,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 HighlightedCard(s, ResultListKeys.AI_ANSWER) {
                     AiAnswerCard(
                         aiAnswer,
-                        model = aiAnswer.provider.model(aiModel),
+                        model = rememberAiModel(aiAnswer.provider),
                         onOpenSettings = { page -> onOpenSettings(page) },
                         onRetry = { viewModel.askAi() }
                     ) {

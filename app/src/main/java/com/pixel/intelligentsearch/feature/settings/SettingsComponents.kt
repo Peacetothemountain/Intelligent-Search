@@ -329,7 +329,9 @@ fun SettingsRow(
 
 /**
  * A setting picked from a menu. [optionLeadingIcon] draws an option's icon, shown beside the current choice under
- * the title and beside each option in the menu; it fills the size it is given.
+ * the title and beside each option in the menu; it fills the size it is given. [optionTrailingIcon] draws a control
+ * at the end of each option in the menu (a favorite's star), before the selected one's check. The menu keeps the
+ * order it opened with until it closes, so an option a control moves doesn't jump under the finger.
  */
 @Composable
 fun SettingsDropdownRow(
@@ -340,9 +342,12 @@ fun SettingsDropdownRow(
     selectedOption: String,
     onOptionSelected: (String) -> Unit,
     showDivider: Boolean,
-    optionLeadingIcon: (@Composable (String) -> Unit)? = null
+    optionLeadingIcon: (@Composable (String) -> Unit)? = null,
+    optionTrailingIcon: (@Composable (String) -> Unit)? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
+    // The order the menu opened with, kept until it has closed.
+    var menuOptions by remember { mutableStateOf(options) }
 
     Column {
         Row(
@@ -352,7 +357,10 @@ fun SettingsDropdownRow(
                     role = Role.DropdownList
                 }
                 // bouncyClickable already gives the click haptic.
-                .bouncyClickable { expanded = true }
+                .bouncyClickable {
+                    menuOptions = options
+                    expanded = true
+                }
                 .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -415,7 +423,7 @@ fun SettingsDropdownRow(
                         .clip(RoundedCornerShape(24.dp))
                         .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), RoundedCornerShape(24.dp))
                 ) {
-                    options.forEach { option ->
+                    menuOptions.forEach { option ->
                         val isSelected = option == selectedOption
                         DropdownMenuItem(
                             text = {
@@ -426,14 +434,22 @@ fun SettingsDropdownRow(
                                     color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                                 )
                             },
-                            trailingIcon = if (isSelected) {
+                            trailingIcon = if (isSelected || optionTrailingIcon != null) {
                                 {
-                                    Icon(
-                                        imageVector = Symbols.Filled.Check,
-                                        contentDescription = "Selected",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        optionTrailingIcon?.invoke(option)
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Symbols.Filled.Check,
+                                                contentDescription = "Selected",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        } else if (optionTrailingIcon != null) {
+                                            // Keeps the stars in one column whichever option is checked.
+                                            Spacer(modifier = Modifier.size(18.dp))
+                                        }
+                                    }
                                 }
                             } else null,
                             leadingIcon = optionLeadingIcon?.let { leading ->

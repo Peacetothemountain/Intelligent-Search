@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.ai.AiAnswerState
 import com.pixel.intelligentsearch.core.ai.AiProvider
+import com.pixel.intelligentsearch.core.ai.chosenModel
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.core.ui.AnimatedCopyChip
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
@@ -144,6 +145,14 @@ internal fun AskAiRow(provider: AiProvider, question: String, modifier: Modifier
         gestures = modifier,
         onClick = onAsk
     )
+}
+
+/** The model AI Answers asks for [provider] now (each provider keeps its own), for the answer card to name. */
+@Composable
+internal fun rememberAiModel(provider: AiProvider): String {
+    val picks by com.pixel.intelligentsearch.core.data.settings.rememberSetting(com.pixel.intelligentsearch.core.data.SettingsManager.AI_MODELS)
+    val legacy by com.pixel.intelligentsearch.core.data.settings.rememberSetting(com.pixel.intelligentsearch.core.data.SettingsManager.AI_MODEL)
+    return provider.chosenModel(picks, legacy)
 }
 
 /**

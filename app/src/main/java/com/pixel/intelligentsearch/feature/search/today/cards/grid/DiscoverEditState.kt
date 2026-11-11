@@ -27,6 +27,7 @@ import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.ui.icons.filled.Lock
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Delete
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Interests
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Tune
 import com.pixel.intelligentsearch.core.ui.icons.outlined.VisibilityOff
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import com.pixel.intelligentsearch.feature.search.today.cards.CardForm
@@ -61,7 +62,10 @@ internal enum class EditSheet {
     ADD,
 
     /** Every edit of the selected card as a plain button. */
-    ACTIONS
+    ACTIONS,
+
+    /** The Quick controls card's controls, to switch on or off: its own tiles take no touches while editing. */
+    CONTROLS
 }
 
 /** Edit mode's haptics. */
@@ -786,6 +790,7 @@ internal class DiscoverEditState(
             out += CardAction("Make shorter", EditIcons.Compress, true) { stretch(id, -1) }
         }
         if (hasOwnHeight(spec)) out += CardAction("Fit height to content", EditIcons.FitHeight, true) { fitHeight(id) }
+        if (spec.kind == CardKind.CONTROLS) out += CardAction("Choose controls", Icons.Outlined.Tune, true) { open(EditSheet.CONTROLS) }
         if (spec.kind.shaped) {
             out += if (spec.form == CardForm.SHAPE) {
                 CardAction("Make it a full card", EditIcons.CropSquare, true) { setForm(id, CardForm.CARD) }

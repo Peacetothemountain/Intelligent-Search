@@ -35,6 +35,9 @@ import com.pixel.intelligentsearch.core.ui.icons.outlined.Search
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Spellcheck
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Timer
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Tune
+import com.pixel.intelligentsearch.feature.search.today.AndroidTodaySources
+import com.pixel.intelligentsearch.feature.search.today.ChooseControlsSheet
+import com.pixel.intelligentsearch.feature.search.today.LocalTodaySources
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Widgets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -124,6 +127,13 @@ internal fun EditSheets(
     onAddSite: suspend (String) -> Result<Unit>
 ) {
     val which = state.sheet ?: return
+    if (which == EditSheet.CONTROLS) {
+        // The card's own list, which draws its own sheet.
+        val context = LocalContext.current
+        val sources = LocalTodaySources.current ?: remember(context) { AndroidTodaySources(context) }
+        ChooseControlsSheet(sources.controls) { if (state.sheet == EditSheet.CONTROLS) state.open(null) }
+        return
+    }
     key(which) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val scope = rememberCoroutineScope()
@@ -140,6 +150,7 @@ internal fun EditSheets(
                 when (which) {
                     EditSheet.ADD -> AddSheet(state, layout, widgetChoices, onAddWidget, onAddSite, close)
                     EditSheet.ACTIONS -> ActionsSheet(state, layout, close)
+                    EditSheet.CONTROLS -> Unit
                 }
             }
         }

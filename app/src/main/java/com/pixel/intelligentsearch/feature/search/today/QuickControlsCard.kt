@@ -78,7 +78,9 @@ import com.pixel.intelligentsearch.core.ui.icons.outlined.Wifi
 import com.pixel.intelligentsearch.core.ui.icons.outlined.WifiTethering
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.EditIcons
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.withContext
 
 /*
@@ -119,16 +121,29 @@ internal enum class QuickControl(val key: String, val label: String) {
 private const val PREFS = "discover_cards"
 private const val KEY = "controls"
 
-/** The controls chosen, in order: read once off the main thread (the four the card always had until then). */
+/**
+ * The controls chosen, in order, one list for the card and edit mode's Choose controls sheet, so a choice made in
+ * either shows in the other at once. Null until read.
+ */
+private val chosenControls = MutableStateFlow<List<QuickControl>?>(null)
+
+/** Counts choices made, so a read that finishes after one doesn't put back what was there before it. */
+private val choicesMade = AtomicInteger()
+
+/** The controls chosen: read off the main thread each time the card or sheet comes (a restored backup shows too). */
 @Composable
 private fun rememberChosenControls(context: Context): Pair<List<QuickControl>, (List<QuickControl>) -> Unit> {
-    var chosen by remember { mutableStateOf<List<QuickControl>?>(null) }
+    val chosen by chosenControls.collectAsState()
     LaunchedEffect(Unit) {
+        val before = choicesMade.get()
         val saved = withContext(Dispatchers.IO) { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null) }
-        if (chosen == null) chosen = saved?.split(',')?.mapNotNull(QuickControl::of)?.distinct() ?: QuickControl.DEFAULT
+        if (choicesMade.get() == before) {
+            chosenControls.value = saved?.split(',')?.mapNotNull(QuickControl::of)?.distinct() ?: QuickControl.DEFAULT
+        }
     }
     val set: (List<QuickControl>) -> Unit = { list ->
-        chosen = list
+        choicesMade.incrementAndGet()
+        chosenControls.value = list
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString(KEY, list.joinToString(",") { it.key }) }
     }
     return (chosen ?: QuickControl.DEFAULT) to set
@@ -144,8 +159,8 @@ private fun rememberResumes(): Int {
 }
 
 /** Whether [control] is there on this phone (the flashlight and NFC need the hardware). */
-private fun available(context: Context, control: QuickControl, torch: Boolean?): Boolean = when (control) {
-    QuickControl.FLASHLIGHT -> torch != null
+private fun available(context: Context, control: QuickControl, hasFlash: Boolean): Boolean = when (control) {
+    QuickControl.FLASHLIGHT -> hasFlash
     QuickControl.NFC -> NfcAdapter.getDefaultAdapter(context) != null
     else -> true
 }
@@ -207,7 +222,7 @@ private fun icon(control: QuickControl): ImageVector = when (control) {
 @Composable
 internal fun QuickControls(controls: TodayControls) {
     val context = LocalContext.current
-    val (chosen, setChosen) = rememberChosenControls(context)
+    val (chosen, _) = rememberChosenControls(context)
     var picking by remember { mutableStateOf(false) }
     val dnd by remember(controls) { controls.doNotDisturb() }.collectAsState(initial = false)
     val flashlight = remember(controls) { controls.flashlight() }
@@ -215,7 +230,7 @@ internal fun QuickControls(controls: TodayControls) {
     val saver by remember(controls) { controls.batterySaver() }.collectAsState(initial = false)
     val resumes = rememberResumes()
     var flips by remember { mutableIntStateOf(0) }
-    val shown = chosen.filter { available(context, it, torch) }
+    val shown = chosen.filter { available(context, it, flashlight != null) }
     // Read off the main thread (each is a call to Android), and again when the page comes back or its window is looked
     // at again: the notification shade covers the page without pausing it.
     val focused = LocalWindowInfo.current.isWindowFocused
@@ -269,14 +284,24 @@ internal fun QuickControls(controls: TodayControls) {
             }
         }
     }
-    if (picking) {
-        ControlsSheet(
-            chosen = chosen,
-            available = QuickControl.entries.filter { available(context, it, torch) },
-            onChange = setChosen,
-            onDismiss = { picking = false }
-        )
-    }
+    if (picking) ChooseControlsSheet(controls) { picking = false }
+}
+
+/**
+ * The list of controls to switch on or off for the card: opened by the card's Edit tile, and by Choose controls on the
+ * card's toolbar in edit mode, where the card's own tiles take no touches.
+ */
+@Composable
+internal fun ChooseControlsSheet(controls: TodayControls, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val (chosen, setChosen) = rememberChosenControls(context)
+    val hasFlash = remember(controls) { controls.flashlight() != null }
+    ControlsSheet(
+        chosen = chosen,
+        available = QuickControl.entries.filter { available(context, it, hasFlash) },
+        onChange = setChosen,
+        onDismiss = onDismiss
+    )
 }
 
 /** The last tile: a dashed square with a plus, which opens the list of controls. */

@@ -87,9 +87,11 @@ import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.ui.icons.filled.Lock
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Delete
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Interests
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Tune
 import com.pixel.intelligentsearch.core.ui.icons.outlined.VisibilityOff
 import com.pixel.intelligentsearch.feature.search.today.cards.CARD_SHAPES
 import com.pixel.intelligentsearch.feature.search.today.cards.CardForm
+import com.pixel.intelligentsearch.feature.search.today.cards.CardKind
 import com.pixel.intelligentsearch.feature.search.today.cards.CardSpec
 import com.pixel.intelligentsearch.feature.search.today.cards.DiscoverLayout
 import com.pixel.intelligentsearch.feature.search.today.cards.WidgetChoice
@@ -277,8 +279,8 @@ private fun toolsTarget(state: DiscoverEditState, id: String): Rect? {
 }
 
 /**
- * The selected card's toolbar: Shape (kinds that have one), Fit height (a card given a height of its own), Private, and
- * Hide (the page's parts) or Remove (the user's own).
+ * The selected card's toolbar: Shape (kinds that have one), Fit height (a card given a height of its own), Choose
+ * controls (Quick controls), Private, and Hide (the page's parts) or Remove (the user's own).
  */
 @Composable
 private fun Toolbar(state: DiscoverEditState, spec: CardSpec) {
@@ -288,6 +290,8 @@ private fun Toolbar(state: DiscoverEditState, spec: CardSpec) {
             if (spec.kind.shaped) ToolButton(Icons.Outlined.Interests, "Shapes", on = state.strip == spec.id) { state.toggleStrip(spec.id) }
             // Only for a card given a height of its own: back to as tall as its content.
             if (state.hasOwnHeight(spec)) ToolButton(EditIcons.FitHeight, "Fit height to content") { state.fitHeight(spec.id) }
+            // The card's own Edit tile takes no touches while editing, so its list opens from here.
+            if (spec.kind == CardKind.CONTROLS) ToolButton(Icons.Outlined.Tune, "Choose controls") { state.open(EditSheet.CONTROLS) }
             ToolButton(Icons.Filled.Lock, "Private", on = spec.private) { state.togglePrivate(spec.id) }
             if (spec.kind.builtIn) {
                 ToolButton(Icons.Outlined.VisibilityOff, "Hide") { state.removeCard(spec.id) }

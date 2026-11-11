@@ -5,7 +5,10 @@
   108 x 108 dp canvas. The mark is drawn in the search icons' 24-unit box (SearchIconPaths), scaled to 56% of the
   72 dp visible plate (40.3 dp, inside the 66 dp safe zone) and nudged right and up so the lens and sparkle together
   sit centered. The lens is one true circle (center 10.5,10.5, radius 6.5) open from 300 to 45 degrees, with the
-  handle starting exactly on it; the sparkle runs from light blue at its far tip to deep blue beside the lens.
+  handle starting exactly on it.
+  Lit as Google's 2026 Phone and Messages icons are, a step softer: a lavender light falls from the top across the lens
+  and the sparkle and fades into blue, and the handle, turned away from it, is the deepest blue. The plate's halftone
+  carries the same light.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
@@ -19,27 +22,52 @@
         android:scaleX="1.68"
         android:scaleY="1.68">
         <path
-            android:strokeColor="#FF2F3237"
             android:strokeWidth="2.5"
             android:strokeLineCap="round"
-            android:pathData="M15.0962,15.0962 A6.5,6.5 0 1,1 13.75,4.8708" />
+            android:pathData="M15.0962,15.0962 A6.5,6.5 0 1,1 13.75,4.8708">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="12"
+                    android:startY="3.2"
+                    android:endX="9"
+                    android:endY="17.5">
+                    <item android:offset="0" android:color="#FFAFA3F2" />
+                    <item android:offset="0.2" android:color="#FF8E93EE" />
+                    <item android:offset="0.45" android:color="#FF3C74E6" />
+                    <item android:offset="0.75" android:color="#FF2B62DA" />
+                    <item android:offset="1" android:color="#FF2452C8" />
+                </gradient>
+            </aapt:attr>
+        </path>
         <path
-            android:strokeColor="#FF2F3237"
             android:strokeWidth="3"
             android:strokeLineCap="round"
-            android:pathData="M15.0962,15.0962 L20,20" />
+            android:pathData="M15.0962,15.0962 L20,20">
+            <aapt:attr name="android:strokeColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="15"
+                    android:startY="15"
+                    android:endX="20"
+                    android:endY="20">
+                    <item android:offset="0" android:color="#FF2556CC" />
+                    <item android:offset="1" android:color="#FF1D45AE" />
+                </gradient>
+            </aapt:attr>
+        </path>
         <path android:pathData="M18,0.5 C18,4 21,6.5 24,6.5 C21,6.5 18,9 18,12.5 C18,9 15,6.5 12,6.5 C15,6.5 18,4 18,0.5 Z">
             <aapt:attr name="android:fillColor">
                 <gradient
                     android:type="linear"
-                    android:startX="23"
-                    android:startY="1.5"
-                    android:endX="13.5"
-                    android:endY="10.5">
-                    <item android:offset="0" android:color="#FF8FB2FF" />
-                    <item android:offset="0.4" android:color="#FF5283F5" />
-                    <item android:offset="0.75" android:color="#FF2A5BD8" />
-                    <item android:offset="1" android:color="#FF163C9C" />
+                    android:startX="19"
+                    android:startY="0.5"
+                    android:endX="16.5"
+                    android:endY="12.5">
+                    <item android:offset="0" android:color="#FFB9ABF5" />
+                    <item android:offset="0.26" android:color="#FF9196F2" />
+                    <item android:offset="0.6" android:color="#FF3F78EC" />
+                    <item android:offset="1" android:color="#FF2A66E2" />
                 </gradient>
             </aapt:attr>
         </path>

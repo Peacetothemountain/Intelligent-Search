@@ -118,7 +118,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     var enableSearchOverlay by rememberSetting(SettingsManager.SEARCH_OVERLAY_ENABLED) {
                         updateWidgets(context)
                         if (!prefs[SettingsManager.SEARCH_OVERLAY_ENABLED]) {
-                            context.sendBroadcast(Intent("com.pixel.intelligentsearch.DISMISS_OVERLAY").setPackage(context.packageName))
+                            com.pixel.intelligentsearch.core.system.OverlayDismissal.request()
                         }
                     }
                     SettingsRowToggle(

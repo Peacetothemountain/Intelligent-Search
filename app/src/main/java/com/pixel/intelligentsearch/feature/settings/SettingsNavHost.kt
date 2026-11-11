@@ -230,7 +230,7 @@ fun SettingsScreensHub(
                     }
                 } else {
                     (act as? com.pixel.intelligentsearch.feature.settings.SettingsActivity)?.isExitingToHome = true
-                    context.sendBroadcast(Intent("com.pixel.intelligentsearch.DISMISS_OVERLAY").setPackage(context.packageName))
+                    com.pixel.intelligentsearch.core.system.OverlayDismissal.request()
                     val homeIntent = Intent(Intent.ACTION_MAIN).apply {
                         addCategory(Intent.CATEGORY_HOME)
                         flags = Intent.FLAG_ACTIVITY_NEW_TASK

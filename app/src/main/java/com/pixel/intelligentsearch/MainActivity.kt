@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.ui.Modifier
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
@@ -63,12 +65,6 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
 
     override fun waitWhileGranting(waiting: Boolean) {
         awayGrantingAccess = waiting
-    }
-
-    private val dismissOverlayReceiver = object : android.content.BroadcastReceiver() {
-        override fun onReceive(context: android.content.Context?, intent: Intent?) {
-            finish()
-        }
     }
 
     /**
@@ -164,9 +160,6 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
 
     override fun onDestroy() {
         waitWatch.removeCallbacks(leftWhileWaiting)
-        try {
-            unregisterReceiver(dismissOverlayReceiver)
-        } catch (_: Exception) {}
         super.onDestroy()
     }
 
@@ -340,15 +333,11 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(this)
         applySoftInputMode(keyboardVisible = keyboardVisibleOnOpen(prefs))
         super.onCreate(savedInstanceState)
-        // Registered for the overlay's whole life, so Settings opened over it can still close it while it's stopped.
-        // Only this app sends DISMISS_OVERLAY (always with setPackage), so it is never exported. On API 31-32, where
-        // the flag does not exist, ContextCompat enforces the same isolation with a signature-protected permission.
-        androidx.core.content.ContextCompat.registerReceiver(
-            this,
-            dismissOverlayReceiver,
-            android.content.IntentFilter("com.pixel.intelligentsearch.DISMISS_OVERLAY"),
-            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
-        )
+        // Listened for the overlay's whole life, so Settings opened over it can still close it while it's stopped:
+        // a call within the app ([OverlayDismissal]), not a broadcast to itself.
+        lifecycleScope.launch {
+            com.pixel.intelligentsearch.core.system.OverlayDismissal.asked.collect { finish() }
+        }
         // What was typed stays on screen until the overlay stops, so Recents must not keep a picture of it.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             setRecentsScreenshotEnabled(false)

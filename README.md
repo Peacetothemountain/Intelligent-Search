@@ -1,137 +1,189 @@
 <div align="center">
 
-<img src="docs/images/banner.png" width="640" alt="Intelligent Search" />
+<img src="docs/images/banner.png" width="720" alt="Intelligent Search" />
 
-**A Pixel-inspired search overlay, assistant and home screen widget for Android**
+### Pixel-style search for every Android phone: one bar for your apps, contacts, files and the web, a Discover page for your day, and a widget made your way.
 
-[![CI](https://img.shields.io/github/actions/workflow/status/Peacetothemountain/Intelligent-Search/ci.yml?branch=main&style=for-the-badge&logo=githubactions&logoColor=white&label=CI)](https://github.com/Peacetothemountain/Intelligent-Search/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/Peacetothemountain/Intelligent-Search?style=for-the-badge&logo=android&logoColor=white&color=3DDC84&label=Release)](https://github.com/Peacetothemountain/Intelligent-Search/releases/latest)
-[![Android](https://img.shields.io/badge/Android-12%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/about/versions)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge&logo=apache)](LICENSE)
+[![Get it on Google Play](https://img.shields.io/badge/Google%20Play-Get%20it%20now-414141?style=for-the-badge&logo=googleplay&logoColor=white)](https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch)
+[![Latest release](https://img.shields.io/github/v/release/Peacetothemountain/Intelligent-Search?style=for-the-badge&logo=android&logoColor=white&color=3DDC84&label=Release)](https://github.com/Peacetothemountain/Intelligent-Search/releases/latest)
 
-<a href="https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch"><img src="https://img.shields.io/badge/Get%20it%20on-Google%20Play-414141?style=for-the-badge&logo=googleplay&logoColor=white" alt="Get it on Google Play" /></a>
+[![CI](https://img.shields.io/github/actions/workflow/status/Peacetothemountain/Intelligent-Search/ci.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=CI)](https://github.com/Peacetothemountain/Intelligent-Search/actions/workflows/ci.yml)
+[![Android 12+](https://img.shields.io/badge/Android-12%2B-3DDC84?style=flat-square&logo=android&logoColor=white)](https://developer.android.com/about/versions)
+[![Kotlin](https://img.shields.io/badge/Kotlin-2.4-7F52FF?style=flat-square&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-Material%203-4285F4?style=flat-square&logo=jetpackcompose&logoColor=white)](https://developer.android.com/compose)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
+
+<br/>
+
+<img src="docs/images/showcase.png" width="900" alt="Discover, an instant calculator answer and Quick controls" />
+
+<sub><b>Discover</b> · <b>Instant answers</b> · <b>Quick controls</b></sub>
 
 </div>
 
 ---
 
-## 🌟 Overview
+## Why Intelligent Search
 
-**Intelligent Search** brings Pixel-style search to any Android 12+ phone or tablet. One search bar finds your apps,
-shortcuts, contacts, calendar, files and the web, answers calculations and conversions instantly, and turns plain
-sentences like *"timer 10 minutes"* into actions. It can replace the default digital assistant, lives on your home
-screen as a fully customizable widget, and does all of its matching on the device.
+<table>
+  <tr>
+    <td width="25%" align="center" valign="top"><h3>⚡</h3><b>Instant</b><br/><sub>Answers, conversions and actions appear as you type, matched on your phone.</sub></td>
+    <td width="25%" align="center" valign="top"><h3>☀️</h3><b>Your day at a glance</b><br/><sub>Discover lays out your plans, weather, controls and favorite widgets.</sub></td>
+    <td width="25%" align="center" valign="top"><h3>🎨</h3><b>Made yours</b><br/><sub>Material You colors, shapes, widgets and icons, down to the last pixel.</sub></td>
+    <td width="25%" align="center" valign="top"><h3>🛡️</h3><b>Private by design</b><br/><sub>Matching never leaves the device; backups are encrypted with your passkey.</sub></td>
+  </tr>
+</table>
 
-Built with Jetpack Compose, Material 3 Expressive, Material You dynamic color and AGSL GPU shaders.
+---
+
+## ✨ What's new in 9.6
+
+- **A new icon**, lit the way Google's newest app icons are.
+- **Discover, rebuilt.** Place cards anywhere at any size, pinch them into Material shapes, keep some private, and add
+  live widgets from your other apps or any website.
+- **Quick controls** in the same oval shape as Android's Quick Settings, as many as you like: hold one to drag it
+  into place.
+- **Voice Nebula**, a voice search shortcut for the home screen widget.
+- **Smoother search.** A connected keyboard or a rotation keeps what you typed, the pull-down can be undone, and
+  spellings like "metres" and "mins" convert.
 
 ---
 
 ## 📸 Screenshots
 
 <div align="center">
+
+**Search**
+
 <table>
   <tr>
-    <td align="center" valign="top"><img src="docs/images/01_search_overlay.png" width="180" alt="Search overlay" /><br/><sub><b>Search overlay</b></sub></td>
-    <td align="center" valign="top"><img src="docs/images/02_calculator.png" width="180" alt="Calculator answer" /><br/><sub><b>Instant calculator</b></sub></td>
-    <td align="center" valign="top"><img src="docs/images/03_unit_conversion.png" width="180" alt="Unit conversion" /><br/><sub><b>Unit conversion</b></sub></td>
-    <td align="center" valign="top"><img src="docs/images/04_quick_actions.png" width="180" alt="Timer quick action" /><br/><sub><b>Quick actions</b></sub></td>
-  </tr>
-  <tr>
-    <td align="center" valign="top"><img src="docs/images/05_app_search.png" width="180" alt="App search best match" /><br/><sub><b>Best match</b></sub></td>
-    <td align="center" valign="top"><img src="docs/images/06_voice_search.png" width="180" alt="Voice search" /><br/><sub><b>Voice search</b></sub></td>
-    <td align="center" valign="top"><img src="docs/images/07_settings.png" width="180" alt="Settings" /><br/><sub><b>Settings</b></sub></td>
-    <td align="center" valign="top"><img src="docs/images/08_appearance.png" width="180" alt="Appearance settings" /><br/><sub><b>Appearance</b></sub></td>
-  </tr>
-  <tr>
-    <td align="center" valign="top"><img src="docs/images/09_search_behavior.png" width="180" alt="Search behavior settings" /><br/><sub><b>Search behavior</b></sub></td>
-    <td align="center" valign="top"><img src="docs/images/10_widget_customization.png" width="180" alt="Widget customization" /><br/><sub><b>Widget customization</b></sub></td>
-    <td align="center" valign="top"><img src="docs/images/11_search_sources.png" width="180" alt="Search sources" /><br/><sub><b>Search sources</b></sub></td>
-    <td></td>
+    <td align="center" valign="top"><img src="docs/images/01_best_match.png" width="190" alt="An app as the best match" /><br/><sub><b>Best match</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/02_calculator.png" width="190" alt="Calculator answer" /><br/><sub><b>Instant calculator</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/03_unit_conversion.png" width="190" alt="Unit conversion" /><br/><sub><b>Unit conversion</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/04_quick_actions.png" width="190" alt="A timer from a plain sentence" /><br/><sub><b>Quick actions</b></sub></td>
   </tr>
 </table>
+
+**Discover**
+
+<table>
+  <tr>
+    <td align="center" valign="top"><img src="docs/images/05_discover.png" width="190" alt="The Discover page" /><br/><sub><b>Your day</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/06_discover_edit.png" width="190" alt="Editing Discover, with Material shapes" /><br/><sub><b>Shapes and layout</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/07_quick_controls.png" width="190" alt="Choosing Quick controls" /><br/><sub><b>Quick controls</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/08_voice_search.png" width="190" alt="Voice search listening" /><br/><sub><b>Voice search</b></sub></td>
+  </tr>
+</table>
+
+**Make it yours**
+
+<table>
+  <tr>
+    <td align="center" valign="top"><img src="docs/images/09_settings.png" width="190" alt="Settings" /><br/><sub><b>Settings</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/10_appearance.png" width="190" alt="Appearance settings" /><br/><sub><b>Appearance</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/11_widget_customization.png" width="190" alt="Widget customization" /><br/><sub><b>Widget studio</b></sub></td>
+  </tr>
+</table>
+
 </div>
 
 ---
 
-## ✨ Features
+## 🧭 Features
 
 <table>
   <tr>
     <td width="50%" valign="top">
       <h3>🔍 Search everything</h3>
       <ul>
-        <li>Apps across your personal, work and private space profiles, plus Android's settings pages and Intelligent Search's own.</li>
-        <li>Contacts, calendar events and files you choose through the system picker.</li>
-        <li>Live web suggestions and your previous searches, each of which can be turned off.</li>
-        <li>Quick web shortcuts such as <code>!yt</code>, <code>!w</code> or <code>!gh</code>, plus your own custom search engines.</li>
+        <li>Apps across your personal, work and private space profiles, plus Android's settings pages.</li>
+        <li>Contacts, calendar events, notifications and files you pick through the system picker.</li>
+        <li>Live web suggestions with pictures, and your recent searches, each of which can be turned off.</li>
+        <li>Web shortcuts like <code>!yt</code>, <code>!w</code> or <code>!gh</code>, plus your own search engines.</li>
       </ul>
     </td>
     <td width="50%" valign="top">
       <h3>⚡ Instant answers and actions</h3>
       <ul>
-        <li>A full calculator: functions, percentages ("15% of 80", "20% off 59.99"), bitwise math and number bases, in your locale's number format.</li>
-        <li>Unit conversion and the time in other places.</li>
-        <li>Plain sentences become actions: timers, alarms, reminders, calendar events, messages, calls and directions.</li>
-        <li>Toggle Wi-Fi, Bluetooth, the flashlight or airplane mode, and set the volume, right from the results.</li>
+        <li>A full calculator: functions, percentages ("20% off 59.99"), bitwise math and number bases, in your locale's format.</li>
+        <li>Units, currencies, dates, time zones, definitions and the weather.</li>
+        <li>Plain sentences become actions: timers, alarms, reminders, events, messages, calls and directions.</li>
+        <li>Optional AI Answers with your own provider key: nothing is sent until you tap Ask.</li>
       </ul>
     </td>
   </tr>
   <tr>
+    <td width="50%" valign="top">
+      <h3>☀️ Discover</h3>
+      <ul>
+        <li>Your next event with when to leave, the rest of your day, the weather ahead and what's playing.</li>
+        <li>Quick controls, battery and screen time, a word of the day, holiday countdowns and tomorrow.</li>
+        <li>Cards anywhere and any size, in Material shapes, with live widgets from your apps and website cards.</li>
+        <li>Private cards stay covered until you tap them.</li>
+      </ul>
+    </td>
     <td width="50%" valign="top">
       <h3>🧠 Smart matching</h3>
       <ul>
-        <li>Typo-tolerant, sound-alike and acronym matching, so "spotfy" finds Spotify and "gps" finds Google Play Store.</li>
-        <li>Spelling suggestions, and a best match ranked by how often and how recently you use things.</li>
-        <li>Optional context-aware quick apps and clipboard suggestions.</li>
+        <li>Typo-tolerant, sound-alike and acronym matching: "spotfy" finds Spotify, "gps" finds Google Play Store.</li>
+        <li>A best match ranked by how often and how recently you use things.</li>
+        <li>Spelling suggestions, context-aware quick apps and clipboard suggestions.</li>
       </ul>
     </td>
+  </tr>
+  <tr>
     <td width="50%" valign="top">
       <h3>🎙️ Assistant and voice</h3>
       <ul>
-        <li>Can be set as the default digital assistant, so the assistant gesture opens search.</li>
-        <li>Built-in voice search with a live listening animation.</li>
-        <li>Google Lens and assistant shortcuts one tap away.</li>
+        <li>Set it as your digital assistant, so the assistant gesture opens search.</li>
+        <li>Voice search with a live listening animation, and the Voice Nebula widget shortcut.</li>
+        <li>Google Lens one tap away.</li>
       </ul>
     </td>
-  </tr>
-  <tr>
     <td width="50%" valign="top">
       <h3>🏠 Widgets and launch points</h3>
       <ul>
-        <li>Resizable System Design and Material Design search bar widgets.</li>
-        <li>Color Studio, custom action buttons and G icon styles, with a live preview.</li>
-        <li>Animated mini doodles around the G on 34 holidays and special days, drawn on your phone; tap one to search for the day.</li>
-        <li>A Quick Settings tile and launcher app shortcuts; the widget keeps working before first unlock.</li>
-      </ul>
-    </td>
-    <td width="50%" valign="top">
-      <h3>🎨 Make it yours</h3>
-      <ul>
-        <li>Material You colors, light and dark themes, and your wallpaper behind the overlay.</li>
-        <li>Background blur, transparency and pill opacity controls.</li>
-        <li>Icon packs and custom icons, animated backgrounds and haptic feedback.</li>
+        <li>Resizable System and Material search bar widgets, and a countdown widget.</li>
+        <li>Color Studio, custom shortcuts and G icon styles, with a live preview and saved profiles.</li>
+        <li>Animated mini doodles around the G on 71 holidays and special days.</li>
+        <li>A Quick Settings tile, app shortcuts, a notification shortcut and a floating button.</li>
       </ul>
     </td>
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <h3>🛡️ Privacy first</h3>
+      <h3>🎨 Make it yours</h3>
       <ul>
-        <li>All matching and ranking happens on the device.</li>
-        <li>Contacts, calendar and files are off until you allow them.</li>
-        <li>Hidden apps can be locked behind your fingerprint or face.</li>
-        <li>Nothing goes to Google's cloud backup; your own backups are encrypted with a passkey or a passphrase.</li>
+        <li>Material You colors, light and dark themes, and your wallpaper behind search.</li>
+        <li>Blur, transparency and opacity controls, Material shapes and expressive motion.</li>
+        <li>Icon packs, custom icons and haptic feedback.</li>
       </ul>
     </td>
     <td width="50%" valign="top">
-      <h3>🤖 Works with AI agents</h3>
+      <h3>🛡️ Privacy first</h3>
       <ul>
-        <li>On Android 16 and later, on-device assistants can use App Functions to search your apps and run calculations.</li>
-        <li>Hidden apps are never returned, and contact search for assistants is off until you turn it on.</li>
+        <li>All matching and ranking happen on the device.</li>
+        <li>Contacts, calendar, notifications and files stay off until you allow them.</li>
+        <li>Choose Tor Browser as your engine, and nothing goes out except through it.</li>
+        <li>Hidden apps lock behind your fingerprint or face; backups are encrypted with a passkey or passphrase.</li>
       </ul>
     </td>
   </tr>
 </table>
+
+On Android 16 and later, on-device assistants can use App Functions to search your apps and run calculations; hidden
+apps are never shared, and contact search for assistants stays off until you turn it on.
+
+Read exactly what is sent where in the [privacy policy](PRIVACY_POLICY.md).
+
+---
+
+## 📲 Install
+
+- **Google Play:** [Intelligent Search](https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch)
+- **APK:** the latest signed build is on the [Releases page](https://github.com/Peacetothemountain/Intelligent-Search/releases/latest).
+
+Requires Android 12 or later. Built for Pixel phones and tablets, and works on any Android phone.
 
 ---
 
@@ -140,52 +192,50 @@ Built with Jetpack Compose, Material 3 Expressive, Material You dynamic color an
 ```
 app/src/main/java/com/pixel/intelligentsearch
 ├── feature
-│   ├── search        Search overlay: SearchActivity, SearchViewModel, results, voice, quick apps
-│   ├── settings      Settings screens, widget editor, backup and restore, setup checklist, tutorial
-│   ├── widget        Search bar widgets, Quick Settings tile, widget updates
-│   ├── voice         Assistant (VoiceInteractionService), speech recognition, dictation
-│   └── appfunctions  App Functions offered to on-device agents
+│   ├── search        The search overlay: results, answers, voice, quick apps
+│   │   └── today     Discover: the freeform card page, its shapes, app widget and website cards
+│   ├── settings      Settings, the widget studio, backup and restore, setup checklist
+│   ├── widget        Search bar and countdown widgets, the Quick Settings tile, Voice Nebula
+│   ├── voice         Assistant service, speech recognition, dictation
+│   ├── launch        Notification shortcut and floating button
+│   └── appfunctions  App Functions for on-device assistants
 ├── core
 │   ├── search        Radix tree index, fuzzy and phonetic matching, ranking, calculator, intent parser
+│   ├── answers       Definitions, weather and other instant answers
+│   ├── ai            AI Answers: providers, requests and streaming
 │   ├── data          Settings store, device sources, Room history database, web suggestions
-│   ├── backup        Encrypted backup, auto backup and restore
-│   ├── security      Biometric gate, safe web launches, custom search URL checks
-│   ├── system        Assistant role, system toggles, Direct Boot
-│   └── theme, ui     Material You theming, shaders, shared components
+│   ├── backup        Encrypted backups, automatic backup and restore
+│   ├── security      Network policy, biometric gate, safe web launches
+│   ├── net           The one HTTPS client
+│   ├── system        Assistant and search roles, system toggles, Direct Boot
+│   └── theme, ui     Material You theming, AGSL shaders, shared components
 └── di                Hilt modules
 ```
 
+Built with Kotlin, Jetpack Compose, Material 3 Expressive, Material You dynamic color, AGSL shaders, Hilt and Room.
+
 ---
 
-## 🛠️ Building from source
+## 🛠️ Build from source
 
-**Requirements:** a current Android Studio that supports Android Gradle Plugin 9.4, JDK 17, compile and target SDK 37
-(Android 17), minimum SDK 31 (Android 12).
+**You need:** Android Studio with Android Gradle Plugin 9.4, JDK 17, and the Android 17 SDK (compile and target SDK
+37; minimum SDK 31).
 
 ```bash
 git clone https://github.com/Peacetothemountain/Intelligent-Search.git
 cd Intelligent-Search
 
-# Debug build
-./gradlew assembleDebug
-
-# Release build
-./gradlew assembleRelease
+./gradlew assembleDebug        # debug build
+./gradlew assembleRelease      # release build
+./gradlew lintDebug testDebugUnitTest   # lint, unit, characterization and screenshot tests
 ```
 
 A release build is signed when `release.keystore` is in the project root and `RELEASE_STORE_PASSWORD`,
-`RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD` are set in `local.properties` or the environment. The APK is written to
-`app/build/outputs/apk/release/app-release.apk`. Without them Gradle produces `app-release-unsigned.apk`; release
-builds are never signed with the debug key.
+`RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD` are set in `local.properties` or the environment; otherwise Gradle
+writes `app-release-unsigned.apk`. Release builds are never signed with the debug key.
 
-### Tests
-
-```bash
-./gradlew lintDebug testDebugUnitTest
-```
-
-This runs lint and the unit, characterization and screenshot tests (Robolectric and Roborazzi); no device is needed.
-Screenshot references live in `app/src/test/screenshots`; after an intended visual change, re-record them with
+The tests run on Robolectric and Roborazzi, so no device is needed. Screenshot references live in
+`app/src/test/screenshots`; after an intended visual change, record them again with
 `./gradlew testDebugUnitTest -Proborazzi.record=true`.
 
 ---
@@ -194,33 +244,43 @@ Screenshot references live in `app/src/test/screenshots`; after an intended visu
 
 GitHub Actions runs on GitHub-hosted runners, with every action pinned to a commit SHA.
 
-- **`ci.yml`** runs lint, every test (including the screenshot comparisons) and a release build on each push and pull
-  request to `main` and `dev`. `main` is protected: a commit can only reach it once this check has passed.
-- **`release.yml`** builds a signed APK for each `v*` tag and publishes it as a GitHub release.
-
-Download the latest APK from the [Releases page](https://github.com/Peacetothemountain/Intelligent-Search/releases/latest),
-or install from [Google Play](https://play.google.com/store/apps/details?id=com.pixel.intelligentsearch).
+- **`ci.yml`** runs lint, every test (screenshot comparisons included) and a release build on each push and pull
+  request to `main` and `dev`. `main` is protected: a commit reaches it only after this check passes.
+- **`release.yml`** builds and signs the APK for a `v<version>-<code>` tag on `main`, and publishes it with its R8
+  mapping as a GitHub release.
 
 ---
 
 ## ⚖️ License
 
-Intelligent Search is open source software licensed under the **Apache License, Version 2.0**.
+Intelligent Search is open source under the **[Apache License 2.0](LICENSE)**. Copyright 2026 NG Designs.
 
-- **Full license text:** [`LICENSE`](LICENSE)
+Third-party material the app includes, and its terms, is listed in [`NOTICE`](NOTICE): the Google Sans Flex font (SIL
+Open Font License 1.1) and the Android robot (Creative Commons Attribution 3.0).
+
 - **Privacy policy:** [`PRIVACY_POLICY.md`](PRIVACY_POLICY.md)
-- **Reporting a security issue:** [`SECURITY.md`](SECURITY.md)
+- **Report a security issue:** [`SECURITY.md`](SECURITY.md)
 
 ---
 
-## 🏷️ Trademarks & Legal Disclaimer
+## 🏷️ Trademarks
 
-Android, Google, Google Pixel, Google Play, and the Google Play logo are registered trademarks of **Google LLC**.
+**Intelligent Search** is an independent app by **NG Designs**. It is not affiliated with, sponsored by or endorsed by
+Google LLC or any other company named here. The Apache License does not grant permission to use the Intelligent Search
+or NG Designs names or logos (section 6).
 
-- **Intelligent Search** is an independent software application developed by **NG Designs**.
-- This application and repository are not affiliated with, sponsored by, or endorsed by Google LLC.
-- All web search queries and search engine options (Google, DuckDuckGo, Bing, or Custom Search URLs) execute directly via standard web intents to their respective providers.
+Android, Google, Google Pixel, Google Play, the Google Play logo, Google Lens, Google Sans, Chrome, YouTube and
+Material You are trademarks of Google LLC. The Android robot is reproduced or modified from work created and shared by
+Google and used according to terms described in the Creative Commons 3.0 Attribution License. Tor is a trademark of
+The Tor Project, Inc. DuckDuckGo is a trademark of Duck Duck Go, Inc. Bing is a trademark of Microsoft Corporation.
+Wikipedia is a trademark of the Wikimedia Foundation. All other product names, logos and brands are the property of
+their respective owners and are used only to identify them.
+
+Web searches go directly from your phone to the search engine you choose (Google, DuckDuckGo, Bing, Tor Browser or
+your own search address).
 
 ---
 
-Copyright (c) 2026 **NG Designs**. All Rights Reserved.
+<div align="center">
+<sub>Copyright 2026 NG Designs · Licensed under the Apache License 2.0</sub>
+</div>

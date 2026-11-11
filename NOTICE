@@ -1,0 +1,20 @@
+Intelligent Search
+Copyright 2026 NG Designs
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This product includes the following third-party material:
+
+Google Sans Flex (app/src/main/res/font/google_sans_flex.ttf)
+  Copyright 2015 Google LLC.
+  Licensed under the SIL Open Font License, Version 1.1: https://openfontlicense.org
+  The license is also carried in the font file's own metadata.
+  Google Sans is a trademark of Google LLC.
+
+The Android robot (the animated robot in app/src/main/res/raw/bugdroid_*.mp4)
+  The Android robot is reproduced or modified from work created and shared by Google and used according to terms
+  described in the Creative Commons 3.0 Attribution License: https://creativecommons.org/licenses/by/3.0/
+
+AndroidX, Jetpack Compose, Material Components, Kotlin, Hilt and the other libraries the app is built with are
+distributed under their own licenses, the Apache License 2.0 for each of them; they are fetched by Gradle, not kept in
+this repository.

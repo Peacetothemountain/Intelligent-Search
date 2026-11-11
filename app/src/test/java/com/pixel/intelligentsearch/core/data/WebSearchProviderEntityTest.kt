@@ -9,66 +9,69 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import com.pixel.intelligentsearch.core.net.HttpsClient
+import java.io.ByteArrayInputStream
+import java.io.InputStream
 import java.net.HttpURLConnection
-import java.net.InetAddress
-import java.net.ServerSocket
 import java.net.URL
 import java.util.Locale
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
-import kotlin.concurrent.thread
 
 /**
  * Google's own search box asks `/complete/search` with a `gws-wiz` client, whose answer names entities and links their
  * pictures. Asking with `client=chrome` and keeping only the strings is why no suggestion ever had a thumbnail to
  * show, whatever the Show Thumbnails switch said.
+ *
+ * The recorded answer comes from a connection in memory, not a server on the PC's loopback: a real socket read could
+ * fail under load (the JDK's silent retry of a GET, then an empty result), which made this test fail on a busy PC
+ * for reasons that weren't the app's.
  */
 @RunWith(RobolectricTestRunner::class)
 class WebSearchProviderEntityTest {
 
+    /** Requests made: each connection the app connected. */
     private val requests = AtomicInteger()
-    /** The header lines of every request the server was sent. */
+    /** The header lines of every request, "Name: value", and its request line ("GET /path"). */
     private val headers = CopyOnWriteArrayList<String>()
-    /** The addresses the requests were for, before the test sends them to its server. */
+    /** The addresses the requests were for. */
     private val asked = CopyOnWriteArrayList<String>()
-    /** The server's answer's status line and extra headers, when not the recorded 200. */
-    @Volatile private var status: String? = null
-    private lateinit var server: ServerSocket
+    /** The connections the app was handed, to check how it set them up. */
+    private val connections = CopyOnWriteArrayList<RecordedConnection>()
+    /** Where the answer redirects, when it is a redirect instead of the recorded 200. */
+    @Volatile private var redirect: String? = null
+    private lateinit var body: ByteArray
+
+    /** Answers with the recorded body (or [redirect]'s 302), recording the request as a server would see it. */
+    private inner class RecordedConnection(url: URL) : HttpURLConnection(url) {
+        override fun connect() {
+            requests.incrementAndGet()
+            headers += "GET ${url.path}"
+        }
+        override fun disconnect() {}
+        override fun usingProxy() = false
+        override fun setRequestProperty(key: String?, value: String?) {
+            super.setRequestProperty(key, value)
+            headers += "$key: $value"
+        }
+        override fun getResponseCode() = if (redirect != null) HTTP_MOVED_TEMP else HTTP_OK
+        override fun getContentLengthLong() = body.size.toLong()
+        override fun getContentType() = "text/javascript; charset=UTF-8"
+        override fun getHeaderField(name: String?): String? = redirect.takeIf { name.equals("Location", ignoreCase = true) }
+        override fun getInputStream(): InputStream = ByteArrayInputStream(body)
+    }
 
     @Before fun serveTheRecordedAnswer() {
         WebSearchProvider.clearCacheForTests()
-        val body = requireNotNull(javaClass.classLoader?.getResource("websuggest/google_entity_obama.txt")).readBytes()
-        server = ServerSocket(0, 4, InetAddress.getLoopbackAddress())
-        thread(isDaemon = true) {
-            runCatching {
-                while (true) {
-                    server.accept().use { socket ->
-                        requests.incrementAndGet()
-                        val reader = socket.getInputStream().bufferedReader()
-                        while (true) {
-                            val line = reader.readLine()
-                            if (line.isNullOrEmpty()) break
-                            headers += line
-                        }
-                        val out = socket.getOutputStream()
-                        val head = status ?: "HTTP/1.1 200 OK\r\nContent-Type: text/javascript; charset=UTF-8"
-                        out.write("$head\r\nContent-Length: ${body.size}\r\nConnection: close\r\n\r\n".toByteArray())
-                        out.write(body)
-                        out.flush()
-                    }
-                }
-            }
-        }
+        body = requireNotNull(javaClass.classLoader?.getResource("websuggest/google_entity_obama.txt")).readBytes()
         WebSearchProvider.openForTests = { url ->
             asked += url.toString()
-            URL("http://127.0.0.1:${server.localPort}/complete/search?client=mobile-gws-wiz-hp&xssi=t&q=obama").openConnection() as HttpURLConnection
+            RecordedConnection(url).also { connections += it }
         }
     }
 
     @After fun useTheEngineAgain() {
         WebSearchProvider.openForTests = null
         WebSearchProvider.clearCacheForTests()
-        server.close()
     }
 
     @Test
@@ -121,10 +124,12 @@ class WebSearchProviderEntityTest {
 
     @Test
     fun aRedirectIsRefusedNotFollowed() = runBlocking {
-        status = "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:${server.localPort}/elsewhere"
+        redirect = "https://suggestqueries.google.com/elsewhere"
         assertTrue(WebSearchProvider.getWebSuggestions("obama", timeoutMs = 5_000).isEmpty())
         // One request from the app, and the address it was sent to never asked for.
         assertEquals(1, asked.size)
         assertTrue("$headers", headers.none { it.startsWith("GET /elsewhere") })
+        // Nor could the platform follow it on the app's behalf.
+        assertTrue(connections.none { it.instanceFollowRedirects })
     }
 }

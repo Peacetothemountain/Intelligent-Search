@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -569,11 +570,15 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
     }
 }
 
-/** A quick control's shape: an oval, as wide as its row allows. */
+/**
+ * A quick control's shape: an oval, 1.8 times as wide as it is tall (Android 17's Quick Settings tile's proportions,
+ * measured on a Pixel 11 at 130 by 72 dp), its ends fully round.
+ */
 internal val ControlShape = RoundedCornerShape(percent = 50)
+internal const val CONTROL_ASPECT = 1.8f
 
 /**
- * A quick control, an oval on or off as Android's own Quick Settings tiles are; [state] is null for one the app can't
+ * A quick control, shaped as Android's own Quick Settings tiles are, on or off; [state] is null for one the app can't
  * read, which then claims neither on nor off.
  */
 @Composable
@@ -586,7 +591,7 @@ internal fun ControlTile(label: String, icon: ImageVector, state: Boolean?, modi
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .aspectRatio(CONTROL_ASPECT)
                 .clip(ControlShape)
                 .background(if (on) scheme.primary else scheme.surfaceContainerHigh)
                 .bouncyClickable(shape = ControlShape, role = if (state != null) Role.Switch else Role.Button, onClick = onClick)

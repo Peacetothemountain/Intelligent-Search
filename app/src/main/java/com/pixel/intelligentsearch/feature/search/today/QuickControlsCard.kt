@@ -10,10 +10,27 @@ import android.nfc.NfcAdapter
 import android.provider.AlarmClock
 import android.provider.Settings
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.runtime.key
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.zIndex
+import com.pixel.intelligentsearch.feature.settings.reorderKeys
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,8 +39,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,7 +76,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.VolumeUp
 import com.pixel.intelligentsearch.core.ui.icons.filled.Alarm
-import com.pixel.intelligentsearch.core.ui.icons.filled.Check
 import com.pixel.intelligentsearch.core.ui.icons.outlined.AirplanemodeActive
 import com.pixel.intelligentsearch.core.ui.icons.outlined.BatterySaver
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Bluetooth
@@ -116,6 +130,10 @@ internal enum class QuickControl(val key: String, val label: String) {
         fun of(key: String): QuickControl? = entries.firstOrNull { it.key == key }
     }
 }
+
+/** The space between two controls, and the narrowest a control goes before the card puts fewer in a row. */
+private val TILE_GAP = 8.dp
+private val CONTROL_MIN_WIDTH = 64.dp
 
 /** Where the chosen controls are kept: Discover's own preferences file, with its cards' layout. */
 private const val PREFS = "discover_cards"
@@ -270,17 +288,23 @@ internal fun QuickControls(controls: TodayControls) {
     ) {
         CardLabel(Icons.Outlined.Tune, "Quick controls", modifier = Modifier.padding(bottom = 12.dp))
         val tiles: List<QuickControl?> = shown + listOf(null)
-        tiles.chunked(4).forEachIndexed { i, row ->
-            if (i > 0) Spacer(Modifier.height(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                for (control in row) {
-                    if (control == null) {
-                        AddControlTile(Modifier.weight(1f)) { picking = true }
-                    } else {
-                        ControlTile(control.label, icon(control), state(control), Modifier.weight(1f)) { tap(control) }
+        // As many to a row as fit at a readable size, up to four, so a narrow card keeps its controls full size.
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val columns = ((maxWidth + TILE_GAP) / (CONTROL_MIN_WIDTH + TILE_GAP)).toInt().coerceIn(2, 4)
+            Column {
+                tiles.chunked(columns).forEachIndexed { i, row ->
+                    if (i > 0) Spacer(Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(TILE_GAP)) {
+                        for (control in row) {
+                            if (control == null) {
+                                AddControlTile(Modifier.weight(1f)) { picking = true }
+                            } else {
+                                ControlTile(control.label, icon(control), state(control), Modifier.weight(1f)) { tap(control) }
+                            }
+                        }
+                        repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
                     }
                 }
-                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
     }
@@ -304,7 +328,7 @@ internal fun ChooseControlsSheet(controls: TodayControls, onDismiss: () -> Unit)
     )
 }
 
-/** The last tile: an outlined oval with a plus, which opens the list of controls. */
+/** The last tile: an outlined control with a plus, which opens the list of controls. */
 @Composable
 private fun AddControlTile(modifier: Modifier, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
@@ -312,7 +336,7 @@ private fun AddControlTile(modifier: Modifier, onClick: () -> Unit) {
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(56.dp)
+                .aspectRatio(CONTROL_ASPECT)
                 .clip(ControlShape)
                 .border(BorderStroke(1.5.dp, scheme.outlineVariant), ControlShape)
                 .bouncyClickable(shape = ControlShape, onClick = onClick)
@@ -332,8 +356,8 @@ private fun AddControlTile(modifier: Modifier, onClick: () -> Unit) {
 }
 
 /**
- * Every control the phone has, as tiles to switch on or off for the card; the card's order is the order they were
- * chosen in. Changes show at once.
+ * The card's controls, as Android's own Quick Settings editor has them: the user's, in the card's order, to hold and
+ * drag into a new place or tap to take off; then the rest the phone has, to tap to add at the end. Changes show at once.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -344,6 +368,8 @@ private fun ControlsSheet(
     onDismiss: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
+    val yours = chosen.filter { it in available }
+    val others = available.filter { it !in chosen }
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
         Column(
             Modifier
@@ -357,45 +383,190 @@ private fun ControlsSheet(
                 color = scheme.onSurface,
                 modifier = Modifier.padding(top = 2.dp, bottom = 16.dp).semantics { heading() }
             )
-            available.chunked(3).forEachIndexed { i, row ->
-                if (i > 0) Spacer(Modifier.height(10.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    for (control in row) {
-                        val on = control in chosen
-                        Column(
-                            Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(if (on) scheme.primaryContainer else scheme.surfaceContainerHigh)
-                                .toggleable(value = on, role = Role.Checkbox) { add ->
-                                    onChange(if (add) chosen + control else chosen - control)
-                                }
-                                .padding(vertical = 14.dp, horizontal = 8.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    icon(control),
-                                    contentDescription = null,
-                                    tint = if (on) scheme.onPrimaryContainer else scheme.onSurfaceVariant,
-                                    modifier = Modifier.size(26.dp)
-                                )
-                            }
-                            Text(
-                                control.label,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = if (on) scheme.onPrimaryContainer else scheme.onSurface,
-                                textAlign = TextAlign.Center,
-                                maxLines = 2,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                            if (on) Icon(Icons.Filled.Check, contentDescription = null, tint = scheme.onPrimaryContainer, modifier = Modifier.padding(top = 4.dp).size(16.dp))
-                            else Spacer(Modifier.height(20.dp))
-                        }
-                    }
-                    repeat(3 - row.size) { Spacer(Modifier.weight(1f)) }
+            SheetSection("Your controls", if (yours.size > 1) "Hold and drag to move. Tap to remove." else "Tap to remove.")
+            if (yours.isEmpty()) {
+                Text("None yet", style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
+            } else {
+                // A move is kept on the whole list; controls this phone lacks stay at its end.
+                MovableControls(yours) { moved -> onChange(moved + chosen.filter { it !in available }) }
+            }
+            if (others.isNotEmpty()) {
+                Spacer(Modifier.height(24.dp))
+                SheetSection("Add controls", "Tap to add.")
+                ControlGrid(others) { control ->
+                    SheetControl(control, on = false) { onChange(chosen + control) }
                 }
             }
         }
     }
 }
+
+/** A section of the sheet: its [title] and how to use it. */
+@Composable
+private fun SheetSection(title: String, hint: String) {
+    Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.semantics { heading() })
+    Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 2.dp, bottom = 12.dp))
+}
+
+/** [controls] three to a row. */
+@Composable
+private fun ControlGrid(controls: List<QuickControl>, tile: @Composable (QuickControl) -> Unit) {
+    controls.chunked(SHEET_COLUMNS).forEachIndexed { i, row ->
+        if (i > 0) Spacer(Modifier.height(SHEET_ROW_GAP))
+        Row(horizontalArrangement = Arrangement.spacedBy(TILE_GAP)) {
+            for (control in row) Box(Modifier.weight(1f)) { tile(control) }
+            repeat(SHEET_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
+        }
+    }
+}
+
+/** One control in the sheet: the card's oval with its icon, lit while it is one of the user's, and its name under it. */
+@Composable
+private fun SheetControl(control: QuickControl, on: Boolean, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(CONTROL_ASPECT)
+                .clip(ControlShape)
+                .background(if (on) scheme.primaryContainer else scheme.surfaceContainerHigh)
+                .bouncyClickable(shape = ControlShape, onClick = onClick)
+                .semantics { contentDescription = control.label },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon(control), contentDescription = null, tint = if (on) scheme.onPrimaryContainer else scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+        }
+        Text(
+            control.label,
+            style = MaterialTheme.typography.labelMedium,
+            color = scheme.onSurface,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            modifier = Modifier.padding(top = 6.dp).clearAndSetSemantics {}
+        )
+    }
+}
+
+/**
+ * The user's controls in a grid of their own, so each keeps its place in the composition as it moves: held, one lifts
+ * and follows the finger, the others making way as it passes over them, and the new order is kept when it is let go.
+ * A tap takes one off. TalkBack and keyboards move them one place at a time.
+ */
+@Composable
+private fun MovableControls(controls: List<QuickControl>, onChange: (List<QuickControl>) -> Unit) {
+    val haptics = LocalHapticFeedback.current
+    var order by remember { mutableStateOf(controls) }
+    var dragging by remember { mutableStateOf<QuickControl?>(null) }
+    // While nothing is held, the grid follows the user's choices (a tap removes one).
+    if (dragging == null && order != controls) order = controls
+    var cell by remember { mutableStateOf(IntSize.Zero) }
+    var finger by remember { mutableStateOf(Offset.Zero) }
+    var grip by remember { mutableStateOf(Offset.Zero) }
+    val density = LocalDensity.current
+    val gapX = with(density) { TILE_GAP.toPx() }
+    val gapY = with(density) { SHEET_ROW_GAP.toPx() }
+
+    fun origin(index: Int) = Offset(
+        (index % SHEET_COLUMNS) * (cell.width + gapX),
+        (index / SHEET_COLUMNS) * (cell.height + gapY)
+    )
+
+    fun indexAt(p: Offset): Int {
+        val column = (p.x / (cell.width + gapX)).toInt().coerceIn(0, SHEET_COLUMNS - 1)
+        val row = (p.y / (cell.height + gapY)).toInt().coerceAtLeast(0)
+        return (row * SHEET_COLUMNS + column).coerceIn(0, order.lastIndex)
+    }
+
+    fun move(control: QuickControl, by: Int) {
+        val from = controls.indexOf(control)
+        val to = (from + by).coerceIn(0, controls.lastIndex)
+        if (from == to) return
+        onChange(controls.toMutableList().apply { add(to, removeAt(from)) })
+    }
+
+    fun drop() {
+        if (dragging != null && order != controls) onChange(order)
+        dragging = null
+    }
+
+    Layout(
+        content = {
+            for (control in order) {
+                key(control) {
+                    val held = dragging == control
+                    val index = order.indexOf(control)
+                    Box(
+                        Modifier
+                            .zIndex(if (held) 1f else 0f)
+                            .graphicsLayer {
+                                if (held) {
+                                    val at = finger - grip - origin(index)
+                                    translationX = at.x
+                                    translationY = at.y
+                                    scaleX = 1.06f
+                                    scaleY = 1.06f
+                                }
+                            }
+                            .pointerInput(control) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { at ->
+                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        grip = at
+                                        finger = origin(order.indexOf(control)) + at
+                                        dragging = control
+                                    },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        finger += amount
+                                        val to = indexAt(finger)
+                                        val from = order.indexOf(control)
+                                        if (to != from) {
+                                            order = order.toMutableList().apply { add(to, removeAt(from)) }
+                                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                        }
+                                    },
+                                    onDragEnd = { drop() },
+                                    onDragCancel = { drop() }
+                                )
+                            }
+                            .reorderKeys(
+                                up = if (index > 0) ({ move(control, -1) }) else null,
+                                down = if (index < order.lastIndex) ({ move(control, 1) }) else null,
+                                remove = { onChange(controls - control) }
+                            )
+                            .semantics {
+                                customActions = listOfNotNull(
+                                    CustomAccessibilityAction("Move earlier") { move(control, -1); true }.takeIf { index > 0 },
+                                    CustomAccessibilityAction("Move later") { move(control, 1); true }.takeIf { index < order.lastIndex }
+                                )
+                            }
+                    ) {
+                        SheetControl(
+                            control,
+                            on = true
+                        ) { onChange(controls - control) }
+                    }
+                }
+            }
+        }
+    ) { measurables, constraints ->
+        val width = constraints.maxWidth
+        val gap = TILE_GAP.roundToPx()
+        val rowGap = SHEET_ROW_GAP.roundToPx()
+        val tileWidth = (width - gap * (SHEET_COLUMNS - 1)) / SHEET_COLUMNS
+        val placeables = measurables.map { it.measure(Constraints.fixedWidth(tileWidth)) }
+        val tileHeight = placeables.maxOfOrNull { it.height } ?: 0
+        if (cell != IntSize(tileWidth, tileHeight)) cell = IntSize(tileWidth, tileHeight)
+        val rows = (placeables.size + SHEET_COLUMNS - 1) / SHEET_COLUMNS
+        layout(width, rows * tileHeight + (rows - 1).coerceAtLeast(0) * rowGap) {
+            placeables.forEachIndexed { i, placeable ->
+                placeable.place((i % SHEET_COLUMNS) * (tileWidth + gap), (i / SHEET_COLUMNS) * (tileHeight + rowGap))
+            }
+        }
+    }
+}
+
+/** The sheet's grid: three controls to a row, and the space between rows. */
+private const val SHEET_COLUMNS = 3
+private val SHEET_ROW_GAP = 14.dp

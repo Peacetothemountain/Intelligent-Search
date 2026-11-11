@@ -196,8 +196,23 @@ private fun AddSheet(
     var query by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    // The app's own group starts open while any of its cards is off the page, so putting one back is one tap.
-    var open by rememberSaveable { mutableStateOf(if (layout.hidden.isNotEmpty()) context.packageName else null) }
+    // How each of the app's own parts stands: on view, off the page, or on it but with nothing to show yet (and why).
+    val partStatus = state.partStatus
+    fun tileFor(kind: CardKind): PartTile {
+        val status = partStatus(kind)
+        if (kind in layout.hidden) {
+            return PartTile(kind, showing = false, note = "Not on your page", action = "Tap to add") {
+                state.addBack(kind)
+                close()
+                status.fix?.invoke()
+            }
+        }
+        val spec = layout.cards.firstOrNull { it.kind == kind }
+        if (spec == null || state.shown(spec)) return PartTile(kind, showing = true, note = "On your page", action = null, onTap = null)
+        return PartTile(kind, showing = false, note = status.note, action = status.action, onTap = status.fix?.let { fix -> { close(); fix() } })
+    }
+    // The app's own group starts open while any of its cards isn't on view, so the reason is in sight.
+    var open by rememberSaveable { mutableStateOf(if (CardKind.PAGE_ORDER.any { !tileFor(it).showing }) context.packageName else null) }
     val choices by produceState<List<WidgetChoice>?>(null) {
         value = try {
             widgetChoices()
@@ -271,16 +286,11 @@ private fun AddSheet(
         Column(Modifier.clip(RoundedCornerShape(24.dp)), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             if (ownParts.isNotEmpty()) {
                 OwnGroup(
-                    parts = ownParts,
-                    hidden = layout.hidden,
+                    tiles = ownParts.map(::tileFor),
                     // Open when asked, or when a search named one of its cards rather than the app.
                     expanded = open == ownKey || (words.isNotEmpty() && (!ownByName || groups.isEmpty())),
                     last = groups.isEmpty(),
-                    onToggle = { open = if (open == ownKey) null else ownKey },
-                    onAdd = { kind ->
-                        state.addBack(kind)
-                        close()
-                    }
+                    onToggle = { open = if (open == ownKey) null else ownKey }
                 )
             }
             groups.forEachIndexed { i, widgets ->
@@ -324,23 +334,27 @@ private fun AddSheet(
 private const val OWN_GROUP_NAME = "Intelligent Search"
 
 /**
- * The app's own cards in Add to Discover, grouped as an app's widgets are: the app's icon and name, how many cards are
- * off the page, and a tap opens it to a tile for each of [parts]. A part not [hidden] is already on the page and says
- * so; a tap on a hidden one puts it back ([onAdd]). Always the first group.
+ * One of the app's own parts as its tile shows it: [showing] on the page, or why not ([note]: "Not on your page",
+ * "Needs calendar access", "Shows while something is playing"), and what a tap does about it ([action], [onTap]), if
+ * anything can.
+ */
+private class PartTile(val kind: CardKind, val showing: Boolean, val note: String, val action: String?, val onTap: (() -> Unit)?)
+
+/**
+ * The app's own cards in Add to Discover, grouped as an app's widgets are: the app's icon and name, how many of them
+ * are on view, and a tap opens it to a tile for each of [tiles], the ones a tap can help first. Always the first group.
  */
 @Composable
 private fun OwnGroup(
-    parts: List<CardKind>,
-    hidden: Set<CardKind>,
+    tiles: List<PartTile>,
     expanded: Boolean,
     last: Boolean,
-    onToggle: () -> Unit,
-    onAdd: (CardKind) -> Unit
+    onToggle: () -> Unit
 ) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val icon by produceState<ImageBitmap?>(null) { value = appCardIcon(context, context.packageName) }
-    val off = parts.count { it in hidden }
+    val showing = tiles.count { it.showing }
     val big = 24.dp
     val small = 6.dp
     val shape = RoundedCornerShape(topStart = big, topEnd = big, bottomStart = if (last) big else small, bottomEnd = if (last) big else small)
@@ -373,11 +387,9 @@ private fun OwnGroup(
                 Text(OWN_GROUP_NAME, style = MaterialTheme.typography.titleSmall, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
                     when {
-                        parts.size == 1 && off == 0 -> "${parts.first().label}, on your page"
-                        parts.size == 1 -> parts.first().label
-                        off == 0 -> "${parts.size} Discover cards, all on your page"
-                        off == 1 -> "1 card to add"
-                        else -> "$off cards to add"
+                        tiles.size == 1 -> "${tiles.first().kind.label} · ${tiles.first().note}"
+                        showing == tiles.size -> "All ${tiles.size} showing on your page"
+                        else -> "$showing of ${tiles.size} showing on your page"
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
@@ -395,31 +407,32 @@ private fun OwnGroup(
                     .padding(start = 12.dp, end = 12.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // Cards to add first, then the ones already on the page.
-                for (kind in parts.sortedBy { it !in hidden }) OwnTile(kind, onPage = kind !in hidden) { onAdd(kind) }
+                // The ones a tap can help first, then the ones waiting for something to show, then the ones on view.
+                for (tile in tiles.sortedBy { if (it.onTap != null) 0 else if (!it.showing) 1 else 2 }) OwnTile(tile)
             }
         }
     }
 }
 
 /**
- * One of the app's own cards to add: its icon on a Material shape of its own and its name. One [onPage] already is
- * dimmed, carries a check and isn't tappable.
+ * One of the app's own parts: its icon on a Material shape of its own, its name, and where it stands. One on view
+ * carries a check; one a tap can help is in the primary colors and says what the tap does; one waiting for something
+ * to show is quiet and not tappable.
  */
 @Composable
-private fun OwnTile(kind: CardKind, onPage: Boolean, onClick: () -> Unit) {
+private fun OwnTile(tile: PartTile) {
     val scheme = MaterialTheme.colorScheme
-    val back = if (onPage) scheme.surfaceVariant else scheme.primaryContainer
-    val ink = if (onPage) scheme.onSurfaceVariant else scheme.onPrimaryContainer
+    val kind = tile.kind
+    val tap = tile.onTap
+    val back = if (tap != null) scheme.primaryContainer else scheme.surfaceVariant
+    val ink = if (tap != null) scheme.onPrimaryContainer else scheme.onSurfaceVariant
     val outline = OWN_TILE_SHAPES[kind.ordinal % OWN_TILE_SHAPES.size]
     Column(
         Modifier
             .width(156.dp)
             .clip(RoundedCornerShape(20.dp))
-            .then(if (onPage) Modifier else Modifier.clickable(role = Role.Button, onClickLabel = "Add") { onClick() })
-            .semantics(mergeDescendants = true) {
-                contentDescription = if (onPage) "${kind.label}, on your page" else kind.label
-            }
+            .then(if (tap != null) Modifier.clickable(role = Role.Button, onClickLabel = tile.action, onClick = tap) else Modifier)
+            .semantics(mergeDescendants = true) { contentDescription = "${kind.label}, ${tile.note}" }
             .padding(6.dp)
     ) {
         Box(
@@ -437,7 +450,7 @@ private fun OwnTile(kind: CardKind, onPage: Boolean, onClick: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Icon(partIcon(kind), contentDescription = null, tint = ink, modifier = Modifier.size(30.dp))
-            if (onPage) {
+            if (tile.showing) {
                 Box(
                     Modifier
                         .align(Alignment.TopEnd)
@@ -459,12 +472,23 @@ private fun OwnTile(kind: CardKind, onPage: Boolean, onClick: () -> Unit) {
             modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 8.dp)
         )
         Text(
-            if (onPage) "On your page" else "Tap to add",
+            tile.note,
             style = MaterialTheme.typography.bodySmall,
-            color = if (onPage) scheme.onSurfaceVariant else scheme.primary,
-            maxLines = 1,
+            color = scheme.onSurfaceVariant,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 4.dp, end = 4.dp)
         )
+        val action = tile.action
+        if (action != null && tap != null) {
+            Text(
+                action,
+                style = MaterialTheme.typography.labelMedium,
+                color = scheme.primary,
+                maxLines = 1,
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 2.dp)
+            )
+        }
     }
 }
 

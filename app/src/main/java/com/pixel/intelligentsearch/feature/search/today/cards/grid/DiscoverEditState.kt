@@ -75,6 +75,13 @@ internal enum class EditHaptic { LONG_PRESS, TICK, SETTLE, CONFIRM, TOGGLE_ON, T
 internal class EditMessage(val text: String, val undo: (() -> Unit)? = null)
 
 /** One edit of a card: its [label], [icon], whether it can be done now ([enabled]), and doing it ([run]). */
+/**
+ * Why one of the app's own parts isn't on view: [note] ("Needs calendar access", "Shows while something is playing"),
+ * and, when a tap can change that, what it says ([action], "Tap to allow") and does ([fix]: turns the part on, or asks
+ * for what it reads).
+ */
+internal class PartStatus(val note: String, val action: String? = null, val fix: (() -> Unit)? = null)
+
 internal class CardAction(val label: String, val icon: ImageVector, val enabled: Boolean, val run: () -> Unit)
 
 /** Settling: quick out, a touch of overshoot. */
@@ -162,6 +169,12 @@ internal class DiscoverEditState(
     internal var layout: DiscoverLayout = DiscoverLayout.DEFAULT
     internal var onLayoutChange: (DiscoverLayout) -> Unit = {}
     internal var shown: (CardSpec) -> Boolean = { true }
+
+    /**
+     * Why one of the app's own parts on the page isn't on view, and what a tap in Add to Discover can do about it; the
+     * page keeps it current (state, so the open sheet follows a grant or a switch at once).
+     */
+    internal var partStatus by mutableStateOf<(CardKind) -> PartStatus>({ PartStatus("Has nothing to show right now") })
     internal var label: (CardSpec) -> String = { it.kind.label }
 
     /** The least side (dp) a card's shape reads at. */

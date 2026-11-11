@@ -56,6 +56,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import com.pixel.intelligentsearch.core.glance.NotificationAccess
+import com.pixel.intelligentsearch.feature.search.today.cards.grid.PartStatus
+import com.pixel.intelligentsearch.feature.settings.NotificationAccessDialog
+import com.pixel.intelligentsearch.feature.settings.rememberCalendarRequest
+import com.pixel.intelligentsearch.feature.settings.rememberNotificationAccessRequest
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
@@ -361,16 +367,17 @@ internal fun TodayPage(
     val sources = LocalTodaySources.current ?: remember(context) { AndroidTodaySources(context) }
     val now = rememberGlanceNow(30_000L)
     val snapshot = rememberTodaySnapshot(hiddenApps, active)
-    val upNextOn by rememberSetting(SettingsManager.TODAY_UP_NEXT)
-    val weatherOn by rememberSetting(SettingsManager.TODAY_WEATHER)
-    val catchUpOn by rememberSetting(SettingsManager.TODAY_CATCH_UP)
-    val controlsOn by rememberSetting(SettingsManager.TODAY_CONTROLS)
-    val phoneOn by rememberSetting(SettingsManager.TODAY_PHONE)
-    val leftOffOn by rememberSetting(SettingsManager.TODAY_LEFT_OFF)
-    val extrasOn by rememberSetting(SettingsManager.TODAY_EXTRAS)
+    var upNextOn by rememberSetting(SettingsManager.TODAY_UP_NEXT)
+    var weatherOn by rememberSetting(SettingsManager.TODAY_WEATHER)
+    var catchUpOn by rememberSetting(SettingsManager.TODAY_CATCH_UP)
+    var controlsOn by rememberSetting(SettingsManager.TODAY_CONTROLS)
+    var phoneOn by rememberSetting(SettingsManager.TODAY_PHONE)
+    var leftOffOn by rememberSetting(SettingsManager.TODAY_LEFT_OFF)
+    var extrasOn by rememberSetting(SettingsManager.TODAY_EXTRAS)
     val leaveByOn by rememberSetting(SettingsManager.TODAY_LEAVE_BY)
     // Weather with no saved place, and the leave-by time, need the phone's location, so allowing it reads both again.
     val locationOk = rememberPermissionState { com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(it).permitted() }
+    val locationRequest = rememberTodayLocationRequest { }
     // What the layer read wins whenever it has it, including when it arrives or refreshes after the page has opened;
     // the page reads for itself only while it has nothing. With Weather off there is none, so no part shows it.
     val ownWeather = produceState<Pair<WeatherReport, WeatherReport?>?>(null, preloadedWeather == null, active, weatherOn, locationOk) {
@@ -399,7 +406,6 @@ internal fun TodayPage(
     val trip = produceState<TodayTrip?>(null, upNext?.eventId, upNext?.beginMillis, upNext?.location, leaveByOn, active, locationOk) {
         value = if (upNext != null && leaveByOn && active) sources.trip(upNext) else null
     }.value
-    val locationRequest = rememberTodayLocationRequest { }
     val askLocation = if (leaveByOn && !locationOk) ({ locationRequest.request() }) else null
     val sunset = weather?.sunset?.toEpochMilli()?.takeIf { it > now }
     val warm = if (scheme.surface.luminance() < 0.5f) Color(0xFFF2B872) else Color(0xFFB5651D)
@@ -413,6 +419,59 @@ internal fun TodayPage(
     val cardStore = remember(context) { cardLayoutStore(context.applicationContext) }
     val cardLayout by cardStore.layout.collectAsState()
     val editState = rememberDiscoverEditState()
+    // Why each of the page's own parts may be off view, for Add to Discover's tiles: switched off on Appearance's
+    // Discover Overlay card, waiting for what it reads, or with nothing to show yet. A tap there switches it on, or asks
+    // for what it reads the app's usual way (and switches it on once allowed).
+    val calendarOk = rememberCalendarAllowed()
+    val calendarRequest = rememberCalendarRequest { upNextOn = true }
+    val notificationsOk = rememberNotificationAccessGranted()
+    var notificationsFor by rememberSaveable { mutableStateOf<String?>(null) }
+    val notificationsRequest = rememberNotificationAccessRequest { granted ->
+        if (granted) {
+            if (notificationsFor == CardKind.CATCH_UP.key) catchUpOn = true
+            NotificationAccess.start(context)
+        }
+        notificationsFor = null
+    }
+    NotificationAccessDialog(notificationsRequest)
+    fun turnOn(on: () -> Unit) = PartStatus("Turned off", "Tap to turn on", on)
+    fun askNotifications(kind: CardKind) = PartStatus("Needs notification access", "Tap to allow") {
+        notificationsFor = kind.key
+        notificationsRequest.request()
+    }
+    val calendarNeeded = PartStatus("Needs calendar access", "Tap to allow") { calendarRequest.request() }
+    fun partStatus(kind: CardKind): PartStatus = when (kind) {
+        CardKind.UP_NEXT -> when {
+            !calendarOk -> calendarNeeded
+            !upNextOn -> turnOn { upNextOn = true }
+            else -> PartStatus("Shows in the hours before your next event")
+        }
+        CardKind.REST_OF_DAY -> when {
+            !calendarOk -> calendarNeeded
+            !upNextOn -> turnOn { upNextOn = true }
+            else -> PartStatus("Shows when two or more things are left today")
+        }
+        CardKind.WEATHER -> when {
+            !weatherOn -> turnOn { weatherOn = true }
+            !locationOk -> PartStatus("Needs your location", "Tap to allow") { locationRequest.request() }
+            else -> PartStatus("Shows once the forecast is in")
+        }
+        CardKind.TILES -> PartStatus("Shows with a timer, an alarm within a day, or a package on its way")
+        CardKind.NOW_PLAYING -> if (!notificationsOk) askNotifications(kind) else PartStatus("Shows while something is playing")
+        CardKind.CATCH_UP -> when {
+            !notificationsOk -> askNotifications(kind)
+            !catchUpOn -> turnOn { catchUpOn = true }
+            else -> PartStatus("Shows when you have missed calls or messages")
+        }
+        CardKind.CONTROLS -> if (!controlsOn) turnOn { controlsOn = true } else PartStatus("Shows your quick controls")
+        CardKind.PHONE -> if (!phoneOn) turnOn { phoneOn = true } else PartStatus("Shows once the battery is read")
+        CardKind.LEFT_OFF -> if (!leftOffOn) turnOn { leftOffOn = true } else PartStatus("Shows after your first search")
+        CardKind.WORD -> if (!extrasOn) turnOn { extrasOn = true } else PartStatus("Shows today's word")
+        CardKind.YEAR -> if (!extrasOn) turnOn { extrasOn = true } else PartStatus("Shows when a holiday is coming up")
+        CardKind.TOMORROW -> PartStatus("Shows when tomorrow has an alarm, an event or a forecast")
+        CardKind.APP, CardKind.SITE -> PartStatus("Has nothing to show right now")
+    }
+    SideEffect { editState.partStatus = ::partStatus }
     val widgets = remember(context) { widgetCards(context.applicationContext) }
     val apps by widgets.cards.collectAsState()
     val siteSource = remember(context) { siteCards(context.applicationContext) }

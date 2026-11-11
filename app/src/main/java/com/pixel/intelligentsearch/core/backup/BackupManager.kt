@@ -15,7 +15,6 @@ import com.pixel.intelligentsearch.core.data.UserGrantedFiles
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
 import com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
-import com.pixel.intelligentsearch.feature.search.today.DiscoverBackup
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -32,7 +31,9 @@ class BackupManager @Inject constructor(
     private val historyDao: HistoryDao,
     private val strongBoxSecurityManager: StrongBoxSecurityManager,
     private val widgetUpdater: WidgetUpdater,
-    private val currencyRates: CurrencyRateRepository
+    private val currencyRates: CurrencyRateRepository,
+    // Outside Hilt (tests) there is no Discover page to back up.
+    private val discover: DiscoverBackupPart = DiscoverBackupPart.None
 ) {
     /** Outside Hilt (tests): the currency schedule is kept by a repository of its own. */
     constructor(
@@ -262,7 +263,7 @@ class BackupManager @Inject constructor(
             searchHistory = historyList,
             hiddenApps = currentSettings.hiddenApps.toList(),
             sharedPreferencesJson = spJsonObj.toString(),
-            discoverJson = runCatching { DiscoverBackup.export(context) }.getOrElse {
+            discoverJson = runCatching { discover.export() }.getOrElse {
                 Log.w("BackupManager", "Discover left out of the backup", it)
                 ""
             }
@@ -790,7 +791,7 @@ class BackupManager @Inject constructor(
         currencyRates.syncSchedule()
 
         // Discover's page and quick controls, when the file has them.
-        restoredCount += runCatching { DiscoverBackup.restore(context, payload.discoverJson) }.getOrElse {
+        restoredCount += runCatching { discover.restore(payload.discoverJson) }.getOrElse {
             Log.w("BackupManager", "Discover could not be restored", it)
             0
         }

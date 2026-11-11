@@ -304,7 +304,7 @@ internal fun ChooseControlsSheet(controls: TodayControls, onDismiss: () -> Unit)
     )
 }
 
-/** The last tile: a dashed square with a plus, which opens the list of controls. */
+/** The last tile: an outlined oval with a plus, which opens the list of controls. */
 @Composable
 private fun AddControlTile(modifier: Modifier, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
@@ -313,9 +313,9 @@ private fun AddControlTile(modifier: Modifier, onClick: () -> Unit) {
             Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .border(BorderStroke(1.5.dp, scheme.outlineVariant), RoundedCornerShape(18.dp))
-                .bouncyClickable(shape = RoundedCornerShape(18.dp), onClick = onClick)
+                .clip(ControlShape)
+                .border(BorderStroke(1.5.dp, scheme.outlineVariant), ControlShape)
+                .bouncyClickable(shape = ControlShape, onClick = onClick)
                 .semantics { contentDescription = "Add or remove controls" },
             contentAlignment = Alignment.Center
         ) {

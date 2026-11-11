@@ -7,8 +7,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.snap
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -571,17 +569,17 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
     }
 }
 
-/** A quick control; [state] is null for one the app can't read, which then claims neither on nor off. */
+/** A quick control's shape: an oval, as wide as its row allows. */
+internal val ControlShape = RoundedCornerShape(percent = 50)
+
+/**
+ * A quick control, an oval on or off as Android's own Quick Settings tiles are; [state] is null for one the app can't
+ * read, which then claims neither on nor off.
+ */
 @Composable
 internal fun ControlTile(label: String, icon: ImageVector, state: Boolean?, modifier: Modifier, onClick: () -> Unit) {
     val on = state == true
     val scheme = MaterialTheme.colorScheme
-    val animate by rememberAnimationsEnabled()
-    val corner by androidx.compose.animation.core.animateDpAsState(
-        if (on) 28.dp else 18.dp,
-        if (animate) spring(dampingRatio = 0.6f, stiffness = 420f) else snap(),
-        label = "control shape"
-    )
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         // The button TalkBack lands on says its name and, for a control the app can read, that it is a switch and
         // whether it is on; the label under it is the same name, so it isn't a second stop.
@@ -589,9 +587,9 @@ internal fun ControlTile(label: String, icon: ImageVector, state: Boolean?, modi
             Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .clip(RoundedCornerShape(corner))
+                .clip(ControlShape)
                 .background(if (on) scheme.primary else scheme.surfaceContainerHigh)
-                .bouncyClickable(shape = RoundedCornerShape(corner), role = if (state != null) Role.Switch else Role.Button, onClick = onClick)
+                .bouncyClickable(shape = ControlShape, role = if (state != null) Role.Switch else Role.Button, onClick = onClick)
                 .semantics { if (state != null) toggleableState = ToggleableState(on) },
             contentAlignment = Alignment.Center
         ) {

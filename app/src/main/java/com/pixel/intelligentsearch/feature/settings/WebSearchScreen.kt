@@ -188,14 +188,20 @@ internal const val WEB_SUGGESTIONS_SUBTITLE =
 /** AI Answers' row: what it does, or why it can't ask right now; it opens the page where it is set up. */
 @Composable
 private fun AiAnswersRow(onOpen: () -> Unit) {
+    val context = LocalContext.current
     val web by rememberSetting(SettingsManager.SEARCH_WEB)
     val searchEngine by rememberSetting(SettingsManager.SEARCH_ENGINE)
     val aiOn by rememberSetting(SettingsManager.AI_ANSWERS_ENABLED)
+    val providerId by rememberSetting(SettingsManager.AI_PROVIDER)
+    val provider = com.pixel.intelligentsearch.core.ai.AiProvider.fromId(providerId)
+    // A preferences lookup, no decrypting. Read again whenever this page comes back, as it does from AI Answers.
+    val hasKey = remember(provider) { context.appEntryPoint.aiKeyVault().has(provider) }
     SettingsRow(
         title = "AI Answers",
         subtitle = com.pixel.intelligentsearch.core.security.NetworkPolicy.aiBlock(web, searchEngine)
             ?.let(com.pixel.intelligentsearch.core.security.NetworkPolicy::blockSubtitle)
-            ?: if (aiOn) "On. A Question Is Sent Only When You Tap Ask."
+            ?: if (aiOn && !hasKey) "On, but Needs Your ${provider.displayName} API Key to Ask."
+            else if (aiOn) "On. A Question Is Sent Only When You Tap Ask."
             else "Answer Questions with Claude, ChatGPT or Gemini Using Your Own Key.",
         icon = Symbols.Outlined.AutoAwesome,
         onClick = onOpen,

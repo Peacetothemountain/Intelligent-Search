@@ -9,10 +9,17 @@ import android.net.NetworkCapabilities
 import android.util.AtomicFile
 import android.util.Log
 import androidx.compose.ui.graphics.asImageBitmap
+import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.net.HttpsCall
 import com.pixel.intelligentsearch.core.net.withHttpsCall
+import com.pixel.intelligentsearch.core.security.NetworkPolicy
 import com.pixel.intelligentsearch.feature.search.today.cards.SiteCards
 import com.pixel.intelligentsearch.feature.search.today.cards.SiteData
+import java.io.File
+import java.net.IDN
+import java.security.MessageDigest
+import java.util.Locale
+import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineScope
@@ -21,7 +28,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,13 +37,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.File
-import java.net.IDN
-import java.security.MessageDigest
-import java.util.Locale
-import kotlin.coroutines.coroutineContext
 
 /*
  * NG Designs
@@ -60,7 +62,8 @@ internal class SiteCardException(message: String) : Exception(message)
  *
  * [sites] starts empty and fills from the cache as soon as it has loaded off the main thread. [refresh] re-reads a card
  * once its last good read is a day old; a read that fails keeps what the card had and marks it [SiteData.failed], and
- * isn't tried again for [RETRY_AFTER_MS]. Reads never happen while the phone is offline. Every change to the cache is
+ * isn't tried again for [RETRY_AFTER_MS]. Reads never happen while the phone is offline, nor while Tor is the search
+ * engine or Web is off ([NetworkPolicy.siteBlock]). Every change to the cache is
  * made under one lock, so a [remove] can't be undone by a read finishing late.
  */
 internal class AndroidSiteCards private constructor(
@@ -125,7 +128,7 @@ internal class AndroidSiteCards private constructor(
         val asked = urls.toList()
         scope.launch {
             loaded.await()
-            if (!isOnline()) return@launch
+            if (blocked() != null || !isOnline()) return@launch
             val time = now()
             for (url in asked.distinct()) {
                 val known = state.value[url]
@@ -153,6 +156,8 @@ internal class AndroidSiteCards private constructor(
 
     /** Reads [address] again for the card at [url], storing what it finds or marking the card failed. */
     private suspend fun reread(url: String, address: SiteAddress) {
+        // Reads wait their turn; Tor chosen or Web turned off meanwhile stops the ones not yet sent.
+        if (blocked() != null) return
         val result = withHttpsCall { call -> safeRead(address, call) }
         lock.withLock {
             // A remove() cancels this read under the same lock, so a late answer can't bring the card back.
@@ -167,6 +172,11 @@ internal class AndroidSiteCards private constructor(
             is SiteAddressResult.Refused -> return failure(messageFor(normalized.reason))
         }
         loaded.await()
+        when (blocked()) {
+            NetworkPolicy.Block.TOR -> return failure(TOR_ON)
+            NetworkPolicy.Block.WEB_OFF -> return failure(WEB_OFF)
+            else -> Unit
+        }
         if (!isOnline()) return failure(OFFLINE)
         val read = withHttpsCall { call -> safeRead(address, call) }
         val page = read.getOrElse { return Result.failure(it) }
@@ -249,6 +259,9 @@ internal class AndroidSiteCards private constructor(
         val unicode = runCatching { IDN.toUnicode(host, IDN.USE_STD3_ASCII_RULES) }.getOrDefault(host)
         return cleanSiteText(unicode.removePrefix("www."), SITE_TITLE_MAX).ifEmpty { host }
     }
+
+    /** Why no website may be read now (Tor as the engine, or Web off), or null when one may. */
+    private fun blocked(): NetworkPolicy.Block? = NetworkPolicy.siteBlock(SettingsManager.storedPrefs(context))
 
     private fun isOnline(): Boolean = runCatching {
         val connectivity = context.getSystemService(ConnectivityManager::class.java) ?: return@runCatching true
@@ -404,6 +417,8 @@ internal class AndroidSiteCards private constructor(
         const val UNREACHABLE = "That site couldn't be reached. Check the address and try again."
         const val NOT_A_PAGE = "That address isn't a web page. Try the site's main address."
         const val OFFLINE = "You're offline. Connect to the internet and try again."
+        const val TOR_ON = "Website cards can't be added while Tor is your search engine."
+        const val WEB_OFF = "Turn on Web in Search Sources to add a website card."
 
         @SuppressLint("StaticFieldLeak") // the application context, which lives as long as the process
         @Volatile

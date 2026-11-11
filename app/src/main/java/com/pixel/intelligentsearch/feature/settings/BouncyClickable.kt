@@ -49,7 +49,8 @@ import com.pixel.intelligentsearch.core.ui.expressive.expressivePress
  * given and otherwise to the control's bounds. Focused from a keyboard, the control draws a focus ring along the same
  * outline. Haptics are this modifier's own: a tick on touch down and one haptic per click or long press, so the
  * system's long-press haptic is turned off. [role] is what TalkBack announces; a radio option passes
- * [Role.RadioButton] and sets its selected state in semantics itself.
+ * [Role.RadioButton] and sets its selected state in semantics itself. [onClickLabel] is what TalkBack says a
+ * double tap will do, where the control's name alone doesn't make that clear.
  */
 @OptIn(ExperimentalFoundationApi::class)
 fun Modifier.bouncyClickable(
@@ -57,6 +58,7 @@ fun Modifier.bouncyClickable(
     interactionSource: MutableInteractionSource? = null,
     role: Role = Role.Button,
     onLongClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
     onClick: () -> Unit
 ): Modifier = composed {
     val effectiveInteractionSource = interactionSource ?: remember { MutableInteractionSource() }
@@ -107,6 +109,7 @@ fun Modifier.bouncyClickable(
         .focusRing(outlineShape) { isFocused.value }
         .combinedClickable(
             role = role,
+            onClickLabel = onClickLabel,
             interactionSource = effectiveInteractionSource,
             indication = indication,
             onLongClick = longClickAction,

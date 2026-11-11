@@ -82,6 +82,8 @@ data class SearchUiState(
     val hasLockedPrivateSpace: Boolean = false,
     val lastQueryLatency: Long = 0,
     val bangSuggestions: List<com.pixel.intelligentsearch.core.bangs.SearchBang> = emptyList(),
+    /** Where in [query] the bang word [bangSuggestions] were found for begins; -1 when there are none. */
+    val bangWordStart: Int = -1,
     val detectedBangQuery: com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = null,
     /** The query with an obvious typo fixed, offered as "Did you mean"; null when nothing is misspelled. */
     val spellingSuggestion: String? = null,
@@ -526,10 +528,24 @@ class SearchViewModel @Inject constructor(
      * created, is only moments old then, so a load younger than [RELOAD_GRACE_MS] isn't repeated.
      */
     fun reloadOnResume() {
+        askAgainAfterFix()
         if (!directBootManager.isUserUnlocked.value) return
         val last = lastInitialLoadAtMs
         if (last != null && android.os.SystemClock.elapsedRealtime() - last < RELOAD_GRACE_MS) return
         loadInitialData()
+    }
+
+    /**
+     * A question that failed for a reason a settings page fixes (a key, a model, AI Answers off) sent the user to that
+     * page with "Open AI Answers"; back here, the failure gives way to the Ask row again, worked out from the settings
+     * as they are now, so the same question can be asked without typing it again.
+     */
+    private fun askAgainAfterFix() {
+        _uiState.update { s ->
+            val failed = s.aiAnswer as? com.pixel.intelligentsearch.core.ai.AiAnswerState.Failed ?: return@update s
+            if (failed.problem.settingsPage == null) return@update s
+            s.copy(aiAnswer = null, aiOffer = if (s.detectedBangQuery == null) aiAnswers.offerFor(s.query) else null)
+        }
     }
 
     fun loadInitialData() {
@@ -706,6 +722,7 @@ class SearchViewModel @Inject constructor(
                 systemToggle = null,
                 volumeSlider = null,
                 bangSuggestions = emptyList(),
+                bangWordStart = -1,
                 detectedBangQuery = null,
                 spellingSuggestion = null,
                 liveAnswer = null,
@@ -733,6 +750,13 @@ class SearchViewModel @Inject constructor(
         } else {
             emptyList()
         }
+        // The chips replace exactly the word they were found for: the first word, or the last trigger to the end.
+        val bangWordStart = when {
+            bangSuggestions.isEmpty() -> -1
+            newQuery.startsWith(trigger) || newQuery.contains(" $trigger") ->
+                if (newQuery.startsWith(trigger)) 0 else newQuery.lastIndexOf(trigger)
+            else -> if (newQuery.startsWith("!")) 0 else newQuery.lastIndexOf("!")
+        }
 
         _uiState.update { current ->
             current.copy(
@@ -740,6 +764,7 @@ class SearchViewModel @Inject constructor(
                 // Offered only; nothing is sent until the row is tapped (askAi).
                 aiOffer = if (parsedBang == null) aiAnswers.offerFor(newQuery) else null,
                 bangSuggestions = bangSuggestions,
+                bangWordStart = bangWordStart,
                 detectedBangQuery = parsedBang,
                 filteredApps = if (tier0.apps.isNotEmpty() && settingsState.value.searchApps) {
                     tier0.apps.filter { it.packageName !in settingsState.value.hiddenApps }
@@ -1375,4 +1400,18 @@ class SearchViewModel @Inject constructor(
         initialDataJob?.cancel()
         initialDataJob = null
     }
+}
+
+/**
+ * [query] with its bang word, the one starting at [start] (see [SearchUiState.bangWordStart]), replaced by [prefix]:
+ * a first word changes alone and the words after it stay ("!y cats" to "!yt cats"); a later one runs to the end, as
+ * the suggestions read it ("cats !play s" to "cats !ps "). With no word found, the bang alone.
+ */
+internal fun replaceBangWord(query: String, start: Int, prefix: String): String = when {
+    start < 0 || start > query.length -> "$prefix "
+    start == 0 -> {
+        val rest = query.substringAfter(' ', "")
+        if (rest.isEmpty()) "$prefix " else "$prefix $rest"
+    }
+    else -> query.substring(0, start) + prefix + " "
 }

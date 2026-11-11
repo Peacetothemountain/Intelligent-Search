@@ -7,6 +7,8 @@ import com.pixel.intelligentsearch.core.data.settings.SearchPillProfiles
 import com.pixel.intelligentsearch.core.data.settings.SettingKey
 import com.pixel.intelligentsearch.core.data.settings.StringSetSetting
 import com.pixel.intelligentsearch.core.data.settings.StringSetting
+import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
+import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
 
 /**
  * What a restored SharedPreferences entry is allowed to look like. Backup files are user-supplied, so a
@@ -56,10 +58,19 @@ internal object BackupPreferenceSchema {
             "widget_system_custom_keep_system_g", "widget_system_custom_sync_colors", "widget_system_design_saved",
             "widget_system_show_doodles", "widget_system_show_g_icon", "widget_system_show_voice", "widget_system_lock_black"
         )
-        // The per-design element colors the widget reads with getInt (WidgetDesignSettings).
-        for (design in listOf("widget", "widget_system", "widget_material")) {
-            for (element in listOf("g_icon", "mic", "shortcut1", "shortcut2", "shortcut3", "action_icon", "shortcuts")) {
-                put("${design}_custom_${element}_color", "INT")
+        // The element colors older versions shared between the designs, read with getInt (WidgetSettingsStore).
+        for (element in listOf("g_icon", "mic", "shortcut1", "shortcut2", "shortcut3", "action_icon", "shortcuts")) {
+            put("widget_custom_${element}_color", "INT")
+        }
+        // Every key each widget design reads, for every design, whichever one writes it: a key only the Material
+        // design saves (its Inner Pill color) is still read for the System design.
+        for (design in WidgetDesign.entries) {
+            for ((suffix, type) in WidgetSettingsStore.DESIGN_KEY_TYPES) {
+                put("${design.prefix}_$suffix", when (type) {
+                    Boolean::class -> "BOOLEAN"
+                    Int::class -> "INT"
+                    else -> "STRING"
+                })
             }
         }
         typed(
@@ -105,7 +116,8 @@ internal object BackupPreferenceSchema {
 
     /**
      * The type the app reads [key] with: a declared setting's own type first, then the literal names above and keys
-     * it names at runtime; null for keys nothing reads by type.
+     * it names at runtime; null for keys nothing reads by type. A restore leaves a key with no type here out, unless
+     * this phone already stores it, when it must match the type stored.
      */
     fun expectedType(key: String): String? = SettingsManager.keyFor(key)?.let(::typeOf) ?: READ_TYPES[key] ?: when {
         // A widget shortcut's custom action, named after the shortcut.

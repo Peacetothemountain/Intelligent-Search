@@ -169,8 +169,9 @@ fun SearchOverlayScreen(
     val coroutineScope = rememberCoroutineScope()
     // Overlay expansion progress. A fresh open starts at 0 and plays the entrance (scrim, panel, then search bar,
     // quick apps and results rising in turn); returning from an app snaps to 1, so it is instant and never transparent.
-    val overlayProgressAnim = remember { Animatable(0f) }
-    var hasEntered by remember { mutableStateOf(false) }
+    // Rebuilt after it has opened (a change on the phone), the overlay is already open and doesn't play it again.
+    var hasEntered by rememberSaveable { mutableStateOf(false) }
+    val overlayProgressAnim = remember { Animatable(if (hasEntered) 1f else 0f) }
     // The window blur fades in and out with the overlay rather than snapping (the home screen sharpens as the
     // panel leaves after a swipe home).
     val blurHost = remember(context) { context.findActivity() as? com.pixel.intelligentsearch.MainActivity }
@@ -539,8 +540,11 @@ fun SearchOverlayScreen(
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
-            hasStartedTyping = false
-            viewModel.onQueryChanged("")
+            // Rebuilt for a change on the phone (a keyboard plugged in), the overlay is the same search: it keeps it.
+            if (context.findActivity()?.isChangingConfigurations != true) {
+                hasStartedTyping = false
+                viewModel.onQueryChanged("")
+            }
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
@@ -795,24 +799,64 @@ fun SearchOverlayScreen(
             .pointerInput(Unit) {
                 var dragJob: kotlinx.coroutines.Job? = null
                 val act = context.findActivity()
+                // Where the pull has the panel now, followed both ways: changing their mind, the user pushes it back.
+                var dragProgress = 1f
+                // Whether this gesture has pulled the panel down at all; until it has, it leaves the panel alone.
+                var pulled = false
+                // Whether this pull put the keyboard away, so it comes back if the panel does.
+                var keyboardHiddenByDrag = false
+                val velocityTracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
+                // A release moving faster than this decides by its direction, not by where the panel is.
+                val flingVelocity = 1000.dp.toPx()
+                // A fling closes only once the panel has been pulled this far; a flick that only puts the keyboard
+                // away springs back, as it always did.
+                val flingCloseBelow = 0.9f
+                // When the last move came: a finger held still before it lifts has no speed left, though the
+                // tracker, fed only moves, still holds the last one's.
+                var lastMoveAt = 0L
+                fun restoreKeyboard() {
+                    if (!keyboardHiddenByDrag) return
+                    keyboardHiddenByDrag = false
+                    if (isKeyboardDisabled || showTutorial) return
+                    isKeyboardDismissedByUser = false
+                    try {
+                        focusRequester.requestFocus()
+                    } catch (_: Exception) {}
+                    keyboardController?.show()
+                }
                 detectVerticalDragGestures(
                     onDragStart = {
                         com.pixel.intelligentsearch.core.ui.WindowFramePacing.setHighRefreshRateCategory(act)
+                        dragProgress = overlayProgressAnim.value
+                        pulled = false
+                        keyboardHiddenByDrag = false
+                        velocityTracker.resetTracking()
                     },
                     onDragEnd = {
                         val commitThreshold = 0.75f
-                        coroutineScope.launch {
+                        val still = android.os.SystemClock.uptimeMillis() - lastMoveAt > STILL_BEFORE_RELEASE_MS
+                        val releaseVelocity = if (still) 0f else velocityTracker.calculateVelocity().y
+                        if (!pulled) {
+                            WindowFramePacing.restoreDefaultRefreshRate(act)
+                        } else coroutineScope.launch {
                             try {
-                                val target = if (overlayProgressAnim.value > commitThreshold) 1f else 0f
-                                val currentVel = overlayProgressAnim.velocity
+                                val opens = when {
+                                    releaseVelocity > flingVelocity && dragProgress < flingCloseBelow -> false
+                                    releaseVelocity < -flingVelocity -> true
+                                    else -> dragProgress > commitThreshold
+                                }
+                                val target = if (opens) 1f else 0f
+                                dragJob?.cancel()
                                 overlayProgressAnim.animateTo(
                                     targetValue = target,
-                                    initialVelocity = currentVel,
+                                    initialVelocity = -releaseVelocity / maxDragDistance,
                                     animationSpec = ExpressiveMotionTokens.criticallyDampedSpring()
                                 )
                                 if (target == 0f) {
                                     viewModel.onQueryChanged("")
                                     finishWithoutTransition(act)
+                                } else {
+                                    restoreKeyboard()
                                 }
                             } finally {
                                 WindowFramePacing.restoreDefaultRefreshRate(act)
@@ -822,31 +866,39 @@ fun SearchOverlayScreen(
                     onDragCancel = {
                         coroutineScope.launch {
                             try {
-                                val currentVel = overlayProgressAnim.velocity
+                                dragJob?.cancel()
                                 overlayProgressAnim.animateTo(
                                     1f,
-                                    initialVelocity = currentVel,
                                     animationSpec = ExpressiveMotionTokens.criticallyDampedSpring()
                                 )
+                                restoreKeyboard()
                             } finally {
                                 WindowFramePacing.restoreDefaultRefreshRate(act)
                             }
                         }
                     },
                     onVerticalDrag = { change, dragAmount ->
-                        if (dragAmount > 0) {
+                        velocityTracker.addPosition(change.uptimeMillis, change.position)
+                        lastMoveAt = change.uptimeMillis
+                        // Down pulls the panel away; up moves it back, once it has been pulled at all.
+                        if (dragAmount > 0 || pulled) {
+                            pulled = true
                             change.consume()
                             com.pixel.intelligentsearch.core.ui.WindowFramePacing.setContentVelocity(view, dragAmount * 60f)
                             val deltaProgress = dragAmount / maxDragDistance
-                            val newProgress = (overlayProgressAnim.value - deltaProgress).coerceIn(0f, 1f)
+                            val newProgress = (dragProgress - deltaProgress).coerceIn(0f, 1f)
+                            dragProgress = newProgress
                             dragJob?.cancel()
                             dragJob = coroutineScope.launch {
                                 overlayProgressAnim.snapTo(newProgress)
                             }
                             if (newProgress < 0.95f && !isKeyboardDismissedByUser) {
                                 isKeyboardDismissedByUser = true
+                                keyboardHiddenByDrag = true
                                 focusManager.clearFocus(force = true)
                                 keyboardController?.hide()
+                            } else if (newProgress >= 0.98f) {
+                                restoreKeyboard()
                             }
                         }
                     }
@@ -987,7 +1039,7 @@ fun SearchOverlayScreen(
             ) {
                 
                 // The search bar, quick apps and results: the whole panel on a phone, the start pane on a large screen.
-                val searchColumn = @Composable { columnModifier: Modifier ->
+                val searchColumnContent = @Composable { columnModifier: Modifier ->
                     Column(
                         modifier = columnModifier,
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -1048,6 +1100,22 @@ fun SearchOverlayScreen(
                                 translationY = -(1f - p) * contentOffsetPx
                             }) { searchBarContent() }
                         }
+                    }
+                }
+                // One column that moves between the two layouts as the window crosses the list-and-detail width (a
+                // foldable opening, a window resized), so the search field, what it holds and the results' own state
+                // (a reported answer stays hidden) carry over instead of being built again. It always draws with the
+                // latest values.
+                val currentSearchColumn by rememberUpdatedState(searchColumnContent)
+                val searchColumn = remember { movableContentOf { columnModifier: Modifier -> currentSearchColumn(columnModifier) } }
+                // The field had the keyboard before the move, so it keeps it after, as the overlay's own rules say.
+                LaunchedEffect(listDetail) {
+                    if (windowInfo.isWindowFocused && transitionState.targetState && !isKeyboardDisabled && !showTutorial &&
+                        !isKeyboardDismissedByUser && !voice.active
+                    ) {
+                        try {
+                            focusRequester.requestFocus()
+                        } catch (_: Exception) {}
                     }
                 }
                 if (listDetail) {
@@ -1179,3 +1247,6 @@ fun SearchOverlayScreen(
     AppOpeningLayer(appOpenings)
     }
 }
+
+/** A finger still this long (ms) before it lifts lets the panel go with no speed: a release, not a fling. */
+private const val STILL_BEFORE_RELEASE_MS = 40L

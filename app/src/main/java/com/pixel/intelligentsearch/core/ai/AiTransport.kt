@@ -9,26 +9,30 @@ import java.io.IOException
 fun interface AiTransport {
     /**
      * Throws [IOException] when the provider can't be reached, [call] is cancelled, or the answer takes longer than
-     * allowed ([com.pixel.intelligentsearch.core.net.HttpsTimeoutException]).
+     * [AiRequest.timeoutMs] allows ([com.pixel.intelligentsearch.core.net.HttpsTimeoutException]).
      */
     @Throws(IOException::class)
     fun post(request: AiRequest, call: HttpsCall, onLine: (String) -> Unit): HttpsResponse
 }
 
 /**
- * [AiTransport] over the app's [HttpsClient]: https only, redirects never followed, nothing cached, and the whole
- * exchange limited to [TOTAL_TIMEOUT_MS] (30 seconds) however slowly the answer streams. No cookies, no identifiers;
- * the User-Agent is the app's fixed one instead of Android's (which names the phone model).
+ * [AiTransport] over the app's [HttpsClient]: https only, redirects never followed, nothing cached, connecting within
+ * [CONNECT_TIMEOUT_MS] (30 seconds), and the whole exchange, like any silence in it, limited to the request's own
+ * [AiRequest.timeoutMs], which grows with how long the model is asked to think, however slowly the answer streams.
+ * No cookies, no identifiers; the User-Agent is the app's fixed one instead of Android's (which names the phone model).
  */
 class HttpsAiTransport internal constructor(private val client: HttpsClient) : AiTransport {
 
-    constructor() : this(HttpsClient(timeoutMs = TOTAL_TIMEOUT_MS.toInt(), totalTimeoutMs = TOTAL_TIMEOUT_MS))
+    constructor() : this(HttpsClient(timeoutMs = CONNECT_TIMEOUT_MS.toInt(), totalTimeoutMs = CONNECT_TIMEOUT_MS))
 
     override fun post(request: AiRequest, call: HttpsCall, onLine: (String) -> Unit): HttpsResponse =
-        client.postStreaming(request.url, request.headers, request.body, MAX_STREAM_CHARS, call, onLine)
+        client.postStreaming(
+            request.url, request.headers, request.body, MAX_STREAM_CHARS, call,
+            readTimeoutMs = request.timeoutMs.toInt(), totalTimeoutMs = request.timeoutMs, onLine = onLine
+        )
 
     companion object {
-        const val TOTAL_TIMEOUT_MS = 30_000L
+        const val CONNECT_TIMEOUT_MS = 30_000L
 
         /** A full answer is a few kilobytes; a stream far past that isn't one. */
         private const val MAX_STREAM_CHARS = 512 * 1024

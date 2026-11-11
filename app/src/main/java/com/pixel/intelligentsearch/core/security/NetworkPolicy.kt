@@ -81,6 +81,13 @@ object NetworkPolicy {
     fun aiBlock(prefs: SharedPreferences): Block? =
         aiBlock(web = prefs[SettingsManager.SEARCH_WEB], engine = prefs[SettingsManager.SEARCH_ENGINE])
 
+    /**
+     * What keeps Discover from reaching the network for something the user set up there (a website card's page; the
+     * place of the next event, for Leave-by): Tor as the engine, or Web off. Nothing typed is sent, so Web Suggestions
+     * doesn't matter, the same rule as [aiBlock].
+     */
+    fun siteBlock(prefs: SharedPreferences): Block? = aiBlock(prefs)
+
     /** [aiBlock] from the settings' values, for a settings page that observes them. */
     fun aiBlock(web: Boolean, engine: String): Block? = when {
         isTorEngine(engine) -> Block.TOR

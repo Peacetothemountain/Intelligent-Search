@@ -121,7 +121,10 @@ class CountdownConfigActivity : ComponentActivity() {
                     today = today,
                     previewViews = { draft ->
                         // Worked out off the main thread: the design's colors look up the theme and the shortcuts.
-                        withContext(Dispatchers.IO) { CountdownWidgetProvider.buildSizes(this@CountdownConfigActivity, appWidgetId, draft, prefs) }
+                        // No tap: making one would replace the placed widget's with this unsaved draft's.
+                        withContext(Dispatchers.IO) {
+                            CountdownWidgetProvider.buildSizes(this@CountdownConfigActivity, appWidgetId, draft, prefs, withTap = false)
+                        }
                     },
                     onSave = { event ->
                         events.put(appWidgetId, event)

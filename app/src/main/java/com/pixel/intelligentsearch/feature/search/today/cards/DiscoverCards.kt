@@ -26,7 +26,7 @@ internal enum class CardKind(val key: String, val builtIn: Boolean, val shaped: 
     TILES("tiles", true, true, "Timer and alarm", 290),
     NOW_PLAYING("now_playing", true, true, "Now playing", 250),
     CATCH_UP("catch_up", true, true, "Catch up", 260),
-    CONTROLS("controls", true, false, "Quick controls", 164),
+    CONTROLS("controls", true, false, "Quick controls", 120),
     PHONE("phone", true, true, "Your phone today", 290),
     LEFT_OFF("left_off", true, true, "Pick up where you left off", 160),
     WORD("word", true, true, "Word of the day", 300),

@@ -201,7 +201,7 @@
             android:roundIcon="@mipmap/ic_launcher_round"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Widget"
             android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|touchscreen|layoutDirection|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
             android:exported="false">
@@ -214,7 +214,7 @@
             android:roundIcon="@mipmap/ic_launcher_round"
             android:theme="@style/Theme.IntelligentSearch.Overlay.Launcher"
             android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|touchscreen|layoutDirection|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
             android:exported="true">
@@ -254,7 +254,7 @@
             android:name="com.pixel.intelligentsearch.feature.widget.WidgetActivity"
             android:theme="@style/Theme.IntelligentSearch.Overlay.WidgetLaunch"
             android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|touchscreen|layoutDirection|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.searchoverlay"
             android:exported="false" />
@@ -264,7 +264,7 @@
         <activity
             android:name="com.pixel.intelligentsearch.feature.widget.VoiceNebulaActivity"
             android:theme="@style/Theme.IntelligentSearch.Overlay.WidgetLaunch"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|touchscreen|layoutDirection|smallestScreenSize|density|uiMode|fontScale"
             android:launchMode="singleTask"
             android:taskAffinity="com.pixel.intelligentsearch.voicesearch"
             android:excludeFromRecents="true"
@@ -300,7 +300,7 @@
         <activity
             android:name="com.pixel.intelligentsearch.feature.settings.SettingsActivity"
             android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density|uiMode|fontScale"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|touchscreen|layoutDirection|smallestScreenSize|density|uiMode|fontScale"
             android:icon="@mipmap/ic_launcher"
             android:roundIcon="@mipmap/ic_launcher_round"
             android:exported="true">
@@ -410,10 +410,13 @@
         </receiver>
 
         <!-- Sets up a countdown widget. Not exported: the launcher's widget setup goes through SettingsActivity (the
-             app's one widget configuration entry point), which hands a countdown widget's setup on to it. -->
+             app's one widget configuration entry point), which hands a countdown widget's setup on to it. Opened from
+             the widget it runs on its own, so Save or Back goes home rather than into Settings left open earlier; the
+             launcher's setup still opens it over SettingsActivity, in that task. -->
         <activity
             android:name="com.pixel.intelligentsearch.feature.widget.CountdownConfigActivity"
             android:label="@string/widget_countdown_label"
+            android:taskAffinity="com.pixel.intelligentsearch.countdownsetup"
             android:windowSoftInputMode="adjustResize"
             android:excludeFromRecents="true"
             android:exported="false" />

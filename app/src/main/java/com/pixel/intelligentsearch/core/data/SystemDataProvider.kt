@@ -124,29 +124,91 @@ object SystemDataProvider {
 
     fun invalidateAppsCache() {
         cachedApps = null
+        changedApps.clear()
+    }
+
+    /** Apps a package event named since the list was read, as (package, profile); [getAllApps] reads just these again. */
+    private val changedApps: MutableSet<Pair<String, android.os.UserHandle>> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /**
+     * Notes that [packageName] was installed, updated, removed, suspended or had a component turned on or off in
+     * [user]'s profile. The next [getAllApps] reads that one package again and keeps every other app, icon included,
+     * rather than scanning the device: with every package visible to this app such events arrive all day, and each
+     * full scan loads every app's icon. A package that had no launcher icon and still has none changes nothing.
+     */
+    fun appChanged(packageName: String, user: android.os.UserHandle) {
+        changedApps.add(packageName to user)
     }
 
     /** Reads every launchable app from the device. Replaceable in tests, which count how often a scan runs. */
     @VisibleForTesting
     internal var appScanner: suspend (Context, Boolean) -> List<AppItem> = { context, forceRefresh -> scanApps(context, forceRefresh) }
 
+    /**
+     * Reads one package's launchable apps in one profile
+     * ([com.pixel.intelligentsearch.core.profile.MultiProfileManager.getProfileApps]); null when they can't
+     * be read. Replaceable in tests.
+     */
+    @VisibleForTesting
+    internal var packageScanner: suspend (Context, String, android.os.UserHandle) -> List<AppItem>? = { context, packageName, user ->
+        try {
+            getMultiProfileManager(context).getProfileApps(packageName, user)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     /** One app scan at a time: callers that arrive together (overlay, index, widget at start-up) share its result. */
     private val appsLock = Mutex()
 
+    /**
+     * Every launchable app, from the list last read unless [forceRefresh]. Packages an event named since ([appChanged])
+     * are read again first; the list returned is the same instance when that changed nothing.
+     */
     suspend fun getAllApps(context: Context, forceRefresh: Boolean = false): List<AppItem> = withContext(Dispatchers.IO) {
-        if (!forceRefresh && cachedApps != null) {
+        if (!forceRefresh && changedApps.isEmpty()) {
             cachedApps?.let { return@withContext it }
         }
 
         appsLock.withLock {
             // A caller that waited here usually finds the scan it was waiting on already cached.
-            if (!forceRefresh) cachedApps?.let { return@withLock it }
+            if (!forceRefresh) cachedApps?.let { cached -> withChangedApps(context, cached)?.let { return@withLock it } }
+            // A full scan reads every change noted so far; one noted while it runs is read again after it.
+            changedApps.clear()
             val finalApps = appScanner(context, forceRefresh)
             if (finalApps.isNotEmpty() || cachedApps == null) {
                 cachedApps = finalApps
             }
             finalApps
         }
+    }
+
+    /**
+     * [cached] with each package in [changedApps] read again in its profile, and caches it; [cached] itself when that
+     * changed nothing. Null when a package can't be read, for a full scan instead. Like [scanApps], it keeps one entry
+     * per package in each profile. Called under [appsLock].
+     */
+    private suspend fun withChangedApps(context: Context, cached: List<AppItem>): List<AppItem>? {
+        if (changedApps.isEmpty()) return cached
+        val changed = changedApps.toList()
+        changedApps.removeAll(changed.toSet())
+        val me = android.os.Process.myUserHandle()
+        var apps = cached
+        for ((packageName, user) in changed) {
+            val fresh = packageScanner(context, packageName, user) ?: return null
+            // The personal profile's apps read through PackageManager carry no user.
+            fun sameApp(app: AppItem) = app.packageName == packageName && (app.userHandle ?: me) == user
+            // A package that had no launcher icon here and still has none (most updates and component changes).
+            if (fresh.isEmpty() && apps.none(::sameApp)) continue
+            // scanApps keeps the last of a package's activities in a profile, in name order.
+            val kept = fresh.sortedBy { it.name.lowercase() }.lastOrNull()
+            // In scanApps' order: by name, a personal app before its copies in other profiles.
+            apps = (apps.filterNot(::sameApp) + listOfNotNull(kept)).sortedWith(compareBy({ it.name.lowercase() }, { it.profileType.ordinal }))
+        }
+        if (apps !== cached) cachedApps = apps
+        return apps
     }
 
     /**

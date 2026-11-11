@@ -70,25 +70,27 @@ class MultiProfileManager @Inject constructor(
     val packageChanges: SharedFlow<Unit> = _packageChanges
 
     // An install, update or removal can change an app's icon, and nothing else drops a cached icon while the
-    // process lives, so those events forget the package's icon along with the app list.
+    // process lives, so those events forget the package's icon along with its place in the app list. An event that
+    // names one package (or a few) has only those read again ([SystemDataProvider.appChanged]); apps arriving or
+    // leaving together (a profile turned on or off, an SD card) have the whole list read again.
     private val launcherCallback = object : LauncherApps.Callback() {
         override fun onPackageRemoved(packageName: String, user: UserHandle) {
             refreshProfiles()
-            SystemDataProvider.invalidateAppsCache()
+            SystemDataProvider.appChanged(packageName, user)
             _packageChanges.tryEmit(Unit)
             evictThemedAppIcon(packageName)
         }
 
         override fun onPackageAdded(packageName: String, user: UserHandle) {
             refreshProfiles()
-            SystemDataProvider.invalidateAppsCache()
+            SystemDataProvider.appChanged(packageName, user)
             _packageChanges.tryEmit(Unit)
             evictThemedAppIcon(packageName)
         }
 
         override fun onPackageChanged(packageName: String, user: UserHandle) {
             refreshProfiles()
-            SystemDataProvider.invalidateAppsCache()
+            SystemDataProvider.appChanged(packageName, user)
             _packageChanges.tryEmit(Unit)
             evictThemedAppIcon(packageName)
         }
@@ -109,13 +111,13 @@ class MultiProfileManager @Inject constructor(
 
         override fun onPackagesSuspended(packageNames: Array<out String>, user: UserHandle) {
             refreshProfiles()
-            SystemDataProvider.invalidateAppsCache()
+            packageNames.forEach { SystemDataProvider.appChanged(it, user) }
             _packageChanges.tryEmit(Unit)
         }
 
         override fun onPackagesUnsuspended(packageNames: Array<out String>, user: UserHandle) {
             refreshProfiles()
-            SystemDataProvider.invalidateAppsCache()
+            packageNames.forEach { SystemDataProvider.appChanged(it, user) }
             _packageChanges.tryEmit(Unit)
         }
     }
@@ -217,34 +219,52 @@ class MultiProfileManager @Inject constructor(
 
             try {
                 val activities: List<LauncherActivityInfo> = la.getActivityList(null, desc.userHandle)
-                for (activity in activities) {
-                    val label = activity.label.toString()
-                    val packageName = activity.applicationInfo.packageName
-                    val activityName = activity.componentName.className
-
-                    // getBadgedIcon already applies the profile badge; badging it again would draw two badges.
-                    val badgedIcon: Drawable = compactAppIcon(activity.getBadgedIcon(0), appContext.resources)
-
-                    appList.add(
-                        AppItem(
-                            name = label,
-                            packageName = packageName,
-                            icon = badgedIcon,
-                            actions = SystemDataProvider.getAppActions(packageName),
-                            userHandle = desc.userHandle,
-                            profileType = desc.profileType,
-                            isPrivateProfile = desc.profileType == ProfileType.PRIVATE,
-                            isQuietMode = desc.isQuietMode,
-                            activityName = activityName
-                        )
-                    )
-                }
+                for (activity in activities) appList.add(appItemOf(activity, desc))
             } catch (e: Throwable) {
                 Log.w(TAG, "Failed to load apps for profile ${desc.userHandle}", e)
             }
         }
 
         appList.sortedWith(compareBy({ it.profileType.ordinal }, { it.name.lowercase() }))
+    }
+
+    /**
+     * [packageName]'s launchable activities in [user]'s profile, read as [getAllProfileApps] reads every app, so an
+     * event naming one package updates the app list without loading every other app's icon again. Empty when the
+     * package has none there (removed, or its launcher activity turned off) or the profile is a locked Private Space
+     * or gone; null when they can't be read, so the caller reads every app instead.
+     */
+    suspend fun getProfileApps(packageName: String, user: UserHandle): List<AppItem>? = withContext(Dispatchers.IO) {
+        val la = launcherApps ?: return@withContext null
+        val desc = _profilesState.value.firstOrNull { it.userHandle == user }
+            ?: refreshProfiles().firstOrNull { it.userHandle == user }
+            ?: return@withContext emptyList()
+        // As in getAllProfileApps: a locked Private Space's apps never enter the search index.
+        if (desc.profileType == ProfileType.PRIVATE && desc.isLocked) return@withContext emptyList()
+        try {
+            la.getActivityList(packageName, user).map { appItemOf(it, desc) }
+        } catch (e: Throwable) {
+            Log.w(TAG, "Failed to load $packageName for profile $user", e)
+            null
+        }
+    }
+
+    /** One launchable activity as the app list holds it, with its icon kept small ([compactAppIcon]). */
+    private fun appItemOf(activity: LauncherActivityInfo, desc: ProfileDescriptor): AppItem {
+        val packageName = activity.applicationInfo.packageName
+        // getBadgedIcon already applies the profile badge; badging it again would draw two badges.
+        val badgedIcon: Drawable = compactAppIcon(activity.getBadgedIcon(0), appContext.resources)
+        return AppItem(
+            name = activity.label.toString(),
+            packageName = packageName,
+            icon = badgedIcon,
+            actions = SystemDataProvider.getAppActions(packageName),
+            userHandle = desc.userHandle,
+            profileType = desc.profileType,
+            isPrivateProfile = desc.profileType == ProfileType.PRIVATE,
+            isQuietMode = desc.isQuietMode,
+            activityName = activity.componentName.className
+        )
     }
 
     /**

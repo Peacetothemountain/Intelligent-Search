@@ -34,6 +34,10 @@ enum class AiProblem(val message: String, val settingsPage: String? = null, val 
     TIMEOUT("The answer took too long. Try again.", retryable = true),
     MODEL("This model isn't available to your key. Pick another in AI Answers.",settingsPage = "ai_answers"),
     REFUSED("The provider declined to answer this."),
+    /** The output limit, which counts thinking too, ran out before a word of the answer: asking again won't help. */
+    NO_ROOM("It ran out of room while thinking, before it could answer. Choose a higher Reasoning level in AI Answers.", settingsPage = "ai_answers"),
+    /** [NO_ROOM] at the model's highest level, where no setting gives it more room. */
+    NO_ROOM_AT_TOP("It ran out of room while thinking, before it could answer. Try a shorter or simpler question."),
     PROVIDER("The provider couldn't answer right now. Try again later.", retryable = true)
 }
 
@@ -122,7 +126,14 @@ class AiAnswers internal constructor(
                                 trySend(AiAnswerState.Answer(provider, question, text.toString()))
                             }
                             AiEvent.Finished -> finished = true
-                            AiEvent.Truncated -> truncated = true
+                            AiEvent.Truncated -> {
+                                truncated = true
+                                if (text.isEmpty() && problem == null) {
+                                    // A higher level gives more room; at the model's highest there is none to give.
+                                    val top = choice.reasoning == provider.spec(choice.model).reasoning.last()
+                                    problem = if (top) AiProblem.NO_ROOM_AT_TOP else AiProblem.NO_ROOM
+                                }
+                            }
                             AiEvent.Refused -> if (text.isEmpty()) problem = AiProblem.REFUSED
                             is AiEvent.Error -> if (problem == null) problem = AiProblem.PROVIDER
                         }
@@ -144,8 +155,10 @@ class AiAnswers internal constructor(
         }
         var response = post(choice.fast)
         // Fast mode refused before a word came (no room for it right now, or a key it isn't open to): ask once more
-        // at standard speed, so choosing Fast never costs the answer. A refused key or model isn't about speed.
-        if (choice.fast && response != null && response.code !in setOf(200, 401, 404) && text.isEmpty()) {
+        // at standard speed, so choosing Fast never costs the answer. A refused key or model isn't about speed, whatever
+        // status says so (Gemini names both with a 400), so it isn't asked twice; a 403 is still asked again, since
+        // that is how a key without Gemini's Priority tier is refused.
+        if (choice.fast && response != null && response.code != 200 && text.isEmpty() && !refusesKeyOrModel(response)) {
             currentCoroutineContext().ensureActive()
             problem = null
             response = post(fast = false)
@@ -189,6 +202,16 @@ class AiAnswers internal constructor(
         private val QUESTION_MARKS = charArrayOf('?', '？', '؟', '՞', '፧', '﹖', '‽')
 
         const val MAX_QUESTION_LENGTH = 500
+
+        /** Whether [response] refused the key or the model, which asking again at another speed can't change. */
+        private fun refusesKeyOrModel(response: HttpsResponse): Boolean = when (response.code) {
+            // A key that isn't valid, and a model the provider doesn't have: asking slower changes neither.
+            401, 404 -> true
+            // Gemini's 400 for a bad key. A 400 naming the model may be fast mode refused for it, so that one is asked
+            // again; so is a 403, how Gemini refuses Priority to a key below its tier.
+            400 -> problemFor(response) == AiProblem.BAD_KEY
+            else -> false
+        }
 
         /** What a refused request's [response] means. */
         internal fun problemFor(response: HttpsResponse): AiProblem = when (response.code) {

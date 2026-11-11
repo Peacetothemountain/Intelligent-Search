@@ -189,6 +189,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val QUICK_PANEL_TRIM_WARNING_DISMISSED = BooleanSetting("quick_panel_trim_warning_dismissed", false)
         /** "Don't show again" on Manage Hidden Apps' unsaved-changes card. */
         val HIDDEN_APPS_UNSAVED_WARNING_DISMISSED = BooleanSetting("hidden_apps_unsaved_warning_dismissed", false)
+        /** "I'm Done for Now" on Finish Setting Up: Settings stops offering the checklist (SetupChecklist). */
+        val SETUP_CHECKLIST_DISMISSED = BooleanSetting("setup_checklist_dismissed", false)
         val BACK_TO_SEARCH_OVERLAY = BooleanSetting("settings_back_to_search_overlay", true)
         val DISABLED_WEB_SHORTCUTS = StringSetSetting("disabled_web_shortcuts", emptySet())
         val VIBRATION = BooleanSetting("vibration_enabled", true)
@@ -324,7 +326,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             SEARCH_OVERLAY_ENABLED, CUSTOM_ICON_PILLS, NEVER_SHOW_ICON_PACK_WARNING, CUSTOM_BANGS_JSON,
             WEB_SHORTCUT_TRIGGER_SYMBOL, SEARCH_QUICK_SHORTCUTS, SHOW_AVAILABLE_DIRECT_SHORTCUTS,
             DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
-            QUICK_PANEL_TRIM_WARNING_DISMISSED, HIDDEN_APPS_UNSAVED_WARNING_DISMISSED,
+            QUICK_PANEL_TRIM_WARNING_DISMISSED, HIDDEN_APPS_UNSAVED_WARNING_DISMISSED, SETUP_CHECKLIST_DISMISSED,
             BACK_TO_SEARCH_OVERLAY, DISABLED_WEB_SHORTCUTS, VIBRATION, OVERLAY_SHOW_MIC, DEBUG_UNLOCKED, DEBUG_VERBOSE_LOGGING,
             SHOW_KEYBOARD_ON_OPEN,
             DEBUG_SHOW_PERF_STATS, DEBUG_FORCE_SEARCH_ERROR, DEBUG_SIMULATE_LATENCY, DEBUG_MOCK_LARGE_DATASET,

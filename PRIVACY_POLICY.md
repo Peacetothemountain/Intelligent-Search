@@ -1,6 +1,6 @@
 # Privacy Policy & Privacy Governance
 
-**Effective Date:** October 4, 2026  
+**Effective Date:** November 11, 2026  
 **Last Updated:** October 23, 2026  
 **Application:** Intelligent Search (`com.pixel.intelligentsearch`)  
 **Developer / Publisher:** NG Designs  
@@ -32,7 +32,7 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 
 ### B. Calendar (`android.permission.READ_CALENDAR`)
 * **Purpose**: Displays your upcoming agenda items, meetings, and events directly in the search overlay when you search for relevant terms.
-* **Processing & Security**: Queried strictly on-demand from the Android `CalendarContract` provider. Events are processed in ephemeral memory during the active search session and are **never** persisted to remote servers or transmitted off-device.
+* **Processing & Security**: Queried strictly on-demand from the Android `CalendarContract` provider. Events are processed in ephemeral memory during the active search session and are **never** persisted to remote servers or transmitted off-device, with one exception you can turn off: **Leave-by** on Discover (on by default while Discover's Up Next is shown, and only if you allowed approximate location) looks up where your next event is, so it can say when to leave. The event's address goes to Android's own map lookup (the phone's geocoder, which may ask Google's servers), and only while **Web** is on and Tor is not your search engine. Nothing else about the event is sent, and the found place is kept in memory only.
 * **User Control**: Calendar access is requested at runtime only when Calendar search is toggled on in Settings.
 
 ### C. Installed Applications & Shortcuts (`android.permission.QUERY_ALL_PACKAGES`)
@@ -69,7 +69,7 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 
 ### J. Approximate Location (`android.permission.ACCESS_COARSE_LOCATION`)
 * **Purpose**: Only if you tap **Use Approximate Location** on the weather card (shown when you search for the weather and have not set a location), the weather for "here" uses your phone's approximate location. Precise location is never requested.
-* **Processing & Security**: The permission is requested when you choose this, after an in-app explanation. The location is read only when you search for the weather, rounded to about a kilometre, and sent only to Open-Meteo for the forecast (see Section 3). It is never stored or sent anywhere else.
+* **Processing & Security**: The permission is requested when you choose this, after an in-app explanation. The location is read only for the weather (when you search for it, or on Discover's Weather) and for Discover's **Leave-by** time, rounded to about a kilometer for the forecast and sent only to Open-Meteo (see Section 3). Leave-by uses it on the phone to estimate the drive to your next event and sends it nowhere. It is never stored.
 * **User Control**: Choose **Set Location** or **Change Location** on the weather card to use a city you pick instead, or revoke the permission in Android System Settings.
 
 ### K. On-Device Assistants (Android App Functions)
@@ -118,7 +118,7 @@ When you execute a web search or request live autocomplete suggestions:
 
 **Instant answers** show some answers inside the search overlay. They have no switches of their own. Definitions and weather forecasts are part of web suggestions: they are sent only while Web and **Web Suggestions** (**Settings -> Web Search -> Web Suggestions**) are on, and never while Tor is your search engine. Every request is over HTTPS, carries no account or identifier, and names the app only as the fixed User-Agent `IntelligentSearch/1.0`; like any internet request, it lets the service see your IP address.
 * **Definitions** (Free Dictionary API, `https://api.dictionaryapi.dev`, built from Wiktionary): when you search for a definition ("define serendipity", "serendipity meaning", "serendipity?"), the word is sent to look it up. Definitions are kept on your device for up to 30 days so they show again offline, then deleted; turning Web Suggestions or Web off deletes them. [Free Dictionary API](https://dictionaryapi.dev/)
-* **Weather** (Open-Meteo, `https://api.open-meteo.com` and `https://geocoding-api.open-meteo.com`): when you search for the weather, the coordinates of the place (the location you set on the weather card, or else your approximate location if you allowed it), rounded to about a kilometre, are sent for the forecast. A place named in the search ("weather in Johnson City"), or typed when you set a location, is sent to Open-Meteo's place search to find it. Forecasts are kept on your device for 15 minutes and place lookups for 30 days, then deleted; a forecast for your approximate location is kept in memory only, so where your phone was is never written to storage. Turning Web Suggestions or Web off, from anywhere, deletes them. The location you set is saved in the app's settings and included in your encrypted backups. [Open-Meteo Terms & Privacy](https://open-meteo.com/en/terms)
+* **Weather** (Open-Meteo, `https://api.open-meteo.com` and `https://geocoding-api.open-meteo.com`): when you search for the weather, the coordinates of the place (the location you set on the weather card, or else your approximate location if you allowed it), rounded to about a kilometer, are sent for the forecast. A place named in the search ("weather in Johnson City"), or typed when you set a location, is sent to Open-Meteo's place search to find it. Forecasts are kept on your device for 15 minutes and place lookups for 30 days, then deleted; a forecast for your approximate location is kept in memory only, so where your phone was is never written to storage. Turning Web Suggestions or Web off, from anywhere, deletes them. The location you set is saved in the app's settings and included in your encrypted backups. [Open-Meteo Terms & Privacy](https://open-meteo.com/en/terms)
 * **Translations**: searches like "translate hello to Spanish" show a card that sends nothing by itself. Only when you tap **Translate in Google Translate** is the text handed to Google Translate: the Google Translate app if your phone has it, otherwise `https://translate.google.com` in your browser. What happens there is covered by Google's own policy. [Google Privacy Policy](https://policies.google.com/privacy)
 * **Screen Time** answers are read from Android's usage statistics on your phone (Section 2.E) and send nothing.
 
@@ -127,6 +127,8 @@ When you execute a web search or request live autocomplete suggestions:
 * **Providers and endpoints**: Anthropic Claude (`api.anthropic.com`, [Anthropic Privacy Policy](https://www.anthropic.com/legal/privacy)), OpenAI (`api.openai.com`, [OpenAI Privacy Policy](https://openai.com/policies/privacy-policy)) and Google Gemini (`generativelanguage.googleapis.com`, [Google Privacy Policy](https://policies.google.com/privacy)). The provider handles the question under its own policy and your agreement with it, and can see your IP address.
 * **Your key**: it is encrypted with an Android Keystore key on your phone, never written to the app's settings, backups, logs or Android backup, shown only masked (its last four characters), sent only to the provider it belongs to, and deleted with **Remove Key**. A restore from a backup never switches AI Answers on.
 * **Tor and Web**: AI Answers are off while Tor is your search engine or **Settings -> Search Sources -> Web** is off.
+
+**Discover website cards** (only websites you add yourself): adding one reads that page over HTTPS (its title, description and picture, which may come from another address the page names), and Discover reads it again at most once a day while it is open, so the card stays current. Nothing you typed or anything about you is sent; like any web request, the site can see your IP address. What a card shows is kept on your phone until you remove the card. Nothing is read, and no card can be added, while Tor is your search engine or **Settings -> Search Sources -> Web** is off; tapping a card opens the site in your browser, or only in Tor Browser while Tor is your search engine.
 
 **AI assistant shortcuts** (`!gpt`, `!pplx`, `!gemini`, `!claude`, `!copilot`, and AI apps added to Quick Launch) open ChatGPT, Perplexity, Gemini, Claude or Copilot with your query, in their app or your browser, like any other web shortcut: the query goes to that service only when you use the shortcut.
 

@@ -264,37 +264,38 @@ class BackupManager @Inject constructor(
         )
     }
 
-    /** Encrypts the current settings, hidden apps and history and writes them to [uri]. */
-    suspend fun exportToFile(uri: Uri, passphrase: String?): Result<Unit> = withContext(Dispatchers.IO) {
+    /**
+     * Encrypts the current settings, hidden apps and history and writes them to [uri]: with the backup passkey when one
+     * is set up (and the [passphrase] too, when given), otherwise with the passphrase, otherwise with this phone's own
+     * key. As for automatic backups ([exportAutomatic]), a passkey whose key this phone can no longer read
+     * ([BackupPasskey.canWrap]) doesn't stop a backup that has a passphrase: that one opens with the passphrase alone.
+     * Returns which of the user's keys open the file (neither, for a file only this phone can open).
+     */
+    suspend fun exportToFile(uri: Uri, passphrase: String?): Result<WrittenFor> = withContext(Dispatchers.IO) {
         backupResult("exportToFile") {
             val payload = createBackupPayload()
             val plainJson = serializePayload(payload)
 
             val hwInfo = com.pixel.intelligentsearch.core.security.HardwareSecurityDetector.detect(context)
 
-            val envelope = if (backupPasskey.isSetUp) {
-                // With a passkey set up, the backup opens with it, and with the passphrase too when one is given.
-                keySlotEnvelope(plainJson, hwInfo, passphrase?.takeIf { it.isNotBlank() }?.let { pass ->
-                    val salt = BackupCryptoEngine.generateRandomSalt()
-                    val passChars = pass.toCharArray()
-                    val key = try {
-                        BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt)
-                    } finally {
-                        com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
-                    }
-                    key to salt
-                })
-            } else if (!passphrase.isNullOrBlank()) {
-                // Passphrase backups are encrypted in software from the passphrase so they restore on
-                // any phone; the device Keystore is not involved, so they are not hardware backed.
+            val passphraseKey = passphrase?.takeIf { it.isNotBlank() }?.let { pass ->
                 val salt = BackupCryptoEngine.generateRandomSalt()
-                val passChars = passphrase.toCharArray()
+                val passChars = pass.toCharArray()
                 val key = try {
                     BackupCryptoEngine.deriveKeyFromPassphrase(passChars, salt)
                 } finally {
                     com.pixel.intelligentsearch.core.security.MemorySanitizer.wipe(passChars)
                 }
-                passphraseEnvelope(plainJson, key, salt, hwInfo)
+                key to salt
+            }
+            val withPasskey = backupPasskey.isSetUp && (passphraseKey == null || backupPasskey.canWrap)
+            val envelope = if (withPasskey) {
+                // With a passkey set up, the backup opens with it, and with the passphrase too when one is given.
+                keySlotEnvelope(plainJson, hwInfo, passphraseKey)
+            } else if (passphraseKey != null) {
+                // Passphrase backups are encrypted in software from the passphrase so they restore on
+                // any phone; the device Keystore is not involved, so they are not hardware backed.
+                passphraseEnvelope(plainJson, passphraseKey.first, passphraseKey.second, hwInfo)
             } else {
                 // No passphrase: encrypt with a non-exportable AES-256 key generated inside this phone's
                 // Keystore (StrongBox when present, otherwise the TEE). The key never leaves the
@@ -327,6 +328,7 @@ class BackupManager @Inject constructor(
             }
 
             writeEnvelope(uri, envelope)
+            WrittenFor(passkey = withPasskey, passphrase = passphraseKey != null)
         }
     }
 
@@ -671,10 +673,11 @@ class BackupManager @Inject constructor(
                         val itemObj = spObj.getJSONObject(key)
                         val type = itemObj.optString("type")
                         // Known keys (including per-shortcut custom actions and pill profiles) must carry the type
-                        // the app reads them with. Keys the schema doesn't name must at least match what is stored here now.
+                        // the app reads them with. Keys the schema doesn't name must match what is stored here now, and
+                        // a key neither names is left out: nothing here vouches for the type it would be read with.
                         val expectedType = BackupPreferenceSchema.expectedType(key)
                             ?: localValues[key]?.let { sharedPrefTypeName(it) }
-                        if (expectedType != null && expectedType != type) {
+                        if (expectedType != type) {
                             return@runCatching
                         }
                         when (type) {

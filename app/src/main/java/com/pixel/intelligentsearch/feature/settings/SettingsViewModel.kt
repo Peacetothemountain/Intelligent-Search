@@ -81,13 +81,19 @@ class SettingsViewModel @Inject constructor(
     fun exportBackup(
         uri: Uri,
         passphrase: String?,
-        onSuccess: () -> Unit,
+        onSuccess: (com.pixel.intelligentsearch.core.backup.BackupManager.WrittenFor) -> Unit,
+        cleanUp: () -> Unit = {},
         onError: (String) -> Unit
     ) {
         viewModelScope.launch {
             backupManager.exportToFile(uri, passphrase)
-                .onSuccess { onSuccess() }
-                .onFailure { onError(it.localizedMessage ?: "Failed to export backup") }
+                .onSuccess { onSuccess(it) }
+                .onFailure {
+                    // What a failed export leaves behind is cleared here, off the main thread, whatever became of
+                    // the screen that asked for it.
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching(cleanUp) }
+                    onError(it.localizedMessage ?: "Failed to export backup")
+                }
         }
     }
 

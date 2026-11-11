@@ -277,28 +277,38 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         internal fun buildViews(context: Context, appWidgetId: Int, event: CountdownEvent?, prefs: SharedPreferences): RemoteViews =
             RemoteViews(buildSizes(context, appWidgetId, event, prefs))
 
-        /** [buildViews]' views for each [CountdownSize], keyed the way [RemoteViews] expects for a responsive widget. */
+        /**
+         * [buildViews]' views for each [CountdownSize], keyed the way [RemoteViews] expects for a responsive widget.
+         * Only the placed widget's own draw sets the tap ([withTap]): the tap is a PendingIntent keyed by the widget's
+         * id, so making one for a preview (a draft in the setup screen, the picker's sample) would replace the placed
+         * widget's tap with the preview's event.
+         */
         internal fun buildSizes(
             context: Context,
             appWidgetId: Int,
             event: CountdownEvent?,
             prefs: SharedPreferences,
-            style: CountdownStyle = style(designConfig(context, prefs, designOf(event, prefs)))
+            style: CountdownStyle = style(designConfig(context, prefs, designOf(event, prefs))),
+            withTap: Boolean = true
         ): Map<SizeF, RemoteViews> {
             val texts = texts(context, event, now().toLocalDate())
-            val tap = if (event == null) {
-                Intent(context, CountdownConfigActivity::class.java)
-                    .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val tapIntent = if (withTap) {
+                val tap = if (event == null) {
+                    Intent(context, CountdownConfigActivity::class.java)
+                        .putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                } else {
+                    SearchWidgetProvider.mainSearchIntent(context, prefs, appWidgetId, query = event.title)
+                }
+                tap.identifier = "countdown_$appWidgetId"
+                SearchWidgetProvider.overlayPendingIntent(context, appWidgetId, tap)
             } else {
-                SearchWidgetProvider.mainSearchIntent(context, prefs, appWidgetId, query = event.title)
+                null
             }
-            tap.identifier = "countdown_$appWidgetId"
-            val tapIntent = SearchWidgetProvider.overlayPendingIntent(context, appWidgetId, tap)
             return CountdownSize.entries.associate { size ->
                 val views = RemoteViews(context.packageName, size.layout)
                 bind(views, context, size, texts, style)
-                views.setOnClickPendingIntent(android.R.id.background, tapIntent)
+                if (tapIntent != null) views.setOnClickPendingIntent(android.R.id.background, tapIntent)
                 size.size to views
             }
         }
@@ -319,7 +329,7 @@ class CountdownWidgetProvider : AppWidgetProvider() {
                 designConfig(context, prefs, designOf(null, prefs)),
                 SearchWidgetProvider.editorPageColor(context, isDark)
             )
-            return RemoteViews(buildSizes(context, appWidgetId = 0, sample, prefs, style(config)))
+            return RemoteViews(buildSizes(context, appWidgetId = 0, sample, prefs, style(config), withTap = false))
         }
 
         /**

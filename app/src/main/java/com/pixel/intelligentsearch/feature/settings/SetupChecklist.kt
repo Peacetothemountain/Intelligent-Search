@@ -57,8 +57,6 @@ enum class SetupStep { CONTACTS, NOTIFICATIONS, FILES, SEARCH_BAR }
 
 /** Which setup steps apply on this phone and which are done; read fresh every time the page is shown. */
 object SetupChecklist {
-    private const val DISMISSED_KEY = "setup_checklist_dismissed"
-
     fun steps(context: Context): List<SetupStep> = SetupStep.entries.filter { step ->
         // The home-screen search bar setting only exists on Android 17 QPR2 and newer.
         step != SetupStep.SEARCH_BAR || SearchRoleManager.getAvailableSearchRole(context) != null
@@ -76,9 +74,9 @@ object SetupChecklist {
 
     /** Whether Settings still offers "Finish Setting Up": until every step is done or the user says they're done. */
     fun shouldOffer(context: Context, prefs: SharedPreferences): Boolean =
-        !prefs.getBoolean(DISMISSED_KEY, false) && doneCount(context, prefs) < steps(context).size
+        !prefs[SettingsManager.SETUP_CHECKLIST_DISMISSED] && doneCount(context, prefs) < steps(context).size
 
-    fun dismiss(prefs: SharedPreferences) = prefs.edit { putBoolean(DISMISSED_KEY, true) }
+    fun dismiss(prefs: SharedPreferences) = prefs.edit { put(SettingsManager.SETUP_CHECKLIST_DISMISSED, true) }
 
     private fun granted(context: Context, permission: String) =
         context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED

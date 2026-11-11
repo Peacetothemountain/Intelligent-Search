@@ -67,6 +67,15 @@ class CorpusIndexManager @Inject constructor(
     private var launcherCallback: android.content.pm.LauncherApps.Callback? = null
     /** Coalesces a burst of package events (an update fires several) into one re-scan. */
     private var pendingAppReindex: kotlinx.coroutines.Job? = null
+    /**
+     * Events since the last full app scan finished that need every app read again (many apps arriving or leaving at
+     * once). Counted rather than flagged, so one arriving while a scan runs, or a scan cancelled by a newer event, still
+     * gets its own.
+     */
+    private val fullAppScansWanted = java.util.concurrent.atomic.AtomicInteger(0)
+    /** The app list last indexed: a re-read that changed nothing (an event for a package with no launcher icon) is skipped. */
+    @Volatile
+    private var indexedApps: List<com.pixel.intelligentsearch.core.data.AppItem>? = null
     @Volatile
     private var contactsDebounceJob: Job? = null
     private val appsMutex = Mutex()
@@ -122,12 +131,29 @@ class CorpusIndexManager @Inject constructor(
         }
     }
 
-    /** A full re-scan (rather than dropping the package by name) keeps copies of the same app in other profiles. */
-    private fun appsChanged() {
+    /**
+     * [packageName] changed in [user]'s profile: only that package is read again in that profile, keyed by both (rather
+     * than dropping the package by name) so copies of the same app in other profiles stay. Every other app keeps its
+     * entry and icon ([com.pixel.intelligentsearch.core.data.SystemDataProvider.appChanged]).
+     */
+    private fun appChanged(packageName: String, user: android.os.UserHandle) {
+        com.pixel.intelligentsearch.core.data.SystemDataProvider.appChanged(packageName, user)
+        scheduleAppReindex()
+    }
+
+    /** Many apps arrived or left at once (a profile turned on or off, an SD card): every app is read again. */
+    private fun allAppsChanged() {
+        fullAppScansWanted.incrementAndGet()
+        scheduleAppReindex()
+    }
+
+    private fun scheduleAppReindex() {
         pendingAppReindex?.cancel()
         pendingAppReindex = scope.launch(Dispatchers.IO) {
             kotlinx.coroutines.delay(300)
-            reindexAppsInternal(forceRefresh = true)
+            val full = fullAppScansWanted.get()
+            reindexAppsInternal(forceRefresh = full > 0)
+            if (full > 0) fullAppScansWanted.addAndGet(-full)
         }
     }
 
@@ -179,7 +205,11 @@ class CorpusIndexManager @Inject constructor(
                 if (forceRefresh) {
                     sources.invalidateAppsCache()
                 }
-                searchCoordinator.bulkIndexApps(sources.allApps(forceRefresh = forceRefresh))
+                val apps = sources.allApps(forceRefresh = forceRefresh)
+                if (apps !== indexedApps) {
+                    searchCoordinator.bulkIndexApps(apps)
+                    indexedApps = apps
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -297,13 +327,15 @@ class CorpusIndexManager @Inject constructor(
         try {
             if (launcherCallback == null) {
                 val callback = object : android.content.pm.LauncherApps.Callback() {
-                    override fun onPackageRemoved(packageName: String, user: android.os.UserHandle) = appsChanged()
-                    override fun onPackageAdded(packageName: String, user: android.os.UserHandle) = appsChanged()
-                    override fun onPackageChanged(packageName: String, user: android.os.UserHandle) = appsChanged()
-                    override fun onPackagesAvailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = appsChanged()
-                    override fun onPackagesUnavailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = appsChanged()
-                    override fun onPackagesSuspended(packageNames: Array<out String>, user: android.os.UserHandle) = appsChanged()
-                    override fun onPackagesUnsuspended(packageNames: Array<out String>, user: android.os.UserHandle) = appsChanged()
+                    override fun onPackageRemoved(packageName: String, user: android.os.UserHandle) = appChanged(packageName, user)
+                    override fun onPackageAdded(packageName: String, user: android.os.UserHandle) = appChanged(packageName, user)
+                    override fun onPackageChanged(packageName: String, user: android.os.UserHandle) = appChanged(packageName, user)
+                    override fun onPackagesAvailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = allAppsChanged()
+                    override fun onPackagesUnavailable(packageNames: Array<out String>, user: android.os.UserHandle, replacing: Boolean) = allAppsChanged()
+                    override fun onPackagesSuspended(packageNames: Array<out String>, user: android.os.UserHandle) =
+                        packageNames.forEach { appChanged(it, user) }
+                    override fun onPackagesUnsuspended(packageNames: Array<out String>, user: android.os.UserHandle) =
+                        packageNames.forEach { appChanged(it, user) }
                 }
                 context.getSystemService(android.content.pm.LauncherApps::class.java)?.registerCallback(callback, mainHandler)
                 launcherCallback = callback

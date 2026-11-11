@@ -2,21 +2,25 @@ package com.pixel.intelligentsearch.feature.search.today
 
 import android.content.Context
 import android.content.Intent
+import android.widget.Toast
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import com.pixel.intelligentsearch.core.data.CalendarEvent
+import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.glance.GlanceAlarm
 import com.pixel.intelligentsearch.core.glance.GlanceItem
 import com.pixel.intelligentsearch.core.glance.GlanceMedia
 import com.pixel.intelligentsearch.core.glance.GlanceTimer
+import com.pixel.intelligentsearch.core.security.SafeWebLaunch
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
-import com.pixel.intelligentsearch.feature.search.openGlanceItem
 import com.pixel.intelligentsearch.feature.search.calendarEventIntent
-import com.pixel.intelligentsearch.core.data.CalendarEvent
+import com.pixel.intelligentsearch.feature.search.openGlanceItem
 import com.pixel.intelligentsearch.feature.search.today.cards.AppCardData
 import com.pixel.intelligentsearch.feature.search.today.cards.AppCardState
-import com.pixel.intelligentsearch.feature.search.today.cards.CardKind
 import com.pixel.intelligentsearch.feature.search.today.cards.CardForm
 import com.pixel.intelligentsearch.feature.search.today.cards.CardFrame
+import com.pixel.intelligentsearch.feature.search.today.cards.CardKind
 import com.pixel.intelligentsearch.feature.search.today.cards.CardSpec
 import com.pixel.intelligentsearch.feature.search.today.cards.DiscoverLayout
 import com.pixel.intelligentsearch.feature.search.today.cards.ShapedContent
@@ -119,7 +123,21 @@ internal fun openShapedCard(
         is ShapedContent.Tomorrow -> Unit
         is ShapedContent.Countdown, is ShapedContent.Delivery -> Unit
         is ShapedContent.App -> openAppCard(context, content.data)
-        is ShapedContent.Site -> launchSafeIntent(context, Intent(Intent.ACTION_VIEW, content.data.url.toUri()))
+        is ShapedContent.Site -> openSiteCard(context, content.data.url)
+    }
+}
+
+/**
+ * Opens a website card's page the way a typed address opens: a browser for https pages, and only Tor Browser while Tor
+ * is the search engine (never a normal browser, which would show the site the phone's address).
+ */
+private fun openSiteCard(context: Context, url: String) {
+    val engine = SettingsManager.storedPrefs(context)[SettingsManager.SEARCH_ENGINE]
+    when (val launch = SafeWebLaunch.forAddress(context, url, engine)) {
+        is SafeWebLaunch.Launch.Open -> launchSafeIntent(context, launch.intent)
+        SafeWebLaunch.Launch.NeedsTorBrowser ->
+            Toast.makeText(context, "Install Tor Browser to open websites while Tor is your search engine.", Toast.LENGTH_LONG).show()
+        SafeWebLaunch.Launch.NotAWebAddress -> Unit
     }
 }
 

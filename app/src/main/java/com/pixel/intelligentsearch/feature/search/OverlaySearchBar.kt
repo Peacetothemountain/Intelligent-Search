@@ -412,19 +412,9 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                 uniqueItems(uiState.bangSuggestions, key = { bang -> "bang_${bang.prefix}" }, contentType = { "bang" }) { bang ->
                     AssistChip(
                         onClick = {
-                            val currentQ = uiState.query
-                            val bangTrigger = if (bang.prefix.isNotEmpty() && !bang.prefix[0].isLetterOrDigit()) {
-                                bang.prefix[0].toString()
-                            } else {
-                                "!"
-                            }
-                            val newQ = if (currentQ.startsWith(bangTrigger)) {
-                                "${bang.prefix} "
-                            } else if (currentQ.contains(bangTrigger)) {
-                                "${currentQ.substringBeforeLast(bangTrigger)}${bang.prefix} "
-                            } else {
-                                "${bang.prefix} "
-                            }
+                            // Only the bang word the chips were found for becomes the chip's (whatever its trigger
+                            // symbol); the rest of the query stays.
+                            val newQ = replaceBangWord(uiState.query, uiState.bangWordStart, bang.prefix)
                             textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
                                 text = newQ,
                                 selection = androidx.compose.ui.text.TextRange(newQ.length)

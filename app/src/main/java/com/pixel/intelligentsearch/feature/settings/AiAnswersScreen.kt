@@ -85,6 +85,10 @@ fun AiAnswersScreen(onBack: () -> Unit) {
     val spec = provider.spec(provider.chosenModel(picks, legacyModel))
     val reasoning = spec.reasoningFrom(reasoningChoices)
     val block = NetworkPolicy.aiBlock(web, engine)
+    // Bumped by Save and Remove Key, so whether this provider has a key is read again.
+    var keyVersion by remember { mutableIntStateOf(0) }
+    // A preferences lookup, no decrypting: cheap enough to decide the rows in the same frame, so none jump.
+    val hasKey = remember(provider, keyVersion) { vault.has(provider) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -100,7 +104,9 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                         SettingsRowToggle(
                             title = "AI Answers",
                             subtitle = block?.let(NetworkPolicy::blockSubtitle)
-                                ?: "Questions Ending in ? or Starting with Ask Show an Ask Row. Only the Question You Tap Ask on Is Sent.",
+                                // On but with nothing to ask with: say so, rather than leave the Ask row missing unexplained.
+                                ?: if (enabled && !hasKey) "Add Your ${provider.displayName} API Key Below to Ask."
+                                else "Questions Ending in ? or Starting with Ask Show an Ask Row. Only the Question You Tap Ask on Is Sent.",
                             icon = Symbols.Outlined.AutoAwesome,
                             isChecked = enabled && block == null,
                             onCheckedChange = { if (block == null) enabled = it },
@@ -140,7 +146,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                             onOptionSelected = { picks = picks.withValue(provider.id, it) },
                             showDivider = true,
                             optionTrailingIcon = { option ->
-                                FavoriteStar(option in favorites) { favorites = favorites.toggled(option) }
+                                FavoriteStar(option, option in favorites) { favorites = favorites.toggled(option) }
                             }
                         )
                         SettingsDropdownRow(
@@ -177,7 +183,7 @@ fun AiAnswersScreen(onBack: () -> Unit) {
                                 showDivider = true
                             )
                         }
-                        ApiKeyRows(vault, provider)
+                        ApiKeyRows(vault, provider, hasKey, keyVersion) { keyVersion++ }
                         // What is sent, and where: information only, so a row without a chevron.
                         SettingsInfoRow(
                             title = "Privacy",
@@ -192,9 +198,12 @@ fun AiAnswersScreen(onBack: () -> Unit) {
     }
 }
 
-/** A model's star in the Model menu: tap to add it to the favorites, which list first, or take it out. */
+/**
+ * [model]'s star in the Model menu: tap to add it to the favorites, which list first, or take it out. Named with its
+ * model, so a screen reader tells the stars apart.
+ */
 @Composable
-private fun FavoriteStar(isFavorite: Boolean, onToggle: () -> Unit) {
+private fun FavoriteStar(model: String, isFavorite: Boolean, onToggle: () -> Unit) {
     IconButton(
         onClick = onToggle,
         modifier = Modifier.semantics {
@@ -204,7 +213,7 @@ private fun FavoriteStar(isFavorite: Boolean, onToggle: () -> Unit) {
     ) {
         Icon(
             imageVector = if (isFavorite) Symbols.Filled.Star else Symbols.Outlined.Star,
-            contentDescription = "Favorite",
+            contentDescription = "Favorite $model",
             tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)
         )
@@ -219,19 +228,17 @@ private fun speedSubtitle(provider: AiProvider, fast: Boolean): String = when {
     else -> "Answers Faster, at Up to Twice the Price, with a Key on Gemini's Tier 2 or Above."
 } + if (fast) " When Fast Isn't Available, It Answers at Standard Speed." else ""
 
-/** The key: a masked entry field and Save while none is saved; the masked key and Remove Key once one is. */
+/**
+ * The key: a masked entry field and Save while none is saved ([hasKey]); the masked key and Remove Key once one is.
+ * Only the masked text, which needs the key decrypted, is read off the main thread; [onChanged] after Save or Remove Key.
+ */
 @Composable
-private fun ApiKeyRows(vault: AiKeyVault, provider: AiProvider) {
+private fun ApiKeyRows(vault: AiKeyVault, provider: AiProvider, hasKey: Boolean, version: Int, onChanged: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // Bumped by Save and Remove Key, so the rows read the vault again.
-    var version by remember { mutableIntStateOf(0) }
     var saved by remember(provider) { mutableStateOf<String?>(null) }
-    var hasKey by remember(provider) { mutableStateOf(false) }
     LaunchedEffect(provider, version) {
-        val (has, masked) = withContext(Dispatchers.IO) { vault.has(provider).let { it to if (it) vault.masked(provider) else null } }
-        hasKey = has
-        saved = masked
+        saved = withContext(Dispatchers.IO) { vault.masked(provider) }
     }
 
     if (hasKey) {
@@ -248,7 +255,7 @@ private fun ApiKeyRows(vault: AiKeyVault, provider: AiProvider) {
             onClick = {
                 scope.launch {
                     withContext(Dispatchers.IO) { vault.remove(provider) }
-                    version++
+                    onChanged()
                 }
             },
             showDivider = true
@@ -280,7 +287,7 @@ private fun ApiKeyRows(vault: AiKeyVault, provider: AiProvider) {
                         val ok = withContext(Dispatchers.IO) { vault.save(provider, key) }
                         if (ok) {
                             typed = ""
-                            version++
+                            onChanged()
                         } else {
                             Toast.makeText(context, "Couldn't save the key on this phone.", Toast.LENGTH_SHORT).show()
                         }

@@ -3,8 +3,17 @@ package com.pixel.intelligentsearch.core.ai
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** One HTTPS request to a provider: where it goes, its headers (the key among them) and its JSON body. */
-class AiRequest(val url: String, val headers: Map<String, String>, val body: String) {
+/**
+ * One HTTPS request to a provider: where it goes, its headers (the key among them), its JSON body, and how long its
+ * answer may take ([timeoutMs], [AiRequests.timeoutMs]): the whole exchange, and also the longest silence between two
+ * lines, since a model can stream nothing at all while it thinks.
+ */
+class AiRequest(
+    val url: String,
+    val headers: Map<String, String>,
+    val body: String,
+    val timeoutMs: Long = AiRequests.timeoutMs(AiReasoning.OFF)
+) {
     /** Never prints the headers: they carry the user's key. */
     override fun toString(): String = "AiRequest($url)"
 }
@@ -16,7 +25,7 @@ sealed interface AiEvent {
     data object Finished : AiEvent
     /** The answer reached the output limit and was cut short. */
     data object Truncated : AiEvent
-    /** The provider declined to answer. */
+    /** The provider declined to answer, or blocked the question before answering (Gemini's prompt feedback). */
     data object Refused : AiEvent
     data class Error(val message: String) : AiEvent
 }
@@ -77,6 +86,19 @@ object AiRequests {
         AiReasoning.MAX -> 16_000
     }
 
+    /**
+     * How long an answer at [reasoning] may take, the whole exchange and the longest silence while it thinks: 30
+     * seconds while it thinks briefly or not at all, then more with each level's room ([outputLimit]) to think in, up
+     * to six minutes at Max. A fixed 30 seconds cut High and above off before their answer could come.
+     */
+    fun timeoutMs(reasoning: AiReasoning): Long = when (reasoning) {
+        AiReasoning.OFF, AiReasoning.MINIMAL, AiReasoning.LOW -> 30_000L
+        AiReasoning.MEDIUM -> 60_000L
+        AiReasoning.HIGH -> 120_000L
+        AiReasoning.XHIGH -> 240_000L
+        AiReasoning.MAX -> 360_000L
+    }
+
     private fun anthropic(model: String, apiKey: String, question: String, reasoning: AiReasoning, fast: Boolean): AiRequest {
         // Off is each model's own way of not thinking: Sonnet 5.5 says "between_tools" ("disabled" is refused there),
         // Haiku 5.5 "disabled" (accepted at low effort). Every other level thinks adaptively at that effort; Opus and
@@ -109,7 +131,7 @@ object AiRequests {
             body.put("fallbacks", "default")
             headers["anthropic-beta"] = ANTHROPIC_FALLBACK_BETA
         }
-        return AiRequest("https://api.anthropic.com/v1/messages", headers, body.toString())
+        return AiRequest("https://api.anthropic.com/v1/messages", headers, body.toString(), timeoutMs(reasoning))
     }
 
     private fun openAi(model: String, apiKey: String, question: String, reasoning: AiReasoning, fast: Boolean): AiRequest {
@@ -132,7 +154,7 @@ object AiRequests {
             "content-type" to "application/json",
             "accept" to "text/event-stream"
         )
-        return AiRequest("https://api.openai.com/v1/chat/completions", headers, body.toString())
+        return AiRequest("https://api.openai.com/v1/chat/completions", headers, body.toString(), timeoutMs(reasoning))
     }
 
     private fun gemini(model: String, apiKey: String, question: String, reasoning: AiReasoning, fast: Boolean): AiRequest {
@@ -158,7 +180,8 @@ object AiRequests {
         return AiRequest(
             "https://generativelanguage.googleapis.com/v1beta/models/$model:streamGenerateContent?alt=sse",
             headers,
-            body.toString()
+            body.toString(),
+            timeoutMs(reasoning)
         )
     }
 
@@ -190,6 +213,8 @@ object AiRequests {
                 )
             }
             AiProvider.GEMINI -> {
+                // A question Google blocks before answering comes back with only the reason, and no answer to read.
+                if (json.optJSONObject("promptFeedback")?.optString("blockReason").orEmpty().isNotEmpty()) return listOf(AiEvent.Refused)
                 val candidate = json.optJSONArray("candidates")?.optJSONObject(0) ?: return emptyList()
                 val parts = candidate.optJSONObject("content")?.optJSONArray("parts")
                 val text = buildString {
@@ -200,7 +225,7 @@ object AiRequests {
                 }
                 listOfNotNull(
                     text.takeIf { it.isNotEmpty() }?.let(AiEvent::Text),
-                    endOf(candidate.optString("finishReason"), "MAX_TOKENS", setOf("SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST"))
+                    endOf(candidate.optString("finishReason"), "MAX_TOKENS", setOf("SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "RECITATION"))
                 )
             }
         }

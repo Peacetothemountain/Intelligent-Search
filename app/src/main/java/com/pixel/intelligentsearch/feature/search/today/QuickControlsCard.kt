@@ -55,6 +55,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -131,7 +132,10 @@ internal enum class QuickControl(val key: String, val label: String) {
     }
 }
 
-/** The space between two controls, and the narrowest a control goes before the card puts fewer in a row. */
+/**
+ * The space between two controls, and the narrowest a control goes (at the default text size, wider for larger text)
+ * before the card puts fewer in a row.
+ */
 private val TILE_GAP = 8.dp
 private val CONTROL_MIN_WIDTH = 64.dp
 
@@ -148,11 +152,16 @@ private val chosenControls = MutableStateFlow<List<QuickControl>?>(null)
 /** Counts choices made, so a read that finishes after one doesn't put back what was there before it. */
 private val choicesMade = AtomicInteger()
 
-/** The controls chosen: read off the main thread each time the card or sheet comes (a restored backup shows too). */
+/**
+ * The controls chosen: read off the main thread the first time the card or the sheet comes, then kept in
+ * [chosenControls]. Only these two write the file (Discover's own file isn't in backups; see `CardLayoutStore`), so
+ * what is kept stays what is saved.
+ */
 @Composable
 private fun rememberChosenControls(context: Context): Pair<List<QuickControl>, (List<QuickControl>) -> Unit> {
     val chosen by chosenControls.collectAsState()
     LaunchedEffect(Unit) {
+        if (chosenControls.value != null) return@LaunchedEffect
         val before = choicesMade.get()
         val saved = withContext(Dispatchers.IO) { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null) }
         if (choicesMade.get() == before) {
@@ -234,7 +243,8 @@ private fun icon(control: QuickControl): ImageVector = when (control) {
 }
 
 /**
- * The user's quick controls, four to a row, and a last tile to add or take some away. Live, so a switch flipped in the
+ * The user's quick controls, one to four to a row as the card's width and the text size allow, and a last tile to add,
+ * remove or move them. Live, so a switch flipped in the
  * notification shade while the page is open shows here too; Android's own pages come back here.
  */
 @Composable
@@ -289,8 +299,11 @@ internal fun QuickControls(controls: TodayControls) {
         CardLabel(Icons.Outlined.Tune, "Quick controls", modifier = Modifier.padding(bottom = 12.dp))
         val tiles: List<QuickControl?> = shown + listOf(null)
         // As many to a row as fit at a readable size, up to four, so a narrow card keeps its controls full size.
+        val fontScale = LocalDensity.current.fontScale
         BoxWithConstraints(Modifier.fillMaxWidth()) {
-            val columns = ((maxWidth + TILE_GAP) / (CONTROL_MIN_WIDTH + TILE_GAP)).toInt().coerceIn(2, 4)
+            // Larger text needs wider controls for two-line labels: fewer to a row, never a cut-off name.
+            val least = CONTROL_MIN_WIDTH * fontScale.coerceAtLeast(1f)
+            val columns = ((maxWidth + TILE_GAP) / (least + TILE_GAP)).toInt().coerceIn(1, 4)
             Column {
                 tiles.chunked(columns).forEachIndexed { i, row ->
                     if (i > 0) Spacer(Modifier.height(12.dp))
@@ -340,7 +353,7 @@ private fun AddControlTile(modifier: Modifier, onClick: () -> Unit) {
                 .clip(ControlShape)
                 .border(BorderStroke(1.5.dp, scheme.outlineVariant), ControlShape)
                 .bouncyClickable(shape = ControlShape, onClick = onClick)
-                .semantics { contentDescription = "Add or remove controls" },
+                .semantics { contentDescription = "Edit controls" },
             contentAlignment = Alignment.Center
         ) {
             Icon(EditIcons.Add, contentDescription = null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
@@ -394,7 +407,7 @@ private fun ControlsSheet(
                 Spacer(Modifier.height(24.dp))
                 SheetSection("Add controls", "Tap to add.")
                 ControlGrid(others) { control ->
-                    SheetControl(control, on = false) { onChange(chosen + control) }
+                    SheetControl(control, on = false, clickLabel = "Add to Quick controls") { onChange(chosen + control) }
                 }
             }
         }
@@ -420,9 +433,18 @@ private fun ControlGrid(controls: List<QuickControl>, tile: @Composable (QuickCo
     }
 }
 
-/** One control in the sheet: the card's oval with its icon, lit while it is one of the user's, and its name under it. */
+/**
+ * One control in the sheet: the card's oval with its icon, lit while it is one of the user's, and its name under it.
+ * [clickLabel] is what TalkBack says a double tap does (add or remove); [actions] are the moves it offers.
+ */
 @Composable
-private fun SheetControl(control: QuickControl, on: Boolean, onClick: () -> Unit) {
+private fun SheetControl(
+    control: QuickControl,
+    on: Boolean,
+    clickLabel: String,
+    actions: List<CustomAccessibilityAction> = emptyList(),
+    onClick: () -> Unit
+) {
     val scheme = MaterialTheme.colorScheme
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
@@ -431,8 +453,12 @@ private fun SheetControl(control: QuickControl, on: Boolean, onClick: () -> Unit
                 .aspectRatio(CONTROL_ASPECT)
                 .clip(ControlShape)
                 .background(if (on) scheme.primaryContainer else scheme.surfaceContainerHigh)
-                .bouncyClickable(shape = ControlShape, onClick = onClick)
-                .semantics { contentDescription = control.label },
+                .bouncyClickable(shape = ControlShape, onClickLabel = clickLabel, onClick = onClick)
+                // The node TalkBack stops on (the clickable merges its children), so the moves are offered here.
+                .semantics {
+                    contentDescription = control.label
+                    if (actions.isNotEmpty()) customActions = actions
+                },
             contentAlignment = Alignment.Center
         ) {
             Icon(icon(control), contentDescription = null, tint = if (on) scheme.onPrimaryContainer else scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
@@ -456,10 +482,14 @@ private fun SheetControl(control: QuickControl, on: Boolean, onClick: () -> Unit
 @Composable
 private fun MovableControls(controls: List<QuickControl>, onChange: (List<QuickControl>) -> Unit) {
     val haptics = LocalHapticFeedback.current
-    var order by remember { mutableStateOf(controls) }
+    // The drag's handlers live as long as their control does, so they read the list and the callback as they are now,
+    // not as they were when the handler started: a control removed by a tap must not come back with the next drop.
+    val current by rememberUpdatedState(controls)
+    val change by rememberUpdatedState(onChange)
     var dragging by remember { mutableStateOf<QuickControl?>(null) }
-    // While nothing is held, the grid follows the user's choices (a tap removes one).
-    if (dragging == null && order != controls) order = controls
+    // The order while one is held, the others making way; otherwise the user's choices as they are.
+    var held by remember { mutableStateOf(controls) }
+    val order = if (dragging != null) held else controls
     var cell by remember { mutableStateOf(IntSize.Zero) }
     var finger by remember { mutableStateOf(Offset.Zero) }
     var grip by remember { mutableStateOf(Offset.Zero) }
@@ -475,18 +505,30 @@ private fun MovableControls(controls: List<QuickControl>, onChange: (List<QuickC
     fun indexAt(p: Offset): Int {
         val column = (p.x / (cell.width + gapX)).toInt().coerceIn(0, SHEET_COLUMNS - 1)
         val row = (p.y / (cell.height + gapY)).toInt().coerceAtLeast(0)
-        return (row * SHEET_COLUMNS + column).coerceIn(0, order.lastIndex)
+        return (row * SHEET_COLUMNS + column).coerceIn(0, held.lastIndex)
     }
 
     fun move(control: QuickControl, by: Int) {
-        val from = controls.indexOf(control)
-        val to = (from + by).coerceIn(0, controls.lastIndex)
-        if (from == to) return
-        onChange(controls.toMutableList().apply { add(to, removeAt(from)) })
+        val list = current
+        val from = list.indexOf(control)
+        val to = (from + by).coerceIn(0, list.lastIndex)
+        if (from < 0 || from == to) return
+        change(list.toMutableList().apply { add(to, removeAt(from)) })
+    }
+
+    fun remove(control: QuickControl) {
+        // A press held still lifts the tile; letting go of it is the drag's end, not a tap that removes it. The tap
+        // arrives before the drag's end clears [dragging].
+        if (dragging != null) return
+        change(current - control)
     }
 
     fun drop() {
-        if (dragging != null && order != controls) onChange(order)
+        // The order as dragged, of the controls still chosen, then any added while it was held (a second finger can
+        // tap Add controls during a drag): a drop never undoes a choice made meanwhile.
+        val now = current
+        val dropped = held.filter { it in now } + now.filter { it !in held }
+        if (dragging != null && dropped != now) change(dropped)
         dragging = null
     }
 
@@ -494,35 +536,29 @@ private fun MovableControls(controls: List<QuickControl>, onChange: (List<QuickC
         content = {
             for (control in order) {
                 key(control) {
-                    val held = dragging == control
+                    val lifted = dragging == control
                     val index = order.indexOf(control)
                     Box(
                         Modifier
-                            .zIndex(if (held) 1f else 0f)
-                            .graphicsLayer {
-                                if (held) {
-                                    val at = finger - grip - origin(index)
-                                    translationX = at.x
-                                    translationY = at.y
-                                    scaleX = 1.06f
-                                    scaleY = 1.06f
-                                }
-                            }
+                            .zIndex(if (lifted) 1f else 0f)
+                            // Ahead of the lifted tile's scale: inside it, every move would arrive 1.06 times smaller
+                            // and the tile would fall behind the finger.
                             .pointerInput(control) {
                                 detectDragGesturesAfterLongPress(
                                     onDragStart = { at ->
                                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        held = current
                                         grip = at
-                                        finger = origin(order.indexOf(control)) + at
+                                        finger = origin(held.indexOf(control)) + at
                                         dragging = control
                                     },
-                                    onDrag = { change, amount ->
-                                        change.consume()
+                                    onDrag = { pointer, amount ->
+                                        pointer.consume()
                                         finger += amount
                                         val to = indexAt(finger)
-                                        val from = order.indexOf(control)
-                                        if (to != from) {
-                                            order = order.toMutableList().apply { add(to, removeAt(from)) }
+                                        val from = held.indexOf(control)
+                                        if (from >= 0 && to != from) {
+                                            held = held.toMutableList().apply { add(to, removeAt(from)) }
                                             haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
                                         }
                                     },
@@ -530,22 +566,30 @@ private fun MovableControls(controls: List<QuickControl>, onChange: (List<QuickC
                                     onDragCancel = { drop() }
                                 )
                             }
+                            .graphicsLayer {
+                                if (lifted) {
+                                    val at = finger - grip - origin(index)
+                                    translationX = at.x
+                                    translationY = at.y
+                                    scaleX = 1.06f
+                                    scaleY = 1.06f
+                                }
+                            }
                             .reorderKeys(
                                 up = if (index > 0) ({ move(control, -1) }) else null,
                                 down = if (index < order.lastIndex) ({ move(control, 1) }) else null,
-                                remove = { onChange(controls - control) }
+                                remove = { remove(control) }
                             )
-                            .semantics {
-                                customActions = listOfNotNull(
-                                    CustomAccessibilityAction("Move earlier") { move(control, -1); true }.takeIf { index > 0 },
-                                    CustomAccessibilityAction("Move later") { move(control, 1); true }.takeIf { index < order.lastIndex }
-                                )
-                            }
                     ) {
                         SheetControl(
                             control,
-                            on = true
-                        ) { onChange(controls - control) }
+                            on = true,
+                            clickLabel = "Remove from Quick controls",
+                            actions = listOfNotNull(
+                                CustomAccessibilityAction("Move earlier") { move(control, -1); true }.takeIf { index > 0 },
+                                CustomAccessibilityAction("Move later") { move(control, 1); true }.takeIf { index < order.lastIndex }
+                            )
+                        ) { remove(control) }
                     }
                 }
             }

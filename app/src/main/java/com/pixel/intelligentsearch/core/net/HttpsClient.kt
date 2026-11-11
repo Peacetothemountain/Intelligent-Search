@@ -157,8 +157,10 @@ class HttpsClient internal constructor(
 
     /**
      * POSTs [body] (UTF-8) with [headers] to [url] and hands each line of the streamed answer to [onLine], stopping
-     * after [maxStreamChars] characters. Throws [IOException] when the server can't be reached or [call] is
-     * cancelled, and [HttpsTimeoutException] once the whole exchange outlives the total timeout. Blocking.
+     * after [maxStreamChars] characters. Connecting may take this client's timeout; each read [readTimeoutMs] and the
+     * whole exchange [totalTimeoutMs], which a request may set longer than the client's (an answer that thinks first).
+     * Throws [IOException] when the server can't be reached or [call] is cancelled, and [HttpsTimeoutException] once
+     * a read or the whole exchange outlives its timeout. Blocking.
      */
     @Throws(IOException::class)
     fun postStreaming(
@@ -167,6 +169,8 @@ class HttpsClient internal constructor(
         body: String,
         maxStreamChars: Int,
         call: HttpsCall,
+        readTimeoutMs: Int = timeoutMs,
+        totalTimeoutMs: Long = this.totalTimeoutMs,
         onLine: (String) -> Unit
     ): HttpsResponse {
         val address = httpsAddress(url) ?: throw IOException("Only https addresses are allowed")
@@ -177,7 +181,7 @@ class HttpsClient internal constructor(
         try {
             connection.requestMethod = "POST"
             connection.doOutput = true
-            connection.prepare(timeoutMs)
+            connection.prepare(timeoutMs, readTimeoutMs)
             for ((name, value) in headers) connection.setRequestProperty(name, value)
             connection.connect()
             if (!call.stillWanted()) throw IOException("Cancelled")
@@ -213,11 +217,11 @@ class HttpsClient internal constructor(
     private fun httpsAddress(url: String): URL? =
         runCatching { URI(url).toURL() }.getOrNull()?.takeIf { it.protocol.equals("https", ignoreCase = true) }
 
-    private fun HttpURLConnection.prepare(timeoutMs: Int) {
+    private fun HttpURLConnection.prepare(timeoutMs: Int, readTimeoutMs: Int = timeoutMs) {
         instanceFollowRedirects = false
         useCaches = false
         connectTimeout = timeoutMs
-        readTimeout = timeoutMs
+        readTimeout = readTimeoutMs
         setRequestProperty("User-Agent", USER_AGENT)
     }
 

@@ -222,7 +222,13 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
         val here = com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(app)
         if (!here.permitted()) return@withContext null
         val from = here.approximate() ?: return@withContext null
-        val to = places[event.location] ?: geocode(event.location)?.also { places[event.location] = it } ?: return@withContext null
+        // Android's geocoder asks a server: the address is sent only while Web is on and Tor isn't the engine.
+        val lookUp = com.pixel.intelligentsearch.core.security.NetworkPolicy.siteBlock(
+            com.pixel.intelligentsearch.core.data.SettingsManager.storedPrefs(app)
+        ) == null
+        val to = places[event.location]
+            ?: (if (lookUp) geocode(event.location)?.also { places[event.location] = it } else null)
+            ?: return@withContext null
         val minutes = driveMinutes(distanceKm(from.first, from.second, to.first, to.second)) ?: return@withContext null
         TodayTrip(event.beginMillis - minutes * 60_000L, minutes)
     }

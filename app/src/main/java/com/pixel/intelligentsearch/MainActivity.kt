@@ -173,8 +173,10 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
     override fun onStop() {
         // Cleared only once the overlay is out of sight, not as it starts to leave: an app opening from a result
         // grows out of the icon that was tapped, which must still be there, and a dialog over the overlay (a
-        // permission) must not wipe what was typed, nor must a permission page the user comes Back from.
-        if (!awayGrantingAccess) searchViewModel.onQueryChanged("")
+        // permission) must not wipe what was typed, nor must a permission page or one of the app's own settings pages
+        // the user comes Back from (a fix-it chip's Open AI Answers keeps the question to ask again). Nor does the
+        // overlay being rebuilt for a change on the phone (a keyboard plugged in): it is the same search.
+        if (!isChangingConfigurations && !awayGrantingAccess && !awayInOwnSettings) searchViewModel.onQueryChanged("")
         frameMetricsMonitor.detach()
         adpfThermalManager.stopHeadroomMonitoring()
         super.onStop()

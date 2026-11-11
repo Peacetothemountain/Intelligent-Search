@@ -791,10 +791,10 @@ object MathematicalExpressionEngine {
     // ---------------------------------------------------------------------------------------------
 
     private val lengthUnits = mapOf(
-        "m" to 1.0, "meter" to 1.0, "meters" to 1.0,
-        "km" to 1000.0, "kilometer" to 1000.0, "kilometers" to 1000.0,
-        "cm" to 0.01, "centimeter" to 0.01, "centimeters" to 0.01,
-        "mm" to 0.001, "millimeter" to 0.001, "millimeters" to 0.001,
+        "m" to 1.0, "meter" to 1.0, "meters" to 1.0, "metre" to 1.0, "metres" to 1.0,
+        "km" to 1000.0, "kilometer" to 1000.0, "kilometers" to 1000.0, "kilometre" to 1000.0, "kilometres" to 1000.0,
+        "cm" to 0.01, "centimeter" to 0.01, "centimeters" to 0.01, "centimetre" to 0.01, "centimetres" to 0.01,
+        "mm" to 0.001, "millimeter" to 0.001, "millimeters" to 0.001, "millimetre" to 0.001, "millimetres" to 0.001,
         "um" to 1e-6, "nm" to 1e-9,
         "mi" to 1609.344, "mile" to 1609.344, "miles" to 1609.344,
         "yd" to 0.9144, "yard" to 0.9144, "yards" to 0.9144,
@@ -806,7 +806,7 @@ object MathematicalExpressionEngine {
     private val massUnits = mapOf(
         "kg" to 1.0, "kilogram" to 1.0, "kilograms" to 1.0,
         "g" to 0.001, "gram" to 0.001, "grams" to 0.001,
-        "mg" to 1e-6, "milligram" to 1e-6,
+        "mg" to 1e-6, "milligram" to 1e-6, "milligrams" to 1e-6,
         "lb" to 0.45359237, "lbs" to 0.45359237, "pound" to 0.45359237, "pounds" to 0.45359237,
         "oz" to 0.028349523, "ounce" to 0.028349523, "ounces" to 0.028349523,
         "tonne" to 1000.0, "tonnes" to 1000.0, "t" to 1000.0,
@@ -842,7 +842,7 @@ object MathematicalExpressionEngine {
 
     private val volumeUnits = mapOf(
         "l" to 1.0, "liter" to 1.0, "liters" to 1.0, "litre" to 1.0, "litres" to 1.0,
-        "ml" to 0.001, "milliliter" to 0.001, "milliliters" to 0.001,
+        "ml" to 0.001, "milliliter" to 0.001, "milliliters" to 0.001, "millilitre" to 0.001, "millilitres" to 0.001,
         "gal" to 3.78541, "gallon" to 3.78541, "gallons" to 3.78541,
         "qt" to 0.946353, "quart" to 0.946353, "quarts" to 0.946353,
         "pt" to 0.473176, "pint" to 0.473176, "pints" to 0.473176,
@@ -928,13 +928,13 @@ object MathematicalExpressionEngine {
     // the mean Gregorian year (365.2425 days) made "1 year to days" look wrong.
     private val timeUnits = mapOf(
         "ms" to 0.001, "millisecond" to 0.001, "milliseconds" to 0.001,
-        "s" to 1.0, "sec" to 1.0, "second" to 1.0, "seconds" to 1.0,
-        "min" to 60.0, "minute" to 60.0, "minutes" to 60.0,
-        "hr" to 3600.0, "h" to 3600.0, "hour" to 3600.0, "hours" to 3600.0,
+        "s" to 1.0, "sec" to 1.0, "secs" to 1.0, "second" to 1.0, "seconds" to 1.0,
+        "min" to 60.0, "mins" to 60.0, "minute" to 60.0, "minutes" to 60.0,
+        "hr" to 3600.0, "hrs" to 3600.0, "h" to 3600.0, "hour" to 3600.0, "hours" to 3600.0,
         "d" to 86400.0, "day" to 86400.0, "days" to 86400.0,
-        "wk" to 604800.0, "week" to 604800.0, "weeks" to 604800.0,
+        "wk" to 604800.0, "wks" to 604800.0, "week" to 604800.0, "weeks" to 604800.0,
         "mo" to 2628000.0, "month" to 2628000.0, "months" to 2628000.0,
-        "yr" to 31536000.0, "year" to 31536000.0, "years" to 31536000.0
+        "yr" to 31536000.0, "yrs" to 31536000.0, "year" to 31536000.0, "years" to 31536000.0
     )
 
     /** The unit tables for [locale]: what a plain "ton" and a plain "gallon" are depends on the country. */

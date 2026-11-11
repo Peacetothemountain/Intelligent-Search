@@ -151,6 +151,8 @@ fun BackupRestoreScreen(
         }
     }
 
+    val coroutineScope = rememberCoroutineScope()
+
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
     ) { uri ->
@@ -159,7 +161,7 @@ fun BackupRestoreScreen(
         // which also holds the folders and photos chosen for file search.
         if (uri != null && exportWantsPassphrase && exportPassphrase.isNullOrBlank()) {
             // The passphrase was lost while the picker was open: remove the empty file and ask again.
-            runCatching { android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri) }
+            coroutineScope.launch(Dispatchers.IO) { deleteIfNothingWritten(context, uri) }
             safeShowToast("Type your passphrase again, then export")
             return@rememberLauncherForActivityResult
         }
@@ -171,13 +173,19 @@ fun BackupRestoreScreen(
             }
             val usedPassphrase = exportPassphrase
             exportPassphrase = null
+            val appContext = context.applicationContext
             viewModel.exportBackup(
                 uri = uri,
                 passphrase = usedPassphrase,
-                onSuccess = {
+                onSuccess = { written ->
                     android.util.Log.d("BackupRestoreScreen", "exportBackup onSuccess callback")
+                    // With a passphrase, a passkey this phone can no longer read is left out of the file: what the
+                    // export wrote says so ([BackupManager.exportToFile]). Said at once, so leaving the screen while
+                    // the export ran doesn't lose it.
+                    val passkeyLeftOut = passkeySetUp && written.passphrase && !written.passkey
                     safeShowToast(
                         when {
+                            passkeyLeftOut -> "Backup exported. It opens with your passphrase only, since this phone can't read its backup passkey's key. Set up the passkey again."
                             passkeySetUp && !usedPassphrase.isNullOrBlank() -> "Backup exported. It opens with your passkey or passphrase."
                             passkeySetUp -> "Backup exported. It opens with your passkey."
                             !usedPassphrase.isNullOrBlank() -> "Encrypted backup exported successfully!"
@@ -185,16 +193,15 @@ fun BackupRestoreScreen(
                         }
                     )
                 },
-                onError = { err ->
-                    safeShowToast("Export error: $err")
-                }
+                // The picker made the file before the export ran: don't leave it behind empty. Run with the export,
+                // so it happens even if the screen is gone by then.
+                cleanUp = { deleteIfNothingWritten(appContext, uri) },
+                onError = { err -> safeShowToast("Export error: $err") }
             )
         } else {
             android.util.Log.w("BackupRestoreScreen", "exportLauncher: uri or activity was null (uri=$uri, activity=$activity)")
         }
     }
-
-    val coroutineScope = rememberCoroutineScope()
 
     // The passphrase to back up or restore with: what is typed, or else the one saved on the chip. The chip only hands
     // it over shortly after the user has verified themselves, so when that window has passed the system prompt shows
@@ -815,6 +822,19 @@ private fun BackupBugdroid(player: BugdroidVideo?) {
             modifier = Modifier.fillMaxSize().testTag("backup_bugdroid_shadow"),
             scaleFactor = 1.0f
         )
+    }
+}
+
+/**
+ * Removes a backup file the picker made when nothing was written to it, so a failed export leaves no empty file behind.
+ * A file that holds something is kept: it may be an older backup the user picked to replace, untouched because the
+ * export failed before writing.
+ */
+private fun deleteIfNothingWritten(context: android.content.Context, uri: Uri) {
+    runCatching {
+        val size = context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.SIZE), null, null, null)
+            ?.use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null }
+        if (size == 0L) android.provider.DocumentsContract.deleteDocument(context.contentResolver, uri)
     }
 }
 

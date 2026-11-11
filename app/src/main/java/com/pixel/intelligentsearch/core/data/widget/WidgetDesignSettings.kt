@@ -8,6 +8,7 @@ import com.pixel.intelligentsearch.core.data.settings.IntSetting
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.theme.MaterialYouPaletteHelper
+import kotlin.reflect.KClass
 
 /** The two widget designs, each with its own saved customization under its own key prefix. */
 enum class WidgetDesign(val prefix: String, val themeStyle: String) {
@@ -249,6 +250,28 @@ class WidgetSettingsStore(private val prefs: SharedPreferences) {
         /** Set once [design]'s Hue, Saturation and Lightness are stored as an HCT seed rather than as HSV. */
         fun hctFlagKey(design: WidgetDesign): String = "${design.prefix}_custom_color_hct"
         private const val GOOGLE_BLUE_PLACEHOLDER = 0xFF4285F4.toInt()
+
+        /**
+         * Every key this store and the search overlay's Lens icon read for a design, named after the design's prefix,
+         * with the type each is read as (whichever design writes it). A restored backup is held to these types
+         * (BackupPreferenceSchema), so a value of another type can't reach the getInt or getString that reads it. A key
+         * added to [load] or [save] belongs here too.
+         */
+        val DESIGN_KEY_TYPES: Map<String, KClass<*>> = buildMap {
+            for (suffix in listOf(
+                "design_saved", "custom_sync_colors", "custom_keep_system_g", "custom_color_hct", "show_g_icon",
+                "show_doodles", "show_voice", "lock_black"
+            )) put(suffix, Boolean::class)
+            for (suffix in listOf(
+                "custom_g_icon_color", "custom_mic_color", "custom_shortcut1_color", "custom_shortcut2_color",
+                "custom_shortcut3_color", "custom_action_icon_color", "custom_shortcuts_color", "custom_hue",
+                "custom_saturation", "custom_lightness", "custom_color_opacity", "custom_color_int",
+                "background_transparency", "lock_pill_color"
+            )) put(suffix, Int::class)
+            for (suffix in listOf(
+                "subtheme", "material_g_icon", "shortcut_1", "shortcut_2", "shortcut_3", "shortcut_order", "action_icon"
+            )) put(suffix, String::class)
+        }
     }
 }
 

@@ -9,6 +9,9 @@ import com.pixel.intelligentsearch.feature.search.today.cards.CardForm
 import com.pixel.intelligentsearch.feature.search.today.cards.CardFrame
 import com.pixel.intelligentsearch.feature.search.today.cards.CardSpec
 import com.pixel.intelligentsearch.feature.search.today.cards.DiscoverLayout
+import com.pixel.intelligentsearch.feature.search.today.cards.site.AndroidSiteCards
+import com.pixel.intelligentsearch.feature.search.today.cards.site.SiteAddressResult
+import com.pixel.intelligentsearch.feature.search.today.cards.site.normalizeSiteAddress
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,8 +24,8 @@ import org.json.JSONObject
 import java.util.UUID
 
 /*
- * Where Discover's layout is kept: an app-private preferences file of its own, so it stays out of the settings the
- * app's own backup carries.
+ * Where Discover's layout is kept: an app-private preferences file of its own. The app's own backup carries it
+ * ([layoutForBackup], [restoreLayout]); what cards read from apps and websites stays on the phone.
  *
  * NG Designs
  */
@@ -110,6 +113,48 @@ internal fun cardLayoutStore(context: Context): CardLayoutStore =
     instance ?: synchronized(CardLayoutStore::class.java) {
         instance ?: CardLayoutStore(context.applicationContext).also { instance = it }
     }
+
+/** The longest layout a backup may restore: far more than a page of cards needs. */
+private const val MAX_BACKUP_LAYOUT = 256 * 1024
+
+/**
+ * Discover's layout as the app's backup carries it ([encodeLayout]'s JSON), or null when the page was never changed
+ * from today's. App cards are left out: each is a widget bound on this phone alone, which no other phone or reinstall
+ * has. Off the main thread.
+ */
+internal fun layoutForBackup(context: Context): String? {
+    val prefs = context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
+    val saved = prefs.getString(KEY, null) ?: return null
+    // The store's own copy is newer than the file while a save is on its way.
+    val layout = instance?.takeIf { it.isLoaded }?.layout?.value ?: decodeLayout(saved)
+    return encodeLayout(layout.copy(cards = layout.cards.filter { it.kind != CardKind.APP }))
+}
+
+/**
+ * Makes a backup's [json] ([layoutForBackup]) Discover's layout: its cards, places, shapes and hidden parts, checked as
+ * any saved layout is ([decodeLayout]). Website cards keep only addresses the reader may open, and app cards in the
+ * file are left out; this phone's own app cards stay, after the restored ones, and website cards the backup doesn't
+ * have are forgotten. False, and nothing changed, when [json] isn't a layout.
+ */
+internal fun restoreLayout(context: Context, json: String): Boolean {
+    if (json.isBlank() || json.length > MAX_BACKUP_LAYOUT) return false
+    if (runCatching { JSONObject(json).optJSONArray("cards") }.getOrNull() == null) return false
+    val restored = decodeLayout(json)
+    val cards = restored.cards.mapNotNull { card ->
+        when (card.kind) {
+            CardKind.APP -> null
+            CardKind.SITE -> (normalizeSiteAddress(card.url.orEmpty()) as? SiteAddressResult.Ok)?.let { card.copy(url = it.address.url) }
+            else -> card
+        }
+    }
+    val urls = cards.mapNotNullTo(HashSet()) { it.url }
+    val sites = AndroidSiteCards.get(context)
+    cardLayoutStore(context).edit { current ->
+        for (card in current.cards) if (card.kind == CardKind.SITE && card.url != null && card.url !in urls) sites.remove(card.url)
+        DiscoverLayout(cards + current.cards.filter { it.kind == CardKind.APP }, restored.hidden)
+    }
+    return true
+}
 
 /** A new id for one of the user's own cards, unique for the card's life. */
 internal fun newCardId(): String = "card-" + UUID.randomUUID().toString()

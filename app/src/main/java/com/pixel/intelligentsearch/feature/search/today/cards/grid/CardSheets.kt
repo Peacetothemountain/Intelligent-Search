@@ -6,8 +6,6 @@ import android.content.ComponentName
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.IconButton
@@ -86,6 +84,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.graphics.Path
+import com.pixel.intelligentsearch.core.ui.icons.filled.Check
+import com.pixel.intelligentsearch.feature.search.today.cards.shape.CardShapes
+import com.pixel.intelligentsearch.feature.search.today.cards.widget.appCardIcon
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -107,8 +110,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 /*
- * Edit mode's sheets: Add card (an app's widget, a website, or a hidden part
- * back), and every edit of the selected card as a plain button, for TalkBack, Switch Access and keyboards.
+ * Edit mode's sheets: Add card (one of the app's own cards, an app's widget, or a website), and every edit of the selected card as a plain button, for TalkBack, Switch Access and keyboards.
  *
  * NG Designs
  */
@@ -117,7 +119,7 @@ import kotlinx.coroutines.launch
  * The open sheet ([DiscoverEditState.sheet]), if any, as a modal bottom sheet. [layout] is the page's layout, which
  * the sheets show; [widgetChoices], [onAddWidget] and [onAddSite] are the page's, as [DiscoverEditChrome] takes them.
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun EditSheets(
     state: DiscoverEditState,
@@ -176,8 +178,8 @@ private fun SheetHeading(title: String, note: String) {
 
 /**
  * Add to Discover: one search field for apps and websites (an address shows a row to add it as a website card), the
- * page's hidden parts to put back, and every app with a widget, each opening to its widgets' previews; a tap on one adds
- * it as a live card. [close] closes the sheet.
+ * app's own cards as the first group (a hidden one goes back on the page), then every app with a widget, each opening to
+ * its widgets' previews; a tap on one adds it as a live card. [close] closes the sheet.
  */
 @Composable
 private fun AddSheet(
@@ -194,7 +196,8 @@ private fun AddSheet(
     var query by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    var open by rememberSaveable { mutableStateOf<String?>(null) }
+    // The app's own group starts open while any of its cards is off the page, so putting one back is one tap.
+    var open by rememberSaveable { mutableStateOf(if (layout.hidden.isNotEmpty()) context.packageName else null) }
     val choices by produceState<List<WidgetChoice>?>(null) {
         value = try {
             widgetChoices()
@@ -252,76 +255,221 @@ private fun AddSheet(
         )
     }
 
-    val hidden = CardKind.PAGE_ORDER.filter { it in layout.hidden && (query.isBlank() || it.label.contains(query.trim(), ignoreCase = true)) }
-    if (hidden.isNotEmpty()) {
-        SectionLabel("Put back")
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (kind in hidden) {
-                Row(
-                    Modifier
-                        .clip(CircleShape)
-                        .background(scheme.secondaryContainer)
-                        .clickable(role = Role.Button, onClickLabel = "Put back") {
-                            state.addBack(kind)
-                            close()
-                        }
-                        .heightIn(min = 48.dp)
-                        .padding(start = 12.dp, end = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(partIcon(kind), contentDescription = null, tint = scheme.onSecondaryContainer, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(kind.label, style = MaterialTheme.typography.labelLarge, color = scheme.onSecondaryContainer)
-                }
+    SectionLabel("Widgets")
+    val words = query.trim()
+    // The app's own cards first, as one group named after the app: they live only on Discover, never on the home
+    // screen, so this is the one place to pick them. A part already on the page shows as such; a hidden one goes back.
+    val ownKey = context.packageName
+    val ownByName = words.isEmpty() || OWN_GROUP_NAME.contains(words, ignoreCase = true)
+    val ownParts = if (ownByName) CardKind.PAGE_ORDER else CardKind.PAGE_ORDER.filter { it.label.contains(words, ignoreCase = true) }
+    val groups = choices.orEmpty()
+        .filter { words.isEmpty() || it.appLabel.contains(words, ignoreCase = true) || it.widgetLabel.contains(words, ignoreCase = true) }
+        .groupBy { it.packageName }
+        .values
+        .toList()
+    if (ownParts.isNotEmpty() || groups.isNotEmpty()) {
+        Column(Modifier.clip(RoundedCornerShape(24.dp)), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (ownParts.isNotEmpty()) {
+                OwnGroup(
+                    parts = ownParts,
+                    hidden = layout.hidden,
+                    // Open when asked, or when a search named one of its cards rather than the app.
+                    expanded = open == ownKey || (words.isNotEmpty() && (!ownByName || groups.isEmpty())),
+                    last = groups.isEmpty(),
+                    onToggle = { open = if (open == ownKey) null else ownKey },
+                    onAdd = { kind ->
+                        state.addBack(kind)
+                        close()
+                    }
+                )
+            }
+            groups.forEachIndexed { i, widgets ->
+                val app = widgets.first()
+                val expanded = open == app.packageName || (words.isNotEmpty() && groups.size == 1 && ownParts.isEmpty())
+                AppGroup(
+                    app = app,
+                    widgets = widgets,
+                    providers = providers,
+                    expanded = expanded,
+                    first = i == 0 && ownParts.isEmpty(),
+                    last = i == groups.lastIndex,
+                    onToggle = { open = if (open == app.packageName) null else app.packageName },
+                    // Said once the card is really added (the page does): Android can still ask, and be refused.
+                    onAdd = { choice ->
+                        onAddWidget(choice)
+                        close()
+                    }
+                )
             }
         }
     }
-
-    SectionLabel("Widgets")
-    when (val list = choices) {
-        null -> Row(Modifier.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+    val list = choices
+    if (list == null) {
+        Row(Modifier.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(Modifier.size(20.dp).testTag(LOADING_INDICATOR_TAG), strokeWidth = 2.dp)
             Spacer(Modifier.width(12.dp))
             Text("Finding widgets", style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
         }
-        else -> {
-            val words = query.trim()
-            val groups = list
-                .filter { words.isEmpty() || it.appLabel.contains(words, ignoreCase = true) || it.widgetLabel.contains(words, ignoreCase = true) }
-                .groupBy { it.packageName }
-                .values
-                .toList()
-            if (groups.isEmpty()) {
+    } else if (groups.isEmpty() && ownParts.isEmpty()) {
+        Text(
+            if (list.isEmpty()) "No apps on this phone have a widget." else "No widgets match.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = scheme.onSurfaceVariant,
+            modifier = Modifier.padding(vertical = 14.dp)
+        )
+    }
+}
+
+/** The name the app's own group of cards goes by in Add to Discover. */
+private const val OWN_GROUP_NAME = "Intelligent Search"
+
+/**
+ * The app's own cards in Add to Discover, grouped as an app's widgets are: the app's icon and name, how many cards are
+ * off the page, and a tap opens it to a tile for each of [parts]. A part not [hidden] is already on the page and says
+ * so; a tap on a hidden one puts it back ([onAdd]). Always the first group.
+ */
+@Composable
+private fun OwnGroup(
+    parts: List<CardKind>,
+    hidden: Set<CardKind>,
+    expanded: Boolean,
+    last: Boolean,
+    onToggle: () -> Unit,
+    onAdd: (CardKind) -> Unit
+) {
+    val scheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val icon by produceState<ImageBitmap?>(null) { value = appCardIcon(context, context.packageName) }
+    val off = parts.count { it in hidden }
+    val big = 24.dp
+    val small = 6.dp
+    val shape = RoundedCornerShape(topStart = big, topEnd = big, bottomStart = if (last) big else small, bottomEnd = if (last) big else small)
+    val turn by animateFloatAsState(if (expanded) 180f else 0f, label = "chevron")
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(scheme.surfaceContainerHigh)
+            .animateContentSize()
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button, onClickLabel = if (expanded) "Close" else "Show cards", onClick = onToggle)
+                .heightIn(min = 64.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Box(Modifier.size(36.dp).clip(CircleShape).background(scheme.primaryContainer), contentAlignment = Alignment.Center) {
+                val image = icon
+                if (image != null) {
+                    Image(image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(36.dp))
+                } else {
+                    Icon(Icons.Outlined.Widgets, contentDescription = null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
+                }
+            }
+            Column(Modifier.weight(1f)) {
+                Text(OWN_GROUP_NAME, style = MaterialTheme.typography.titleSmall, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    if (list.isEmpty()) "No apps on this phone have a widget." else "No widgets match.",
-                    style = MaterialTheme.typography.bodyMedium,
+                    when {
+                        parts.size == 1 && off == 0 -> "${parts.first().label}, on your page"
+                        parts.size == 1 -> parts.first().label
+                        off == 0 -> "${parts.size} Discover cards, all on your page"
+                        off == 1 -> "1 card to add"
+                        else -> "$off cards to add"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
                     color = scheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 14.dp)
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-            Column(Modifier.clip(RoundedCornerShape(24.dp)), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                groups.forEachIndexed { i, widgets ->
-                    val app = widgets.first()
-                    val expanded = open == app.packageName || (words.isNotEmpty() && groups.size == 1)
-                    AppGroup(
-                        app = app,
-                        widgets = widgets,
-                        providers = providers,
-                        expanded = expanded,
-                        first = i == 0,
-                        last = i == groups.lastIndex,
-                        onToggle = { open = if (open == app.packageName) null else app.packageName },
-                        // Said once the card is really added (the page does): Android can still ask, and be refused.
-                        onAdd = { choice ->
-                            onAddWidget(choice)
-                            close()
-                        }
-                    )
-                }
+            Icon(Icons.Filled.ExpandMore, contentDescription = null, tint = scheme.onSurfaceVariant, modifier = Modifier.graphicsLayer { rotationZ = turn })
+        }
+        if (expanded) {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = 12.dp, end = 12.dp, bottom = 14.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // Cards to add first, then the ones already on the page.
+                for (kind in parts.sortedBy { it !in hidden }) OwnTile(kind, onPage = kind !in hidden) { onAdd(kind) }
             }
         }
     }
 }
+
+/**
+ * One of the app's own cards to add: its icon on a Material shape of its own and its name. One [onPage] already is
+ * dimmed, carries a check and isn't tappable.
+ */
+@Composable
+private fun OwnTile(kind: CardKind, onPage: Boolean, onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val back = if (onPage) scheme.surfaceVariant else scheme.primaryContainer
+    val ink = if (onPage) scheme.onSurfaceVariant else scheme.onPrimaryContainer
+    val outline = OWN_TILE_SHAPES[kind.ordinal % OWN_TILE_SHAPES.size]
+    Column(
+        Modifier
+            .width(156.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .then(if (onPage) Modifier else Modifier.clickable(role = Role.Button, onClickLabel = "Add") { onClick() })
+            .semantics(mergeDescendants = true) {
+                contentDescription = if (onPage) "${kind.label}, on your page" else kind.label
+            }
+            .padding(6.dp)
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(112.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(scheme.surfaceContainerHighest)
+                .drawWithCache {
+                    val side = size.minDimension * 0.72f
+                    val path = Path()
+                    if (side > 0f) CardShapes.outline(outline).addTo(path, side, (size.width - side) / 2f, (size.height - side) / 2f)
+                    onDrawBehind { drawPath(path, back) }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(partIcon(kind), contentDescription = null, tint = ink, modifier = Modifier.size(30.dp))
+            if (onPage) {
+                Box(
+                    Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .size(22.dp)
+                        .background(scheme.primary, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Check, contentDescription = null, tint = scheme.onPrimary, modifier = Modifier.size(14.dp))
+                }
+            }
+        }
+        Text(
+            kind.label,
+            style = MaterialTheme.typography.labelLarge,
+            color = scheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 8.dp)
+        )
+        Text(
+            if (onPage) "On your page" else "Tap to add",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (onPage) scheme.onSurfaceVariant else scheme.primary,
+            maxLines = 1,
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp)
+        )
+    }
+}
+
+/** The Material shapes the app's own tiles take in turn, so neighbors differ. */
+private val OWN_TILE_SHAPES = listOf("cookie9", "clover4", "sunny", "cookie6", "arch", "flower", "pentagon", "cookie12", "gem", "softburst", "clover8", "cookie4")
 
 /** The search field at the top of Add to Discover, for apps or a website. */
 @Composable

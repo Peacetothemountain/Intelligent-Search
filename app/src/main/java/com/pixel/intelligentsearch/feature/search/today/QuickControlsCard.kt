@@ -154,8 +154,8 @@ private val choicesMade = AtomicInteger()
 
 /**
  * The controls chosen: read off the main thread the first time the card or the sheet comes, then kept in
- * [chosenControls]. Only these two write the file (Discover's own file isn't in backups; see `CardLayoutStore`), so
- * what is kept stays what is saved.
+ * [chosenControls]. Only these two and a restore ([restoreQuickControls]) write the file, so what is kept stays what is
+ * saved.
  */
 @Composable
 private fun rememberChosenControls(context: Context): Pair<List<QuickControl>, (List<QuickControl>) -> Unit> {
@@ -174,6 +174,24 @@ private fun rememberChosenControls(context: Context): Pair<List<QuickControl>, (
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putString(KEY, list.joinToString(",") { it.key }) }
     }
     return (chosen ?: QuickControl.DEFAULT) to set
+}
+
+/** The controls chosen, as the keys the file keeps ("dnd,flashlight"); null when none were ever chosen. Off the main thread. */
+internal fun savedQuickControls(context: Context): String? =
+    chosenControls.value?.joinToString(",") { it.key }
+        ?: context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null)
+
+/**
+ * Makes [keys] (a backup's [savedQuickControls]) the controls chosen, shown at once if the card is up. Keys this
+ * version doesn't know are left out; false, and nothing changed, when none is known.
+ */
+internal fun restoreQuickControls(context: Context, keys: String): Boolean {
+    val list = keys.split(',').mapNotNull { QuickControl.of(it.trim()) }.distinct()
+    if (list.isEmpty()) return false
+    choicesMade.incrementAndGet()
+    chosenControls.value = list
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit(commit = true) { putString(KEY, list.joinToString(",") { it.key }) }
+    return true
 }
 
 /** Counts up each time the page comes back to the front, so states read from Android are read again after its pages. */

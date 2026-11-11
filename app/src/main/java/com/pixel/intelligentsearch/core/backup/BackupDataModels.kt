@@ -57,5 +57,7 @@ data class BackupContentPayload(
     val sectionConfigsJson: String = "[]",
     val searchHistory: List<String> = emptyList(),
     val hiddenApps: List<String> = emptyList(),
-    val sharedPreferencesJson: String = "{}"
+    val sharedPreferencesJson: String = "{}",
+    /** Discover's page and quick controls (DiscoverBackup); empty in files from before Discover was backed up. */
+    val discoverJson: String = ""
 )

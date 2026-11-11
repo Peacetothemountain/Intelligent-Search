@@ -15,6 +15,7 @@ import com.pixel.intelligentsearch.core.data.UserGrantedFiles
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
 import com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager
+import com.pixel.intelligentsearch.feature.search.today.DiscoverBackup
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -260,12 +261,16 @@ class BackupManager @Inject constructor(
             sectionConfigsJson = "[]", // retired feature; field kept for older readers
             searchHistory = historyList,
             hiddenApps = currentSettings.hiddenApps.toList(),
-            sharedPreferencesJson = spJsonObj.toString()
+            sharedPreferencesJson = spJsonObj.toString(),
+            discoverJson = runCatching { DiscoverBackup.export(context) }.getOrElse {
+                Log.w("BackupManager", "Discover left out of the backup", it)
+                ""
+            }
         )
     }
 
     /**
-     * Encrypts the current settings, hidden apps and history and writes them to [uri]: with the backup passkey when one
+     * Encrypts the current settings, hidden apps, history and Discover page and writes them to [uri]: with the backup passkey when one
      * is set up (and the [passphrase] too, when given), otherwise with the passphrase, otherwise with this phone's own
      * key. As for automatic backups ([exportAutomatic]), a passkey whose key this phone can no longer read
      * ([BackupPasskey.canWrap]) doesn't stop a backup that has a passphrase: that one opens with the passphrase alone.
@@ -784,6 +789,12 @@ class BackupManager @Inject constructor(
         // restoring the history below can't leave it out of step.
         currencyRates.syncSchedule()
 
+        // Discover's page and quick controls, when the file has them.
+        restoredCount += runCatching { DiscoverBackup.restore(context, payload.discoverJson) }.getOrElse {
+            Log.w("BackupManager", "Discover could not be restored", it)
+            0
+        }
+
         // 4. Restore Search History
         if (payload.searchHistory.isNotEmpty()) {
             val now = System.currentTimeMillis()
@@ -831,6 +842,7 @@ class BackupManager @Inject constructor(
         root.put("hiddenApps", hiddenArray)
 
         root.put("sharedPreferencesJson", payload.sharedPreferencesJson)
+        if (payload.discoverJson.isNotEmpty()) root.put("discoverJson", payload.discoverJson)
 
         return root.toString()
     }
@@ -868,7 +880,8 @@ class BackupManager @Inject constructor(
             sectionConfigsJson = root.optString("sectionConfigsJson", "[]"),
             searchHistory = history,
             hiddenApps = hidden,
-            sharedPreferencesJson = root.optString("sharedPreferencesJson", "{}")
+            sharedPreferencesJson = root.optString("sharedPreferencesJson", "{}"),
+            discoverJson = root.optString("discoverJson", "")
         )
     }
 

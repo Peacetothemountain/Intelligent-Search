@@ -697,7 +697,7 @@ fun BackupRestoreScreen(
 
             SettingsCard(modifier = Modifier.testTag("backup_card_export")) {
                 BackupCardTitle("Export Configuration")
-                BackupCardDescription("Settings, History, Shortcuts, and Priority Weights.")
+                BackupCardDescription("Settings, History, Shortcuts, Priority Weights, and your Discover page.")
                 Spacer(modifier = Modifier.height(4.dp))
                 Button(
                     onClick = {

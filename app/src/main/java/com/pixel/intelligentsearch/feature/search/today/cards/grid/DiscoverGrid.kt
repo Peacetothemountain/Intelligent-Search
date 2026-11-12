@@ -191,6 +191,12 @@ internal fun DiscoverGrid(
     }
 
     NewCards(state, layout)
+    // A widget placed smaller than its app needs gets that size, once the page's width is known.
+    val widgetIds = layout.cards.mapNotNull { c -> c.widgetId.takeIf { c.kind == CardKind.APP && it != 0 } }
+    LaunchedEffect(widgetIds) {
+        while (state.page <= 0) withFrameNanos { }
+        if (!state.editing) state.fitWidgets()
+    }
     Reveal(state, scroll)
     AutoScroll(state, scroll)
 

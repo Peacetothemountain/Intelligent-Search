@@ -21,7 +21,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.vector.PathParser
-import androidx.compose.animation.core.CubicBezierEasing
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -95,9 +94,6 @@ internal fun TodayIcon(
 }
 
 private const val RISE_MS = 560
-
-/** Material's emphasized decelerate curve: quick out of the start, settling gently. */
-private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 
 private fun DrawScope.drawDayArc(fraction: Float, day: Boolean, color: Color, sunColor: Color, glow: Float, unit: Float, inset: Offset) {
     fun p(x: Float, y: Float) = Offset(inset.x + x * unit, inset.y + y * unit)

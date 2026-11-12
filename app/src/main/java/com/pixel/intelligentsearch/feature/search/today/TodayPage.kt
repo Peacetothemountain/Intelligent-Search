@@ -1,35 +1,23 @@
 package com.pixel.intelligentsearch.feature.search.today
 
-import android.content.Intent
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -39,26 +27,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import com.pixel.intelligentsearch.core.ui.icons.automirrored.filled.ArrowBack
-import com.pixel.intelligentsearch.core.ui.icons.filled.Directions
-import com.pixel.intelligentsearch.core.ui.icons.rounded.Pause
-import com.pixel.intelligentsearch.core.ui.icons.rounded.PlayArrow
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Alarm
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Cake
-import com.pixel.intelligentsearch.core.ui.icons.outlined.Event
-import com.pixel.intelligentsearch.core.ui.icons.outlined.LocationOn
-import com.pixel.intelligentsearch.core.ui.icons.outlined.MusicNote
-import com.pixel.intelligentsearch.core.ui.icons.outlined.Schedule
-import com.pixel.intelligentsearch.core.ui.icons.outlined.Timer
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.PartStatus
+import com.pixel.intelligentsearch.feature.search.today.cards.grid.CardAccess
 import com.pixel.intelligentsearch.feature.settings.NotificationAccessDialog
 import com.pixel.intelligentsearch.feature.settings.rememberCalendarRequest
 import com.pixel.intelligentsearch.feature.settings.rememberNotificationAccessRequest
@@ -77,7 +54,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
@@ -86,62 +62,44 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalView
+import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalAccessibilityManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.text
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
-import com.pixel.intelligentsearch.R
-import com.pixel.intelligentsearch.core.data.CalendarEvent
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.glance.AndroidGlanceSource
 import com.pixel.intelligentsearch.core.glance.GlanceBirthday
 import com.pixel.intelligentsearch.core.glance.GlanceItem
-import com.pixel.intelligentsearch.core.glance.GlanceMedia
 import com.pixel.intelligentsearch.core.glance.GlanceSnapshot
-import com.pixel.intelligentsearch.core.glance.GlanceTimer
 import com.pixel.intelligentsearch.core.glance.GlanceToggles
 import com.pixel.intelligentsearch.core.glance.GLANCE_EVENT_WINDOW_MS
-import com.pixel.intelligentsearch.core.glance.timerReading
 import com.pixel.intelligentsearch.core.system.ComesBackContext
 import com.pixel.intelligentsearch.core.system.WaitsForPermissionGrant
-import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
-import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.feature.search.LocalGlanceSource
-import com.pixel.intelligentsearch.feature.search.SquigglySeekBar
-import com.pixel.intelligentsearch.feature.search.calendarEventIntent
-import com.pixel.intelligentsearch.feature.search.matteRing
 import com.pixel.intelligentsearch.feature.search.openGlanceItem
 import com.pixel.intelligentsearch.feature.search.rememberCalendarAllowed
 import com.pixel.intelligentsearch.feature.search.rememberGlanceNow
@@ -158,7 +116,6 @@ import com.pixel.intelligentsearch.feature.search.today.cards.CardMode
 import com.pixel.intelligentsearch.feature.search.today.cards.CardSpec
 import com.pixel.intelligentsearch.feature.search.today.cards.ShapedContent
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.DiscoverEditChrome
-import com.pixel.intelligentsearch.feature.search.today.cards.grid.EditIcons
 import com.pixel.intelligentsearch.feature.search.today.cards.widget.LiveWidget
 import com.pixel.intelligentsearch.feature.search.today.cards.AppCardData
 import com.pixel.intelligentsearch.feature.search.today.cards.CardForm
@@ -186,25 +143,11 @@ import kotlin.math.hypot
 import com.pixel.intelligentsearch.feature.settings.rememberTodayLocationRequest
 import com.pixel.intelligentsearch.feature.settings.rememberPermissionState
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.geometry.CornerRadius
-import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
-import com.pixel.intelligentsearch.feature.settings.drawSearchPill
-import com.pixel.intelligentsearch.feature.settings.SearchEasing
-import com.pixel.intelligentsearch.feature.settings.SEARCH_MILLIS
-import com.pixel.intelligentsearch.feature.settings.PILL_TEXT
-import com.pixel.intelligentsearch.feature.settings.PILL_SIDE
-import com.pixel.intelligentsearch.feature.settings.PILL_MARGIN
-import com.pixel.intelligentsearch.feature.settings.PILL_HEIGHT
-import com.pixel.intelligentsearch.feature.settings.FlashDecay
-import com.pixel.intelligentsearch.feature.settings.FLASH_MILLIS
-import com.pixel.intelligentsearch.core.ui.icons.filled.Call
 import androidx.compose.ui.graphics.luminance
 import kotlin.math.roundToInt
 import com.pixel.intelligentsearch.core.answers.WeatherReport
 import com.pixel.intelligentsearch.core.answers.WeatherCodes
 import com.pixel.intelligentsearch.core.answers.HighLow
-import com.pixel.intelligentsearch.core.answers.ForecastDay
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.positionInRoot
 
@@ -212,13 +155,11 @@ import androidx.compose.ui.layout.positionInRoot
 internal const val TODAY_BUTTON_TAG = "today_button"
 internal const val TODAY_PAGE_TAG = "today_page"
 
-/** Material's emphasized curves, for the page opening out of its button and closing back into it. */
-private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+/** Material's emphasized curves, for the page opening out of its button and closing back into it (and its cards' motion). */
+internal val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 private val EmphasizedAccelerate = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
 private const val OPEN_MS = 560
 
-/** Sunset's label on Rest of Your Day. */
-private const val SUNSET = "Sunset"
 private const val CLOSE_MS = 380
 
 /**
@@ -274,7 +215,12 @@ internal fun TodayLayer(
         }
         reveal.animateTo(if (open) 1f else 0f, spec)
     }
-    BackHandler(enabled = open) { onClose() }
+    val view = LocalView.current
+    BackHandler(enabled = open) {
+        // The back gesture's haptic, as the search's own back plays it.
+        PixelHapticEngine.playButtonTap(view.context, view)
+        onClose()
+    }
 
     Box(Modifier.fillMaxSize().onGloballyPositioned { layerTopLeft = it.positionInRoot() }) {
         if (open || revealed) {
@@ -347,7 +293,6 @@ internal fun TodayBarButton(onClick: () -> Unit, modifier: Modifier = Modifier) 
 
 /** The page's look: Up Next on the primary container, other cards on the container colors, round 24 to 28 dp corners. */
 internal val CardShape = RoundedCornerShape(24.dp)
-private val HeroShape = RoundedCornerShape(28.dp)
 
 /**
  * The Today page: the day's greeting and what is coming, the weather ahead, what is running and playing, what to catch
@@ -442,11 +387,11 @@ internal fun TodayPage(
     }
     NotificationAccessDialog(notificationsRequest)
     fun turnOn(on: () -> Unit) = PartStatus("Turned off", "Tap to turn on", "Turn on", on)
-    fun askNotifications(kind: CardKind) = PartStatus("Needs notification access", "Tap to allow", "Allow notification access") {
+    fun askNotifications(kind: CardKind) = PartStatus("Needs notification access", "Tap to allow", "Allow notification access", access = CardAccess.NOTIFICATIONS, fix = {
         notificationsFor = kind.key
         notificationsRequest.request()
-    }
-    val calendarNeeded = PartStatus("Needs calendar access", "Tap to allow", "Allow calendar access") { calendarRequest.request() }
+    })
+    val calendarNeeded = PartStatus("Needs calendar access", "Tap to allow", "Allow calendar access", access = CardAccess.CALENDAR, fix = { calendarRequest.request() })
     fun partStatus(kind: CardKind): PartStatus = when (kind) {
         CardKind.UP_NEXT -> when {
             !calendarOk -> calendarNeeded
@@ -460,7 +405,7 @@ internal fun TodayPage(
         }
         CardKind.WEATHER -> when {
             !weatherOn -> turnOn { weatherOn = true }
-            !locationOk && homePlace.isBlank() -> PartStatus("Needs your location", "Tap to allow", "Use your location") { locationRequest.request() }
+            !locationOk && homePlace.isBlank() -> PartStatus("Needs your location", "Tap to allow", "Use your location", access = CardAccess.LOCATION, fix = { locationRequest.request() })
             else -> PartStatus("Shows once the forecast is in")
         }
         // Alarms need nothing; timers and packages are read from their apps' notifications.
@@ -480,6 +425,9 @@ internal fun TodayPage(
         CardKind.APP, CardKind.SITE -> PartStatus("Has nothing to show right now")
     }
     SideEffect { editState.partStatus = ::partStatus }
+    // On the page an empty card says what it waits for, but asks for none of it: the access card above the cards asks,
+    // once for each thing, however many cards wait for it. Add to Discover's tiles still ask, one card at a time.
+    fun pageStatus(kind: CardKind): PartStatus = partStatus(kind).let { if (it.access != null) PartStatus(it.note, access = it.access) else it }
     val widgets = remember(context) { widgetCards(context.applicationContext) }
     val apps by widgets.cards.collectAsState()
     val siteSource = remember(context) { siteCards(context.applicationContext) }
@@ -531,7 +479,7 @@ internal fun TodayPage(
         onAdded = { id, provider ->
             val info = runCatching { android.appwidget.AppWidgetManager.getInstance(context).getAppWidgetInfo(id) }.getOrNull()
             cardStore.edit { now -> now.copy(cards = now.cards + newAppCard(id, provider, info, density.density)) }
-            editState.haptic(EditHaptic.CONFIRM)
+            editState.haptic(EditHaptic.TICK)
             editState.announce("Card added")
         },
         onFailed = { message -> android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show() }
@@ -635,7 +583,7 @@ internal fun TodayPage(
             fun natural(spec: CardSpec) {
                 val kind = spec.kind
                 if (kind.builtIn && !hasContent(spec)) {
-                    IdleCard(kind, partStatus(kind), idleTime)
+                    IdleCard(kind, pageStatus(kind), idleTime)
                     return
                 }
                 when (kind) {
@@ -672,6 +620,13 @@ internal fun TodayPage(
                 CardKind.SITE -> sites[spec.url]?.let { ShapedContent.Site(it) }
                 else -> null
             }
+            // What the empty cards wait for the user to allow, asked in one place, one thing at a time.
+            val asks = cardLayout.cards
+                .filter { it.kind.builtIn && shown(it) && !hasContent(it) }
+                .map { partStatus(it.kind) }
+                .filter { it.access != null && it.fix != null }
+                .distinctBy { it.access }
+            if (asks.isNotEmpty() && !editState.editing) Enter(index, parts) { AccessCard(asks) }
             DiscoverGrid(
                 state = editState,
                 layout = cardLayout,
@@ -705,7 +660,7 @@ internal fun TodayPage(
                             } else if (spec.kind.builtIn) {
                                 // Empty: the idle light in its shape. One that needs something asks on a tap; a private
                                 // one is covered like any other until tapped.
-                                val status = partStatus(spec.kind)
+                                val status = pageStatus(spec.kind)
                                 val covered = spec.private && spec.id !in revealed
                                 val fix = status.fix?.takeIf { status.button != null }
                                 val said = cardModifier.named(spec).let { if (covered) it else it.semantics { stateDescription = status.note } }
@@ -973,616 +928,4 @@ private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthday
             }
         }
     }
-}
-
-/**
- * A small one-line detail: [parts] (blank ones left out) drawn with dots between them. TalkBack hears them with pauses
- * instead, as it would otherwise be handed each dot to speak.
- */
-@Composable
-internal fun DetailLine(vararg parts: String?, modifier: Modifier = Modifier) {
-    val shown = parts.filterNotNull().filter { it.isNotBlank() }
-    Text(
-        shown.joinToString(" · "),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        modifier = modifier.clearAndSetSemantics { text = AnnotatedString(shown.joinToString(", ")) }
-    )
-}
-
-@Composable
-internal fun TodayChip(
-    icon: ImageVector?,
-    text: String,
-    detail: String?,
-    /** What TalkBack hears for [detail], when its short drawn form would read as letters. */
-    spokenDetail: String? = detail,
-    spin: Boolean = false,
-    leading: (@Composable (Color) -> Unit)? = null,
-    /** A second line under [text] (the weather's moon); the pill grows a little to hold it. */
-    below: (@Composable () -> Unit)? = null,
-    onClick: () -> Unit
-) {
-    val scheme = MaterialTheme.colorScheme
-    val tall = below != null
-    Row(
-        Modifier
-            .clip(CircleShape)
-            .background(scheme.surfaceContainerHigh)
-            .bouncyClickable(shape = CircleShape, onClick = onClick)
-            .heightIn(min = 38.dp)
-            .padding(start = if (tall) 8.dp else 6.dp, end = if (tall) 18.dp else 12.dp, top = if (tall) 9.dp else 6.dp, bottom = if (tall) 9.dp else 6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(Modifier.size(if (tall) 34.dp else 26.dp).background(scheme.tertiaryContainer, CircleShape), contentAlignment = Alignment.Center) {
-            val turn = rememberSlowTurn(spin)
-            if (icon != null) {
-                Icon(icon, contentDescription = null, tint = scheme.onTertiaryContainer, modifier = Modifier.size(if (tall) 21.dp else 17.dp).graphicsLayer { rotationZ = turn() })
-            } else {
-                leading?.invoke(scheme.onTertiaryContainer)
-            }
-        }
-        Spacer(Modifier.width(if (tall) 10.dp else 8.dp))
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurface)
-                if (detail != null) {
-                    Text(
-                        " · $detail",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = scheme.onSurfaceVariant,
-                        // TalkBack hears the detail, not the drawn separator before it.
-                        modifier = Modifier.clearAndSetSemantics { this.text = AnnotatedString(spokenDetail ?: detail) }
-                    )
-                }
-            }
-            below?.invoke()
-        }
-    }
-}
-
-/** The next event: how long until it starts, when and where, and one tap to directions (when it has a place) or the event. */
-@Composable
-private fun UpNextCard(event: CalendarEvent, now: Long, trip: TodayTrip?, askLocation: (() -> Unit)?) {
-    val scheme = MaterialTheme.colorScheme
-    val context = LocalContext.current
-    val time = remember(event.beginMillis) {
-        android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(event.beginMillis))
-    }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(HeroShape)
-            .background(scheme.primaryContainer)
-            .sheen()
-            .bouncyClickable(shape = HeroShape) { launchSafeIntent(context, calendarEventIntent(event)) }
-            .padding(start = 16.dp, end = 16.dp, top = 15.dp, bottom = 14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                "UP NEXT",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.7.sp,
-                color = scheme.onPrimaryContainer,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                Durations.until(event.beginMillis - now).replaceFirstChar { it.lowercase() },
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.SemiBold,
-                color = scheme.onPrimary,
-                modifier = Modifier.breathe().clip(CircleShape).background(scheme.primary).padding(horizontal = 10.dp, vertical = 4.dp)
-            )
-        }
-        Text(
-            event.title,
-            style = MaterialTheme.typography.headlineSmall,
-            color = scheme.onPrimaryContainer,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
-        )
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.Schedule, null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(17.dp))
-            Text(" $time", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer)
-            if (event.location.isNotBlank()) {
-                // Drawn only: TalkBack hears the time and the place with a pause between them.
-                Text("  ·  ", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer.copy(alpha = 0.6f), modifier = Modifier.clearAndSetSemantics {})
-                Icon(Icons.Outlined.LocationOn, null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(17.dp))
-                Text(
-                    " ${event.location}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onPrimaryContainer,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        }
-        if (trip != null) {
-            LeaveBy(trip, now)
-        } else if (askLocation != null && event.location.isNotBlank()) {
-            Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "See when to leave",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onPrimaryContainer,
-                    modifier = Modifier.weight(1f)
-                )
-                PillButton("Allow Location", Icons.Outlined.LocationOn, filled = false, onClick = askLocation)
-            }
-        }
-        FlowRow(Modifier.padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (event.location.isNotBlank()) {
-                PillButton("Directions", Icons.Filled.Directions, filled = true) {
-                    launchSafeIntent(context, Intent(Intent.ACTION_VIEW, "geo:0,0?q=${Uri.encode(event.location)}".toUri()))
-                }
-            }
-            if (event.phone.isNotBlank()) {
-                PillButton("Call", Icons.Filled.Call, filled = event.location.isBlank()) {
-                    launchSafeIntent(context, Intent(Intent.ACTION_DIAL, "tel:${Uri.encode(event.phone)}".toUri()))
-                }
-            }
-            // With both Directions and Call there is no room for a third; the card itself opens the event.
-            if (event.location.isBlank() || event.phone.isBlank()) {
-                PillButton("Open Event", Icons.Outlined.Event, filled = event.location.isBlank() && event.phone.isBlank()) {
-                    launchSafeIntent(context, calendarEventIntent(event))
-                }
-            }
-        }
-    }
-}
-
-/**
- * When to leave: the time, a bar filling over the hour before it, and about how long the trip takes. Past the time
- * it says to leave now.
- */
-@Composable
-private fun LeaveBy(trip: TodayTrip, now: Long) {
-    val scheme = MaterialTheme.colorScheme
-    val context = LocalContext.current
-    val time = remember(trip.leaveAt) { android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(trip.leaveAt)) }
-    val window = 60 * 60_000L
-    val target = ((now - (trip.leaveAt - window)).toFloat() / window).coerceIn(0f, 1f)
-    val animate by rememberAnimationsEnabled()
-    // Read as the bar is laid out, so filling it never rebuilds the card.
-    val fill = animateFloatAsState(target, if (animate) tween(800, delayMillis = 300) else snap(), label = "leave by")
-    Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            if (trip.leaveAt <= now) "Leave now" else "Leave by $time",
-            style = MaterialTheme.typography.bodyMedium,
-            color = scheme.onPrimaryContainer
-        )
-        Box(
-            Modifier
-                .weight(1f)
-                .padding(horizontal = 10.dp)
-                .height(6.dp)
-                .clip(CircleShape)
-                .background(scheme.onPrimaryContainer.copy(alpha = 0.18f))
-        ) {
-            Box(Modifier.fillWidth { fill.value }.height(6.dp).clip(CircleShape).background(scheme.onPrimaryContainer))
-        }
-        Text("About ${Durations.minutes(trip.minutes * 60_000L)}", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer)
-    }
-}
-
-@Composable
-private fun PillButton(label: String, icon: ImageVector, filled: Boolean, onClick: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    val container = if (filled) scheme.primary else scheme.onPrimaryContainer.copy(alpha = 0.13f)
-    val content = if (filled) scheme.onPrimary else scheme.onPrimaryContainer
-    Row(
-        Modifier
-            .clip(CircleShape)
-            .background(container)
-            .bouncyClickable(shape = CircleShape, onClick = onClick)
-            .heightIn(min = 40.dp)
-            .padding(start = 13.dp, end = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(7.dp))
-        Text(label, style = MaterialTheme.typography.labelLarge, color = content)
-    }
-}
-
-/**
- * The rest of today's events on one line from now: the part already gone filled in, a pin and label for each event
- * (labels taking turns above and below the line, a label with no room in either row left out so none collide), and a
- * dot for now.
- */
-@Composable
-private fun RestOfDay(calendar: List<CalendarEvent>, now: Long, sunset: Long?) {
-    // The next three of the day's events (the count says how many there are), with sunset among them as a warm pin
-    // when it is still ahead: four labels at most, which fit two above the line and two below.
-    val events = (calendar.take(3) + listOfNotNull(sunset?.let { CalendarEvent(SUNSET, "", -1L, it) })).sortedBy { it.beginMillis }
-    val scheme = MaterialTheme.colorScheme
-    val context = LocalContext.current
-    val animate by rememberAnimationsEnabled()
-    val shown by animateFloatAsState(
-        targetValue = 1f,
-        animationSpec = if (animate) tween(1000, delayMillis = 200, easing = EmphasizedDecelerate) else snap(),
-        label = "rest of day"
-    )
-    // From a little before now to a little after the last event.
-    val start = now - 20 * 60_000L
-    val end = maxOf(events.last().beginMillis + 45 * 60_000L, now + 3 * 3_600_000L)
-    fun at(ms: Long) = ((ms - start).toFloat() / (end - start)).coerceIn(0.03f, 0.97f)
-    val timeFormat = remember { android.text.format.DateFormat.getTimeFormat(context) }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(CardShape)
-            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
-            .padding(14.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            CardLabel(Icons.Outlined.Schedule, "Rest of your day", detail = if (calendar.size == 1) "1 event" else "${calendar.size} events", modifier = Modifier.weight(1f))
-        }
-        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 6.dp).height(96.dp)) {
-            val width = maxWidth
-            val line = scheme.surfaceContainerHighest
-            val fill = scheme.primary
-            val pin = scheme.onSurfaceVariant
-            val pinFill = scheme.surfaceContainer
-            val warm = if (scheme.surface.luminance() < 0.5f) Color(0xFFF2B872) else Color(0xFFB5651D)
-            val nowAt = at(now)
-            Canvas(Modifier.fillMaxSize()) {
-                val y = 44.dp.toPx()
-                val stroke = 4.dp.toPx()
-                drawLine(line, Offset(0f, y), Offset(size.width, y), strokeWidth = stroke, cap = StrokeCap.Round)
-                drawLine(fill, Offset(0f, y), Offset(size.width * nowAt * shown, y), strokeWidth = stroke, cap = StrokeCap.Round)
-                for (event in events) {
-                    val x = size.width * at(event.beginMillis)
-                    drawCircle(pinFill, 5.dp.toPx(), Offset(x, y))
-                    drawCircle(if (event.eventId == -1L) warm else pin, 5.dp.toPx() - 1.25.dp.toPx(), Offset(x, y), style = Stroke(2.5.dp.toPx()))
-                }
-                drawCircle(fill.copy(alpha = 0.25f), 12.dp.toPx(), Offset(size.width * nowAt * shown, y))
-                drawCircle(fill, 8.dp.toPx(), Offset(size.width * nowAt * shown, y))
-            }
-            // Each label takes the row across from the one before it, or the other row when that one has no room left;
-            // a label with no room in either keeps only its pin, so no two labels ever cover each other.
-            val labelWidth = 96.dp
-            var aboveEnd = (-1).dp
-            var belowEnd = (-1).dp
-            var preferAbove = true
-            events.forEachIndexed { i, event ->
-                val x = (width * at(event.beginMillis) - labelWidth / 2).coerceIn(0.dp, width - labelWidth)
-                val above = when {
-                    x >= (if (preferAbove) aboveEnd else belowEnd) -> preferAbove
-                    x >= (if (preferAbove) belowEnd else aboveEnd) -> !preferAbove
-                    else -> return@forEachIndexed
-                }
-                if (above) aboveEnd = x + labelWidth else belowEnd = x + labelWidth
-                preferAbove = !above
-                Column(
-                    Modifier
-                        .width(labelWidth)
-                        .offset(x = x, y = if (above) 0.dp else 54.dp)
-                        .graphicsLayer { alpha = ((shown - 0.3f - i * 0.08f) / 0.4f).coerceIn(0f, 1f) },
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(event.title, style = MaterialTheme.typography.labelLarge, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                    Text(timeFormat.format(java.util.Date(event.beginMillis)), style = MaterialTheme.typography.labelSmall, color = scheme.onSurfaceVariant)
-                }
-            }
-        }
-    }
-}
-
-/** A running timer (counting down each second, a ring sweeping each minute) and the next alarm, side by side at the taller one's height. */
-@Composable
-private fun TimerAlarmTiles(timer: GlanceTimer?, alarm: GlanceItem.Alarm?, delivery: TodayDelivery?, now: Long) {
-    val tiles = listOfNotNull<@Composable (Modifier) -> Unit>(
-        timer?.let { { m: Modifier -> TimerTile(it, m) } },
-        delivery?.let { { m: Modifier -> DeliveryTile(it, m) } },
-        alarm?.let { { m: Modifier -> AlarmTile(it, now, m) } }
-    )
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        for (pair in tiles.chunked(2)) {
-            Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                for (tile in pair) tile(Modifier.weight(1f).fillMaxHeight())
-            }
-        }
-    }
-}
-
-@Composable
-private fun Tile(icon: ImageVector, label: String, onClick: () -> Unit, modifier: Modifier, content: @Composable () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    val locale = LocalConfiguration.current.locales[0]
-    Column(
-        modifier
-            .heightIn(min = 108.dp)
-            .clip(CardShape)
-            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
-            .bouncyClickable(shape = CardShape, onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 13.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(icon, null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-            Spacer(Modifier.width(6.dp))
-            Text(label.uppercase(locale), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, letterSpacing = 0.6.sp, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        content()
-    }
-}
-
-@Composable
-private fun TimerTile(timer: GlanceTimer, modifier: Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    val context = LocalContext.current
-    val now = rememberGlanceNow(1_000L, enabled = timer.kind != GlanceTimer.Kind.TimesUp)
-    val kind = if (timer.kind == GlanceTimer.Kind.Stopwatch) "Stopwatch" else "Timer"
-    val label = timer.label.takeIf { it.isNotBlank() && !it.equals(kind, ignoreCase = true) } ?: kind
-    val reading = timerReading(timer, now).removeSuffix(" Left")
-    Tile(Icons.Outlined.Timer, label, onClick = { openGlanceItem(context, GlanceItem.Timer(timer)) }, modifier = modifier) {
-        Row(verticalAlignment = Alignment.Bottom) {
-            Column(Modifier.weight(1f)) {
-                Text(reading, style = MaterialTheme.typography.headlineMedium, color = scheme.onSurface, modifier = Modifier.padding(top = 6.dp))
-                DetailLine(kind, timer.appLabel)
-            }
-            // A ring sweeping once a minute, so the tile is visibly running.
-            val sweep = (now % 60_000L) / 60_000f
-            val track = scheme.surfaceContainerHighest
-            val fill = scheme.primary
-            Canvas(Modifier.size(44.dp)) {
-                val stroke = 5.dp.toPx()
-                val inset = stroke / 2
-                val arcSize = Size(size.width - stroke, size.height - stroke)
-                drawArc(track, 0f, 360f, false, Offset(inset, inset), arcSize, style = Stroke(stroke))
-                if (timer.kind != GlanceTimer.Kind.TimesUp) {
-                    drawArc(fill, -90f, 360f * sweep, false, Offset(inset, inset), arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun AlarmTile(alarm: GlanceItem.Alarm, now: Long, modifier: Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    val context = LocalContext.current
-    val time = remember(alarm.alarm.triggerAt) {
-        android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(alarm.alarm.triggerAt))
-    }
-    Tile(Icons.Outlined.Alarm, "Alarm", onClick = { openGlanceItem(context, alarm) }, modifier = modifier) {
-        Text(time, style = MaterialTheme.typography.headlineMedium, color = scheme.onSurface, modifier = Modifier.padding(top = 6.dp))
-        Text(Durations.until(alarm.alarm.triggerAt - now), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
-    }
-}
-
-/** What is playing: the cover, title and artist (a tap opens the player), Play or Pause, and the flowing seek bar. */
-@Composable
-private fun NowPlaying(media: GlanceMedia) {
-    val context = LocalContext.current
-    val scheme = MaterialTheme.colorScheme
-    val animate by rememberAnimationsEnabled()
-    val corner by animateDpAsState(
-        if (media.isPlaying) 22.dp else 14.dp,
-        if (animate) spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium) else snap(),
-        label = "play button shape"
-    )
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(CardShape)
-            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
-            .padding(start = 12.dp, end = 12.dp, top = 11.dp, bottom = if (media.progress != null) 4.dp else 11.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(scheme.surfaceContainerHigh)
-                    .bouncyClickable(shape = CircleShape) { media.controls.open(context) },
-                contentAlignment = Alignment.Center
-            ) {
-                val artwork = media.artwork
-                if (artwork != null) {
-                    Image(artwork, null, contentScale = ContentScale.Crop, modifier = Modifier.size(46.dp).clip(CircleShape).matteRing())
-                } else {
-                    Icon(Icons.Outlined.MusicNote, null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(22.dp))
-                }
-            }
-            Column(
-                Modifier
-                    .weight(1f)
-                    .padding(horizontal = 12.dp)
-                    .bouncyClickable { media.controls.open(context) }
-            ) {
-                Text(media.title, style = MaterialTheme.typography.titleMedium, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                DetailLine(media.artist, media.appLabel)
-            }
-            Box(
-                Modifier
-                    .size(44.dp)
-                    .clip(RoundedCornerShape(corner))
-                    .background(scheme.primary)
-                    .bouncyClickable(shape = RoundedCornerShape(corner)) {
-                        if (media.isPlaying) media.controls.pause() else media.controls.play()
-                    }
-                    .semantics { contentDescription = if (media.isPlaying) "Pause" else "Play" },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(if (media.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, null, tint = scheme.onPrimary)
-            }
-        }
-        media.progress?.let { progress ->
-            SquigglySeekBar(progress = progress, playing = media.isPlaying, onSeek = media.controls::seekTo, modifier = Modifier.padding(top = 4.dp))
-        }
-    }
-}
-
-/** How long the bar stays full before it goes down to Back and Settings. */
-private const val BAR_SHRINK_DELAY_MS = 1_500L
-
-/** The compact bar: Back and Settings, each a 48 dp button 12 dp in from its end. */
-private val BAR_COMPACT_WIDTH = 120.dp
-private val BAR_BUTTON_INSET = 12.dp
-private val BAR_BUTTON = 48.dp
-
-/**
- * Today's bar, in the look of the search pill on Manage Hidden Apps and Add Applications ([BottomSearchPill]): the
- * same body color, 72 dp, 14 dp from the sides, 20 sp text, no shadow. It is there as the page opens ("Back to
- * Search", the back arrow and the Settings bars), then after a moment goes down the way that pill closes: its right end dissolves back toward the left, the light leading it and
- * Settings riding it, until only Back and Settings are left, where it flashes again. Same timing and curve as the
- * search pill; at once with animations off. A tap on it while full, or on Back, returns to the search; Settings opens
- * Today's settings.
- */
-@Composable
-private fun TodayBar(onBack: () -> Unit, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    val animate by rememberAnimationsEnabled()
-    // The bar is there as the page opens; only its going down to Back and Settings is animated.
-    val reveal = remember { Animatable(1f) }
-    val fade = remember { Animatable(1f) }
-    val flash = remember { Animatable(0f) }
-    val shrink = remember { Animatable(0f) }
-    val landing = remember { Animatable(0f) }
-    // Whether the full bar still takes a tap: read here, the shrink would rebuild the bar on every frame of it.
-    val tappable by remember { derivedStateOf { shrink.value < 0.5f } }
-    LaunchedEffect(animate) {
-        delay(BAR_SHRINK_DELAY_MS)
-        if (!animate) {
-            shrink.snapTo(1f)
-            return@LaunchedEffect
-        }
-        shrink.animateTo(1f, tween(SEARCH_MILLIS, easing = SearchEasing))
-        landing.snapTo(1f)
-        landing.animateTo(0f, tween(FLASH_MILLIS, easing = FlashDecay))
-    }
-    val body = scheme.surfaceVariant
-    val light = scheme.primary
-    val onPill = scheme.onSurfaceVariant
-    val density = LocalDensity.current
-    BoxWithConstraints(
-        modifier
-            .fillMaxWidth()
-            .padding(start = PILL_SIDE, end = PILL_SIDE, bottom = PILL_MARGIN)
-            .height(PILL_HEIGHT)
-    ) {
-        val fullPx = with(density) { maxWidth.toPx() }
-        val compactPx = with(density) { BAR_COMPACT_WIDTH.toPx() }
-        // How far the pill reaches from its start (the left), as it shrinks.
-        fun edge(s: Float) = fullPx - s * (fullPx - compactPx)
-        Box(
-            Modifier
-                .fillMaxSize()
-                .drawBehind {
-                    val s = shrink.value
-                    when {
-                        s <= 0f -> drawSearchPill(size, reveal.value, fade.value, flash.value, body, light, mirrored = false)
-                        s < 1f -> {
-                            // The compact pill firming up as the edge comes back to it.
-                            drawRoundRect(
-                                body,
-                                size = Size(compactPx, size.height),
-                                cornerRadius = CornerRadius(size.height / 2f),
-                                alpha = smoothStep(0.6f, 1f, s)
-                            )
-                            drawSearchPill(size, edge(s) / fullPx, 1f, 0f, body, light, mirrored = true)
-                        }
-                        else -> drawSearchPill(Size(compactPx, size.height), 1f, 1f, landing.value, body, light, mirrored = true)
-                    }
-                }
-                .then(
-                    if (tappable) {
-                        Modifier.pointerInput(Unit) { detectTapGestures { onBack() } }
-                    } else Modifier
-                )
-        )
-        val formed = { fade.value * smoothStep(0.82f, 1f, reveal.value) }
-        IconButton(
-            onClick = onBack,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = BAR_BUTTON_INSET)
-                .size(BAR_BUTTON)
-                .graphicsLayer { alpha = formed() }
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to Search", tint = onPill)
-        }
-        Text(
-            "Back to Search",
-            color = onPill,
-            fontSize = PILL_TEXT,
-            fontFamily = GoogleSansFlex,
-            maxLines = 1,
-            softWrap = false,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(start = BAR_BUTTON_INSET + BAR_BUTTON + 4.dp)
-                .graphicsLayer { alpha = formed() * (1f - smoothStep(0f, 0.35f, shrink.value)) }
-        )
-        IconButton(
-            onClick = onOpenSettings,
-            modifier = Modifier
-                .align(Alignment.CenterStart)
-                .offset {
-                    // At the pill's right end, riding its edge as it shrinks.
-                    val x = edge(shrink.value) - (BAR_BUTTON_INSET + BAR_BUTTON).toPx()
-                    IntOffset(x.roundToInt(), 0)
-                }
-                .size(BAR_BUTTON)
-                .graphicsLayer { alpha = formed() }
-        ) {
-            Icon(painterResource(R.drawable.ic_three_bars), contentDescription = "Discover Overlay Settings", tint = onPill)
-        }
-    }
-}
-
-/**
- * Edit Discover: a round button at the bottom right, in the bar's body color, that comes in as the bar goes down to
- * Back and Settings (at once with animations off) and steps aside while editing.
- */
-@Composable
-private fun EditButton(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    val animate by rememberAnimationsEnabled()
-    var ready by remember { mutableStateOf(!animate) }
-    LaunchedEffect(Unit) {
-        if (!ready) {
-            delay(BAR_SHRINK_DELAY_MS + SEARCH_MILLIS / 2)
-            ready = true
-        }
-    }
-    val shown by animateFloatAsState(
-        if (visible && ready) 1f else 0f,
-        if (animate) spring(dampingRatio = 0.7f, stiffness = 500f) else snap(),
-        label = "edit button"
-    )
-    if (shown <= 0f && !(visible && ready)) return
-    Box(
-        modifier.padding(end = PILL_SIDE, bottom = PILL_MARGIN).height(PILL_HEIGHT),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            Modifier
-                .size(56.dp)
-                .graphicsLayer {
-                    alpha = shown.coerceIn(0f, 1f)
-                    val s = 0.7f + 0.3f * shown
-                    scaleX = s
-                    scaleY = s
-                }
-                .clip(CircleShape)
-                .background(scheme.surfaceVariant)
-                .bouncyClickable(shape = CircleShape, onClick = onClick)
-                .semantics { contentDescription = "Edit Discover" },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(EditIcons.Edit, contentDescription = null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-        }
-    }
-}
-
-/** Hermite smoothing of [x] between [edge0] and [edge1], as the search pill's own. */
-private fun smoothStep(edge0: Float, edge1: Float, x: Float): Float {
-    val t = ((x - edge0) / (edge1 - edge0)).coerceIn(0f, 1f)
-    return t * t * (3f - 2f * t)
 }

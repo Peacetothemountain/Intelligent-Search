@@ -1,7 +1,8 @@
 package com.pixel.intelligentsearch.feature.search.today.cards.grid
 
-import android.os.Build
-import android.view.HapticFeedbackConstants
+import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
+import android.appwidget.AppWidgetManager
+import android.appwidget.AppWidgetProviderInfo
 import android.view.View
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.foundation.ScrollState
@@ -68,8 +69,11 @@ internal enum class EditSheet {
     CONTROLS
 }
 
-/** Edit mode's haptics. */
-internal enum class EditHaptic { LONG_PRESS, TICK, SETTLE, CONFIRM, TOGGLE_ON, TOGGLE_OFF, REJECT }
+/**
+ * Edit mode's haptics, the app's two: [TICK] as a gesture does something (a card lifted, lined up, at a step, let go),
+ * [REJECT] as an edit is refused or a card reaches its limit.
+ */
+internal enum class EditHaptic { TICK, REJECT }
 
 /** One message, shown or spoken once even when its words are the same as the last one's, with an [undo] if it has one. */
 internal class EditMessage(val text: String, val undo: (() -> Unit)? = null)
@@ -80,7 +84,21 @@ internal class EditMessage(val text: String, val undo: (() -> Unit)? = null)
  * allow"), what the empty card's own button says ([button], "Allow calendar access") and what both do ([fix]: turn the
  * part on, or ask for what it reads).
  */
-internal class PartStatus(val note: String, val action: String? = null, val button: String? = null, val fix: (() -> Unit)? = null)
+internal class PartStatus(
+    val note: String,
+    val action: String? = null,
+    val button: String? = null,
+    val fix: (() -> Unit)? = null,
+    /** What the part waits for the user to allow, when that is what it waits for. */
+    val access: CardAccess? = null
+)
+
+/** What one of the page's own parts can wait for the user to allow, and what allowing it [shows] on the page. */
+internal enum class CardAccess(val shows: String) {
+    CALENDAR("your next events"),
+    NOTIFICATIONS("timers, what's playing and missed messages"),
+    LOCATION("the weather where you are")
+}
 
 /** One edit of a card: its [label], [icon], whether it can be done now ([enabled]), and doing it ([run]). */
 internal class CardAction(val label: String, val icon: ImageVector, val enabled: Boolean, val run: () -> Unit)
@@ -210,23 +228,14 @@ internal class DiscoverEditState(
     // ---------------------------------------------------------------------------------------------------------------
     // Feedback
 
-    /** Plays [kind] when the app's Vibration setting is on, as the app's own haptics do. */
+    /**
+     * Plays the app's one haptic for [EditHaptic.TICK], or its cancel half for [EditHaptic.REJECT], when the app's
+     * Vibration setting is on. Played for what a gesture does and for an edit refused; a button's tap is the button's.
+     */
     internal fun haptic(kind: EditHaptic) {
         if (!vibration.value) return
-        val tick = Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
-        val constant = when (kind) {
-            EditHaptic.LONG_PRESS -> HapticFeedbackConstants.LONG_PRESS
-            EditHaptic.TICK -> if (tick) HapticFeedbackConstants.SEGMENT_TICK else HapticFeedbackConstants.CLOCK_TICK
-            EditHaptic.SETTLE -> HapticFeedbackConstants.GESTURE_END
-            EditHaptic.CONFIRM -> HapticFeedbackConstants.CONFIRM
-            EditHaptic.TOGGLE_ON -> if (tick) HapticFeedbackConstants.TOGGLE_ON else HapticFeedbackConstants.CLOCK_TICK
-            EditHaptic.TOGGLE_OFF -> if (tick) HapticFeedbackConstants.TOGGLE_OFF else HapticFeedbackConstants.CLOCK_TICK
-            EditHaptic.REJECT -> HapticFeedbackConstants.REJECT
-        }
-        try {
-            // The app's own Vibration setting decides, as it does for every haptic the app plays.
-            view.performHapticFeedback(constant, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING)
-        } catch (_: Exception) {}
+        val engine = runCatching { PixelHapticEngine.get(view.context) }.getOrNull() ?: return
+        if (kind == EditHaptic.REJECT) engine.performPredictiveBackCancelHaptic(view) else engine.performPredictiveBackHaptic(view)
     }
 
     /** Has TalkBack say [text]. */
@@ -264,7 +273,7 @@ internal class DiscoverEditState(
 
     /** Starts editing with [id] selected. */
     fun enter(id: String?) {
-        if (!editing) haptic(EditHaptic.LONG_PRESS)
+        if (!editing) haptic(EditHaptic.TICK)
         editing = true
         selectedId = id
         announce("Editing Discover. Drag a card to move it, pinch it to resize it.")
@@ -273,7 +282,6 @@ internal class DiscoverEditState(
     /** Stops editing: the selection, any sheet and any card held let go. */
     fun exit() {
         if (!editing) return
-        haptic(EditHaptic.SETTLE)
         if (active != null) end()
         editing = false
         selectedId = null
@@ -290,14 +298,12 @@ internal class DiscoverEditState(
 
     /** Opens [which] (or closes the open sheet). */
     internal fun open(which: EditSheet?) {
-        if (which != null && which != sheet) haptic(EditHaptic.TICK)
         sheet = which
     }
 
     /** Offers [id]'s shapes over it, or puts them away. */
     internal fun toggleStrip(id: String) {
         strip = if (strip == id) null else id
-        haptic(EditHaptic.TICK)
     }
 
     /** Makes [new] the page's layout. */
@@ -333,15 +339,60 @@ internal class DiscoverEditState(
         when (mode) {
             CardMode.NATURAL -> maxOf(NARROWEST_CARD_DP, spec.kind.minCardDp * SMALLEST_DESIGN_SCALE)
             CardMode.SHAPED -> minShape(spec)
-            CardMode.BOX -> spec.kind.minCardDp.toFloat()
+            CardMode.BOX -> maxOf(spec.kind.minCardDp.toFloat(), widgetLeastDp(spec)?.first ?: 0f)
         }
     )
 
     /**
-     * The least height (dp) [spec] can be given: an app's widget can be one short row, as it is on a home screen; a
-     * website's box keeps room for its picture and words.
+     * The least height (dp) [spec] can be given: an app's widget as short as its app lets a launcher make it (one short
+     * row at least); a website's box keeps room for its picture and words.
      */
-    private fun leastHeightDp(spec: CardSpec): Float = if (spec.mode == CardMode.BOX && spec.kind != CardKind.APP) BOX_MIN_DP else MIN_HEIGHT_DP
+    private fun leastHeightDp(spec: CardSpec): Float = when {
+        spec.mode == CardMode.BOX && spec.kind == CardKind.APP -> maxOf(MIN_HEIGHT_DP, widgetLeastDp(spec)?.second ?: 0f)
+        spec.mode == CardMode.BOX -> BOX_MIN_DP
+        else -> MIN_HEIGHT_DP
+    }
+
+    /** Each live widget's least width and height (dp), as looked up. */
+    private val widgetLeast = HashMap<Int, Pair<Float, Float>>()
+
+    /**
+     * The least size (dp) the live widget on app card [spec] takes, as its app declares it: the size a launcher won't
+     * resize it under (its least resize size where it can be resized that way, else its least size). Smaller, a widget
+     * cuts off its own content. Null for other cards, or a widget Android no longer has.
+     */
+    private fun widgetLeastDp(spec: CardSpec): Pair<Float, Float>? {
+        if (spec.kind != CardKind.APP || spec.mode != CardMode.BOX || spec.widgetId == 0) return null
+        return widgetLeast.getOrPut(spec.widgetId) {
+            val info = runCatching { AppWidgetManager.getInstance(view.context).getAppWidgetInfo(spec.widgetId) }.getOrNull() ?: return null
+            val density = view.resources.displayMetrics.density
+            val across = info.resizeMode and AppWidgetProviderInfo.RESIZE_HORIZONTAL != 0 && info.minResizeWidth > 0
+            val down = info.resizeMode and AppWidgetProviderInfo.RESIZE_VERTICAL != 0 && info.minResizeHeight > 0
+            val w = if (across) info.minResizeWidth else info.minWidth
+            val h = if (down) info.minResizeHeight else info.minHeight
+            (w / density) to (h / density)
+        }
+    }
+
+    /**
+     * Gives every live widget at least the size its app needs, for a widget placed smaller before that was kept to
+     * (it would cut off its own content). One commit, and only when one is too small. Needs the page's width.
+     */
+    internal fun fitWidgets() {
+        val page = page.toFloat().takeIf { it > 0f } ?: return
+        var changed = false
+        val cards = layout.cards.map { card ->
+            val least = widgetLeastDp(card) ?: return@map card
+            val width = max(card.frame.width, (leastWidth(card) / page).coerceAtMost(1f))
+            val height = if (card.frame.height > 0f) max(card.frame.height, leastHeightDp(card)) else card.frame.height
+            if (width == card.frame.width && height == card.frame.height || least.first <= 0f && least.second <= 0f) card
+            else {
+                changed = true
+                card.copy(frame = card.frame.copy(x = card.frame.x.coerceIn(0f, 1f - width), width = width, height = height))
+            }
+        }
+        if (changed) commit(layout.copy(cards = cards))
+    }
 
     /** A card's least and a box's most height, in pixels of its place. */
     private fun leastHeight(spec: CardSpec) = gap + px(leastHeightDp(spec))
@@ -362,7 +413,7 @@ internal class DiscoverEditState(
         val rect = slots[id]?.toRect() ?: return
         select(id)
         active = ActiveCard(id, rect, finger - rect.topLeft, slots, spec(id)?.frame?.height?.let { it <= 0f } ?: true)
-        haptic(EditHaptic.LONG_PRESS)
+        haptic(EditHaptic.TICK)
     }
 
     /** Moves the card being moved so the finger, now at [finger], holds it where it took it. */
@@ -467,7 +518,7 @@ internal class DiscoverEditState(
         val card = ActiveCard(id, rect, Offset.Zero, slots, spec(id)?.frame?.height?.let { it <= 0f } ?: true)
         card.grip = GripStart(grip, rect, finger)
         active = card
-        haptic(EditHaptic.LONG_PRESS)
+        haptic(EditHaptic.TICK)
     }
 
     /**
@@ -582,7 +633,7 @@ internal class DiscoverEditState(
         val at = after?.let { id -> rest.indexOfFirst { it.id == id } }?.takeIf { it >= 0 } ?: rest.size
         val cards = ArrayList(rest).apply { add(at, moved) }
         commit(layout.copy(cards = sortedDown(cards) { arranged.rects[it.id]?.top }))
-        haptic(EditHaptic.SETTLE)
+        haptic(EditHaptic.TICK)
         announce("${label(spec)}, ${(frame.width * 100).roundToInt()} percent wide")
     }
 
@@ -630,7 +681,6 @@ internal class DiscoverEditState(
             }.coerceAtMost(1f)
             turned.copy(frame = card.frame.copy(x = card.frame.x.coerceIn(0f, 1f - width), width = width, height = was?.height ?: card.frame.height))
         }
-        haptic(EditHaptic.CONFIRM)
         announce(if (form == CardForm.SHAPE) "${shapeName(shape ?: spec.shape)} shape" else "Full card")
     }
 
@@ -646,7 +696,6 @@ internal class DiscoverEditState(
             return
         }
         reframe(id) { it.copy(frame = it.frame.copy(x = it.frame.x.coerceIn(0f, 1f - width), width = width)) }
-        haptic(EditHaptic.TICK)
         announce("${(width * 100).roundToInt()} percent wide")
     }
 
@@ -664,7 +713,6 @@ internal class DiscoverEditState(
             return
         }
         reframe(id) { it.copy(frame = it.frame.copy(height = height)) }
-        haptic(EditHaptic.TICK)
         announce(if (delta > 0) "Taller" else "Shorter")
     }
 
@@ -673,7 +721,6 @@ internal class DiscoverEditState(
         val spec = spec(id) ?: return
         if (!hasOwnHeight(spec)) return
         reframe(id) { it.copy(frame = it.frame.copy(height = 0f)) }
-        haptic(EditHaptic.CONFIRM)
         announce("Fits its content")
     }
 
@@ -690,7 +737,6 @@ internal class DiscoverEditState(
             return
         }
         reframe(id) { it.copy(frame = it.frame.copy(x = x)) }
-        haptic(EditHaptic.TICK)
         announce(if (delta < 0) "Moved left" else "Moved right")
     }
 
@@ -708,7 +754,6 @@ internal class DiscoverEditState(
         val to = rest.indexOf(other) + if (delta < 0) 0 else 1
         rest.add(to, cards[at].copy(frame = cards[at].frame.copy(gap = 0f)))
         commit(layout.copy(cards = rest))
-        haptic(EditHaptic.TICK)
         announce(if (delta < 0) "Moved up" else "Moved down")
     }
 
@@ -727,7 +772,6 @@ internal class DiscoverEditState(
         val spec = spec(id) ?: return
         val private = !spec.private
         reframe(id) { it.copy(private = private) }
-        haptic(if (private) EditHaptic.TOGGLE_ON else EditHaptic.TOGGLE_OFF)
         announce(if (private) "Private: covered until tapped" else "No longer private")
     }
 
@@ -752,7 +796,6 @@ internal class DiscoverEditState(
                     pendingRemoval?.second?.cancel()
                     pendingRemoval = null
                 }
-                haptic(EditHaptic.CONFIRM)
                 announce(label(spec) + " is back")
                 if (editing) select(id)
             }
@@ -768,7 +811,6 @@ internal class DiscoverEditState(
             }
             say("Card removed", undo)
         }
-        haptic(EditHaptic.REJECT)
         if (selectedId == id) select(null)
     }
 
@@ -777,7 +819,6 @@ internal class DiscoverEditState(
         if (kind !in layout.hidden) return
         val spec = CardSpec(id = kind.key, kind = kind)
         commit(DiscoverLayout(layout.cards.filter { it.id != spec.id } + spec, layout.hidden - kind))
-        haptic(EditHaptic.CONFIRM)
         if (shown(spec)) {
             announce("${kind.label} added")
             select(spec.id)

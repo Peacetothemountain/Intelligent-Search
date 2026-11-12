@@ -48,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -64,6 +65,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.toggleableState
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.AnnotatedString
@@ -93,6 +95,10 @@ import com.pixel.intelligentsearch.core.ui.icons.filled.Email
 import com.pixel.intelligentsearch.core.ui.icons.filled.Event
 import com.pixel.intelligentsearch.core.ui.icons.filled.Forum
 import com.pixel.intelligentsearch.core.ui.icons.outlined.CalendarMonth
+import com.pixel.intelligentsearch.core.ui.icons.outlined.AutoAwesome
+import com.pixel.intelligentsearch.feature.settings.Button
+import com.pixel.intelligentsearch.feature.search.today.cards.grid.PartStatus
+import com.pixel.intelligentsearch.core.ui.icons.outlined.ChevronRight
 import com.pixel.intelligentsearch.core.ui.icons.filled.History
 import com.pixel.intelligentsearch.core.ui.icons.filled.HourglassBottom
 import com.pixel.intelligentsearch.core.ui.icons.filled.NightsStay
@@ -582,23 +588,43 @@ internal const val CONTROL_ASPECT = 1.8f
  * read, which then claims neither on nor off.
  */
 @Composable
-internal fun ControlTile(label: String, icon: ImageVector, state: Boolean?, modifier: Modifier, onClick: () -> Unit) {
+internal fun ControlTile(label: String, icon: ImageVector, state: Boolean?, opens: Boolean, modifier: Modifier, onClick: () -> Unit) {
     val on = state == true
     val scheme = MaterialTheme.colorScheme
+    val ink = if (on) scheme.onPrimary else scheme.onSurface
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        // The button TalkBack lands on says its name and, for a control the app can read, that it is a switch and
-        // whether it is on; the label under it is the same name, so it isn't a second stop.
+        // The button TalkBack lands on says its name and what a tap does: a switch the app flips says it is a switch
+        // and whether it is on; one that [opens] Android's panel or page for it is a button that says so, with whether
+        // it is on where the app can read it. The label under it is the same name, so it isn't a second stop.
         Box(
             Modifier
                 .fillMaxWidth()
                 .aspectRatio(CONTROL_ASPECT)
                 .clip(ControlShape)
                 .background(if (on) scheme.primary else scheme.surfaceContainerHigh)
-                .bouncyClickable(shape = ControlShape, role = if (state != null) Role.Switch else Role.Button, onClick = onClick)
-                .semantics { if (state != null) toggleableState = ToggleableState(on) },
+                .bouncyClickable(
+                    shape = ControlShape,
+                    role = if (state != null && !opens) Role.Switch else Role.Button,
+                    onClickLabel = if (opens) "Open $label" else null,
+                    onClick = onClick
+                )
+                .semantics {
+                    if (state != null) {
+                        if (opens) stateDescription = if (on) "On" else "Off" else toggleableState = ToggleableState(on)
+                    }
+                },
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = label, tint = if (on) scheme.onPrimary else scheme.onSurface, modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = label, tint = ink, modifier = Modifier.size(24.dp))
+            // A control that opens a page shows it as Quick Settings does: a chevron at its end.
+            if (opens) {
+                Icon(
+                    Icons.Outlined.ChevronRight,
+                    contentDescription = null,
+                    tint = ink.copy(alpha = 0.7f),
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 6.dp).size(16.dp)
+                )
+            }
         }
         Text(
             label,
@@ -627,7 +653,7 @@ internal fun PhoneToday(sources: TodaySources, active: Boolean) {
     if (battery == null && screenTime == null) return
     Column(Modifier.onFirstSeen { phoneSeen.value = true }) {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (battery != null) BatteryTile(battery, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value)
+            if (battery != null) BatteryTile(battery, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value, compact = screenTime == null)
             if (screenTime != null) {
                 ScreenTimeTile(screenTime, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value, wellbeing?.let { { launchSafeIntent(context, it) } })
             }
@@ -674,7 +700,7 @@ internal fun CardLabel(icon: ImageVector, label: String, modifier: Modifier = Mo
 }
 
 @Composable
-private fun BatteryTile(battery: TodayBattery, modifier: Modifier, seen: Boolean) {
+private fun BatteryTile(battery: TodayBattery, modifier: Modifier, seen: Boolean, compact: Boolean) {
     val scheme = MaterialTheme.colorScheme
     val context = LocalContext.current
     val shown = rememberDrawIn(300, 1100, seen)
@@ -687,12 +713,29 @@ private fun BatteryTile(battery: TodayBattery, modifier: Modifier, seen: Boolean
         battery.saver -> "Battery Saver on"
         else -> "Not charging"
     }
+    val box = modifier
+        .clip(CardShape)
+        .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
+        .bouncyClickable(shape = CardShape) { launchSafeIntent(context, Intent(Intent.ACTION_POWER_USAGE_SUMMARY)) }
+    if (compact) {
+        val track = scheme.surfaceContainerHighest
+        val fill = scheme.primary
+        Column(box.padding(horizontal = 14.dp, vertical = 13.dp)) {
+            CardLabel(Icons.Outlined.BatteryStd, "Battery", detail = "${battery.level}% · $status", spokenDetail = "${battery.level} percent, $status")
+            Canvas(Modifier.padding(top = 10.dp).fillMaxWidth().height(6.dp)) {
+                val r = CornerRadius(size.height / 2f)
+                drawRoundRect(track, cornerRadius = r)
+                val w = size.width * battery.level / 100f * shown()
+                // From the start edge: the right in a right-to-left language.
+                val x = if (layoutDirection == androidx.compose.ui.unit.LayoutDirection.Rtl) size.width - w else 0f
+                drawRoundRect(fill, topLeft = Offset(x, 0f), size = Size(w, size.height), cornerRadius = r)
+            }
+        }
+        return
+    }
     Column(
-        modifier
+        box
             .heightIn(min = 108.dp)
-            .clip(CardShape)
-            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
-            .bouncyClickable(shape = CardShape) { launchSafeIntent(context, Intent(Intent.ACTION_POWER_USAGE_SUMMARY)) }
             .padding(horizontal = 14.dp, vertical = 13.dp)
     ) {
         TileLabel(Icons.Outlined.BatteryStd, "Battery")
@@ -912,6 +955,47 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
     }
 }
 
+/**
+ * The one place the page asks for access: what the empty cards below would show once allowed, and a button for the
+ * first thing to allow ([asks] holds one status for each thing, in the page's order). Allowed, it asks for the next,
+ * and goes once nothing is left to allow.
+ */
+@Composable
+internal fun AccessCard(asks: List<PartStatus>) {
+    val scheme = MaterialTheme.colorScheme
+    val first = asks.first()
+    val shows = asks.mapNotNull { it.access?.shows }
+    val list = when (shows.size) {
+        1 -> shows[0]
+        2 -> "${shows[0]} and ${shows[1]}"
+        else -> shows.dropLast(1).joinToString(", ") + ", and " + shows.last()
+    }
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(CardShape)
+            .background(scheme.surfaceContainer.copy(alpha = CARD_ALPHA))
+            .padding(horizontal = 14.dp, vertical = 13.dp)
+    ) {
+        CardLabel(
+            Icons.Outlined.AutoAwesome, "Show more here",
+            detail = if (asks.size > 1) "${asks.size} to allow" else null
+        )
+        Text(
+            "Discover can show $list.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = scheme.onSurface,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        Button(
+            onClick = { first.fix?.invoke() },
+            modifier = Modifier.align(Alignment.End).padding(top = 10.dp)
+        ) {
+            Text(first.button ?: "Allow", maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
 /** Days until the next holiday or day to look forward to, counting up as it comes into view; a tap throws confetti. */
 @Composable
 internal fun CountdownCard(countdown: TodayCountdown) {
@@ -931,25 +1015,30 @@ internal fun CountdownCard(countdown: TodayCountdown) {
             .padding(horizontal = 14.dp, vertical = 13.dp)
     ) {
         TileLabel(Icons.Filled.Event, "Countdown")
-        CountUp(countdown.days, shown)
-        Text(
-            if (countdown.days == 1) "day until ${countdown.name}" else "days until ${countdown.name}",
-            style = MaterialTheme.typography.bodySmall,
-            color = scheme.onSurfaceVariant
-        )
+        Row(Modifier.padding(top = 2.dp)) {
+            CountUp(countdown.days, shown, Modifier.alignByBaseline())
+            Text(
+                if (countdown.days == 1) "day until ${countdown.name}" else "days until ${countdown.name}",
+                style = MaterialTheme.typography.bodyLarge,
+                color = scheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.alignByBaseline().padding(start = 10.dp)
+            )
+        }
     }
 }
 
 /** The countdown's number, counting up to [days] as [shown] draws in; only it recomposes as the number changes. */
 @Composable
-private fun CountUp(days: Int, shown: () -> Float) {
+private fun CountUp(days: Int, shown: () -> Float, modifier: Modifier = Modifier) {
     val count by remember(days, shown) { derivedStateOf { (days * shown()).roundToInt() } }
     Text(
         "$count",
         style = MaterialTheme.typography.displaySmall,
         color = MaterialTheme.colorScheme.onSurface,
         // TalkBack hears the real count, not the number partway through drawing in.
-        modifier = Modifier.padding(top = 4.dp).clearAndSetSemantics { text = AnnotatedString("$days") }
+        modifier = modifier.clearAndSetSemantics { text = AnnotatedString("$days") }
     )
 }
 

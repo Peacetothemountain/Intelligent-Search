@@ -15,7 +15,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,19 +33,17 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material3.FilledIconButton
-import androidx.compose.material3.FilledTonalIconButton
+import com.pixel.intelligentsearch.feature.settings.FilledIconButton
+import com.pixel.intelligentsearch.feature.settings.FilledTonalIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import com.pixel.intelligentsearch.feature.settings.TextButton
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
@@ -78,7 +76,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.toggleableState
+import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Constraints
@@ -143,6 +144,8 @@ internal fun DiscoverEditChrome(
         accessibility?.calculateRecommendedTimeoutMillis(ms, containsIcons = false, containsText = true, containsControls = action) ?: ms
     }
     BackHandler(enabled = state.editing && state.sheet == null) {
+        // The back gesture's own haptic, as the gesture committed.
+        state.haptic(EditHaptic.TICK)
         when {
             state.strip != null -> state.strip = null
             state.selectedId != null -> state.select(null)
@@ -307,11 +310,8 @@ private fun Toolbar(state: DiscoverEditState, spec: CardSpec) {
 private fun ToolButton(icon: ImageVector, description: String, on: Boolean? = null, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     val lit = on == true
-    val action = if (on != null) {
-        Modifier.toggleable(value = lit, role = Role.Switch, onValueChange = { onClick() })
-    } else {
-        Modifier.clickable(role = Role.Button, onClick = onClick)
-    }
+    val action = Modifier.bouncyClickable(shape = CircleShape, role = if (on != null) Role.Switch else Role.Button, onClick = onClick)
+        .then(if (on != null) Modifier.semantics { toggleableState = ToggleableState(lit) } else Modifier)
     Box(
         Modifier
             .size(48.dp)
@@ -365,7 +365,8 @@ private fun StripItem(selected: Boolean, description: String, onClick: () -> Uni
         Modifier
             .size(48.dp)
             .clip(RoundedCornerShape(13.dp))
-            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick)
+            .bouncyClickable(shape = RoundedCornerShape(13.dp), role = Role.RadioButton, onClick = onClick)
+            .semantics { this.selected = selected }
             .semantics { contentDescription = description }
     ) { content() }
 }

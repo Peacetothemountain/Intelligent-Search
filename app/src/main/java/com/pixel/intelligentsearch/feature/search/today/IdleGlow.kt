@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
+import com.pixel.intelligentsearch.feature.settings.Button
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -50,7 +50,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.performance.ADPFThermalManager
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import com.pixel.intelligentsearch.feature.search.today.cards.CardKind
@@ -161,8 +160,6 @@ private class IdleColors(scheme: ColorScheme) {
 @Composable
 internal fun IdleCard(kind: CardKind, status: PartStatus, time: LoopReader) {
     val scheme = MaterialTheme.colorScheme
-    val context = androidx.compose.ui.platform.LocalContext.current
-    val view = androidx.compose.ui.platform.LocalView.current
     Layout(
         content = {
             // The same name and icon the card has with something in it (the countdown's is a calendar day).
@@ -174,10 +171,7 @@ internal fun IdleCard(kind: CardKind, status: PartStatus, time: LoopReader) {
                 val fix = status.fix
                 if (button != null && fix != null) {
                     Button(
-                        onClick = {
-                            PixelHapticEngine.playButtonTap(context, view)
-                            fix()
-                        },
+                        onClick = fix,
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         modifier = Modifier.align(Alignment.BottomEnd).padding(start = 10.dp, end = 10.dp, bottom = 10.dp)
                     ) {

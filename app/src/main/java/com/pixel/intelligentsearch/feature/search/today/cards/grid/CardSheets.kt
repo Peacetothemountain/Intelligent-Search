@@ -8,7 +8,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.IconButton
+import com.pixel.intelligentsearch.feature.settings.IconButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.ui.graphics.ImageBitmap
@@ -41,7 +41,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,15 +53,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material3.Button
+import com.pixel.intelligentsearch.feature.settings.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -94,6 +92,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -209,7 +208,7 @@ private fun AddSheet(
         }
         val spec = layout.cards.firstOrNull { it.kind == kind }
         if (spec == null || state.shown(spec)) return PartTile(kind, showing = true, note = "On your page", action = null, onTap = null)
-        return PartTile(kind, showing = false, note = status.note, action = status.action, onTap = status.fix?.let { fix -> { state.haptic(EditHaptic.TICK); close(); fix() } })
+        return PartTile(kind, showing = false, note = status.note, action = status.action, onTap = status.fix?.let { fix -> { close(); fix() } })
     }
     // The app's own group starts open while any of its cards isn't on view, so the reason is in sight.
     var open by rememberSaveable { mutableStateOf(if (CardKind.PAGE_ORDER.any { !tileFor(it).showing }) context.packageName else null) }
@@ -232,14 +231,13 @@ private fun AddSheet(
     fun addSite() {
         val input = site ?: return
         if (busy) return
-        state.haptic(EditHaptic.TICK)
         busy = true
         error = null
         scope.launch {
             val result = onAddSite(input)
             busy = false
             result.onSuccess {
-                state.haptic(EditHaptic.CONFIRM)
+                state.haptic(EditHaptic.TICK)
                 state.announce("Website added")
                 close()
             }.onFailure {
@@ -261,7 +259,6 @@ private fun AddSheet(
         query,
         onChange = { query = it; error = null },
         onClear = {
-            state.haptic(EditHaptic.TICK)
             query = ""
             error = null
         },
@@ -300,10 +297,7 @@ private fun AddSheet(
                     // Open when asked, or when a search named one of its cards rather than the app.
                     expanded = open == ownKey || (words.isNotEmpty() && (!ownByName || groups.isEmpty())),
                     last = groups.isEmpty(),
-                    onToggle = {
-                        state.haptic(EditHaptic.TICK)
-                        open = if (open == ownKey) null else ownKey
-                    }
+                    onToggle = { open = if (open == ownKey) null else ownKey }
                 )
             }
             groups.forEachIndexed { i, widgets ->
@@ -316,13 +310,9 @@ private fun AddSheet(
                     expanded = expanded,
                     first = i == 0 && ownParts.isEmpty(),
                     last = i == groups.lastIndex,
-                    onToggle = {
-                        state.haptic(EditHaptic.TICK)
-                        open = if (open == app.packageName) null else app.packageName
-                    },
+                    onToggle = { open = if (open == app.packageName) null else app.packageName },
                     // Said once the card is really added (the page does): Android can still ask, and be refused.
                     onAdd = { choice ->
-                        state.haptic(EditHaptic.TICK)
                         onAddWidget(choice)
                         close()
                     }
@@ -386,7 +376,7 @@ private fun OwnGroup(
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable(role = Role.Button, onClickLabel = if (expanded) "Close" else "Show cards", onClick = onToggle)
+                .bouncyClickable(onClickLabel = if (expanded) "Close" else "Show cards", onClick = onToggle)
                 .heightIn(min = 64.dp)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -448,7 +438,7 @@ private fun OwnTile(tile: PartTile) {
         Modifier
             .width(156.dp)
             .clip(RoundedCornerShape(20.dp))
-            .then(if (tap != null) Modifier.clickable(role = Role.Button, onClickLabel = tile.action, onClick = tap) else Modifier)
+            .then(if (tap != null) Modifier.bouncyClickable(shape = RoundedCornerShape(20.dp), onClickLabel = tile.action, onClick = tap) else Modifier)
             .semantics(mergeDescendants = true) { contentDescription = "${kind.label}, ${tile.note}" }
             .padding(6.dp)
     ) {
@@ -574,7 +564,7 @@ private fun AddRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
             .background(scheme.surfaceContainerHigh)
-            .clickable(enabled = !busy, role = Role.Button, onClickLabel = "Add", onClick = onClick)
+            .bouncyClickable(shape = RoundedCornerShape(24.dp), onClickLabel = "Add") { if (!busy) onClick() }
             .heightIn(min = 64.dp)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -626,7 +616,7 @@ private fun AppGroup(
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable(role = Role.Button, onClickLabel = if (expanded) "Close" else "Show widgets", onClick = onToggle)
+                .bouncyClickable(onClickLabel = if (expanded) "Close" else "Show widgets", onClick = onToggle)
                 .heightIn(min = 64.dp)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -671,7 +661,7 @@ private fun WidgetTile(choice: WidgetChoice, info: AppWidgetProviderInfo?, onCli
         Modifier
             .width(156.dp)
             .clip(RoundedCornerShape(20.dp))
-            .clickable(role = Role.Button, onClickLabel = "Add") { onClick() }
+            .bouncyClickable(shape = RoundedCornerShape(20.dp), onClickLabel = "Add", onClick = onClick)
             .semantics(mergeDescendants = true) { contentDescription = "${choice.appLabel}, ${choice.widgetLabel}" }
             .padding(6.dp)
     ) {
@@ -783,7 +773,7 @@ private fun ActionRow(label: String, icon: ImageVector, enabled: Boolean, onClic
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .then(if (enabled) Modifier.bouncyClickable(shape = RoundedCornerShape(16.dp), onClick = onClick) else Modifier.semantics { disabled() })
             .alpha(if (enabled) 1f else 0.4f)
             .heightIn(min = 52.dp)
             .padding(horizontal = 12.dp),

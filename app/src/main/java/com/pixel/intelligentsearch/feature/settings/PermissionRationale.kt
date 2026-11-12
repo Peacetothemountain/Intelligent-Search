@@ -353,9 +353,9 @@ private val LOCATION_PROMPT = PermissionPrompt(
 internal fun rememberApproximateLocationRequest(onGranted: () -> Unit): PermissionRequest =
     rememberPermissionRequest(LOCATION_PROMPT, onGranted)
 
-/** What Today's leave-by time says before Android asks for approximate location. */
+/** What Discover's leave-by time says before Android asks for approximate location. */
 internal const val TODAY_LOCATION_RATIONALE =
-    "Today can tell you when to leave for your next event. It uses your phone's approximate location, never its " +
+    "Discover can tell you when to leave for your next event. It uses your phone's approximate location, never its " +
         "precise one, and Android's own map lookup finds the event's address. Nothing is kept."
 
 private val TODAY_LOCATION_PROMPT = PermissionPrompt(

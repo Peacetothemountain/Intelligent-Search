@@ -166,6 +166,58 @@ internal fun OutlinedButton(
     )
 }
 
+@Composable
+internal fun FilledIconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = IconButtonDefaults.filledShape,
+    colors: IconButtonColors = IconButtonDefaults.filledIconButtonColors(),
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.material3.FilledIconButton(
+        onClick = {
+            playButtonHaptic(context, view)
+            onClick()
+        },
+        modifier = modifier,
+        enabled = enabled,
+        shape = shape,
+        colors = colors,
+        interactionSource = interactionSource,
+        content = content
+    )
+}
+
+@Composable
+internal fun FilledTonalIconButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    shape: androidx.compose.ui.graphics.Shape = IconButtonDefaults.filledShape,
+    colors: IconButtonColors = IconButtonDefaults.filledTonalIconButtonColors(),
+    interactionSource: MutableInteractionSource? = null,
+    content: @Composable () -> Unit
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val view = androidx.compose.ui.platform.LocalView.current
+    androidx.compose.material3.FilledTonalIconButton(
+        onClick = {
+            playButtonHaptic(context, view)
+            onClick()
+        },
+        modifier = modifier,
+        enabled = enabled,
+        shape = shape,
+        colors = colors,
+        interactionSource = interactionSource,
+        content = content
+    )
+}
+
 /**
  * The predictive-back haptic every button plays, the app's one haptic. Where the app's object graph isn't there (a
  * Compose preview, a plain unit test) there is nothing to play it with, and the button still works.

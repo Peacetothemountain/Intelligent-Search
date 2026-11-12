@@ -270,8 +270,10 @@ private fun Stage.appState(c: ShapedContent.App, x: CardExtras, accent: Color) {
 
 /**
  * A website card in a shape: the page's header image filling it and slowly drifting (a gradient of its accent when
- * there is none), a shade, the site's letter, the title and the domain curving along the bottom. A failed read keeps
- * what it had, dimmed, with when it was read in place of the domain.
+ * there is none), a shade of the page's own card color over it, the site's letter, the title and the domain curving
+ * along the bottom. The shade is the theme's, not black, so the card sits with the others in light and dark, and the
+ * title has the card's own contrast on any header image, a pale logo as much as a photo. A failed read keeps what it
+ * had, dimmed, with when it was read in place of the domain.
  */
 internal fun Stage.site(c: ShapedContent.Site, x: CardExtras) {
     val d = c.data
@@ -290,10 +292,12 @@ internal fun Stage.site(c: ShapedContent.Site, x: CardExtras) {
                 Offset.Zero, Size(DESIGN, DESIGN), alpha = alpha
             )
         }
+        val shade = colors.cardSolid
         scope.drawRect(
-            // Dark enough behind the title (at the middle) for white text on a bright header image.
+            // The image shows at the top; from the title down (the middle) it is mostly the card's color, so the
+            // title reads in the card's own colors whatever the image is.
             Brush.verticalGradient(
-                0f to Color.Black.copy(alpha = 0.18f), 0.42f to Color.Black.copy(alpha = 0.5f), 1f to Color.Black.copy(alpha = 0.72f),
+                0f to shade.copy(alpha = 0.3f), 0.4f to shade.copy(alpha = 0.82f), 1f to shade.copy(alpha = 0.94f),
                 startY = 0f, endY = DESIGN
             ),
             Offset.Zero, Size(DESIGN, DESIGN), alpha = alpha
@@ -304,15 +308,15 @@ internal fun Stage.site(c: ShapedContent.Site, x: CardExtras) {
     content {
         val letter = d.domain.removePrefix("www.").firstOrNull()?.uppercase(x.locale).orEmpty()
         if (letter.isNotEmpty() && iconLegible(26f)) {
-            scope.drawCircle(dim(Color.White), 13f, Offset(MID, MID - 30f))
-            text(letter, MID, MID - 25.5f, 13f, mix(accent, Color.Black, 0.5f), weight = W_BOLD, maxWidth = 24f)
+            scope.drawCircle(dim(colors.acc), 13f, Offset(MID, MID - 30f))
+            text(letter, MID, MID - 25.5f, 13f, colors.ink, weight = W_BOLD, maxWidth = 24f)
         }
         val title = lines(d.title.ifBlank { d.domain }, 14f, 124f, 2, W_MEDIUM)
-        title.forEachIndexed { i, line -> text(line, MID, MID + 8f + i * 16f, 14f, Color.White, weight = W_MEDIUM, maxWidth = 124f, main = true) }
+        title.forEachIndexed { i, line -> text(line, MID, MID + 8f + i * 16f, 14f, colors.on, weight = W_MEDIUM, maxWidth = 124f, main = true) }
         if (d.failed) {
-            curved(updatedNote(x.ago), 10.5f, ShapedColors.warm(dark = true), top = false, inset = 0.74f, spacing = 0.6f)
+            curved(updatedNote(x.ago), 10.5f, colors.warn, top = false, inset = 0.74f, spacing = 0.6f)
         } else {
-            curved(d.domain, 10.5f, Color.White.copy(alpha = 0.8f), top = false, inset = 0.74f, spacing = 0.6f)
+            curved(d.domain, 10.5f, colors.sub, top = false, inset = 0.74f, spacing = 0.6f)
         }
     }
     alpha = outer

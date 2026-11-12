@@ -14,11 +14,11 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.runtime.key
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
+import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.unit.Constraints
@@ -291,6 +291,13 @@ internal fun QuickControls(controls: TodayControls) {
         else -> states[control]
     }
 
+    // Whether a tap opens Android's panel or page rather than switching it here: everything but the few an app may switch.
+    fun opens(control: QuickControl): Boolean = when (control) {
+        QuickControl.DND, QuickControl.FLASHLIGHT -> false
+        QuickControl.ROTATION -> !Settings.System.canWrite(context)
+        else -> true
+    }
+
     fun tap(control: QuickControl) {
         when (control) {
             QuickControl.DND -> controls.setDoNotDisturb(!dnd)?.let { launchSafeIntent(context, it) }
@@ -330,7 +337,7 @@ internal fun QuickControls(controls: TodayControls) {
                             if (control == null) {
                                 AddControlTile(Modifier.weight(1f)) { picking = true }
                             } else {
-                                ControlTile(control.label, icon(control), state(control), Modifier.weight(1f)) { tap(control) }
+                                ControlTile(control.label, icon(control), state(control), opens(control), Modifier.weight(1f)) { tap(control) }
                             }
                         }
                         repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
@@ -499,7 +506,9 @@ private fun SheetControl(
  */
 @Composable
 private fun MovableControls(controls: List<QuickControl>, onChange: (List<QuickControl>) -> Unit) {
-    val haptics = LocalHapticFeedback.current
+    // The app's one haptic, under its Vibration setting, as a control lifts and as it passes each place.
+    val view = LocalView.current
+    val haptic = { PixelHapticEngine.playButtonTap(view.context, view) }
     // The drag's handlers live as long as their control does, so they read the list and the callback as they are now,
     // not as they were when the handler started: a control removed by a tap must not come back with the next drop.
     val current by rememberUpdatedState(controls)
@@ -564,7 +573,7 @@ private fun MovableControls(controls: List<QuickControl>, onChange: (List<QuickC
                             .pointerInput(control) {
                                 detectDragGesturesAfterLongPress(
                                     onDragStart = { at ->
-                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                        haptic()
                                         held = current
                                         grip = at
                                         finger = origin(held.indexOf(control)) + at
@@ -577,7 +586,7 @@ private fun MovableControls(controls: List<QuickControl>, onChange: (List<QuickC
                                         val from = held.indexOf(control)
                                         if (from >= 0 && to != from) {
                                             held = held.toMutableList().apply { add(to, removeAt(from)) }
-                                            haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                            haptic()
                                         }
                                     },
                                     onDragEnd = { drop() },

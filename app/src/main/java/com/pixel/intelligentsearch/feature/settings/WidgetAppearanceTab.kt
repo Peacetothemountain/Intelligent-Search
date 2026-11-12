@@ -263,6 +263,7 @@ internal fun WidgetAppearanceTab(
                     com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
                         checked = localKeepSystemG,
                         onCheckedChange = { keep ->
+                            hapticEngine.performPredictiveBackHaptic(view)
                             localKeepSystemG = keep
                         },
                         label = "Default Google Color Palette"
@@ -288,6 +289,7 @@ internal fun WidgetAppearanceTab(
                     com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
                         checked = localCustomSyncColors,
                         onCheckedChange = { synced ->
+                            hapticEngine.performPredictiveBackHaptic(view)
                             localCustomSyncColors = synced
                             if (synced) {
                                 localCustomMicColor = localCustomGIconColor

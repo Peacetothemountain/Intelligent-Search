@@ -129,18 +129,21 @@ internal object SplashLooks {
     private fun iconPainter(icon: Drawable, iconBackground: Int, themeColor: Int, size: Int, defaultIconSize: Int): (Canvas) -> Unit {
         val drawBackground = iconBackground != Color.TRANSPARENT && iconBackground != themeColor && icon !is AdaptiveIconDrawable
         val backgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = iconBackground }
+        // The icon shape at the two sizes drawn at, made once: this paints every frame of the opening.
+        val sizeMask by lazy(LazyThreadSafetyMode.NONE) { iconMask(size) }
+        val boxMask by lazy(LazyThreadSafetyMode.NONE) { iconMask(defaultIconSize) }
         return { canvas ->
-            if (drawBackground) canvas.drawPath(iconMask(size), backgroundPaint)
+            if (drawBackground) canvas.drawPath(sizeMask, backgroundPaint)
             when (icon) {
                 // AnimatableIconAnimateListener: drawn straight into the icon view, as a masked foreground.
-                is Animatable -> drawAdaptiveForeground(canvas, icon, size)
+                is Animatable -> drawAdaptiveForeground(canvas, icon, size, sizeMask)
                 // ImmobileIconDrawable over the whole adaptive icon.
                 is AdaptiveIconDrawable -> prescaled(canvas, size, defaultIconSize) { box ->
                     icon.setBounds(0, 0, box, box)
                     icon.draw(this)
                 }
                 // ImmobileIconDrawable over an AdaptiveForegroundDrawable.
-                else -> prescaled(canvas, size, defaultIconSize) { box -> drawAdaptiveForeground(this, icon, box) }
+                else -> prescaled(canvas, size, defaultIconSize) { box -> drawAdaptiveForeground(this, icon, box, boxMask) }
             }
         }
     }
@@ -188,10 +191,13 @@ internal object SplashLooks {
         }
     }
 
-    /** AdaptiveForegroundDrawable: [foreground] laid out half as large again as the [box], clipped to the icon shape. */
-    private fun drawAdaptiveForeground(canvas: Canvas, foreground: Drawable, box: Int) {
+    /**
+     * AdaptiveForegroundDrawable: [foreground] laid out half as large again as the [box], clipped to the icon shape
+     * ([mask], the shape filling the box).
+     */
+    private fun drawAdaptiveForeground(canvas: Canvas, foreground: Drawable, box: Int, mask: Path) {
         canvas.withSave {
-            clipPath(iconMask(box))
+            clipPath(mask)
             val center = box / 2
             val inset = (box / (DEFAULT_VIEW_PORT_SCALE * 2)).toInt()
             foreground.setBounds(center - inset, center - inset, center + inset, center + inset)

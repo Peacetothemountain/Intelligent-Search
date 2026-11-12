@@ -166,6 +166,7 @@ internal fun BottomSearchPill(
     val ime = WindowInsets.ime.getBottom(density)
     val nav = WindowInsets.navigationBars.getBottom(density)
     val keyboard by rememberUpdatedState(ime to imeTarget)
+    val animationsOn = com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
     LaunchedEffect(open) {
         if (open) {
             // The keyboard is on its way: start once it's most of the way up, so the pill lands as it does.
@@ -174,8 +175,11 @@ internal fun BottomSearchPill(
             }
             launch { fade.animateTo(1f, tween(SEARCH_FADE_MILLIS, easing = LinearEasing)) }
             reveal.animateTo(1f, tween(SEARCH_MILLIS, easing = SearchEasing))
-            flash.snapTo(1f)
-            flash.animateTo(0f, tween(FLASH_MILLIS, easing = FlashDecay))
+            // With animations removed the pill is simply there: a flash would show for one frame.
+            if (animationsOn.value) {
+                flash.snapTo(1f)
+                flash.animateTo(0f, tween(FLASH_MILLIS, easing = FlashDecay))
+            }
         } else {
             flash.snapTo(0f)
             launch { fade.animateTo(0f, tween(SEARCH_FADE_MILLIS, delayMillis = SEARCH_MILLIS - SEARCH_FADE_MILLIS, easing = LinearEasing)) }

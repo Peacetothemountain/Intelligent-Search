@@ -126,7 +126,9 @@ fun AnimatedMatrixBackground(modifier: Modifier = Modifier, isPaused: Boolean = 
         if (shouldAnimate) {
             lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 var lastUpdateNanos = 0L
-                val minFrameIntervalNanos = 33_333_333L // ~30 FPS cap for ambient background twinkle
+                // The wait below paces the updates; this only drops a frame that came early. It must stay under four
+                // frames of a 120 Hz screen (33,333,332 ns), or every other update is skipped there.
+                val minFrameIntervalNanos = 30_000_000L
                 val twoPi = (2.0f * PI.toFloat())
                 while (isActive) {
                     // Sleep between updates instead of waking every vsync just to skip it; the phase uses

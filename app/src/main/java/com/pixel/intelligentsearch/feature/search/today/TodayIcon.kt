@@ -84,7 +84,8 @@ internal fun TodayIcon(
         }
     }
     val day = isDayHour(hour)
-    val glow = if (pulse) rememberLoop(1_500, reverse = true) else null
+    // Only the sun has a glow: by night nothing moves, so the moon isn't drawn again on every frame.
+    val glow = if (pulse && day) rememberLoop(1_500, reverse = true) else null
     // Drawn in its own layer, so the clear sky around the sun cuts only the icon, not what is behind it.
     Canvas(modifier.graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
         val unit = size.minDimension / 24f

@@ -437,9 +437,8 @@ internal fun BatteryAndMemoryDiagnosticsPage(
     }
 
     val animationsEnabled by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
+    // Handed to the graphs as they are and read where the graphs draw, so each frame redraws them, not the page.
     val motion = rememberDiagnosticsMotion(animationsEnabled)
-    val wavePhase by motion.wavePhase
-    val pointPulse by motion.pointPulse
 
     val scheme = MaterialTheme.colorScheme
     Column(
@@ -474,7 +473,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                 graphWeight = 1.2f,
                 detailsWeight = 1.1f,
                 graph = { graphModifier ->
-                    BatteryLevelWave(batteryLevel = batteryLevel, wavePhase = wavePhase, modifier = graphModifier)
+                    BatteryLevelWave(batteryLevel = batteryLevel, wave = motion.wavePhase, modifier = graphModifier)
                 },
                 details = { detailsModifier ->
                     Column(
@@ -560,8 +559,8 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                     RamCategoryGraph(
                         processes = topProcesses,
                         appColors = materialAppColors,
-                        wavePhase = wavePhase,
-                        pointPulse = pointPulse,
+                        wave = motion.wavePhase,
+                        pulse = motion.pointPulse,
                         modifier = graphModifier
                     )
                 },
@@ -703,7 +702,7 @@ private const val POINT_PULSE_MIN = 3f
 private const val POINT_PULSE_MAX = 5.5f
 
 @Composable
-private fun BatteryLevelWave(batteryLevel: Int, wavePhase: Float, modifier: Modifier) {
+private fun BatteryLevelWave(batteryLevel: Int, wave: State<Float>, modifier: Modifier) {
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val scheme = MaterialTheme.colorScheme
     // Lighter Material You accented color from the user's dynamic palette (tone ~65: balanced between light & dark, never yellowish-white)
@@ -723,6 +722,7 @@ private fun BatteryLevelWave(batteryLevel: Int, wavePhase: Float, modifier: Modi
         androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
+            val wavePhase = wave.value
             val fillHeight = (h * (batteryLevel / 100f).coerceIn(0.05f, 1f))
             val baseWaterY = h - fillHeight
 
@@ -797,8 +797,8 @@ internal fun ramPointFraction(ramMb: Float, ceilingMb: Int): Float =
 private fun RamCategoryGraph(
     processes: List<ProcessRamEntry>,
     appColors: List<Color>,
-    wavePhase: Float,
-    pointPulse: Float,
+    wave: State<Float>,
+    pulse: State<Float>,
     modifier: Modifier
 ) {
     val primaryColor = MaterialTheme.colorScheme.primary
@@ -831,6 +831,8 @@ private fun RamCategoryGraph(
         ) {
             val w = size.width
             val h = size.height
+            val wavePhase = wave.value
+            val pointPulse = pulse.value
 
             // Horizontal dashed grid lines
             val gridLines = 3

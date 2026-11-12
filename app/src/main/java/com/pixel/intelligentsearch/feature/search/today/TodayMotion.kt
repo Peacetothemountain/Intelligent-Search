@@ -366,10 +366,11 @@ internal fun Modifier.sheen(): Modifier = composed {
     val animate by rememberAnimationsEnabled()
     if (!animate) return@composed this
     val p = rememberLoop(5_000, LinearEasing)
+    // Sweeps in the last 30% of each cycle. Until then this holds at 0, and what it is on isn't drawn again.
+    val sweep = remember(p) { derivedStateOf { ((p() - 0.7f) / 0.3f).coerceIn(0f, 1f) } }
     drawWithContent {
         drawContent()
-        // Sweeps in the last 30% of each cycle.
-        val s = ((p() - 0.7f) / 0.3f).coerceIn(0f, 1f)
+        val s = sweep.value
         if (s <= 0f || s >= 1f) return@drawWithContent
         val x = -size.width * 0.6f + s * size.width * 2.2f
         drawRect(

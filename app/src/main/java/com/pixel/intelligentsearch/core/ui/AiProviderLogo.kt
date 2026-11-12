@@ -150,7 +150,13 @@ fun AiProviderLogo(
         val play = selected && (!shownSelected[0] || taps != seenTaps[0])
         shownSelected[0] = selected
         seenTaps[0] = taps
-        if (!play || !animate) return@LaunchedEffect
+        if (!play || !animate) {
+            // Another provider picked mid-flight cuts this one's animation short: it rests, rather than stay half drawn.
+            trace.snapTo(1f)
+            fill.snapTo(1f)
+            burst.snapTo(1f)
+            return@LaunchedEffect
+        }
         trace.snapTo(0f)
         fill.snapTo(0f)
         // A replay can cut in mid-flight: clear the last sparks rather than hold them while the new ones wait.

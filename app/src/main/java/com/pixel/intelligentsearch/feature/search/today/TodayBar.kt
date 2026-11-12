@@ -196,18 +196,17 @@ internal fun TodayBar(onBack: () -> Unit, onOpenSettings: () -> Unit, modifier: 
 
 /**
  * Edit Discover: a round button at the bottom right, in the bar's body color, that comes in as the bar goes down to
- * Back and Settings (at once with animations off) and steps aside while editing.
+ * Back and Settings (with animations off, when the bar does: sooner it would sit on the full bar's Settings button)
+ * and steps aside while editing.
  */
 @Composable
 internal fun EditButton(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
     val animate by rememberAnimationsEnabled()
-    var ready by remember { mutableStateOf(!animate) }
+    var ready by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        if (!ready) {
-            delay(BAR_SHRINK_DELAY_MS + SEARCH_MILLIS / 2)
-            ready = true
-        }
+        delay(BAR_SHRINK_DELAY_MS + if (animate) SEARCH_MILLIS / 2 else 0)
+        ready = true
     }
     val shown by animateFloatAsState(
         if (visible && ready) 1f else 0f,

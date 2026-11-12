@@ -86,17 +86,18 @@ fun SystemToggleCard(
 
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
-    var wasPressed by remember { mutableStateOf(false) }
 
     // 120Hz / 144Hz LTPO OLED Dynamic Refresh Rate Pacing
     LaunchedEffect(isPressed) {
         if (isPressed) {
-            wasPressed = true
             sensoryEngine.tick(view)
             WindowFramePacing.setDynamicLtpoPacing(view, isMoving = true)
-        } else if (wasPressed) {
-            wasPressed = false
-            WindowFramePacing.setDynamicLtpoPacing(view, isMoving = false)
+            try {
+                kotlinx.coroutines.awaitCancellation()
+            } finally {
+                // On release, and also if the card leaves mid-press, so the window never stays at high refresh.
+                WindowFramePacing.setDynamicLtpoPacing(view, isMoving = false)
+            }
         }
     }
 

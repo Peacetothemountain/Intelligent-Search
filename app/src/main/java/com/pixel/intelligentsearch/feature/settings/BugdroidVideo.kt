@@ -167,7 +167,7 @@ class BugdroidVideo(context: Context, @param:RawRes private val rawRes: Int) {
         firstPassSamples = 0
         loopUs = 0L
         decoded = false
-        // The clock starts at the first frame, so it shows at once.
+        // The clock starts at the first frame; it is set again when that frame is decoded (see the callback).
         anchorUs = extractor.sampleTime.coerceAtLeast(0L)
         anchorNanos = System.nanoTime()
         val codec = (decoders.getOrNull(decoder)?.let { MediaCodec.createByCodecName(it) }
@@ -210,6 +210,12 @@ class BugdroidVideo(context: Context, @param:RawRes private val rawRes: Int) {
 
         override fun onOutputBufferAvailable(codec: MediaCodec, index: Int, info: MediaCodec.BufferInfo) {
             if (codec !== this@BugdroidVideo.codec) return
+            if (!decoded) {
+                // The clock starts when the first frame is ready, not when the decoder was asked for it: the time the
+                // decoder took to start would otherwise make the first frames late, and they would all show at once.
+                anchorUs = info.presentationTimeUs
+                anchorNanos = System.nanoTime()
+            }
             decoded = true
             readyIndex.addLast(index)
             ready.addLast(info.presentationTimeUs)
@@ -267,7 +273,8 @@ class BugdroidVideo(context: Context, @param:RawRes private val rawRes: Int) {
             val dueNanos = anchorNanos + (frameUs - anchorUs) * 1_000L
             val early = dueNanos - now
             if (early > HAND_OVER_AHEAD_NANOS) {
-                handler.postAtTime(drain, SystemClock.uptimeMillis() + (early - HAND_OVER_AHEAD_NANOS) / 1_000_000L)
+                // Rounded up: rounded down, the last millisecond's wait was 0 and the thread spun until the frame was due.
+                handler.postAtTime(drain, SystemClock.uptimeMillis() + (early - HAND_OVER_AHEAD_NANOS + 999_999L) / 1_000_000L)
                 return
             }
             releaseFrame(codec, maxOf(dueNanos, now))

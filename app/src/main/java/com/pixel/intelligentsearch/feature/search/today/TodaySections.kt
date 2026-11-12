@@ -358,6 +358,8 @@ internal fun WeatherAhead(report: WeatherReport) {
     // Once drawn, the line floats: each hour rises and falls a little in turn, a slow wave every 5 seconds. Read only
     // in the drawing, so the wave redraws the curve and never rebuilds the card.
     val wave: LoopReader? = if (animate && drawn) rememberLoop(5_000, LinearEasing) else null
+    // The wave swells from the still line it starts on; at full height from its first frame, the line would jump.
+    val waveIn = rememberDrawIn(delayMs = 0, durationMs = 1200, start = drawn)
     val measurer = rememberTextMeasurer()
     val dark = scheme.surface.luminance() < 0.5f
     val warm = if (dark) Color(0xFFF2B872) else Color(0xFFB5651D)
@@ -439,8 +441,9 @@ internal fun WeatherAhead(report: WeatherReport) {
                         val shown = drawIn()
                         val filled = fillIn()
                         val phase = if (wave != null) wave() * (2 * Math.PI).toFloat() else 0f
+                        val swell = if (wave != null) waveIn() else 0f
                         for (i in temps.indices) {
-                            val float = if (wave != null) kotlin.math.sin(phase + i * 0.8f) * lift else 0f
+                            val float = if (wave != null) kotlin.math.sin(phase + i * 0.8f) * lift * swell else 0f
                             ys[i] = bottom - ((temps[i] - lo) / (hi - lo)).toFloat() * (bottom - top) + float
                         }
                         val last = xs.size - 1

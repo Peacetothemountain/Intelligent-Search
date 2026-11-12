@@ -172,20 +172,23 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         }
 
         /** Arranges the redraw just after the next local midnight, replacing any arranged before. */
-        fun scheduleMidnight(context: Context) {
+        fun scheduleMidnight(context: Context, keepExisting: Boolean = false) {
             val current = now()
             val delayMs = Duration.between(current, CountdownEventStore.nextMidnight(current)).toMillis() + AFTER_MIDNIGHT_MS
-            AppJob.COUNTDOWN_MIDNIGHT.schedule(context) {
+            AppJob.COUNTDOWN_MIDNIGHT.schedule(context, keepExisting) {
                 setMinimumLatency(delayMs)
                 setPersisted(true)
             }
         }
 
-        /** Arranges the midnight redraw while a countdown widget is placed; a force stop cancels it. */
+        /**
+         * Arranges the midnight redraw while a countdown widget is placed; a force stop cancels it. One already arranged
+         * is kept: this runs at every start, and the start Android makes to run the redraw must not replace it first.
+         */
         fun syncSchedule(context: Context) {
             val manager = AppWidgetManager.getInstance(context) ?: return
             if (manager.getAppWidgetIds(ComponentName(context, CountdownWidgetProvider::class.java)).isNotEmpty()) {
-                scheduleMidnight(context)
+                scheduleMidnight(context, keepExisting = true)
             }
         }
 

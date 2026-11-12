@@ -45,8 +45,9 @@ fun MainSettingsScreen(
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
 
-    androidx.lifecycle.compose.LifecycleResumeEffect(bugdroidPlayer) {
-        bugdroidPlayer?.play()
+    // Not while the tutorial covers the page: the clip would decode and redraw unseen, beside the tutorial's own.
+    androidx.lifecycle.compose.LifecycleResumeEffect(bugdroidPlayer, showTutorial) {
+        if (!showTutorial) bugdroidPlayer?.play()
         onPauseOrDispose { bugdroidPlayer?.pause() }
     }
 

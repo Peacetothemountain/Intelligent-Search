@@ -37,12 +37,15 @@ object WidgetDoodles {
         redraw()
     }
 
-    /** Arranges the redraw for the next time the doodle changes, replacing any arranged before. */
-    fun scheduleNextChange(context: Context) {
+    /**
+     * Arranges the redraw for the next time the doodle changes, replacing any arranged before, or with [keepExisting]
+     * leaving one already arranged as it is.
+     */
+    fun scheduleNextChange(context: Context, keepExisting: Boolean = false) {
         val now = OccasionCalendar.now()
         val delayMs = Duration.between(now, OccasionCalendar.nextChange(now, OccasionCalendar.region())).toMillis() + AFTER_MIDNIGHT_MS
         // Replacing it from inside the run that is redrawing ends that run; its work is already done.
-        AppJob.DOODLE_CHANGE.schedule(context) {
+        AppJob.DOODLE_CHANGE.schedule(context, keepExisting) {
             setMinimumLatency(delayMs)
             setPersisted(true)
         }

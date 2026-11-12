@@ -23,8 +23,9 @@ internal object StartupSync {
         // A force stop cancels every scheduled job, so each start arranges again the ones the settings call for.
         AutoBackup.syncSchedule(context)
         CountdownWidgetProvider.syncSchedule(context)
-        // Redraw the widgets when the day's doodle next changes (a doodle day starts or ends at midnight).
-        WidgetDoodles.scheduleNextChange(context)
+        // Redraw the widgets when the day's doodle next changes (a doodle day starts or ends at midnight). One already
+        // arranged is kept: the start Android makes to run that redraw must not replace it before it has run.
+        WidgetDoodles.scheduleNextChange(context, keepExisting = true)
         // Keep the daily currency refresh only while the Calculator and Live Currency Rates are on and Tor isn't the
         // engine.
         currencyRates.syncSchedule()

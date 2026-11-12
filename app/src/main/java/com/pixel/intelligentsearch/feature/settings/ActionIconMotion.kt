@@ -209,6 +209,9 @@ internal fun rememberSelectionMotion(isSelected: Boolean, durationMillis: Int, t
         } else if (play) {
             progress.snapTo(0f)
             progress.animateTo(1f, tween(durationMillis, easing = LinearEasing))
+        } else if (progress.value < 1f) {
+            // Another option chosen mid-flight cut this one's animation short: it plays out, rather than stay mid-pose.
+            progress.animateTo(1f, tween((durationMillis * (1f - progress.value)).toInt(), easing = LinearEasing))
         }
     }
     return remember(progress) { { if (animationsOn.value) progress.value else 1f } }

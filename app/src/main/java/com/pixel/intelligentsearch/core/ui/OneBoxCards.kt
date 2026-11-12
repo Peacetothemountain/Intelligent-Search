@@ -96,16 +96,17 @@ internal fun ExpressiveOneBoxCard(
     val isPressed by interactionSource.collectIsPressedAsState()
 
     val cardShape = remember(cornerRadius) { SquircleShape(cornerRadius) }
-    var wasPressed by remember { androidx.compose.runtime.mutableStateOf(false) }
 
     LaunchedEffect(isPressed, isClickable) {
         if (isPressed && isClickable) {
-            wasPressed = true
             sensoryEngine.tick(view)
             WindowFramePacing.setDynamicLtpoPacing(view, isMoving = true)
-        } else if (wasPressed) {
-            wasPressed = false
-            WindowFramePacing.setDynamicLtpoPacing(view, isMoving = false)
+            try {
+                kotlinx.coroutines.awaitCancellation()
+            } finally {
+                // On release, and also if the card leaves mid-press, so the window never stays at high refresh.
+                WindowFramePacing.setDynamicLtpoPacing(view, isMoving = false)
+            }
         }
     }
 

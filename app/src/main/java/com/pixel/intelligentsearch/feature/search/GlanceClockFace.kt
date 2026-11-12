@@ -202,7 +202,8 @@ internal fun GlanceClockFace(
     // search is kept between looks, and the phone may have moved zones since it opened.
     val angles = remember { derivedStateOf { clockAngles(now.value, ZoneId.systemDefault(), secondsStill = !animate.value) } }
     val context = LocalContext.current
-    val minuteOfDay = now.value / 60_000L
+    // The description changes with the minute, so only a new minute recomposes the face, not every second's tick.
+    val minuteOfDay = remember(now) { derivedStateOf { now.value / 60_000L } }.value
     val description = remember(minuteOfDay) {
         clockDescription(android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(minuteOfDay * 60_000L)))
     }

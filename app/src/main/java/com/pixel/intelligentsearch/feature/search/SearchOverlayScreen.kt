@@ -180,8 +180,12 @@ fun SearchOverlayScreen(
         snapshotFlow { overlayProgressAnim.value }.collect { host.setBlurFraction(it) }
     }
     LaunchedEffect(Unit) {
-        overlayProgressAnim.animateTo(1f, ExpressiveMotionTokens.Spatial.ExpressiveDefault())
-        hasEntered = true
+        try {
+            overlayProgressAnim.animateTo(1f, ExpressiveMotionTokens.Spatial.ExpressiveDefault())
+        } finally {
+            // Also when a pull takes over mid-way: the entrance has had its turn either way.
+            hasEntered = true
+        }
     }
     val predictiveBackProgress = remember { Animatable(0f) }
     // Swipe-to-home after release: 0 to 1 as the panel shrinks and slides away. While it runs the panel moves as
@@ -847,6 +851,8 @@ fun SearchOverlayScreen(
                                 }
                                 val target = if (opens) 1f else 0f
                                 dragJob?.cancel()
+                                // A pull that closes is felt like a tap or Back that closes.
+                                if (!opens && transitionState.targetState) sensoryEngine.overlayDismiss(view)
                                 overlayProgressAnim.animateTo(
                                     targetValue = target,
                                     initialVelocity = -releaseVelocity / maxDragDistance,
@@ -856,6 +862,8 @@ fun SearchOverlayScreen(
                                     viewModel.onQueryChanged("")
                                     finishWithoutTransition(act)
                                 } else {
+                                    // A pull that caught a closing panel and put it back leaves it open.
+                                    transitionState.targetState = true
                                     restoreKeyboard()
                                 }
                             } finally {
@@ -871,6 +879,7 @@ fun SearchOverlayScreen(
                                     1f,
                                     animationSpec = ExpressiveMotionTokens.criticallyDampedSpring()
                                 )
+                                transitionState.targetState = true
                                 restoreKeyboard()
                             } finally {
                                 WindowFramePacing.restoreDefaultRefreshRate(act)

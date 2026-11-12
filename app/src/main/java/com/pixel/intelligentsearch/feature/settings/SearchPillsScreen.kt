@@ -26,6 +26,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -459,6 +461,12 @@ fun SearchPillsScreen(
                     var dragStartIndex by remember { mutableIntStateOf(-1) }
                     var targetSlotIndex by remember { mutableIntStateOf(-1) }
                     var itemDragOffset by remember { mutableFloatStateOf(0f) }
+                    // Where the dragged row was placed when picked up, how far the list has scrolled under it since, and
+                    // where the list places it now. In view these agree; scrolled out of view, the list keeps the row
+                    // just past its edge instead, and the card is drawn from where its place really is.
+                    var dragStartRowTop by remember { mutableFloatStateOf(0f) }
+                    var dragScrolled by remember { mutableFloatStateOf(0f) }
+                    var draggedRowTop by remember { mutableFloatStateOf(0f) }
                     var isDropping by remember { mutableStateOf(false) }
                     var dropJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
                     var wasReordered by remember { mutableStateOf(false) }
@@ -501,6 +509,7 @@ fun SearchPillsScreen(
                                 if (!canScroll) break
                                 val scrolled = listState.scrollBy(autoScrollVelocity)
                                 itemDragOffset += scrolled
+                                dragScrolled += scrolled
                                 kotlinx.coroutines.delay(16)
                             }
                         }
@@ -547,6 +556,16 @@ fun SearchPillsScreen(
                             val itemIndex = localPillList.indexOf(packageName)
                             val isDragging = draggingPackage == packageName
 
+                            // The dragged row stays in the list for as long as it is dragged or dropping: auto-scroll
+                            // can take its place out of view, and a row the list let go of would take the drag with it.
+                            val pinnableRow = androidx.compose.ui.layout.LocalPinnableContainer.current
+                            DisposableEffect(isDragging, pinnableRow) {
+                                val pin = if (isDragging) pinnableRow?.pin() else null
+                                onDispose { pin?.release() }
+                            }
+                            // Where the list last placed this row.
+                            val rowTop = remember { floatArrayOf(0f) }
+
                             val itemShiftAnim = remember(packageName) { androidx.compose.animation.core.Animatable(0f) }
 
                             val targetShiftY = when {
@@ -584,7 +603,7 @@ fun SearchPillsScreen(
                                 Modifier
                                     .zIndex(10f)
                                     .graphicsLayer {
-                                        translationY = itemDragOffset
+                                        translationY = dragStartRowTop - dragScrolled + itemDragOffset - draggedRowTop
                                     }
                             } else {
                                 Modifier
@@ -609,7 +628,15 @@ fun SearchPillsScreen(
                                     }
                             }
 
-                            Box(modifier = itemModifier) {
+                            Box(
+                                modifier = Modifier
+                                    .onPlaced { coordinates ->
+                                        val top = coordinates.positionInParent().y
+                                        rowTop[0] = top
+                                        if (draggingPackage == packageName) draggedRowTop = top
+                                    }
+                                    .then(itemModifier)
+                            ) {
                                 key(packageName, resetCounter, revived[packageName] ?: 0) {
                                     // Swiped toward a wall, the card presses into it, springs off, comes back through
                                     // the middle and leaves past the other edge; after Reset or an add it slides in
@@ -748,6 +775,9 @@ fun SearchPillsScreen(
                                                                     measuredItemHeight = info.size.toFloat() + spacing
                                                                 }
 
+                                                                dragStartRowTop = rowTop[0]
+                                                                draggedRowTop = rowTop[0]
+                                                                dragScrolled = 0f
                                                                 draggingPackage = currentPkg
                                                                 dragStartIndex = startIdx
                                                                 targetSlotIndex = startIdx
@@ -755,7 +785,15 @@ fun SearchPillsScreen(
                                                                 autoScrollVelocity = 0f
                                                                 hapticEngine.performPredictiveBackHaptic(view)
 
+                                                                // Where the card is in the list's window: where its row was when
+                                                                // picked up plus how far the finger has gone. Scrolling moves the row
+                                                                // and the offset by the same amount, so it needs no reading back.
+                                                                val startTop = info?.offset?.toFloat()
+                                                                val cardSize = info?.size ?: 0
+                                                                var fingerTravel = 0f
+                                                                var lifted = false
                                                                 val pointerId = down.id
+                                                                try {
                                                                 while (true) {
                                                                     val event = awaitPointerEvent()
                                                                     val dragChange = event.changes.firstOrNull { it.id == pointerId } ?: break
@@ -767,6 +805,7 @@ fun SearchPillsScreen(
                                                                     val deltaY = dragChange.positionChange().y
                                                                     dragChange.consume()
                                                                     itemDragOffset += deltaY
+                                                                    fingerTravel += deltaY
 
                                                                     val currentHeight = if (measuredItemHeight > 10f) measuredItemHeight else defaultItemHeight
                                                                     val totalSlots = localPillList.size
@@ -777,12 +816,9 @@ fun SearchPillsScreen(
                                                                         targetSlotIndex = newTarget
                                                                     }
 
-                                                                    val draggingItem = listState.layoutInfo.visibleItemsInfo.find {
-                                                                        it.key == draggingPackage || it.key.toString().endsWith(draggingPackage ?: "")
-                                                                    }
-                                                                    if (draggingItem != null) {
-                                                                        val currentItemTop = draggingItem.offset + itemDragOffset
-                                                                        val currentItemBottom = currentItemTop + draggingItem.size
+                                                                    if (startTop != null) {
+                                                                        val currentItemTop = startTop + fingerTravel
+                                                                        val currentItemBottom = currentItemTop + cardSize
                                                                         val viewportHeight = listState.layoutInfo.viewportSize.height.toFloat()
                                                                         val hotZonePx = with(density) { 72.dp.toPx() }
 
@@ -796,6 +832,19 @@ fun SearchPillsScreen(
                                                                         } else {
                                                                             autoScrollVelocity = 0f
                                                                         }
+                                                                    }
+                                                                }
+                                                                lifted = true
+                                                                } finally {
+                                                                    // Cut off before the finger lifted (the page or the list changed
+                                                                    // under it): nothing is dropped, and the list is itself again.
+                                                                    if (!lifted) {
+                                                                        autoScrollVelocity = 0f
+                                                                        draggingPackage = null
+                                                                        dragStartIndex = -1
+                                                                        targetSlotIndex = -1
+                                                                        itemDragOffset = 0f
+                                                                        isDropping = false
                                                                     }
                                                                 }
 

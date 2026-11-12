@@ -290,6 +290,7 @@ internal class DiscoverEditState(
 
     /** Opens [which] (or closes the open sheet). */
     internal fun open(which: EditSheet?) {
+        if (which != null && which != sheet) haptic(EditHaptic.TICK)
         sheet = which
     }
 

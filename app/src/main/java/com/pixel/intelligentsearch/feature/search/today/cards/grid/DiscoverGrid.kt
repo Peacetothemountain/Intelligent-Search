@@ -485,7 +485,10 @@ private suspend fun PointerInputScope.cardGestures(state: DiscoverEditState) {
                 if (event.changes.count { it.pressed } > 1) return@awaitEachGesture
                 if ((change.position - down.position).getDistance() > slop) return@awaitEachGesture
                 if (!change.pressed) {
-                    if (state.active == null) state.select(null)
+                    if (state.active == null) {
+                        if (state.selectedId != null) state.haptic(EditHaptic.TICK)
+                        state.select(null)
+                    }
                     return@awaitEachGesture
                 }
             }
@@ -515,7 +518,10 @@ private suspend fun PointerInputScope.cardGestures(state: DiscoverEditState) {
         } ?: Press.HOLD
         when (press) {
             Press.TAP -> {
-                if (editing) state.select(id)
+                if (editing) {
+                    if (state.selectedId != id) state.haptic(EditHaptic.TICK)
+                    state.select(id)
+                }
                 return@awaitEachGesture
             }
             Press.OTHER -> return@awaitEachGesture

@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import com.pixel.intelligentsearch.core.system.GoogleApps
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
@@ -59,11 +60,15 @@ import kotlin.math.min
  * centered right above the bar (placed from where the tap came from), with no words shown. The moment it has the words,
  * the nebula settles into the bar and Google's search starts with them. Google's voice page is never shown, unless the
  * phone has no recognizer or the microphone isn't allowed: then it opens instead, as the mic does.
+ *
+ * Its haptics are the app's one haptic: the tap as it starts listening and as the words settle into the bar, and the
+ * cancel haptic when it closes having heard nothing, as a gesture let go before it committed.
  */
 class VoiceNebulaActivity : ComponentActivity() {
     private enum class Phase { Listening, Searching, Closing }
 
     private val main = Handler(Looper.getMainLooper())
+    private val haptics by lazy { PixelHapticEngine.get(this) }
     private var recognizer: SpeechRecognizer? = null
     private val level = mutableFloatStateOf(0f)
     private var heard by mutableStateOf("")
@@ -108,6 +113,7 @@ class VoiceNebulaActivity : ComponentActivity() {
         }
         recognizer = r
         r.setRecognitionListener(listener)
+        haptics.performPredictiveBackHaptic(window.decorView)
         r.startListening(
             Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH)
@@ -165,6 +171,7 @@ class VoiceNebulaActivity : ComponentActivity() {
     private fun search(words: String) {
         heard = words
         phase = Phase.Searching
+        haptics.performPredictiveBackHaptic(window.decorView)
         stopListening()
         main.postDelayed({
             val google = Intent(Intent.ACTION_WEB_SEARCH)
@@ -179,6 +186,7 @@ class VoiceNebulaActivity : ComponentActivity() {
 
     private fun close() {
         phase = Phase.Closing
+        haptics.performPredictiveBackCancelHaptic(window.decorView)
         stopListening()
         main.postDelayed({ finishQuietly() }, SETTLE_MS)
     }

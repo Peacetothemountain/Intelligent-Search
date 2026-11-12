@@ -209,7 +209,7 @@ private fun AddSheet(
         }
         val spec = layout.cards.firstOrNull { it.kind == kind }
         if (spec == null || state.shown(spec)) return PartTile(kind, showing = true, note = "On your page", action = null, onTap = null)
-        return PartTile(kind, showing = false, note = status.note, action = status.action, onTap = status.fix?.let { fix -> { close(); fix() } })
+        return PartTile(kind, showing = false, note = status.note, action = status.action, onTap = status.fix?.let { fix -> { state.haptic(EditHaptic.TICK); close(); fix() } })
     }
     // The app's own group starts open while any of its cards isn't on view, so the reason is in sight.
     var open by rememberSaveable { mutableStateOf(if (CardKind.PAGE_ORDER.any { !tileFor(it).showing }) context.packageName else null) }
@@ -232,6 +232,7 @@ private fun AddSheet(
     fun addSite() {
         val input = site ?: return
         if (busy) return
+        state.haptic(EditHaptic.TICK)
         busy = true
         error = null
         scope.launch {
@@ -256,7 +257,16 @@ private fun AddSheet(
         color = scheme.onSurface,
         modifier = Modifier.padding(top = 2.dp, bottom = 16.dp).semantics { heading() }
     )
-    SearchField(query, onChange = { query = it; error = null }, onGo = { if (site != null) addSite() })
+    SearchField(
+        query,
+        onChange = { query = it; error = null },
+        onClear = {
+            state.haptic(EditHaptic.TICK)
+            query = ""
+            error = null
+        },
+        onGo = { if (site != null) addSite() }
+    )
 
     if (site != null) {
         AddRow(
@@ -290,7 +300,10 @@ private fun AddSheet(
                     // Open when asked, or when a search named one of its cards rather than the app.
                     expanded = open == ownKey || (words.isNotEmpty() && (!ownByName || groups.isEmpty())),
                     last = groups.isEmpty(),
-                    onToggle = { open = if (open == ownKey) null else ownKey }
+                    onToggle = {
+                        state.haptic(EditHaptic.TICK)
+                        open = if (open == ownKey) null else ownKey
+                    }
                 )
             }
             groups.forEachIndexed { i, widgets ->
@@ -303,9 +316,13 @@ private fun AddSheet(
                     expanded = expanded,
                     first = i == 0 && ownParts.isEmpty(),
                     last = i == groups.lastIndex,
-                    onToggle = { open = if (open == app.packageName) null else app.packageName },
+                    onToggle = {
+                        state.haptic(EditHaptic.TICK)
+                        open = if (open == app.packageName) null else app.packageName
+                    },
                     // Said once the card is really added (the page does): Android can still ask, and be refused.
                     onAdd = { choice ->
+                        state.haptic(EditHaptic.TICK)
                         onAddWidget(choice)
                         close()
                     }
@@ -497,7 +514,7 @@ private val OWN_TILE_SHAPES = listOf("cookie9", "clover4", "sunny", "cookie6", "
 
 /** The search field at the top of Add to Discover, for apps or a website. */
 @Composable
-private fun SearchField(value: String, onChange: (String) -> Unit, onGo: () -> Unit) {
+private fun SearchField(value: String, onChange: (String) -> Unit, onClear: () -> Unit, onGo: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     TextField(
         value = value,
@@ -505,7 +522,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit, onGo: () -> U
         placeholder = { Text("Search apps, or type a website") },
         leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
         trailingIcon = if (value.isNotEmpty()) {
-            { IconButton(onClick = { onChange("") }) { Icon(Icons.Outlined.Close, contentDescription = "Clear") } }
+            { IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, contentDescription = "Clear") } }
         } else null,
         singleLine = true,
         shape = CircleShape,

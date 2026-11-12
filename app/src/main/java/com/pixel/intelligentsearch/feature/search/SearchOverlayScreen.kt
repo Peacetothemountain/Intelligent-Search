@@ -1152,14 +1152,20 @@ fun SearchOverlayScreen(
             origin = { ui.todayOrigin },
             hiddenApps = settingsState.hiddenApps,
             recentSearches = distinctRecents,
-            onClose = { ui.todayOpen = false },
+            onClose = {
+                sensoryEngine.click(view)
+                ui.todayOpen = false
+            },
             onSearch = { query ->
                 ui.todayOpen = false
                 textFieldValue = androidx.compose.ui.text.input.TextFieldValue(query, androidx.compose.ui.text.TextRange(query.length))
                 hasStartedTyping = true
                 viewModel.onQueryChanged(query)
             },
-            onOpenSettings = { onOpenSettings("appearance") }
+            onOpenSettings = {
+                sensoryEngine.click(view)
+                onOpenSettings("appearance")
+            }
         )
 
         AnimatedVisibility(

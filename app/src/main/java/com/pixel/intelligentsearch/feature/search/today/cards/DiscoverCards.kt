@@ -50,7 +50,7 @@ internal enum class CardForm { CARD, SHAPE }
  * Where a card sits on Discover's freeform page and how big it is. [x] and [width] are fractions of the page's width
  * (each card's place includes half the gap between cards on every side, so two halves sit side by side with the gap
  * between them). A card falls up the page until it meets a card above it (or the top), then sits [gap] dp further down,
- * so a card that empties out or is hidden leaves no hole. [height] (dp) is a height of the card's own: a full design
+ * so a card that is switched off or hidden leaves no hole. [height] (dp) is a height of the card's own: a full design
  * with none (0) is as tall as its content, an app's or website's box takes a usual height, and shapes are square.
  */
 @Immutable

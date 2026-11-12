@@ -196,7 +196,7 @@ private fun AddSheet(
     var query by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    // How each of the app's own parts stands: on view, off the page, or on it but with nothing to show yet (and why).
+    // How each of the app's own parts stands: on the page, taken off it, or switched off (and why).
     val partStatus = state.partStatus
     fun tileFor(kind: CardKind): PartTile {
         val status = partStatus(kind)
@@ -705,7 +705,7 @@ private fun looksLikeSite(text: String): Boolean {
 }
 
 /** The icon for one of the page's own parts, as its card's label has it. */
-private fun partIcon(kind: CardKind): ImageVector = when (kind) {
+internal fun partIcon(kind: CardKind): ImageVector = when (kind) {
     CardKind.UP_NEXT -> Icons.Filled.Event
     CardKind.REST_OF_DAY -> Icons.Outlined.Schedule
     CardKind.WEATHER -> Icons.Filled.WbSunny

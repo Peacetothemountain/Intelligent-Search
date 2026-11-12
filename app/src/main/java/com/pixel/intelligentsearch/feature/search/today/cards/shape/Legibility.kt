@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.feature.search.today.cards.shape
 
 import androidx.compose.ui.unit.Dp
 import com.pixel.intelligentsearch.feature.search.today.cards.AppCardState
+import com.pixel.intelligentsearch.feature.search.today.cards.CardKind
 import com.pixel.intelligentsearch.feature.search.today.cards.ShapedContent
 import com.pixel.intelligentsearch.feature.search.today.cards.SnapLayout
 import kotlin.math.max
@@ -58,10 +59,32 @@ internal fun mainUnits(content: ShapedContent): Float = when (content) {
  * Whether [content]'s shaped design reads at [side]: its main value draws at 11 dp or more after optical scaling (in
  * the shape that scales it least, so in any shape) at the user's [fontScale].
  */
-internal fun shapedFits(content: ShapedContent, side: Dp, fontScale: Float): Boolean {
+internal fun shapedFits(content: ShapedContent, side: Dp, fontScale: Float): Boolean = mainFits(mainUnits(content), side, fontScale)
+
+/** Whether a main value of [units] design units reads at [side], as [shapedFits] judges it. */
+internal fun mainFits(units: Float, side: Dp, fontScale: Float): Boolean {
     if (side.value <= 0f) return false
-    val dp = mainUnits(content) * shapedTextScale(fontScale) * LEAST_SHAPE_SCALE * side.value / DESIGN
+    val dp = units * shapedTextScale(fontScale) * LEAST_SHAPE_SCALE * side.value / DESIGN
     return dp >= MIN_MAIN_DP
+}
+
+/**
+ * The smallest main value any of [kind]'s shaped designs draws, in design units, as [mainUnits] gives them: what an
+ * empty card of that kind must leave room for, since it can't tell which design will come.
+ */
+internal fun leastMainUnits(kind: CardKind): Float = when (kind) {
+    CardKind.UP_NEXT -> 30f
+    CardKind.REST_OF_DAY -> 44f
+    CardKind.WEATHER -> 38f
+    CardKind.TILES -> 15f
+    CardKind.NOW_PLAYING -> 12f
+    CardKind.CATCH_UP -> 44f
+    CardKind.PHONE -> 42f
+    CardKind.LEFT_OFF -> 15f
+    CardKind.WORD -> 23f
+    CardKind.YEAR -> 30f
+    CardKind.TOMORROW -> 20f
+    CardKind.CONTROLS, CardKind.APP, CardKind.SITE -> 12.5f
 }
 
 /**

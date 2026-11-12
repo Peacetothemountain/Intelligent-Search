@@ -181,7 +181,7 @@ internal fun DiscoverGrid(
     val onPage = layout.cards.filter(shown).distinctBy { it.id }
     val order = onPage.withIndex().associate { it.value.id to it.index }
     val selected = state.selectedId?.takeIf { id -> editing && onPage.any { it.id == id } }
-    // A selected card that leaves the page (it has nothing to show any more) is let go: Back would be spent on nothing.
+    // A selected card that leaves the page (switched off, or its app or website is gone) is let go: Back would be spent on nothing.
     // Not at once: a card can be off the page for a moment as it changes form (its shape's content is still being read).
     val gone = editing && state.selectedId != null && selected == null
     LaunchedEffect(gone) {

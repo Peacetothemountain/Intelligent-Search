@@ -104,6 +104,7 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.text
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -167,6 +168,8 @@ import com.pixel.intelligentsearch.feature.search.today.cards.grid.EditHaptic
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.cardLayoutStore
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.rememberDiscoverEditState
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.AppCardBox
+import com.pixel.intelligentsearch.feature.search.today.cards.shape.CardOutlineShape
+import com.pixel.intelligentsearch.feature.search.today.cards.shape.CoveredBox
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.CoveredCard
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.ProvideAmbientBudget
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.ShapedCard
@@ -348,8 +351,8 @@ private val HeroShape = RoundedCornerShape(28.dp)
 
 /**
  * The Today page: the day's greeting and what is coming, the weather ahead, what is running and playing, what to catch
- * up on, quick controls, the phone's day, where you left off, a word and a countdown, and tomorrow. Each part shows
- * only when it has something to show and its switch (Appearance > Discover Overlay) is on. Read while
+ * up on, quick controls, the phone's day, where you left off, a word and a countdown, and tomorrow. Each part is there
+ * while its switch (Appearance > Discover Overlay) is on, playing the idle light until it has something to show. Read while
  * [active] and on screen. The bar at the bottom goes back to the search or to Today's settings.
  */
 @Composable
@@ -375,6 +378,8 @@ internal fun TodayPage(
     var leftOffOn by rememberSetting(SettingsManager.TODAY_LEFT_OFF)
     var extrasOn by rememberSetting(SettingsManager.TODAY_EXTRAS)
     val leaveByOn by rememberSetting(SettingsManager.TODAY_LEAVE_BY)
+    // A saved home place gives the weather without the phone's location.
+    val homePlace by rememberSetting(SettingsManager.WEATHER_HOME_LOCATION)
     // Weather with no saved place, and the leave-by time, need the phone's location, so allowing it reads both again.
     val locationOk = rememberPermissionState { com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(it).permitted() }
     val locationRequest = rememberTodayLocationRequest { }
@@ -419,9 +424,11 @@ internal fun TodayPage(
     val cardStore = remember(context) { cardLayoutStore(context.applicationContext) }
     val cardLayout by cardStore.layout.collectAsState()
     val editState = rememberDiscoverEditState()
-    // Why each of the page's own parts may be off view, for Add to Discover's tiles: switched off on Appearance's
-    // Discover Overlay card, waiting for what it reads, or with nothing to show yet. A tap there switches it on, or asks
-    // for what it reads the app's usual way (and switches it on once allowed).
+    // The light every empty card plays, one clock for all of them, moving only while the page is open.
+    val idleTime = rememberIdleTime(moving = active)
+    // Where each of the page's own parts stands when it has nothing to show: switched off on Appearance's Discover
+    // Overlay card (Add to Discover's tile turns it on), waiting for what it reads (its empty card's button, or a tap on
+    // its tile, asks the app's usual way, and switches it on once allowed), or waiting for something to show.
     val calendarOk = rememberCalendarAllowed()
     val calendarRequest = rememberCalendarRequest { upNextOn = true }
     val notificationsOk = rememberNotificationAccessGranted()
@@ -434,12 +441,12 @@ internal fun TodayPage(
         notificationsFor = null
     }
     NotificationAccessDialog(notificationsRequest)
-    fun turnOn(on: () -> Unit) = PartStatus("Turned off", "Tap to turn on", on)
-    fun askNotifications(kind: CardKind) = PartStatus("Needs notification access", "Tap to allow") {
+    fun turnOn(on: () -> Unit) = PartStatus("Turned off", "Tap to turn on", "Turn on", on)
+    fun askNotifications(kind: CardKind) = PartStatus("Needs notification access", "Tap to allow", "Allow notification access") {
         notificationsFor = kind.key
         notificationsRequest.request()
     }
-    val calendarNeeded = PartStatus("Needs calendar access", "Tap to allow") { calendarRequest.request() }
+    val calendarNeeded = PartStatus("Needs calendar access", "Tap to allow", "Allow calendar access") { calendarRequest.request() }
     fun partStatus(kind: CardKind): PartStatus = when (kind) {
         CardKind.UP_NEXT -> when {
             !calendarOk -> calendarNeeded
@@ -453,10 +460,11 @@ internal fun TodayPage(
         }
         CardKind.WEATHER -> when {
             !weatherOn -> turnOn { weatherOn = true }
-            !locationOk -> PartStatus("Needs your location", "Tap to allow") { locationRequest.request() }
+            !locationOk && homePlace.isBlank() -> PartStatus("Needs your location", "Tap to allow", "Use your location") { locationRequest.request() }
             else -> PartStatus("Shows once the forecast is in")
         }
-        CardKind.TILES -> PartStatus("Shows with a timer, an alarm within a day, or a package on its way")
+        // Alarms need nothing; timers and packages are read from their apps' notifications.
+        CardKind.TILES -> if (!notificationsOk) askNotifications(kind) else PartStatus("Shows with a timer, an alarm within a day, or a package on its way")
         CardKind.NOW_PLAYING -> if (!notificationsOk) askNotifications(kind) else PartStatus("Shows while something is playing")
         CardKind.CATCH_UP -> when {
             !notificationsOk -> askNotifications(kind)
@@ -585,34 +593,51 @@ internal fun TodayPage(
             }) {
                 Enter(index++, parts) { Greeting(now, weather, sunset, birthdaysToday, warm) }
             }
-            // Each part is a card the user can move, resize, shape and hide (long-press). Shown in the layout's order,
-            // the ones with something to show; the default layout is the page as it always was.
+            // Each part is a card the user can move, resize, shape and hide (long-press), shown in the layout's order. One
+            // of the page's own parts is always there while its switch is on; with nothing to show yet it plays the idle
+            // light, and asks for what it reads if it needs something.
             val countdown = remember(today, extrasOn) { if (extrasOn) sources.countdown(today) else null }
             val word = remember(today) { wordOfTheDay(today) }
             fun shown(spec: CardSpec): Boolean = when (spec.kind) {
-                CardKind.UP_NEXT -> upNext != null
-                CardKind.REST_OF_DAY -> upNextOn && laterToday.size + (if (sunset != null) 1 else 0) >= 2
-                CardKind.WEATHER -> weather != null && weather.hours.size >= 3
-                CardKind.TILES -> timer != null || alarm != null || delivery != null
-                CardKind.NOW_PLAYING -> snapshot.media != null
-                CardKind.CATCH_UP -> catchUpOn && catchUp.isNotEmpty()
+                CardKind.UP_NEXT, CardKind.REST_OF_DAY -> upNextOn
+                CardKind.WEATHER -> weatherOn
+                CardKind.TILES, CardKind.NOW_PLAYING, CardKind.TOMORROW -> true
+                CardKind.CATCH_UP -> catchUpOn
                 CardKind.CONTROLS -> controlsOn
-                CardKind.PHONE -> phoneOn && (spec.mode != CardMode.SHAPED || battery != null)
-                CardKind.LEFT_OFF -> leftOffOn && recentSearches.isNotEmpty()
-                CardKind.WORD -> extrasOn
-                CardKind.YEAR -> extrasOn && countdown != null
-                CardKind.TOMORROW -> alarmTomorrow != null || tomorrowWeather != null || tomorrowEvent != null
+                CardKind.PHONE -> phoneOn
+                CardKind.LEFT_OFF -> leftOffOn
+                CardKind.WORD, CardKind.YEAR -> extrasOn
                 CardKind.APP -> spec.form == CardForm.CARD || spec.widgetId in apps
                 CardKind.SITE -> spec.url in sites
             }
+            // Whether one of the page's own parts has something to show now; without, its card plays the idle light.
+            fun hasContent(spec: CardSpec): Boolean = when (spec.kind) {
+                CardKind.UP_NEXT -> upNext != null
+                CardKind.REST_OF_DAY -> laterToday.size + (if (sunset != null) 1 else 0) >= 2
+                CardKind.WEATHER -> weather != null && weather.hours.size >= 3
+                CardKind.TILES -> timer != null || alarm != null || delivery != null
+                CardKind.NOW_PLAYING -> snapshot.media != null
+                CardKind.CATCH_UP -> catchUp.isNotEmpty()
+                CardKind.CONTROLS, CardKind.WORD -> true
+                CardKind.PHONE -> spec.mode != CardMode.SHAPED || battery != null
+                CardKind.LEFT_OFF -> recentSearches.isNotEmpty()
+                CardKind.YEAR -> countdown != null
+                CardKind.TOMORROW -> alarmTomorrow != null || tomorrowWeather != null || tomorrowEvent != null
+                CardKind.APP, CardKind.SITE -> true
+            }
             // Each shown card's turn to be built and spring in, after the greeting's.
-            val turns = remember(cardLayout, upNext, weather, timer, alarm, delivery, snapshot.media, catchUp, recentSearches, countdown, tomorrowWeather, battery, apps, sites) {
+            val turns = remember(cardLayout, upNextOn, weatherOn, catchUpOn, controlsOn, phoneOn, leftOffOn, extrasOn, apps, sites) {
                 cardLayout.cards.filter(::shown).withIndex().associate { (i, spec) -> spec.id to index + i }
             }
 
-            /** The design of a built-in card at its full, natural size: the page's own parts. */
+            /** The design of a built-in card at its full, natural size: the page's own parts, or its empty card. */
             @Composable
-            fun natural(kind: CardKind) {
+            fun natural(spec: CardSpec) {
+                val kind = spec.kind
+                if (kind.builtIn && !hasContent(spec)) {
+                    IdleCard(kind, partStatus(kind), idleTime)
+                    return
+                }
                 when (kind) {
                     CardKind.UP_NEXT -> upNext?.let { UpNextCard(it, now, trip, askLocation) }
                     CardKind.REST_OF_DAY -> RestOfDay(laterToday, now, sunset)
@@ -631,7 +656,7 @@ internal fun TodayPage(
             }
 
             /** What a card draws in its shape, or null when it has nothing to draw one from. */
-            fun shapedContent(spec: CardSpec): ShapedContent? = when (spec.kind) {
+            fun shapedContent(spec: CardSpec): ShapedContent? = if (!hasContent(spec)) null else when (spec.kind) {
                 CardKind.UP_NEXT -> upNext?.let { shapedEvent(context, it, now) }
                 CardKind.REST_OF_DAY -> shapedAgenda(context, laterToday, sunset)
                 CardKind.CATCH_UP -> shapedCatchUp(catchUp)
@@ -652,7 +677,7 @@ internal fun TodayPage(
                 layout = cardLayout,
                 onLayoutChange = cardStore::update,
                 shown = ::shown,
-                minShape = { spec -> leastShapeDp(shapedContent(spec), density.fontScale) },
+                minShape = { spec -> leastShapeDp(shapedContent(spec), density.fontScale, emptyKind = spec.kind) },
                 label = { spec -> cardLabel(spec, apps, sites) },
                 scroll = scroll
             ) { spec, cardModifier ->
@@ -664,7 +689,7 @@ internal fun TodayPage(
                             // A private card says itself here, covered or shown: the grid names only cards that aren't private.
                             val own = if (spec.private) cardModifier.named(spec) else cardModifier
                             CoveredCard(covered, CardShape, if (covered) own.bouncyClickable(shape = CardShape) { reveal(spec) } else own) {
-                                natural(spec.kind)
+                                natural(spec)
                             }
                         }
                         CardMode.SHAPED -> {
@@ -677,6 +702,24 @@ internal fun TodayPage(
                                     revealed = spec.id in revealed,
                                     modifier = cardModifier.cardTap(spec, content, onSearch, ::reveal, ::removeCard)
                                 )
+                            } else if (spec.kind.builtIn) {
+                                // Empty: the idle light in its shape. One that needs something asks on a tap; a private
+                                // one is covered like any other until tapped.
+                                val status = partStatus(spec.kind)
+                                val covered = spec.private && spec.id !in revealed
+                                val fix = status.fix?.takeIf { status.button != null }
+                                val said = cardModifier.named(spec).let { if (covered) it else it.semantics { stateDescription = status.note } }
+                                CoveredBox(
+                                    covered = covered,
+                                    shape = CardOutlineShape(spec.shape),
+                                    modifier = when {
+                                        covered -> said.bouncyClickable { reveal(spec) }
+                                        fix != null -> said.bouncyClickable(onClickLabel = status.button) { fix() }
+                                        else -> said
+                                    }
+                                ) {
+                                    IdleShapedCard(spec.shape, spec.kind, idleTime, action = if (fix != null) status.button else null, modifier = Modifier.fillMaxSize())
+                                }
                             }
                         }
                         // A full app card is the app's own widget, live: it updates, and its buttons work.
@@ -712,7 +755,7 @@ internal fun TodayPage(
                                 modifier = cardModifier.cardTap(spec, content, onSearch, ::reveal, ::removeCard),
                                 private = spec.private, revealed = spec.id in revealed
                             )
-                            else -> Box(cardModifier) { natural(spec.kind) }
+                            else -> Box(cardModifier, propagateMinConstraints = true) { natural(spec) }
                         }
                     }
                 }

@@ -179,12 +179,17 @@ internal fun shapedSpoken(content: ShapedContent): String? {
 
 /**
  * The least side (dp) [content]'s shaped design reads at, at the user's [fontScale]: its main value at 11 dp or more
- * ([shapedFits]). With nothing to measure (a card with nothing to show yet), 96 dp.
+ * ([shapedFits]). With nothing to measure, 96 dp, or for one of the page's own parts with nothing to show yet
+ * ([emptyKind]), the least its smallest design will need, so it still reads once something comes.
  */
-internal fun leastShapeDp(content: ShapedContent?, fontScale: Float): Float {
-    if (content == null) return 96f
+internal fun leastShapeDp(content: ShapedContent?, fontScale: Float, emptyKind: CardKind? = null): Float {
+    val units = when {
+        content != null -> com.pixel.intelligentsearch.feature.search.today.cards.shape.mainUnits(content)
+        emptyKind != null && emptyKind.builtIn -> com.pixel.intelligentsearch.feature.search.today.cards.shape.leastMainUnits(emptyKind)
+        else -> return 96f
+    }
     var side = 64f
-    while (side < 400f && !shapedFits(content, side.dp, fontScale)) side += 4f
+    while (side < 400f && !com.pixel.intelligentsearch.feature.search.today.cards.shape.mainFits(units, side.dp, fontScale)) side += 4f
     return side
 }
 

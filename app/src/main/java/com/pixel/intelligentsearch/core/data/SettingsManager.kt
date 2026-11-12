@@ -112,6 +112,11 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          */
         val WEATHER_HOME_LOCATION = StringSetting("weather_home_location", "")
         /**
+         * The scale every temperature shows in (TemperatureChoice): "auto" follows the phone's region, "fahrenheit" or
+         * "celsius" always. A query that names one ("weather in celsius") still gets that one.
+         */
+        val TEMPERATURE_UNIT = StringSetting("temperature_unit", "auto")
+        /**
          * Switched app shortcut results on; nothing reads it any more. Android lets only the home screen app read
          * other apps' shortcuts, so they never showed, and the row became the Quick App Panel switch
          * ([QUICK_SEARCH_HORIZONTAL]). Stays declared so the migration and older backups recognise it.
@@ -334,7 +339,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             GLANCE_TIMERS, GLANCE_MEDIA, GLANCE_CALENDAR, GLANCE_BIRTHDAYS, GLANCE_CLOCK, GLANCE_CLOCK_STYLE,
             TODAY_BUTTON, TODAY_UP_NEXT, TODAY_WEATHER, TODAY_CATCH_UP, TODAY_CONTROLS, TODAY_PHONE, TODAY_LEFT_OFF,
             TODAY_EXTRAS, TODAY_LEAVE_BY, TODAY_MEMORIES,
-            RESULT_SHORTCUTS, WEATHER_HOME_LOCATION, FILES_EXCLUDED_FOLDERS,
+            RESULT_SHORTCUTS, WEATHER_HOME_LOCATION, TEMPERATURE_UNIT, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,
             AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL, AI_MODELS, AI_REASONING, AI_FAST_MODELS, AI_FAVORITE_MODELS,

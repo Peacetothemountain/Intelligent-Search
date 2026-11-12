@@ -17,7 +17,8 @@ object AppSettingsCatalog {
     val pages: List<AndroidSettingsCatalog.Page> = listOf(
         page("appearance", "Appearance", "is_appearance",
             "app theme", "theme", "wallpaper", "background blur", "transparency", "pill opacity", "vibration",
-            "haptics", "matrix animation", "morph animation", "microphone button"),
+            "haptics", "matrix animation", "morph animation", "microphone button", "temperature", "fahrenheit",
+            "celsius"),
         page("search_sources", "Search Sources", "is_sources",
             "sources", "what to search"),
         page("search_behavior", "Search Behavior", "is_behavior",

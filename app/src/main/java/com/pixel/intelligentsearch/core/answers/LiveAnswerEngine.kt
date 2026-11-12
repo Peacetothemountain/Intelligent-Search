@@ -119,7 +119,7 @@ class LiveAnswerEngine internal constructor(
     private suspend fun FlowCollector<LiveAnswer>.weather(question: LiveAnswerQuery.Weather, query: String) {
         val settings = prefs()
         if (!NetworkPolicy.webAnswersAllowed(settings)) return
-        val unit = question.unit ?: TemperatureUnit.forLocale(locale())
+        val unit = question.unit ?: TemperatureUnit.chosen(settings[SettingsManager.TEMPERATURE_UNIT], locale())
         var debounced = false
         suspend fun once() {
             if (!debounced) delay(debounceMs)
@@ -156,7 +156,7 @@ class LiveAnswerEngine internal constructor(
     suspend fun weatherHere(): Pair<WeatherReport, WeatherReport?>? = withContext(ioDispatcher) {
         val settings = prefs()
         if (!NetworkPolicy.webAnswersAllowed(settings)) return@withContext null
-        val unit = TemperatureUnit.forLocale(locale())
+        val unit = TemperatureUnit.chosen(settings[SettingsManager.TEMPERATURE_UNIT], locale())
         var onDisk = true
         val place = HomeLocationCodec.decode(settings[SettingsManager.WEATHER_HOME_LOCATION])
             ?: (if (location.permitted()) location.quick() else null)

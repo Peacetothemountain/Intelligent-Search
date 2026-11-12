@@ -33,6 +33,20 @@ enum class TemperatureUnit(val symbol: String, internal val apiValue: String?) {
 
         fun forLocale(locale: Locale): TemperatureUnit =
             if (locale.country.uppercase(Locale.ROOT) in FAHRENHEIT_COUNTRIES) FAHRENHEIT else CELSIUS
+
+        /** The scale the user chose in Settings ([TemperatureChoice]), or the region's on Automatic. */
+        fun chosen(stored: String, locale: Locale): TemperatureUnit = TemperatureChoice.from(stored).unit ?: forLocale(locale)
+    }
+}
+
+/** Settings' Temperature choice: the region's scale, or always °F or °C, everywhere a temperature shows. */
+enum class TemperatureChoice(val storedValue: String, val label: String, val unit: TemperatureUnit?) {
+    AUTOMATIC("auto", "Automatic", null),
+    FAHRENHEIT("fahrenheit", "Fahrenheit (°F)", TemperatureUnit.FAHRENHEIT),
+    CELSIUS("celsius", "Celsius (°C)", TemperatureUnit.CELSIUS);
+
+    companion object {
+        fun from(stored: String): TemperatureChoice = entries.firstOrNull { it.storedValue == stored } ?: AUTOMATIC
     }
 }
 

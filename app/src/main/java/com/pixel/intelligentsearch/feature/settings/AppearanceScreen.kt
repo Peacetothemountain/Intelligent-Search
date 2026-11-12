@@ -4,6 +4,8 @@ import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import kotlin.math.roundToInt
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.theme.ThemeMode
+import com.pixel.intelligentsearch.core.answers.TemperatureChoice
+import com.pixel.intelligentsearch.core.answers.TemperatureUnit
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.annotation.SuppressLint
@@ -73,6 +75,23 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                             rawThemeMode = it
                             // The widgets follow the app theme, so redraw them all (both designs).
                             updateWidgets(context)
+                        },
+                        showDivider = true
+                    )
+
+                    // Weather in search answers and on the Discover Overlay. Automatic names the scale it picked.
+                    var temperatureChoice by rememberSetting(SettingsManager.TEMPERATURE_UNIT)
+                    val temperature = TemperatureChoice.from(temperatureChoice)
+                    SettingsDropdownRow(
+                        title = "Temperature",
+                        subtitle = if (temperature == TemperatureChoice.AUTOMATIC) {
+                            "Automatic (${TemperatureUnit.forLocale(java.util.Locale.getDefault()).symbol}), From Your Region"
+                        } else temperature.label,
+                        icon = Symbols.Outlined.Thermostat,
+                        options = TemperatureChoice.entries.map { it.label },
+                        selectedOption = temperature.label,
+                        onOptionSelected = { label ->
+                            TemperatureChoice.entries.firstOrNull { it.label == label }?.let { temperatureChoice = it.storedValue }
                         },
                         showDivider = true
                     )

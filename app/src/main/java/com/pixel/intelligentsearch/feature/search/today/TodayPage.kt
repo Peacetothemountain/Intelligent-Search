@@ -197,9 +197,12 @@ internal fun TodayLayer(
     val weatherOn by rememberSetting(SettingsManager.TODAY_WEATHER)
     var weather by remember { mutableStateOf<Pair<WeatherReport, WeatherReport?>?>(null) }
     var weatherAt by remember { mutableLongStateOf(0L) }
-    LaunchedEffect(discoverOn, weatherOn, open) {
+    // A forecast in the other scale than Settings' Temperature asks for is read again at once.
+    val temperatureChoice by rememberSetting(SettingsManager.TEMPERATURE_UNIT)
+    LaunchedEffect(discoverOn, weatherOn, open, temperatureChoice) {
         val now = System.currentTimeMillis()
-        if (discoverOn && weatherOn && (weather == null || now - weatherAt > REFRESH_MS)) {
+        val unit = com.pixel.intelligentsearch.core.answers.TemperatureUnit.chosen(temperatureChoice, java.util.Locale.getDefault())
+        if (discoverOn && weatherOn && (weather == null || now - weatherAt > REFRESH_MS || weather?.first?.unit != unit)) {
             sources.weather()?.let {
                 weather = it
                 weatherAt = now
@@ -335,7 +338,8 @@ internal fun TodayPage(
     val locationRequest = rememberTodayLocationRequest { }
     // What the layer read wins whenever it has it, including when it arrives or refreshes after the page has opened;
     // the page reads for itself only while it has nothing. With Weather off there is none, so no part shows it.
-    val ownWeather = produceState<Pair<WeatherReport, WeatherReport?>?>(null, preloadedWeather == null, active, weatherOn, locationOk) {
+    val temperatureChoice by rememberSetting(SettingsManager.TEMPERATURE_UNIT)
+    val ownWeather = produceState<Pair<WeatherReport, WeatherReport?>?>(null, preloadedWeather == null, active, weatherOn, locationOk, temperatureChoice) {
         if (preloadedWeather == null && active && weatherOn) value = sources.weather()
     }.value
     val loadedWeather = (preloadedWeather ?: ownWeather)?.takeIf { weatherOn }

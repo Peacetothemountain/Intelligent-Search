@@ -21,8 +21,9 @@ import androidx.core.content.ContextCompat
  * speech recognizer is built for single phrases, so on Android 13+ a segmented session keeps one recognizer listening
  * through pauses, and when an engine ends its session anyway (or on older Android) listening restarts quietly. Every
  * phrase heard is kept; [finish] stops, waits briefly for the last words and hands back the whole thing tidied by
- * [SpeechCleanup]. The on-device engine is used when the phone has one (Google's on a Pixel), so speech stays on the
- * phone; Intelligent Search records and stores nothing.
+ * [SpeechCleanup]. The on-device engine is used when the phone has one (Google's on a Pixel) with one of the user's
+ * languages, so speech stays on the phone; otherwise Google's online engine listens ([SpeechLanguage] picks the
+ * language). Intelligent Search records and stores nothing.
  */
 class Dictation(private val context: Context) {
     enum class Phase { Idle, Starting, Listening, Finishing }
@@ -39,8 +40,21 @@ class Dictation(private val context: Context) {
     private var onProblem: ((String) -> Unit)? = null
     private var startedAt = 0L
     private var failures = 0
-    /** Set once the on-device engine has dropped the connection twice; the default engine is used from then on. */
+    /**
+     * Set once the on-device engine has dropped the connection twice, or doesn't know the user's languages; the
+     * phone's online engine (Google's) is used from then on.
+     */
     private var preferDefaultEngine = false
+    /** Whether the engine now used is the on-device one. */
+    private var onDevice = false
+    /** The language asked of the engine ([SpeechLanguage]); null leaves it to the engine (the phone's first language). */
+    private var language: String? = null
+    /** Whether the engine now used has been asked which languages it knows. */
+    private var languageChecked = false
+    /** Counts recognizers made, so an answer about languages that comes back late for an old one is ignored. */
+    private var generation = 0
+    /** Whether the recognizer now in use has been told to listen (by the language answer or its timeout). */
+    private var listeningStarted = false
     /** True while a recognizer session is open and may still produce results. */
     private var live = false
     private val finishTimeout = Runnable { deliver() }
@@ -61,6 +75,8 @@ class Dictation(private val context: Context) {
         pending = ""
         failures = 0
         preferDefaultEngine = false
+        language = null
+        languageChecked = false
         startedAt = System.currentTimeMillis()
         phase.value = Phase.Starting
         main.postDelayed(maxLength, MAX_LENGTH_MS)
@@ -82,6 +98,7 @@ class Dictation(private val context: Context) {
         main.removeCallbacks(finishTimeout)
         main.removeCallbacks(maxLength)
         main.removeCallbacks(restart)
+        main.removeCallbacks(languageTimeout)
         onFinished = null
         onProblem = null
         release()
@@ -93,19 +110,95 @@ class Dictation(private val context: Context) {
     private fun listen() {
         release()
         live = false
+        main.removeCallbacks(languageTimeout)
+        generation++
+        listeningStarted = false
+        onDevice = false
         val r = try {
             if (!preferDefaultEngine && Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { onDevice = true }
             } else {
-                SpeechRecognizer.createSpeechRecognizer(context)
+                onlineRecognizer()
             }
         } catch (e: Throwable) {
             Log.w(TAG, "On-device recognizer unavailable, using the default", e)
-            SpeechRecognizer.createSpeechRecognizer(context)
+            onlineRecognizer()
         }
         recognizer = r
         r.setRecognitionListener(listener)
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        if (Build.VERSION.SDK_INT >= 33 && !languageChecked) checkLanguages(r) else startListening(r)
+    }
+
+    /**
+     * The phone's online engine: Google's recognizer service (or the phone's own) named directly, since the default
+     * recognizer may be Intelligent Search's own service, which forwards to the on-device engine.
+     */
+    private fun onlineRecognizer(): SpeechRecognizer =
+        otherRecognitionService(context)
+            ?.let { runCatching { SpeechRecognizer.createSpeechRecognizer(context, it) }.getOrNull() }
+            ?: SpeechRecognizer.createSpeechRecognizer(context)
+
+    /** Starts listening when the engine hasn't said which languages it knows in time. */
+    private val languageTimeout = Runnable { recognizer?.let(::startListening) }
+
+    /**
+     * Asks [r] which languages it knows and listens in the first of the user's ([SpeechLanguage]). An on-device engine
+     * that has none of them hands over to the online engine; one that can't say is left to its own default.
+     */
+    @androidx.annotation.RequiresApi(33)
+    private fun checkLanguages(r: SpeechRecognizer) {
+        languageChecked = true
+        val asked = generation
+        fun answered(tag: String?, goOnline: Boolean) {
+            if (asked != generation || listeningStarted || (phase.value != Phase.Starting && phase.value != Phase.Listening)) return
+            main.removeCallbacks(languageTimeout)
+            if (goOnline) {
+                useOnlineEngine()
+                listen()
+            } else {
+                language = tag
+                startListening(r)
+            }
+        }
+        main.postDelayed(languageTimeout, LANGUAGE_CHECK_MS)
+        try {
+            r.checkRecognitionSupport(recognizeIntent(), ContextCompat.getMainExecutor(context), object : android.speech.RecognitionSupportCallback {
+                override fun onSupportResult(support: android.speech.RecognitionSupport) {
+                    val known = if (onDevice) support.installedOnDeviceLanguages
+                    else support.onlineLanguages + support.installedOnDeviceLanguages
+                    val tag = SpeechLanguage.pick(SpeechLanguage.wanted(context), known)
+                    answered(tag, goOnline = tag == null && onDevice && known.isNotEmpty())
+                }
+                override fun onError(error: Int) = answered(null, goOnline = false)
+            })
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not ask the recognizer for its languages", e)
+            answered(null, goOnline = false)
+        }
+    }
+
+    /** From now on the online engine, asked again which languages it knows. */
+    private fun useOnlineEngine() {
+        preferDefaultEngine = true
+        languageChecked = false
+        language = null
+    }
+
+    private fun startListening(r: SpeechRecognizer) {
+        main.removeCallbacks(languageTimeout)
+        if (recognizer !== r || listeningStarted) return
+        listeningStarted = true
+        try {
+            r.startListening(recognizeIntent())
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not start listening", e)
+            fail("Voice recognizer error. Tap the mic to try again.")
+        }
+    }
+
+    private fun recognizeIntent() =
+        Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            language?.let { putExtra(RecognizerIntent.EXTRA_LANGUAGE, it) }
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
@@ -118,13 +211,6 @@ class Dictation(private val context: Context) {
                 putExtra(RecognizerIntent.EXTRA_SEGMENTED_SESSION, RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS)
             }
         }
-        try {
-            r.startListening(intent)
-        } catch (e: Exception) {
-            Log.w(TAG, "Could not start listening", e)
-            fail("Voice recognizer error. Tap the mic to try again.")
-        }
-    }
 
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
@@ -165,13 +251,19 @@ class Dictation(private val context: Context) {
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> fail("Allow the microphone to search by voice.")
                 SpeechRecognizer.ERROR_AUDIO -> fail("The microphone isn't available right now.")
                 SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
-                    fail("Your language isn't supported by the speech recognizer.")
+                    // The on-device engine lacks the language: Google's online engine knows far more.
+                    if (onDevice) {
+                        useOnlineEngine()
+                        sessionEnded()
+                    } else {
+                        fail("Voice search doesn't know your phone's languages yet. Add another language in Settings, under Languages.")
+                    }
                 else -> {
                     // Silence, no match, a busy or reconnecting engine: keep the words so far and keep listening.
                     if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) failures++
                     // An on-device engine that keeps dropping the connection (seen right after an app update) is
-                    // swapped for the default engine rather than giving up.
-                    if (failures >= 2) preferDefaultEngine = true
+                    // swapped for the online engine rather than giving up.
+                    if (failures >= 2 && !preferDefaultEngine) useOnlineEngine()
                     if (failures > 6) fail("Voice search stopped. Tap the mic to try again.") else sessionEnded()
                 }
             }
@@ -241,6 +333,8 @@ class Dictation(private val context: Context) {
         }
         const val FINISH_WAIT_MS = 1_800L
         const val RESTART_DELAY_MS = 120L
+        /** How long the engine gets to say which languages it knows before listening starts anyway. */
+        const val LANGUAGE_CHECK_MS = 1_500L
         /** A safety stop for a mic left open: three minutes, then finish with what was heard. */
         const val MAX_LENGTH_MS = 180_000L
     }

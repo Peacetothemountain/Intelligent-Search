@@ -127,24 +127,13 @@ class IntelligentRecognitionService : RecognitionService() {
         } catch (e: Exception) {
             Log.w(TAG, "On-device recognizer unavailable", e)
         }
-        val other = findOtherRecognitionService() ?: return null
+        val other = otherRecognitionService(this) ?: return null
         return try {
             SpeechRecognizer.createSpeechRecognizer(context, other)
         } catch (e: Exception) {
             Log.w(TAG, "Could not bind recognition service $other", e)
             null
         }
-    }
-
-    private fun findOtherRecognitionService(): ComponentName? {
-        val intent = Intent(SERVICE_INTERFACE)
-        val services = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            packageManager.queryIntentServices(intent, PackageManager.ResolveInfoFlags.of(0L))
-        } else {
-            @Suppress("DEPRECATION")
-            packageManager.queryIntentServices(intent, 0)
-        }
-        return chooseRecognitionDelegate(services.mapNotNull { it.serviceInfo }, packageName)
     }
 
     private fun safeError(listener: Callback, error: Int) = relay { listener.error(error) }
@@ -155,6 +144,25 @@ class IntelligentRecognitionService : RecognitionService() {
         } catch (_: Exception) {}
         delegate = null
     }
+}
+
+/**
+ * The phone's own recognition service other than Intelligent Search's (Google's, on most phones), chosen by
+ * [chooseRecognitionDelegate]; null when there is none. Dictation falls back to it rather than to the default
+ * recognizer, which may be Intelligent Search's own service forwarding to the very engine that just failed.
+ */
+internal fun otherRecognitionService(context: Context): ComponentName? {
+    val intent = Intent(RecognitionService.SERVICE_INTERFACE)
+    val pm = context.packageManager
+    val services = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            pm.queryIntentServices(intent, PackageManager.ResolveInfoFlags.of(0L))
+        } else {
+            @Suppress("DEPRECATION")
+            pm.queryIntentServices(intent, 0)
+        }
+    }.getOrDefault(emptyList())
+    return chooseRecognitionDelegate(services.mapNotNull { it.serviceInfo }, context.packageName)
 }
 
 /** Google's recognizers, most preferred first. They count only when they came with the phone (see [isSystem]). */

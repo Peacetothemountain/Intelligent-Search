@@ -15,9 +15,9 @@
 
 <br/>
 
-<img src="docs/images/showcase.png" width="900" alt="Discover, an instant calculator answer and Quick controls" />
+<img src="docs/images/showcase.png" width="900" alt="Searching: Clock as the best match, the weather in New York, and a timer set from a sentence" />
 
-<sub><b>Discover</b> · <b>Instant answers</b> · <b>Quick controls</b></sub>
+<sub><b>Best match</b> · <b>Instant answers</b> · <b>Quick actions</b></sub>
 
 </div>
 
@@ -43,8 +43,8 @@
 <table>
   <tr>
     <td align="center" valign="top"><img src="docs/images/01_best_match.png" width="190" alt="An app as the best match" /><br/><sub><b>Best match</b></sub></td>
-    <td align="center" valign="top"><img src="docs/images/02_calculator.png" width="190" alt="Calculator answer" /><br/><sub><b>Instant calculator</b></sub></td>
-    <td align="center" valign="top"><img src="docs/images/03_unit_conversion.png" width="190" alt="Unit conversion" /><br/><sub><b>Unit conversion</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/02_weather.png" width="190" alt="The weather in New York" /><br/><sub><b>Weather</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/03_definition.png" width="190" alt="The definition of a word" /><br/><sub><b>Definitions</b></sub></td>
     <td align="center" valign="top"><img src="docs/images/04_quick_actions.png" width="190" alt="A timer from a plain sentence" /><br/><sub><b>Quick actions</b></sub></td>
   </tr>
 </table>

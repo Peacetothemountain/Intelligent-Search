@@ -8,6 +8,7 @@ import android.location.LocationManager
 import android.net.wifi.WifiManager
 import android.nfc.NfcAdapter
 import android.provider.AlarmClock
+import android.app.NotificationManager
 import android.provider.Settings
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -291,10 +292,22 @@ internal fun QuickControls(controls: TodayControls) {
         else -> states[control]
     }
 
+    // Which of the controls an app may switch it can switch now, read with the states: Do Not Disturb once the app has
+    // Do Not Disturb access, Auto-rotate once it may change system settings. Until then a tap opens Android's page.
+    val switchable by produceState<Set<QuickControl>?>(null, resumes, flips, focused) {
+        value = withContext(Dispatchers.IO) {
+            buildSet {
+                val dndAccess = runCatching { context.getSystemService(NotificationManager::class.java)?.isNotificationPolicyAccessGranted }
+                if (dndAccess.getOrNull() == true) add(QuickControl.DND)
+                if (runCatching { Settings.System.canWrite(context) }.getOrDefault(false)) add(QuickControl.ROTATION)
+            }
+        }
+    }
+
     // Whether a tap opens Android's panel or page rather than switching it here: everything but the few an app may switch.
     fun opens(control: QuickControl): Boolean = when (control) {
-        QuickControl.DND, QuickControl.FLASHLIGHT -> false
-        QuickControl.ROTATION -> !Settings.System.canWrite(context)
+        QuickControl.FLASHLIGHT -> false
+        QuickControl.DND, QuickControl.ROTATION -> switchable?.let { control !in it } ?: false
         else -> true
     }
 

@@ -94,6 +94,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -773,7 +774,11 @@ private fun ActionRow(label: String, icon: ImageVector, enabled: Boolean, onClic
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .then(if (enabled) Modifier.bouncyClickable(shape = RoundedCornerShape(16.dp), onClick = onClick) else Modifier.semantics { disabled() })
+            // Dimmed, it is still one button to TalkBack, said to be unavailable.
+            .then(
+                if (enabled) Modifier.bouncyClickable(shape = RoundedCornerShape(16.dp), onClick = onClick)
+                else Modifier.semantics(mergeDescendants = true) { role = Role.Button; disabled() }
+            )
             .alpha(if (enabled) 1f else 0.4f)
             .heightIn(min = 52.dp)
             .padding(horizontal = 12.dp),

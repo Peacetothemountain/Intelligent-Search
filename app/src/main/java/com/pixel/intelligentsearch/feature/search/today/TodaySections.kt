@@ -1029,17 +1029,19 @@ internal fun CountdownCard(countdown: TodayCountdown) {
     }
 }
 
-/** The countdown's number, counting up to [days] as [shown] draws in; only it recomposes as the number changes. */
+/**
+ * The countdown's number, counting up to [days] as [shown] draws in; only it recomposes as the number changes. It
+ * keeps the final number's room from the start, in even-width digits, so the words beside it stay still as it counts.
+ */
 @Composable
 private fun CountUp(days: Int, shown: () -> Float, modifier: Modifier = Modifier) {
     val count by remember(days, shown) { derivedStateOf { (days * shown()).roundToInt() } }
-    Text(
-        "$count",
-        style = MaterialTheme.typography.displaySmall,
-        color = MaterialTheme.colorScheme.onSurface,
-        // TalkBack hears the real count, not the number partway through drawing in.
-        modifier = modifier.clearAndSetSemantics { text = AnnotatedString("$days") }
-    )
+    val style = MaterialTheme.typography.displaySmall.copy(fontFeatureSettings = "tnum")
+    // TalkBack hears the real count, not the number partway through drawing in.
+    Box(modifier.clearAndSetSemantics { text = AnnotatedString("$days") }, contentAlignment = Alignment.CenterEnd) {
+        Text("$days", style = style, color = Color.Transparent)
+        Text("$count", style = style, color = MaterialTheme.colorScheme.onSurface)
+    }
 }
 
 /** Tomorrow: the alarm, the forecast and the first event, those it has. */

@@ -271,9 +271,11 @@ internal class DiscoverEditState(
     // ---------------------------------------------------------------------------------------------------------------
     // Edit mode
 
-    /** Starts editing with [id] selected. */
+    /**
+     * Starts editing with [id] selected. It plays no haptic of its own: the Edit button plays its tap's, and a long
+     * press or pinch plays one as it takes the card ([beginMove], [beginPinch]).
+     */
     fun enter(id: String?) {
-        if (!editing) haptic(EditHaptic.TICK)
         editing = true
         selectedId = id
         announce("Editing Discover. Drag a card to move it, pinch it to resize it.")
@@ -370,7 +372,8 @@ internal class DiscoverEditState(
             val down = info.resizeMode and AppWidgetProviderInfo.RESIZE_VERTICAL != 0 && info.minResizeHeight > 0
             val w = if (across) info.minResizeWidth else info.minWidth
             val h = if (down) info.minResizeHeight else info.minHeight
-            (w / density) to (h / density)
+            // Never more than a box may be tall, or its least height would pass its most.
+            (w / density) to minOf(h / density, BOX_MAX_DP)
         }
     }
 
@@ -687,10 +690,8 @@ internal class DiscoverEditState(
     /** Makes [id] a tenth of the page wider ([delta] 1) or narrower (-1), within what it reads at. */
     internal fun resize(id: String, delta: Int) {
         val spec = spec(id) ?: return
-        val page = page.toFloat().takeIf { it > 0f } ?: return
-        val least = min(leastWidth(spec) / page, spec.frame.width)
-        val width = (spec.frame.width + delta * 0.1f).coerceIn(least.coerceAtMost(1f), 1f)
-        if (width == spec.frame.width) {
+        val width = resized(spec, delta)
+        if (width == null) {
             haptic(EditHaptic.REJECT)
             announce(if (delta < 0) "As small as it goes" else "As wide as it goes")
             return
@@ -699,15 +700,29 @@ internal class DiscoverEditState(
         announce("${(width * 100).roundToInt()} percent wide")
     }
 
+    /** [spec]'s width (a fraction of the page) a tenth wider ([delta] 1) or narrower (-1), or null when it can't change. */
+    private fun resized(spec: CardSpec, delta: Int): Float? {
+        val page = page.toFloat().takeIf { it > 0f } ?: return null
+        val least = min(leastWidth(spec) / page, spec.frame.width)
+        val width = (spec.frame.width + delta * 0.1f).coerceIn(least.coerceAtMost(1f), 1f)
+        return width.takeIf { it != spec.frame.width }
+    }
+
+    /** A full card's or a box's height (dp) a step taller ([delta] 1) or shorter (-1), or null when it can't change. */
+    private fun stretched(spec: CardSpec, delta: Int): Float? {
+        val now = spec.frame.height.takeIf { it > 0f } ?: slots[spec.id]?.let { dp((it.height - gap).toFloat()) } ?: return null
+        val most = if (spec.mode == CardMode.BOX) BOX_MAX_DP else MAX_HEIGHT_DP
+        val height = (now + delta * HEIGHT_STEP_DP).coerceIn(leastHeightDp(spec), most)
+        return height.takeIf { it != now }
+    }
+
     /** Makes a full card or a box a step taller ([delta] 1) or shorter (-1), from the height it has now. */
     internal fun stretch(id: String, delta: Int) {
         val spec = spec(id) ?: return
         // A shape is as tall as it is wide: taller is bigger.
         if (spec.mode == CardMode.SHAPED) return resize(id, delta)
-        val now = spec.frame.height.takeIf { it > 0f } ?: slots[id]?.let { dp((it.height - gap).toFloat()) } ?: return
-        val most = if (spec.mode == CardMode.BOX) BOX_MAX_DP else MAX_HEIGHT_DP
-        val height = (now + delta * HEIGHT_STEP_DP).coerceIn(leastHeightDp(spec), most)
-        if (height == now) {
+        val height = stretched(spec, delta)
+        if (height == null) {
             haptic(EditHaptic.REJECT)
             announce(if (delta > 0) "As tall as it goes" else "As short as it goes")
             return
@@ -838,12 +853,13 @@ internal class DiscoverEditState(
             CardAction("Move down", EditIcons.ArrowDownward, neighbor(id, 1) != null) { move(id, 1) },
             CardAction("Move left", EditIcons.ArrowBack, wide && spec.frame.x > 0.001f) { nudge(id, -1) },
             CardAction("Move right", EditIcons.ArrowForward, wide && spec.frame.x + spec.frame.width < 0.999f) { nudge(id, 1) },
-            CardAction("Make bigger", EditIcons.ZoomOutMap, wide) { resize(id, 1) },
-            CardAction("Make smaller", EditIcons.CloseFullscreen, true) { resize(id, -1) }
+            // Each size action only while it can be done: a row that can't is dimmed, not a tap refused.
+            CardAction("Make bigger", EditIcons.ZoomOutMap, resized(spec, 1) != null) { resize(id, 1) },
+            CardAction("Make smaller", EditIcons.CloseFullscreen, resized(spec, -1) != null) { resize(id, -1) }
         )
         if (spec.mode != CardMode.SHAPED) {
-            out += CardAction("Make taller", EditIcons.Expand, true) { stretch(id, 1) }
-            out += CardAction("Make shorter", EditIcons.Compress, true) { stretch(id, -1) }
+            out += CardAction("Make taller", EditIcons.Expand, stretched(spec, 1) != null) { stretch(id, 1) }
+            out += CardAction("Make shorter", EditIcons.Compress, stretched(spec, -1) != null) { stretch(id, -1) }
         }
         if (hasOwnHeight(spec)) out += CardAction("Fit height to content", EditIcons.FitHeight, true) { fitHeight(id) }
         if (spec.kind == CardKind.CONTROLS) out += CardAction("Choose controls", Icons.Outlined.Tune, true) { open(EditSheet.CONTROLS) }

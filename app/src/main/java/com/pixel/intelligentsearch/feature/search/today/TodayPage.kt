@@ -121,7 +121,6 @@ import com.pixel.intelligentsearch.feature.search.today.cards.AppCardData
 import com.pixel.intelligentsearch.feature.search.today.cards.CardForm
 import com.pixel.intelligentsearch.core.system.openPendingOrApp
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.DiscoverGrid
-import com.pixel.intelligentsearch.feature.search.today.cards.grid.EditHaptic
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.cardLayoutStore
 import com.pixel.intelligentsearch.feature.search.today.cards.grid.rememberDiscoverEditState
 import com.pixel.intelligentsearch.feature.search.today.cards.shape.AppCardBox
@@ -478,8 +477,8 @@ internal fun TodayPage(
     val addWidget = rememberWidgetAdder(
         onAdded = { id, provider ->
             val info = runCatching { android.appwidget.AppWidgetManager.getInstance(context).getAppWidgetInfo(id) }.getOrNull()
+            // No haptic of its own: the widget's tile played the tap's, often only moments before.
             cardStore.edit { now -> now.copy(cards = now.cards + newAppCard(id, provider, info, density.density)) }
-            editState.haptic(EditHaptic.TICK)
             editState.announce("Card added")
         },
         onFailed = { message -> android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show() }

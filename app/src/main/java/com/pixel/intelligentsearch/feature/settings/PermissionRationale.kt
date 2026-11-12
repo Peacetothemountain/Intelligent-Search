@@ -353,10 +353,11 @@ private val LOCATION_PROMPT = PermissionPrompt(
 internal fun rememberApproximateLocationRequest(onGranted: () -> Unit): PermissionRequest =
     rememberPermissionRequest(LOCATION_PROMPT, onGranted)
 
-/** What Discover's leave-by time says before Android asks for approximate location. */
+/** What Discover says before Android asks for approximate location, for its weather and its leave-by time. */
 internal const val TODAY_LOCATION_RATIONALE =
-    "Discover can tell you when to leave for your next event. It uses your phone's approximate location, never its " +
-        "precise one, and Android's own map lookup finds the event's address. Nothing is kept."
+    "Discover can show the weather where you are and tell you when to leave for your next event. It uses your " +
+        "phone's approximate location, never its precise one. Rounded coordinates are sent to Open-Meteo for the " +
+        "forecast, and Android's own map lookup finds the event's address. Nothing is kept."
 
 private val TODAY_LOCATION_PROMPT = PermissionPrompt(
     permission = Manifest.permission.ACCESS_COARSE_LOCATION,
@@ -364,7 +365,7 @@ private val TODAY_LOCATION_PROMPT = PermissionPrompt(
     askText = TODAY_LOCATION_RATIONALE,
     offTitle = "Location Access Is Off",
     offText = "Location access for Intelligent Search is turned off. Allow approximate location in Android " +
-        "settings to see when to leave for your next event.",
+        "settings to see the weather where you are and when to leave for your next event.",
     allowed = { AndroidDeviceLocation(it).permitted() }
 )
 

@@ -324,6 +324,12 @@ internal fun TodayPage(
     val leaveByOn by rememberSetting(SettingsManager.TODAY_LEAVE_BY)
     // A saved home place gives the weather without the phone's location.
     val homePlace by rememberSetting(SettingsManager.WEATHER_HOME_LOCATION)
+    // The forecast is asked for only while web answers may go out (Web and Web Suggestions on, Tor not the engine).
+    // Until then Weather waits for that, and doesn't ask for a location it couldn't use.
+    val web by rememberSetting(SettingsManager.SEARCH_WEB)
+    val webSuggestions by rememberSetting(SettingsManager.SEARCH_WEB_SUGGESTIONS)
+    val engine by rememberSetting(SettingsManager.SEARCH_ENGINE)
+    val weatherBlock = com.pixel.intelligentsearch.core.security.NetworkPolicy.webAnswersBlock(web, webSuggestions, engine)
     // Weather with no saved place, and the leave-by time, need the phone's location, so allowing it reads both again.
     val locationOk = rememberPermissionState { com.pixel.intelligentsearch.core.answers.AndroidDeviceLocation(it).permitted() }
     val locationRequest = rememberTodayLocationRequest { }
@@ -355,7 +361,9 @@ internal fun TodayPage(
     val trip = produceState<TodayTrip?>(null, upNext?.eventId, upNext?.beginMillis, upNext?.location, leaveByOn, active, locationOk) {
         value = if (upNext != null && leaveByOn && active) sources.trip(upNext) else null
     }.value
-    val askLocation = if (leaveByOn && !locationOk) ({ locationRequest.request() }) else null
+    // Leave-by looks up the event's place only with Web on and Tor not the engine; without that, no location is asked.
+    val leaveByBlocked = com.pixel.intelligentsearch.core.security.NetworkPolicy.aiBlock(web, engine) != null
+    val askLocation = if (leaveByOn && !locationOk && !leaveByBlocked) ({ locationRequest.request() }) else null
     val sunset = weather?.sunset?.toEpochMilli()?.takeIf { it > now }
     val warm = if (scheme.surface.luminance() < 0.5f) Color(0xFFF2B872) else Color(0xFFB5651D)
     val scroll = rememberScrollState()
@@ -404,6 +412,13 @@ internal fun TodayPage(
         }
         CardKind.WEATHER -> when {
             !weatherOn -> turnOn { weatherOn = true }
+            weatherBlock != null -> PartStatus(
+                when (weatherBlock) {
+                    com.pixel.intelligentsearch.core.security.NetworkPolicy.Block.TOR -> "Off while Tor is your search engine"
+                    com.pixel.intelligentsearch.core.security.NetworkPolicy.Block.WEB_OFF -> "Needs Web on in Search Sources"
+                    com.pixel.intelligentsearch.core.security.NetworkPolicy.Block.WEB_SUGGESTIONS_OFF -> "Needs Web Suggestions on"
+                }
+            )
             !locationOk && homePlace.isBlank() -> PartStatus("Needs your location", "Tap to allow", "Use your location", access = CardAccess.LOCATION, fix = { locationRequest.request() })
             else -> PartStatus("Shows once the forecast is in")
         }

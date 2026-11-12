@@ -288,10 +288,11 @@ internal fun rememberContactsRequest(onResult: (granted: Boolean) -> Unit): Perm
 internal fun contactsAllowed(context: android.content.Context): Boolean =
     context.checkSelfPermission(Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED
 
-/** What At a Glance's Calendar Events says before Android asks for the calendar. */
+/** What At a Glance's Calendar Events and Discover's event cards say before Android asks for the calendar. */
 internal const val CALENDAR_RATIONALE =
-    "Intelligent Search needs your calendar to show your events for the next day in At a Glance. Your calendar " +
-        "stays on your phone."
+    "Intelligent Search needs your calendar to show your upcoming events in At a Glance and on Discover. Your " +
+        "calendar stays on your phone, except your next event's address, which Android's own map lookup finds to " +
+        "tell you when to leave."
 
 private val CALENDAR_PROMPT = PermissionPrompt(
     permission = Manifest.permission.READ_CALENDAR,
@@ -299,7 +300,7 @@ private val CALENDAR_PROMPT = PermissionPrompt(
     askText = CALENDAR_RATIONALE,
     offTitle = "Calendar Access Is Off",
     offText = "Calendar access for Intelligent Search is turned off. Allow it in Android settings to see your " +
-        "upcoming events in At a Glance."
+        "upcoming events in At a Glance and on Discover."
 )
 
 /** The calendar, asked only as At a Glance's Calendar Events is turned on (setup no longer asks for it). */

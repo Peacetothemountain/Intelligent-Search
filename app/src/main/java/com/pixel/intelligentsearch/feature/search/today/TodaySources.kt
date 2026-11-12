@@ -108,6 +108,8 @@ interface TodaySources {
     fun battery(): Flow<TodayBattery?>
     /** Today's screen time, or null without Usage Access. */
     fun screenTime(): ScreenTimeReport?
+    /** Whether Usage Access is granted: a quick check, ahead of the slower [screenTime]. Blocking: off the main thread. */
+    fun screenTimeAllowed(): Boolean = true
     /** What the notification index holds now; empty without notification access. */
     fun notifications(): Flow<List<IndexedNotification>>
     fun countdown(today: LocalDate): TodayCountdown?
@@ -214,6 +216,7 @@ class AndroidTodaySources(private val context: Context) : TodaySources {
     }
 
     override fun screenTime(): ScreenTimeReport? = runCatching { ScreenTimeRepository(app).today() }.getOrNull()
+    override fun screenTimeAllowed(): Boolean = runCatching { ScreenTimeRepository(app).hasUsageAccess() }.getOrDefault(false)
 
     override fun notifications(): Flow<List<IndexedNotification>> = app.appEntryPoint.notificationIndex().entries
 

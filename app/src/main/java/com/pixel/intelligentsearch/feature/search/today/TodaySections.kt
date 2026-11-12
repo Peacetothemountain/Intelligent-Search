@@ -644,16 +644,22 @@ internal fun PhoneToday(sources: TodaySources, active: Boolean) {
     val phoneSeen = remember { mutableStateOf(false) }
     val battery = remember(sources, active) { if (active) sources.battery() else kotlinx.coroutines.flow.emptyFlow() }
         .collectAsState(initial = null).value
-    val screenTime = produceState<ScreenTimeReport?>(null, active) {
-        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { sources.screenTime() }
-    }.value
+    // Whether Usage Access is granted, a quick check read first, then today's screen time, which takes longer. Battery
+    // is slim only where Screen time can't join it: with access it starts as the full tile, not slim and then twice
+    // the height once the screen time comes in.
+    val usage = produceState<Pair<Boolean, ScreenTimeReport?>?>(null, active) {
+        val allowed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { sources.screenTimeAllowed() }
+        value = allowed to null
+        if (allowed) value = true to kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { sources.screenTime() }
+    }.value ?: return
+    val screenTime = usage.second
     // The tile shows only with Usage Access, so a tap opens the full breakdown in Digital Wellbeing, as the search's
     // screen time answer does; a phone without it has nowhere better to go, so the tile isn't a button there.
     val wellbeing = remember(context) { digitalWellbeingIntent(context) }
     if (battery == null && screenTime == null) return
     Column(Modifier.onFirstSeen { phoneSeen.value = true }) {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            if (battery != null) BatteryTile(battery, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value, compact = screenTime == null)
+            if (battery != null) BatteryTile(battery, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value, compact = !usage.first)
             if (screenTime != null) {
                 ScreenTimeTile(screenTime, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value, wellbeing?.let { { launchSafeIntent(context, it) } })
             }

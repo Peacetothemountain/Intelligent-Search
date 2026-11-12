@@ -34,21 +34,6 @@
   </tr>
 </table>
 
----
-
-## ✨ What's new in 9.6
-
-- **A new icon**, lit the way Google's newest app icons are.
-- **Discover, rebuilt.** Place cards anywhere at any size, pinch them into Material shapes, keep some private, and add
-  live widgets from your other apps or any website.
-- **Quick controls** in the same oval shape as Android's Quick Settings, as many as you like: hold one to drag it
-  into place.
-- **Voice Nebula**, a voice search shortcut for the home screen widget.
-- **Smoother search.** A connected keyboard or a rotation keeps what you typed, the pull-down can be undone, and
-  spellings like "metres" and "mins" convert.
-
----
-
 ## 📸 Screenshots
 
 <div align="center">

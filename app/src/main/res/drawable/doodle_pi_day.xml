@@ -33,7 +33,8 @@
                 <path android:name="steam_3" android:strokeColor="#FF9AA0A6" android:strokeAlpha="0.8" android:strokeWidth="0.6" android:strokeLineCap="round" android:pathData="M40.6,38.2C39.5,36.800000000000004 41.7,36.0 40.6,34.4C39.6,33.2 41.4,32.400000000000006 40.6,31.400000000000002" />
             </group>
 
-            <!-- 3.14, bobbing in a wave -->
+            <!-- 3.14, bobbing in a wave; kept the right way round where the doodle is mirrored -->
+            <group android:pivotX="17.3" android:scaleX="@dimen/doodle_glyphs_scale_x">
             <group android:name="d3" android:rotation="-6" android:translateX="13.4" android:translateY="41.4">
                 <path android:strokeColor="#FF4285F4" android:strokeWidth="0.6" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-0.8,-1.3Q0,-1.9 0.7,-1.2Q1,-0.5 0,-0.1Q1.1,0.3 0.8,1.1Q0.2,1.8 -0.8,1.2 M0,-0.1L-0.2,-0.1" />
             </group>
@@ -47,7 +48,11 @@
                 <path android:strokeColor="#FF34A853" android:strokeWidth="0.6" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M0.5,1.5L0.5,-1.5L-0.9,0.6L1.1,0.6" />
             </group>
 
-            <!-- π in three strokes (each trims on its own), over a deeper blue copy for depth -->
+            </group>
+
+            <!-- π in three strokes (each trims on its own), over a deeper blue copy for depth. Where the doodle is
+                 mirrored the π, the pencil writing it and its sparkle keep their own way round, together. -->
+            <group android:pivotX="34.4" android:scaleX="@dimen/doodle_glyphs_scale_x">
             <group android:translateX="0.3" android:translateY="0.35">
                 <path android:name="pi_bar_shadow" android:strokeColor="#FF1A5DC8" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M29.35,7.42C30.94,6.72 35.16,6.54 37.45,6.9" />
                 <path android:name="pi_left_leg_shadow" android:strokeColor="#FF1A5DC8" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M31.82,6.9C31.82,9.71 31.46,12 30.23,13.06" />
@@ -70,6 +75,7 @@
                 <path android:fillColor="#FF3C4043" android:pathData="M-0.32,-0.3L0,0.4L0.32,-0.3Z" />
                 <path android:fillColor="#FF9AA0A6" android:pathData="M-0.95,-6.1L0.95,-6.1L0.95,-6.9L-0.95,-6.9Z" />
                 <path android:fillColor="#FFF28B82" android:pathData="M-0.95,-6.8L0.95,-6.8L0.95,-7.6Q0.95,-8.1 0.45,-8.1L-0.45,-8.1Q-0.95,-8.1 -0.95,-7.6Z" />
+            </group>
             </group>
         </vector>
     </aapt:attr>

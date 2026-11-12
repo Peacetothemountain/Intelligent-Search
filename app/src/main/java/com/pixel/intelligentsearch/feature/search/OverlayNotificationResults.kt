@@ -41,8 +41,6 @@ import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import com.pixel.intelligentsearch.core.glance.NotificationIndex
 import com.pixel.intelligentsearch.core.system.openPendingOrApp
-import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
-import com.pixel.intelligentsearch.core.ui.uniqueItems
 import com.pixel.intelligentsearch.di.appEntryPoint
 import com.pixel.intelligentsearch.feature.settings.expressiveRowClickable
 import kotlinx.coroutines.Dispatchers
@@ -96,25 +94,21 @@ internal fun LazyListScope.notificationResultItems(
     onOpened: () -> Unit
 ) {
     if (hits.isEmpty()) return
-    item(key = "notifications_divider", contentType = "divider") {
+    resultRow(key = "notifications_divider", contentType = "divider") {
         HorizontalDivider(
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f),
             thickness = 0.8.dp,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
     }
-    item(key = "notifications_header", contentType = "recent_label") { NotificationsHeader() }
-    uniqueItems(hits, key = { "notification_${it.key}" }, contentType = { "notification" }) { entry ->
+    resultRow(key = "notifications_header", contentType = "recent_label") { NotificationsHeader() }
+    resultRows(hits, key = { "notification_${it.key}" }, contentType = { "notification" }) { entry ->
         NotificationResultRow(
             entry,
             now = System.currentTimeMillis(),
             iconPack = iconPack,
             onOpened = onOpened,
-            modifier = Modifier.animateItem(
-                placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
-                fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
-                fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-            ).then(highlight(entry))
+            modifier = highlight(entry)
         )
     }
 }

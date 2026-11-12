@@ -176,7 +176,10 @@ fun SettingsScreensHub(
         // glow as it was when taken; as the real page takes the picture's place, the drift is set back to that moment,
         // so the light carries on from the picture and never jumps. It stands still on Widget Customization, which
         // has no glow, except while a back swipe shows the page underneath.
-        val glowClock = com.pixel.intelligentsearch.core.ui.rememberSettableMeshClock(isPaused = onWidgetPage && !nativeBack.active)
+        val glowClock = com.pixel.intelligentsearch.core.ui.rememberSettableMeshClock(
+            isPaused = onWidgetPage && !nativeBack.active,
+            frameGapMs = com.pixel.intelligentsearch.core.ui.PAGE_GLOW_FRAME_GAP_MS
+        )
         var enteringGlow by remember { mutableFloatStateOf(1f) }
         // The glow's moment in the picture of the page underneath a back swipe, until the real page has taken over.
         var enteringGlowTime by remember { mutableStateOf<Float?>(null) }
@@ -289,8 +292,9 @@ fun SettingsScreensHub(
                     predictiveBackSwipeEdge = backEvent.swipeEdge
                     exitBackProgress.snapTo(backEvent.progress)
                 }
-                exitBackProgress.snapTo(0f)
                 handleExitBack()
+                // Settings closes from where the swipe left the page. Only if it stays open is the page put back.
+                if (act?.isFinishing != true) exitBackProgress.snapTo(0f)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 // A cancelled swipe arrives as cancellation, so the page is sprung back outside it; otherwise the
                 // animation would end at once and leave the page shrunk. A new swipe's snapTo still cuts it short.

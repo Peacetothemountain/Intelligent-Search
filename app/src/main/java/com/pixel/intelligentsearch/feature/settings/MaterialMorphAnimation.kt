@@ -595,6 +595,9 @@ fun MaterialMorphAnimation(modifier: Modifier = Modifier) {
         LaunchedEffect(Unit) {
             var lastHaptic = 0L
             val onBounce = MorphBouncePhysics.BounceListener { _, _ ->
+                // Under something else that has the user's attention (a system dialog, the notification shade, a
+                // menu), the shapes keep falling but nothing taps.
+                if (!view.hasWindowFocus()) return@BounceListener
                 sceneInfo.bouncesFelt++
                 val now = SystemClock.uptimeMillis()
                 if (now - lastHaptic >= HAPTIC_SPACING_MS) {

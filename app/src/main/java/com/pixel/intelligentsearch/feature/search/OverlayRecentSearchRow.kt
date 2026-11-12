@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
-import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.lazy.LazyItemScope
@@ -39,16 +38,14 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
     var textFieldValue by s.ui::textFieldValue
     val sensoryEngine = rememberTactileSonicEngine()
     val view = androidx.compose.ui.platform.LocalView.current
-    val swipe = rememberSwipeToDismiss(sensoryEngine, view, threshold = 120f, fadeDistance = 500f, maxDragFade = 0.7f) { viewModel.removeSearchHistory(recentQuery) }
+    val swipe = rememberSwipeToDismiss(sensoryEngine, view, threshold = 120f, fadeDistance = 500f, maxDragFade = 0.7f) {
+        s.ui.rowTakenAway()
+        viewModel.removeSearchHistory(recentQuery)
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .animateItem(
-                placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
-                fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
-                fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-            )
             .swipeOffset(swipe)
             .swipeToDismiss(swipe, recentQuery)
     ) {
@@ -100,7 +97,7 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
                     overflow = TextOverflow.Ellipsis
                 )
                 // M3's own 48dp touch area each, side by side without sharing one, as the web suggestions' buttons.
-                IconButton(onClick = { viewModel.removeSearchHistory(recentQuery) }) {
+                IconButton(onClick = { s.ui.takeRowAway { viewModel.removeSearchHistory(recentQuery) } }) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "Remove $recentQuery from history",

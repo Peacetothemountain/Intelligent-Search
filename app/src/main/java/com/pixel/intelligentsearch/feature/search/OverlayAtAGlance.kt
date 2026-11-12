@@ -242,17 +242,8 @@ private fun Modifier.glanceCardWidth(): Modifier = layout { measurable, constrai
  */
 internal fun LazyListScope.atAGlanceItems(items: List<GlanceItem>, highlight: @Composable (key: String) -> Modifier, onOpened: () -> Unit) {
     if (items.isEmpty()) return
-    item(key = ResultListKeys.GLANCE, contentType = "glance") {
-        GlanceCard(
-            items,
-            onOpened = onOpened,
-            modifier = Modifier.animateItem(
-                placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
-                fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
-                fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-            ),
-            highlight = highlight
-        )
+    resultRow(key = ResultListKeys.GLANCE, contentType = "glance") {
+        GlanceCard(items, onOpened = onOpened, highlight = highlight)
     }
 }
 

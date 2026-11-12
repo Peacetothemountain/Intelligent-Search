@@ -3,7 +3,9 @@ package com.pixel.intelligentsearch.feature.search
 import android.content.SharedPreferences
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.FocusRequester
@@ -38,6 +40,55 @@ internal class OverlayUiState(
     var todayClosesAtOnce by mutableStateOf(false)
     /** Where Today opens out of: its button's center, in the window's coordinates. */
     var todayOrigin by mutableStateOf(androidx.compose.ui.geometry.Offset.Unspecified)
+
+    /** What was typed when the user last took a row out of the results, until the rows have closed up. */
+    private var rowTakenAwayAt by mutableStateOf<String?>(null)
+
+    /** How many rows the user has taken out of the results; each one starts the wait for [rowsClosedUp] again. */
+    var rowsTakenAway by mutableIntStateOf(0)
+        private set
+
+    /**
+     * Whether the results' rows are closing up after the user took one away, and so glide ([ResultRowBox]). Typing
+     * ends it at once: new results are never glided into place.
+     */
+    val rowsClosingUp: Boolean by derivedStateOf { rowTakenAwayAt != null && rowTakenAwayAt == textFieldValue.text }
+
+    /** Whether the results list is showing, to close up after a row is taken away. */
+    var resultsShown = false
+
+    /** Removals waiting for the list to have drawn its rows with their closing-up motion ([takeRowAway]). */
+    private val rowsToRemove = ArrayList<() -> Unit>()
+
+    /** The user is taking a row out of the results now (swiping it off, pinning or unpinning it). */
+    fun rowTakenAway() {
+        rowTakenAwayAt = textFieldValue.text
+        rowsTakenAway++
+    }
+
+    /**
+     * The user tapped a row away (its Remove button, Delete All, a menu). [remove] takes it out of the results once
+     * the list has drawn its rows with their closing-up motion, a frame from now, so the row fades out rather than
+     * vanishing; at once if the list isn't showing.
+     */
+    fun takeRowAway(remove: () -> Unit) {
+        if (!resultsShown) {
+            remove()
+            return
+        }
+        rowsToRemove += remove
+        rowTakenAway()
+    }
+
+    /** Carries out the removals [takeRowAway] is holding. */
+    fun removeTakenRows() {
+        while (rowsToRemove.isNotEmpty()) rowsToRemove.removeAt(0)()
+    }
+
+    /** The rows have had their time to close up. */
+    fun rowsClosedUp() {
+        rowTakenAwayAt = null
+    }
 }
 
 /**

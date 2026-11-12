@@ -45,7 +45,7 @@ fun Modifier.pageGlow(strength: () -> Float = { 1f }, clock: State<Float>? = nul
     val peak = if (dark) PAGE_GLOW_PEAK_DARK else PAGE_GLOW_PEAK_LIGHT
     val currentStrength by androidx.compose.runtime.rememberUpdatedState(strength)
     // A [clock] shared by two glows keeps them in step (a page and the picture of the page underneath it).
-    val ownTime = rememberMeshClock(isPaused = clock != null || strength() <= 0f)
+    val ownTime = rememberMeshClock(isPaused = clock != null || strength() <= 0f, frameGapMs = PAGE_GLOW_FRAME_GAP_MS)
     val time = clock ?: ownTime
     // The configuration block runs in the draw phase, so the clock only invalidates drawing.
     val painter = remember(tones, peak) {
@@ -69,6 +69,13 @@ private const val PAGE_GLOW_DEPTH = 0.42f
 
 /** How fast it drifts: its slowest motion takes about 22 s, its quickest about 14 s. */
 private const val PAGE_GLOW_PACE = 2.2f
+
+/**
+ * Pause after each of the page glow's ticks; with the wait for the next frame, they land about 100 ms apart. At its
+ * quickest the glow changes a color by about three levels a second, so ten redraws a second already move it by
+ * less than one level each.
+ */
+internal const val PAGE_GLOW_FRAME_GAP_MS = 90L
 
 /**
  * The glow's three tones from the theme's [primary]: its hue 20° one way, its own hue, and 20° the other way, each
@@ -117,8 +124,8 @@ private fun androidx.compose.ui.graphics.MeshGradientScope.configurePageGlow(t: 
 
 /**
  * Seconds the mesh backgrounds have drifted. Their drift is far too slow to need every display frame, so the clock
- * waits [MESH_FRAME_GAP_MS] after each tick and then takes the next frame: about 30 redraws a second at 60, 90 or
- * 120 Hz. It stands still while [isPaused] or [extraPause], in the background, under severe thermal throttling and,
+ * waits [frameGapMs] after each tick and then takes the next frame: by default about 30 redraws a second at 60, 90
+ * or 120 Hz. It stands still while [isPaused] or [extraPause], in the background, under severe thermal throttling and,
  * when [stopsWithAnimationsRemoved], while the user has removed animations. Time is taken from frame timestamps, so
  * a late frame doesn't slow it.
  */
@@ -126,15 +133,17 @@ private fun androidx.compose.ui.graphics.MeshGradientScope.configurePageGlow(t: 
 internal fun rememberMeshClock(
     isPaused: Boolean,
     extraPause: Boolean = false,
-    stopsWithAnimationsRemoved: Boolean = true
-): State<Float> = rememberSettableMeshClock(isPaused, extraPause, stopsWithAnimationsRemoved)
+    stopsWithAnimationsRemoved: Boolean = true,
+    frameGapMs: Long = MESH_FRAME_GAP_MS
+): State<Float> = rememberSettableMeshClock(isPaused, extraPause, stopsWithAnimationsRemoved, frameGapMs)
 
 /** [rememberMeshClock] as a clock that can be set, to carry a drift on from a moment pictured earlier. */
 @Composable
 internal fun rememberSettableMeshClock(
     isPaused: Boolean,
     extraPause: Boolean = false,
-    stopsWithAnimationsRemoved: Boolean = true
+    stopsWithAnimationsRemoved: Boolean = true,
+    frameGapMs: Long = MESH_FRAME_GAP_MS
 ): androidx.compose.runtime.MutableFloatState {
     val context = androidx.compose.ui.platform.LocalContext.current
     val adpfThermalManager = remember(context) { ADPFThermalManager.getInstance(context) }
@@ -145,18 +154,20 @@ internal fun rememberSettableMeshClock(
     val lifecycleOwner = LocalLifecycleOwner.current
     val timeState = remember { mutableFloatStateOf(0f) }
 
-    LaunchedEffect(lifecycleOwner, isPaused, extraPause, isThermallyThrottled, stoppedForAccessibility) {
+    LaunchedEffect(lifecycleOwner, isPaused, extraPause, isThermallyThrottled, stoppedForAccessibility, frameGapMs) {
         if (!isPaused && !extraPause && !isThermallyThrottled && !stoppedForAccessibility) {
+            // A tick that comes much later than its gap (a stalled frame) moves the drift by no more than this.
+            val longestStep = (frameGapMs + 70L) / 1_000f
             lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
                 var lastFrame = 0L
                 while (isActive) {
                     withFrameNanos { frameTime ->
                         if (lastFrame == 0L) lastFrame = frameTime
-                        val dt = ((frameTime - lastFrame) / 1_000_000_000f).coerceIn(0f, 0.1f)
+                        val dt = ((frameTime - lastFrame) / 1_000_000_000f).coerceIn(0f, longestStep)
                         timeState.floatValue = (timeState.floatValue + dt) % MESH_CLOCK_PERIOD
                         lastFrame = frameTime
                     }
-                    delay(MESH_FRAME_GAP_MS)
+                    delay(frameGapMs)
                 }
             }
         }
@@ -164,7 +175,7 @@ internal fun rememberSettableMeshClock(
     return timeState
 }
 
-/** Pause after each mesh tick; with the wait for the next frame, ticks land about 33 ms apart. */
+/** Pause after each mesh tick unless a clock asks for another; with the wait for the next frame, ticks land about 33 ms apart. */
 private const val MESH_FRAME_GAP_MS = 30L
 
 /** Every mesh drift frequency completes whole cycles in this time, so the clock wraps without a jump. */

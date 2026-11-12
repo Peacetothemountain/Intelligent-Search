@@ -18,4 +18,21 @@
         <item name="android:clickable">false</item>
         <item name="android:focusable">false</item>
     </style>
+
+    <!--
+        A doodle that is drawn mirrored where the home screen reads right to left. There the G sits at the bar's right
+        end, and art drawn for the left end's curve would reach past the right end's; mirrored, it fits the same way.
+        For doodles that read the same either way round. One with digits, letters or a music note keeps its plain
+        style and has a layout-ldrtl layout instead (see doodle_glyphs_scale_x).
+    -->
+    <style name="WidgetDoodle.Mirrored">
+        <item name="android:mirrorForRtl">true</item>
+    </style>
+
+    <!--
+        The horizontal scale of the digits, letters and notes inside a doodle: 1 here, and -1 where the home screen
+        reads right to left (values-ldrtl), where that doodle's layout-ldrtl layout draws it mirrored. Turned over a
+        second time, about their own middle, they read the right way round in their mirrored place.
+    -->
+    <item name="doodle_glyphs_scale_x" type="dimen" format="float">1</item>
 </resources>

@@ -327,12 +327,18 @@ private fun runCommand(context: Context, s: OverlayScope, target: ResultMenuTarg
     val key = target.key
     val app = (target as? ResultMenuTarget.App)?.app
     when (command) {
-        ResultCommand.PIN, ResultCommand.UNPIN -> if (key != null) s.viewModel.setPinned(key, target.title, command == ResultCommand.PIN)
+        ResultCommand.PIN, ResultCommand.UNPIN -> if (key != null) {
+            s.ui.rowTakenAway()
+            s.viewModel.setPinned(key, target.title, command == ResultCommand.PIN)
+        }
         ResultCommand.APP_INFO, ResultCommand.UNINSTALL -> if (app != null) {
             s.ui.hasStartedTyping = false
             openAppInfo(context, app)
         }
-        ResultCommand.HIDE -> if (app != null) s.viewModel.hideApp(app.packageName)
+        ResultCommand.HIDE -> if (app != null) {
+            s.ui.rowTakenAway()
+            s.viewModel.hideApp(app.packageName)
+        }
         ResultCommand.SPLIT_SCREEN -> if (app != null) {
             val intent = splitScreenIntent(context, app)
             if (intent == null || !launchSafeIntent(context, intent)) {
@@ -341,6 +347,8 @@ private fun runCommand(context: Context, s: OverlayScope, target: ResultMenuTarg
                 s.ui.hasStartedTyping = false
             }
         }
-        ResultCommand.REMOVE_FROM_HISTORY -> (target as? ResultMenuTarget.History)?.let { s.viewModel.removeSearchHistory(it.query) }
+        ResultCommand.REMOVE_FROM_HISTORY -> (target as? ResultMenuTarget.History)?.let { history ->
+            s.ui.takeRowAway { s.viewModel.removeSearchHistory(history.query) }
+        }
     }
 }

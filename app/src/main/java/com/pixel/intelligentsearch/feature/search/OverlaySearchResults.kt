@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.R
 import com.pixel.intelligentsearch.core.data.*
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
-import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import com.pixel.intelligentsearch.core.ui.MathResultOneBox
 import com.pixel.intelligentsearch.core.ui.ConversionOneBox
 import com.pixel.intelligentsearch.core.ui.DictionaryOneBox
@@ -92,6 +91,34 @@ internal fun directActionIcon(type: String): androidx.compose.ui.graphics.vector
 /** The overlay's results list: suggested actions, At a Glance, best match, recents, shortcuts, one-boxes, and the app, Android Settings, web, people, file and notification sections. */
 @Composable
 internal fun OverlaySearchResults(s: OverlayScope) {
+    // The rows glide to close up for a moment after the user takes one away, and otherwise move at once.
+    val ui = s.ui
+    val rowsTakenAway = ui.rowsTakenAway
+    DisposableEffect(ui) {
+        ui.resultsShown = true
+        onDispose {
+            ui.resultsShown = false
+            ui.removeTakenRows()
+        }
+    }
+    LaunchedEffect(rowsTakenAway) {
+        if (rowsTakenAway > 0) {
+            // A row tapped away goes once the rows have been drawn with their closing-up motion (and goes all the
+            // same if this is cut short), so it fades out as the others glide.
+            try {
+                withFrameNanos { }
+            } finally {
+                ui.removeTakenRows()
+            }
+            kotlinx.coroutines.delay(ROWS_CLOSE_UP_MILLIS)
+            ui.rowsClosedUp()
+        }
+    }
+    CompositionLocalProvider(LocalResultRowsClosingUp provides s.ui.rowsClosingUp) { ResultRows(s) }
+}
+
+@Composable
+private fun ResultRows(s: OverlayScope) {
     val onOpenSettings = s.onOpenSettings
     val viewModel = s.viewModel
     val uiState = s.uiState
@@ -179,8 +206,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     ) {
         val renderInlineShortcuts = {
             if (uiState.query.isNotEmpty()) {
-                item(key = "inline_shortcuts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                item(key = "lens_shortcut", contentType = "shortcut") {
+                resultRow(key = "inline_shortcuts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                resultRow(key = "lens_shortcut", contentType = "shortcut") {
                     ShortcutRow(
                         iconRes = R.drawable.ic_camera,
                         title = "Search with Google Lens",
@@ -191,7 +218,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         }
                     )
                 }
-                item(key = "voice_shortcut", contentType = "shortcut") {
+                resultRow(key = "voice_shortcut", contentType = "shortcut") {
                     ShortcutRow(
                         iconRes = R.drawable.ic_mic,
                         title = "Search with Voice",
@@ -202,7 +229,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         }
                     )
                 }
-                item(key = "assistant_shortcut", contentType = "shortcut") {
+                resultRow(key = "assistant_shortcut", contentType = "shortcut") {
                     ShortcutRow(
                         iconRes = R.drawable.ic_lens_action,
                         title = "Digital Assistant",
@@ -222,7 +249,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
 
         val systemToggle = uiState.systemToggle
         if (systemToggle != null) {
-            item(key = "system_toggle_card_${systemToggle.id}", contentType = "system_toggle") {
+            resultRow(key = "system_toggle_card_${systemToggle.id}", contentType = "system_toggle") {
                 com.pixel.intelligentsearch.core.ui.SystemToggleCard(
                     toggleState = systemToggle,
                     modifier = Modifier.padding(bottom = 6.dp)
@@ -232,7 +259,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
 
         val volumeSlider = uiState.volumeSlider
         if (volumeSlider != null) {
-            item(key = "volume_slider_${volumeSlider.streamType}", contentType = "volume_slider") {
+            resultRow(key = "volume_slider_${volumeSlider.streamType}", contentType = "volume_slider") {
                 com.pixel.intelligentsearch.core.ui.VolumeSliderCard(
                     title = volumeSlider.title,
                     streamType = volumeSlider.streamType,
@@ -245,7 +272,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
 
         // "Did you mean": an obvious typo in a query that matched nothing on the phone. Tapping fills the fix in.
         uiState.spellingSuggestion?.let { corrected ->
-            item(key = ResultListKeys.DID_YOU_MEAN, contentType = "did_you_mean") {
+            resultRow(key = ResultListKeys.DID_YOU_MEAN, contentType = "did_you_mean") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -287,17 +314,15 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         // Parsed intents (timers, alarms, events, messages, calls, navigation) always show; clipboard
         // actions are only added to this list when smart clipboard suggestions are enabled.
         if (uiState.directActions.isNotEmpty()) {
-            uniqueItems(uiState.directActions, key = ResultListKeys::directAction, contentType = { "direct_action" }) { action ->
-                val swipe = rememberSwipeToDismiss(sensoryEngine, view) { viewModel.dismissDirectAction(action) }
+            resultRows(uiState.directActions, key = ResultListKeys::directAction, contentType = { "direct_action" }) { action ->
+                val swipe = rememberSwipeToDismiss(sensoryEngine, view) {
+                    s.ui.rowTakenAway()
+                    viewModel.dismissDirectAction(action)
+                }
 
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .animateItem(
-                            placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
-                            fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
-                            fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-                        )
                         .swipeOffset(swipe)
                 ) {
                     DirectActionRow(
@@ -315,7 +340,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     }
                 }
             }
-            item(key = "direct_actions_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+            resultRow(key = "direct_actions_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
         }
 
         // AI Answers: "Ask Claude" for a question, sending it only when tapped; then its answer, for this query only.
@@ -323,7 +348,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         val aiAnswer = uiState.aiAnswer
         val question = com.pixel.intelligentsearch.core.ai.AiAnswers.questionIn(uiState.query)
         if (aiAnswer != null) {
-            item(key = ResultListKeys.AI_ANSWER, contentType = "ai_answer") {
+            resultRow(key = ResultListKeys.AI_ANSWER, contentType = "ai_answer") {
                 HighlightedCard(s, ResultListKeys.AI_ANSWER) {
                     AiAnswerCard(
                         aiAnswer,
@@ -337,7 +362,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 }
             }
         } else if (aiOffer != null && question != null) {
-            item(key = ResultListKeys.ASK_AI, contentType = "direct_action") {
+            resultRow(key = ResultListKeys.ASK_AI, contentType = "direct_action") {
                 AskAiRow(aiOffer, question, modifier = Modifier.keyboardHighlight(s, ResultListKeys.ASK_AI, DirectActionRowShape)) {
                     focusManager.clearFocus(force = true)
                     keyboardController?.hide()
@@ -352,22 +377,22 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         }
 
         if (bestMatch != null) {
-            item(key = ResultListKeys.BEST_MATCH, contentType = "best_match") {
+            resultRow(key = ResultListKeys.BEST_MATCH, contentType = "best_match") {
                 OverlayBestMatchCard(s, bestMatch)
             }
         }
 
         // What the user pinned, on the empty overlay; with a query, pinned results lead their own sections instead.
         if (uiState.query.isEmpty() && uiState.pinned.isNotEmpty()) {
-            item(key = ResultListKeys.PINNED, contentType = "pinned_results") { OverlayPinnedRow(s) }
+            resultRow(key = ResultListKeys.PINNED, contentType = "pinned_results") { OverlayPinnedRow(s) }
         }
 
         // Debug menu: Mock Trending Queries fills the empty search state with stand-in topics.
         if (mockTrendingOn && uiState.query.isEmpty()) {
-            item(key = "header_trending", contentType = "recent_label") {
+            resultRow(key = "header_trending", contentType = "recent_label") {
                 OverlaySectionLabel("Trending")
             }
-            uniqueItems(DebugMocks.trendingQueries, key = { topic -> "trending_$topic" }, contentType = { "recent_query" }) { topic ->
+            resultRows(DebugMocks.trendingQueries, key = { topic -> "trending_$topic" }, contentType = { "recent_query" }) { topic ->
                 val pillShape = RoundedCornerShape(28.dp)
                 Row(
                     modifier = Modifier
@@ -401,15 +426,10 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         }
 
         if (settingsState.searchPreviousSearches && uiState.query.isEmpty() && distinctRecents.isNotEmpty()) {
-            item(key = "header_recent_searches", contentType = "recent_label") {
+            resultRow(key = "header_recent_searches", contentType = "recent_label") {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .animateItem(
-                            placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
-                            fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
-                            fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-                        )
                         .padding(horizontal = 24.dp, vertical = 6.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
@@ -419,7 +439,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                         Surface(
                             onClick = {
                                 sensoryEngine.deleteThud(view)
-                                viewModel.clearSearchHistory()
+                                s.ui.takeRowAway { viewModel.clearSearchHistory() }
                                 showHistoryClearedSnackbar = true
                             },
                             shape = RoundedCornerShape(16.dp),
@@ -453,13 +473,13 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     }
                 }
             }
-            uniqueItems(distinctRecents, key = ResultListKeys::recent, contentType = { "recent_query" }) { recentQuery ->
+            resultRows(distinctRecents, key = ResultListKeys::recent, contentType = { "recent_query" }) { recentQuery ->
                 OverlayRecentSearchRow(s, recentQuery)
             }
         }
 
         if (uiState.mathResult != null) {
-            item(key = ResultListKeys.MATH, contentType = "math_result") {
+            resultRow(key = ResultListKeys.MATH, contentType = "math_result") {
                 HighlightedCard(s, ResultListKeys.MATH) {
                     MathResultOneBox(
                         expression = uiState.query,
@@ -480,11 +500,11 @@ internal fun OverlaySearchResults(s: OverlayScope) {
         val liveAnswer = uiState.liveAnswer?.takeIf { it.query == uiState.query }
         val instantAnswer = uiState.instantAnswer
         if (liveAnswer != null) {
-            item(key = ResultListKeys.LIVE_ANSWER, contentType = "live_answer") {
+            resultRow(key = ResultListKeys.LIVE_ANSWER, contentType = "live_answer") {
                 HighlightedCard(s, ResultListKeys.LIVE_ANSWER) { OverlayLiveAnswer(s, liveAnswer) }
             }
         } else if (instantAnswer != null) {
-            item(key = ResultListKeys.INSTANT_ANSWER, contentType = "instant_answer") {
+            resultRow(key = ResultListKeys.INSTANT_ANSWER, contentType = "instant_answer") {
                 HighlightedCard(s, ResultListKeys.INSTANT_ANSWER) { OverlayInstantAnswer(s, instantAnswer) }
             }
         }
@@ -495,8 +515,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     val isAppsEnabled = settingsState.searchApps
                     val displayApps = if (filteredApps.isNotEmpty()) filteredApps else visibleApps
                     if (isAppsEnabled && displayApps.isNotEmpty()) {
-                        item(key = "apps_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                        item(key = ResultListKeys.APPS_ROW, contentType = "apps_row") {
+                        resultRow(key = "apps_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                        resultRow(key = ResultListKeys.APPS_ROW, contentType = "apps_row") {
                             val appRowState = androidx.compose.foundation.lazy.rememberLazyListState()
                             // A highlighted app is scrolled into view along the row.
                             LaunchedEffect(highlightedKey) {
@@ -533,8 +553,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 }
                 "android_settings" -> {
                     if (uiState.query.isNotEmpty() && uiState.androidSettings.isNotEmpty()) {
-                        item(key = "android_settings_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                        uniqueItems(uiState.androidSettings, key = ResultListKeys::setting, contentType = { "android_setting" }) { setting ->
+                        resultRow(key = "android_settings_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                        resultRows(uiState.androidSettings, key = ResultListKeys::setting, contentType = { "android_setting" }) { setting ->
                             // App Info rows stand for an app, so they have no menu of their own.
                             val menuTarget = if (ResultKeys.setting(setting) != null) ResultMenuTarget.Setting(setting) else null
                             ResultMenuBox(s, menuTarget) { openMenu ->
@@ -552,18 +572,13 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                 "web" -> {
                     if ((settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
                         if (allDisplaySuggestions.isNotEmpty()) {
-                            uniqueItems(allDisplaySuggestions, key = { suggestion -> ResultListKeys.suggestion(suggestion.query) }, contentType = { "web_suggestion" }) { suggestion ->
+                            resultRows(allDisplaySuggestions, key = { suggestion -> ResultListKeys.suggestion(suggestion.query) }, contentType = { "web_suggestion" }) { suggestion ->
                                 val query = suggestion.query
                                 val isRecent = uiState.recentSearches.any { it.equals(query, ignoreCase = true) }
                                 // Past searches have a menu (Remove from History); the engine's suggestions keep none.
                                 ResultMenuBox(
                                     s,
-                                    if (isRecent) ResultMenuTarget.History(query) else null,
-                                    modifier = Modifier.animateItem(
-                                        placementSpec = ExpressiveMotionTokens.Spatial.ExpressiveDefault(),
-                                        fadeInSpec = ExpressiveMotionTokens.Effects.FastSpatial(),
-                                        fadeOutSpec = ExpressiveMotionTokens.Effects.FastSpatial()
-                                    )
+                                    if (isRecent) ResultMenuTarget.History(query) else null
                                 ) { openMenu ->
                                     OverlayWebSuggestionRow(
                                         suggestion = suggestion,
@@ -579,7 +594,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                             viewModel.addSearchHistory(query)
                                             launchWebSearch(query)
                                         },
-                                        onRemove = { viewModel.removeSearchHistory(query) },
+                                        onRemove = { s.ui.takeRowAway { viewModel.removeSearchHistory(query) } },
                                         onFill = {
                                             hasStartedTyping = true
                                             textFieldValue = androidx.compose.ui.text.input.TextFieldValue(
@@ -598,8 +613,8 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     val isContactsEnabled = settingsState.searchContacts
                     val displayContacts = if (filteredContacts.isNotEmpty()) filteredContacts else uiState.contacts
                     if (isContactsEnabled && displayContacts.isNotEmpty()) {
-                        item(key = "contacts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
-                        uniqueItems(displayContacts, key = ResultListKeys::contact, contentType = { "contact" }) { contact ->
+                        resultRow(key = "contacts_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                        resultRows(displayContacts, key = ResultListKeys::contact, contentType = { "contact" }) { contact ->
                             val isDirectCall = settingsState.contactDirectCall
                             val menuTarget = if (ResultKeys.contact(contact) != null) ResultMenuTarget.Contact(contact) else null
                             ResultMenuBox(s, menuTarget) { openMenu ->
@@ -661,9 +676,9 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                     val fileTypeFilter = uiState.fileTypeFilter
                     // A type named in the query shows its chip even before (or without) any file of that type.
                     if (isFilesEnabled && (displayFiles.isNotEmpty() || fileTypeFilter != null)) {
-                        item(key = "files_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
+                        resultRow(key = "files_divider", contentType = "divider") { HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f), thickness = 0.8.dp, modifier = Modifier.padding(horizontal = 16.dp)) }
                         if (fileTypeFilter != null) {
-                            item(key = ResultListKeys.FILE_TYPE_FILTER, contentType = "file_type_filter") {
+                            resultRow(key = ResultListKeys.FILE_TYPE_FILTER, contentType = "file_type_filter") {
                                 FileTypeFilterChip(
                                     fileTypeFilter,
                                     onRemove = viewModel::clearFileTypeFilter,
@@ -671,7 +686,7 @@ internal fun OverlaySearchResults(s: OverlayScope) {
                                 )
                             }
                         }
-                        uniqueItems(displayFiles, key = ResultListKeys::file, contentType = { "file" }) { file ->
+                        resultRows(displayFiles, key = ResultListKeys::file, contentType = { "file" }) { file ->
                             ResultMenuBox(s, ResultMenuTarget.File(file)) { openMenu ->
                                 Row(
                                     modifier = Modifier

@@ -49,7 +49,10 @@
 
             <!-- A note of song, hidden until the bird sings -->
             <group android:name="note" android:scaleX="0.8" android:scaleY="0.8" android:translateX="32.4" android:translateY="4.6">
-                <path android:name="note_shape" android:fillColor="#FF4285F4" android:fillAlpha="0" android:pathData="M-0.58,0.21a0.62,0.46 -20 1,0 1.17,-0.42a0.62,0.46 -20 1,0 -1.17,0.42ZM0.42,-0.1L0.42,-2.9L1.75,-2.35L1.75,-1.8L0.82,-2.15L0.82,-0.1Z" />
+                <!-- Kept the right way round where the doodle is mirrored -->
+                <group android:pivotX="0.58" android:scaleX="@dimen/doodle_glyphs_scale_x">
+                    <path android:name="note_shape" android:fillColor="#FF4285F4" android:fillAlpha="0" android:pathData="M-0.58,0.21a0.62,0.46 -20 1,0 1.17,-0.42a0.62,0.46 -20 1,0 -1.17,0.42ZM0.42,-0.1L0.42,-2.9L1.75,-2.35L1.75,-1.8L0.82,-2.15L0.82,-0.1Z" />
+                </group>
             </group>
 
             <group android:name="petal_1" android:translateX="9" android:translateY="24">

@@ -29,11 +29,14 @@
                 <path android:fillColor="#FFFFFFFF" android:strokeColor="#FFBDC1C6" android:strokeWidth="0.4" android:pathData="M-2.6,-2.8L2.6,-2.8Q3.2,-2.8 3.2,-2.2L3.2,3.2Q3.2,3.8 2.6,3.8L-2.6,3.8Q-3.2,3.8 -3.2,3.2L-3.2,-2.2Q-3.2,-2.8 -2.6,-2.8Z" />
                 <path android:fillColor="#FFEA4335" android:pathData="M-2.6,-2.8L2.6,-2.8Q3.2,-2.8 3.2,-2.2L3.2,-0.8L-3.2,-0.8L-3.2,-2.2Q-3.2,-2.8 -2.6,-2.8Z" />
                 <path android:fillColor="#FF5F6368" android:pathData="M-1.92,-2.8a0.42,0.42 0,1 0,0.84,0a0.42,0.42 0,1 0,-0.84,0ZM1.08,-2.8a0.42,0.42 0,1 0,0.84,0a0.42,0.42 0,1 0,-0.84,0Z" />
+                <!-- The 29, kept the right way round where the doodle is mirrored -->
+                <group android:pivotX="0.04" android:scaleX="@dimen/doodle_glyphs_scale_x">
                 <group android:scaleX="0.95" android:scaleY="0.95" android:translateX="-1.05" android:translateY="1.55">
                     <path android:strokeColor="#FF3C4043" android:strokeWidth="0.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-0.75,-0.75Q-0.75,-1.45 0,-1.45Q0.75,-1.45 0.75,-0.75Q0.75,-0.15 -0.8,1.45L0.85,1.45" />
                 </group>
                 <group android:scaleX="0.95" android:scaleY="0.95" android:translateX="1.15" android:translateY="1.55">
                     <path android:strokeColor="#FF3C4043" android:strokeWidth="0.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M-0.72,-0.6a0.72,0.8 0,1 0,1.44,0a0.72,0.8 0,1 0,-1.44,0ZM0.72,-0.6Q0.78,1.45 -0.6,1.45" />
+                </group>
                 </group>
             </group>
 

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This doodle where the home screen reads right to left: drawn mirrored, so it fits the bar's right end the way it
+     fits the left one, with its digits and letters turned back the right way round (see doodle_glyphs_scale_x). -->
+<ProgressBar xmlns:android="http://schemas.android.com/apk/res/android"
+    style="@style/WidgetDoodle"
+    android:scaleX="-1"
+    android:indeterminateDrawable="@drawable/doodle_hello_day" />

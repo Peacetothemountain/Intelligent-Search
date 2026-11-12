@@ -85,7 +85,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     SettingsDropdownRow(
                         title = "Temperature",
                         subtitle = if (temperature == TemperatureChoice.AUTOMATIC) {
-                            "Automatic (${TemperatureUnit.forLocale(java.util.Locale.getDefault()).symbol}), From Your Region"
+                            "Automatic (${TemperatureUnit.forLocale(androidx.compose.ui.platform.LocalLocale.current.platformLocale).symbol}), From Your Region"
                         } else temperature.label,
                         icon = Symbols.Outlined.Thermostat,
                         options = TemperatureChoice.entries.map { it.label },

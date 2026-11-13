@@ -109,14 +109,14 @@ internal fun HardwareSecurityPage(
                 Spacer(modifier = Modifier.height(4.dp))
                 val status = when {
                     verifying || attestationResult == null -> "Verifying..."
-                    attestationResult.isHardwareAttested -> "Hardware Verified"
+                    attestationResult.isHardwareAttested -> "Verified by Google's Hardware Root"
                     // Only a verified chain earns "Verified"; otherwise just name where the key lives.
-                    attestationResult.securityLevel == HardwareSecurityLevel.STRONGBOX -> "StrongBox Backed (unverified)"
-                    attestationResult.securityLevel == HardwareSecurityLevel.TEE -> "TEE Backed (TrustZone)"
+                    attestationResult.securityLevel == HardwareSecurityLevel.STRONGBOX -> "StrongBox Backed (Unverified)"
+                    attestationResult.securityLevel == HardwareSecurityLevel.TEE -> "TEE Backed (Unverified)"
                     else -> "Software Backed"
                 }
                 Text(
-                    text = "Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): $status" + if (verified) " ✓" else "",
+                    text = "Key Attestation: $status" + if (verified) " ✓" else "",
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
                     color = if (verified) scheme.primary else scheme.onSurfaceVariant,
@@ -129,6 +129,9 @@ internal fun HardwareSecurityPage(
         SecurityPostureCard(posture)
     }
 }
+
+/** "1 certificate", "4 certificates". */
+internal fun certificateCountLabel(count: Int): String = if (count == 1) "1 certificate" else "$count certificates"
 
 /** One line of the details box. */
 @Composable
@@ -151,9 +154,9 @@ private fun CertificateChainRow(
 ) {
     val count = attestationResult?.certificateCount?.takeUnless { verifying }
     val description = when {
-        count == null -> "Certificate chain depth: checking"
-        verified -> "Certificate chain depth: $count certificates, verified"
-        else -> "Certificate chain depth: $count certificates"
+        count == null -> "Certificate chain: checking"
+        verified -> "Certificate chain: ${certificateCountLabel(count)}, from this app's key to Google's root, verified"
+        else -> "Certificate chain: ${certificateCountLabel(count)}"
     }
     FlowRow(
         modifier = Modifier
@@ -164,7 +167,7 @@ private fun CertificateChainRow(
         itemVerticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Certificate Chain Depth: ${count ?: "..."} certificates",
+            text = "Certificate Chain: ${count?.let(::certificateCountLabel) ?: "Checking..."}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

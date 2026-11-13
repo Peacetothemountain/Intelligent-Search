@@ -30,6 +30,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,7 +75,9 @@ internal data class BatteryTelemetrySnapshot(
     val chargingRateStr: String,
     val timeEstimateStr: String,
     /** What the phone is plugged into and doing, or null on battery; [chargingRateStr] is its full label. */
-    val power: ChargingStatus.Status? = null
+    val power: ChargingStatus.Status? = null,
+    /** Whether [watts] is going into the battery (true) or out of it (false); null when that isn't known. */
+    val powerIn: Boolean? = null
 )
 
 /** Test tag of the battery card's header chip, which shows the charging status (or a health warning). */
@@ -180,7 +183,8 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
             -1
         }
 
-        val bTechnology = batteryStatus?.getStringExtra(android.os.BatteryManager.EXTRA_TECHNOLOGY)?.takeIf { it.isNotBlank() } ?: "Li-ion"
+        // Only what the phone reports: a guessed "Li-ion" would read as a fact.
+        val bTechnology = batteryStatus?.getStringExtra(android.os.BatteryManager.EXTRA_TECHNOLOGY)?.takeIf { it.isNotBlank() }.orEmpty()
 
         // Device-wide thermal throttling state (not battery temperature).
         val pmPower = appContext.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
@@ -201,6 +205,15 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
         val netForEstimate = if (batteryCurrentReader.isSettled(nowMs) && BatteryReadings.averageAgrees(netNowMa, netAvgMa)) netAvgMa else netNowMa
         if (netForEstimate != null) smoothedNetMa = BatteryReadings.smooth(smoothedNetMa, netForEstimate)
         val bWatts = if (bVolt > 0f && netNowMa != null) bVolt * kotlin.math.abs(netNowMa) / 1000f else null
+        // Which way the power is going. On battery it can only be going out. Plugged in, the current's sign says
+        // once an unplugged reading has confirmed it; until then a charging phone is taken to be gaining.
+        val bPowerIn: Boolean? = when {
+            netNowMa == null -> null
+            unplugged -> false
+            batteryCurrentReader.signLocked -> netNowMa > 0f
+            chargeState == BatteryReadings.ChargeState.Charging -> true
+            else -> null
+        }
 
         // CHARGE_COUNTER is µAh; dropped when it implies an implausible full capacity.
         val chargeMah = try {
@@ -281,6 +294,7 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
             temp = bTemp,
             volt = bVolt,
             watts = bWatts,
+            powerIn = bPowerIn,
             health = bHealth,
             healthSeverity = bHealthSeverity,
             cycles = cycles,
@@ -358,10 +372,11 @@ internal fun BatteryAndMemoryDiagnosticsPage(
     var batteryTemp by remember { mutableFloatStateOf(0f) }
     var batteryVolt by remember { mutableFloatStateOf(0f) }
     var batteryWatts by remember { mutableStateOf<Float?>(null) }
+    var batteryPowerIn by remember { mutableStateOf<Boolean?>(null) }
     var batteryHealth by remember { mutableStateOf(BatteryReadings.HEALTH_NOT_REPORTED) }
     var batteryHealthSeverity by remember { mutableStateOf(BatteryReadings.HealthSeverity.Ok) }
     var batteryCycles by remember { mutableIntStateOf(-1) }
-    var batteryTechnology by remember { mutableStateOf("Li-ion") }
+    var batteryTechnology by remember { mutableStateOf("") }
     var thermalStatus by remember { mutableStateOf("Normal") }
     var isCharging by remember { mutableStateOf(false) }
     var chargingRateStr by remember { mutableStateOf("Reading battery...") }
@@ -407,6 +422,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                     batteryTemp = bSnap.temp
                     batteryVolt = bSnap.volt
                     batteryWatts = bSnap.watts
+                    batteryPowerIn = bSnap.powerIn
                     batteryHealth = bSnap.health
                     batteryHealthSeverity = bSnap.healthSeverity
                     batteryCycles = bSnap.cycles
@@ -441,6 +457,11 @@ internal fun BatteryAndMemoryDiagnosticsPage(
     val motion = rememberDiagnosticsMotion(animationsEnabled)
 
     val scheme = MaterialTheme.colorScheme
+    // The battery's temperature in the scale the rest of the app answers in (Settings' Temperature choice).
+    val storedTemperatureUnit by com.pixel.intelligentsearch.core.data.settings.rememberSetting(com.pixel.intelligentsearch.core.data.SettingsManager.TEMPERATURE_UNIT)
+    val temperatureUnit = com.pixel.intelligentsearch.core.answers.TemperatureUnit.chosen(
+        storedTemperatureUnit, androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    )
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -497,7 +518,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${String.format(java.util.Locale.US, "%.1f", batteryTemp)} °C / ${String.format(java.util.Locale.US, "%.0f", batteryTemp * 1.8f + 32f)} °F  •  ${String.format(java.util.Locale.US, "%.2f", batteryVolt)} V  •  $batteryTechnology",
+                            text = batteryDetailLine(batteryTemp, temperatureUnit, batteryVolt, batteryTechnology),
                             style = MaterialTheme.typography.labelSmall,
                             fontSize = 10.5.sp,
                             color = scheme.onSurfaceVariant,
@@ -511,7 +532,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
             DiagnosticsMetricGrid(
                 listOf(
                     DiagnosticsMetric("Cycles", if (batteryCycles >= 0) "$batteryCycles" else "N/A"),
-                    DiagnosticsMetric("Power", batteryWatts?.let { "${String.format(java.util.Locale.US, "%.1f", it)}W" } ?: "N/A"),
+                    DiagnosticsMetric(powerLabel(batteryPowerIn), batteryWatts?.let { "${String.format(java.util.Locale.US, "%.1f", it)} W" } ?: "N/A"),
                     DiagnosticsMetric(
                         "Thermals",
                         thermalStatus,
@@ -543,7 +564,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                 val (pressureContainer, pressureContent) = pressureChipColors(memoryPressure, scheme)
                 DiagnosticsStatusChip(text = memoryPressure, container = pressureContainer, content = pressureContent)
                 Text(
-                    text = "${usedRamGb}G / ${totalRamGb}G (${physicalRamGb}G)",
+                    text = ramHeaderLine(usedRamGb, totalRamGb, physicalRamGb),
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
                     color = scheme.secondary
@@ -614,15 +635,46 @@ internal fun BatteryAndMemoryDiagnosticsPage(
 
             DiagnosticsMetricGrid(
                 listOf(
-                    DiagnosticsMetric("Swapped", "${zRamUsedGb}G / ${zRamTotalGb}G"),
-                    DiagnosticsMetric("Cache/Buffers", "${cachedRamGb}G"),
+                    DiagnosticsMetric("Swapped", "$zRamUsedGb / $zRamTotalGb GB"),
+                    DiagnosticsMetric("Cache/Buffers", "$cachedRamGb GB"),
                     DiagnosticsMetric("Used", "$usedRamPercent%"),
-                    DiagnosticsMetric("Low-Mem Level", "${lmkThresholdMb}MB")
+                    DiagnosticsMetric("Low-Mem Level", "$lmkThresholdMb MB")
                 )
             )
         }
     }
 }
+
+/**
+ * The battery card's small print: its temperature in the user's own scale ([unit]), its voltage, and its chemistry
+ * when the phone reports one.
+ */
+internal fun batteryDetailLine(
+    tempCelsius: Float,
+    unit: com.pixel.intelligentsearch.core.answers.TemperatureUnit,
+    volts: Float,
+    technology: String
+): String {
+    val temperature = if (unit == com.pixel.intelligentsearch.core.answers.TemperatureUnit.FAHRENHEIT) {
+        String.format(java.util.Locale.US, "%.0f °F", tempCelsius * 1.8f + 32f)
+    } else {
+        String.format(java.util.Locale.US, "%.1f °C", tempCelsius)
+    }
+    return listOf(temperature, String.format(java.util.Locale.US, "%.2f V", volts), technology)
+        .filter { it.isNotBlank() }
+        .joinToString("  •  ")
+}
+
+/** The power reading's label: which way the watts are going, when the phone says. */
+internal fun powerLabel(powerIn: Boolean?): String = when (powerIn) {
+    true -> "Power In"
+    false -> "Power Out"
+    null -> "Power"
+}
+
+/** The memory card's header line: memory in use of what Android can use, and the size the phone is sold with. */
+internal fun ramHeaderLine(usedGb: String, totalGb: String, installedGb: Int): String =
+    "$usedGb / $totalGb GB" + if (installedGb > 0) "  •  $installedGb GB installed" else ""
 
 /** The health chip's background and label colours for each rating. */
 internal fun healthChipColors(severity: BatteryReadings.HealthSeverity, scheme: ColorScheme): Pair<Color, Color> = when (severity) {
@@ -703,8 +755,9 @@ private const val POINT_PULSE_MAX = 5.5f
 
 @Composable
 private fun BatteryLevelWave(batteryLevel: Int, wave: State<Float>, modifier: Modifier) {
-    val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val scheme = MaterialTheme.colorScheme
+    // The app's theme, which Settings can set apart from the system's.
+    val isDark = scheme.surface.luminance() < 0.5f
     // Lighter Material You accented color from the user's dynamic palette (tone ~65: balanced between light & dark, never yellowish-white)
     val waveAccentColor = remember(scheme, isDark) {
         if (isDark) {
@@ -719,6 +772,11 @@ private fun BatteryLevelWave(batteryLevel: Int, wave: State<Float>, modifier: Mo
             .background(scheme.surfaceVariant.copy(alpha = 0.45f)),
         contentAlignment = Alignment.Center
     ) {
+        // One path and one gradient for the life of the graph, not a new pair on every frame.
+        val wavePath = remember { androidx.compose.ui.graphics.Path() }
+        val waveBrush = remember(waveAccentColor) {
+            androidx.compose.ui.graphics.Brush.verticalGradient(listOf(waveAccentColor.copy(alpha = 0.85f), waveAccentColor))
+        }
         androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
@@ -726,7 +784,8 @@ private fun BatteryLevelWave(batteryLevel: Int, wave: State<Float>, modifier: Mo
             val fillHeight = (h * (batteryLevel / 100f).coerceIn(0.05f, 1f))
             val baseWaterY = h - fillHeight
 
-            val path = androidx.compose.ui.graphics.Path().apply {
+            val path = wavePath.apply {
+                rewind()
                 moveTo(0f, h)
                 lineTo(0f, baseWaterY)
                 for (x in 0..w.toInt() step 4) {
@@ -738,12 +797,7 @@ private fun BatteryLevelWave(batteryLevel: Int, wave: State<Float>, modifier: Mo
                 lineTo(w, h)
                 close()
             }
-            drawPath(
-                path = path,
-                brush = androidx.compose.ui.graphics.Brush.verticalGradient(
-                    listOf(waveAccentColor.copy(alpha = 0.85f), waveAccentColor)
-                )
-            )
+            drawPath(path = path, brush = waveBrush)
         }
         Text(
             text = "$batteryLevel%",
@@ -974,14 +1028,14 @@ private fun RamCategoryGraph(
                 .padding(horizontal = 6.dp, vertical = 2.dp)
         ) {
             Text(
-                text = "${ceilingMb}M",
+                text = if (ceilingMb >= 1000) String.format(java.util.Locale.US, "%.1f GB", ceilingMb / 1000f) else "$ceilingMb MB",
                 fontSize = 7.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
                 modifier = Modifier.align(Alignment.TopStart)
             )
             Text(
-                text = "0M",
+                text = "0",
                 fontSize = 7.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),

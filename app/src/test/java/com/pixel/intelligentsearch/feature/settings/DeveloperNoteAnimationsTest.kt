@@ -123,10 +123,20 @@ class DeveloperNoteAnimationsTest {
     @Test
     fun withNothingDoneOnlyUsbDebuggingIsTappable() {
         Settings.Global.putInt(context.contentResolver, Settings.Global.ADB_ENABLED, 0)
+        Settings.Global.putInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 1)
         showPath()
         compose.onNodeWithText("Turn this on", substring = true).assertHasClickAction()
         compose.onNodeWithText("Run the commands", substring = true).assertHasNoClickAction()
         compose.onNodeWithText("Choose it in Settings", substring = true).assertHasNoClickAction()
+    }
+
+    /** USB debugging lives in Developer options, so with those off the first step says to turn them on first. */
+    @Test
+    fun withDeveloperOptionsOffTheFirstStepSaysToTurnThemOn() {
+        Settings.Global.putInt(context.contentResolver, Settings.Global.ADB_ENABLED, 0)
+        Settings.Global.putInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0)
+        showPath()
+        compose.onNodeWithText("Turn on Developer options, then this", substring = true).assertHasClickAction()
     }
 
     @Test

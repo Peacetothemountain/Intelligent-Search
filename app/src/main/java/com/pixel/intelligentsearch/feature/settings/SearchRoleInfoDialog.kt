@@ -63,8 +63,10 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
             attestationVerifier.generateAndVerifyAttestation()
         }
     }
-    // Read once per opening: a screen lock can't change while this dialog is in front.
-    val deviceSecure = remember {
+    // Read again as the screen comes back: the page's own Set Screen Lock button leaves for Android's
+    // settings with this dialog still open, and the lock set there has to show on return.
+    val resumes = rememberPhoneStateTick()
+    val deviceSecure = remember(resumes) {
         (context.getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager)?.isDeviceSecure == true
     }
     val posture = remember(hardwareLevel, attestationResult, deviceSecure) {
@@ -163,7 +165,7 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                             Text("Diagnostics")
                         }
                         // Once it is the default search engine there is nothing left to run.
-                        if (!com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)) {
+                        if (!remember(resumes) { com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context) }) {
                             TextButton(onClick = {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? android.content.ClipboardManager
                                 // Every command: selecting the app alone fails while it isn't on the search engine list.
@@ -221,6 +223,9 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
 private const val DEFAULT_SEARCH_ENGINE_NOTE =
     "To set Intelligent Search as your Default Search please follow ADB cmd line steps to apply Intelligent Search as default on Pixel Launcher."
 
+/** What to expect once the commands have run. */
+private const val ADB_DONE_NOTE = "The steps below check themselves off as each one is done."
+
 /** The Developer Note dialog's cards: the Diagnostics and Hardware & Security pages' own, matte with a hairline. */
 private val NoteCardShape = RoundedCornerShape(16.dp)
 
@@ -259,7 +264,9 @@ private fun DeveloperNoteCards(context: Context, scheme: androidx.compose.materi
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(DiagnosticsCardSpacing)
     ) {
-        val roleHeld = com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context)
+        // Read again whenever the user comes back, so the cards follow the commands as soon as they have run.
+        val resumes = rememberPhoneStateTick()
+        val roleHeld = remember(resumes) { com.pixel.intelligentsearch.core.system.SearchRoleManager.isSearchRoleHeld(context) }
         // Once it is the default, the card below says so and can change it.
         if (!roleHeld) {
             DiagnosticsCard(icon = Symbols.Outlined.TravelExplore, title = "Default Search Engine", accent = scheme.primary) {
@@ -316,7 +323,7 @@ private fun DeveloperNoteCards(context: Context, scheme: androidx.compose.materi
                 }
             }
         } else {
-            val isListed = remember { com.pixel.intelligentsearch.core.system.SearchRoleManager.isListedAsSearchEngine(context) }
+            val isListed = remember(resumes) { com.pixel.intelligentsearch.core.system.SearchRoleManager.isListedAsSearchEngine(context) }
             DiagnosticsCard(
                 icon = Symbols.Outlined.CheckCircle,
                 title = "Search Engine List",
@@ -370,6 +377,11 @@ private fun DeveloperNoteCards(context: Context, scheme: androidx.compose.materi
                         }
                     }
                 }
+                Text(
+                    text = ADB_DONE_NOTE,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = scheme.onSurfaceVariant
+                )
                 // Already listed (the commands were run before): picking it in Android's settings is all that's left.
                 if (isListed) {
                     Button(

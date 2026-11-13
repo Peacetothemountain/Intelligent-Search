@@ -63,8 +63,8 @@ class HardwareSecurityPageTest {
         show()
         // Not scrambled, not still on its way in: the real text, on the very first frame.
         compose.onNodeWithText("Device: ${hardware.deviceDisplayName}").assertExists()
-        compose.onNodeWithText("Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): Hardware Verified ✓").assertExists()
-        compose.onNodeWithText("Certificate Chain Depth: 4 certificates", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("Key Attestation: Verified by Google's Hardware Root ✓").assertExists()
+        compose.onNodeWithText("Certificate Chain: 4 certificates", useUnmergedTree = true).assertExists()
         compose.onNodeWithText(hardware.description).assertExists()
         compose.onNodeWithTag(SECURE_CHIP_TAG).assertExists()
     }
@@ -79,10 +79,10 @@ class HardwareSecurityPageTest {
     fun whileVerifyingTheLineSaysSoThenReadsTheAnswer() {
         result = null
         show()
-        compose.onNodeWithText("Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): Verifying...").assertExists()
+        compose.onNodeWithText("Key Attestation: Verifying...").assertExists()
         result = attestation
         Snapshot.sendApplyNotifications()
         compose.mainClock.advanceTimeByFrame()
-        compose.onNodeWithText("Hardware Attestation (OID 1.3.6.1.4.1.11129.2.1.17): Hardware Verified ✓").assertExists()
+        compose.onNodeWithText("Key Attestation: Verified by Google's Hardware Root ✓").assertExists()
     }
 }

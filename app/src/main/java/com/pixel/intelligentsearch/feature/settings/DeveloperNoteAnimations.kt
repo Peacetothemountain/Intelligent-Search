@@ -44,7 +44,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -85,8 +84,8 @@ import androidx.compose.ui.util.lerp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.system.SearchRoleManager
@@ -163,14 +162,9 @@ private class SetupRowText(val title: String, val toDo: String, val done: String
  */
 @Composable
 internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
-    val lifecycleOwner = LocalLifecycleOwner.current
-    var revision by remember { mutableIntStateOf(0) }
-    DisposableEffect(lifecycleOwner) {
-        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) revision++ }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
+    val revision = rememberPhoneStateTick()
     val usbDebugging = remember(revision) { isUsbDebuggingOn(context) }
+    val developerOptions = remember(revision) { areDeveloperOptionsOn(context) }
     val step = remember(revision) {
         setupStepReached(
             usbDebugging = usbDebugging,
@@ -179,12 +173,41 @@ internal fun SetupPath(context: Context, modifier: Modifier = Modifier) {
             hasPicker = SearchRoleManager.getAvailableSearchRole(context) != null
         )
     }
-    SetupStatusCard(context, step, usbDebugging, modifier)
+    SetupStatusCard(context, step, usbDebugging, modifier, developerOptions)
 }
+
+/**
+ * Counts up each time the screen comes back to the front, and every two seconds while it stays there. A reading
+ * remembered against it is taken again when the user returns from Android's settings, and while the commands run
+ * from a computer with this page still open, so the page follows the phone and never shows an old state.
+ */
+@Composable
+internal fun rememberPhoneStateTick(): Int {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var count by remember { mutableIntStateOf(0) }
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            while (true) {
+                count++
+                kotlinx.coroutines.delay(PHONE_STATE_TICK_MS)
+            }
+        }
+    }
+    return count
+}
+
+private const val PHONE_STATE_TICK_MS = 2_000L
 
 /** [SetupPath]'s container, with the same rim as the search loop's beside it, at setup step [step]. */
 @Composable
-internal fun SetupStatusCard(context: Context, step: Int, usbDebugging: Boolean, modifier: Modifier = Modifier) {
+internal fun SetupStatusCard(
+    context: Context,
+    step: Int,
+    usbDebugging: Boolean,
+    modifier: Modifier = Modifier,
+    /** Whether Developer options are on: USB debugging lives there, so the first step says to turn them on first. */
+    developerOptions: Boolean = true
+) {
     val animations by rememberAnimationsEnabled()
     val shown by animateFloatAsState(
         targetValue = step.toFloat(),
@@ -199,7 +222,11 @@ internal fun SetupStatusCard(context: Context, step: Int, usbDebugging: Boolean,
         0f, 1f, infiniteRepeatable(tween(LIGHT_MS, easing = LinearEasing), RepeatMode.Restart), label = "setup_light"
     )
     val rows = listOf(
-        SetupRowText("USB debugging", "Turn this on", if (usbDebugging) "On" else "Done"),
+        SetupRowText(
+            "USB debugging",
+            if (developerOptions) "Turn this on" else "Turn on Developer options, then this",
+            if (usbDebugging) "On" else "Done"
+        ),
         SetupRowText("Search engine list", "Run the commands", "On the list"),
         SetupRowText("Default search engine", "Choose it in Settings", "Set")
     )
@@ -324,18 +351,25 @@ internal fun isUsbDebuggingOn(context: Context): Boolean {
     }.getOrDefault(false)
 }
 
+/** Whether Developer options are on. A phone that won't say is taken to have them on. */
+internal fun areDeveloperOptionsOn(context: Context): Boolean =
+    runCatching {
+        Settings.Global.getInt(context.contentResolver, Settings.Global.DEVELOPMENT_SETTINGS_ENABLED, 0) == 1
+    }.getOrDefault(true) || isUsbDebuggingOn(context)
+
 /** Takes the user to where step [index] of [SetupPath] gets done. */
 private fun openSetupStep(context: Context, index: Int) {
     when (index) {
         0 -> {
-            val opened = runCatching {
+            // Developer options can't open until they're turned on, which is done on the About Phone page.
+            val opened = areDeveloperOptionsOn(context) && runCatching {
                 context.startActivity(Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            }
-            // Developer options can't open until they're turned on, which starts on the About Phone page.
-            if (opened.isFailure) {
+            }.isSuccess
+            if (!opened) {
                 runCatching {
                     context.startActivity(Intent(Settings.ACTION_DEVICE_INFO_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                 }
+                Toast.makeText(context, "Tap Build number 7 times to turn on Developer options.", Toast.LENGTH_LONG).show()
             }
         }
         1 -> {

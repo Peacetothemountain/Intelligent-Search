@@ -107,7 +107,9 @@ data class TutorialStepInfo(
     val text: String,
     val cardAlignment: Alignment = Alignment.Center,
     val showArrow: Boolean = true,
-    val showCircle: Boolean = false
+    val showCircle: Boolean = false,
+    /** A small piece of the app playing between the title and the words. */
+    val demo: TutorialDemo? = null
 )
 
 
@@ -144,7 +146,9 @@ fun TutorialSpotlightOverlay(
     prefs: SharedPreferences,
     stepsInfo: Map<Int, TutorialStepInfo>,
     onComplete: () -> Unit,
-    onStepAdvance: (Int) -> Unit = {}
+    onStepAdvance: (Int) -> Unit = {},
+    /** Whether the search bar is on the screen behind, for a centered card to keep clear of. Not over Settings. */
+    searchBarBehind: Boolean = true
 ) {
     if (!TutorialManager.isTutorialActive(prefs)) return
 
@@ -448,7 +452,8 @@ fun TutorialSpotlightOverlay(
             stepInfo.showArrow,
             constraints.maxHeight,
             statusBarTopPadding,
-            navBarBottomPadding
+            navBarBottomPadding,
+            searchBarBehind
         ) {
             if (localTargetRect != null && stepInfo.showArrow) {
                 val targetTopDp = with(density) { localTargetRect.top.toDp() }
@@ -474,8 +479,9 @@ fun TutorialSpotlightOverlay(
                 // A centered card keeps clear of the search bar, so on a small screen with large text it never hides
                 // the bar. The room is kept on both sides so the card stays centered where it always was; on normal
                 // screens it never grows tall enough to reach it.
-                val topPad = (statusBarTopPadding + 16.dp).coerceAtLeast(16.dp) + SEARCH_BAR_RESERVE
-                val botPad = (navBarBottomPadding + 24.dp).coerceAtLeast(24.dp) + SEARCH_BAR_RESERVE
+                val reserve = if (searchBarBehind) SEARCH_BAR_RESERVE else 0.dp
+                val topPad = (statusBarTopPadding + 16.dp).coerceAtLeast(16.dp) + reserve
+                val botPad = (navBarBottomPadding + 24.dp).coerceAtLeast(24.dp) + reserve
                 topPad to botPad
             }
         }
@@ -569,6 +575,12 @@ fun TutorialSpotlightOverlay(
                         )
 
                         Spacer(modifier = Modifier.height(4.dp))
+
+                        stepInfo.demo?.let { demo ->
+                            Spacer(modifier = Modifier.height(6.dp))
+                            TutorialDemoStage(demo)
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
 
                         // TalkBack Traversal 3: Description Body Text
                         val bugdroidTag = "[bugdroid]"
@@ -702,6 +714,11 @@ fun TutorialSpotlightOverlay(
                             }
                         }
 
+                        // The Discover step turns its button on right here, with the switch Settings has for it.
+                        if (stepInfo.demo == TutorialDemo.Discover) {
+                            Spacer(modifier = Modifier.height(14.dp))
+                            TutorialDiscoverSwitch()
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))

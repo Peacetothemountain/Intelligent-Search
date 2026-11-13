@@ -866,6 +866,13 @@ private fun Enter(index: Int, parts: PartsInTurn, content: @Composable () -> Uni
     ) { content() }
 }
 
+/** The page's greeting at [hour] of the day (0 to 23). */
+internal fun dayGreeting(hour: Int): String = when (hour) {
+    in 5..11 -> "Good morning"
+    in 12..17 -> "Good afternoon"
+    else -> "Good evening"
+}
+
 /** The date, a greeting for the time of day, and a chip for each birthday today. */
 @Composable
 private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthdays: List<GlanceBirthday>, warm: Color) {
@@ -876,11 +883,7 @@ private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthday
     val date = remember(time.toLocalDate(), locale) {
         time.format(DateTimeFormatter.ofPattern("EEEE, MMMM d", locale)).uppercase(locale)
     }
-    val greeting = when (time.hour) {
-        in 5..11 -> "Good morning"
-        in 12..17 -> "Good afternoon"
-        else -> "Good evening"
-    }
+    val greeting = dayGreeting(time.hour)
     val animate by rememberAnimationsEnabled()
     Column(Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 2.dp)) {
       Row(verticalAlignment = Alignment.Bottom) {

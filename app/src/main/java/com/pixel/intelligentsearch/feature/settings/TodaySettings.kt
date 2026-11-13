@@ -24,20 +24,9 @@ import com.pixel.intelligentsearch.feature.search.today.TodayIcon
  */
 @Composable
 internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() {
-    var button by rememberSetting(SettingsManager.TODAY_BUTTON)
-    val scheme = MaterialTheme.colorScheme
+    val button by rememberSetting(SettingsManager.TODAY_BUTTON)
     val context = androidx.compose.ui.platform.LocalContext.current
-    SettingsRowToggle(
-        title = "Discover Overlay",
-        subtitle = "Adds a Button to the Search Bar That Opens Your Day.",
-        customIcon = {
-            // A still afternoon sun: the row names the button, it needn't tell the time.
-            TodayIcon(hour = 14.5f, color = scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
-        },
-        isChecked = button,
-        onCheckedChange = { button = it },
-        showDivider = button
-    )
+    DiscoverOverlaySwitchRow(showDivider = button)
     AttachedRows(visible = button) {
         Column {
             var upNext by rememberSetting(SettingsManager.TODAY_UP_NEXT)
@@ -101,6 +90,27 @@ internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() 
             PartRow(SettingsManager.TODAY_EXTRAS, "Word of the Day and Countdown", "A New Word Each Day, and Days Until the Next Holiday.", Symbols.Outlined.Spellcheck, last = true)
         }
     }
+}
+
+/**
+ * The switch for the Discover button in the search bar. One row for both places it shows, Appearance and the
+ * tutorial's Discover step, so the tutorial teaches the setting by its own name.
+ */
+@Composable
+internal fun DiscoverOverlaySwitchRow(showDivider: Boolean) {
+    var button by rememberSetting(SettingsManager.TODAY_BUTTON)
+    val scheme = MaterialTheme.colorScheme
+    SettingsRowToggle(
+        title = "Discover Overlay",
+        subtitle = "Adds a Button to the Search Bar That Opens Your Day.",
+        customIcon = {
+            // A still afternoon sun: the row names the button, it needn't tell the time.
+            TodayIcon(hour = 14.5f, color = scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+        },
+        isChecked = button,
+        onCheckedChange = { button = it },
+        showDivider = showDivider
+    )
 }
 
 @Composable

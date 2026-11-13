@@ -64,20 +64,27 @@ val LocalSettingsState = compositionLocalOf<com.pixel.intelligentsearch.core.dat
 
 /**
  * The tutorial's last two steps, shown over Settings. The page is hidden behind the tutorial's backdrop while they
- * show, so they say what Settings holds and what Got it opens rather than point at rows the user can't see.
+ * show, so rather than point at rows the user can't see, each plays a part of the app worth knowing from day one:
+ * the Discover page, with the switch that turns its button on (it is off until asked for), then the answers and
+ * actions the search gives as words are typed. The last one says where Got it leaves the user: in Settings.
  */
 internal val SETTINGS_TUTORIAL_STEPS = mapOf(
     3 to TutorialStepInfo(
-        "Settings & Features",
-        "Settings is where you make Intelligent Search your own: its look, your widget and how search works.",
+        "Discover",
+        "Your day on one page: the weather, your next event, quick controls and cards you arrange yourself. " +
+            "Turn it on here and it opens from a button in your search bar.",
         Alignment.Center,
-        showArrow = false
+        showArrow = false,
+        demo = TutorialDemo.Discover
     ),
     4 to TutorialStepInfo(
-        "Make It Yours",
-        "Tap $TUTORIAL_FINISH_LABEL to see every category and fine-tune Intelligent Search to the way you search. You're all set!",
+        "Just Type It",
+        "Search does more than find things. Type a sum, a conversion, a word to define, a city's weather or " +
+            "\"timer 10 min\", and the answer appears as you type. That's the tour: tap $TUTORIAL_FINISH_LABEL to " +
+            "land in Settings and make the rest yours.",
         Alignment.Center,
-        showArrow = false
+        showArrow = false,
+        demo = TutorialDemo.Answers
     )
 )
 
@@ -528,7 +535,9 @@ fun SettingsScreensHub(
                 TutorialSpotlightOverlay(
                     prefs = prefs,
                     stepsInfo = SETTINGS_TUTORIAL_STEPS,
-                    onComplete = { showTutorial = false }
+                    onComplete = { showTutorial = false },
+                    // No search bar behind these steps, and their demos want the room.
+                    searchBarBehind = false
                 )
             }
         }

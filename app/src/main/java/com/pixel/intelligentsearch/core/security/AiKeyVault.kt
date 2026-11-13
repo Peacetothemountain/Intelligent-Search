@@ -58,7 +58,8 @@ class AiKeyVault internal constructor(
     /** Encrypts and saves [apiKey] for [provider]; false if it couldn't be stored. */
     @Synchronized
     fun save(provider: AiProvider, apiKey: String): Boolean {
-        val clean = apiKey.trim()
+        // No key has spaces or control characters; a line break pasted inside one would make every Ask fail.
+        val clean = apiKey.filterNot { it.isWhitespace() || it.isISOControl() }
         if (clean.isEmpty()) return false
         val bytes = clean.toByteArray(Charsets.UTF_8)
         return try {

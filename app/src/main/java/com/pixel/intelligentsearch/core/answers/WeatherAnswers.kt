@@ -31,8 +31,16 @@ enum class TemperatureUnit(val symbol: String, internal val apiValue: String?) {
     companion object {
         private val FAHRENHEIT_COUNTRIES = setOf("US", "LR", "MM", "BS", "BZ", "KY", "PW", "FM", "MH")
 
-        fun forLocale(locale: Locale): TemperatureUnit =
-            if (locale.country.uppercase(Locale.ROOT) in FAHRENHEIT_COUNTRIES) FAHRENHEIT else CELSIUS
+        fun forLocale(locale: Locale): TemperatureUnit {
+            // The phone's own Temperature choice (Regional preferences, Android 14 on) comes before the region's.
+            val ownChoice: String? = locale.getUnicodeLocaleType("mu")
+            return when {
+                ownChoice == "celsius" -> CELSIUS
+                ownChoice == "fahrenhe" -> FAHRENHEIT
+                locale.country.uppercase(Locale.ROOT) in FAHRENHEIT_COUNTRIES -> FAHRENHEIT
+                else -> CELSIUS
+            }
+        }
 
         /** The scale the user chose in Settings ([TemperatureChoice]), or the region's on Automatic. */
         fun chosen(stored: String, locale: Locale): TemperatureUnit = TemperatureChoice.from(stored).unit ?: forLocale(locale)

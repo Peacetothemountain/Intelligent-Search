@@ -43,6 +43,7 @@ import com.pixel.intelligentsearch.feature.settings.MaterialMorphShapes
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.ZoneId
+import java.util.Locale
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -162,8 +163,9 @@ private fun shapePath(shape: RoundedPolygon, width: Float, height: Float): Path 
  */
 internal fun digitalClockFigures(epochMs: Long, zone: ZoneId, is24Hour: Boolean): Pair<String, String> {
     val time = Instant.ofEpochMilli(epochMs).atZone(zone)
-    val hour = if (is24Hour) "%02d".format(time.hour) else (time.hour % 12).let { if (it == 0) 12 else it }.toString()
-    return hour to "%02d".format(time.minute)
+    // Latin digits like the rest of the app: the phone's locale gave an Arabic phone "3" over "٠٥".
+    val hour = if (is24Hour) "%02d".format(Locale.ROOT, time.hour) else (time.hour % 12).let { if (it == 0) 12 else it }.toString()
+    return hour to "%02d".format(Locale.ROOT, time.minute)
 }
 
 /**

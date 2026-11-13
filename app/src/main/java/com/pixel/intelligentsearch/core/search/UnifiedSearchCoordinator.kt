@@ -9,6 +9,7 @@ import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.ResultShortcutStore
 import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
+import com.pixel.intelligentsearch.core.util.asciiDigits
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -463,7 +464,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         if (normalizedContact.isNotEmpty() && !normalizedContact.equals(contact.name, ignoreCase = true)) {
             out.add(normalizedContact to item)
         }
-        val digits = contact.phoneNumber.filter { it.isDigit() }
+        val digits = asciiDigits(contact.phoneNumber.filter { it.isDigit() })
         // A contact saved with only an email address has no number to find it by.
         if (digits.isNotEmpty()) out.add(digits to item)
         // Lookup is prefix-only, so also index the number without its country / trunk code: "415555"
@@ -799,7 +800,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
 
         // Phone number search normalization for contact lookups
-        val queryDigits = query.filter { it.isDigit() }
+        // In ASCII, as contacts are indexed: a number typed in Arabic-Indic or Persian digits finds them too.
+        val queryDigits = asciiDigits(query.filter { it.isDigit() })
         if (queryDigits.length >= 3) {
             candidates.addAll(contactRadixTree.searchPrefix(queryDigits, limit = 20))
             // A number typed with its country code ("+1 415 555 2671") must find one saved without it

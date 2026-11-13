@@ -152,14 +152,15 @@ private fun DrawScope.drawGlyph(path: String, color: Color, unit: Float, inset: 
 
 /**
  * The moon as it shows tonight, [age] through its cycle ([MoonPhase.age]): the lit part in [color] over a faint whole
- * disc, lit on the right while it waxes and on the left as it wanes, as it looks from the northern hemisphere.
+ * disc, lit on the right while it waxes and on the left as it wanes, as it looks from the northern hemisphere; from the
+ * [southern] one it is the other way round.
  */
 @Composable
-internal fun MoonPhaseIcon(age: Double, color: Color, modifier: Modifier = Modifier) {
+internal fun MoonPhaseIcon(age: Double, southern: Boolean, color: Color, modifier: Modifier = Modifier) {
     Canvas(modifier) {
         val radius = size.minDimension / 2f * 0.84f
         drawCircle(color.copy(alpha = 0.3f), radius, center)
-        drawPath(moonLitPath(center, radius, age), color)
+        scale(if (southern) -1f else 1f, 1f, pivot = center) { drawPath(moonLitPath(center, radius, age), color) }
     }
 }
 

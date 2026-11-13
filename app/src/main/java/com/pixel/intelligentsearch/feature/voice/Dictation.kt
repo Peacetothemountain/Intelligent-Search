@@ -66,7 +66,11 @@ class Dictation(private val context: Context) {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             onProblem("Allow the microphone to search by voice."); return
         }
-        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+        // Intelligent Search's own speech service counts as a recognizer but only forwards to another engine, so the
+        // phone needs one of those: another app's service, or the on-device engine.
+        val hasEngine = otherRecognitionService(context) != null ||
+            (Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context))
+        if (!hasEngine) {
             onProblem("Speech recognition service unavailable on device."); return
         }
         this.onFinished = onFinished
@@ -201,7 +205,8 @@ class Dictation(private val context: Context) {
             language?.let { putExtra(RecognizerIntent.EXTRA_LANGUAGE, it) }
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+            // Only for the on-device engine: it tells an online one to stay offline, which defeats the fallback.
+            if (onDevice) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
             // Ask for long silences before the engine gives up; engines that ignore this just restart. Google's
             // on-device engine reads these as Integer and drops the segmented session if they aren't.

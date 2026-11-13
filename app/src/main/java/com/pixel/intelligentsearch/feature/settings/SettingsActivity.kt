@@ -62,7 +62,7 @@ class SettingsActivity : ComponentActivity() {
             )
         }
         
-        val isWidgetConfigure = intent.action == android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE
+        val isWidgetConfigure = isWidgetConfigure(intent)
         val appWidgetId = configuredWidgetId(this, intent)
         // A countdown widget is set up on its own screen, which answers the launcher in this activity's place.
         if (isWidgetConfigure && com.pixel.intelligentsearch.feature.widget.CountdownConfigActivity.isCountdownWidget(this, appWidgetId)) {
@@ -178,6 +178,10 @@ class SettingsActivity : ComponentActivity() {
     }
 
     companion object {
+        /** Whether [intent] is the launcher's request to set up a widget, which waits for this activity's answer. */
+        internal fun isWidgetConfigure(intent: Intent?): Boolean =
+            intent?.action == android.appwidget.AppWidgetManager.ACTION_APPWIDGET_CONFIGURE
+
         /**
          * The widget [intent] asks to set up, or [android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID]. This
          * activity is exported, so a widget id counts only on the launcher's configure action: any app could otherwise

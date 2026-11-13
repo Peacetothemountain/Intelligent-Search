@@ -106,7 +106,8 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                                 val info = pm.getApplicationInfo(activeIconPack, 0)
                                 pm.getApplicationLabel(info).toString()
                             } catch (e: Exception) {
-                                "Custom Pack"
+                                // The pack is no longer on the phone, so the system's icons are the ones showing.
+                                "System Default"
                             }
                         }
                     }

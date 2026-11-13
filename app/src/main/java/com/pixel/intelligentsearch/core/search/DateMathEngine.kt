@@ -243,7 +243,15 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
     /** The first day named [name] ("christmas", "thanksgiving") on or after [from], or null when it names none. */
     internal fun occasionOnOrAfter(name: String, from: LocalDate): LocalDate? {
         NAMED_DAYS[name]?.let { return onOrAfter(it, from) }
-        return MOVABLE_DAYS[name]?.let { movableOnOrAfter(Written.Movable(it), from) }
+        return movableDay(name)?.let { movableOnOrAfter(Written.Movable(it), from) }
+    }
+
+    /** The [MOVABLE_DAYS] day [name] names, for where the phone is: Canada's Thanksgiving is the second Monday of October. */
+    private fun movableDay(name: String): ((Int) -> LocalDate)? {
+        val day = MOVABLE_DAYS[name] ?: return null
+        // Black Friday stays the day after the US one, as it is in Canada too.
+        if (!name.startsWith("thanksgiving") || locale().country != "CA") return day
+        return { year: Int -> OccasionCalendar.nth(year, 10, DayOfWeek.MONDAY, 2) }
     }
 
     /** The first [day] on or after [from]. */
@@ -261,12 +269,12 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
             "yesterday" -> return Written.Fixed(today.minusDays(1), yearWritten = false)
         }
         NAMED_DAYS[text]?.let { return Written.Yearless(it) }
-        MOVABLE_DAYS[text]?.let { return Written.Movable(it) }
+        movableDay(text)?.let { return Written.Movable(it) }
         // "christmas 2027", "easter, 2030": the day in that year.
         OCCASION_YEAR_REGEX.matchEntire(text)?.let { match ->
             val year = match.groupValues[2].toInt()
             NAMED_DAYS[match.groupValues[1]]?.let { return written(it, year) }
-            MOVABLE_DAYS[match.groupValues[1]]?.let { inYear ->
+            movableDay(match.groupValues[1])?.let { inYear ->
                 return if (year in 1..9999) Written.Fixed(inYear(year)) else null
             }
         }

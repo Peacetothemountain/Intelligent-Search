@@ -65,7 +65,14 @@ internal fun OverlayScope.onEnter(context: Context, highlighted: NavTarget?) {
     // Enter accepts text another app handed in as the user's own search.
     viewModel.confirmQuery()
     when (val outcome = OverlayEnterKey.decide(query, highlighted, phrasingAction = null, isBang = false)) {
-        is EnterOutcome.OpenHighlighted -> openNavTarget(context, this, outcome.target)
+        is EnterOutcome.OpenHighlighted -> {
+            // The highlight is gone once it has opened, so a second Enter would go on to the top result. What stays
+            // in search with the same words (asking the AI, dropping a file filter) leaves Enter free.
+            val staysInSearch = outcome.target is NavTarget.AskAi || outcome.target is NavTarget.RemoveFileTypeFilter ||
+                outcome.target is NavTarget.Correction
+            if (!staysInSearch) ui.enterTakenFor = query
+            openNavTarget(context, this, outcome.target)
+        }
         EnterOutcome.NothingTyped -> Unit
         // Decided again once the results are in, with the phrasing's action and whether the query is a bang.
         is EnterOutcome.RunAction, EnterOutcome.OpenTopResult, EnterOutcome.SearchWeb -> submitQuery(query, false)

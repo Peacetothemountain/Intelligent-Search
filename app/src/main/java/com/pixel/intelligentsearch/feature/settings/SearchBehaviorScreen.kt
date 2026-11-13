@@ -94,7 +94,8 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     AlertDialog(
                         onDismissRequest = { showClipboardWarning = false },
                         title = { Text("Turn On Smart Clipboard?", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-                        text = { Text(SMART_CLIPBOARD_DIALOG_TEXT, style = MaterialTheme.typography.bodyLarge) },
+                        // Scrolls, so its last lines are still read at the largest text in a short window.
+                        text = { Text(SMART_CLIPBOARD_DIALOG_TEXT, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.verticalScroll(rememberScrollState())) },
                         confirmButton = {
                             TextButton(onClick = {
                                 smartClipboard = true

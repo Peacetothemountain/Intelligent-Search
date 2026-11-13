@@ -341,6 +341,8 @@ class MathematicalExpressionEngineTest {
             assertEquals("100 USD ≈ 92.00 EUR", converted("100 usd to eur")!!.formatted)
             assertEquals("1,234.50 USD ≈ 1,135.74 EUR", converted("1234.5 usd to eur")!!.formatted)
             assertEquals("1 USD ≈ 1,370 KRW", converted("usd to krw")!!.formatted)
+            // A result under a tenth of a unit keeps 3 significant digits; this was "1 KRW ≈ 0.00 USD".
+            assertEquals("1 KRW ≈ 0.000730 USD", converted("1 krw to usd")!!.formatted)
         }
         inLocale(java.util.Locale.GERMANY) {
             assertEquals("1.234,50 USD ≈ 1.135,74 EUR", converted("1234,5 usd to eur")!!.formatted)

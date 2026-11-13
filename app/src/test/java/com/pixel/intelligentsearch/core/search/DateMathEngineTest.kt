@@ -264,6 +264,10 @@ class DateMathEngineTest {
         assertEquals("363 days until Thursday, November 25, 2027", text("days until thanksgiving", today = "2026-11-27"))
         assertEquals("2 weeks before Thursday, November 26, 2026 is Thursday, November 12, 2026", text("2 weeks before thanksgiving"))
         assertEquals("29 days between Thursday, November 26, 2026 and Friday, December 25, 2026", text("days between thanksgiving and christmas"))
+        // Canada's is the second Monday of October; Black Friday still follows the US one.
+        val canada = on(locale = Locale.CANADA)
+        assertEquals(LocalDate.of(2027, 10, 11), canada.occasionOnOrAfter("thanksgiving", LocalDate.of(2026, 10, 20)))
+        assertEquals(LocalDate.of(2026, 11, 27), canada.occasionOnOrAfter("black friday", LocalDate.of(2026, 10, 20)))
     }
 
     @Test

@@ -927,7 +927,8 @@ object NaturalLanguageIntentParser {
             // The whole-phrase rule, as for a clock time: "alarm in 20 minutes tomorrow" is no alarm.
             if (!isPlainTask(remainder.removeRange(relative.range))) return null
             val minutes = relativeMinutes(relative) ?: return null
-            if (minutes >= MINUTES_PER_DAY) return null
+            // Under a minute from now is the current minute, which the clock would set for tomorrow.
+            if (minutes >= MINUTES_PER_DAY || Math.round(minutes) < 1) return null
             rings.add(Calendar.MINUTE, Math.round(minutes).toInt())
             certain = true
         } else {
@@ -1228,7 +1229,9 @@ object NaturalLanguageIntentParser {
         }
         val contact = contactLookup?.invoke(target)
             ?.takeIf { it.phoneNumber.isNotBlank() && namesContact(target, it.name) } ?: return null
-        val number = contact.phoneNumber.filter { it.isDigit() || it == '+' }.takeIf { it.isNotEmpty() } ?: return null
+        // The number chats go to (the default, else a mobile), as the contact row's chat buttons use, not the first saved.
+        val number = contact.chatNumber.ifBlank { contact.phoneNumber }.filter { it.isDigit() || it == '+' }
+            .takeIf { it.isNotEmpty() } ?: return null
         return Recipient(contact.name.ifBlank { target }, number)
     }
 
@@ -1418,7 +1421,8 @@ object NaturalLanguageIntentParser {
             } else {
                 cal.add(Calendar.MINUTE, Math.round(minutes).toInt())
             }
-            text = text.replace(relativeMatch.value, "")
+            // Only the words matched: the same letters inside another word ("afternoon") stay.
+            text = text.removeRange(relativeMatch.range)
         } else if (UNREAD_RELATIVE_TIME_REGEX.containsMatchIn(text)) {
             return null
         }
@@ -1461,7 +1465,7 @@ object NaturalLanguageIntentParser {
             cal.set(Calendar.MINUTE, 0)
             cal.set(Calendar.SECOND, 0)
             if (midnight) cal.add(Calendar.DAY_OF_YEAR, 1)
-            text = text.replace(noonOrMidnight.value, " ")
+            text = text.replaceRange(noonOrMidnight.range, " ")
             if (namedDay == NamedDay.NONE && !today && relativeMatch == null && cal.timeInMillis < baseTimeMs) {
                 cal.add(Calendar.DAY_OF_YEAR, 1)
             }
@@ -1534,7 +1538,7 @@ object NaturalLanguageIntentParser {
             cal.set(Calendar.MINUTE, minute)
             cal.set(Calendar.SECOND, 0)
             if (night && said == null && hour < 6) cal.add(Calendar.DAY_OF_YEAR, 1)
-            text = text.replace(timeMatch.value, "")
+            text = text.removeRange(timeMatch.range)
 
             if (namedDay == NamedDay.NONE && !today && relativeMatch == null && cal.timeInMillis < baseTimeMs) {
                 cal.add(Calendar.DAY_OF_YEAR, 1)

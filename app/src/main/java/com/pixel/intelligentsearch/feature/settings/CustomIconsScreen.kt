@@ -100,6 +100,9 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     val validPackSet = remember(installedPacks) {
         (listOf("system_default") + installedPacks.map { it.packageName }).toSet()
     }
+    // A chosen pack that was uninstalled (or restored onto a phone without it) leaves the system's icons showing, so
+    // System Default is the one selected.
+    val shownIconPack = if (activeIconPack in validPackSet) activeIconPack else "system_default"
 
     var localPillList by remember(effectivePillString, validPackSet) {
         val storedList = effectivePillString.split(",")
@@ -137,8 +140,8 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     }
 
     fun activatePack(pkg: String) {
-        if (pkg == activeIconPack) return
-        if (activeIconPack != "system_default" && !neverShowWarning) {
+        if (pkg == shownIconPack) return
+        if (shownIconPack != "system_default" && !neverShowWarning) {
             pendingIconPack = pkg
         } else {
             applyPack(pkg)
@@ -258,7 +261,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         val packInfo = allPackMap[packageName] ?: Pair(packageName, null)
                         val packLabel = packInfo.first
                         val packIcon = packInfo.second
-                        val isSelected = activeIconPack == packageName
+                        val isSelected = shownIconPack == packageName
 
                         Box(modifier = draggingModifier) {
                             val containerColor = if (isSelected) {

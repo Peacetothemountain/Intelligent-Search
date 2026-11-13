@@ -388,9 +388,11 @@ class CountdownWidgetProvider : AppWidgetProvider() {
                 // The 2 x 2 tile leaves the date out, to give the number its room.
                 val showsDate = texts.date.isNotEmpty() && size != CountdownSize.TILE
                 views.setViewVisibility(R.id.countdown_date, if (showsDate) View.VISIBLE else View.GONE)
-                if (size == CountdownSize.LARGE) {
-                    views.setTextViewTextSize(R.id.countdown_title, TypedValue.COMPLEX_UNIT_SP, 22f)
-                    views.setTextViewTextSize(R.id.countdown_unit, TypedValue.COMPLEX_UNIT_SP, 16f)
+                // The tile and the large tile share a layout, so the tile sets its own sizes back after a large one.
+                val large = size == CountdownSize.LARGE
+                if (large || size == CountdownSize.TILE) {
+                    views.setTextViewTextSize(R.id.countdown_title, TypedValue.COMPLEX_UNIT_SP, if (large) 22f else 16f)
+                    views.setTextViewTextSize(R.id.countdown_unit, TypedValue.COMPLEX_UNIT_SP, if (large) 16f else 14f)
                 }
             }
             views.setContentDescription(android.R.id.background, texts.spoken)

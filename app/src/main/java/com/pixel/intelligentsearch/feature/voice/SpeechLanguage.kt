@@ -25,7 +25,9 @@ internal object SpeechLanguage {
     /**
      * The tag, out of [supported] (as the engine reports them, "en-US"), for the first of [wanted] the engine can
      * recognize: the same language in the user's own region if offered, else its usual form ("en-US" for English,
-     * "de-DE" for German), else any form of it. Null when the engine has none of the user's languages.
+     * "de-DE" for German), else any form of it. Null when the engine has none of the user's languages. A form written
+     * in another script (Simplified Chinese for a Traditional phone) doesn't count, and Chinese in Hong Kong or Macau
+     * is Cantonese ("yue-Hant-HK") when the engine has it.
      */
     fun pick(wanted: List<Locale>, supported: Collection<String>): String? {
         val offered = supported.mapNotNull { tag ->
@@ -33,7 +35,14 @@ internal object SpeechLanguage {
         }
         for (locale in wanted) {
             val language = base(locale.language)
-            val same = offered.filter { base(it.second.language) == language }
+            val script = script(locale, language)
+            val cantonese = language == "zh" && locale.country in CANTONESE_REGIONS
+            var same = offered.filter {
+                (base(it.second.language) == language || (cantonese && it.second.language == "yue")) &&
+                    (script.isEmpty() || it.second.script.isEmpty() || it.second.script == script)
+            }
+            // Mandarin isn't what Hong Kong speaks; it's used there only when the engine has no Cantonese.
+            if (cantonese && same.any { it.second.language == "yue" }) same = same.filter { it.second.language != "cmn" }
             if (same.isEmpty()) continue
             val usual = USUAL_REGION[language] ?: language.uppercase(Locale.ROOT)
             return (same.firstOrNull { locale.country.isNotEmpty() && it.second.country == locale.country }
@@ -46,6 +55,17 @@ internal object SpeechLanguage {
 
     /** Google names Mandarin "cmn" ("cmn-Hans-CN") where Android says "zh". */
     private fun base(language: String) = if (language == "cmn") "zh" else language
+
+    /** [locale]'s script; Chinese without one is Traditional in Taiwan, Hong Kong and Macau, else Simplified. */
+    private fun script(locale: Locale, language: String) = locale.script.ifEmpty {
+        if (language != "zh") "" else if (locale.country in TRADITIONAL_REGIONS) "Hant" else "Hans"
+    }
+
+    /** Where Chinese is spoken as Cantonese. */
+    private val CANTONESE_REGIONS = setOf("HK", "MO")
+
+    /** Where Chinese is written in Traditional characters. */
+    private val TRADITIONAL_REGIONS = setOf("TW", "HK", "MO")
 
     /** A language's usual region where it isn't the language's own code. */
     private val USUAL_REGION = mapOf("en" to "US", "pt" to "BR", "zh" to "CN", "ja" to "JP", "ko" to "KR", "sq" to "AL",

@@ -270,7 +270,8 @@ private fun ApiKeyRows(vault: AiKeyVault, provider: AiProvider, hasKey: Boolean,
             Spacer(modifier = Modifier.size(16.dp))
             OutlinedTextField(
                 value = typed,
-                onValueChange = { typed = it.trim().take(MAX_KEY_LENGTH) },
+                // A key has no spaces or control characters, so a line break pasted inside one is dropped too.
+                onValueChange = { typed = it.filterNot { c -> c.isWhitespace() || c.isISOControl() }.take(MAX_KEY_LENGTH) },
                 label = { Text("${provider.displayName} API Key") },
                 supportingText = { Text("Create One at ${provider.keyPage}.") },
                 singleLine = true,

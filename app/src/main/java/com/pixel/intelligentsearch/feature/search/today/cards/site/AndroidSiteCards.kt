@@ -132,7 +132,8 @@ internal class AndroidSiteCards private constructor(
             val time = now()
             for (url in asked.distinct()) {
                 val known = state.value[url]
-                if (known != null && time - known.readAt < REFRESH_AFTER_MS) continue
+                // A read from the future (the clock was ahead then) is stale, or it would never be read again.
+                if (known != null && time - known.readAt in 0 until REFRESH_AFTER_MS) continue
                 val address = (normalizeSiteAddress(url) as? SiteAddressResult.Ok)?.address ?: continue
                 startRead(url, address, time)
             }

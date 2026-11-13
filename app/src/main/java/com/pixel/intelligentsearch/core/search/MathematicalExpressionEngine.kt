@@ -157,8 +157,8 @@ object MathematicalExpressionEngine {
     private val REGEX_DASHED_DIGITS = Regex("^\\d+(?:-\\d+)+$")
     // A dash with a space beside it ("98765 - 43210") is a subtraction: nobody writes a phone number or a date that way.
     private val REGEX_SPACED_DASH = Regex("\\d\\s+-|-\\s+\\d")
-    /** Searches that read as sums: the store "7-11", a "9-5" job, open "24/7". */
-    private val NOT_A_SUM = setOf("24/7", "24/7/365", "9-5", "7-11")
+    /** Searches that read as sums: the store "7-11", a "9-5" job, open "24/7", "9/11", "50/50", "20/20" vision. */
+    private val NOT_A_SUM = setOf("24/7", "24/7/365", "9-5", "7-11", "9/11", "9-11", "50/50", "20/20")
     // "e-40" is a name, and an exponent with no number before it: not e minus 40.
     private val REGEX_BARE_EXPONENT = Regex("^e[-+]\\d+$")
     // "2pi", "3π": a number times a constant, a calculation without an operator.
@@ -983,7 +983,8 @@ object MathematicalExpressionEngine {
             .replace(REGEX_VOLUME_SYSTEM) { unit ->
                 val system = unit.groupValues[1].lowercase(Locale.ROOT)
                 val prefix = if (system == "us" || system == "u.s." || system == "american") "us_" else "imp_"
-                prefix + volumeSystemUnits.getValue(unit.groupValues[2].lowercase(Locale.ROOT))
+                // Ignoring case, "gallonſ" (a long s) matches too but is no name in the table: left as typed.
+                volumeSystemUnits[unit.groupValues[2].lowercase(Locale.ROOT)]?.let { prefix + it } ?: unit.value
             }
             .replace(REGEX_METRIC_TON, "tonne")
             .replace(REGEX_SHORT_OR_LONG_TON, "$1_ton")
@@ -1095,7 +1096,14 @@ object MathematicalExpressionEngine {
      * none when [wholeAsTyped]: "100 USD", not "100.00 USD".
      */
     private fun money(value: Double, code: String, wholeAsTyped: Boolean): String {
-        val decimals = if (wholeAsTyped && value % 1.0 == 0.0) 0 else currencyDecimals(code)
+        val decimals = when {
+            wholeAsTyped && value % 1.0 == 0.0 -> 0
+            // A small result keeps about 3 significant digits: 1 KRW is 0.000730 USD, which 2 decimals made 0.00, and
+            // 0.113 JPY, which the yen's none made 0.
+            !wholeAsTyped && value != 0.0 && abs(value) < maxOf(0.1, 10.0.pow(-currencyDecimals(code))) ->
+                maxOf(currencyDecimals(code), 2 - floor(log10(abs(value))).toInt()).coerceAtMost(8)
+            else -> currencyDecimals(code)
+        }
         val pattern = "#,##0" + if (decimals > 0) "." + "0".repeat(decimals) else ""
         return DecimalFormat(pattern, latinSymbols()).apply { roundingMode = RoundingMode.HALF_UP }.format(value)
     }

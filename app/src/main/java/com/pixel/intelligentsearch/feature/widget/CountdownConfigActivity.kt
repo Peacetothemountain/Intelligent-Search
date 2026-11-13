@@ -266,7 +266,7 @@ internal fun CountdownSetupScreen(
                         Spacer(Modifier.width(16.dp))
                         OutlinedTextField(
                             value = title,
-                            onValueChange = { title = it.take(CountdownEvent.MAX_TITLE_LENGTH) },
+                            onValueChange = { title = CountdownEvent.capTitle(it) },
                             label = { Text("Event Name") },
                             singleLine = true,
                             shape = RoundedCornerShape(24.dp),
@@ -382,22 +382,25 @@ private fun CountdownPreview(
 /** [views] drawn as a launcher would draw them, for looking at only. */
 @Composable
 private fun RemoteViewsPreview(views: RemoteViews, modifier: Modifier = Modifier) {
-    AndroidView(
-        factory = { context ->
-            FrameLayout(context).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS }
-        },
-        update = { host ->
-            host.removeAllViews()
-            // Inflated from the app's context, as a launcher inflates it, not with this screen's own inflater.
-            val shown = views.apply(host.context.applicationContext, host)
-            // A preview: the widget's tap would open the search, or this screen again.
-            shown.findViewById<View>(android.R.id.background)?.apply {
-                setOnClickListener(null)
-                isClickable = false
-                isFocusable = false
-            }
-            host.addView(shown, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
-        },
-        modifier = modifier
-    )
+    // The widget as the home screen will draw it, mirrored where the phone reads right to left.
+    com.pixel.intelligentsearch.core.theme.PhoneLayoutDirection {
+        AndroidView(
+            factory = { context ->
+                FrameLayout(context).apply { importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS }
+            },
+            update = { host ->
+                host.removeAllViews()
+                // Inflated from the app's context, as a launcher inflates it, not with this screen's own inflater.
+                val shown = views.apply(host.context.applicationContext, host)
+                // A preview: the widget's tap would open the search, or this screen again.
+                shown.findViewById<View>(android.R.id.background)?.apply {
+                    setOnClickListener(null)
+                    isClickable = false
+                    isFocusable = false
+                }
+                host.addView(shown, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            },
+            modifier = modifier
+        )
+    }
 }

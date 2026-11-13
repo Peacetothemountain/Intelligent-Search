@@ -215,7 +215,11 @@ fun SettingsScreensHub(
             val act = context.findActivity() ?: (context as? Activity)
             // With the search overlay switched off the search screen only forwards to Google, so Back goes home then.
             val isBackToOverlay = prefs[SettingsManager.BACK_TO_SEARCH_OVERLAY] && prefs[SettingsManager.SEARCH_OVERLAY_ENABLED]
-            if (act != null) {
+            if (act != null && (act.callingActivity != null || SettingsActivity.isWidgetConfigure(act.intent))) {
+                // Opened to set up a widget (or by another app for an answer): leaving goes back to where the user
+                // came from, not to search or home, and Android won't close the whole app while an answer is owed.
+                act.finish()
+            } else if (act != null) {
                 if (isBackToOverlay) {
                     if (act.isTaskRoot || !fromSearchOverlay) {
                         val intent = Intent(context, com.pixel.intelligentsearch.feature.search.SearchActivity::class.java).apply {

@@ -141,11 +141,14 @@ fun SearchOverlayScreen(
     val ui = remember { OverlayUiState(savedHasStartedTyping, savedKeyboardDismissed, initialQuery = uiState.query) }
     var hasStartedTyping by ui::hasStartedTyping
     var textFieldValue by ui::textFieldValue
+    var enterTakenFor by ui::enterTakenFor
 
     LaunchedEffect(uiState.query) {
         if (uiState.query.isNotEmpty()) {
             hasStartedTyping = true
         }
+        // Composition can lag the typing, so only words other than the ones Enter took free it again.
+        if (uiState.query != enterTakenFor) enterTakenFor = null
         // New words, new results: the keyboard's highlight starts again from the search field.
         ui.highlightedKey = null
         // uiState reaches composition asynchronously, so while typing it can still hold the query from a
@@ -496,6 +499,7 @@ fun SearchOverlayScreen(
                 // What was typed is still there after a permission prompt or page the user comes back from (it is
                 // cleared once search is left for good), and the engine's name stays under it as while typing.
                 hasStartedTyping = viewModel.uiState.value.query.isNotEmpty()
+                enterTakenFor = null
                 // Resuming into a voice request (the assistant gesture) keeps the keyboard down, and so does Show
                 // Keyboard When Search Opens being off (the field may still hold focus from before: it lets go), and
                 // so does coming back to the Discover Overlay, which the keyboard would cover.
@@ -726,7 +730,9 @@ fun SearchOverlayScreen(
     // "Go" for Enter and the voice check button. Either can come before the results for the last letters or words
     // are in, and acting then opened the previous query's Best Match or Quick Launch app; so it waits for this query's
     // results first.
-    val submitWhenSettled: suspend (String, Boolean) -> Unit = { query, fromVoice ->
+    val submitWhenSettled: suspend (String, Boolean) -> Unit = settle@{ query, fromVoice ->
+        if (enterTakenFor == query) return@settle
+        enterTakenFor = query
         viewModel.awaitSearch()
         // The user may have typed on meanwhile; then this query is theirs no longer.
         if (viewModel.uiState.value.query == query) submitQuery(query, fromVoice)

@@ -46,7 +46,11 @@ fun IntelligentSearchTheme(
     }
 
     androidx.compose.runtime.CompositionLocalProvider(
-        androidx.compose.ui.platform.LocalHapticFeedback provides expressiveHapticFeedback
+        androidx.compose.ui.platform.LocalHapticFeedback provides expressiveHapticFeedback,
+        // The app's words are English, so its screens read left to right on every phone. Mirrored for a phone set
+        // to Arabic or Hebrew, Compose lays each English line out right to left ("4 =" for "= 4") and the screens'
+        // own drawings, drags and offsets stay where they were. The home-screen widgets still follow the launcher.
+        androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr
     ) {
         // Large accessibility text sizes hyphenate long words instead of splitting them at any letter.
         val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
@@ -60,6 +64,21 @@ fun IntelligentSearchTheme(
             content = content
         )
     }
+}
+
+/**
+ * [content] in the phone's own layout direction, for what isn't the app's own words: another app's widget, or one of
+ * this app's widgets shown as the home screen will show it. The app's screens themselves read left to right
+ * ([IntelligentSearchTheme]), and an Android view hosted in them takes its direction from where it is hosted.
+ */
+@Composable
+fun PhoneLayoutDirection(content: @Composable () -> Unit) {
+    val rtl = androidx.compose.ui.platform.LocalConfiguration.current.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalLayoutDirection provides
+            if (rtl) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr,
+        content = content
+    )
 }
 
 /**

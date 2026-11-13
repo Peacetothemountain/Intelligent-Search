@@ -152,6 +152,11 @@ class AiAnswers internal constructor(
         } catch (e: IOException) {
             if (text.isEmpty()) problem = AiProblem.OFFLINE
             null
+        } catch (e: IllegalArgumentException) {
+            // A key saved with a line break or other control character can't go in a header. Not logged: the message
+            // can quote the key.
+            problem = AiProblem.BAD_KEY
+            null
         }
         var response = post(choice.fast)
         // Fast mode refused before a word came (no room for it right now, or a key it isn't open to): ask once more

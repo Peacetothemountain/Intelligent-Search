@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.search.today
 
+import android.app.Notification
 import com.pixel.intelligentsearch.core.glance.IndexedNotification
 import org.junit.Assert.assertEquals
 import java.time.ZoneOffset
@@ -48,6 +49,22 @@ class DeliveryFromTest {
             deliveryFrom(listOf(IndexedNotification("k", "com.shop", "Shop", "Your package", "Out for delivery", NOW - ms)), NOW, ZONE)?.step
         assertEquals(2, stepPostedAgo(2 * 3_600_000L))
         assertEquals(null, stepPostedAgo(24 * 3_600_000L))
+    }
+
+    @Test
+    fun aChatThatSaysOrderIsNotPackageNews() {
+        val carrier = IndexedNotification("a", "com.shop", "Shop", "Your package", "Your order has shipped", NOW - 3_600_000L)
+        val chat = IndexedNotification("b", "com.chat", "Chat", "Sam", "On the way home, I'll order pizza", NOW - 60_000L, Notification.CATEGORY_MESSAGE)
+        assertEquals(carrier, deliveryFrom(listOf(carrier, chat), NOW, ZONE)?.entry)
+        // A carrier's own text message is still package news.
+        val text = IndexedNotification("c", "com.sms", "Messages", "USPS", "Your package was delivered", NOW - 30_000L, Notification.CATEGORY_MESSAGE)
+        assertEquals(text, deliveryFrom(listOf(carrier, chat, text), NOW, ZONE)?.entry)
+    }
+
+    @Test
+    fun borderIsNotAnOrder() {
+        val trip = IndexedNotification("k", "com.maps", "Maps", "Trip", "At the border, on the way", NOW - 60_000L)
+        assertEquals(null, deliveryFrom(listOf(trip), NOW, ZONE))
     }
 
     private companion object {

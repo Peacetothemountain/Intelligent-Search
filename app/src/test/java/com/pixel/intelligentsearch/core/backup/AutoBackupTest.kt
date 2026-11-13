@@ -191,6 +191,25 @@ class AutoBackupTest {
         setup.close()
     }
 
+    @Test
+    fun theNewBackupIsKeptAfterTheClockWasSetBack() = runBlocking {
+        val setup = AutoBackupSetup()
+        // Named while the clock was years ahead: the backup written now sorts below all four.
+        for (day in 1..4) setup.folder.add("IntelligentSearch-auto-2099-01-0$day-0900.json", "{\"backup\":$day}")
+        val before = setup.folder.automaticBackupNames().toSet()
+
+        setup.autoBackup.runOnce(setup.backupManager).getOrThrow()
+
+        val written = setup.folder.automaticBackupNames() - before
+        assertEquals("the backup just written is still there", 1, written.size)
+        assertEquals(
+            "the oldest of the others is pruned",
+            setOf("IntelligentSearch-auto-2099-01-02-0900.json", "IntelligentSearch-auto-2099-01-03-0900.json", "IntelligentSearch-auto-2099-01-04-0900.json"),
+            (setup.folder.automaticBackupNames() - written).toSet()
+        )
+        setup.close()
+    }
+
     /** With a backup passkey set up, automatic backup needs no passphrase, and what it writes opens with the passkey. */
     @Test
     fun withAPasskeyAutomaticBackupNeedsNoPassphrase() = runBlocking {

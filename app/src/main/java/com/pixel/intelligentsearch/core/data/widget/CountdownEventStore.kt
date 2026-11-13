@@ -33,7 +33,8 @@ data class CountdownEvent(
      * (today included). A yearly February 29 falls on February 28 in other years.
      */
     fun target(today: LocalDate): LocalDate {
-        if (!yearly) return date
+        // A yearly event set in a later year (a wedding next December) counts to that day before it repeats.
+        if (!yearly || !date.isBefore(today)) return date
         val thisYear = date.withYear(today.year)
         return if (thisYear.isBefore(today)) date.withYear(today.year + 1) else thisYear
     }
@@ -44,6 +45,12 @@ data class CountdownEvent(
     companion object {
         /** Titles longer than this are cut, so a widget's caption stays readable. */
         const val MAX_TITLE_LENGTH = 40
+
+        /** [title] cut to [MAX_TITLE_LENGTH]; an emoji the cut would split in half is left out whole. */
+        internal fun capTitle(title: String): String {
+            val cut = title.take(MAX_TITLE_LENGTH)
+            return if (cut.lastOrNull()?.isHighSurrogate() == true) cut.dropLast(1) else cut
+        }
     }
 }
 
@@ -64,7 +71,7 @@ class CountdownEventStore(prefs: SharedPreferences) {
     fun get(appWidgetId: Int): CountdownEvent? = events.current[appWidgetId]
 
     fun put(appWidgetId: Int, event: CountdownEvent) {
-        events.update { it + (appWidgetId to event.copy(title = event.title.trim().take(CountdownEvent.MAX_TITLE_LENGTH))) }
+        events.update { it + (appWidgetId to event.copy(title = CountdownEvent.capTitle(event.title.trim()))) }
     }
 
     /** Forgets the events of widgets that were removed. */
@@ -91,7 +98,7 @@ class CountdownEventStore(prefs: SharedPreferences) {
                 val date = try { LocalDate.parse(item.date) } catch (_: DateTimeParseException) { return@mapNotNull null }
                 // An unknown design (from a newer version) follows the search bar's.
                 val design = WidgetDesign.entries.firstOrNull { it.name == item.design }
-                id to CountdownEvent(title.take(CountdownEvent.MAX_TITLE_LENGTH), date, item.yearly, design)
+                id to CountdownEvent(CountdownEvent.capTitle(title), date, item.yearly, design)
             }.toMap()
         }
 

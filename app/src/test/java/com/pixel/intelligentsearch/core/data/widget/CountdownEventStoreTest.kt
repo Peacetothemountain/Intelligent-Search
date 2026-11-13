@@ -40,6 +40,13 @@ class CountdownEventStoreTest {
     }
 
     @Test
+    fun aYearlyEventInALaterYearCountsToThatDayFirst() {
+        val wedding = CountdownEvent("Wedding", LocalDate.of(2027, 12, 20), yearly = true)
+        assertEquals(403, wedding.daysUntil(LocalDate.of(2026, 11, 12)))
+        assertEquals(LocalDate.of(2028, 12, 20), wedding.target(LocalDate.of(2027, 12, 21)))
+    }
+
+    @Test
     fun aYearlyLeapDayFallsOnTheTwentyEighthInOtherYears() {
         val leap = CountdownEvent("Leap Day", LocalDate.of(2024, 2, 29), yearly = true)
         assertEquals(LocalDate.of(2027, 2, 28), leap.target(LocalDate.of(2027, 1, 1)))

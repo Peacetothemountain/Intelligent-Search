@@ -203,6 +203,8 @@ internal fun TodayLayer(
         val now = System.currentTimeMillis()
         val unit = com.pixel.intelligentsearch.core.answers.TemperatureUnit.chosen(temperatureChoice, java.util.Locale.getDefault())
         if (discoverOn && weatherOn && (weather == null || now - weatherAt > REFRESH_MS || weather?.first?.unit != unit)) {
+            // A report in the other scale goes first: if the new one can't be read, no weather beats old numbers under the new scale.
+            if (weather?.first?.unit != unit) weather = null
             sources.weather()?.let {
                 weather = it
                 weatherAt = now
@@ -345,7 +347,9 @@ internal fun TodayPage(
     val loadedWeather = (preloadedWeather ?: ownWeather)?.takeIf { weatherOn }
     val weather = loadedWeather?.first
     val tomorrowWeather = loadedWeather?.second
-    val notifications = rememberNotifications(sources, active && catchUpOn)
+    val allNotifications = rememberNotifications(sources, active && catchUpOn)
+    // Hidden apps stay out of Catch Up and the package tile, as they do from search and At a Glance.
+    val notifications = remember(allNotifications, hiddenApps) { allNotifications.filterNot { it.packageName in hiddenApps } }
     val catchUp = remember(notifications, now) { catchUpFrom(notifications, now) }
 
     val zone = ZoneId.systemDefault()
@@ -916,7 +920,7 @@ private fun Greeting(now: Long, weather: WeatherReport?, sunset: Long?, birthday
                             val moon = remember(time.toLocalDate()) { moonPhase(time.toLocalDate(), time.zone) }
                             val color = MaterialTheme.colorScheme.onSurfaceVariant
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                MoonPhaseIcon(moon.age, color, Modifier.size(13.dp))
+                                MoonPhaseIcon(moon.age, com.pixel.intelligentsearch.core.occasion.OccasionCalendar.isSouthern(time.zone), color, Modifier.size(13.dp))
                                 Spacer(Modifier.width(5.dp))
                                 Text(moon.name, style = MaterialTheme.typography.bodySmall, color = color)
                             }

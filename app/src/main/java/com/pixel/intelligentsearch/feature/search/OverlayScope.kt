@@ -57,6 +57,13 @@ internal class OverlayUiState(
     /** Whether the results list is showing, to close up after a row is taken away. */
     var resultsShown = false
 
+    /**
+     * The words Enter (or the voice check button) last went with. A second press for the same words, while the first
+     * waits for results or after it has run, is ignored, so a result doesn't open twice; new words or coming back to
+     * search let it go again.
+     */
+    var enterTakenFor: String? = null
+
     /** Removals waiting for the list to have drawn its rows with their closing-up motion ([takeRowAway]). */
     private val rowsToRemove = ArrayList<() -> Unit>()
 

@@ -77,7 +77,7 @@ class AutoBackup internal constructor(
      * here), stores it wrapped by the Keystore and schedules the weekly job. Returns false if the key could not
      * be protected, in which case nothing is changed.
      */
-    fun enable(folder: Uri, passphrase: CharArray): Boolean {
+    fun enable(folder: Uri, passphrase: CharArray, rekeying: Boolean = false): Boolean {
         // A backup no one can restore is worse than none: an empty or short passphrase is refused here, whatever the UI did.
         if (passphrase.size < MIN_PASSPHRASE_LENGTH) {
             MemorySanitizer.wipe(passphrase)
@@ -110,7 +110,8 @@ class AutoBackup internal constructor(
             putString(KEY_SALT, BackupCryptoEngine.encodeBase64(salt))
             putString(KEY_WRAPPED, BackupCryptoEngine.encodeBase64(wrapped.second))
             putString(KEY_WRAP_IV, BackupCryptoEngine.encodeBase64(wrapped.first))
-            remove(KEY_LAST_FAILURE)
+            // A new passphrase mends only its own key: a lost folder or an unreadable passkey is still to be told.
+            if (!rekeying || lastFailure == PASSKEY_ONLY) remove(KEY_LAST_FAILURE)
         }
         schedule(context)
         return true
@@ -256,7 +257,8 @@ class AutoBackup internal constructor(
                 if (id == writtenId || !listedEmpty) ours += id to name
             }
         }
-        for ((id, _) in oldestBeyond(ours, KEEP)) {
+        // The file just written is never pruned: after the clock is set back its name sorts below the older ones.
+        for ((id, _) in oldestBeyond(ours.filter { it.first != writtenId }, KEEP - 1)) {
             runCatching { DocumentsContract.deleteDocument(context.contentResolver, DocumentsContract.buildDocumentUriUsingTree(folder, id)) }
         }
     }

@@ -205,7 +205,13 @@ internal fun quickAppSearchIntent(context: Context, packageName: String, query: 
                 as? com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open)?.intent
                 ?: pm.getLaunchIntentForPackage(packageName)
         } else {
-            Intent(Intent.ACTION_VIEW, "https://google.com/search?q=$encoded".toUri()).setPackage(packageName)
+            // The chosen engine's results page, as every other web search opens; when its search isn't a web address
+            // Chrome can show (Google's goes to the Google app), Chrome shows Google's results page.
+            val prefs = SettingsManager.storedPrefs(context)
+            val engineUrl = (webSearchLaunch(context, prefs[SettingsManager.SEARCH_ENGINE], prefs[SettingsManager.CUSTOM_SEARCH_ENGINE_URL], query)
+                as? com.pixel.intelligentsearch.core.security.SafeWebLaunch.Launch.Open)?.intent
+                ?.takeIf { it.action == Intent.ACTION_VIEW }?.data?.takeIf { it.scheme == "https" }
+            Intent(Intent.ACTION_VIEW, engineUrl ?: "https://google.com/search?q=$encoded".toUri()).setPackage(packageName)
         }
         "com.google.android.apps.maps" -> Intent(Intent.ACTION_VIEW, "geo:0,0?q=$encoded".toUri()).setPackage(packageName)
         "com.google.android.youtube" -> Intent(Intent.ACTION_SEARCH).setPackage(packageName).putExtra("query", query)

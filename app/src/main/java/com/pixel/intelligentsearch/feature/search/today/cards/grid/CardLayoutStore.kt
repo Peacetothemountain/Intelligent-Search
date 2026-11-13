@@ -134,11 +134,13 @@ internal fun layoutForBackup(context: Context): String? {
  * Makes a backup's [json] ([layoutForBackup]) Discover's layout: its cards, places, shapes and hidden parts, checked as
  * any saved layout is ([decodeLayout]). Website cards keep only addresses the reader may open, and app cards in the
  * file are left out; this phone's own app cards stay, after the restored ones, and website cards the backup doesn't
- * have are forgotten. False, and nothing changed, when [json] isn't a layout.
+ * have are forgotten. False, and nothing changed, when [json] isn't a layout or is one a newer version made.
  */
 internal fun restoreLayout(context: Context, json: String): Boolean {
     if (json.isBlank() || json.length > MAX_BACKUP_LAYOUT) return false
     if (runCatching { JSONObject(json).optJSONArray("cards") }.getOrNull() == null) return false
+    // A newer version's layout would read as the default and wipe this phone's website cards: it changes nothing.
+    if (JSONObject(json).optInt("version", 0) > VERSION) return false
     val restored = decodeLayout(json)
     val cards = restored.cards.mapNotNull { card ->
         when (card.kind) {

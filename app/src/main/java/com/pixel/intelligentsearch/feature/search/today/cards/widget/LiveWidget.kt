@@ -88,17 +88,20 @@ internal fun LiveWidget(
     }
     // No backing of the page's own: a widget draws its own background and margins, as it does on the home screen.
     CoveredBox(private && !revealed, LiveShape, modifier.clip(LiveShape)) {
-        AndroidView(
-            factory = { ctx ->
-                cards.host.createView(ctx, widgetId, provider).apply {
-                    setPadding(0, 0, 0, 0)
-                    view = this
-                }
-            },
-            modifier = Modifier
-                .fillMaxSize()
-                .onSizeChanged { size = it }
-        )
+        // Another app's widget, laid out the way the phone reads, as on the home screen.
+        com.pixel.intelligentsearch.core.theme.PhoneLayoutDirection {
+            AndroidView(
+                factory = { ctx ->
+                    cards.host.createView(ctx, widgetId, provider).apply {
+                        setPadding(0, 0, 0, 0)
+                        view = this
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onSizeChanged { size = it }
+            )
+        }
     }
 }
 

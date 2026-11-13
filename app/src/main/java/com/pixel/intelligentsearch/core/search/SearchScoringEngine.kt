@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.core.search
 
+import com.pixel.intelligentsearch.core.util.asciiDigits
 import kotlin.math.ln
 import kotlin.math.pow
 
@@ -208,9 +209,10 @@ object SearchScoringEngine {
             }
         }
 
-        val queryDigits = query.filter { it.isDigit() }
+        // Both in ASCII, so a number typed in Arabic-Indic or Persian digits matches the one saved.
+        val queryDigits = asciiDigits(query.filter { it.isDigit() })
         if (queryDigits.length >= 3) {
-            val subDigits = sub.filter { it.isDigit() }
+            val subDigits = asciiDigits(sub.filter { it.isDigit() })
             if (subDigits.isNotEmpty()) {
                 val digitScore = when {
                     subDigits == queryDigits -> SCORE_EXACT_MATCH * 0.85f

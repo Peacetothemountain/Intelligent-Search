@@ -200,6 +200,8 @@ private val DAY = Regex("^\\d{1,2}$")
 private val TIME = Regex("^(\\d{1,2}):(\\d{2})(?:\\s?([AaPp])\\.?[Mm]\\.?)?$")
 private val DURATION = Regex("^<?(?:(\\d+)\\s?(?:h|hr|hrs)\\s?)?(?:(\\d+)\\s?(?:m|min|mins))?$")
 private val NUMBER = Regex("^([-+−]?\\d[\\d,]*(?:\\.\\d+)?)\\s?(.{0,8})$")
+/** Commas that group thousands, the American way (1,234,567) or the Indian (1,23,456); any other comma is a decimal's. */
+private val GROUPED = Regex("[-+−]?[1-9]\\d{0,2}(?:,\\d{3})+(?:\\.\\d+)?|[-+−]?[1-9]\\d?(?:,\\d{2})+,\\d{3}(?:\\.\\d+)?")
 private val CHANGE = Regex("^[-+−▲▼]\\s?\\d[\\d.,]*\\s?%?$|^[-+−]?\\d[\\d.,]*\\s?%$")
 private val NUMBERISH = Regex("^[-+−]?[^\\d\\s]{0,3}\\s?\\d[\\d.,]*\\s?\\S{0,4}$")
 
@@ -269,6 +271,10 @@ private fun heroModel(text: String, labels: List<String>, quantity: Boolean): Sn
     }
     NUMBER.matchEntire(text)?.let { m ->
         val digits = m.groupValues[1]
+        // A comma that isn't grouping thousands is a decimal comma ("12,5°", "0,125", "18.234,56" in German): the
+        // number is shown as it is, rather than counted up to another one.
+        if (',' in digits && !GROUPED.matches(digits)) return base
+        if (m.groupValues[2].firstOrNull() == ',') return base
         val value = digits.replace(",", "").replace('−', '-').toDoubleOrNull()
         if (value != null && value.isFinite()) {
             val dot = digits.indexOf('.')

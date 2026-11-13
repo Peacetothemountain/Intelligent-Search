@@ -41,6 +41,18 @@ class SpeechLanguageTest {
     }
 
     @Test
+    fun hongKongChineseIsCantonese() {
+        assertEquals("yue-Hant-HK", pick("zh-Hant-HK", supported = onDevice + "yue-Hant-HK"))
+        assertEquals("yue-Hant-HK", pick("zh-HK", supported = onDevice + "yue-Hant-HK"))
+    }
+
+    @Test
+    fun traditionalChineseNeverGetsSimplified() {
+        assertNull(pick("zh-Hant-TW", supported = listOf("cmn-Hans-CN")))
+        assertEquals("en-US", pick("zh-Hant-TW", "en-US"))
+    }
+
+    @Test
     fun theOnlineEnginesAlbanianIsUsed() {
         assertEquals("sq-AL", pick("sq-AL", "en-US", supported = onDevice + "sq-AL"))
     }

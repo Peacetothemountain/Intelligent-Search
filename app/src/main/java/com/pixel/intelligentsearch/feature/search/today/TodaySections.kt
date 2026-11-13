@@ -156,11 +156,26 @@ private val OUT_FOR_DELIVERY = Regex("out for delivery|arriving today|arrives to
 /** A package held up: still coming, but not when it said. Read after [OUT_FOR_DELIVERY], so "delayed, now arriving today" stays today. */
 private val DELAYED = Regex("\\bdelayed\\b|\\brunning\\s+late\\b|\\bbehind\\s+schedule\\b|\\brescheduled\\b", RegexOption.IGNORE_CASE)
 private val ON_THE_WAY = Regex("\\bshipped\\b|on (its|the) way|in transit|arriving (tomorrow|on)|has left|departed|be delivered", RegexOption.IGNORE_CASE)
-private val PACKAGE = Regex("package|parcel|order|shipment|delivery", RegexOption.IGNORE_CASE)
+/** Whole words only: "border" and "recorder" are not about an order. */
+private val PACKAGE = Regex("\\b(?:packages?|parcels?|orders?|ordered|shipments?|delivery|deliveries)\\b", RegexOption.IGNORE_CASE)
+/** A call is never package news. */
+private val CALL_CATEGORIES = setOf(Notification.CATEGORY_CALL, Notification.CATEGORY_MISSED_CALL)
+/**
+ * What a text message has to say to be package news, since carriers and shops send theirs as texts too: it names the
+ * parcel itself, gives a carrier's own step, or has an order's number. Someone writing "on the way home, I'll order
+ * pizza" does none of them.
+ */
+private val PARCEL_IN_A_MESSAGE = Regex(
+    "\\b(?:packages?|parcels?|shipments?|delivery|deliveries|shipped|delivered)\\b|in transit" +
+        // A shop's own text names the order by its number.
+        "|\\border\\s*(?:#|no\\.?|number)\\s*[a-z]*\\d",
+    RegexOption.IGNORE_CASE
+)
 
 /**
  * The newest package news among the notifications from the last two days, if any: delivered, out for delivery,
- * delayed, or on its way. Only notifications that speak of a package, order or delivery count. When the newest says it
+ * delayed, or on its way. Only notifications that speak of a package, order or delivery count, none from a call, and a
+ * text message only when it names the parcel or a carrier's step ([PARCEL_IN_A_MESSAGE]). When the newest says it
  * couldn't be delivered (in any of [NOT_DELIVERED]'s words), no step says that, so there is no tile rather than an older, happier one.
  * Its "today" is the day it was posted in [zone]: out for delivery on an earlier day, with no news since, says nothing
  * true about today, so there is no tile either. A conversation is read by its newest message alone: an older one in the
@@ -168,9 +183,10 @@ private val PACKAGE = Regex("package|parcel|order|shipment|delivery", RegexOptio
  */
 internal fun deliveryFrom(entries: List<IndexedNotification>, now: Long, zone: ZoneId): TodayDelivery? {
     val today = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
-    for (entry in entries.filter { now - it.postedAt in 0..DELIVERY_WINDOW_MS }.sortedByDescending { it.postedAt }) {
+    for (entry in entries.filter { now - it.postedAt in 0..DELIVERY_WINDOW_MS && it.category !in CALL_CATEGORIES }.sortedByDescending { it.postedAt }) {
         val text = "${entry.title} ${entry.newest}"
         if (!PACKAGE.containsMatchIn(text)) continue
+        if (entry.category == Notification.CATEGORY_MESSAGE && !PARCEL_IN_A_MESSAGE.containsMatchIn(text)) continue
         if (NOT_DELIVERED.containsMatchIn(text)) return null
         return when {
             DELIVERED.containsMatchIn(TO_BE_DELIVERED.replace(text, "")) -> TodayDelivery(3, "Delivered", entry.appLabel, entry)

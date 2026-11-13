@@ -169,8 +169,9 @@ private fun DetailCard(s: OverlayScope, target: NavTarget) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp)
-            // Announced as the highlight moves, so a TalkBack user with a keyboard hears what Enter will open.
-            .semantics { liveRegion = LiveRegionMode.Polite },
+            // Announced as the highlight moves, so a TalkBack user with a keyboard hears what Enter will open. Only
+            // then: the top result shown while typing would be read out again at every letter that changes it.
+            .then(if (s.ui.highlightedKey != null) Modifier.semantics { liveRegion = LiveRegionMode.Polite } else Modifier),
         shape = ExpressiveCornerTokens.ShapeExtraLarge,
         containerColor = MaterialTheme.colorScheme.raisedContainer
     ) {

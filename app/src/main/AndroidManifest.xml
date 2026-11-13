@@ -33,10 +33,6 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Weather answers for "here", only if the user taps Use Approximate Location on the weather card; asked for then. Never precise. -->
-    <!-- Today's On This Day: a photo from the past each day, read only once the user turns it on. -->
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
     <!-- Optional Hardware Features to Support Maximum Devices on Google Play -->

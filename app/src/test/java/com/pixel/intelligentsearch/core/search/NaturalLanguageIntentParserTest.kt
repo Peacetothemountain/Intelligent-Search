@@ -233,6 +233,9 @@ class NaturalLanguageIntentParserTest {
         // "alarm in 5 seconds" was a 5 o'clock alarm; an alarm days ahead can't be set as an hour and minute.
         assertNull(NaturalLanguageIntentParser.parse("alarm in 5 seconds", currentTimeMs = at(12)))
         assertNull(NaturalLanguageIntentParser.parse("alarm in 2 days", currentTimeMs = at(12)))
+        // Under a minute from now was the current minute, which the clock sets for tomorrow.
+        assertNull(NaturalLanguageIntentParser.parse("alarm in 0 minutes", currentTimeMs = at(12)))
+        assertNull(NaturalLanguageIntentParser.parse("alarm in 0 days", currentTimeMs = at(12)))
         val soon = NaturalLanguageIntentParser.parse("alarm in 1.5 hours", currentTimeMs = at(12)) as NaturalLanguageIntentParser.ParsedIntent.Alarm
         assertEquals(13, soon.hour)
         assertEquals(30, soon.minute)
@@ -574,6 +577,8 @@ class NaturalLanguageIntentParserTest {
         assertEquals("call mom", reminder("remind me on friday to call mom at 3").task)
         assertEquals("call mom", reminder("remind me in 10 minutes to call mom").task)
         assertEquals("buy milk", reminder("remind me tomorrow to buy milk").task)
+        // The time's letters inside another word stay: this was "call an".
+        assertEquals("call noonan", reminder("remind me tomorrow noon to call noonan").task)
         assertEquals("Meeting", event("meeting on friday, dec 4 at 3pm").title)
         assertEquals("Meeting with john", event("meeting with john tomorrow at 3pm").title)
         // "schedule" names no meeting, so its title is as typed.

@@ -32,18 +32,29 @@ private const val TAG = "IntelligentRecognition"
 class IntelligentRecognitionService : RecognitionService() {
 
     private var delegate: SpeechRecognizer? = null
+    /** Whether the last recognizer [createDelegate] made is the on-device one. */
+    private var delegateOnDevice = false
+    /** Set once the caller has said it is done speaking, so a session it ended isn't started again elsewhere. */
+    private var stopped = false
     /** The recognizer a model download was asked of; it binds asynchronously, so it lives until the service ends. */
     private var downloadDelegate: SpeechRecognizer? = null
 
     override fun onStartListening(recognizerIntent: Intent, listener: Callback) {
         destroyDelegate()
-        val recognizer = createDelegate(attributedContext(listener.callingAttributionSource))
+        stopped = false
+        val context = attributedContext(listener.callingAttributionSource)
+        val recognizer = createDelegate(context)
         if (recognizer == null) {
             safeError(listener, SpeechRecognizer.ERROR_CLIENT)
             return
         }
         delegate = recognizer
-        recognizer.setRecognitionListener(RecognitionRelay(CallbackSink(listener)))
+        val onDevice = delegateOnDevice
+        // The on-device engine has only the languages downloaded to it; the phone's other engine, which was the
+        // default recognizer before Intelligent Search, gets one try at the rest.
+        recognizer.setRecognitionListener(RecognitionRelay(CallbackSink(listener)) {
+            onDevice && !stopped && delegate === recognizer && listenElsewhere(context, recognizerIntent, listener)
+        })
         try {
             recognizer.startListening(recognizerIntent)
         } catch (e: Exception) {
@@ -54,6 +65,7 @@ class IntelligentRecognitionService : RecognitionService() {
     }
 
     override fun onStopListening(listener: Callback) {
+        stopped = true
         try {
             delegate?.stopListening()
         } catch (_: Exception) {}
@@ -120,9 +132,10 @@ class IntelligentRecognitionService : RecognitionService() {
 
     /** The on-device recognizer, else another app's recognition service; never the default one. */
     private fun createDelegate(context: Context): SpeechRecognizer? {
+        delegateOnDevice = false
         try {
             if (SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
-                return SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+                return SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { delegateOnDevice = true }
             }
         } catch (e: Exception) {
             Log.w(TAG, "On-device recognizer unavailable", e)
@@ -133,6 +146,26 @@ class IntelligentRecognitionService : RecognitionService() {
         } catch (e: Exception) {
             Log.w(TAG, "Could not bind recognition service $other", e)
             null
+        }
+    }
+
+    /**
+     * Starts [intent] again on another app's recognition service, attributed as the first try was; false (and the
+     * caller gets the first engine's error) when there is none or it fails to start. Its own errors are passed on.
+     */
+    private fun listenElsewhere(context: Context, intent: Intent, listener: Callback): Boolean {
+        val other = otherRecognitionService(this) ?: return false
+        destroyDelegate()
+        return try {
+            val recognizer = SpeechRecognizer.createSpeechRecognizer(context, other)
+            delegate = recognizer
+            recognizer.setRecognitionListener(RecognitionRelay(CallbackSink(listener)))
+            recognizer.startListening(intent)
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not retry with recognition service $other", e)
+            destroyDelegate()
+            false
         }
     }
 
@@ -216,17 +249,30 @@ internal interface RecognitionSink {
  * that keeps listening through pauses, Android 13+) reports every phrase through onSegmentResults and ends with
  * onEndOfSegmentedSession instead of onResults, so those are passed on too: without them the caller lost everything
  * said before the last pause.
+ *
+ * When the delegate lacks the language before it has heard anything, [retryElsewhere] may hand the request to
+ * another engine (it says whether it did); the caller then hears nothing of the error.
  */
-internal class RecognitionRelay(private val sink: RecognitionSink) : RecognitionListener {
+internal class RecognitionRelay(
+    private val sink: RecognitionSink,
+    private val retryElsewhere: (() -> Boolean)? = null
+) : RecognitionListener {
+    /** Whether any words have reached the caller; after that an error is always passed on. */
+    private var heard = false
+
     override fun onReadyForSpeech(params: Bundle?) = relay { sink.readyForSpeech(params ?: Bundle()) }
     override fun onBeginningOfSpeech() = relay { sink.beginningOfSpeech() }
     override fun onRmsChanged(rmsdB: Float) = relay { sink.rmsChanged(rmsdB) }
     override fun onBufferReceived(buffer: ByteArray?) = relay { buffer?.let { sink.bufferReceived(it) } }
     override fun onEndOfSpeech() = relay { sink.endOfSpeech() }
-    override fun onError(error: Int) = relay { sink.error(error) }
-    override fun onResults(results: Bundle?) = relay { sink.results(results ?: Bundle()) }
-    override fun onPartialResults(partialResults: Bundle?) = relay { partialResults?.let { sink.partialResults(it) } }
-    override fun onSegmentResults(segmentResults: Bundle) = relay { sink.segmentResults(segmentResults) }
+    override fun onError(error: Int) {
+        val noLanguage = error == SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED || error == SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE
+        if (noLanguage && !heard && retryElsewhere?.invoke() == true) return
+        relay { sink.error(error) }
+    }
+    override fun onResults(results: Bundle?) { heard = true; relay { sink.results(results ?: Bundle()) } }
+    override fun onPartialResults(partialResults: Bundle?) { heard = true; relay { partialResults?.let { sink.partialResults(it) } } }
+    override fun onSegmentResults(segmentResults: Bundle) { heard = true; relay { sink.segmentResults(segmentResults) } }
     override fun onEndOfSegmentedSession() = relay { sink.endOfSegmentedSession() }
     override fun onLanguageDetection(results: Bundle) = relay { sink.languageDetection(results) }
     override fun onEvent(eventType: Int, params: Bundle?) = Unit

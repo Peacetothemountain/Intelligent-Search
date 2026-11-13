@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.backup.AutoBackup
 import com.pixel.intelligentsearch.core.backup.EncryptedBackupEnvelope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -603,6 +604,20 @@ fun BackupRestoreScreen(
                                                 passphraseVisible = false
                                                 hapticEngine.performPredictiveBackHaptic()
                                                 safeShowToast("Passphrase saved to $keyHolder")
+                                                // Weekly backups keep the passphrase they were turned on with until told
+                                                // otherwise; moved to this one, they open with what the user now knows.
+                                                // Deriving the key takes seconds, so it runs off the main thread and
+                                                // finishes even if the page is left.
+                                                val rekeyed = withContext(NonCancellable + Dispatchers.IO) {
+                                                    val autoBackup = AutoBackup(context.applicationContext)
+                                                    val folder = autoBackup.folderUri
+                                                    if (autoBackup.isEnabled && autoBackup.usesPassphrase && folder != null) {
+                                                        autoBackup.enable(folder, toSave.toCharArray(), rekeying = true)
+                                                    } else null
+                                                }
+                                                if (rekeyed != null) {
+                                                    safeShowToast(if (rekeyed) "Weekly backups now use this passphrase" else "Weekly backups still use your earlier passphrase")
+                                                }
                                             }
                                             outcome == com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager.PassphraseSave.NEEDS_AUTHENTICATION && !afterPrompt -> {
                                                 val activity = context.findActivity()

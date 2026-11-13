@@ -347,7 +347,7 @@ internal fun TodayPage(
     val loadedWeather = (preloadedWeather ?: ownWeather)?.takeIf { weatherOn }
     val weather = loadedWeather?.first
     val tomorrowWeather = loadedWeather?.second
-    val allNotifications = rememberNotifications(sources, active && catchUpOn)
+    val allNotifications = rememberNotifications(sources, active, catchUpOn)
     // Hidden apps stay out of Catch Up and the package tile, as they do from search and At a Glance.
     val notifications = remember(allNotifications, hiddenApps) { allNotifications.filterNot { it.packageName in hiddenApps } }
     val catchUp = remember(notifications, now) { catchUpFrom(notifications, now) }
@@ -366,8 +366,10 @@ internal fun TodayPage(
     val alarmTomorrow = snapshot.alarm?.takeIf {
         Instant.ofEpochMilli(it.triggerAt).atZone(zone).toLocalDate() == today.plusDays(1)
     }
+    // Kept while the page closes, so Up Next doesn't lose its leave-by time as it leaves.
     val trip = produceState<TodayTrip?>(null, upNext?.eventId, upNext?.beginMillis, upNext?.location, leaveByOn, active, locationOk) {
-        value = if (upNext != null && leaveByOn && active) sources.trip(upNext) else null
+        if (!active) return@produceState
+        value = if (upNext != null && leaveByOn) sources.trip(upNext) else null
     }.value
     // Leave-by looks up the event's place only with Web on and Tor not the engine; without that, no location is asked.
     val leaveByBlocked = com.pixel.intelligentsearch.core.security.NetworkPolicy.aiBlock(web, engine) != null
@@ -475,10 +477,11 @@ internal fun TodayPage(
     val appIcons by produceState(emptyMap<String, ImageBitmap?>(), appPackages) {
         value = appPackages.associateWith { appCardIcon(context, it) }
     }
-    // The battery, read here only for a shaped phone card (the phone card's own design reads it for itself).
+    // The battery, read here only for a shaped phone card (the phone card's own design reads it for itself). The last
+    // reading stays while the page closes, so the card doesn't fall back to its empty light as it leaves.
     val phoneShaped = cardLayout.cards.any { it.kind == CardKind.PHONE && it.mode == CardMode.SHAPED }
     val battery = remember(sources, active && phoneShaped) {
-        if (active && phoneShaped) sources.battery() else kotlinx.coroutines.flow.flowOf(null)
+        if (active && phoneShaped) sources.battery() else kotlinx.coroutines.flow.emptyFlow()
     }.collectAsState(initial = null).value
     // Private cards show for a few seconds after a tap, then cover again.
     var revealed by remember { mutableStateOf(emptySet<String>()) }

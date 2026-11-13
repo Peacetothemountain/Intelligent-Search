@@ -129,12 +129,17 @@ import androidx.compose.ui.graphics.luminance
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 
-/** The notification index while [enabled]: Catch Up and the delivery tile read it. */
+/**
+ * The notification index while [enabled]: Catch Up and the delivery tile read it. Read while [active]; the last reading
+ * stays while the page closes, so Catch Up doesn't fall back to its empty light as it leaves.
+ */
 @Composable
-internal fun rememberNotifications(sources: TodaySources, enabled: Boolean): List<IndexedNotification> {
-    val flow = remember(sources, enabled) { if (enabled) sources.notifications() else kotlinx.coroutines.flow.flowOf(emptyList()) }
+internal fun rememberNotifications(sources: TodaySources, active: Boolean, enabled: Boolean): List<IndexedNotification> {
+    val flow = remember(sources, active && enabled) {
+        if (active && enabled) sources.notifications() else kotlinx.coroutines.flow.emptyFlow()
+    }
     val entries by flow.collectAsState(initial = emptyList())
-    return entries
+    return if (enabled) entries else emptyList()
 }
 
 /** A package on its way, read from a shipping notification: how far along it is (1 on the way, 2 out for delivery, 3 delivered) and what it said. */
@@ -725,7 +730,9 @@ internal fun PhoneToday(sources: TodaySources, active: Boolean) {
     // Whether Usage Access is granted, a quick check read first, then today's screen time, which takes longer. Battery
     // is slim only where Screen time can't join it: with access it starts as the full tile, not slim and then twice
     // the height once the screen time comes in.
+    // Read again each time the page opens, and kept as it closes, so the tiles don't empty out as the page leaves.
     val usage = produceState<Pair<Boolean, ScreenTimeReport?>?>(null, active) {
+        if (!active) return@produceState
         val allowed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { sources.screenTimeAllowed() }
         value = allowed to null
         if (allowed) value = true to kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { sources.screenTime() }

@@ -697,29 +697,56 @@ private fun TileLabel(icon: ImageVector, label: String) = CardLabel(icon, label)
 @Composable
 internal fun CardLabel(icon: ImageVector, label: String, modifier: Modifier = Modifier, detail: String? = null, spokenDetail: String? = detail) {
     val scheme = MaterialTheme.colorScheme
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-        Icon(icon, null, tint = scheme.primary, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(7.dp))
+    val configuration = LocalConfiguration.current
+    // Whether the name was cut on its one line beside the detail ("SHOW ..." at the largest text on a narrow card).
+    // Only then does the layout change: the name gets the card's width and a second line, the detail goes under it.
+    // Wherever the name fits, the label is drawn exactly as it always was.
+    val windowWidth = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width
+    var cut by remember(label, detail, windowWidth, configuration.fontScale) { mutableStateOf(false) }
+    val name: @Composable (Modifier) -> Unit = { nameModifier ->
         Text(
-            label.uppercase(LocalConfiguration.current.locales[0]),
+            label.uppercase(configuration.locales[0]),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.SemiBold,
             letterSpacing = 0.6.sp,
             color = scheme.onSurfaceVariant,
-            maxLines = 1,
+            maxLines = if (cut) 2 else 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f, fill = false).semantics { heading() }
+            onTextLayout = { if (!cut && it.hasVisualOverflow) cut = true },
+            modifier = nameModifier.semantics { heading() }
         )
+    }
+    val detailText: @Composable (Modifier) -> Unit = { detailModifier ->
         if (detail != null) {
-            Spacer(Modifier.weight(1f).widthIn(min = 8.dp))
             Text(
                 detail,
                 style = MaterialTheme.typography.labelMedium,
                 color = scheme.primary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.clearAndSetSemantics { text = AnnotatedString(spokenDetail ?: detail) }
+                modifier = detailModifier.clearAndSetSemantics { text = AnnotatedString(spokenDetail ?: detail) }
             )
+        }
+    }
+    if (cut && detail != null) {
+        Column(modifier) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, null, tint = scheme.primary, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(7.dp))
+                name(Modifier.weight(1f, fill = false))
+            }
+            // Under the name, clear of the icon.
+            detailText(Modifier.padding(start = 23.dp))
+        }
+    } else {
+        Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = scheme.primary, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(7.dp))
+            name(Modifier.weight(1f, fill = false))
+            if (detail != null) {
+                Spacer(Modifier.weight(1f).widthIn(min = 8.dp))
+                detailText(Modifier)
+            }
         }
     }
 }
@@ -1016,7 +1043,8 @@ internal fun AccessCard(asks: List<PartStatus>) {
             onClick = { first.fix?.invoke() },
             modifier = Modifier.align(Alignment.End).padding(top = 10.dp)
         ) {
-            Text(first.button ?: "Allow", maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // A second line at the largest text on a narrow screen, where one cut "Allow calendar access" short.
+            Text(first.button ?: "Allow", maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
 }

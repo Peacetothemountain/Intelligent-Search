@@ -68,6 +68,47 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
     }
 
     /**
+     * True from the search being opened over a locked phone (the assistant gesture on the lock screen) until the
+     * phone is unlocked: the search waits behind the lock screen, never over it, and shows once the unlock is given.
+     */
+    private var awaitingUnlock = false
+
+    private fun phoneLocked(): Boolean =
+        getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
+
+    /**
+     * Opened by the assistant gesture while the phone is locked: asks the lock screen for the unlock and waits for it.
+     * Out of sight behind the lock screen the overlay would otherwise close itself ([onStop]), and the gesture ended
+     * in nothing. An unlock that is refused or given up closes the search, so it can't turn up at some later unlock.
+     * Every other way in opens as it always did: the tile and the widget unlock first themselves.
+     */
+    private fun waitForUnlockIfLocked() {
+        val keyguard = getSystemService(android.app.KeyguardManager::class.java) ?: return
+        val fromAssistant = intent?.getStringExtra("voice_source") == "assistant_overlay"
+        if (!fromAssistant || !keyguard.isKeyguardLocked) {
+            awaitingUnlock = false
+            return
+        }
+        if (awaitingUnlock) return
+        awaitingUnlock = true
+        keyguard.requestDismissKeyguard(this, object : android.app.KeyguardManager.KeyguardDismissCallback() {
+            override fun onDismissSucceeded() {
+                awaitingUnlock = false
+            }
+
+            override fun onDismissCancelled() = leaveUnopened()
+
+            override fun onDismissError() = leaveUnopened()
+        })
+    }
+
+    private fun leaveUnopened() {
+        awaitingUnlock = false
+        // Still locked: the unlock wasn't given. Unlocked after all, the search is wanted and stays.
+        if (phoneLocked() && !isFinishing && !isDestroyed) finishAndRemoveTask()
+    }
+
+    /**
      * While the overlay waits out of sight behind a speech recognizer or one of Android's permission pages opened over
      * it in its task, checks now and then that the user is still there. Gone Home or to another app instead of Back,
      * the waiting overlay would stay behind (a search opened from the launcher's bar came up over it, and Back showed
@@ -154,6 +195,7 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         waitWatch.removeCallbacks(leftWhileWaiting)
         awayInOwnSettings = false
         awayGrantingAccess = false
+        waitForUnlockIfLocked()
         frameMetricsMonitor.attach(this)
         adpfThermalManager.startHeadroomMonitoring()
     }
@@ -177,6 +219,10 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         // Android first shows a placeholder of the old one: as the overlay keeps itself out of Recents screenshots
         // (what was typed), that placeholder is drawn from the theme, a black screen under a lavender status bar.
         // A speech recognizer or one of Android's permission pages over it is waiting to hand back here.
+        // Nor does one opened over the lock screen, which waits there for the unlock it asked for. Once the phone
+        // is unlocked the wait is over, whether or not the lock screen said so.
+        if (awaitingUnlock && phoneLocked()) return
+        awaitingUnlock = false
         if (!isChangingConfigurations && !isFinishing && !awayInOwnSettings && !awaitingSpeech && !awayGrantingAccess) {
             // The whole task only when this overlay is its top: another overlay entry opened over it in the same task
             // (the singleTask entries share one affinity) must not go with it.

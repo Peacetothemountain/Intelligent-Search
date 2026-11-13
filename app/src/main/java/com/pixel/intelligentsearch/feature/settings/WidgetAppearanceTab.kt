@@ -231,8 +231,9 @@ internal fun WidgetAppearanceTab(
                 text = label,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 maxLines = 1,
-                autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium),
-                style = MaterialTheme.typography.labelMedium,
+                autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium, ONE_WORD_PILL_SHRINK),
+                // One word, kept whole: never hyphenated onto a line that isn't shown.
+                style = MaterialTheme.typography.labelMedium.copy(hyphens = androidx.compose.ui.text.style.Hyphens.None),
                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium
             )
         }
@@ -670,11 +671,12 @@ internal fun WidgetSubthemeSelector(
         ) {
             Text(
                 opt,
-                style = MaterialTheme.typography.labelMedium,
+                // One word, kept whole: never hyphenated onto a line that isn't shown.
+                style = MaterialTheme.typography.labelMedium.copy(hyphens = androidx.compose.ui.text.style.Hyphens.None),
                 fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
                 color = labelColor,
                 maxLines = 1,
-                autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium)
+                autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium, ONE_WORD_PILL_SHRINK)
             )
             val subtext = if (isSystemDesign) null else subthemeSubtext(opt)
             if (subtext != null) {

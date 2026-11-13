@@ -46,7 +46,8 @@ class IntelligentVoiceInteractionSession(context: Context) : VoiceInteractionSes
 
     private fun launchFullSearch(startVoice: Boolean) {
         // Safe over the lock screen: the search activities never call setShowWhenLocked, so the system keeps them
-        // behind the keyguard until the user unlocks, then shows the search.
+        // behind the keyguard; the search asks for the unlock there (MainActivity.waitForUnlockIfLocked) and shows
+        // once it is given.
         val intent = Intent(context, WidgetActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             putExtra("query", "")

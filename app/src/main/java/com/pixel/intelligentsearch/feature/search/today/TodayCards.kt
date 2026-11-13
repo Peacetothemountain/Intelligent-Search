@@ -45,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -275,23 +276,37 @@ private fun LeaveBy(trip: TodayTrip, now: Long) {
     val animate by rememberAnimationsEnabled()
     // Read as the bar is laid out, so filling it never rebuilds the card.
     val fill = animateFloatAsState(target, if (animate) tween(800, delayMillis = 300) else snap(), label = "leave by")
-    Row(Modifier.fillMaxWidth().padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            if (trip.leaveAt <= now) "Leave now" else "Leave by $time",
-            style = MaterialTheme.typography.bodyMedium,
-            color = scheme.onPrimaryContainer
-        )
-        Box(
-            Modifier
-                .weight(1f)
-                .padding(horizontal = 10.dp)
-                .height(6.dp)
-                .clip(CircleShape)
-                .background(scheme.onPrimaryContainer.copy(alpha = 0.18f))
-        ) {
-            Box(Modifier.fillWidth { fill.value }.height(6.dp).clip(CircleShape).background(scheme.onPrimaryContainer))
+    val about = "About ${Durations.minutes(trip.minutes * 60_000L)}"
+    // Whether the drive's length had no room left on the line (the largest text on a narrow screen broke it a
+    // letter to a line). Only then does it go under the line; wherever it fits, the row is as it always was.
+    var squeezed by remember(time, about) { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                if (trip.leaveAt <= now) "Leave now" else "Leave by $time",
+                style = MaterialTheme.typography.bodyMedium,
+                color = scheme.onPrimaryContainer
+            )
+            Box(
+                Modifier
+                    .weight(1f)
+                    .padding(horizontal = 10.dp)
+                    .height(6.dp)
+                    .clip(CircleShape)
+                    .background(scheme.onPrimaryContainer.copy(alpha = 0.18f))
+            ) {
+                Box(Modifier.fillWidth { fill.value }.height(6.dp).clip(CircleShape).background(scheme.onPrimaryContainer))
+            }
+            if (!squeezed) {
+                Text(
+                    about,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = scheme.onPrimaryContainer,
+                    onTextLayout = { if (it.lineCount > 1) squeezed = true }
+                )
+            }
         }
-        Text("About ${Durations.minutes(trip.minutes * 60_000L)}", style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer)
+        if (squeezed) Text(about, style = MaterialTheme.typography.bodyMedium, color = scheme.onPrimaryContainer)
     }
 }
 

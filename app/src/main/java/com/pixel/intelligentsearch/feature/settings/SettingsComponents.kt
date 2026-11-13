@@ -1132,17 +1132,26 @@ fun performClickHaptic(context: android.content.Context) {
  * screens such text would clip or split mid-word; this shrinks it just enough to stay on one line, never below 60%
  * of its size. Where it already fits it keeps its size, so nothing changes there.
  */
-fun oneLineAutoSize(style: androidx.compose.ui.text.TextStyle): androidx.compose.foundation.text.TextAutoSize {
+fun oneLineAutoSize(style: androidx.compose.ui.text.TextStyle, shrinkBy: Float = ONE_LINE_SHRINK): androidx.compose.foundation.text.TextAutoSize {
     // Steps run up from the minimum, so the minimum sits a whole number of steps below the normal size; otherwise
     // the largest size reachable would fall just short of it and fitting text would render a little small.
     return androidx.compose.foundation.text.TextAutoSize.StepBased(
-        minFontSize = oneLineMinFontSize(style),
+        minFontSize = oneLineMinFontSize(style, shrinkBy),
         maxFontSize = style.fontSize,
         stepSize = ONE_LINE_AUTO_SIZE_STEP.sp
     )
 }
 
 private const val ONE_LINE_AUTO_SIZE_STEP = 0.25f
+
+/** How far one-line text shrinks at most: by this share of its size. */
+private const val ONE_LINE_SHRINK = 0.4f
+
+/**
+ * For a single word in one of four pills across the page ("Material", "Accented"): at the largest text on the
+ * narrowest phone the usual limit left it split ("Mate-"), so it may shrink further and stay whole.
+ */
+internal const val ONE_WORD_PILL_SHRINK = 0.6f
 
 /**
  * A selector's label (a profile chip, a design pill): one line, shrinking to fit ([oneLineAutoSize]). Where even its
@@ -1190,10 +1199,10 @@ internal fun OneLineLabel(
 }
 
 /** The smallest size [oneLineAutoSize] shrinks [style]'s text to. */
-fun oneLineMinFontSize(style: androidx.compose.ui.text.TextStyle): androidx.compose.ui.unit.TextUnit {
+fun oneLineMinFontSize(style: androidx.compose.ui.text.TextStyle, shrinkBy: Float = ONE_LINE_SHRINK): androidx.compose.ui.unit.TextUnit {
     val step = ONE_LINE_AUTO_SIZE_STEP
     val max = style.fontSize.value
-    return (max - kotlin.math.floor(max * 0.4f / step) * step).sp
+    return (max - kotlin.math.floor(max * shrinkBy / step) * step).sp
 }
 
 /**

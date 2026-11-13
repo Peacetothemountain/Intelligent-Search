@@ -261,7 +261,9 @@ fun MainSettingsScreen(
                         horizontalAlignment = if (hasBugdroid) Alignment.Start else Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = "Thank you for using\nIntelligent\u00A0Search.",
+                            // A plain space in the name: where the two words don't fit a line (the largest text beside
+                            // the mascot) they part there, not inside "Search".
+                            text = "Thank you for using\nIntelligent Search.",
                             fontSize = titleFontSize,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface,

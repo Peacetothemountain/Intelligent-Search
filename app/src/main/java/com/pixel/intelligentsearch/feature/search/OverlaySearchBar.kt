@@ -73,6 +73,9 @@ internal fun ghostText(typed: String, bestMatchName: String?): androidx.compose.
 /** The search pill's alpha for the Search Pill Opacity setting: [opacity] percent, so a higher setting is never more see-through. */
 internal fun pillAlpha(opacity: Int): Float = (opacity / 100f).coerceIn(0f, 1f)
 
+/** Below this width the search bar gives its Discover button and mic's room to the words being typed. */
+private const val NARROW_BAR_DP = 360
+
 /** The overlay's search bar: the text field, its ghost text, the pills around it and the engine chip. */
 @Composable
 internal fun OverlaySearchBar(s: OverlayScope) {
@@ -149,6 +152,11 @@ internal fun OverlaySearchBar(s: OverlayScope) {
         )
         val searchBarShape = RoundedCornerShape(searchBarCornerRadius)
         val showMic by rememberSetting(SettingsManager.OVERLAY_SHOW_MIC)
+        // Under 360 dp (a small phone, or the largest display size) the bar's buttons leave the field room for a
+        // few letters only, so while words are typed the Discover button and the mic stand aside for them.
+        val windowWidthPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width
+        val narrowBar = with(androidx.compose.ui.platform.LocalDensity.current) { windowWidthPx < NARROW_BAR_DP.dp.roundToPx() }
+        val typingOnNarrowBar = narrowBar && uiState.query.isNotEmpty()
         Row(
             modifier = Modifier
                 .tutorialTarget(1, prefs)
@@ -208,7 +216,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                 ) { Icon(Icons.Default.Close, contentDescription = "Cancel voice search", modifier = Modifier.size(20.dp)) }
             } else {
                 val todayButton by rememberSetting(SettingsManager.TODAY_BUTTON)
-                if (todayButton) {
+                if (todayButton && !typingOnNarrowBar) {
                     // Today, to the left of the lens: the bar's own icon size and weight.
                     com.pixel.intelligentsearch.feature.search.today.TodayBarButton(
                         onClick = {
@@ -284,7 +292,8 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (uiState.query.isEmpty()) {
-                                Text(if (voice.active) "Listening…" else if (calculatorKeyboard) "Calculate…" else "Search…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex)
+                                // One line: in a field too narrow for it (a small screen at the largest text) it wrapped out of the bar.
+                                Text(if (voice.active) "Listening…" else if (calculatorKeyboard) "Calculate…" else "Search…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex, maxLines = 1, softWrap = false)
                             } else if (ghostTextAnnotated != null) {
                                 // The suggested ending in full onSurfaceVariant, readable at 4.5:1, and set apart
                                 // from the typed text's onSurface by its color, as the "Search…" hint is.
@@ -355,7 +364,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     ),
                     modifier = Modifier.size(40.dp)
                 ) { Icon(Icons.Default.Check, contentDescription = "Done speaking", modifier = Modifier.size(22.dp)) }
-            } else if (showMic) {
+            } else if (showMic && !typingOnNarrowBar) {
                 // Gboard Rambler's sparkle mic, drawn in the same colours as the lens icon; no container.
                 IconButton(
                     onClick = {
@@ -373,7 +382,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
             }
 
             // A clear gap between the voice button and settings.
-            if (voice.active || showMic) Spacer(modifier = Modifier.width(6.dp))
+            if (voice.active || (showMic && !typingOnNarrowBar)) Spacer(modifier = Modifier.width(6.dp))
 
             IconButton(
                 onClick = { 

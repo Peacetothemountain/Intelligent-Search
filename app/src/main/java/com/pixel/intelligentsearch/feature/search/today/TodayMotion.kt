@@ -9,6 +9,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -277,22 +278,43 @@ internal fun SettleText(text: String, style: TextStyle, color: Color, modifier: 
         }
     }
     val rest = (style.fontWeight ?: FontWeight.Normal).weight
-    Row(modifier.clearAndSetSemantics { contentDescription = text }) {
-        text.forEachIndexed { i, c ->
-            // Recomposes only when the letter reaches the next weight step, not on every frame.
-            val weight by remember(letters, rest) { derivedStateOf { settleWeight(letters[i].value, rest) } }
-            Text(
-                c.toString(),
-                style = if (weight >= rest) style else style.copy(fontFamily = SettleFamily, fontWeight = FontWeight(weight)),
-                color = color,
-                modifier = Modifier.graphicsLayer {
-                    val p = letters[i].value
-                    alpha = (p * 2f).coerceIn(0f, 1f)
-                    translationY = (1f - p) * with(density) { 12.dp.toPx() }
+    // Word by word, so a line wider than its place (the largest text on a narrow screen) wraps between words
+    // where it was cut off mid-word; on one line it is drawn as before.
+    val words = remember(text) { wordSpans(text) }
+    FlowRow(modifier.clearAndSetSemantics { contentDescription = text }) {
+        words.forEach { word ->
+            Row {
+                for (i in word) {
+                    // Recomposes only when the letter reaches the next weight step, not on every frame.
+                    val weight by remember(letters, rest) { derivedStateOf { settleWeight(letters[i].value, rest) } }
+                    Text(
+                        text[i].toString(),
+                        style = if (weight >= rest) style else style.copy(fontFamily = SettleFamily, fontWeight = FontWeight(weight)),
+                        color = color,
+                        modifier = Modifier.graphicsLayer {
+                            val p = letters[i].value
+                            alpha = (p * 2f).coerceIn(0f, 1f)
+                            translationY = (1f - p) * with(density) { 12.dp.toPx() }
+                        }
+                    )
                 }
-            )
+            }
         }
     }
+}
+
+/** [text]'s words as index ranges, each with the spaces after it, so the ranges cover every letter in order. */
+internal fun wordSpans(text: String): List<IntRange> {
+    val spans = ArrayList<IntRange>()
+    var start = 0
+    for (i in text.indices) {
+        val endsWord = text[i] == ' ' && (i + 1 == text.length || text[i + 1] != ' ')
+        if (endsWord || i == text.lastIndex) {
+            spans += start..i
+            start = i + 1
+        }
+    }
+    return spans
 }
 
 /** The lightest weight a [SettleText] letter starts from, as in the approved design. */

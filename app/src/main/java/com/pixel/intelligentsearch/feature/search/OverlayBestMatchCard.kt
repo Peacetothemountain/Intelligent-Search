@@ -63,10 +63,13 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             // Header: Expressive "BEST MATCH" Pill & "Press Enter to Open" Action Hint
-            Row(
+            // Side by side where both fit; at the largest text on a narrow screen the hint goes under the badge
+            // whole, where squeezed beside it it broke a letter to a line.
+            FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                itemVerticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

@@ -44,9 +44,18 @@ internal fun OverlayQuickAppPanel(s: OverlayScope) {
                 settingsState.shortcutResultsCount
             )
         }
-        // Names the overlay already has for its apps, so most pills never ask PackageManager for one.
-        val knownNames = remember(uiState.recentApps, uiState.allApps) {
-            buildMap { for (app in uiState.recentApps + uiState.allApps) putIfAbsent(app.packageName, app.name) }
+        // Names the overlay already has for its apps, so most pills never ask PackageManager for one. A package with
+        // two icons (Phone and Contacts) is named by the screen its pill opens, looked up off the main thread.
+        val severalIcons = remember(uiState.allApps) {
+            uiState.allApps.groupBy { it.packageName }
+                .filterValues { icons -> icons.any { it.activityName != icons.first().activityName } }.keys
+        }
+        val knownNames = remember(uiState.recentApps, uiState.allApps, severalIcons) {
+            buildMap {
+                // A recent app's name can be either icon's, so a package with two is named by its pill's screen alone.
+                for (app in uiState.recentApps) if (app.packageName !in severalIcons) putIfAbsent(app.packageName, app.name)
+                for (app in uiState.allApps) if (app.packageName !in severalIcons) putIfAbsent(app.packageName, app.name)
+            }
         }
         val dynamicScale = if (pillPackages.size > 6) (6f / pillPackages.size.toFloat()).coerceIn(0.6f, 1f) else 1f
         LazyRow(
@@ -60,6 +69,7 @@ internal fun OverlayQuickAppPanel(s: OverlayScope) {
                         val iconKey = LaunchIconKeys.pill(packageName)
                         QuickAppPill(
                             packageName, settingsState.activeIconPack, dynamicScale, knownName = knownNames[packageName],
+                            appLabel = if (packageName in severalIcons) ::launchScreenName else ::getAppName,
                             launchIcon = LaunchIconTarget(launchIcons, iconKey)
                         ) {
                             if (uiState.query.isNotEmpty()) viewModel.addSearchHistory(uiState.query)
@@ -93,6 +103,10 @@ internal fun quickPanelApps(contextAware: Boolean, chosenApps: String, recentApp
     val apps = if (contextAware) recentApps else chosenApps.split(",").map { it.trim() }.filter { it.isNotBlank() }
     return apps.distinct().take(maxApps)
 }
+
+/** The name of the screen [packageName] opens to, for a package with several icons; its app's name failing that. */
+private fun launchScreenName(context: Context, packageName: String): String =
+    com.pixel.intelligentsearch.core.data.SystemDataProvider.launchScreenName(context, packageName) ?: getAppName(context, packageName)
 
 /**
  * One quick-app pill: [packageName]'s themed icon and name. The name is [knownName], from the app lists the overlay

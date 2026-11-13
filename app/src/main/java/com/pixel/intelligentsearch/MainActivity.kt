@@ -657,12 +657,13 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
 
     /**
      * Opens the app an app row in Android's own search stands for ([GlobalSearchProvider.ACTION_OPEN_APP], its
-     * package in the data). Only the app's own launcher screen, which any app may open, so the open intent filter
-     * gives nothing away.
+     * package in the data and the icon's activity after a `#`). Only one of the app's launcher screens, which any app
+     * may open, so the open intent filter gives nothing away.
      */
     private fun openAppFromSearch(intent: Intent) {
-        val app = intent.data?.takeIf { it.scheme == "package" }?.schemeSpecificPart ?: return
-        com.pixel.intelligentsearch.core.system.launchApp(this, app)
+        val data = intent.data?.takeIf { it.scheme == "package" } ?: return
+        val app = data.schemeSpecificPart ?: return
+        com.pixel.intelligentsearch.core.system.launchApp(this, app, data.fragment)
     }
 
     /** True from starting a speech recognizer until its words come back, so the search stays open meanwhile. */

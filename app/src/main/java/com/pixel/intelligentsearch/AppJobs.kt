@@ -50,6 +50,9 @@ enum class AppJob(val id: Int) {
     },
     DOODLE_CHANGE(1006) {
         override suspend fun run(context: Context, extras: PersistableBundle) = WidgetDoodles.changeNow(context)
+    },
+    PALETTE_CHANGE(1007) {
+        override suspend fun run(context: Context, extras: PersistableBundle) = WidgetPaletteWatch.changed(context)
     };
 
     abstract suspend fun run(context: Context, extras: PersistableBundle)

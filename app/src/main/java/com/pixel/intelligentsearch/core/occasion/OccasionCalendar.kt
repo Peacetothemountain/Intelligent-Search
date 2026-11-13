@@ -13,7 +13,8 @@ import kotlin.math.pow
 /**
  * Which [Occasion], if any, a day is. Most days are the same everywhere. A few are kept only where they're
  * celebrated, going by the phone's region (its language setting's country): Groundhog Day, Mother's and Father's Day,
- * Canada Day, the Fourth of July and Thanksgiving. The first day of each season is the local date of the equinox or
+ * Canada Day, the Fourth of July and Thanksgiving. Where the Orthodox Church's dates are kept, Easter is its Easter and
+ * Christmas may be on January 7 ([easter], [christmas]). The first day of each season is the local date of the equinox or
  * solstice, named for the hemisphere the phone's time zone is in.
  *
  * Local festivals, such as Diwali in India or Midsummer in Sweden and Finland, are shown only in their regions too (see
@@ -43,7 +44,7 @@ object OccasionCalendar {
 
     /** The occasion [date] is in [zone] and [region]; when two fall on one day, the rarer one wins. */
     fun on(date: LocalDate, zone: ZoneId, region: String = ""): Occasion? =
-        local(date, region) ?: movable(date, region) ?: regional(date, region) ?: fixed(date) ?: season(date, zone) ?:
+        local(date, region) ?: movable(date, region) ?: regional(date, region) ?: fixed(date, region) ?: season(date, zone) ?:
             worldDay(date)
 
     /** The next time the doodle changes after [from]: the start of the first later day whose occasion differs. */
@@ -58,7 +59,7 @@ object OccasionCalendar {
     /** Days whose date moves from year to year. */
     private fun movable(date: LocalDate, region: String): Occasion? {
         val year = date.year
-        if (date == easter(year)) return Occasion.EASTER
+        if (date == easter(year, region)) return Occasion.EASTER
         if (date == LUNAR_NEW_YEAR[year]) return Occasion.LUNAR_NEW_YEAR
         val thanksgiving = when (region) {
             "US" -> nth(year, 11, DayOfWeek.THURSDAY, 4)
@@ -86,8 +87,22 @@ object OccasionCalendar {
         202 -> Occasion.GROUNDHOG_DAY.takeIf { region == "US" || region == "CA" }
         701 -> Occasion.CANADA_DAY.takeIf { region == "CA" }
         704 -> Occasion.INDEPENDENCE_DAY.takeIf { region == "US" }
+        106, 107 -> Occasion.HOLIDAYS.takeIf { region in JANUARY_CHRISTMAS_REGIONS }
         else -> null
     }
+
+    /** Christmas Day in [region]: January 7 where the Julian calendar's December 25 is kept, else December 25. */
+    internal fun christmas(year: Int, region: String): LocalDate =
+        if (region in JANUARY_CHRISTMAS_REGIONS) LocalDate.of(year, 1, 7) else LocalDate.of(year, 12, 25)
+
+    /**
+     * Where Christmas is kept on the Julian calendar's December 25, January 7 (with its Eve on the 6th). Ukraine moved
+     * to December 25 in 2023; Greece, Cyprus, Romania and Bulgaria keep December 25 too.
+     */
+    private val JANUARY_CHRISTMAS_REGIONS = setOf("RU", "RS", "GE", "BY", "ME", "MK")
+
+    /** Where Easter is the Orthodox one ([orthodoxEaster]). */
+    private val ORTHODOX_EASTER_REGIONS = setOf("GR", "CY", "RO", "BG", "RS", "RU", "UA", "BY", "GE", "MK", "ME", "MD")
 
     /**
      * Festivals kept in only one region or a few, on fixed or movable dates. They're the rarest days of all, so they
@@ -193,7 +208,7 @@ object OccasionCalendar {
         2035 to LocalDate.of(2035, 10, 30)
     )
 
-    private fun fixed(date: LocalDate): Occasion? = when (date.monthValue * 100 + date.dayOfMonth) {
+    private fun fixed(date: LocalDate, region: String): Occasion? = when (date.monthValue * 100 + date.dayOfMonth) {
         101 -> Occasion.NEW_YEARS_DAY
         214 -> Occasion.VALENTINES_DAY
         229 -> Occasion.LEAP_DAY
@@ -214,7 +229,7 @@ object OccasionCalendar {
         1005 -> Occasion.TEACHERS_DAY
         1031 -> Occasion.HALLOWEEN
         1113 -> Occasion.KINDNESS_DAY
-        1224, 1225 -> Occasion.HOLIDAYS
+        1224, 1225 -> Occasion.HOLIDAYS.takeIf { region !in JANUARY_CHRISTMAS_REGIONS }
         1231 -> Occasion.NEW_YEARS_EVE
         // Global fun days.
         121 -> Occasion.HUGGING_DAY
@@ -285,6 +300,26 @@ object OccasionCalendar {
         val month = (h + l - 7 * m + 114) / 31
         val day = (h + l - 7 * m + 114) % 31 + 1
         return LocalDate.of(year, month, day)
+    }
+
+    /** Easter Sunday as [region] keeps it: the Orthodox one in [ORTHODOX_EASTER_REGIONS], else the Western one. */
+    internal fun easter(year: Int, region: String): LocalDate =
+        if (region in ORTHODOX_EASTER_REGIONS) orthodoxEaster(year) else easter(year)
+
+    /**
+     * Orthodox Easter Sunday: the Julian computus (Meeus, Astronomical Algorithms, chapter 8), moved to the Gregorian
+     * calendar by the days between the two, 13 from 1900 to 2099.
+     */
+    internal fun orthodoxEaster(year: Int): LocalDate {
+        val a = year % 4
+        val b = year % 7
+        val c = year % 19
+        val d = (19 * c + 15) % 30
+        val e = (2 * a + 4 * b - d + 34) % 7
+        val month = (d + e + 114) / 31
+        val day = (d + e + 114) % 31 + 1
+        val century = year / 100
+        return LocalDate.of(year, month, day).plusDays((century - century / 4 - 2).toLong())
     }
 
     /** Whether the time zone's place is south of the equator, where the seasons are the other way round. */

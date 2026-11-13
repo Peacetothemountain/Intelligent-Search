@@ -104,7 +104,7 @@ internal fun searchProviderName(engine: String, customUrl: String, customName: S
 /** The first-run tutorial's steps on the overlay; Settings carries on from step 3. */
 internal val OverlayTutorialSteps = mapOf(
     0 to TutorialStepInfo("Welcome!", "Hello! Thank you for installing Intelligent Search. Please follow the tutorial to show you around. [bugdroid]", Alignment.Center, showArrow = false),
-    1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps, contacts, and files instantly. You can also swipe away recent search cards to remove them.", Alignment.Center, showArrow = true),
+    1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps or search the web. You can add contacts and files in Settings, and swipe away recent search cards to remove them.", Alignment.Center, showArrow = true),
     2 to TutorialStepInfo("Settings", "Tap the settings icon ( [three_bars] ) to customize your search experience. Press Next below to open Settings now.", Alignment.Center, showArrow = true, showCircle = true)
 )
 
@@ -607,7 +607,8 @@ fun SearchOverlayScreen(
     // The apps and Best Match for a set of results: what the screen draws, and what Enter opens from the newest results.
     fun visibleAppsIn(state: SearchUiState): List<AppItem> {
         val hidden = settingsState.hiddenApps
-        return state.filteredApps.filter { !hidden.contains(it.packageName) }.distinctBy { it.packageName to it.userHandle }
+        // Each launcher icon once: a package with two (Phone and Contacts) shows both.
+        return state.filteredApps.filter { !hidden.contains(it.packageName) }.distinctBy { Triple(it.packageName, it.activityName, it.userHandle) }
     }
 
     fun bestMatchIn(state: SearchUiState, apps: List<AppItem>): Any? = BestMatch.find(
@@ -619,6 +620,45 @@ fun SearchOverlayScreen(
         ),
         learnedPick = state.learnedPick
     )
+
+    /**
+     * The Android Settings page Enter opens for [state], or null when Enter searches the web as before. Only a typed
+     * query that is the page's own name or one of its words ("wifi", "dark mode") opens it, and only when it is the
+     * first row: no answer, action, Ask, "Did you mean" or result of any section sits above it. Web suggestions that
+     * are on but not in yet count as rows, so Enter can't open a page a moment before they show. With [apps] shown,
+     * the apps lead, so Quick Launch keeps Enter. The Lens, Voice and Assistant rows over a bottom bar show for every
+     * query, so they don't count.
+     */
+    fun topSettingIn(state: SearchUiState, apps: List<AppItem>, fromVoice: Boolean): com.pixel.intelligentsearch.core.search.AndroidSettingResult? {
+        // A spoken query can be misheard, so it searches.
+        if (fromVoice) return null
+        val setting = state.androidSettings.firstOrNull()?.takeIf { it.isStrongMatch } ?: return null
+        val typed = state.query.trim()
+        val page = (com.pixel.intelligentsearch.core.search.AndroidSettingsCatalog.pages + com.pixel.intelligentsearch.core.search.AppSettingsCatalog.pages)
+            .firstOrNull { it.id == setting.id } ?: return null
+        val namesIt = typed.equals(setting.title, ignoreCase = true) || page.keywords.any { typed.equals(it.trim(), ignoreCase = true) }
+        if (!namesIt) return null
+        // The switch card "wifi" or "dark mode" shows is that same setting, so it doesn't count as a row above it.
+        val rowAbove = state.mathResult != null || state.instantAnswer != null || state.liveAnswer?.query == state.query ||
+            state.volumeSlider != null || state.spellingSuggestion != null ||
+            state.directActions.isNotEmpty() || state.aiAnswer != null ||
+            (state.askAi != null && com.pixel.intelligentsearch.core.ai.AiAnswers.questionIn(state.query) != null)
+        if (rowAbove) return null
+        val order = resultSectionOrder(appWeight, webWeight, contactWeight, fileWeight, state.androidSettings.any { it.isStrongMatch })
+        val above = order.takeWhile { it != "android_settings" }
+        val aboveIsEmpty = above.all { section ->
+            when (section) {
+                "apps" -> !settingsState.searchApps || apps.isEmpty()
+                "web" -> !(settingsState.searchWeb || suggestionsEnabled) || !suggestionsEnabled && displayedSuggestions(
+                    state.query, state.recentSearches, settingsState.searchPreviousSearches, state.webSuggestions, settingsState.webResultsCount
+                ).isEmpty()
+                "contacts" -> !settingsState.searchContacts || state.contacts.isEmpty()
+                "files" -> !settingsState.searchFiles || (state.files.isEmpty() && state.fileTypeFilter == null)
+                else -> true
+            }
+        }
+        return setting.takeIf { aboveIsEmpty }
+    }
 
     val visibleApps by remember { derivedStateOf { visibleAppsIn(uiState) } }
 
@@ -693,36 +733,38 @@ fun SearchOverlayScreen(
             // Nothing typed; the highlight was handled by onEnter before the results settled.
             else -> return@submit
         }
-        // What was typed is kept as a search, except for a Private Space app (addSearchHistory), so each branch says
-        // what it opened.
+        // As with a tap, only a web search or a typed web address is kept in Recent Searches (launchWebSearch keeps
+        // the search): "spo" that opened Spotify would come back from there as a web search for "spo".
         when (val match = bestMatchIn(results, apps)) {
             is ContactItem -> {
-                viewModel.addSearchHistory(submittedQuery)
                 viewModel.recordOpened(match)
                 // A spoken name can be misheard, so voice opens the contact rather than calling straight away.
                 ContactActions.open(context, match, directCall = settingsState.contactDirectCall && !fromVoice)
             }
-            is AppItem -> {
-                viewModel.addSearchHistory(submittedQuery, opened = match)
-                performAppLaunch(match, LaunchSource.keyboard(LaunchIconKeys.BEST_MATCH, LaunchIconKeys.app(match)))
-            }
+            is AppItem -> performAppLaunch(match, LaunchSource.keyboard(LaunchIconKeys.BEST_MATCH, LaunchIconKeys.app(match)))
             is FileItem -> {
-                viewModel.addSearchHistory(submittedQuery)
                 viewModel.recordOpened(match)
                 openFileResult(context, prefs, match)
             }
-            else -> when {
-                results.instantAnswer?.iconType == "url" -> {
-                    viewModel.addSearchHistory(submittedQuery)
-                    openWebAddress(results.instantAnswer.title)
-                }
-                settingsState.appQuickLaunch && apps.isNotEmpty() -> apps.first().let { app ->
-                    viewModel.addSearchHistory(submittedQuery, opened = app)
-                    performAppLaunch(app, LaunchSource.keyboard(LaunchIconKeys.app(app)))
-                }
-                else -> {
-                    viewModel.addSearchHistory(submittedQuery)
-                    launchWebSearch(submittedQuery)
+            else -> {
+                val setting = topSettingIn(results, apps, fromVoice)
+                when {
+                    // A typed web address is a search the user typed, so it is kept.
+                    results.instantAnswer?.iconType == "url" -> {
+                        viewModel.addSearchHistory(submittedQuery)
+                        openWebAddress(results.instantAnswer.title)
+                    }
+                    // "wifi", "bluetooth": the Android Settings page leading the results opens, as tapping it does.
+                    setting != null -> {
+                        ui.hasStartedTyping = false
+                        focusManager.clearFocus(force = true)
+                        keyboardController?.hide()
+                        setting.appRoute?.let(onOpenSettings) ?: openAndroidSetting(context, setting)
+                    }
+                    settingsState.appQuickLaunch && apps.isNotEmpty() -> apps.first().let { app ->
+                        performAppLaunch(app, LaunchSource.keyboard(LaunchIconKeys.app(app)))
+                    }
+                    else -> launchWebSearch(submittedQuery)
                 }
             }
         }

@@ -143,6 +143,27 @@ class OccasionCalendarTest {
     }
 
     @Test
+    fun orthodoxRegionsKeepOrthodoxEasterAndSomeAJanuaryChristmas() {
+        // The Julian computus moved to the Gregorian calendar; 2027 is five weeks after Western Easter, 2028 the same day.
+        mapOf(2025 to "2025-04-20", 2026 to "2026-04-12", 2027 to "2027-05-02", 2028 to "2028-04-16", 2029 to "2029-04-08",
+            2030 to "2030-04-28")
+            .forEach { (year, date) -> assertEquals(LocalDate.parse(date), OccasionCalendar.orthodoxEaster(year)) }
+        assertEquals(Occasion.EASTER, on("2026-04-12", region = "GR"))
+        assertNull(on("2026-04-05", region = "GR"))
+        assertEquals(Occasion.EASTER, on("2026-04-05", region = "US"))
+        // Christmas on January 7 in Russia and Serbia; Greece and Ukraine keep December 25.
+        for (region in listOf("RU", "RS")) {
+            assertEquals(Occasion.HOLIDAYS, on("2027-01-06", region = region))
+            assertEquals(Occasion.HOLIDAYS, on("2027-01-07", region = region))
+            assertNull(on("2026-12-25", region = region))
+        }
+        for (region in listOf("GR", "UA", "")) {
+            assertEquals(Occasion.HOLIDAYS, on("2026-12-25", region = region))
+            assertNull(on("2027-01-07", region = region))
+        }
+    }
+
+    @Test
     fun lunarNewYearComesFromItsTable() {
         assertEquals(Occasion.LUNAR_NEW_YEAR, on("2027-02-06"))
         assertEquals(Occasion.LUNAR_NEW_YEAR, on("2028-01-26"))

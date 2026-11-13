@@ -28,13 +28,16 @@ class GlobalSearchProvider : ContentProvider() {
         private const val SEARCH_PATH = "search"
 
         /**
-         * An app row's intent action, with the app's package as `package:` data: Android's search builds the row's
-         * intent from just an action and data, which can't name another app's screen, so the search opens it.
+         * An app row's intent action, with the app's package as `package:` data and its launcher activity, when known,
+         * after a `#`: Android's search builds the row's intent from just an action and data, which can't name another
+         * app's screen, so the search opens it. A package can have two icons (Phone and Contacts), so the activity
+         * says which; data with none, as rows saved by older versions have, opens the package's main screen.
          */
         const val ACTION_OPEN_APP = "com.pixel.intelligentsearch.action.OPEN_APP"
 
-        /** The intent action and data of the app row for [packageName] (see [ACTION_OPEN_APP]). */
-        fun appRowIntent(packageName: String): Pair<String, String> = ACTION_OPEN_APP to "package:$packageName"
+        /** The intent action and data of the app row for [activityName] in [packageName] (see [ACTION_OPEN_APP]). */
+        fun appRowIntent(packageName: String, activityName: String? = null): Pair<String, String> =
+            ACTION_OPEN_APP to Uri.fromParts("package", packageName, activityName?.takeIf { it.isNotEmpty() }).toString()
     }
 
     override fun onCreate(): Boolean = true
@@ -163,7 +166,7 @@ class GlobalSearchProvider : ContentProvider() {
                     if (app.packageName in hiddenApps) continue
                     if ((app.isPrivateProfile || app.profileType == ProfileType.PRIVATE) && isPrivateSpaceLocked) continue
                     // An "intent:" link as VIEW data opened nothing: no app views such a link.
-                    val (openAction, openData) = appRowIntent(app.packageName)
+                    val (openAction, openData) = appRowIntent(app.packageName, app.activityName)
 
                     cursor.addRow(arrayOf<Any?>(
                         rowId++,
@@ -173,7 +176,8 @@ class GlobalSearchProvider : ContentProvider() {
                         openAction,
                         openData,
                         app.name,
-                        "app:${app.packageName}"
+                        // Each icon its own shortcut: one per package let Contacts stand in for Phone.
+                        if (app.activityName.isNullOrEmpty()) "app:${app.packageName}" else "app:${app.packageName}/${app.activityName}"
                     ))
                 }
 

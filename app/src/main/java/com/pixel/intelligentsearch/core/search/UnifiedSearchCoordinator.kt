@@ -283,6 +283,16 @@ class UnifiedSearchCoordinator @Inject constructor(
         return item.payload
     }
 
+    /**
+     * Which contacts and files a prefix lookup keeps when more match than it may return: pinned ones, then starred
+     * contacts, then the files changed most recently, as ranking lifts them. Without it the cut kept the first in the
+     * index, so a starred contact among thousands, or today's screenshot in a big folder, was gone before ranking.
+     */
+    private fun cutOrder(shortcuts: ResultShortcuts): Comparator<SearchItem> =
+        compareByDescending<SearchItem> { shortcuts.isPinned(it.shortcutKey) }
+            .thenByDescending { it.metadata.isFavorite }
+            .thenByDescending { it.metadata.lastUsedTimestampMs }
+
     private fun newFileItem(file: FileItem, modifiedMs: Long): SearchItem {
         return SearchItem(
             // The content URI is unique; paths can repeat across chosen folders and picker items have none.
@@ -397,7 +407,8 @@ class UnifiedSearchCoordinator @Inject constructor(
 
     private fun newAppItem(app: AppItem, metadata: SearchScoringEngine.ScoringMetadata): SearchItem {
         return SearchItem(
-            id = "app:${app.packageName}:${app.userHandle?.hashCode() ?: 0}:${app.profileType}",
+            // The activity too: a package can have two launcher icons (Phone and Contacts), each a result of its own.
+            id = "app:${app.packageName}/${app.activityName.orEmpty()}:${app.userHandle?.hashCode() ?: 0}:${app.profileType}",
             title = app.name,
             subtitle = app.packageName,
             domain = SearchScoringEngine.EntityDomain.APPLICATION,
@@ -673,12 +684,13 @@ class UnifiedSearchCoordinator @Inject constructor(
     private fun rankedContacts(query: String, prefixLimit: Int, keep: (ContactItem) -> Boolean = { true }): List<ContactItem> {
         val q = query.trim()
         if (q.isEmpty()) return emptyList()
+        val kept = cutOrder(resultShortcuts.current)
         val candidates = mutableSetOf<SearchItem>()
-        contactRadixTree.searchPrefix(q, limit = prefixLimit).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
+        contactRadixTree.searchPrefix(q, limit = prefixLimit, kept).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
 
         val normalized = QueryNormalizer.normalize(q)
         if (normalized.isNotEmpty() && !normalized.equals(q, ignoreCase = true)) {
-            contactRadixTree.searchPrefix(normalized, limit = prefixLimit).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
+            contactRadixTree.searchPrefix(normalized, limit = prefixLimit, kept).filterTo(candidates) { it.domain == SearchScoringEngine.EntityDomain.CONTACT }
         }
 
         addRemembered(candidates, SelectionMemory.normalizeQuery(q), SearchScoringEngine.EntityDomain.CONTACT)
@@ -762,16 +774,18 @@ class UnifiedSearchCoordinator @Inject constructor(
         cancellationCheck?.invoke()
 
         // 4. Candidate Retrieval via Partitioned Radix Tree Prefix Search (< 0.5ms)
+        val shortcuts = resultShortcuts.current
+        val kept = cutOrder(shortcuts)
         val candidates = mutableSetOf<SearchItem>()
         candidates.addAll(appPrefixMatches(query, packageLimit = 40))
-        candidates.addAll(contactRadixTree.searchPrefix(query, limit = 20))
-        candidates.addAll(fileRadixTree.searchPrefix(query, limit = 20))
+        candidates.addAll(contactRadixTree.searchPrefix(query, limit = 20, kept))
+        candidates.addAll(fileRadixTree.searchPrefix(query, limit = 20, kept))
 
         val normalized = QueryNormalizer.normalize(query)
         if (normalized.isNotEmpty() && !normalized.equals(query, ignoreCase = true)) {
             candidates.addAll(appPrefixMatches(normalized, packageLimit = 40))
-            candidates.addAll(contactRadixTree.searchPrefix(normalized, limit = 20))
-            candidates.addAll(fileRadixTree.searchPrefix(normalized, limit = 20))
+            candidates.addAll(contactRadixTree.searchPrefix(normalized, limit = 20, kept))
+            candidates.addAll(fileRadixTree.searchPrefix(normalized, limit = 20, kept))
         }
 
         // Multi-token lookup for multi-word queries (e.g. "goo chr")
@@ -779,15 +793,14 @@ class UnifiedSearchCoordinator @Inject constructor(
         if (tokens.size > 1) {
             for (token in tokens) {
                 candidates.addAll(appNameMatches(token))
-                candidates.addAll(contactRadixTree.searchPrefix(token, limit = 10))
-                candidates.addAll(fileRadixTree.searchPrefix(token, limit = 10))
+                candidates.addAll(contactRadixTree.searchPrefix(token, limit = 10, kept))
+                candidates.addAll(fileRadixTree.searchPrefix(token, limit = 10, kept))
             }
             // Conjunctive filter: ensure matched candidates contain all query tokens across title + subtitle
             candidates.retainAll { item ->
                 QueryNormalizer.containsAllTokens("${item.title} ${item.subtitle.orEmpty()}", tokens)
             }
         }
-        val shortcuts = resultShortcuts.current
 
         // 5. Phonetic Candidate Retrieval via Double Metaphone (< 0.2ms)
         cancellationCheck?.invoke()
@@ -803,12 +816,12 @@ class UnifiedSearchCoordinator @Inject constructor(
         // In ASCII, as contacts are indexed: a number typed in Arabic-Indic or Persian digits finds them too.
         val queryDigits = asciiDigits(query.filter { it.isDigit() })
         if (queryDigits.length >= 3) {
-            candidates.addAll(contactRadixTree.searchPrefix(queryDigits, limit = 20))
+            candidates.addAll(contactRadixTree.searchPrefix(queryDigits, limit = 20, kept))
             // A number typed with its country code ("+1 415 555 2671") must find one saved without it
             // ("(415) 555-2671"). Contacts are also indexed under their last 10 and 7 digits, so look those up.
             if (queryDigits.length > 10) {
                 for (localLength in intArrayOf(10, 7)) {
-                    candidates.addAll(contactRadixTree.searchPrefix(queryDigits.takeLast(localLength), limit = 20))
+                    candidates.addAll(contactRadixTree.searchPrefix(queryDigits.takeLast(localLength), limit = 20, kept))
                 }
             }
         }

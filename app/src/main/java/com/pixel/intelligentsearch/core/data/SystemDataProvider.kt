@@ -160,6 +160,31 @@ object SystemDataProvider {
         }
     }
 
+    /**
+     * [apps] with one entry per package, in the order they come, for lists that work per package (Hidden Apps):
+     * of a package's launcher icons (Phone and Contacts in one package on some phones), the screen the package opens
+     * to stands for it, not the first by name. Only packages with more than one icon ask PackageManager.
+     */
+    fun onePerPackage(context: Context, apps: List<AppItem>): List<AppItem> =
+        apps.groupBy { it.packageName }.values.map { icons ->
+            if (icons.all { it.activityName == icons.first().activityName }) return@map icons.first()
+            val opensTo = launchActivity(context, icons.first().packageName)
+            icons.firstOrNull { it.activityName == opensTo } ?: icons.first()
+        }
+
+    /**
+     * The name of the screen [packageName] opens to, as its launcher icon shows it; for a package with several icons,
+     * where the app's own label may name another. Null when it has none. Asks PackageManager, so not on the main thread.
+     */
+    fun launchScreenName(context: Context, packageName: String): String? = runCatching {
+        val pm = context.packageManager
+        val launch = pm.getLaunchIntentForPackage(packageName) ?: return@runCatching null
+        pm.resolveActivity(launch, 0)?.loadLabel(pm)?.toString()?.takeIf { it.isNotBlank() }
+    }.getOrNull()
+
+    private fun launchActivity(context: Context, packageName: String): String? =
+        runCatching { context.packageManager.getLaunchIntentForPackage(packageName)?.component?.className }.getOrNull()
+
     /** One app scan at a time: callers that arrive together (overlay, index, widget at start-up) share its result. */
     private val appsLock = Mutex()
 
@@ -195,7 +220,7 @@ object SystemDataProvider {
     /**
      * [cached] with each package in [changedApps] read again in its profile, and caches it; [cached] itself when that
      * changed nothing. Null when a package can't be read, for a full scan instead. Like [scanApps], it keeps one entry
-     * per package in each profile. Called under [appsLock].
+     * per launcher icon (a package can have several, such as Phone and Contacts) in each profile. Called under [appsLock].
      */
     private suspend fun withChangedApps(context: Context, cached: List<AppItem>): List<AppItem>? {
         if (changedApps.isEmpty()) return cached
@@ -214,10 +239,8 @@ object SystemDataProvider {
                 fun sameApp(app: AppItem) = app.packageName == packageName && (app.userHandle ?: me) == user
                 // A package that had no launcher icon here and still has none (most updates and component changes).
                 if (fresh.isEmpty() && apps.none(::sameApp)) continue
-                // scanApps keeps the last of a package's activities in a profile, in name order.
-                val kept = fresh.sortedBy { it.name.lowercase() }.lastOrNull()
                 // In scanApps' order: by name, a personal app before its copies in other profiles.
-                apps = (apps.filterNot(::sameApp) + listOfNotNull(kept)).sortedWith(compareBy({ it.name.lowercase() }, { it.profileType.ordinal }))
+                apps = (apps.filterNot(::sameApp) + fresh).sortedWith(compareBy({ it.name.lowercase() }, { it.profileType.ordinal }))
             }
         } catch (t: Throwable) {
             // A reindex cancelled by the next package event would lose these: noted again, they're read next time.
@@ -229,8 +252,9 @@ object SystemDataProvider {
     }
 
     /**
-     * Every launchable app in every profile, by name. When nothing at all can be read, the last list read stands in,
-     * so a failed PackageManager query never empties the results.
+     * Every launchable app in every profile, by name: one entry per launcher icon, as the home screen shows them, so a
+     * package with two (Phone and Contacts on some phones) keeps both. When nothing at all can be read, the last list
+     * read stands in, so a failed PackageManager query never empties the results.
      */
     private suspend fun scanApps(context: Context, forceRefresh: Boolean): List<AppItem> {
         val mergedMap = LinkedHashMap<String, AppItem>()
@@ -240,7 +264,8 @@ object SystemDataProvider {
             val multiProfileManager = getMultiProfileManager(context)
             val profileApps = multiProfileManager.getAllProfileApps(forceRefresh)
             for (app in profileApps) {
-                val key = if (app.profileType != ProfileType.PERSONAL) "${app.packageName}_${app.userHandle}" else app.packageName
+                val activity = "${app.packageName}/${app.activityName.orEmpty()}"
+                val key = if (app.profileType != ProfileType.PERSONAL) "${activity}_${app.userHandle}" else activity
                 mergedMap[key] = app
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -271,13 +296,13 @@ object SystemDataProvider {
                 emptyList()
             }
             resolveInfos.asSequence()
-                .distinctBy { it.activityInfo.packageName }
+                .distinctBy { it.activityInfo.packageName to it.activityInfo.name }
                 .forEach {
                     try {
                         val label = it.loadLabel(pm).toString()
                         val packageName = it.activityInfo.packageName
                         val icon = compactAppIcon(it.loadIcon(pm), context.resources)
-                        mergedMap[packageName] = AppItem(
+                        mergedMap["$packageName/${it.activityInfo.name}"] = AppItem(
                             name = label,
                             packageName = packageName,
                             icon = icon,
@@ -311,11 +336,16 @@ object SystemDataProvider {
             .mapValues { (_, stats) -> AppUsage(stats.size.coerceAtMost(days), stats.maxOf { it.lastTimeUsed }) }
     }
 
+    /**
+     * The apps used in the last 24 hours, latest first, at most eight. Hidden apps are left out, and so is this app:
+     * it is the one open, so a slot for it opens nothing new.
+     */
     suspend fun getRecentApps(context: Context, hiddenApps: Set<String> = emptySet(), fallbackToAll: Boolean = true): List<AppItem> = withContext(Dispatchers.IO) {
+        val leftOut = hiddenApps + context.packageName
         val usageStatsManager = context.getSystemService(Context.USAGE_STATS_SERVICE) as? UsageStatsManager
             ?: run {
                 if (!fallbackToAll) return@withContext emptyList()
-                return@withContext getAllApps(context).filter { !hiddenApps.contains(it.packageName) }.take(8)
+                return@withContext getAllApps(context).filter { !leftOut.contains(it.packageName) }.take(8)
             }
         val time = System.currentTimeMillis()
         val stats = try {
@@ -331,7 +361,7 @@ object SystemDataProvider {
         val pm = context.packageManager
         // The last 24 hours span two daily buckets, so an app used on both days comes back twice; only its latest
         // use counts, or the duplicates would take the slots of other apps.
-        val sortedStats = stats.filter { it.totalTimeInForeground > 0 && !hiddenApps.contains(it.packageName) }
+        val sortedStats = stats.filter { it.totalTimeInForeground > 0 && !leftOut.contains(it.packageName) }
             .sortedByDescending { it.lastTimeUsed }
             .distinctBy { it.packageName }
 
@@ -367,7 +397,7 @@ object SystemDataProvider {
         
         if (recentApps.isEmpty()) {
             if (!fallbackToAll) return@withContext emptyList()
-            return@withContext getAllApps(context).filter { !hiddenApps.contains(it.packageName) }.take(8)
+            return@withContext getAllApps(context).filter { !leftOut.contains(it.packageName) }.take(8)
         }
         
         recentApps.distinctBy { it.packageName }
@@ -378,7 +408,8 @@ object SystemDataProvider {
         if (recents.size >= 6) {
             return@withContext recents.take(6)
         }
-        val allApps = getAllApps(context).filter { it.packageName !in hiddenApps }
+        // As in getRecentApps, this app itself isn't one to offer.
+        val allApps = getAllApps(context).filter { it.packageName !in hiddenApps && it.packageName != context.packageName }
         val combined = (recents + allApps).distinctBy { it.packageName }
         combined.take(6)
     }
@@ -440,7 +471,8 @@ object SystemDataProvider {
                 CalendarContract.Instances.EVENT_ID,
                 CalendarContract.Instances.ALL_DAY,
                 CalendarContract.Instances.EVENT_LOCATION,
-                CalendarContract.Instances.DESCRIPTION
+                CalendarContract.Instances.DESCRIPTION,
+                CalendarContract.Instances.SELF_ATTENDEE_STATUS
             )
 
             context.contentResolver.query(
@@ -457,11 +489,16 @@ object SystemDataProvider {
                 val allDayIndex = cursor.getColumnIndex(CalendarContract.Instances.ALL_DAY)
                 val locationIndex = cursor.getColumnIndex(CalendarContract.Instances.EVENT_LOCATION)
                 val descriptionIndex = cursor.getColumnIndex(CalendarContract.Instances.DESCRIPTION)
+                val responseIndex = cursor.getColumnIndex(CalendarContract.Instances.SELF_ATTENDEE_STATUS)
                 // Honours the user's 12/24-hour preference and locale instead of always printing AM/PM.
                 val timeFormat = android.text.format.DateFormat.getTimeFormat(context)
 
                 // Every instance in the window: At a Glance shows the first few of the next day, the Discover Overlay the timed ones ahead.
                 while (cursor.moveToNext()) {
+                    // A meeting the user declined isn't part of their day.
+                    if (responseIndex >= 0 && !cursor.isNull(responseIndex) &&
+                        cursor.getInt(responseIndex) == CalendarContract.Attendees.ATTENDEE_STATUS_DECLINED
+                    ) continue
                     val title = if (titleIndex >= 0) cursor.getString(titleIndex) else null
                     val startTimeMillis = if (dtStartIndex >= 0) cursor.getLong(dtStartIndex) else 0L
                     val eventId = if (eventIdIndex >= 0) cursor.getLong(eventIdIndex) else 0L

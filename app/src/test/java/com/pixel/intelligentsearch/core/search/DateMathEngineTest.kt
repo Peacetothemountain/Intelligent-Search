@@ -268,6 +268,15 @@ class DateMathEngineTest {
         val canada = on(locale = Locale.CANADA)
         assertEquals(LocalDate.of(2027, 10, 11), canada.occasionOnOrAfter("thanksgiving", LocalDate.of(2026, 10, 20)))
         assertEquals(LocalDate.of(2026, 11, 27), canada.occasionOnOrAfter("black friday", LocalDate.of(2026, 10, 20)))
+        // Where the Orthodox Church's dates are kept: its Easter, and Christmas on January 7 in Russia and Serbia.
+        val greece = on(locale = Locale.forLanguageTag("el-GR"))
+        assertEquals(LocalDate.of(2027, 5, 2), greece.occasionOnOrAfter("easter", LocalDate.of(2026, 10, 20)))
+        assertEquals(LocalDate.of(2026, 12, 25), greece.occasionOnOrAfter("christmas", LocalDate.of(2026, 10, 20)))
+        val russia = on(locale = Locale.forLanguageTag("ru-RU"))
+        assertEquals(LocalDate.of(2027, 1, 7), russia.occasionOnOrAfter("christmas", LocalDate.of(2026, 10, 20)))
+        assertEquals(LocalDate.of(2027, 1, 6), russia.occasionOnOrAfter("christmas eve", LocalDate.of(2026, 10, 20)))
+        assertEquals(LocalDate.of(2027, 5, 2), russia.occasionOnOrAfter("easter", LocalDate.of(2026, 10, 20)))
+        assertEquals("79 days", on(locale = Locale.forLanguageTag("en-RS")).evaluate("days until christmas")?.title)
     }
 
     @Test

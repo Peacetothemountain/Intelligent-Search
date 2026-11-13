@@ -58,7 +58,13 @@ class SettingsViewModel @Inject constructor(
 
     fun clearSearchHistory() {
         viewModelScope.launch(Dispatchers.IO) {
-            historyDao.clearHistory()
+            // A write can fail (storage full, say); that must not take the app down.
+            try {
+                historyDao.clearHistory()
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                android.util.Log.w("IntelligentSearch", "Failed to clear search history", e)
+            }
         }
     }
 

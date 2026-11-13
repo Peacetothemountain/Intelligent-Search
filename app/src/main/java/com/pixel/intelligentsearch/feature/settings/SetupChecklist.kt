@@ -185,7 +185,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                     val isDone = done[step] == true
                     val (title, why, icon) = when (step) {
                         SetupStep.CONTACTS -> Triple("Contacts", "Find People as You Type, Then Call or Message Them.", Symbols.Outlined.Contacts)
-                        SetupStep.NOTIFICATIONS -> Triple("Notifications", "Search Your Notifications and See Timers and What's Playing.", Symbols.Outlined.Notifications)
+                        SetupStep.NOTIFICATIONS -> Triple("Notifications", "Search Your Notifications. Then Turn On Timers and Media Controls in At a Glance.", Symbols.Outlined.Notifications)
                         SetupStep.FILES -> Triple("Files", "Choose the Folders to Search. Nothing Else Is Read.", Symbols.Outlined.Folder)
                         SetupStep.SEARCH_BAR -> Triple("Home Screen Search Bar", "Power the Pixel Search Bar on Your Home Screen.", Symbols.Outlined.Search)
                     }

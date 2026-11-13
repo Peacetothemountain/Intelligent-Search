@@ -111,8 +111,9 @@ object MathematicalExpressionEngine {
         RegexOption.IGNORE_CASE
     )
     private val REGEX_CURRENCY_THOUSANDS = Regex("^([0-9.,]+)\\s*([km])\\s+([a-z]+)\\s+(?:to|in)\\s+([a-z]+)$", RegexOption.IGNORE_CASE)
+    // The inches may go unnamed, as in "5'10 in cm" and "5 ft 10 to cm".
     private val REGEX_FEET_AND_INCHES = Regex(
-        "^(\\d+)\\s*(?:ft|feet|foot|')\\s*(\\d+(?:\\.\\d+)?)\\s*(?:in|inch|inches|\"|'')\\s+(?:to|in)\\s+([a-z_]+)$",
+        "^(\\d+)\\s*(?:ft|feet|foot|')\\s*(\\d+(?:\\.\\d+)?)(?:\\s*(?:in|inch|inches|\"|''))?\\s+(?:to|in)\\s+([a-z_]+)$",
         RegexOption.IGNORE_CASE
     )
     // Units written in two words, joined into their table names: "fl oz", "sq ft", "square meters", "metric ton".
@@ -131,8 +132,21 @@ object MathematicalExpressionEngine {
     )
     private val REGEX_METRIC_TON = Regex("\\bmetric\\s+tons?\\b", RegexOption.IGNORE_CASE)
     private val REGEX_SHORT_OR_LONG_TON = Regex("\\b(short|long)\\s+tons?\\b", RegexOption.IGNORE_CASE)
-    /** Two currencies with no amount, "usd to inr" or "euro to dollar", which asks what one unit is worth. */
-    private val REGEX_BARE_CURRENCY_CONVERSION = Regex("^([a-zA-Z]+)\\s+(?:to|in)\\s+([a-zA-Z]+)$")
+    /**
+     * Two currencies with no amount, "usd to inr" or "euro to dollar", which asks what one unit is worth; or a kitchen
+     * measure ([KITCHEN_MEASURES]), "cups to ml", what one cup is.
+     */
+    private val REGEX_BARE_CURRENCY_CONVERSION = Regex("^([a-zA-Z]+)\\s+(?:to|in)\\s+([a-zA-Z_]+)$")
+    /** Measures a recipe is in, asked about without an amount ("cups to ml"), by the name one of them goes by. */
+    private val KITCHEN_MEASURES = mapOf(
+        "cup" to "cup", "cups" to "cup", "tbsp" to "tbsp", "tablespoon" to "tablespoon", "tablespoons" to "tablespoon",
+        "tsp" to "tsp", "teaspoon" to "teaspoon", "teaspoons" to "teaspoon"
+    )
+    /** "350 degrees f", "degrees celsius": the scale's name alone is the unit. */
+    private val REGEX_DEGREES_SCALE = Regex(
+        "(?:\\bdeg(?:ree)?s?\\.?|°)\\s*(?=(?:f|c|k|fahrenheit|celsius|kelvin)\\b)",
+        RegexOption.IGNORE_CASE
+    )
     private val REGEX_SCIENTIFIC_NUMBER = Regex("^[+-]?[0-9]+(?:\\.[0-9]+)?[eE][+-]?[0-9]+$")
     // A number with only a sign in front ("+14155552671", "-5") has nothing to work out; answering it would
     // echo every international phone number back as a calculation, with a haptic on each keystroke.
@@ -969,6 +983,7 @@ object MathematicalExpressionEngine {
             .replace("₹", " inr ")
             .replace(REGEX_WHITESPACE, " ")
             .replace('²', '2')
+            .replace(REGEX_DEGREES_SCALE, "")
             .replace('³', '3')
             .replace(REGEX_CURRENCY_PHRASE) { phrase ->
                 val name = phrase.value.lowercase(Locale.ROOT).replace(REGEX_WHITESPACE, " ")
@@ -1010,6 +1025,9 @@ object MathematicalExpressionEngine {
         val match = REGEX_UNIT_CONVERSION.find(normalizedQuery)
             ?: return REGEX_BARE_CURRENCY_CONVERSION.find(normalizedQuery)?.let { bare ->
                 val (from, to) = bare.destructured
+                KITCHEN_MEASURES[from.lowercase(Locale.ROOT)]?.let { measure ->
+                    return evaluateUnitConversion("1 $measure to $to", currencyRates)
+                }
                 convertCurrency(1.0, from.lowercase(Locale.ROOT), to.lowercase(Locale.ROOT), currencyRates)
             }
 
@@ -1146,6 +1164,10 @@ object MathematicalExpressionEngine {
             DOLLAR_SIGN -> (DOLLAR_SIGN_COUNTRIES[country] ?: "usd") to "usd"
             YEN_SIGN -> (if (country == "CN") "cny" else "jpy") to "jpy"
             in DOLLAR_WORDS -> (DOLLAR_SIGN_COUNTRIES[country]?.takeIf { country != "MX" } ?: "usd") to "usd"
+            in SHARED_NAME_COUNTRIES -> {
+                val general = CURRENCY_NAMES.getValue(name)
+                (SHARED_NAME_COUNTRIES.getValue(name)[country] ?: general) to general
+            }
             else -> return null
         }
         return if (local == other) general else local
@@ -1155,7 +1177,35 @@ object MathematicalExpressionEngine {
     private const val DOLLAR_SIGN = "dollarsign"
     private const val YEN_SIGN = "yensign"
     private val DOLLAR_WORDS = setOf("dollar", "dollars", "buck", "bucks")
-    private val REGIONAL_NAMES = DOLLAR_WORDS + DOLLAR_SIGN + YEN_SIGN
+
+    /**
+     * Currency names several countries' money goes by, each read as the phone's country's own where it is one of them:
+     * "pesos" are Philippine pesos in the Philippines, "kroner" Danish in Denmark. Elsewhere they are [CURRENCY_NAMES]'s.
+     * Where no rate table lists the country's own currency ("rupees" in Pakistan), there is no answer rather than
+     * another country's.
+     */
+    private val SHARED_NAME_COUNTRIES: Map<String, Map<String, String>> = buildMap {
+        fun shared(words: List<String>, vararg countries: Pair<String, String>) = words.forEach { put(it, countries.toMap()) }
+        shared(
+            listOf("peso", "pesos"), "PH" to "php", "CO" to "cop", "AR" to "ars", "CL" to "clp", "UY" to "uyu",
+            "DO" to "dop", "CU" to "cup"
+        )
+        shared(listOf("krone", "kroner"), "DK" to "dkk", "GL" to "dkk", "FO" to "dkk")
+        shared(listOf("krona", "kronor"), "IS" to "isk")
+        shared(listOf("rupee", "rupees"), "PK" to "pkr", "LK" to "lkr", "NP" to "npr", "MU" to "mur", "SC" to "scr")
+        shared(listOf("dirham", "dirhams"), "MA" to "mad")
+        shared(listOf("riyal", "riyals"), "QA" to "qar", "OM" to "omr", "YE" to "yer")
+        shared(listOf("pound", "pounds"), "EG" to "egp", "LB" to "lbp", "SY" to "syp", "SD" to "sdg", "SS" to "ssp")
+        shared(listOf("lira", "liras"), "LB" to "lbp", "SY" to "syp")
+        shared(
+            listOf("franc", "francs"),
+            // The West and Central African CFA francs, and the countries with a franc of their own.
+            *listOf("BJ", "BF", "CI", "GW", "ML", "NE", "SN", "TG").map { it to "xof" }.toTypedArray(),
+            *listOf("CM", "CF", "TD", "CG", "GQ", "GA").map { it to "xaf" }.toTypedArray(),
+            "RW" to "rwf", "BI" to "bif", "DJ" to "djf", "GN" to "gnf", "KM" to "kmf", "CD" to "cdf"
+        )
+    }
+    private val REGIONAL_NAMES = DOLLAR_WORDS + DOLLAR_SIGN + YEN_SIGN + SHARED_NAME_COUNTRIES.keys
 
     /** Where "$" is the country's own currency, one the built-in rates list. */
     private val DOLLAR_SIGN_COUNTRIES = mapOf(

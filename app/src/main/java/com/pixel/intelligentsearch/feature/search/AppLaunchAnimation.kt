@@ -85,8 +85,11 @@ internal object LaunchIconKeys {
     /** The big icon in the detail pane beside the results (large screens). */
     const val DETAIL = "detail_app"
 
-    /** [app]'s icon in the app row (its work or Private Space copy is a different icon). */
-    fun app(app: AppItem) = "app_${app.packageName}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}"
+    /**
+     * [app]'s icon in the app row (its work or Private Space copy is a different icon, and so is each of a package's
+     * launcher icons, as Phone and Contacts are on Xiaomi, Huawei and Oppo phones).
+     */
+    fun app(app: AppItem) = "app_${app.packageName}_${app.activityName.orEmpty()}_${app.userHandle?.hashCode() ?: 0}_${app.profileType}"
 
     /** The quick-app pill for [packageName]. */
     fun pill(packageName: String) = "pill_$packageName"

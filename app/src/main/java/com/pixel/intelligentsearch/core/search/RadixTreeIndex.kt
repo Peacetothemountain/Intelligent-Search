@@ -163,45 +163,100 @@ class RadixTreeIndex<T> {
     /**
      * Searches for all values whose keys start with the specified prefix.
      * Completes in O(K) where K = prefix length, independent of index size.
+     *
+     * With [preferred], a prefix matching more than [limit] values keeps the [limit] it puts first (ties in the tree's
+     * order) rather than the first the tree holds, so what ranking would lift (a starred contact among thousands)
+     * isn't cut before it is ranked. Every match is then looked at, but only the best [limit] are held (a bounded
+     * heap), so it costs the size of the matching subtree times log [limit], with no full sort or copy of the matches.
      */
-    fun searchPrefix(rawPrefix: String, limit: Int = 100): List<T> {
+    fun searchPrefix(rawPrefix: String, limit: Int = 100, preferred: Comparator<in T>? = null): List<T> {
         val prefix = rawPrefix.trim().lowercase(java.util.Locale.ROOT)
         if (prefix.isEmpty()) return emptyList()
 
         return lock.read {
-            var currentNode = root
-            var remainingPrefix = prefix
+            val matching = prefixNode(prefix) ?: return@read emptyList()
+            if (preferred == null) {
+                val results = LinkedHashSet<T>()
+                collectAllDescendants(matching, results, limit)
+                return@read results.toList()
+            }
+            if (limit <= 0) return@read emptyList()
+            PreferredCut(limit, preferred).apply { collect(matching) }.result()
+        }
+    }
 
-            while (remainingPrefix.isNotEmpty()) {
-                val firstChar = remainingPrefix[0]
-                val child = currentNode.findChildByFirstChar(firstChar) ?: return@read emptyList()
+    /**
+     * The best [limit] values of a subtree by [preferred], ties in the order the tree holds them. A heap keeps the
+     * kept values with the worst on top, so each value is weighed against it alone. A value indexed under several
+     * keys comes back once: one already kept is skipped, and one let go or never kept loses again, since the worst
+     * kept only gets better and a later sighting is later in the tree's order.
+     */
+    private class PreferredCut<T>(private val limit: Int, preferred: Comparator<in T>) {
+        private val order: Comparator<IndexedValue<T>> =
+            Comparator<IndexedValue<T>> { a, b -> preferred.compare(a.value, b.value) }.thenBy { it.index }
+        // Sized for a usual cut, not for [limit]: callers pass Int.MAX_VALUE for "every match", and both grow as needed.
+        private val kept = java.util.PriorityQueue(limit.coerceAtMost(INITIAL_CAPACITY), order.reversed())
+        private val keptValues = HashSet<T>(limit.coerceAtMost(INITIAL_CAPACITY) * 2)
+        private var seen = 0
+        private var cut = false
 
-                if (remainingPrefix.length <= child.edge.length) {
-                    // Prefix might match child edge prefix
-                    if (child.edge.startsWith(remainingPrefix)) {
-                        // Found root of matching subtree
-                        val results = LinkedHashSet<T>()
-                        collectAllDescendants(child, results, limit)
-                        return@read results.toList()
-                    } else {
-                        return@read emptyList()
-                    }
+        fun collect(node: RadixNode<T>) {
+            for (v in node.values) offer(v)
+            for (child in node.children) collect(child)
+        }
+
+        private fun offer(value: T) {
+            if (value in keptValues) return
+            val candidate = IndexedValue(seen++, value)
+            if (kept.size < limit) {
+                kept.add(candidate)
+                keptValues.add(value)
+                return
+            }
+            cut = true
+            val worst = kept.peek() ?: return
+            if (order.compare(candidate, worst) < 0) {
+                kept.poll()
+                keptValues.remove(worst.value)
+                kept.add(candidate)
+                keptValues.add(value)
+            }
+        }
+
+        /** In the tree's order when nothing was cut (as without [preferred]), else best first. */
+        fun result(): List<T> =
+            kept.sortedWith(if (cut) order else compareBy { it.index }).map { it.value }
+
+        private companion object {
+            const val INITIAL_CAPACITY = 64
+        }
+    }
+
+    /** The node whose subtree holds every key starting with [prefix], or null when none does. Called under the lock. */
+    private fun prefixNode(prefix: String): RadixNode<T>? {
+        var currentNode = root
+        var remainingPrefix = prefix
+
+        while (remainingPrefix.isNotEmpty()) {
+            val firstChar = remainingPrefix[0]
+            val child = currentNode.findChildByFirstChar(firstChar) ?: return null
+
+            if (remainingPrefix.length <= child.edge.length) {
+                // Prefix might match child edge prefix: if so, child is the root of the matching subtree
+                return if (child.edge.startsWith(remainingPrefix)) child else null
+            } else {
+                // Prefix is longer than child edge: check if child edge matches prefix prefix
+                if (remainingPrefix.startsWith(child.edge)) {
+                    remainingPrefix = remainingPrefix.substring(child.edge.length)
+                    currentNode = child
                 } else {
-                    // Prefix is longer than child edge: check if child edge matches prefix prefix
-                    if (remainingPrefix.startsWith(child.edge)) {
-                        remainingPrefix = remainingPrefix.substring(child.edge.length)
-                        currentNode = child
-                    } else {
-                        return@read emptyList()
-                    }
+                    return null
                 }
             }
-
-            // Exactly reached a node
-            val results = LinkedHashSet<T>()
-            collectAllDescendants(currentNode, results, limit)
-            results.toList()
         }
+
+        // Exactly reached a node
+        return currentNode
     }
 
     /**

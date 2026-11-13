@@ -14,6 +14,7 @@ import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import com.pixel.intelligentsearch.core.profile.MultiProfileManager
 import com.pixel.intelligentsearch.core.system.DirectBootManager
 import com.pixel.intelligentsearch.core.system.SystemToggleManager
+import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -51,11 +52,20 @@ class App : Application() {
     private companion object {
         const val MAINTENANCE_PREFS = "app_maintenance"
         const val KEY_RETIRED_SECRETS_REMOVED = "retired_secrets_removed_v1"
+        /** The Material You palette ([DynamicThemeDetector.paletteFingerprint]) the widgets were last drawn in. */
+        const val KEY_WIDGET_PALETTE = "widget_palette"
         const val APPS_SETTLED_MS = 2_000L
     }
 
     /** The languages the cached app list's labels are in; null until known. */
     private var appListLocales: LocaleList? = null
+
+    /**
+     * The Material You palette this process last drew the widgets in; null until known, and in Discover's reader
+     * process, which draws no widgets and builds no search index.
+     */
+    @Volatile
+    private var widgetPalette: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -63,6 +73,7 @@ class App : Application() {
         // settings written from a second process could clash with the app's own.
         if (getProcessName().endsWith(":reader")) return
         appListLocales = resources.configuration.locales
+        widgetPalette = DynamicThemeDetector.paletteFingerprint(this)
 
         setupStrictMode()
         deleteLegacyCrashLog()
@@ -115,7 +126,48 @@ class App : Application() {
         if (newConfig.locales != appListLocales) {
             appListLocales = newConfig.locales
             SystemDataProvider.invalidateAppsCache()
+            // Typed searches match the search index's copy of the labels, so it reads the apps again too.
+            if (widgetPalette != null) appEntryPoint.corpusIndexManager().let { if (it.isIndexReady.value) it.reindexApps() }
         }
+        // A new wallpaper's colors reach this process as a configuration change once they are in effect. The theme
+        // observer can hear the setting change before that and keep the old colors, so the widgets are drawn again
+        // from here. Light and dark read the same palette, so switching between them redraws nothing here.
+        val drawn = widgetPalette ?: return
+        val palette = DynamicThemeDetector.paletteFingerprint(this)
+        if (palette != drawn) {
+            widgetPalette = palette
+            redrawWidgetsInNewPalette(palette)
+        }
+    }
+
+    private fun redrawWidgetsInNewPalette(palette: String) {
+        DynamicThemeDetector.invalidateCache()
+        com.pixel.intelligentsearch.feature.widget.clearBitmapCache()
+        widgetUpdater.updateAll()
+        appScope.launch {
+            // Before the first unlock this store can't be read; the next start compares again then.
+            runCatching { getSharedPreferences(MAINTENANCE_PREFS, MODE_PRIVATE).edit { putString(KEY_WIDGET_PALETTE, palette) } }
+        }
+    }
+
+    /**
+     * The palette may have changed while this process wasn't running (a new wallpaper overnight), and with the Pixel
+     * Launcher nothing else redraws the widgets as the process starts: they would keep the old colors for days. Run
+     * at every start, and by [WidgetPaletteWatch] when a new palette is set while the process isn't running.
+     */
+    @Synchronized
+    internal fun redrawWidgetsIfPaletteChanged() {
+        if (widgetPalette == null) return
+        val palette = DynamicThemeDetector.paletteFingerprint(this)
+        widgetPalette = palette
+        val maintenance = getSharedPreferences(MAINTENANCE_PREFS, MODE_PRIVATE)
+        val drawn = maintenance.getString(KEY_WIDGET_PALETTE, null)
+        if (drawn == palette) return
+        maintenance.edit { putString(KEY_WIDGET_PALETTE, palette) }
+        if (drawn == null) return
+        DynamicThemeDetector.invalidateCache()
+        com.pixel.intelligentsearch.feature.widget.clearBitmapCache()
+        widgetUpdater.updateAll()
     }
 
     /**
@@ -172,6 +224,8 @@ class App : Application() {
                 multiProfileManager.get().refreshProfiles()
                 redrawWidgetsWhenAppsChange()
                 removeRetiredSecretsOnce()
+                redrawWidgetsIfPaletteChanged()
+                WidgetPaletteWatch.sync(this@App, keepExisting = true)
                 SystemDataProvider.getAllApps(this@App, forceRefresh = false)
             } catch (e: Exception) {
                 Log.w("AppWarmup", "Background service warm-up non-fatal error", e)

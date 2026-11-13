@@ -219,13 +219,15 @@ internal class NotificationExtractor(
             val lines = extras.getCharSequenceArray(Notification.EXTRA_TEXT_LINES)?.joinToString("\n").orEmpty()
             val body = (extras.getCharSequence(Notification.EXTRA_BIG_TEXT) ?: extras.getCharSequence(Notification.EXTRA_TEXT))
                 ?.toString().orEmpty()
-            val text = when {
+            val whole = when {
                 messages.isNotEmpty() -> messages.joinToString("\n")
                 lines.isNotBlank() -> lines
                 else -> body
-            }.trim().take(MAX_TEXT)
-            // Codes are often posted only as private, which hides them on the lock screen but not from search.
-            if (looksLikeOneTimeCode("$title\n$text")) return null
+            }.trim()
+            // Codes are often posted only as private, which hides them on the lock screen but not from search. Read
+            // before the cut and in each message alone, so no length of thread or message hides one from the check.
+            if (looksLikeOneTimeCode("$title\n$whole") || messages.any { looksLikeOneTimeCode(it) }) return null
+            val text = whole.take(MAX_TEXT)
             if (title.isEmpty() && text.isEmpty() && chronometer == null) return null
             return IndexedNotification(
                 key = key,

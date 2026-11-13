@@ -21,9 +21,10 @@ import androidx.core.content.ContextCompat
  * speech recognizer is built for single phrases, so on Android 13+ a segmented session keeps one recognizer listening
  * through pauses, and when an engine ends its session anyway (or on older Android) listening restarts quietly. Every
  * phrase heard is kept; [finish] stops, waits briefly for the last words and hands back the whole thing tidied by
- * [SpeechCleanup]. The on-device engine is used when the phone has one (Google's on a Pixel) with one of the user's
- * languages, so speech stays on the phone; otherwise Google's online engine listens ([SpeechLanguage] picks the
- * language). Intelligent Search records and stores nothing.
+ * [SpeechCleanup]. People speak their first language, so that is what voice search listens for: the on-device engine
+ * (Google's on a Pixel) when it has it, so speech stays on the phone; else Google's online engine when that has it;
+ * only when neither does, or the online engine can't be reached, the on-device engine in the next of the user's
+ * languages it has ([SpeechLanguage] picks the language). Intelligent Search records and stores nothing.
  */
 class Dictation(private val context: Context) {
     enum class Phase { Idle, Starting, Listening, Finishing }
@@ -51,6 +52,16 @@ class Dictation(private val context: Context) {
     private var language: String? = null
     /** Whether the engine now used has been asked which languages it knows. */
     private var languageChecked = false
+    /**
+     * The on-device engine's language to come back to when it lacks the user's first language and the online engine,
+     * asked next, lacks it too; null when there is none to come back to.
+     */
+    private var onDeviceFallback: String? = null
+    /**
+     * Set once the online engine couldn't reach its server and listening went back to the on-device engine: it stays
+     * there for the rest of this session rather than trying the online engine again.
+     */
+    private var stayOnDevice = false
     /** Counts recognizers made, so an answer about languages that comes back late for an old one is ignored. */
     private var generation = 0
     /** Whether the recognizer now in use has been told to listen (by the language answer or its timeout). */
@@ -81,6 +92,8 @@ class Dictation(private val context: Context) {
         preferDefaultEngine = false
         language = null
         languageChecked = false
+        onDeviceFallback = null
+        stayOnDevice = false
         startedAt = System.currentTimeMillis()
         phase.value = Phase.Starting
         main.postDelayed(maxLength, MAX_LENGTH_MS)
@@ -147,17 +160,24 @@ class Dictation(private val context: Context) {
 
     /**
      * Asks [r] which languages it knows and listens in the first of the user's ([SpeechLanguage]). An on-device engine
-     * that has none of them hands over to the online engine; one that can't say is left to its own default.
+     * without the user's first language hands over to the online engine, keeping its own best language to come back
+     * to if the online engine lacks the first one too; an engine that can't say is left to its own default (the phone's
+     * first language).
      */
     @androidx.annotation.RequiresApi(33)
     private fun checkLanguages(r: SpeechRecognizer) {
         languageChecked = true
         val asked = generation
-        fun answered(tag: String?, goOnline: Boolean) {
+        fun answered(tag: String?, goOnline: Boolean, backOnDevice: Boolean = false, offline: Boolean = false) {
             if (asked != generation || listeningStarted || (phase.value != Phase.Starting && phase.value != Phase.Listening)) return
             main.removeCallbacks(languageTimeout)
             if (goOnline) {
                 useOnlineEngine()
+                onDeviceFallback = tag
+                listen()
+            } else if (backOnDevice) {
+                useOnDeviceEngine(tag)
+                if (offline) stayOnDevice = true
                 listen()
             } else {
                 language = tag
@@ -170,10 +190,27 @@ class Dictation(private val context: Context) {
                 override fun onSupportResult(support: android.speech.RecognitionSupport) {
                     val known = if (onDevice) support.installedOnDeviceLanguages
                     else support.onlineLanguages + support.installedOnDeviceLanguages
-                    val tag = SpeechLanguage.pick(SpeechLanguage.wanted(context), known)
-                    answered(tag, goOnline = tag == null && onDevice && known.isNotEmpty())
+                    val wanted = SpeechLanguage.wanted(context)
+                    val first = SpeechLanguage.pick(wanted.take(1), known)
+                    val tag = SpeechLanguage.pick(wanted, known)
+                    when {
+                        first != null -> answered(first, goOnline = false)
+                        // The on-device engine lacks the first language: the online engine is asked next, and the
+                        // on-device engine's best (if any) is kept to come back to.
+                        onDevice && known.isNotEmpty() -> answered(tag, goOnline = true)
+                        // The online engine lacks it too: back to the on-device engine in its best language.
+                        !onDevice && onDeviceFallback != null -> answered(onDeviceFallback, goOnline = false, backOnDevice = true)
+                        else -> answered(tag, goOnline = false)
+                    }
                 }
-                override fun onError(error: Int) = answered(null, goOnline = false)
+                override fun onError(error: Int) {
+                    // The online engine can't reach its server: the on-device engine's language, if there is one.
+                    if (!onDevice && onDeviceFallback != null && isNoConnection(error)) {
+                        answered(onDeviceFallback, goOnline = false, backOnDevice = true, offline = true)
+                    } else {
+                        answered(null, goOnline = false)
+                    }
+                }
             })
         } catch (e: Exception) {
             Log.w(TAG, "Could not ask the recognizer for its languages", e)
@@ -186,6 +223,15 @@ class Dictation(private val context: Context) {
         preferDefaultEngine = true
         languageChecked = false
         language = null
+        onDeviceFallback = null
+    }
+
+    /** Back to the on-device engine, in [tag], already known to be one it has. */
+    private fun useOnDeviceEngine(tag: String?) {
+        preferDefaultEngine = false
+        languageChecked = true
+        language = tag
+        onDeviceFallback = null
     }
 
     private fun startListening(r: SpeechRecognizer) {
@@ -256,25 +302,42 @@ class Dictation(private val context: Context) {
                 SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> fail("Allow the microphone to search by voice.")
                 SpeechRecognizer.ERROR_AUDIO -> fail("The microphone isn't available right now.")
                 SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED, SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE ->
-                    // The on-device engine lacks the language: Google's online engine knows far more.
-                    if (onDevice) {
+                    // The on-device engine lacks the language: Google's online engine knows far more. The online
+                    // engine lacking the first language goes back to the on-device engine's best one, if there is one.
+                    if (onDevice && !stayOnDevice) {
                         useOnlineEngine()
+                        sessionEnded()
+                    } else if (!onDevice && onDeviceFallback != null) {
+                        useOnDeviceEngine(onDeviceFallback)
                         sessionEnded()
                     } else {
                         fail("Voice search doesn't know your phone's languages yet. Add another language in Settings, under Languages.")
                     }
-                else -> {
+                else -> if (!onDevice && onDeviceFallback != null && isNoConnection(error)) {
+                    // No connection for the online engine: the on-device engine listens in its language, and stays.
+                    useOnDeviceEngine(onDeviceFallback)
+                    stayOnDevice = true
+                    sessionEnded()
+                } else {
                     // Silence, no match, a busy or reconnecting engine: keep the words so far and keep listening.
                     if (error != SpeechRecognizer.ERROR_NO_MATCH && error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT) failures++
                     // An on-device engine that keeps dropping the connection (seen right after an app update) is
                     // swapped for the online engine rather than giving up.
-                    if (failures >= 2 && !preferDefaultEngine) useOnlineEngine()
+                    if (failures >= 2 && !preferDefaultEngine && !stayOnDevice) useOnlineEngine()
                     if (failures > 6) fail("Voice search stopped. Tap the mic to try again.") else sessionEnded()
                 }
             }
         }
         override fun onEvent(eventType: Int, params: Bundle?) {}
     }
+
+    /** Errors that mean the online engine couldn't reach its server. */
+    /**
+     * No network for the online engine. Not a server error or a dropped connection: those pass, and one would move the
+     * whole session to the user's second language.
+     */
+    private fun isNoConnection(error: Int) = error == SpeechRecognizer.ERROR_NETWORK ||
+        error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT
 
     private fun best(bundle: Bundle?): String? =
         bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()?.takeIf { it.isNotBlank() }

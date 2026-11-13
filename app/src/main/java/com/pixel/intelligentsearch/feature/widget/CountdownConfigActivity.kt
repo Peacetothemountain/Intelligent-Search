@@ -69,6 +69,7 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.widget.CountdownEvent
 import com.pixel.intelligentsearch.core.data.widget.CountdownEventStore
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
+import com.pixel.intelligentsearch.core.occasion.OccasionCalendar
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.core.theme.ThemeMode
 import com.pixel.intelligentsearch.core.ui.expressive.matteShell
@@ -163,11 +164,14 @@ class CountdownConfigActivity : ComponentActivity() {
 /** A day that comes round every year, offered as a quick pick under its short [label]. */
 private data class CountdownPreset(val label: String, val title: String, val day: MonthDay)
 
-private val PRESETS = listOf(
-    CountdownPreset("Halloween", "Halloween", MonthDay.of(10, 31)),
-    CountdownPreset("Christmas", "Christmas", MonthDay.of(12, 25)),
-    CountdownPreset("New Year", "New Year's Day", MonthDay.of(1, 1))
-)
+/** The quick picks. Christmas is the phone's region's: January 7 where it's kept then ([OccasionCalendar.christmas]). */
+private val PRESETS: List<CountdownPreset>
+    get() = listOf(
+        CountdownPreset("Halloween", "Halloween", MonthDay.of(10, 31)),
+        // The same month and day every year.
+        CountdownPreset("Christmas", "Christmas", MonthDay.from(OccasionCalendar.christmas(2001, OccasionCalendar.region()))),
+        CountdownPreset("New Year", "New Year's Day", MonthDay.of(1, 1))
+    )
 
 private const val CUSTOM = "Custom"
 

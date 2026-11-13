@@ -193,6 +193,17 @@ class LiveAnswerParserTest {
     }
 
     @Test
+    fun theTextToTranslateMayHaveAToOrAnInOfItsOwn() {
+        // Each went to the phone's language with "to spanish" left in the text.
+        assertEquals(Translate("nice to meet you", "es", null), parse("translate nice to meet you to spanish"))
+        assertEquals(Translate("i live in london", "fr", null), parse("translate i live in london to french"))
+        assertEquals(Translate("i want to go home", "de", null), parse("translate i want to go home into german"))
+        assertEquals(Translate("i come from spain", "en", "es"), parse("translate i come from spain from spanish to english"))
+        assertEquals(Translate("i live in london", "fr", null), parse("how do you say i live in london in french"))
+        assertEquals(Translate("i live in london", "fr", null), parse("i live in london in french"))
+    }
+
+    @Test
     fun translationsKeepTheTextAsTyped() {
         assertEquals(Translate("Where Is The Station", "de", null), parse("Where Is The Station in German"))
         assertEquals(Translate("I'm Late", "it", null), parse("translate I'm Late to italian"))
@@ -267,6 +278,32 @@ class LiveAnswerParserTest {
         // Real places with those words in a longer name are still places.
         assertEquals(Weather("isle of man", ForecastDay.TODAY), parse("weather isle of man"))
         assertEquals(Weather("mayfield", ForecastDay.TODAY), parse("weather mayfield"))
+    }
+
+    @Test
+    fun daysWrittenShortAreDaysNotPlaces() {
+        // Each looked the short word up as a place.
+        for (query in listOf("weather tmr", "weather tmw", "weather tmrw", "weather for tmr")) {
+            assertEquals(query, Weather(null, ForecastDay.TOMORROW), parse(query))
+        }
+        assertEquals(Weather("paris", ForecastDay.TOMORROW), parse("weather in paris tmr"))
+        assertEquals(Weather("boston", ForecastDay.TOMORROW), parse("weather tmrw in boston"))
+        // "for" or "on" the day before the place, not only at the end ("tmrw in boston" was the place).
+        assertEquals(Weather("boston", ForecastDay.TOMORROW), parse("weather for tmrw in boston"))
+        assertEquals(Weather("boston", ForecastDay.TOMORROW), parse("weather for tomorrow in boston"))
+        assertEquals(Weather("boston", ForecastDay.TOMORROW), parse("weather on tomorrow morning in boston"))
+        for (query in listOf("weather sat", "weather mon", "weather fri", "weather on thurs", "weather fri in london")) {
+            assertNull(query, parse(query))
+        }
+        // A town whose name starts with one is still a place.
+        assertEquals(Weather("sun valley", ForecastDay.TODAY), parse("weather in sun valley"))
+        assertEquals(Weather("sun prairie", ForecastDay.TODAY), parse("weather sun prairie"))
+        assertEquals(Weather("tom price", ForecastDay.TODAY), parse("weather in tom price"))
+        // Or one ending in "sun" or "tom", which aren't read as days at all.
+        assertEquals(Weather("rising sun", ForecastDay.TODAY), parse("weather in rising sun"))
+        assertEquals(Weather("rising sun", ForecastDay.TODAY), parse("weather rising sun"))
+        assertEquals(Weather("mount tom", ForecastDay.TODAY), parse("weather in mount tom"))
+        assertEquals(Weather("mount tom", ForecastDay.TODAY), parse("weather mount tom"))
     }
 
     @Test

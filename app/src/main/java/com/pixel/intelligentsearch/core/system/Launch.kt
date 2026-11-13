@@ -101,9 +101,20 @@ private inline fun opening(context: Context, open: () -> Boolean): Boolean {
     return opened
 }
 
-/** Opens [packageName]'s launcher activity; false if it has none. */
-fun launchApp(context: Context, packageName: String): Boolean {
-    val launch = runCatching { context.packageManager.getLaunchIntentForPackage(packageName) }.getOrNull() ?: return false
+/**
+ * Opens [packageName]'s launcher activity; false if it has none. With [activityName], that one of its launcher icons
+ * (Contacts beside Phone in one package), when it is one: any other activity name opens the package's main screen,
+ * so a name from outside can't reach a screen the app keeps to itself.
+ */
+fun launchApp(context: Context, packageName: String, activityName: String? = null): Boolean {
+    val pm = context.packageManager
+    val icon = activityName?.takeIf { it.isNotEmpty() }?.let { name ->
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(packageName)
+        runCatching { pm.queryIntentActivities(launcher, 0) }.getOrNull()
+            ?.firstOrNull { it.activityInfo?.name == name }
+            ?.let { launcher.setClassName(packageName, name).setPackage(null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED) }
+    }
+    val launch = icon ?: runCatching { pm.getLaunchIntentForPackage(packageName) }.getOrNull() ?: return false
     return launchSafeIntent(context, launch)
 }
 

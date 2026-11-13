@@ -646,6 +646,31 @@ class MathematicalExpressionEngineTest {
     }
 
     @Test
+    fun currencyNamesCountriesShareAreThePhonesCountrys() {
+        val live = com.pixel.intelligentsearch.core.currency.CurrencyRates(
+            base = "eur",
+            perBase = mapOf("eur" to 1.0, "usd" to 1.1, "mxn" to 20.0, "php" to 63.0, "nok" to 11.5, "dkk" to 7.46,
+                "sek" to 11.4, "isk" to 150.0, "inr" to 92.0),
+            date = java.time.LocalDate.of(2026, 10, 19)
+        )
+        fun live(tag: String, query: String) = inLocale(java.util.Locale.forLanguageTag(tag)) {
+            MathematicalExpressionEngine.evaluate(query) { live } as? MathematicalExpressionEngine.MathEvaluationResult.UnitConversion
+        }
+        // Each was another country's: Mexican pesos, Norwegian kroner, Swedish kronor.
+        assertEquals("PHP", live("en-PH", "100 pesos to usd")?.fromUnit)
+        assertEquals("DKK", live("da-DK", "100 kroner to eur")?.fromUnit)
+        assertEquals("ISK", live("is-IS", "1000 krona to usd")?.fromUnit)
+        assertEquals("MXN", live("es-MX", "100 pesos to usd")?.fromUnit)
+        assertEquals("NOK", live("en-US", "100 kroner to eur")?.fromUnit)
+        // Into the country's own currency by its code, the name is the general one's.
+        assertEquals("MXN" to "PHP", live("en-PH", "100 pesos to php")?.let { it.fromUnit to it.toUnit })
+        // Where no table has the country's own, no answer rather than India's rupee or Mexico's peso.
+        assertNull(live("en-PK", "100 rupees to usd"))
+        assertNull(live("es-CO", "100 pesos to usd"))
+        assertNull(live("ar-MA", "100 dirhams to usd"))
+    }
+
+    @Test
     fun aLetterAloneIsNoHexNumber() {
         // "b in binary" was 0b1011: it asks for the letter's code, as "a in binary" does.
         for (query in listOf("b in binary", "c in binary", "d in binary", "f in binary", "decade to binary", "faded in hex")) {
@@ -680,6 +705,23 @@ class MathematicalExpressionEngineTest {
         assertEquals("5 ft 10 in = 177.8 cm", height?.formatted)
         // "5m" is still 5 metres.
         assertEquals(5.0, inLocale(java.util.Locale.US) { converted("5m to ft") }?.fromValue ?: 0.0, 1e-9)
+    }
+
+    @Test
+    fun degreesUnnamedInchesAndACupWithNoAmountAreRead() {
+        // Each had no answer.
+        inLocale(java.util.Locale.US) {
+            assertEquals(176.6667, converted("350 degrees f to c")?.toValue ?: 0.0, 1e-3)
+            assertEquals(176.6667, converted("350 degrees fahrenheit in celsius")?.toValue ?: 0.0, 1e-3)
+            assertEquals(212.0, converted("100 deg c to deg f")?.toValue ?: 0.0, 1e-9)
+            for (query in listOf("5'10 in cm", "5 ft 10 in cm", "5 foot 10 in cm")) {
+                assertEquals(query, "5 ft 10 in = 177.8 cm", converted(query)?.formatted)
+            }
+            val cup = converted("cups to ml")
+            assertEquals(1.0, cup?.fromValue ?: 0.0, 0.0)
+            assertEquals(236.588, cup?.toValue ?: 0.0, 1e-9)
+            assertEquals(3.0, converted("tbsp to tsp")?.toValue ?: 0.0, 1e-2)
+        }
     }
 
     @Test

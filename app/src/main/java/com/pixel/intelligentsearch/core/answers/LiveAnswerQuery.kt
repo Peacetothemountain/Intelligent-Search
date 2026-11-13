@@ -80,14 +80,16 @@ object LiveAnswerParser {
     // TRANSLATION
     // ---------------------------------------------------------------------------------------------
 
-    private val TRANSLATE_FROM_TO = Regex("^translate (.+?) from ([\\p{L} ]+?) (?:to|into) ([\\p{L} ]+)$")
-    private val TRANSLATE_TO = Regex("^translate (.+?) (?:to|into|in) ([\\p{L} ]+)$")
+    // The text runs to the last "to" or "in" before the language, as the words to translate may have their own: "translate
+    // nice to meet you to spanish", "i live in london in french". No language's name has a "to" or "in" in it.
+    private val TRANSLATE_FROM_TO = Regex("^translate (.+) from ([\\p{L} ]+?) (?:to|into) ([\\p{L} ]+)$")
+    private val TRANSLATE_TO = Regex("^translate (.+) (?:to|into|in) ([\\p{L} ]+)$")
     private val TRANSLATE_ONLY = Regex("^translate (.+)$")
     // "how do you say thank you in japanese", and "how to say ..." as it is often typed.
-    private val HOW_DO_YOU_SAY = Regex("^how (?:(?:do|would|can|should) (?:you|i|we) |to )say (.+?) in ([\\p{L} ]+)$")
-    private val MEANING_IN = Regex("^(.+?) (?:meaning|translation) in ([\\p{L} ]+)$")
-    private val WHAT_IS_IN = Regex("^what(?:'s| is) (.+?) in ([\\p{L} ]+)$")
-    private val BARE_IN = Regex("^(.+?) in ([\\p{L} ]+)$")
+    private val HOW_DO_YOU_SAY = Regex("^how (?:(?:do|would|can|should) (?:you|i|we) |to )say (.+) in ([\\p{L} ]+)$")
+    private val MEANING_IN = Regex("^(.+) (?:meaning|translation) in ([\\p{L} ]+)$")
+    private val WHAT_IS_IN = Regex("^what(?:'s| is) (.+) in ([\\p{L} ]+)$")
+    private val BARE_IN = Regex("^(.+) in ([\\p{L} ]+)$")
 
     /**
      * Words that make "X in <language>" a search for things in that language ("songs in spanish", "learn python in
@@ -192,7 +194,7 @@ object LiveAnswerParser {
      * When a forecast is for: the day, with the part of it people add ("tomorrow morning", "this evening", "in the
      * afternoon", "at night").
      */
-    private val DAY_WORD = "((?:today|tomorrow)(?: (?:morning|afternoon|evening|night))?|tonight|now|right now|" +
+    private val DAY_WORD = "((?:today|tomorrow|tmrw|tmr|tmw)(?: (?:morning|afternoon|evening|night))?|tonight|now|right now|" +
         "this (?:morning|afternoon|evening)|in the (?:morning|afternoon|evening)|at night|later(?: today)?)"
     private val WEATHER_LEAD = Regex("^(?:what(?:'s| is|s) the |how(?:'s| is|s) the |the )")
     private val WEATHER_WORD = Regex("\\b(?:weather|forecast)\\b")
@@ -227,8 +229,11 @@ object LiveAnswerParser {
         "\\b(?:(?:\\d+|three|five|seven|ten|fourteen)[ -]?days?|next (?:few |couple of )?days|weeks?|weekends?|weekly)\\b"
     )
 
-    /** "for" or "on" before the day ("weather for tomorrow"), which would otherwise read as a place called "tomorrow". */
-    private val WEATHER_FOR_DAY = Regex("\\b(?:for|on) (?=$DAY_WORD$)")
+    /**
+     * "for" or "on" before the day, wherever it is ("weather for tomorrow", "weather for tomorrow in boston"), which would
+     * otherwise read as a place called "tomorrow" or "tomorrow in boston".
+     */
+    private val WEATHER_FOR_DAY = Regex("\\b(?:for|on) (?=$DAY_WORD(?: |$))")
     private val WEATHER_LIKE = Regex("\\bweather like\\b")
     private val WEATHER_ALONE = Regex("^(?:weather|forecast|weather forecast)(?: $DAY_WORD)?$")
     private val WEATHER_OWNED = Regex("^(today'?s|todays|tonight'?s|tomorrow'?s|tomorrows|current|local|my) (?:weather|forecast|weather forecast)$")
@@ -244,7 +249,8 @@ object LiveAnswerParser {
     /** Words after or before "weather" that name something other than a place ("weather radar", "the weather channel"). */
     private val NOT_A_PLACE = setOf(
         "radar", "channel", "app", "apps", "map", "maps", "alert", "alerts", "warning", "warnings", "report", "news",
-        "underground", "network", "station", "widget", "forecast", "today", "tomorrow", "tonight", "now", "live",
+        "underground", "network", "station", "widget", "forecast", "today", "tomorrow", "tmrw", "tmr", "tmw",
+        "tonight", "now", "live",
         "update", "updates", "hourly", "weekly", "10 day", "10-day", "7 day", "7-day", "this week", "next week",
         "weekend", "this weekend", "the", "a", "bad", "good", "nice", "cold", "hot", "the weather channel"
     )
@@ -261,6 +267,17 @@ object LiveAnswerParser {
         "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "yesterday", "home", "work",
         "office", "school", "vs", "versus"
     )
+
+    /**
+     * The days as quick notes shorten them ("weather sat", "weather fri in london"). Many are a town's first word too
+     * (Mon Repos), so one is a day only on its own, last, or before "in", "at", "for" or "near". "Sun" isn't one, nor
+     * "tom" for tomorrow: towns end in them (Rising Sun, Mount Tom).
+     */
+    private val SHORT_DAYS = setOf("mon", "tue", "tues", "wed", "weds", "thu", "thur", "thurs", "fri", "sat")
+    private val PLACE_LEADS = setOf("in", "at", "for", "near")
+
+    /** Tomorrow as quick notes write it, which [DAY_WORD] takes as it does "tomorrow". */
+    private val TOMORROW_SHORT = setOf("tmrw", "tmr", "tmw")
 
     /**
      * Things said with "weather" ("weather man", "weather balloon", "weather the storm"), not places, in a place of
@@ -433,8 +450,9 @@ object LiveAnswerParser {
         return null
     }
 
-    /** "tomorrow", "tomorrow morning", "tomorrow's": tomorrow; every other day word is today. */
-    private fun dayOf(word: String): ForecastDay = if (word.startsWith("tomorrow")) ForecastDay.TOMORROW else ForecastDay.TODAY
+    /** "tomorrow", "tomorrow morning", "tomorrow's", "tmr": tomorrow; every other day word is today. */
+    private fun dayOf(word: String): ForecastDay =
+        if (word.startsWith("tomorrow") || word.substringBefore(' ') in TOMORROW_SHORT) ForecastDay.TOMORROW else ForecastDay.TODAY
 
     /** [raw] as a place to look up, or null when it names something else. [afterIn]: it came after "in", "for" or "at". */
     private fun place(raw: String, afterIn: Boolean = false): String? {
@@ -446,6 +464,9 @@ object LiveAnswerParser {
         // A word before "harbor", "lake" or "river" is part of a town's name: Friday Harbor, Storm Lake, Sunday River.
         fun named(i: Int) = words.getOrNull(i + 1) in PLACE_FEATURES
         if (words.indices.any { words[it] in NOT_A_PLACE_WORDS && !named(it) }) return null
+        if (words.indices.any { words[it] in SHORT_DAYS && (it == words.lastIndex || words[it + 1] in PLACE_LEADS) }) {
+            return null
+        }
         if (words.size <= 2 && words.indices.any { words[it] in WEATHER_THINGS && !named(it) }) return null
         // "weather in july", "weather this may": a month, not the towns called May or July. "May" in a longer name
         // ("weather mayfield", "isle of may") is still a place.

@@ -128,9 +128,10 @@ fun ManageHiddenAppsScreen(
 
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
-            // Hiding works per package, and work/private-profile copies share it; duplicate LazyColumn keys crash.
+            // Hiding works per package, and work/private-profile copies share it; duplicate LazyColumn keys crash. A
+            // package with two icons (Phone and Contacts) is shown by the one it opens to.
             // Each icon is drawn once here at row size, not on the main thread while the list scrolls.
-            val apps = loadApps(context).distinctBy { it.packageName }.sortedBy { it.name.lowercase() }
+            val apps = SystemDataProvider.onePerPackage(context, loadApps(context)).sortedBy { it.name.lowercase() }
                 .map { app -> HiddenAppRow(app, runCatching { app.icon.toBitmap(iconPx, iconPx).asImageBitmap() }.getOrNull()) }
             withContext(Dispatchers.Main) {
                 installedApps = apps

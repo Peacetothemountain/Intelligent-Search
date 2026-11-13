@@ -395,7 +395,11 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
             "goa" to "Asia/Kolkata", "pune" to "Asia/Kolkata", "phuket" to "Asia/Bangkok",
             "saigon" to "Asia/Ho_Chi_Minh", "ho chi minh city" to "Asia/Ho_Chi_Minh", "mecca" to "Asia/Riyadh",
             "krakow" to "Europe/Warsaw", "dubrovnik" to "Europe/Zagreb", "marrakech" to "Africa/Casablanca",
-            "zanzibar" to "Africa/Dar_es_Salaam"
+            "zanzibar" to "Africa/Dar_es_Salaam",
+            // Cities spelled in English otherwise than in their zone's name (Europe/Tirane, America/Godthab on older
+            // phones), or by a name the zone database doesn't keep.
+            "tirana" to "Europe/Tirane", "kyiv" to "Europe/Kiev", "nuuk" to "America/Godthab", "bombay" to "Asia/Kolkata",
+            "kuwait city" to "Asia/Kuwait", "guatemala city" to "America/Guatemala"
         )
     }
 }

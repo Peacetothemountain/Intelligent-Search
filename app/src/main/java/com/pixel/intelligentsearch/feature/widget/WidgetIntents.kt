@@ -122,12 +122,14 @@ fun getLensTranslateIntent(context: Context): Intent =
  */
 fun launchGeminiCornerOverlay(context: Context): Boolean {
     // launchAssist shows whichever app holds the assistant role. When that is Intelligent Search itself, it would only
-    // open this app's own search, so Gemini is reached through the fallbacks below instead.
+    // open this app's own search, so Gemini is reached through the fallbacks below instead. With no assistant chosen
+    // (Digital assistant app: None) it opens nothing at all, so the fallbacks take over then too.
     val isTheAssistant = holdsAssistantRole(context)
+    val noAssistant = !isTheAssistant && noAssistantChosen(context)
     try {
         val searchManager = context.getSystemService(Context.SEARCH_SERVICE) as? android.app.SearchManager
         val launchAssist = launchAssistMethod(searchManager)
-        if (launchAssist != null && !isTheAssistant) {
+        if (launchAssist != null && !isTheAssistant && !noAssistant) {
             val args = android.os.Bundle().apply {
                 putInt("invocation_type", 1) // INVOCATION_TYPE_GESTURE: the corner swipe
                 putBoolean("launch_gemini_overlay", true)
@@ -138,7 +140,7 @@ fun launchGeminiCornerOverlay(context: Context): Boolean {
     } catch (e: Throwable) {
         android.util.Log.w("SearchWidgetProvider", "SearchManager.launchAssist failed", e)
     }
-    for (fallback in assistantFallbacks(context, isTheAssistant)) {
+    for (fallback in assistantFallbacks(context, isTheAssistant || noAssistant)) {
         try {
             if (context.packageManager.resolveActivityCompat(fallback) == null) continue
             context.startActivity(fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -154,6 +156,14 @@ private fun holdsAssistantRole(context: Context): Boolean = runCatching {
     context.getSystemService(android.app.role.RoleManager::class.java)?.isRoleHeld(android.app.role.RoleManager.ROLE_ASSISTANT) == true
 }.getOrDefault(false)
 
+/**
+ * Whether the phone has no assistant (Settings, Default apps, Digital assistant app: None), which Android records as an
+ * empty "assistant" setting. Unreadable or never written counts as one being there, as before.
+ */
+private fun noAssistantChosen(context: Context): Boolean = runCatching {
+    android.provider.Settings.Secure.getString(context.contentResolver, "assistant") == ""
+}.getOrDefault(false)
+
 /** SearchManager's hidden launchAssist(Bundle), or null where Android doesn't offer it. */
 private fun launchAssistMethod(searchManager: android.app.SearchManager?): java.lang.reflect.Method? = runCatching {
     searchManager?.javaClass?.methods?.find { it.name == "launchAssist" && it.parameterTypes.size == 1 }
@@ -161,24 +171,25 @@ private fun launchAssistMethod(searchManager: android.app.SearchManager?): java.
 
 /**
  * This app's own voice search when that is where [launchGeminiCornerOverlay] would open the assistant (this app is the
- * assistant and neither Gemini nor the Google app is there), else null. The search that handles the button runs it in
+ * assistant, or none is chosen, and neither Gemini nor the Google app is there), else null. The search that handles the button runs it in
  * place instead: started from there, that search would close right after, and a recognizer gives its words back only
  * to a search still open to search them.
  */
 fun ownVoiceSearchForAssistant(context: Context): Intent? {
     val isTheAssistant = holdsAssistantRole(context)
+    val noAssistant = !isTheAssistant && noAssistantChosen(context)
     val searchManager = context.getSystemService(Context.SEARCH_SERVICE) as? android.app.SearchManager
-    if (!isTheAssistant && launchAssistMethod(searchManager) != null) return null
-    return assistantFallbacks(context, isTheAssistant)
+    if (!isTheAssistant && !noAssistant && launchAssistMethod(searchManager) != null) return null
+    return assistantFallbacks(context, isTheAssistant || noAssistant)
         .firstOrNull { context.packageManager.resolveActivityCompat(it) != null }
         ?.takeIf { it.component?.packageName == context.packageName }
 }
 
 /**
  * Where [launchGeminiCornerOverlay] opens the assistant without launchAssist, in order; the first that is installed
- * opens. While Intelligent Search [isTheAssistant], the Google app's voice command only forwards to Android's "Default
- * digital assistant app" page, as Google isn't the assistant, so then the button opens Gemini itself, else the Google
- * app's voice search, else this app's own.
+ * opens. While Intelligent Search [isTheAssistant] (or no assistant is chosen), the Google app's voice command only
+ * forwards to Android's "Default digital assistant app" page, as Google isn't the assistant, so then the button opens
+ * Gemini itself, else the Google app's voice search, else this app's own.
  */
 internal fun assistantFallbacks(context: Context, isTheAssistant: Boolean): List<Intent> {
     val gemini = context.packageManager.getLaunchIntentForPackage(GoogleApps.GEMINI_APP)

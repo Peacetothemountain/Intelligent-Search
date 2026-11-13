@@ -242,17 +242,37 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
 
     /** The first day named [name] ("christmas", "thanksgiving") on or after [from], or null when it names none. */
     internal fun occasionOnOrAfter(name: String, from: LocalDate): LocalDate? {
-        NAMED_DAYS[name]?.let { return onOrAfter(it, from) }
+        namedDay(name)?.let { return onOrAfter(it, from) }
         return movableDay(name)?.let { movableOnOrAfter(Written.Movable(it), from) }
     }
 
-    /** The [MOVABLE_DAYS] day [name] names, for where the phone is: Canada's Thanksgiving is the second Monday of October. */
+    /**
+     * The [NAMED_DAYS] day [name] names, for where the phone is: Christmas and its Eve are January 7 and 6 where the
+     * Orthodox Church keeps them then, as [OccasionCalendar.christmas] has it.
+     */
+    private fun namedDay(name: String): MonthDay? {
+        val day = NAMED_DAYS[name] ?: return null
+        if (!name.startsWith("christmas") && name != "xmas") return day
+        // The same month and day every year.
+        val christmas = OccasionCalendar.christmas(2001, region())
+        return MonthDay.from(if (name == "christmas eve") christmas.minusDays(1) else christmas)
+    }
+
+    /**
+     * The [MOVABLE_DAYS] day [name] names, for where the phone is: Canada's Thanksgiving is the second Monday of October,
+     * and Easter is the Orthodox one where that is kept, as [OccasionCalendar.easter] has it.
+     */
     private fun movableDay(name: String): ((Int) -> LocalDate)? {
         val day = MOVABLE_DAYS[name] ?: return null
+        val region = region()
+        if (name.startsWith("easter")) return { year: Int -> OccasionCalendar.easter(year, region) }
         // Black Friday stays the day after the US one, as it is in Canada too.
-        if (!name.startsWith("thanksgiving") || locale().country != "CA") return day
+        if (!name.startsWith("thanksgiving") || region != "CA") return day
         return { year: Int -> OccasionCalendar.nth(year, 10, DayOfWeek.MONDAY, 2) }
     }
+
+    /** The phone's region, its locale's country, as [OccasionCalendar.region] reads it. */
+    private fun region(): String = locale().country.uppercase(Locale.ROOT)
 
     /** The first [day] on or after [from]. */
     private fun movableOnOrAfter(day: Written.Movable, from: LocalDate): LocalDate? =
@@ -268,12 +288,12 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
             "tomorrow" -> return Written.Fixed(today.plusDays(1), yearWritten = false)
             "yesterday" -> return Written.Fixed(today.minusDays(1), yearWritten = false)
         }
-        NAMED_DAYS[text]?.let { return Written.Yearless(it) }
+        namedDay(text)?.let { return Written.Yearless(it) }
         movableDay(text)?.let { return Written.Movable(it) }
         // "christmas 2027", "easter, 2030": the day in that year.
         OCCASION_YEAR_REGEX.matchEntire(text)?.let { match ->
             val year = match.groupValues[2].toInt()
-            NAMED_DAYS[match.groupValues[1]]?.let { return written(it, year) }
+            namedDay(match.groupValues[1])?.let { return written(it, year) }
             movableDay(match.groupValues[1])?.let { inYear ->
                 return if (year in 1..9999) Written.Fixed(inYear(year)) else null
             }
@@ -389,7 +409,7 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
         private val MONTH = MONTHS.keys.sortedByDescending { it.length }.joinToString("|")
         private const val ORDINAL = "(?:st|nd|rd|th)?"
 
-        /** Fixed-date days people count down to. */
+        /** Fixed-date days people count down to. Christmas is December 25 here; [namedDay] moves it where it's January 7. */
         val NAMED_DAYS: Map<String, MonthDay> = buildMap {
             for (name in listOf("christmas", "christmas day", "xmas")) put(name, MonthDay.of(12, 25))
             put("christmas eve", MonthDay.of(12, 24))
@@ -403,7 +423,7 @@ class DateMathEngine(private val clock: Clock? = null, private val locale: Local
 
         /**
          * Days whose date moves: US Thanksgiving (the fourth Thursday of November), Black Friday the day after it, and
-         * Western Easter.
+         * Western Easter. [movableDay] gives the phone's region its own Thanksgiving and Easter.
          */
         val MOVABLE_DAYS: Map<String, (Int) -> LocalDate> = buildMap {
             val thanksgiving = { year: Int -> OccasionCalendar.nth(year, 11, DayOfWeek.THURSDAY, 4) }

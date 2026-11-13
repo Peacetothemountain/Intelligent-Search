@@ -178,4 +178,22 @@ class RadixTreeIndexTest {
         // CalcApp must appear exactly once despite matching multiple indexed keys
         assertEquals(1, results.count { it.value == "CalcApp" })
     }
+
+    @Test
+    fun aCutPrefixKeepsWhatThePreferredOrderPutsFirst() {
+        // Two thousand matches, the one that matters saved last: the first twenty in the tree would leave it out.
+        for (i in 0 until 2000) index.insert("anna $i", "Anna $i")
+        index.insert("anna starred", "Anna Starred")
+        // Indexed under a second key too, it must still come back once.
+        index.insert("anna z", "Anna Starred")
+        val starredFirst = compareByDescending<String> { it == "Anna Starred" }
+
+        assertFalse("Anna Starred" in index.searchPrefix("anna", limit = 20))
+        val kept = index.searchPrefix("anna", limit = 20, preferred = starredFirst)
+        assertEquals(20, kept.size)
+        assertEquals("Anna Starred", kept.first())
+        assertEquals(1, kept.count { it == "Anna Starred" })
+        // Under the limit nothing is cut, and the tree's order stands.
+        assertEquals(index.searchPrefix("anna 199"), index.searchPrefix("anna 199", limit = 20, preferred = starredFirst))
+    }
 }

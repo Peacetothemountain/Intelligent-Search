@@ -191,7 +191,8 @@ internal fun rationaleShown(context: Context, permission: String): Boolean =
 /** What contact search says before Android asks for the contacts; At a Glance's birthdays ask the same way. */
 internal const val CONTACTS_RATIONALE =
     "Intelligent Search needs your contacts so you can search, call, message and see contact details from the " +
-        "search bar, and see their birthdays in At a Glance. Your contacts stay on your phone."
+        "search bar. At a Glance can also show their birthdays once you turn them on there. Your contacts stay on " +
+        "your phone."
 
 /** A way to ask for a permission: [request] answers at once when it is allowed, else explains first. */
 internal fun interface PermissionRequest {

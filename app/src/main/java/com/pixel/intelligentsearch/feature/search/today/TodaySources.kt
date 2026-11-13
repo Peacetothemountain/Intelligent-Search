@@ -167,14 +167,15 @@ private val COUNTDOWN_OCCASIONS = setOf(
 
 /**
  * The next of [COUNTDOWN_OCCASIONS] after [today], in [zone] and [region], named by [name]. The holidays doodle runs
- * Christmas Eve and Christmas Day; the countdown is to Christmas Day and says so.
+ * Christmas Eve and Christmas Day; the countdown is to Christmas Day ([OccasionCalendar.christmas], January 7 where
+ * that's when it's kept) and says so.
  */
 internal fun nextCountdown(today: LocalDate, zone: ZoneId, region: String, name: (Occasion) -> String): TodayCountdown? {
     var date = today.plusDays(1)
     repeat(400) {
         val occasion = OccasionCalendar.on(date, zone, region)
         val christmas = occasion == Occasion.HOLIDAYS
-        if (occasion != null && occasion in COUNTDOWN_OCCASIONS && (!christmas || date.dayOfMonth == 25)) {
+        if (occasion != null && occasion in COUNTDOWN_OCCASIONS && (!christmas || date == OccasionCalendar.christmas(date.year, region))) {
             return TodayCountdown(if (christmas) "Christmas" else name(occasion), ChronoUnit.DAYS.between(today, date).toInt(), date)
         }
         date = date.plusDays(1)

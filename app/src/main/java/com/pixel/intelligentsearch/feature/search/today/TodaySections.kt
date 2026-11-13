@@ -171,12 +171,67 @@ private val PARCEL_IN_A_MESSAGE = Regex(
         "|\\border\\s*(?:#|no\\.?|number)\\s*[a-z]*\\d",
     RegexOption.IGNORE_CASE
 )
+/** A shop's offer: "Free delivery today on orders over $15", "20% off", a deal, a coupon or promo code, a sale, "save". */
+private val OFFER = Regex(
+    "\\bfree\\s+(?:delivery|shipping)\\b|\\d\\s?%\\s*off\\b|[$€£]\\s?\\d+(?:[.,]\\d+)?\\s+off\\b" +
+        "|\\b(?:deals?|coupons?|promo(?:tion)?s?|promo\\s+codes?|vouchers?|sales?|save|savings)\\b",
+    RegexOption.IGNORE_CASE
+)
+/**
+ * The reader's own parcel: "your order", "your Amazon.com package", "your delivery" (not the "next order" an offer is
+ * for), or an order by its number.
+ */
+private val YOUR_PARCEL = Regex(
+    "\\byour\\s+(?:(?!next\\b|first\\b)[\\w.]+\\s+){0,2}?(?:orders?|packages?|parcels?|shipments?|deliver(?:y|ies))\\b" +
+        "|\\border\\s*(?:#|no\\b\\.?|number\\b)\\s*[a-z]*\\d",
+    RegexOption.IGNORE_CASE
+)
+/** A step a carrier reports, done or coming: shipped, in transit, arriving, out for delivery, delivered, delayed. */
+private val CARRIER_STEP = Regex(
+    "\\bshipped\\b|\\bout for delivery\\b|\\bin transit\\b|\\bon (?:its|the) way\\b|\\barriv(?:ing|es)\\b|\\bdelivered\\b" +
+        "|\\bdelayed\\b|\\brunning\\s+late\\b|\\brescheduled\\b|\\bhas left\\b|\\bdeparted\\b",
+    RegexOption.IGNORE_CASE
+)
+/** A parcel named as a thing, not "order" as in "Order now". */
+private val PARCEL_NOUN = Regex(
+    "\\b(?:packages?|parcels?|shipments?|orders)\\b|\\b(?:the|this|an?)\\s+order\\b" +
+        "|\\border\\s*(?:#|(?:no|number|update|status|details|confirmed|has|have|is|was|will)\\b)",
+    RegexOption.IGNORE_CASE
+)
+/** A shop's headline that starts with the step, the item after it: "Shipped: Garage Sale Signs", "Arriving today: ...". */
+private val STEP_HEADLINE = Regex(
+    "^\\s*(?:(?:shipped|delivered|out for delivery|in transit|delayed|delivery attempted)|arriv(?:ing|es)(?:\\s+[\\w,]+){1,3})\\s*[:–—]",
+    RegexOption.IGNORE_CASE
+)
+
+/**
+ * Whether [entry] is news of a parcel rather than a shop's offer. A headline that starts with a carrier's step is. An
+ * offer, in its words or posted as a promotion, must name the reader's own parcel and a step ("Your order has shipped!
+ * 10% off your next one"); a text message must name the parcel or a carrier's step ([PARCEL_IN_A_MESSAGE]); anything
+ * else must name the reader's parcel, or a carrier's step for a parcel ("Dinner, delivered. Order now" names neither).
+ */
+private fun isParcelNews(entry: IndexedNotification, text: String): Boolean {
+    if (STEP_HEADLINE.containsMatchIn(entry.title) || STEP_HEADLINE.containsMatchIn(entry.newest)) return true
+    val yours = YOUR_PARCEL.containsMatchIn(text)
+    val step = CARRIER_STEP.containsMatchIn(text) || NOT_DELIVERED.containsMatchIn(text)
+    return when {
+        entry.category == Notification.CATEGORY_PROMO || OFFER.containsMatchIn(text) -> yours && step
+        entry.category == Notification.CATEGORY_MESSAGE -> PARCEL_IN_A_MESSAGE.containsMatchIn(text)
+        // A carrier's own words need nothing more: "Delivery attempted today", "Out for delivery today". (Not the
+        // looser "delivery today", which an offer says too.)
+        else -> yours || NOT_DELIVERED.containsMatchIn(text) || CARRIER_OUT_FOR_DELIVERY.containsMatchIn(text) ||
+            step && PARCEL_NOUN.containsMatchIn(text)
+    }
+}
+
+private val CARRIER_OUT_FOR_DELIVERY = Regex("\\bout for delivery\\b", RegexOption.IGNORE_CASE)
 
 /**
  * The newest package news among the notifications from the last two days, if any: delivered, out for delivery,
- * delayed, or on its way. Only notifications that speak of a package, order or delivery count, none from a call, and a
- * text message only when it names the parcel or a carrier's step ([PARCEL_IN_A_MESSAGE]). When the newest says it
- * couldn't be delivered (in any of [NOT_DELIVERED]'s words), no step says that, so there is no tile rather than an older, happier one.
+ * delayed, or on its way. Only notifications that speak of a package, order or delivery count, none from a call, and
+ * only news of a parcel, not a shop's offer ([isParcelNews]); one that isn't is passed over for the older ones. When
+ * the newest says it couldn't be delivered (in any of [NOT_DELIVERED]'s words), no step says that, so there is no tile
+ * rather than an older, happier one.
  * Its "today" is the day it was posted in [zone]: out for delivery on an earlier day, with no news since, says nothing
  * true about today, so there is no tile either. A conversation is read by its newest message alone: an older one in the
  * same thread (yesterday's attempt, last week's delivery, a chat's earlier words) is not news about this package.
@@ -186,7 +241,7 @@ internal fun deliveryFrom(entries: List<IndexedNotification>, now: Long, zone: Z
     for (entry in entries.filter { now - it.postedAt in 0..DELIVERY_WINDOW_MS && it.category !in CALL_CATEGORIES }.sortedByDescending { it.postedAt }) {
         val text = "${entry.title} ${entry.newest}"
         if (!PACKAGE.containsMatchIn(text)) continue
-        if (entry.category == Notification.CATEGORY_MESSAGE && !PARCEL_IN_A_MESSAGE.containsMatchIn(text)) continue
+        if (!isParcelNews(entry, text)) continue
         if (NOT_DELIVERED.containsMatchIn(text)) return null
         return when {
             DELIVERED.containsMatchIn(TO_BE_DELIVERED.replace(text, "")) -> TodayDelivery(3, "Delivered", entry.appLabel, entry)
@@ -248,12 +303,14 @@ internal fun DeliveryTile(delivery: TodayDelivery, modifier: Modifier) {
     }
 }
 
-/** The notifications worth catching up on: missed calls, messages and emails from the last 12 hours, newest first. */
+/**
+ * The notifications worth catching up on: missed calls, messages and emails from the last 12 hours, newest first. All
+ * of them, so the count is the real one; the card shows the first [CATCH_UP_ROWS].
+ */
 internal fun catchUpFrom(entries: List<IndexedNotification>, now: Long): List<IndexedNotification> = entries
     .filter { it.category in CATCH_UP_CATEGORIES && now - it.postedAt in 0..CATCH_UP_WINDOW_MS && it.title.isNotBlank() }
     .sortedByDescending { it.postedAt }
     .distinctBy { it.packageName to it.title }
-    .take(3)
 
 /**
  * The one line of [entry] a Catch Up row has room for: the first line of a conversation's newest message, or of an
@@ -274,6 +331,7 @@ private fun nameInitial(title: String, locale: java.util.Locale): String? {
 
 private val CATCH_UP_CATEGORIES = setOf(Notification.CATEGORY_MISSED_CALL, Notification.CATEGORY_MESSAGE, Notification.CATEGORY_EMAIL)
 private const val CATCH_UP_WINDOW_MS = 12 * 3_600_000L
+private const val CATCH_UP_ROWS = 3
 
 /** A slow full turn every 14 seconds while [on] and animations are on, read as a rotation in degrees. */
 @Composable
@@ -550,7 +608,8 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
     Column {
         Card(padding = 6) {
             CardLabel(Icons.Filled.Forum, "Catch up", detail = "${entries.size} new", modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 4.dp))
-            entries.forEachIndexed { i, entry ->
+            val rows = entries.take(CATCH_UP_ROWS)
+            rows.forEachIndexed { i, entry ->
                 val (icon, label) = when (entry.category) {
                     Notification.CATEGORY_MISSED_CALL -> Icons.Filled.Call to "Call back"
                     Notification.CATEGORY_EMAIL -> Icons.Filled.Email to "Open"
@@ -587,7 +646,7 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
                         Icon(icon, null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
                     }
                 }
-                if (i < entries.lastIndex) {
+                if (i < rows.lastIndex) {
                     Box(Modifier.fillMaxWidth().padding(start = 60.dp, end = 8.dp).height(1.dp).background(scheme.outlineVariant.copy(alpha = 0.5f)))
                 }
             }

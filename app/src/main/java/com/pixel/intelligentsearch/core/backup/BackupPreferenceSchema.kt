@@ -21,11 +21,13 @@ internal object BackupPreferenceSchema {
 
     /**
      * Settings that only mean something on this phone, so backups leave them out and a restore keeps this phone's
-     * own: the folders and photos granted to it, and what each placed countdown widget counts down to (keyed by
-     * widget ids, which another phone or a reinstall numbers differently).
+     * own: the folders and photos granted to it, what each placed countdown widget counts down to (keyed by
+     * widget ids, which another phone or a reinstall numbers differently), and Finish Setting Up's "I'm Done for
+     * Now" (a new phone still needs its own permissions and folders, so its checklist shows again).
      */
     val DEVICE_LOCAL_KEYS: Set<String> =
-        com.pixel.intelligentsearch.core.data.UserGrantedFiles.DEVICE_LOCAL_KEYS + SettingsManager.COUNTDOWN_EVENTS.name
+        com.pixel.intelligentsearch.core.data.UserGrantedFiles.DEVICE_LOCAL_KEYS + SettingsManager.COUNTDOWN_EVENTS.name +
+            SettingsManager.SETUP_CHECKLIST_DISMISSED.name
     const val MAX_STRING_LENGTH = 64 * 1024
     const val MAX_STRING_SET_SIZE = 1_000
 

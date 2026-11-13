@@ -54,8 +54,13 @@ class EverySettingBackupTest {
         SettingsManager.FLOATING_SEARCH_BUTTON
     )
 
-    /** These mean something only on this phone, so a restore keeps this phone's. */
-    private val staysOnThisPhone = setOf<SettingKey<*>>(SettingsManager.COUNTDOWN_EVENTS, SettingsManager.FILES_EXCLUDED_FOLDERS)
+    /**
+     * These mean something only on this phone, so a restore keeps this phone's. Finish Setting Up's "I'm Done for Now"
+     * is one: a new phone needs its own permissions and folders, so its checklist shows again.
+     */
+    private val staysOnThisPhone = setOf<SettingKey<*>>(
+        SettingsManager.COUNTDOWN_EVENTS, SettingsManager.FILES_EXCLUDED_FOLDERS, SettingsManager.SETUP_CHECKLIST_DISMISSED
+    )
 
     /**
      * The file's older settings snapshot also holds these, read through the setting's range when the file is made. The

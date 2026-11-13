@@ -56,6 +56,11 @@ object UserGrantedFiles {
     // which could cost a folder grant, so picked media stays well below the ceiling.
     const val MAX_PICKED_MEDIA = 300
     private const val MAX_FOLDER_FILES = 3000
+    /**
+     * How many entries of one chosen folder are looked at for the newest [MAX_FOLDER_FILES], so a huge tree ends. The
+     * scan runs again when the index is old, so it stays a few times the files kept, not every entry of a photo library.
+     */
+    private const val MAX_FOLDER_SCAN = 10_000
     private const val MAX_FOLDER_DEPTH = 8
 
     private val CHILD_PROJECTION = arrayOf(
@@ -153,6 +158,8 @@ object UserGrantedFiles {
         prefs.edit {
             putStringSet(KEY_MEDIA_URIS, current + added)
             remove(LEGACY_KEY_PHOTO_COUNT)
+            // Choosing photos means wanting them searched, as with a folder.
+            if (added.isNotEmpty()) put(SettingsManager.SEARCH_FILES, true)
         }
         return added.size
     }
@@ -213,21 +220,43 @@ object UserGrantedFiles {
     fun hasReadGrant(context: Context, uri: String): Boolean =
         grantedUris(context).contains(uri)
 
-    /** Every file in the user's chosen folders and photo-picker selections that is still accessible. */
+    /**
+     * Every file in the user's chosen folders and photo-picker selections that is still accessible: the chosen photos,
+     * then the newest of the folders' files by last change, up to [MAX_FOLDER_FILES] in all, so today's screenshot in
+     * a big folder is kept over old ones rather than whichever the folder happens to list first.
+     */
     suspend fun loadAll(context: Context, prefs: SharedPreferences): List<FileItem> = withContext(Dispatchers.IO) {
         val granted = grantedUris(context)
         val rules = FolderRules(
             includeHidden = includeHiddenFiles(prefs),
             excludedFolders = excludedFolderUris(prefs).mapNotNull(FolderExclusions::parseTreeUri)
         )
-        val out = ArrayList<FileItem>()
-        out += loadPickedMedia(context, mediaUris(prefs).filter { it in granted })
+        val picked = loadPickedMedia(context, mediaUris(prefs).filter { it in granted })
+        val newest = NewestFiles(MAX_FOLDER_FILES - picked.size)
         for (tree in folderUris(prefs)) {
             if (tree !in granted) continue
-            if (out.size >= MAX_FOLDER_FILES) break
-            loadFolder(context, tree, rules, MAX_FOLDER_FILES - out.size, out)
+            loadFolder(context, tree, rules, newest)
         }
-        out
+        picked + newest.newestFirst()
+    }
+
+    /**
+     * The [keep] most recently changed files offered, held in a heap with the oldest on top, so each file is weighed
+     * against that one alone and nothing beyond [keep] is held. On equal times the one offered first stays.
+     */
+    private class NewestFiles(private val keep: Int) {
+        private val files = java.util.PriorityQueue<FileItem>(keep.coerceAtLeast(1), compareBy { it.lastModifiedMs })
+
+        /** Whether a file changed at [modifiedMs] would be kept, so one that wouldn't isn't built at all. */
+        fun wants(modifiedMs: Long): Boolean = keep > 0 && (files.size < keep || modifiedMs > files.peek()!!.lastModifiedMs)
+
+        fun offer(file: FileItem) {
+            if (!wants(file.lastModifiedMs)) return
+            if (files.size >= keep) files.poll()
+            files.add(file)
+        }
+
+        fun newestFirst(): List<FileItem> = files.sortedByDescending { it.lastModifiedMs }
     }
 
     /**
@@ -246,23 +275,23 @@ object UserGrantedFiles {
         context: Context,
         treeUriString: String,
         rules: FolderRules,
-        limit: Int,
-        out: MutableList<FileItem>
+        newest: NewestFiles
     ) {
-        val start = out.size
+        var looked = 0
         try {
             val treeUri = treeUriString.toUri()
             val authority = treeUri.authority.orEmpty()
             val rootName = folderDisplayName(context, treeUriString)
-            // Breadth first, so a deep tree cannot use up the budget before shallower files are seen.
+            // Breadth first, so in a tree too big to look through whole the shallower files are the ones seen.
             val queue = ArrayDeque<Triple<String, String, Int>>()
             queue.add(Triple(DocumentsContract.getTreeDocumentId(treeUri), rootName, 0))
-            while (queue.isNotEmpty() && out.size - start < limit) {
+            while (queue.isNotEmpty() && looked < MAX_FOLDER_SCAN) {
                 currentCoroutineContext().ensureActive()
                 val (docId, relativePath, depth) = queue.removeFirst()
                 val children = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
                 context.contentResolver.query(children, CHILD_PROJECTION, null, null, null)?.use { c ->
-                    while (c.moveToNext() && out.size - start < limit) {
+                    while (c.moveToNext() && looked < MAX_FOLDER_SCAN) {
+                        looked++
                         val childId = c.getString(0) ?: continue
                         val name = c.getString(1) ?: continue
                         val mime = c.getString(2) ?: "application/octet-stream"
@@ -274,10 +303,11 @@ object UserGrantedFiles {
                             if (depth < MAX_FOLDER_DEPTH) queue.add(Triple(childId, childPath, depth + 1))
                         } else {
                             if (!rules.includeHidden && name.startsWith(".")) continue
-                            val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childId)
                             val modified = if (c.isNull(3)) 0L else c.getLong(3)
-                            val file = FileItem(name, childPath, mime, documentUri.toString(), modified)
-                            out.add(file)
+                            // Older than every file kept so far, with no room left: it would only be let go.
+                            if (!newest.wants(modified)) continue
+                            val documentUri = DocumentsContract.buildDocumentUriUsingTree(treeUri, childId)
+                            newest.offer(FileItem(name, childPath, mime, documentUri.toString(), modified))
                         }
                     }
                 }

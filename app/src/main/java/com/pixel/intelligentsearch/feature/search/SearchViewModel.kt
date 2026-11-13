@@ -570,7 +570,8 @@ class SearchViewModel @Inject constructor(
                 } else {
                     val standardRecents = sources.recentApps(settingsState.value.hiddenApps).distinctBy { it.packageName }
                     if (launcherPredictedApps.isNotEmpty()) (launcherPredictedApps + standardRecents).distinctBy { it.packageName } else standardRecents
-                }.filter { it.packageName !in hiddenApps } // launcher predictions know nothing about hidden apps
+                // Launcher predictions know nothing about hidden apps, and this app, already open, is no app to offer.
+                }.filter { it.packageName !in hiddenApps && it.packageName != context.packageName }
 
                 _uiState.update { it.copy(
                     allApps = allApps,
@@ -1178,13 +1179,12 @@ class SearchViewModel @Inject constructor(
 
     /**
      * Records a search, unless the user turned Search History off or searches through Tor: a Tor user expects
-     * no local trace, so nothing is kept while Tor is the search engine. Nor is what was typed to open [opened] when
-     * that is a Private Space app: its name in Recent Searches would outlast the space being locked.
+     * no local trace, so nothing is kept while Tor is the search engine. Only what was searched for is kept; what was
+     * typed to open an app, contact or file isn't.
      */
-    fun addSearchHistory(query: String, opened: Any? = null) {
+    fun addSearchHistory(query: String) {
         val trimmed = query.trim()
         if (trimmed.isBlank()) return
-        if ((opened as? AppItem)?.inPrivateSpace == true) return
         val settings = settingsState.value
         if (!settings.searchPreviousSearches || com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(settings.searchEngine)) return
         _uiState.update { state ->
@@ -1192,8 +1192,14 @@ class SearchViewModel @Inject constructor(
             state.copy(recentSearches = updated)
         }
         viewModelScope.launch(ioDispatcher) {
-            if (directBootManager.isUserUnlocked.value) {
-                historyDao.recordAndPrune(trimmed, System.currentTimeMillis(), 25)
+            // A write can fail (storage full, say); the search still shows in the list for now, and nothing crashes.
+            try {
+                if (directBootManager.isUserUnlocked.value) {
+                    historyDao.recordAndPrune(trimmed, System.currentTimeMillis(), 25)
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                android.util.Log.w("IntelligentSearch", "Failed to save a search", e)
             }
         }
     }
@@ -1205,9 +1211,14 @@ class SearchViewModel @Inject constructor(
             state.copy(recentSearches = state.recentSearches.filterNot { it.equals(trimmed, ignoreCase = true) })
         }
         viewModelScope.launch(ioDispatcher) {
-            if (directBootManager.isUserUnlocked.value) {
-                historyDao.deleteByQuery(trimmed)
-                selectionMemory.forgetQuery(trimmed)
+            try {
+                if (directBootManager.isUserUnlocked.value) {
+                    historyDao.deleteByQuery(trimmed)
+                    selectionMemory.forgetQuery(trimmed)
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                android.util.Log.w("IntelligentSearch", "Failed to remove a search", e)
             }
         }
     }

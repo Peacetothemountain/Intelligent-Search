@@ -20,11 +20,12 @@ import com.pixel.intelligentsearch.core.glance.NotificationAccess
 
 /**
  * What the notification access dialog says before Android's own Notification Access screen opens. The one grant also
- * lets At a Glance show running timers and what's playing, so the dialog says so.
+ * lets At a Glance show running timers and what's playing, which are off until turned on there, so the dialog says so.
  */
 internal const val NOTIFICATION_ACCESS_RATIONALE =
-    "Notification access lets you search your notifications, see running timers and what's playing in At a " +
-        "Glance, and catch up on missed calls, messages and packages in the Discover Overlay. Intelligent Search sees only what each notification shows, not the messages or emails behind it, " +
+    "Notification access lets you search your notifications and catch up on missed calls, messages and packages in " +
+        "the Discover Overlay. At a Glance can also show running timers and what's playing once you turn them on " +
+        "there. Intelligent Search sees only what each notification shows, not the messages or emails behind it, " +
         "and keeps it in memory only while the notification is showing. Nothing is stored and nothing leaves your " +
         "phone. On the next screen, allow notification access for Intelligent Search."
 

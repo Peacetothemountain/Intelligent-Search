@@ -79,8 +79,14 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         CountdownEventStore(SettingsManager.storedPrefs(context)).remove(appWidgetIds)
     }
 
+    override fun onEnabled(context: Context) {
+        // Placed while the app was already running: watch the palette from now, not from the next start.
+        com.pixel.intelligentsearch.WidgetPaletteWatch.sync(context, keepExisting = true)
+    }
+
     override fun onDisabled(context: Context) {
         AppJob.COUNTDOWN_MIDNIGHT.cancel(context)
+        com.pixel.intelligentsearch.WidgetPaletteWatch.sync(context, keepExisting = true)
     }
 
     /**

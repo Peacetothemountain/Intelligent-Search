@@ -81,6 +81,17 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    override fun onEnabled(context: Context) {
+        super.onEnabled(context)
+        // Placed while the app was already running: watch the palette from now, not from the next start.
+        com.pixel.intelligentsearch.WidgetPaletteWatch.sync(context, keepExisting = true)
+    }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        com.pixel.intelligentsearch.WidgetPaletteWatch.sync(context, keepExisting = true)
+    }
+
     override fun onUpdate(
         context: Context,
         appWidgetManager: AppWidgetManager,

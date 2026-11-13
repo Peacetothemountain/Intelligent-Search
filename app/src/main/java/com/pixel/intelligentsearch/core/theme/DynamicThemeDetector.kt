@@ -73,6 +73,34 @@ object DynamicThemeDetector {
     @Volatile
     var onThemeChangedCallback: ((Context) -> Unit)? = null
 
+    /**
+     * The phone's Material You palette as [context]'s resources read it now, in a few of its tones, so a new
+     * wallpaper's colors can be told from the ones the widgets were drawn in. Light and dark mode read the same.
+     */
+    fun paletteFingerprint(context: Context): String {
+        val tones = mutableListOf(
+            android.R.color.system_accent1_500, android.R.color.system_accent2_500, android.R.color.system_accent3_500,
+            android.R.color.system_neutral1_500, android.R.color.system_neutral2_500
+        )
+        // Android 14's color roles also follow the contrast setting.
+        if (Build.VERSION.SDK_INT >= 34) {
+            tones += listOf(android.R.color.system_primary_container_light, android.R.color.system_primary_container_dark)
+        }
+        return tones.joinToString(",") { id -> runCatching { Integer.toHexString(context.getColor(id)) }.getOrDefault("") }
+    }
+
+    /**
+     * The settings a new palette changes: Android's theme overlays (the wallpaper's colors), Samsung's Color Palette
+     * and color theme switches, vivo's UI Color switch, and the contrast level.
+     */
+    fun paletteSettingUris(): List<Uri> = listOfNotNull(
+        Settings.Secure.getUriFor("theme_customization_overlay_packages"),
+        Settings.System.getUriFor("color_palette_enabled"),
+        Settings.System.getUriFor("colortheme_enabled"),
+        Settings.System.getUriFor("ui_color_enable"),
+        Settings.Secure.getUriFor("contrast_level")
+    )
+
     private fun tryRegisterContentObserver(context: Context) {
         if (isObserverRegistered) return
         try {
@@ -86,26 +114,7 @@ object DynamicThemeDetector {
                     } catch (_: Throwable) {}
                 }
             }
-            val overlayUri = Settings.Secure.getUriFor("theme_customization_overlay_packages")
-            if (overlayUri != null) {
-                cr.registerContentObserver(overlayUri, false, observer)
-            }
-            val samsungPaletteUri = Settings.System.getUriFor("color_palette_enabled")
-            if (samsungPaletteUri != null) {
-                cr.registerContentObserver(samsungPaletteUri, false, observer)
-            }
-            val samsungColorThemeUri = Settings.System.getUriFor("colortheme_enabled")
-            if (samsungColorThemeUri != null) {
-                cr.registerContentObserver(samsungColorThemeUri, false, observer)
-            }
-            val vivoColorUri = Settings.System.getUriFor("ui_color_enable")
-            if (vivoColorUri != null) {
-                cr.registerContentObserver(vivoColorUri, false, observer)
-            }
-            val contrastUri = Settings.Secure.getUriFor("contrast_level")
-            if (contrastUri != null) {
-                cr.registerContentObserver(contrastUri, false, observer)
-            }
+            for (uri in paletteSettingUris()) cr.registerContentObserver(uri, false, observer)
             isObserverRegistered = true
         } catch (_: Throwable) {
             // Ignored in restricted sandbox or unit-test environments

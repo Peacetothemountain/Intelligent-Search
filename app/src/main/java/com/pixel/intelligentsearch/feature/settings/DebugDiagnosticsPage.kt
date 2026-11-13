@@ -494,7 +494,14 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                 graphWeight = 1.2f,
                 detailsWeight = 1.1f,
                 graph = { graphModifier ->
-                    BatteryLevelWave(batteryLevel = batteryLevel, wave = motion.wavePhase, modifier = graphModifier)
+                    BatterySeaTank(
+                        level = batteryLevel,
+                        // Plugged in but still losing charge is not charging: no bubbles for it.
+                        charging = isCharging && batteryPowerIn != false,
+                        watts = batteryWatts,
+                        animate = animationsEnabled,
+                        modifier = graphModifier
+                    )
                 },
                 details = { detailsModifier ->
                     Column(
@@ -721,8 +728,7 @@ private fun DiagnosticsHeroRow(
     }
 }
 
-/** The battery level as a gently rolling wave of Material You colour. */
-/** The graphs' motion: the battery and memory waves' phase and the app points' pulse radius, in dp. */
+/** The graphs' motion: the memory wave's phase and the app points' pulse radius, in dp. */
 internal class DiagnosticsMotion(val wavePhase: State<Float>, val pointPulse: State<Float>)
 
 /**
@@ -752,61 +758,6 @@ internal fun rememberDiagnosticsMotion(animationsEnabled: Boolean): DiagnosticsM
 
 private const val POINT_PULSE_MIN = 3f
 private const val POINT_PULSE_MAX = 5.5f
-
-@Composable
-private fun BatteryLevelWave(batteryLevel: Int, wave: State<Float>, modifier: Modifier) {
-    val scheme = MaterialTheme.colorScheme
-    // The app's theme, which Settings can set apart from the system's.
-    val isDark = scheme.surface.luminance() < 0.5f
-    // Lighter Material You accented color from the user's dynamic palette (tone ~65: balanced between light & dark, never yellowish-white)
-    val waveAccentColor = remember(scheme, isDark) {
-        if (isDark) {
-            androidx.compose.ui.graphics.lerp(scheme.primary, scheme.primaryContainer, 0.35f)
-        } else {
-            androidx.compose.ui.graphics.lerp(scheme.primary, scheme.primaryContainer, 0.50f)
-        }
-    }
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(scheme.surfaceVariant.copy(alpha = 0.45f)),
-        contentAlignment = Alignment.Center
-    ) {
-        // One path and one gradient for the life of the graph, not a new pair on every frame.
-        val wavePath = remember { androidx.compose.ui.graphics.Path() }
-        val waveBrush = remember(waveAccentColor) {
-            androidx.compose.ui.graphics.Brush.verticalGradient(listOf(waveAccentColor.copy(alpha = 0.85f), waveAccentColor))
-        }
-        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            val wavePhase = wave.value
-            val fillHeight = (h * (batteryLevel / 100f).coerceIn(0.05f, 1f))
-            val baseWaterY = h - fillHeight
-
-            val path = wavePath.apply {
-                rewind()
-                moveTo(0f, h)
-                lineTo(0f, baseWaterY)
-                for (x in 0..w.toInt() step 4) {
-                    val xf = x.toFloat()
-                    val normX = xf / w
-                    val waveOffset = kotlin.math.sin(normX * 6.28 + wavePhase) * 3.dp.toPx()
-                    lineTo(xf, baseWaterY + waveOffset.toFloat())
-                }
-                lineTo(w, h)
-                close()
-            }
-            drawPath(path = path, brush = waveBrush)
-        }
-        Text(
-            text = "$batteryLevel%",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.ExtraBold,
-            color = if (isDark) Color.White else scheme.onPrimaryContainer
-        )
-    }
-}
 
 /** One line of the RAM breakdown: a colour dot, the category and its size. */
 @Composable

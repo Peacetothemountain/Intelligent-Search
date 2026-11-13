@@ -64,6 +64,7 @@ commits that were never on GitHub.
 | 9.5.4 | 132 | see `Release 9.5.4 (132)` | 2026-11-01 |
 | 9.5.5 | 133 | `610eb61d` | 2026-11-06 |
 | 9.6 | 134 | see `Release 9.6 (134)` | 2026-11-11 |
+| 9.6.1 | 135 | `3891a1c6` | 2026-11-13 |
 
 Some codes that reached Google Play were never committed with their number: 9.06 (105), 9.1.1 (109), and 111, 117 and
 119. A crash report from one of them belongs to the code between the tags either side of it: 105 sits between
@@ -71,7 +72,7 @@ Some codes that reached Google Play were never committed with their number: 9.06
 
 ## Releases
 
-GitHub Releases exist for 8.3, 8.8, 9.1.9, 9.3.1 (125), 9.5.1 (129), 9.5.4 (132) and 9.6 (134); 9.6 is marked Latest. Dev test
+GitHub Releases exist for 8.3, 8.8, 9.1.9, 9.3.1 (125), 9.5.1 (129), 9.5.4 (132), 9.6 (134) and 9.6.1 (135); 9.6.1 is marked Latest. Dev test
 builds are published as non-latest pre-releases. Pushing a `v*` tag runs `.github/workflows/release.yml`, which builds,
 signs and publishes the release using the repository secrets `RELEASE_KEYSTORE_BASE64`, `RELEASE_STORE_PASSWORD`,
 `RELEASE_KEY_ALIAS` and `RELEASE_KEY_PASSWORD`. The workflow stops before building if any of them is missing.

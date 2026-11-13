@@ -559,9 +559,8 @@ internal fun TodayPage(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             var index = 0
-            // The greeting drifts away slower than the page and fades as it scrolls (parallax).
+            // The greeting fades as it scrolls away. It moves with the page, so the cards under it never slide over its pills.
             Box(Modifier.graphicsLayer {
-                translationY = scroll.value * 0.35f
                 alpha = (1f - scroll.value / with(density) { 260.dp.toPx() }).coerceIn(0f, 1f)
             }) {
                 Enter(index++, parts) { Greeting(now, weather, sunset, birthdaysToday, warm) }

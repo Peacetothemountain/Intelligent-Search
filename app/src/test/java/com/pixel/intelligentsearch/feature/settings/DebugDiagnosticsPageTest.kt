@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.feature.settings
 
 import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import com.pixel.intelligentsearch.core.system.battery.BatteryReadings
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
@@ -12,6 +13,7 @@ import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
@@ -71,7 +73,7 @@ class DebugDiagnosticsPageTest {
 
     @Test
     fun theGraphsStandStillWithAnimationsTurnedOff() {
-        // The waves rolled and the points pulsed forever whatever Remove animations said.
+        // The graphs moved forever whatever Remove animations said.
         assertEquals(1, frameChanges(animationsEnabled = false).size)
     }
 
@@ -89,15 +91,22 @@ class DebugDiagnosticsPageTest {
         assertEquals(0f, ramPointFraction(500f, 0), 0.0001f)
     }
 
-    /** The distinct (wave phase, point pulse) frames over two thirds of a second. */
-    private fun frameChanges(animationsEnabled: Boolean): Set<Pair<Float, Float>> {
+    /** The distinct moments the memory graph's scene stood at over two thirds of a second. */
+    private fun frameChanges(animationsEnabled: Boolean): Set<Float> {
         compose.mainClock.autoAdvance = false
-        lateinit var motion: DiagnosticsMotion
-        compose.setContent { motion = rememberDiagnosticsMotion(animationsEnabled) }
-        val frames = mutableSetOf<Pair<Float, Float>>()
+        val parts = listOf(ProcessRamEntry("Apps", 5400f), ProcessRamEntry("Kernel", 900f), ProcessRamEntry("Other", 2800f))
+        lateinit var peaks: RamPeaksState
+        compose.setContent {
+            peaks = rememberRamPeaks(parts, availableMb = 6500f, usedPercent = 58, animate = animationsEnabled)
+            RamPeaksGraph(
+                peaks, parts, listOf(Color.Blue, Color.Gray, Color.Magenta), animationsEnabled,
+                androidx.compose.ui.Modifier.size(150.dp, 104.dp)
+            )
+        }
+        val frames = mutableSetOf<Float>()
         repeat(40) {
             compose.mainClock.advanceTimeBy(16)
-            frames += motion.wavePhase.value to motion.pointPulse.value
+            frames += peaks.scene.life
         }
         return frames
     }

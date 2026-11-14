@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.feature.settings
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.system.battery.ChargingStatus
 import com.pixel.intelligentsearch.core.system.battery.BatteryReadings
-import com.pixel.intelligentsearch.core.util.clampSafely
 import androidx.compose.ui.draw.clip
 import android.content.Context
 import android.os.Build
@@ -30,6 +29,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -387,6 +387,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
     var usedRamGb by remember { mutableStateOf("0.0") }
     var usedRamPercent by remember { mutableIntStateOf(0) }
     var availableRamGb by remember { mutableStateOf("0.0") }
+    var availableRamMb by remember { mutableFloatStateOf(0f) }
     val initialPhysicalRam = remember(context) {
         val actMgr = context.getSystemService(Context.ACTIVITY_SERVICE) as? android.app.ActivityManager
         val memInfo = android.app.ActivityManager.MemoryInfo()
@@ -437,6 +438,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                     usedRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.usedGb)
                     usedRamPercent = mSnap.pct
                     availableRamGb = String.format(java.util.Locale.US, "%.1f", mSnap.availGb)
+                    availableRamMb = (mSnap.availGb * 1000.0).toFloat()
                     physicalRamGb = mSnap.physicalGb
                     zRamUsedGb = String.format(java.util.Locale.US, "%.1f", mSnap.zRamUsedGb)
                     zRamTotalGb = String.format(java.util.Locale.US, "%.1f", mSnap.zRamTotalGb)
@@ -453,8 +455,8 @@ internal fun BatteryAndMemoryDiagnosticsPage(
     }
 
     val animationsEnabled by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
-    // Handed to the graphs as they are and read where the graphs draw, so each frame redraws them, not the page.
-    val motion = rememberDiagnosticsMotion(animationsEnabled)
+    // The memory graph and its bar read this where they draw, so each frame redraws them, not the page.
+    val ramPeaks = rememberRamPeaks(topProcesses, availableRamMb, usedRamPercent, animationsEnabled)
 
     val scheme = MaterialTheme.colorScheme
     // The battery's temperature in the scale the rest of the app answers in (Settings' Temperature choice).
@@ -584,16 +586,18 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                 graphWeight = 1.25f,
                 detailsWeight = 1f,
                 graph = { graphModifier ->
-                    RamCategoryGraph(
-                        processes = topProcesses,
-                        appColors = materialAppColors,
-                        wave = motion.wavePhase,
-                        pulse = motion.pointPulse,
+                    RamPeaksGraph(
+                        state = ramPeaks,
+                        parts = topProcesses,
+                        colors = materialAppColors,
+                        animate = animationsEnabled,
                         modifier = graphModifier
                     )
                 },
                 details = { detailsModifier ->
                     // RAM Usage Breakdown showing what apps/processes are using RAM
+                    // The part whose peak was just tapped stands out here for a moment.
+                    val pickedPart = ramPeaks.picked.intValue
                     Column(
                         modifier = detailsModifier,
                         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -614,17 +618,22 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                                 color = scheme.onSurfaceVariant
                             )
                         } else {
+                            // All of memory at a glance: each used part at its true share, then what is available.
+                            UsedMemoryBar(
+                                state = ramPeaks,
+                                colors = materialAppColors,
+                                restColor = scheme.outlineVariant,
+                                animate = animationsEnabled
+                            )
                             topProcesses.forEachIndexed { i, entry ->
                                 RamLegendRow(
                                     dotColor = materialAppColors[i % materialAppColors.size],
                                     name = entry.name,
                                     nameColor = scheme.onSurface,
-                                    value = if (entry.ramMb >= 1000f) {
-                                        String.format(java.util.Locale.US, "%.1f GB", entry.ramMb / 1000f)
-                                    } else {
-                                        "${entry.ramMb.toInt()} MB"
-                                    },
-                                    valueColor = scheme.onSurfaceVariant
+                                    value = ramPartSize(entry.ramMb),
+                                    valueColor = scheme.onSurfaceVariant,
+                                    picked = pickedPart == i,
+                                    dimmed = pickedPart >= 0 && pickedPart != i
                                 )
                             }
                         }
@@ -634,7 +643,8 @@ internal fun BatteryAndMemoryDiagnosticsPage(
                             name = "Available",
                             nameColor = scheme.onSurfaceVariant,
                             value = "$availableRamGb GB",
-                            valueColor = scheme.secondary
+                            valueColor = scheme.secondary,
+                            dimmed = pickedPart >= 0
                         )
                     }
                 }
@@ -690,7 +700,7 @@ internal fun healthChipColors(severity: BatteryReadings.HealthSeverity, scheme: 
     BatteryReadings.HealthSeverity.Ok -> scheme.primaryContainer.copy(alpha = 0.6f) to scheme.onPrimaryContainer
 }
 
-/** Height of the battery wave and the RAM graph. */
+/** Height of the battery tank and the RAM graph. */
 private val HeroGraphHeight = 104.dp
 
 /**
@@ -728,48 +738,36 @@ private fun DiagnosticsHeroRow(
     }
 }
 
-/** The graphs' motion: the memory wave's phase and the app points' pulse radius, in dp. */
-internal class DiagnosticsMotion(val wavePhase: State<Float>, val pointPulse: State<Float>)
-
 /**
- * The waves rolling and the points pulsing for as long as the page is open, or a still frame while animations are
- * turned off ([animationsEnabled], Remove animations), as the settings slider's wave does.
+ * One line of the RAM breakdown: a color dot, the category and its size. [picked] makes it stand out and [dimmed]
+ * steps it back, while another line is the picked one.
  */
 @Composable
-internal fun rememberDiagnosticsMotion(animationsEnabled: Boolean): DiagnosticsMotion {
-    if (!animationsEnabled) {
-        return remember { DiagnosticsMotion(mutableFloatStateOf(0f), mutableFloatStateOf(POINT_PULSE_MAX)) }
-    }
-    val infiniteTransition = rememberInfiniteTransition(label = "diagPulseTransition")
-    val wavePhase = infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = (2f * Math.PI).toFloat(),
-        animationSpec = infiniteRepeatable(tween(2500, easing = LinearEasing), RepeatMode.Restart),
-        label = "diagWavePhase"
-    )
-    val pointPulse = infiniteTransition.animateFloat(
-        initialValue = POINT_PULSE_MIN,
-        targetValue = POINT_PULSE_MAX,
-        animationSpec = infiniteRepeatable(tween(1000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pointPulse"
-    )
-    return remember(wavePhase, pointPulse) { DiagnosticsMotion(wavePhase, pointPulse) }
-}
-
-private const val POINT_PULSE_MIN = 3f
-private const val POINT_PULSE_MAX = 5.5f
-
-/** One line of the RAM breakdown: a colour dot, the category and its size. */
-@Composable
-private fun RamLegendRow(dotColor: Color, name: String, nameColor: Color, value: String, valueColor: Color) {
+private fun RamLegendRow(
+    dotColor: Color,
+    name: String,
+    nameColor: Color,
+    value: String,
+    valueColor: Color,
+    picked: Boolean = false,
+    dimmed: Boolean = false
+) {
+    val strength by animateFloatAsState(if (dimmed) 0.38f else 1f, label = "ramRowStrength")
+    val dotScale by animateFloatAsState(if (picked) 1.5f else 1f, label = "ramRowDot")
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer { alpha = strength },
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
                 .size(7.dp)
+                .graphicsLayer {
+                    scaleX = dotScale
+                    scaleY = dotScale
+                }
                 .clip(androidx.compose.foundation.shape.CircleShape)
                 .background(dotColor)
         )
@@ -777,6 +775,7 @@ private fun RamLegendRow(dotColor: Color, name: String, nameColor: Color, value:
             text = name,
             style = MaterialTheme.typography.labelSmall,
             fontSize = 10.5.sp,
+            fontWeight = if (picked) FontWeight.Bold else null,
             color = nameColor,
             maxLines = 1,
             modifier = Modifier.weight(1f),
@@ -790,219 +789,5 @@ private fun RamLegendRow(dotColor: Color, name: String, nameColor: Color, value:
             color = valueColor,
             maxLines = 1
         )
-    }
-}
-
-/** How high a category's point sits against the graph's [ceilingMb]: its true share, so a small one stays small. */
-internal fun ramPointFraction(ramMb: Float, ceilingMb: Int): Float =
-    if (ceilingMb <= 0) 0f else (ramMb / ceilingMb).coerceIn(0f, 1f)
-
-/** Live RAM by category: a spline through each category's true size, with pulsing peaks. */
-@Composable
-private fun RamCategoryGraph(
-    processes: List<ProcessRamEntry>,
-    appColors: List<Color>,
-    wave: State<Float>,
-    pulse: State<Float>,
-    modifier: Modifier
-) {
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val outlineColor = MaterialTheme.colorScheme.outlineVariant
-    val surfaceColor = MaterialTheme.colorScheme.surface
-
-    val ceilingMb = if (processes.isNotEmpty()) {
-        val maxVal = (processes.maxOfOrNull { it.ramMb } ?: 500f).coerceAtLeast(100f)
-        (maxVal * 1.35f).toInt()
-    } else 500
-
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
-        contentAlignment = Alignment.Center
-    ) {
-        val gridDashEffect = remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(4f, 4f)) }
-        val stemDashEffect = remember { androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(3f, 3f)) }
-        val gradientBrush = remember(primaryColor) {
-            androidx.compose.ui.graphics.Brush.verticalGradient(
-                listOf(primaryColor.copy(alpha = 0.32f), primaryColor.copy(alpha = 0.04f), Color.Transparent)
-            )
-        }
-
-        androidx.compose.foundation.Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 14.dp)
-        ) {
-            val w = size.width
-            val h = size.height
-            val wavePhase = wave.value
-            val pointPulse = pulse.value
-
-            // Horizontal dashed grid lines
-            val gridLines = 3
-            for (g in 1..gridLines) {
-                val gy = h * (g.toFloat() / (gridLines + 1))
-                drawLine(
-                    color = outlineColor.copy(alpha = 0.25f),
-                    start = androidx.compose.ui.geometry.Offset(0f, gy),
-                    end = androidx.compose.ui.geometry.Offset(w, gy),
-                    strokeWidth = 0.8.dp.toPx(),
-                    pathEffect = gridDashEffect
-                )
-            }
-
-            if (processes.isNotEmpty()) {
-                val n = processes.size
-
-                // Calculate (X, Y) coordinate for each app's peak based on its actual RAM
-                val appPoints = processes.mapIndexed { i, proc ->
-                    val px = if (n > 1) {
-                        val margin = w * 0.12f
-                        margin + (i.toFloat() / (n - 1)) * (w - 2f * margin)
-                    } else {
-                        w * 0.5f
-                    }
-                    val normY = ramPointFraction(proc.ramMb, ceilingMb)
-                    val breathe = kotlin.math.sin(wavePhase + i * 1.4f) * 2.5.dp.toPx()
-                    val py = (h - (h * normY) + breathe).clampSafely(4.dp.toPx(), h)
-                    androidx.compose.ui.geometry.Offset(px, py)
-                }
-
-                // Build smooth spline mountain curve connecting the app peaks
-                val linePath = androidx.compose.ui.graphics.Path()
-                val fillPath = androidx.compose.ui.graphics.Path()
-
-                fillPath.moveTo(0f, h)
-                val firstPt = appPoints.first()
-                val startY = (h + firstPt.y) / 2f
-                fillPath.lineTo(0f, startY)
-                linePath.moveTo(0f, startY)
-
-                for (i in 0 until appPoints.size) {
-                    val curr = appPoints[i]
-                    if (i == 0) {
-                        val cx = curr.x * 0.5f
-                        linePath.cubicTo(cx, startY, cx, curr.y, curr.x, curr.y)
-                        fillPath.cubicTo(cx, startY, cx, curr.y, curr.x, curr.y)
-                    } else {
-                        val prev = appPoints[i - 1]
-                        val midX = (prev.x + curr.x) / 2f
-                        val valleyY = ((prev.y + curr.y) / 2f + h * 0.18f).coerceAtMost(h - 4.dp.toPx())
-                        linePath.cubicTo(
-                            (prev.x + midX) / 2f, prev.y,
-                            (prev.x + midX) / 2f, valleyY,
-                            midX, valleyY
-                        )
-                        linePath.cubicTo(
-                            (midX + curr.x) / 2f, valleyY,
-                            (midX + curr.x) / 2f, curr.y,
-                            curr.x, curr.y
-                        )
-                        fillPath.cubicTo(
-                            (prev.x + midX) / 2f, prev.y,
-                            (prev.x + midX) / 2f, valleyY,
-                            midX, valleyY
-                        )
-                        fillPath.cubicTo(
-                            (midX + curr.x) / 2f, valleyY,
-                            (midX + curr.x) / 2f, curr.y,
-                            curr.x, curr.y
-                        )
-                    }
-                }
-
-                val lastPt = appPoints.last()
-                val endY = (h + lastPt.y) / 2f
-                val endControlX = (lastPt.x + w) / 2f
-                linePath.cubicTo(endControlX, lastPt.y, endControlX, endY, w, endY)
-                fillPath.cubicTo(endControlX, lastPt.y, endControlX, endY, w, endY)
-                fillPath.lineTo(w, h)
-                fillPath.close()
-
-                // Soft Material You primary vertical gradient fill
-                drawPath(
-                    path = fillPath,
-                    brush = gradientBrush
-                )
-
-                // Crisp spline outline
-                drawPath(
-                    path = linePath,
-                    color = primaryColor.copy(alpha = 0.85f),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(
-                        width = 2.dp.toPx(),
-                        cap = androidx.compose.ui.graphics.StrokeCap.Round,
-                        join = androidx.compose.ui.graphics.StrokeJoin.Round
-                    )
-                )
-
-                // Vertical dashed drop stems and pulsing peak dots for each app in its Material You color
-                appPoints.forEachIndexed { i, pt ->
-                    val appColor = appColors[i % appColors.size]
-
-                    // Vertical dashed stem from peak down to baseline
-                    drawLine(
-                        color = appColor.copy(alpha = 0.45f),
-                        start = pt,
-                        end = androidx.compose.ui.geometry.Offset(pt.x, h),
-                        strokeWidth = 1.dp.toPx(),
-                        pathEffect = stemDashEffect
-                    )
-
-                    // Pulsing halo aura
-                    drawCircle(
-                        color = appColor.copy(alpha = 0.25f),
-                        radius = pointPulse.dp.toPx() * 1.6f,
-                        center = pt
-                    )
-                    // Clean surface ring
-                    drawCircle(
-                        color = surfaceColor,
-                        radius = 3.5.dp.toPx(),
-                        center = pt
-                    )
-                    // Solid center dot in app's Material You color
-                    drawCircle(
-                        color = appColor,
-                        radius = 2.dp.toPx(),
-                        center = pt
-                    )
-                }
-            }
-        }
-
-        // X and Y Coordinate axis markings
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 6.dp, vertical = 2.dp)
-        ) {
-            Text(
-                text = if (ceilingMb >= 1000) String.format(java.util.Locale.US, "%.1f GB", ceilingMb / 1000f) else "$ceilingMb MB",
-                fontSize = 7.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                modifier = Modifier.align(Alignment.TopStart)
-            )
-            Text(
-                text = "0",
-                fontSize = 7.5.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(bottom = 10.dp)
-            )
-            Text(
-                text = "RAM by Category",
-                fontSize = 7.5.sp,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f),
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 1.dp)
-            )
-        }
     }
 }

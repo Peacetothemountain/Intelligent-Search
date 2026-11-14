@@ -33,6 +33,22 @@ internal object RatingAsk {
     fun due(firstInstallMs: Long, nowMs: Long, opens: Int, done: Boolean, tutorialDone: Boolean): Boolean =
         !done && tutorialDone && firstInstallMs > 0L && nowMs - firstInstallMs >= DAYS * DAY_MS && opens >= OPENS
 
+    /**
+     * How many results have been opened from search, counted up to [OPENS]. It is kept in a file of its own, not with
+     * the settings, so counting an open doesn't wake everything that follows the settings, and it isn't backed up.
+     */
+    fun opens(context: Context): Int =
+        context.getSharedPreferences(COUNT_FILE, Context.MODE_PRIVATE).getInt(COUNT_KEY, 0)
+
+    /** Counts one open from search; only the number, never what was opened. */
+    fun countOpen(context: Context) {
+        val opens = opens(context)
+        if (opens < OPENS) context.getSharedPreferences(COUNT_FILE, Context.MODE_PRIVATE).edit { putInt(COUNT_KEY, opens + 1) }
+    }
+
+    private const val COUNT_FILE = "rating_count"
+    private const val COUNT_KEY = "opens"
+
     /** Puts the ask away for good. */
     fun finish(context: Context) {
         context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit { put(SettingsManager.RATING_ASK_DONE, true) }
@@ -76,7 +92,8 @@ internal object RatingAsk {
 internal fun rememberRatingAskDue(): Boolean {
     val context = LocalContext.current
     val done by rememberSetting(SettingsManager.RATING_ASK_DONE)
-    val opens by rememberSetting(SettingsManager.RATING_OPENS)
+    // Read as At a Glance opens: the count only matters once a session, not as it changes.
+    val opens = remember(context) { RatingAsk.opens(context) }
     val tutorialDone by rememberSetting(SettingsManager.TUTORIAL_COMPLETED)
     val installed = remember(context) { SearchHints.firstInstallMs(context) }
     return RatingAsk.due(installed, System.currentTimeMillis(), opens, done, tutorialDone)

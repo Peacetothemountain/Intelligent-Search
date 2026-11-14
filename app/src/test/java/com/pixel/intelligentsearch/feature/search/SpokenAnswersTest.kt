@@ -52,8 +52,8 @@ class SpokenAnswersTest {
     }
 
     @Test
-    fun aTimeSaysWhereItIs() {
-        assertEquals("Current time in Tokyo: 7:30 AM.", SpokenAnswers.instant(InstantAnswer("7:30 AM", "Current time in Tokyo · Tomorrow", "time")))
+    fun aTimeSaysWhereAndWhichDayItIs() {
+        assertEquals("Current time in Tokyo, tomorrow: 7:30 AM.", SpokenAnswers.instant(InstantAnswer("7:30 AM", "Current time in Tokyo · Tomorrow", "time")))
         assertEquals("Current local time: 10:30 PM.", SpokenAnswers.instant(InstantAnswer("10:30 PM", "Current local time", "time")))
     }
 
@@ -105,7 +105,7 @@ class SpokenAnswersTest {
     @Test
     fun screenTimeIsSaidAndAPromptForAccessIsNot() {
         assertEquals(
-            "3 hr 12 min of screen time today.",
+            "3 hours 12 minutes of screen time today.",
             SpokenAnswers.live(LiveAnswer.ScreenTime("screen time", ScreenTimeReport(192 * 60_000L, emptyList())))
         )
         assertNull(SpokenAnswers.live(LiveAnswer.ScreenTime("screen time", null)))
@@ -127,6 +127,8 @@ class SpokenAnswersTest {
         assertFalse(
             SpokenAnswers.awaitsLiveAnswer(SearchUiState(query = "weather in denver", liveAnswer = LiveAnswer.Weather("weather in denver", weather())))
         )
+        // The lookup finished with nothing (an unknown word, no connection): there is nothing more to wait for.
+        assertFalse(SpokenAnswers.awaitsLiveAnswer(SearchUiState(query = "define zzqx", liveAnswerSettled = "define zzqx")))
         // A translation is handed to another app, and a plain search has nothing coming.
         assertFalse(SpokenAnswers.awaitsLiveAnswer(SearchUiState(query = "hello in spanish")))
         assertFalse(SpokenAnswers.mayAnswer(SearchUiState(query = "pizza places near me")))

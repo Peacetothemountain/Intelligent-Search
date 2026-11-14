@@ -55,7 +55,10 @@ enum class AppJob(val id: Int) {
     PALETTE_CHANGE(1007) {
         override suspend fun run(context: Context, extras: PersistableBundle) = WidgetPaletteWatch.changed(context)
     },
-    /** The Discover widgets' regular redraw, with the forecast read again; each run arranges the next. */
+    /**
+     * The Discover widgets' regular redraw, with the forecast read again for the place set in the app only (it runs
+     * with the app out of view, so the phone's location is never read); each run arranges the next.
+     */
     DISCOVER_REFRESH(1008) {
         override suspend fun run(context: Context, extras: PersistableBundle) {
             AppWidgetManager.getInstance(context)?.let { DiscoverWidgetProvider.redrawAll(context, it, DiscoverWidgetProvider.Refresh.WEATHER) }

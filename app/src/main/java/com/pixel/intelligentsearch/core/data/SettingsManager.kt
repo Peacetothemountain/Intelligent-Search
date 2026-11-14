@@ -181,9 +181,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** The assistant gesture starts listening; off, it opens search with the keyboard ready instead. */
         val ASSISTANT_STARTS_WITH_VOICE = BooleanSetting("assistant_starts_with_voice", false)
 
-        /** How many results have been opened from search, counted up to the number that brings the rating line. */
-        val RATING_OPENS = IntSetting("rating_opens", 0, 0..1000)
-
         /** The one-time rating line in At a Glance has been answered (rated, feedback sent or "Not Now"). */
         val RATING_ASK_DONE = BooleanSetting("rating_ask_done", false)
 
@@ -336,7 +333,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             QUICK_SEARCH_HORIZONTAL, WEB_RESULTS_COUNT, CONTACT_RESULTS_COUNT, FILE_RESULTS_COUNT,
             SHORTCUT_RESULTS_COUNT, SEARCH_WEIGHT_APPS, SEARCH_WEIGHT_CONTACTS, SEARCH_WEIGHT_FILES,
             SEARCH_WEIGHT_WEB, CONTEXT_AWARE_QUICK_APPS, SMART_CLIPBOARD_SUGGESTIONS, ASSISTANT_STARTS_WITH_VOICE,
-            SPEAK_ANSWERS, RATING_OPENS, RATING_ASK_DONE, ACTIVE_ICON_PACK,
+            SPEAK_ANSWERS, RATING_ASK_DONE, ACTIVE_ICON_PACK,
             SEARCH_OVERLAY_ENABLED, CUSTOM_ICON_PILLS, NEVER_SHOW_ICON_PACK_WARNING, CUSTOM_BANGS_JSON,
             WEB_SHORTCUT_TRIGGER_SYMBOL, SEARCH_QUICK_SHORTCUTS, SHOW_AVAILABLE_DIRECT_SHORTCUTS,
             DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,

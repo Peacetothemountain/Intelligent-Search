@@ -66,7 +66,7 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val phoneAnswers = com.pixel.intelligentsearch.core.answers.PhoneAnswers(context)
 
     /** The last few calculations, which "ans" and the calculator card's Earlier row read. */
-    val calculatorMemory = CalculatorMemory()
+    val calculatorMemory = CalculatorMemory(context.getSharedPreferences(CalculatorMemory.FILE, Context.MODE_PRIVATE))
 
     /**
      * The last chance answer drawn and the query it was drawn for. The same query runs again when the cursor moves, a
@@ -175,12 +175,37 @@ class UnifiedSearchCoordinator @Inject constructor(
      * The calculator and converter answer, with the current currency rates. A currency answer may start a fetch, which
      * the repository allows only while the Calculator and Live Currency Rates are on and Tor isn't the engine.
      */
-    private fun evaluateMath(query: String): MathematicalExpressionEngine.MathEvaluationResult? {
-        // "ans" stands for the last result kept; with none kept it is just a word, and no sum.
-        val result = MathematicalExpressionEngine.evaluate(calculatorMemory.withAns(query) ?: query, currencyRates::current)
+    /**
+     * Whether earlier results are kept and used: only while searches are kept (Search History on, Tor not the engine),
+     * as with anything else typed.
+     */
+    fun calculatorMemoryInUse(): Boolean =
+        prefs[SettingsManager.SEARCH_PREVIOUS_SEARCHES] && !com.pixel.intelligentsearch.core.security.NetworkPolicy.torSelected(prefs)
+
+    private fun evaluateMath(query: String, memory: Boolean = calculatorMemoryInUse()): MathematicalExpressionEngine.MathEvaluationResult? {
+        // "ans" stands for the last result kept; with none kept (or none to be kept) it is just a word, and no sum.
+        val ans = if (memory) calculatorMemory.withAns(query) else null
+        val result = MathematicalExpressionEngine.evaluate(ans ?: query, currencyRates::current)
+            ?: runningTotal(query, memory)
         (result as? MathematicalExpressionEngine.MathEvaluationResult.UnitConversion)?.currencyRates
             ?.let(currencyRates::onCurrencyConverted)
         return result
+    }
+
+    /**
+     * A sum still being typed ("12*4+7+", "120 +"): its total so far, so the card and its earlier results stay up
+     * while the next number is chosen. A bare number counts only once there are earlier results to add to it, so
+     * "5-" alone stays a search.
+     */
+    private fun runningTotal(query: String, memory: Boolean): MathematicalExpressionEngine.MathEvaluationResult? {
+        val part = CalculatorMemory.finishedPart(query) ?: return null
+        if (CalculatorMemory.isPlainNumber(part)) {
+            if (!memory || calculatorMemory.earlier.isEmpty()) return null
+            val value = CalculatorMemory.plainValue(part) ?: return null
+            return MathematicalExpressionEngine.MathEvaluationResult.Computation(part, part, value)
+        }
+        val total = MathematicalExpressionEngine.evaluate((if (memory) calculatorMemory.withAns(part) else null) ?: part, currencyRates::current)
+        return total as? MathematicalExpressionEngine.MathEvaluationResult.Computation
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -742,8 +767,9 @@ class UnifiedSearchCoordinator @Inject constructor(
         executeSearchInternal(rawQuery) { ensureActive() }
     }
 
+    /** For the phone's own search: no earlier result of this app's calculator is ever shown there. */
     fun executeSearchSync(rawQuery: String): UnifiedSearchResults {
-        return executeSearchInternal(rawQuery, cancellationCheck = null)
+        return executeSearchInternal(rawQuery, cancellationCheck = null, forSystemSearch = true)
     }
 
     /**
@@ -758,6 +784,7 @@ class UnifiedSearchCoordinator @Inject constructor(
     private fun executeSearchInternal(
         rawQuery: String,
         resultsOnly: Boolean = false,
+        forSystemSearch: Boolean = false,
         cancellationCheck: (() -> Unit)? = null
     ): UnifiedSearchResults {
         val query = rawQuery.trim()
@@ -772,7 +799,7 @@ class UnifiedSearchCoordinator @Inject constructor(
         val systemAction = if (resultsOnly) null else systemActionRouter.matchAction(query)
 
         // 2. Instant Math, Scientific, & Unit Evaluator
-        val mathResult = if (resultsOnly) null else evaluateMath(query)
+        val mathResult = if (resultsOnly) null else evaluateMath(query, memory = !forSystemSearch && calculatorMemoryInUse())
         val dateAnswer = if (resultsOnly) null else dateMath.evaluate(query)
         val is24Hour = android.text.format.DateFormat.is24HourFormat(context)
         val answers = !resultsOnly && mathResult == null && dateAnswer == null

@@ -287,6 +287,7 @@ class SearchViewModelTest {
 
     @Test
     fun ansCarriesOnFromTheLastCalculationOnceItsQueryEnds() {
+        prefs.edit().put(SettingsManager.SEARCH_WEB, true).put(SettingsManager.SEARCH_WEB_SUGGESTIONS, true).commit()
         start()
         assertTrue(search("12*4+7").mathResult!!.contains("55"))
         // A result is kept when its query ends (the field is cleared), not on every keystroke.
@@ -296,12 +297,31 @@ class SearchViewModelTest {
         assertEquals("ans = 55", next.mathAns)
         assertEquals(listOf("55"), next.earlierResults.map { it.shown })
         // "ans" is the calculator's word, so the sum is not sent off for web suggestions ("and 5 letter words").
-        assertEquals(emptyList<String>(), next.webSuggestions.map { it.query })
+        finishBackgroundWork()
+        assertFalse(device.suggestionRequests.toList().toString(), "ans/5" in device.suggestionRequests)
         // A sum without "ans" doesn't mention it, and the one before has joined the earlier results.
         search("")
         val plain = search("2+2")
         assertEquals(null, plain.mathAns)
         assertEquals(listOf("11", "55"), plain.earlierResults.map { it.shown })
+    }
+
+    @Test
+    fun aSumBeingTypedKeepsItsCardAndTheEarlierResults() {
+        start()
+        search("12*4+7")
+        search("")
+        // The next sum, before its second number: the total so far, with 55 ready to tap in.
+        val typing = search("120 +")
+        assertEquals("120", typing.mathResult)
+        assertEquals(listOf("55"), typing.earlierResults.map { it.shown })
+        assertEquals("55", search("12*4+7+").mathResult)
+    }
+
+    @Test
+    fun aNumberAndAnOperatorAloneStayASearchUntilThereIsSomethingToAdd() {
+        start()
+        assertEquals(null, search("5-").mathResult)
     }
 
     @Test

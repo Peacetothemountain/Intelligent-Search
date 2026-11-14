@@ -151,15 +151,16 @@ class LiveAnswerEngine internal constructor(
     /**
      * Today's and tomorrow's weather where the user set it, else roughly where the phone is, for the Discover
      * Overlay: no wait for typing to stop, the phone's last known location first, and one forecast for both days. Null
-     * with Web Suggestions off or no place to ask for.
+     * with Web Suggestions off or no place to ask for. Without [useDeviceLocation] (the Discover widget's background
+     * redraws) only the place set in the app is used: the phone's location is never read.
      */
-    suspend fun weatherHere(): Pair<WeatherReport, WeatherReport?>? = withContext(ioDispatcher) {
+    suspend fun weatherHere(useDeviceLocation: Boolean = true): Pair<WeatherReport, WeatherReport?>? = withContext(ioDispatcher) {
         val settings = prefs()
         if (!NetworkPolicy.webAnswersAllowed(settings)) return@withContext null
         val unit = TemperatureUnit.chosen(settings[SettingsManager.TEMPERATURE_UNIT], locale())
         var onDisk = true
         val place = HomeLocationCodec.decode(settings[SettingsManager.WEATHER_HOME_LOCATION])
-            ?: (if (location.permitted()) location.quick() else null)
+            ?: (if (useDeviceLocation && location.permitted()) location.quick() else null)
                 ?.let { (latitude, longitude) -> GeoPlace(YOUR_LOCATION, null, null, latitude, longitude) }
                 ?.also { onDisk = false }
             ?: return@withContext null

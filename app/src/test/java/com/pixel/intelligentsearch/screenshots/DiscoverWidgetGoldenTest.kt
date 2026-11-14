@@ -15,7 +15,6 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.feature.widget.DiscoverInput
 import com.pixel.intelligentsearch.feature.widget.DiscoverWeather
 import com.pixel.intelligentsearch.feature.widget.DiscoverWidgetProvider
-import com.pixel.intelligentsearch.feature.widget.DiscoverWidgetProvider.DiscoverSize
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -25,6 +24,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.ParameterizedRobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
@@ -33,8 +33,9 @@ import java.time.ZonedDateTime
 /**
  * Goldens of the Discover widget as a launcher shows it, in the search bar's default System and Material designs,
  * light and dark: one row high (the pill), as a 2 x 2 tile, wide, all three under the search bar itself (family), to
- * see that they belong together, with nothing left today, with the event alone (no weather, and a long name), and
- * with nothing on yet.
+ * see that they belong together, with nothing left today, with the event alone (no weather, and a long name), with
+ * nothing on yet, and one row high and wide at twice the text size (bigtext), where the wide size's weather strip and
+ * the line under the event give way so the event's name keeps its room.
  */
 @HiltAndroidTest
 @RunWith(ParameterizedRobolectricTestRunner::class)
@@ -69,9 +70,11 @@ class DiscoverWidgetGoldenTest(private val case: String, private val material: B
             .putString(SettingsManager.THEME.name, if (dark) "Material Dark" else "Material Light")
             .putString(SettingsManager.WIDGET_THEME_STYLE.name, if (material) "Material You (Minimal)" else "System Default")
             .commit()
+        if (case == "bigtext") RuntimeEnvironment.setFontScale(2f)
         val input = when (case) {
             "nothing" -> DiscoverInput(weather, listOf(CalendarEvent("Breakfast", "", eventId = 3, beginMillis = at("2026-11-15T08:00"))))
             "eventonly" -> DiscoverInput(null, listOf(long), leaveAt = at("2026-11-14T15:08"))
+            "bigtext" -> DiscoverInput(weather, listOf(long), leaveAt = at("2026-11-14T15:08"))
             "setup" -> DiscoverInput(null, null)
             else -> DiscoverInput(weather, listOf(dentist), leaveAt = at("2026-11-14T15:08"))
         }
@@ -86,12 +89,20 @@ class DiscoverWidgetGoldenTest(private val case: String, private val material: B
                     setBackgroundColor(if (dark) 0xFF1F1F1F.toInt() else 0xFFF1F3F4.toInt())
                     setPadding(dp(12), dp(12), dp(12), dp(12))
                 }
-                fun cell(size: DiscoverSize): View = sizes.getValue(size.size).apply(activity, host)
+                // The views a launcher shows in a cell [width] x [height] dp.
+                fun cell(width: Int, height: Int): View = DiscoverWidgetProvider.forCell(sizes, width.toFloat(), height.toFloat()).apply(activity, host)
                 // A home screen cell of each size on a phone: 4 x 1, 2 x 2 and 4 x 2.
                 val (widget, params) = when (case) {
-                    "pill" -> cell(DiscoverSize.PILL) to FrameLayout.LayoutParams(dp(380), dp(80))
-                    "tile" -> cell(DiscoverSize.TILE) to FrameLayout.LayoutParams(dp(180), dp(190))
-                    "wide" -> cell(DiscoverSize.WIDE) to FrameLayout.LayoutParams(dp(380), dp(180))
+                    "pill" -> cell(380, 80) to FrameLayout.LayoutParams(dp(380), dp(80))
+                    "tile" -> cell(180, 190) to FrameLayout.LayoutParams(dp(180), dp(190))
+                    "wide" -> cell(380, 180) to FrameLayout.LayoutParams(dp(380), dp(180))
+                    "bigtext" -> {
+                        // One row and a 4 x 2 cell, one over the other.
+                        val column = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
+                        column.addView(cell(380, 90), LinearLayout.LayoutParams(dp(380), dp(90)))
+                        column.addView(cell(380, 180), LinearLayout.LayoutParams(dp(380), dp(180)).apply { topMargin = dp(12) })
+                        column to FrameLayout.LayoutParams(dp(380), ViewGroup.LayoutParams.WRAP_CONTENT)
+                    }
                     else -> {
                         // One over the other as on a home screen; the family has the search bar on top.
                         val column = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
@@ -100,9 +111,9 @@ class DiscoverWidgetGoldenTest(private val case: String, private val material: B
                                 .getValue(SearchWidgetProvider.EXPANDED_WIDTH).apply(activity, column)
                             column.addView(bar, LinearLayout.LayoutParams(dp(380), dp(80)))
                         }
-                        column.addView(cell(DiscoverSize.PILL), LinearLayout.LayoutParams(dp(380), dp(80)).apply { topMargin = dp(8) })
-                        column.addView(cell(DiscoverSize.TILE), LinearLayout.LayoutParams(dp(180), dp(190)).apply { topMargin = dp(16) })
-                        column.addView(cell(DiscoverSize.WIDE), LinearLayout.LayoutParams(dp(380), dp(180)).apply { topMargin = dp(16) })
+                        column.addView(cell(380, 80), LinearLayout.LayoutParams(dp(380), dp(80)).apply { topMargin = dp(8) })
+                        column.addView(cell(180, 190), LinearLayout.LayoutParams(dp(180), dp(190)).apply { topMargin = dp(16) })
+                        column.addView(cell(380, 180), LinearLayout.LayoutParams(dp(380), dp(180)).apply { topMargin = dp(16) })
                         column to FrameLayout.LayoutParams(dp(380), ViewGroup.LayoutParams.WRAP_CONTENT)
                     }
                 }
@@ -126,7 +137,8 @@ class DiscoverWidgetGoldenTest(private val case: String, private val material: B
             "family" to listOf(false, true),
             "nothing" to listOf(true),
             "eventonly" to listOf(false),
-            "setup" to listOf(false)
+            "setup" to listOf(false),
+            "bigtext" to listOf(true)
         )
 
         @JvmStatic

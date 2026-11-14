@@ -842,7 +842,7 @@ fun SearchOverlayScreen(
         if (SpokenAnswers.awaitsLiveAnswer(results)) {
             // A definition or forecast is on its way: give it a moment, then say whatever answer there is.
             results = kotlinx.coroutines.withTimeoutOrNull(SPOKEN_ANSWER_WAIT_MS) {
-                viewModel.uiState.first { it.query != spoken || it.liveAnswer?.query == spoken }
+                viewModel.uiState.first { it.query != spoken || it.liveAnswer?.query == spoken || it.liveAnswerSettled == spoken }
             } ?: viewModel.uiState.value
             if (results.query != spoken) return@speak true
         }

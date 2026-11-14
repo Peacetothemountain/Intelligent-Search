@@ -2,7 +2,6 @@ package com.pixel.intelligentsearch.core.ui
 
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
-import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -34,7 +33,7 @@ class AnimatedCopyChipTest {
     fun copyingSaysWhatWasCopied() {
         compose.setContent { MathResultOneBox(expression = "2+2", result = "4") }
 
-        compose.onNodeWithText("Copy").performClick()
+        compose.onNodeWithContentDescription("Copy Calculation").performClick()
         compose.waitForIdle()
 
         assertEquals("Calculation copied", ShadowToast.getTextOfLatestToast())

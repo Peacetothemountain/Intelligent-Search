@@ -42,9 +42,11 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.ZonedDateTime
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
@@ -54,14 +56,18 @@ import kotlin.math.roundToInt
  * corners, light or dark as the app's theme is when it's drawn). Tapping it opens the Discover page.
  *
  * It shows only what is already on for Discover and already allowed: the event with Up Next on and calendar access,
- * the weather with Weather on and a place to ask for. It never asks for anything; with neither, it says where to turn
- * one on, and a tap opens those settings. Placed on the home screen only, as it shows the calendar.
+ * the weather with Weather on and a place to ask for. It never asks for anything; with neither, it says what to
+ * change (where to turn one on, or what keeps one that is on from showing), and a tap opens Discover's settings.
+ * Placed on the home screen only, as it shows the calendar.
  *
  * It is responsive ([DiscoverSize]): one row high a pill like the bar, two rows by two a tile, and wider the event
- * with the weather underneath. It is a still picture, drawn again about once an hour, sooner as the next event nears
- * ([DiscoverWidgetModel.nextRedrawDelayMs]), when the calendar changes, when the search opens, and with the search
- * bars whenever the design or the theme changes. A redraw never waits for the forecast: it shows the last reading,
- * and a newer one is drawn when it arrives.
+ * with the weather underneath. It is a still picture, drawn again only when what it says changes with time
+ * ([DiscoverWidgetModel.nextRedrawDelayMs]: hourly while it shows the weather, at the steps before the next event and
+ * at midnight), when the calendar changes, at each start of the app, when the search opens, and with the search bars
+ * whenever the design or the theme changes. A redraw that would draw the same as the last one isn't sent to the
+ * launcher. A redraw never waits for the forecast: it shows the last reading, and a newer one is drawn when it
+ * arrives. The phone's location is read only while the app is on screen; in the background the forecast is read for
+ * the place set in the app only.
  */
 class DiscoverWidgetProvider : AppWidgetProvider() {
 
@@ -75,7 +81,13 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
     }
 
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
+        // Android asks for these to be drawn (placed, restored, after a restart): drawn whatever was drawn before.
+        appWidgetIds.forEach { lastDrawn.remove(it) }
         updateAll(context, goAsync())
+    }
+
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        appWidgetIds.forEach { lastDrawn.remove(it) }
     }
 
     override fun onEnabled(context: Context) {
@@ -87,6 +99,8 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
     override fun onDisabled(context: Context) {
         placed = false
         trip = null
+        drawn = null
+        lastDrawn.clear()
         AppJob.DISCOVER_REFRESH.cancel(context)
         AppJob.DISCOVER_CALENDAR.cancel(context)
         // The last reading was only for the widget; with none left, nothing is kept.
@@ -120,7 +134,7 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
     internal enum class Refresh {
         /** From the calendar and the last reading of the weather: nothing that can wait on the network. */
         QUICK,
-        /** Reads the forecast again when the last reading is no longer fresh. */
+        /** Reads the forecast again when the last reading is no longer fresh, for the place set in the app only. */
         WEATHER,
         /** The app is on screen, so the phone's location can be read: the forecast, and when to leave. */
         FOREGROUND
@@ -130,14 +144,24 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
     internal interface Sources {
         /** The calendar from now to the end of tomorrow. */
         suspend fun events(context: Context): List<CalendarEvent>
-        /** Today's weather where the user set it, or roughly where the phone is; may ask the forecast service. */
-        suspend fun weather(context: Context): WeatherReport?
+        /**
+         * Today's weather where the user set it, or, only in the [foreground] (the app on screen), roughly where the
+         * phone is; may ask the forecast service.
+         */
+        suspend fun weather(context: Context, foreground: Boolean): WeatherReport?
         /** When to leave for [event], when the phone knows where it is and where the event is. */
         suspend fun leaveAt(context: Context, event: CalendarEvent): Long?
     }
 
     /** When to leave for one event, as worked out at [at]. Kept in memory only: it follows from where the phone was. */
     private data class Trip(val eventId: Long, val beginMillis: Long, val place: String, val leaveAt: Long?, val at: Long)
+
+    /**
+     * The last redraw: when ([at]), what of the settings and permissions it was drawn from ([reads]), and whether
+     * the next event still wants when to leave worked out ([tripDue]), so opening the search again soon after needs
+     * nothing new.
+     */
+    private data class Drawn(val at: Long, val reads: Int, val tripDue: Boolean)
 
     companion object {
         private const val TAG = "DiscoverWidget"
@@ -163,6 +187,8 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
         private const val READ_TIMEOUT_MS = 8_000L
         /** The search's own entrance plays first; the widget is brought up to date after it. */
         private const val AFTER_OPENING_MS = 1_500L
+        /** Opening the search again this soon after a redraw, with nothing new to read, redraws nothing. */
+        private val FOREGROUND_QUIET_MS = TimeUnit.MINUTES.toMillis(5)
 
         /** The widget's own store: the last reading of the weather, which is not a setting and never leaves the phone. */
         private const val STORE = "discover_widget"
@@ -173,7 +199,8 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
 
         internal val PHONE: Sources = object : Sources {
             override suspend fun events(context: Context) = SystemDataProvider.getUpcomingEvents(context)
-            override suspend fun weather(context: Context) = context.appEntryPoint.liveAnswerEngine().weatherHere()?.first
+            override suspend fun weather(context: Context, foreground: Boolean) =
+                context.appEntryPoint.liveAnswerEngine().weatherHere(useDeviceLocation = foreground)?.first
             override suspend fun leaveAt(context: Context, event: CalendarEvent) = AndroidTodaySources(context).trip(event)?.leaveAt
         }
 
@@ -183,6 +210,13 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
         /** Whether a Discover widget is placed, once known, so the search opening costs nothing without one. */
         @Volatile private var placed: Boolean? = null
         @Volatile private var trip: Trip? = null
+        @Volatile private var drawn: Drawn? = null
+
+        /**
+         * What each placed widget last showed, by its id: everything it was drawn from, kept for as long as the app
+         * runs, so a redraw that would draw the same isn't sent to the launcher again.
+         */
+        private val lastDrawn = ConcurrentHashMap<Int, List<Any>>()
 
         private fun store(context: Context): SharedPreferences = context.getSharedPreferences(STORE, Context.MODE_PRIVATE)
 
@@ -205,7 +239,8 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
 
         /**
          * The search came on screen: brings the widgets up to date, with the forecast and when to leave read where
-         * the phone is now, which Android allows only while the app is in view. Nothing happens without a widget.
+         * the phone is now, which Android allows only while the app is in view. Nothing happens without a widget, nor
+         * when they were drawn a few minutes ago from the same settings and there is nothing new to read.
          */
         fun refreshInForeground(context: Context) {
             if (placed == false) return
@@ -213,6 +248,7 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
             appContext.appEntryPoint.applicationScope().launch(Dispatchers.IO) {
                 try {
                     delay(AFTER_OPENING_MS)
+                    if (upToDate(appContext)) return@launch
                     AppWidgetManager.getInstance(appContext)?.let { redrawAll(appContext, it, Refresh.FOREGROUND) }
                 } catch (e: CancellationException) {
                     throw e
@@ -223,12 +259,34 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
         }
 
         /**
+         * Whether the widgets need nothing from the search opening: drawn in the last few minutes from the same
+         * settings and permissions, with when to leave already worked out where it is shown, and the forecast fresh
+         * (or off, or with nowhere to ask for it).
+         */
+        internal fun upToDate(context: Context): Boolean {
+            val last = drawn ?: return false
+            if (nowMs() - last.at !in 0..FOREGROUND_QUIET_MS || last.tripDue) return false
+            val prefs = SettingsManager.storedPrefs(context)
+            if (last.reads != reads(context, prefs)) return false
+            return !weatherOn(prefs) || !hasPlace(context, prefs) || isFresh(savedWeather(context, prefs))
+        }
+
+        /** A fingerprint of the settings and permissions what the widget shows, and where its tap goes, follow. */
+        private fun reads(context: Context, prefs: SharedPreferences): Int = listOf(
+            prefs[SettingsManager.TODAY_UP_NEXT], prefs[SettingsManager.TODAY_WEATHER], prefs[SettingsManager.TODAY_BUTTON],
+            prefs[SettingsManager.TODAY_LEAVE_BY], prefs[SettingsManager.TEMPERATURE_UNIT], prefs[SettingsManager.WEATHER_HOME_LOCATION],
+            prefs[SettingsManager.SEARCH_OVERLAY_ENABLED], NetworkPolicy.webAnswersBlock(prefs), eventsOn(context, prefs),
+            AndroidDeviceLocation(context).permitted()
+        ).hashCode()
+
+        /**
          * Redraws every Discover widget and arranges the next redraw. Drawn first from the calendar and the last
          * reading of the weather; with [refresh] asking for more, the forecast is read after and the widgets drawn
          * again only if it changed something. Without a widget placed it does nothing, and before the phone's first
-         * unlock too: the calendar can't be read yet.
+         * unlock too: the calendar can't be read yet. With [keepArranged] a redraw already arranged is kept (see
+         * [syncSchedule]).
          */
-        internal suspend fun redrawAll(context: Context, manager: AppWidgetManager, refresh: Refresh) {
+        internal suspend fun redrawAll(context: Context, manager: AppWidgetManager, refresh: Refresh, keepArranged: Boolean = false) {
             val ids = widgetIds(context, manager)
             placed = ids.isNotEmpty()
             if (ids.isEmpty()) return
@@ -243,16 +301,32 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
                     redraw(context, manager, ids, input, prefs)
                 }
             }
+            drawn = Drawn(nowMs(), reads(context, prefs), tripDue(prefs, input.events?.let { DiscoverWidgetModel.nextEvent(it, now()) }))
             // A redraw that read nothing new leaves the forecast to the job, which may wait for it; a job's own run
-            // goes back to the usual pace, so a forecast that can't be reached is never asked for in a loop.
-            val soon = refresh == Refresh.QUICK && weatherOn(prefs) && !isFresh(input.weather)
-            arrange(context, prefs, input, soon)
+            // goes back to the usual pace, so a forecast that can't be reached is never asked for in a loop. The job
+            // runs with the app out of view, so it is asked for only with a place set in the app to read it for.
+            val soon = refresh == Refresh.QUICK && weatherOn(prefs) && !isFresh(input.weather) && hasHomePlace(prefs)
+            arrange(context, prefs, input, soon, keepArranged)
         }
 
+        /**
+         * Draws [input] on each widget in [ids], except one that already shows exactly this: the same words, design,
+         * tap, text size and screen density.
+         */
         private fun redraw(context: Context, manager: AppWidgetManager, ids: IntArray, input: DiscoverInput, prefs: SharedPreferences) {
+            val at = now()
+            val style = style(designConfig(context, prefs))
+            val texts = DiscoverWidgetModel.texts(input, at, DateFormat.is24HourFormat(context))
+            val resources = context.resources
             for (id in ids) {
                 try {
-                    manager.updateAppWidget(id, buildViews(context, id, input, prefs))
+                    val drawnFrom = listOf<Any>(
+                        texts, style, tapIntent(context, prefs, id, texts).toUri(0),
+                        resources.configuration.fontScale, resources.displayMetrics.density
+                    )
+                    if (lastDrawn[id] == drawnFrom) continue
+                    manager.updateAppWidget(id, RemoteViews(buildSizes(context, id, input, prefs, style, at = at)))
+                    lastDrawn[id] = drawnFrom
                 } catch (e: Throwable) {
                     Log.e(TAG, "Couldn't draw Discover widget $id", e)
                 }
@@ -301,37 +375,59 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
                 next != null && leaveByOn(prefs) && it.eventId == next.eventId && it.beginMillis == next.beginMillis &&
                     it.place == next.location && nowMs() - it.at in 0..TRIP_SHOWN_MS
             }
-            return DiscoverInput(weather, events, known?.leaveAt, weatherDue = weather == null && weatherOn(prefs) && hasPlace(context, prefs))
+            val weatherDue = weather == null && weatherOn(prefs) && hasPlace(context, prefs)
+            // With nothing to show, what keeps a switch that is on from showing anything: the weather's first.
+            val blocked = when {
+                events != null || weather != null || weatherDue -> null
+                prefs[SettingsManager.TODAY_WEATHER] -> when (NetworkPolicy.webAnswersBlock(prefs)) {
+                    NetworkPolicy.Block.WEB_SUGGESTIONS_OFF -> DiscoverBlock.WEB_SUGGESTIONS_OFF
+                    NetworkPolicy.Block.WEB_OFF -> DiscoverBlock.WEB_OFF
+                    NetworkPolicy.Block.TOR -> DiscoverBlock.TOR
+                    null -> DiscoverBlock.NO_PLACE
+                }
+                prefs[SettingsManager.TODAY_UP_NEXT] -> DiscoverBlock.NO_CALENDAR
+                else -> null
+            }
+            return DiscoverInput(weather, events, known?.leaveAt, weatherDue, blocked)
         }
 
         /** Whether there is a place to ask the forecast for: one set in the app, or the phone's own when allowed. */
         private fun hasPlace(context: Context, prefs: SharedPreferences): Boolean =
-            HomeLocationCodec.decode(prefs[SettingsManager.WEATHER_HOME_LOCATION]) != null || AndroidDeviceLocation(context).permitted()
+            hasHomePlace(prefs) || AndroidDeviceLocation(context).permitted()
+
+        /** Whether a place for the weather is set in the app: the only one asked for with the app out of view. */
+        private fun hasHomePlace(prefs: SharedPreferences): Boolean =
+            HomeLocationCodec.decode(prefs[SettingsManager.WEATHER_HOME_LOCATION]) != null
 
         /** Whether Discover is on with its Leave-By Time: the event's address is looked up only then. */
         private fun leaveByOn(prefs: SharedPreferences): Boolean = prefs[SettingsManager.TODAY_BUTTON] && prefs[SettingsManager.TODAY_LEAVE_BY]
 
+        /** Whether when to leave for [next] is shown and wants working out: none yet, or not since half its time. */
+        private fun tripDue(prefs: SharedPreferences, next: CalendarEvent?): Boolean {
+            if (next == null || next.location.isBlank() || !leaveByOn(prefs)) return false
+            val last = trip?.takeIf { it.eventId == next.eventId && it.beginMillis == next.beginMillis && it.place == next.location }
+            return last == null || nowMs() - last.at !in 0..TRIP_SHOWN_MS / 2
+        }
+
         /**
-         * [input] with the forecast read again, when the last reading is no longer fresh, and in the [foreground] with
-         * when to leave for the next event. Each is kept for the redraws that follow.
+         * [input] with the forecast read again, when the last reading is no longer fresh (where the phone is only in
+         * the [foreground]), and in the [foreground] with when to leave for the next event. Each is kept for the
+         * redraws that follow.
          */
         private suspend fun refreshed(context: Context, prefs: SharedPreferences, input: DiscoverInput, foreground: Boolean): DiscoverInput {
             var result = input
             if (weatherOn(prefs) && !isFresh(input.weather)) {
-                quietly { sources.weather(context) }?.let { report ->
+                quietly { sources.weather(context, foreground) }?.let { report ->
                     val weather = DiscoverWeather.from(report, nowMs())
                     saveWeather(context, weather)
                     result = result.copy(weather = weather)
                 }
             }
             val next = input.events?.let { DiscoverWidgetModel.nextEvent(it, now()) }
-            if (foreground && next != null && next.location.isNotBlank() && leaveByOn(prefs)) {
-                val last = trip?.takeIf { it.eventId == next.eventId && it.beginMillis == next.beginMillis && it.place == next.location }
-                if (last == null || nowMs() - last.at !in 0..TRIP_SHOWN_MS / 2) {
-                    val leaveAt = quietly { sources.leaveAt(context, next) }
-                    trip = Trip(next.eventId, next.beginMillis, next.location, leaveAt, nowMs())
-                    result = result.copy(leaveAt = leaveAt)
-                }
+            if (foreground && next != null && tripDue(prefs, next)) {
+                val leaveAt = quietly { sources.leaveAt(context, next) }
+                trip = Trip(next.eventId, next.beginMillis, next.location, leaveAt, nowMs())
+                result = result.copy(leaveAt = leaveAt)
             }
             return result
         }
@@ -348,13 +444,22 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
 
         /**
          * Arranges the next redraw ([DiscoverWidgetModel.nextRedrawDelayMs], or right away with [soon]), replacing any
-         * arranged before, and a redraw for when the calendar next changes while events are shown.
+         * arranged before (with [keepExisting], keeping one already arranged), and a redraw for when the calendar next
+         * changes while events are shown. With nothing that changes with time (the widget says what to turn on), no
+         * redraw is arranged: one comes with the change in the app.
          */
-        private fun arrange(context: Context, prefs: SharedPreferences, input: DiscoverInput, soon: Boolean) {
-            val delayMs = if (soon) 0L else DiscoverWidgetModel.nextRedrawDelayMs(now(), input.events)
-            AppJob.DISCOVER_REFRESH.schedule(context) {
-                setMinimumLatency(delayMs)
-                setPersisted(true)
+        private fun arrange(context: Context, prefs: SharedPreferences, input: DiscoverInput, soon: Boolean, keepExisting: Boolean) {
+            // The job reads a forecast only for a place set in the app: without one, a missing forecast isn't waited
+            // for (the search opening reads it where the phone is).
+            val timed = if (hasHomePlace(prefs)) input else input.copy(weatherDue = false)
+            val delayMs = if (soon) 0L else DiscoverWidgetModel.nextRedrawDelayMs(now(), timed)
+            if (delayMs != null) {
+                AppJob.DISCOVER_REFRESH.schedule(context, keepExisting) {
+                    setMinimumLatency(delayMs)
+                    setPersisted(true)
+                }
+            } else if (!keepExisting) {
+                AppJob.DISCOVER_REFRESH.cancel(context)
             }
             watchCalendar(context, prefs, keepExisting = true)
         }
@@ -389,16 +494,16 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
         }
 
         /**
-         * Arranges the redraws while a Discover widget is placed; a force stop cancels them. One already arranged is
-         * kept: this runs at every start, and the start Android makes to run the redraw must not replace it first.
+         * At every start of the app, while a Discover widget is placed: draws it again from what is known now (no
+         * network), so a change made while the app wasn't running shows at once. Taking away calendar access ends
+         * the app, and the event it drew would otherwise stay until the next arranged redraw. Then arranges the
+         * redraws, which a force stop cancels. One already arranged is kept: the start Android makes to run the
+         * redraw must not replace it first.
          */
-        fun syncSchedule(context: Context) {
+        suspend fun syncSchedule(context: Context) {
             val manager = AppWidgetManager.getInstance(context) ?: return
             if (widgetIds(context, manager).isEmpty()) return
-            AppJob.DISCOVER_REFRESH.schedule(context, keepExisting = true) {
-                setMinimumLatency(0L)
-                setPersisted(true)
-            }
+            withContext(Dispatchers.IO) { redrawAll(context, manager, Refresh.QUICK, keepArranged = true) }
         }
 
         /** The Discover widget's colors, outline and corners in the search bar's design [config]. */
@@ -418,12 +523,18 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
             context, prefs, isMaterialYou = SearchWidgetProvider.isMaterialStyle(prefs[SettingsManager.WIDGET_THEME_STYLE])
         )
 
-        /** The Discover widget [appWidgetId] showing [input], at every size. */
-        internal fun buildViews(context: Context, appWidgetId: Int, input: DiscoverInput, prefs: SharedPreferences): RemoteViews =
-            RemoteViews(buildSizes(context, appWidgetId, input, prefs))
+        /** What tapping the widget [appWidgetId] showing [texts] opens: Discover, or its settings with nothing to show. */
+        private fun tapIntent(context: Context, prefs: SharedPreferences, appWidgetId: Int, texts: DiscoverTexts): Intent {
+            val tap = if (texts.setUp) discoverSettingsIntent(context) else discoverPageIntent(context, prefs, appWidgetId)
+            tap.identifier = "discover_$appWidgetId"
+            return tap
+        }
 
         /**
-         * [buildViews]' views for each [DiscoverSize], keyed the way [RemoteViews] expects for a responsive widget.
+         * The Discover widget [appWidgetId] showing [input], for each [DiscoverSize], keyed the way [RemoteViews]
+         * expects for a responsive widget (it is drawn as one [RemoteViews] made of these). The wide size is drawn
+         * once for each height at which it has room for more at the phone's text size
+         * ([DiscoverWidgetModel.wideHeights]), so on a short cell or with large text the event's name keeps its room.
          * Only the placed widget's own draw sets the tap ([withTap]): the tap is a PendingIntent keyed by the widget's
          * id, so the picker's sample must not make one.
          */
@@ -437,19 +548,39 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
             at: ZonedDateTime = now()
         ): Map<SizeF, RemoteViews> {
             val texts = DiscoverWidgetModel.texts(input, at, DateFormat.is24HourFormat(context))
-            val tapIntent = if (withTap) {
-                val tap = if (texts.setUp) discoverSettingsIntent(context) else discoverPageIntent(context, prefs, appWidgetId)
-                tap.identifier = "discover_$appWidgetId"
-                SearchWidgetProvider.overlayPendingIntent(context, appWidgetId, tap)
+            val tap = if (withTap) {
+                SearchWidgetProvider.overlayPendingIntent(context, appWidgetId, tapIntent(context, prefs, appWidgetId, texts))
             } else {
                 null
             }
-            return DiscoverSize.entries.associate { size ->
-                val views = RemoteViews(context.packageName, size.layout)
-                bind(views, context, size, texts, style)
-                if (tapIntent != null) views.setOnClickPendingIntent(android.R.id.background, tapIntent)
-                size.size to views
+            val fontScale = context.resources.configuration.fontScale
+            val ends = style.base.shape.outline + TILE_INSET
+            return buildMap {
+                for (size in DiscoverSize.entries) {
+                    val heights = if (size == DiscoverSize.WIDE) {
+                        DiscoverWidgetModel.wideHeights(size.size.height, fontScale, ends, texts.wide.meta.isNotEmpty(), texts.wide.weather != null)
+                    } else {
+                        listOf(size.size.height)
+                    }
+                    for (height in heights) {
+                        val views = RemoteViews(context.packageName, size.layout)
+                        bind(views, context, size, texts, style, height, fontScale)
+                        if (tap != null) views.setOnClickPendingIntent(android.R.id.background, tap)
+                        put(SizeF(size.size.width, height), views)
+                    }
+                }
             }
+        }
+
+        /**
+         * The views of [sizes] a launcher shows in a cell [widthDp] by [heightDp]: as [RemoteViews] picks, the nearest
+         * size that fits the cell, or the smallest when none does.
+         */
+        internal fun forCell(sizes: Map<SizeF, RemoteViews>, widthDp: Float, heightDp: Float): RemoteViews {
+            val fits = sizes.keys.filter { it.width <= widthDp && it.height <= heightDp }
+            val key = fits.minByOrNull { (widthDp - it.width).let { w -> w * w } + (heightDp - it.height).let { h -> h * h } }
+                ?: sizes.keys.minBy { it.width * it.height }
+            return sizes.getValue(key)
         }
 
         /**
@@ -484,11 +615,19 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
         }
 
         /**
-         * Draws [texts] in [style] on the layout of [size]. Everything is set on every redraw, whatever it is: a
-         * launcher redraws a placed widget by applying the new views onto the ones it shows, so anything left unset
-         * would keep the previous design's or state's.
+         * Draws [texts] in [style] on the layout of [size], for a cell at least [heightDp] tall with text at
+         * [fontScale]. Everything is set on every redraw, whatever it is: a launcher redraws a placed widget by applying
+         * the new views onto the ones it shows, so anything left unset would keep the previous design's or state's.
          */
-        private fun bind(views: RemoteViews, context: Context, size: DiscoverSize, texts: DiscoverTexts, style: DiscoverStyle) {
+        private fun bind(
+            views: RemoteViews,
+            context: Context,
+            size: DiscoverSize,
+            texts: DiscoverTexts,
+            style: DiscoverStyle,
+            heightDp: Float,
+            fontScale: Float
+        ) {
             val base = style.base
             val shape = base.shape
             val density = context.resources.displayMetrics.density
@@ -556,7 +695,12 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
                     words(R.id.discover_badge, wide.badge, base.hero)
                     views.setColorStateList(R.id.discover_badge, "setBackgroundTintList", ColorStateList.valueOf(style.soft))
                     words(R.id.discover_headline, wide.title, base.text)
-                    show(R.id.discover_meta, wide.meta.isNotEmpty())
+                    // On a short cell or with large text the weather strip gives way first, then the line under the
+                    // name, so the name always keeps room for two lines.
+                    val room = DiscoverWidgetModel.wideRoom(
+                        heightDp, fontScale, shape.outline + TILE_INSET, wide.meta.isNotEmpty(), wide.weather != null
+                    )
+                    show(R.id.discover_meta, room.meta)
                     words(R.id.discover_meta_before, wide.before, base.secondaryText)
                     words(R.id.discover_meta_place, wide.place, base.secondaryText)
                     words(R.id.discover_meta_after, wide.after, base.secondaryText)
@@ -568,7 +712,7 @@ class DiscoverWidgetProvider : AppWidgetProvider() {
                         R.id.discover_meta_after, RemoteViews.MARGIN_START,
                         if (wide.before != null || wide.place != null) META_GAP else 0f, TypedValue.COMPLEX_UNIT_DIP
                     )
-                    show(R.id.discover_weather, wide.weather != null)
+                    show(R.id.discover_weather, room.weather)
                     views.setColorStateList(R.id.discover_weather, "setBackgroundTintList", ColorStateList.valueOf(style.soft))
                     tint(R.id.discover_dot, dot)
                     views.setTextViewText(R.id.discover_weather_text, wide.weather.orEmpty())

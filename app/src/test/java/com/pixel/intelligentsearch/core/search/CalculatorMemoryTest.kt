@@ -62,6 +62,40 @@ class CalculatorMemoryTest {
         assertEquals("(2+3)*55", CalculatorMemory.recall("(2+3)", "55"))
         assertEquals("55", CalculatorMemory.recall("", "55"))
         assertEquals("2*(-2.5)", CalculatorMemory.recall("2*", "-2.5"))
+        // After "ans" or a constant it multiplies too, so the sum still reads.
+        assertEquals("2+ans*55", CalculatorMemory.recall("2+ans", "55"))
+        assertEquals("2*pi*55", CalculatorMemory.recall("2*pi", "55"))
+    }
+
+    @Test
+    fun whereTheDecimalPointIsACommaNumbersGoBackInThatWay() {
+        val before = java.util.Locale.getDefault()
+        java.util.Locale.setDefault(java.util.Locale.GERMANY)
+        try {
+            val memory = CalculatorMemory()
+            memory.keep("1,125", 1.125)
+            assertEquals("1,125", memory.ans?.typed)
+            assertEquals("(1,125)*2", memory.withAns("ans*2"))
+            // "1,5" is one number: the whole of it is replaced.
+            assertEquals("2+55", CalculatorMemory.recall("2+1,5", "55"))
+            assertEquals(1.5, CalculatorMemory.plainValue("1,5")!!, 0.0)
+        } finally {
+            java.util.Locale.setDefault(before)
+        }
+    }
+
+    @Test
+    fun aSumBeingTypedShowsItsTotalSoFar() {
+        assertEquals("12*4+7", CalculatorMemory.finishedPart("12*4+7+"))
+        assertEquals("120", CalculatorMemory.finishedPart("120 + "))
+        assertEquals("2", CalculatorMemory.finishedPart("2*("))
+        // Not unfinished: nothing at the end to finish, or no number at all.
+        assertNull(CalculatorMemory.finishedPart("12*4+7"))
+        assertNull(CalculatorMemory.finishedPart("playstation 5 "))
+        assertNull(CalculatorMemory.finishedPart("c++"))
+        assertTrue(CalculatorMemory.isPlainNumber("120"))
+        assertTrue(CalculatorMemory.isPlainNumber("-3.5"))
+        assertFalse(CalculatorMemory.isPlainNumber("12*4"))
     }
 
     @Test

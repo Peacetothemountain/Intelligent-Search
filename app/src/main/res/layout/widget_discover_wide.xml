@@ -1,9 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
     The Discover widget wide and two rows high: "UP NEXT" and how soon, the next event large, then when, where and
-    when to leave, and the weather in a strip underneath. The event's name takes the room the rest leaves, so nothing
-    is cut on a short cell. The backdrop is the search bar's, set by the provider as for the other sizes
-    (DiscoverWidgetProvider).
+    when to leave, and the weather in a strip underneath. The event's name takes the room the rest leaves; on a short
+    cell or with large text the provider hides the weather strip first, then the line under the name, so the name
+    always has room for two lines (DiscoverWidgetModel.wideRoom). The backdrop is the search bar's, set by the provider
+    as for the other sizes (DiscoverWidgetProvider).
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"

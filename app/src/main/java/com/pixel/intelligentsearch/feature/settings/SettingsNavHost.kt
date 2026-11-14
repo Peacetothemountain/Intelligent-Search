@@ -80,8 +80,8 @@ internal val SETTINGS_TUTORIAL_STEPS = mapOf(
     4 to TutorialStepInfo(
         "Just Type It",
         "Search does more than find things. Type a sum, a conversion, a word to define, a city's weather or " +
-            "\"timer 10 min\", and the answer appears as you type. That's the tour. Tap $TUTORIAL_FINISH_LABEL to " +
-            "finish in Settings.",
+            "\"timer 10 min\", and the answer appears as you type. Start with > to search only settings, or @ for " +
+            "contacts. That's the tour. Tap $TUTORIAL_FINISH_LABEL to finish in Settings.",
         Alignment.Center,
         showArrow = false,
         demo = TutorialDemo.Answers

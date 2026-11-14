@@ -41,8 +41,19 @@ internal object SearchHints {
     private val EXAMPLES = listOf("10 min timer", "18% of 64", "weather tomorrow", "define ethereal", "20 usd in eur", "free space", "time in tokyo")
     private val CALCULATED = setOf("18% of 64", "20 usd in eur")
 
-    /** The examples to offer: the sums only while the Calculator is switched on, since otherwise they answer nothing. */
-    fun examples(calculatorOn: Boolean): List<String> = if (calculatorOn) EXAMPLES else EXAMPLES - CALCULATED
+    /**
+     * The examples to offer: the sums only while the Calculator is switched on, since otherwise they answer nothing,
+     * and a search limited to contacts only while contact search is on. A settings-only search always works.
+     */
+    fun examples(calculatorOn: Boolean, contactsOn: Boolean = false, webAnswersOn: Boolean = true): List<String> =
+        (if (calculatorOn) EXAMPLES else EXAMPLES - CALCULATED).filter { webAnswersOn || it !in NEEDS_WEB } +
+            SETTINGS_ONLY + (if (contactsOn) listOf(CONTACTS_ONLY) else emptyList())
+
+    /** Answered only while web answers are allowed (Web Suggestions on, Tor not the engine). */
+    private val NEEDS_WEB = setOf("weather tomorrow", "define ethereal")
+
+    private const val SETTINGS_ONLY = ">wifi"
+    private const val CONTACTS_ONLY = "@mom"
 
     /** Whether [nowMs] is within the first week of an install at [firstInstallMs] (0 when the phone won't say). */
     fun inFirstWeek(firstInstallMs: Long, nowMs: Long): Boolean =
@@ -113,12 +124,21 @@ internal fun SearchHint(examples: List<String>, modifier: Modifier = Modifier) {
     // Read only where the two lines are placed, so a frame of the change moves them and recomposes nothing.
     val change = remember { mutableFloatStateOf(0f) }
     LaunchedEffect(examples) {
-        var start = 0L
-        while (true) withInfiniteAnimationFrameNanos { now ->
-            if (start == 0L) start = now
-            val frame = SearchHints.frame((now - start) / 1e9f)
-            if (slot.intValue != frame.slot) slot.intValue = frame.slot
-            if (change.floatValue != frame.change) change.floatValue = frame.change
+        // Frames only while a line gives way to the next; between changes the loop sleeps.
+        var hold = SearchHints.FIRST_SECONDS
+        while (true) {
+            kotlinx.coroutines.delay((hold * 1000).toLong())
+            var start = 0L
+            var done = false
+            while (!done) withInfiniteAnimationFrameNanos { now ->
+                if (start == 0L) start = now
+                val u = ((now - start) / 1e9f / SearchHints.CHANGE_SECONDS).coerceIn(0f, 1f)
+                change.floatValue = u
+                if (u >= 1f) done = true
+            }
+            slot.intValue += 1
+            change.floatValue = 0f
+            hold = SearchHints.HOLD_SECONDS
         }
     }
     val current = remember(slot.intValue, examples, quiet, strong) { line(SearchHints.shown(slot.intValue, examples, opening)) }

@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.feature.search
 
 import android.content.Intent
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.activity.ComponentActivity
@@ -49,7 +50,7 @@ class AiAnswerReportTest {
 
         compose.onNodeWithText("Rayleigh scattering.").assertDoesNotExist()
         compose.onNodeWithText("You reported this answer, so it's hidden.").assertExists()
-        compose.onNodeWithText("Copy").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Copy", substring = true).assertDoesNotExist()
 
         val sent = shadowOf(compose.activity).nextStartedActivity
         assertEquals(Intent.ACTION_SENDTO, sent.action)

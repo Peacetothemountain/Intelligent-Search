@@ -28,6 +28,8 @@ import com.pixel.intelligentsearch.core.data.*
 internal fun OverlayQuickAppPanel(s: OverlayScope) {
     val viewModel = s.viewModel
     val uiState = s.uiState
+    // A search limited to contacts, files or settings shows only those; an app pill would search with the symbol in it.
+    if (uiState.scoped != null) return
     val settingsState = s.settingsState
     val performLaunch = s.performLaunch
     val launchIcons = s.launchIcons

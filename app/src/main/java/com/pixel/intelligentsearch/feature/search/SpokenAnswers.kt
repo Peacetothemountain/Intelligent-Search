@@ -27,7 +27,7 @@ internal object SpokenAnswers {
 
     /** True while a definition, forecast or screen time for the query may still arrive. */
     fun awaitsLiveAnswer(state: SearchUiState): Boolean {
-        if (state.liveAnswer?.query == state.query) return false
+        if (state.liveAnswer?.query == state.query || state.liveAnswerSettled == state.query) return false
         return when (LiveAnswerParser.parse(state.query)) {
             null, is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Translate -> false
             else -> true
@@ -55,7 +55,7 @@ internal object SpokenAnswers {
                 "${report.temperature.roundToInt()} degrees and $sky${place?.let { " in $it" }.orEmpty()}. High $high, low $low."
             }
         }
-        is LiveAnswer.ScreenTime -> answer.report?.let { "${ScreenTimeCalculator.formatDuration(it.totalMs)} of screen time today." }
+        is LiveAnswer.ScreenTime -> answer.report?.let { "${spokenDuration(ScreenTimeCalculator.formatDuration(it.totalMs))} of screen time today." }
         is LiveAnswer.Translation, is LiveAnswer.WeatherNeedsLocation -> null
     }
 
@@ -65,16 +65,22 @@ internal object SpokenAnswers {
         else "The answer is $result."
 
     internal fun instant(answer: InstantAnswer): String? = when (answer.iconType) {
-        "conversion", "currency" -> answer.title.replace(" = ", " is ")
+        // "100 USD ≈ 92.00 EUR" is said "100 USD is about 92.00 EUR".
+        "conversion", "currency" -> answer.title.replace(" = ", " is ").replace(" \u2248 ", " is about ")
         // "41 days until Friday, December 25, 2026.": the card's whole sentence, not "41 days" on its own.
         "date" -> answer.spoken?.let { sentence -> "${sentence.replaceFirstChar { it.uppercase() }}." } ?: answer.title
-        // "Current time in Tokyo: 7:30 AM.", saying where as well as what time.
-        "time" -> "${answer.subtitle.substringBefore(" · ")}: ${answer.title}."
+        // "Current time in Tokyo, tomorrow: 1:30 AM.", saying where and which day as well as what time.
+        "time" -> "${answer.subtitle.replace(" · ", ", ").replace("Tomorrow", "tomorrow").replace("Yesterday", "yesterday")}: ${answer.title}."
         "random" -> answer.title
         // "118 GB free" + "of 256 GB · 53% used"
         "storage" -> "${answer.title} ${answer.subtitle.substringBefore(" · ")}."
         else -> null
     }
+
+    /** "3 hr 12 min" said in full: "3 hours 12 minutes"; "1 hr" as "1 hour". */
+    internal fun spokenDuration(short: String): String =
+        short.replace(Regex("\\b1 hr\\b"), "1 hour").replace(Regex("\\b1 min\\b"), "1 minute")
+            .replace(" hr", " hours").replace(" min", " minutes")
 
     private fun clip(definition: String): String {
         val text = definition.trim()

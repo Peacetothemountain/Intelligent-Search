@@ -22,6 +22,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -31,6 +32,8 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
@@ -82,7 +85,8 @@ internal fun BatterySeaTank(level: Int, charging: Boolean, watts: Float?, animat
             .then(
                 if (animate) Modifier.pointerInput(scene) { detectTapGestures { scene.tap(it.x / density, it.y / density) } }
                 else Modifier
-            ),
+            )
+            .clearAndSetSemantics { contentDescription = "Battery $level%" },
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -96,7 +100,9 @@ internal fun BatterySeaTank(level: Int, charging: Boolean, watts: Float?, animat
         }
         Text(
             text = "$level%",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleLarge.copy(
+                shadow = Shadow(color = Color.Black.copy(alpha = 0.45f), offset = Offset(0f, 1f), blurRadius = 6f)
+            ),
             fontWeight = FontWeight.ExtraBold,
             color = tones[0].ink
         )

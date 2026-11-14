@@ -103,9 +103,10 @@ internal fun OverlaySearchBar(s: OverlayScope) {
     var isKeyboardDismissedByUser by s.ui::isKeyboardDismissedByUser
     val context = LocalContext.current
     // In the first week after installing, once the tutorial is done, the empty bar shows things to type.
-    val hintExamples = remember(settingsState.searchCalculator) {
+    val webAnswersOn = com.pixel.intelligentsearch.core.security.NetworkPolicy.webAnswersAllowed(prefs)
+    val hintExamples = remember(settingsState.searchCalculator, settingsState.searchContacts, webAnswersOn) {
         val firstWeek = SearchHints.inFirstWeek(SearchHints.firstInstallMs(context), System.currentTimeMillis())
-        if (firstWeek && prefs[SettingsManager.TUTORIAL_COMPLETED]) SearchHints.examples(settingsState.searchCalculator) else emptyList()
+        if (firstWeek && prefs[SettingsManager.TUTORIAL_COMPLETED]) SearchHints.examples(settingsState.searchCalculator, settingsState.searchContacts, webAnswersOn) else emptyList()
     }
     val coroutineScope = rememberCoroutineScope()
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current

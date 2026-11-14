@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
@@ -271,7 +272,9 @@ fun AnimatedCopyChip(
                     text = if (copied) copiedLabel else label,
                     fontFamily = GoogleSansFlex,
                     fontWeight = FontWeight.Medium,
-                    color = animatedContentColor
+                    color = animatedContentColor,
+                    // The chip's own description says it in full ("Copy Calculation"); TalkBack reads it once.
+                    modifier = Modifier.clearAndSetSemantics {}
                 )
             }
         },
@@ -463,7 +466,8 @@ fun MathResultOneBox(
                                 sensoryEngine.click(view)
                                 onEarlier(index)
                             },
-                            label = { Text(number, fontFamily = GoogleSansFlex, fontWeight = FontWeight.SemiBold, maxLines = 1) },
+                            // Read once, as the chip's description says it ("Use earlier result 55").
+                            label = { Text(number, fontFamily = GoogleSansFlex, fontWeight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.clearAndSetSemantics {}) },
                             shape = calcChipShape,
                             colors = AssistChipDefaults.assistChipColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -806,7 +810,7 @@ fun TimeWeatherOneBox(
             iconType == "ip" -> OneBoxCategoryConfig(
                 icon = Icons.Outlined.Wifi,
                 containerType = OneBoxThemeContainer.Secondary,
-                label = "NETWORK ADDRESS"
+                label = "LOCAL NETWORK ADDRESS"
             )
             else -> OneBoxCategoryConfig(
                 icon = Icons.Outlined.Info,

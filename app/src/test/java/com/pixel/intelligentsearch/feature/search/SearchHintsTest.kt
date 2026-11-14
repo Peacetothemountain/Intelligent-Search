@@ -31,6 +31,13 @@ class SearchHintsTest {
     }
 
     @Test
+    fun theTypedFiltersAreTaughtWhereTheyWork() {
+        assertTrue(">wifi" in SearchHints.examples(calculatorOn = true))
+        assertFalse("@mom" in SearchHints.examples(calculatorOn = true, contactsOn = false))
+        assertTrue("@mom" in SearchHints.examples(calculatorOn = true, contactsOn = true))
+    }
+
+    @Test
     fun searchStaysUpFirstThenEachExampleTakesItsTurn() {
         val examples = SearchHints.examples(calculatorOn = true)
         // Opening: the plain hint, standing still.

@@ -42,10 +42,13 @@ import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -478,7 +481,12 @@ internal class RamPainter {
         if (count > 0) {
             brushes(scene, tones)
             trace(scene, line, outline = false, closed = false)
-            trace(scene, fill, outline = false, closed = true)
+            // The same curve, closed down to the floor.
+            fill.rewind()
+            fill.addPath(line)
+            fill.lineTo(scene.right, floor)
+            fill.lineTo(left, floor)
+            fill.close()
             // Each peak's own color under the line, fading out toward the floor.
             drawPath(fill, fillBrush, alpha = 0.42f)
         }
@@ -656,7 +664,9 @@ internal fun RamPeaksGraph(
             .then(
                 if (animate) Modifier.pointerInput(scene) { detectTapGestures { scene.tap(it.x / density, it.y / density) } }
                 else Modifier
-            ),
+            )
+            // Read as one picture; the list beside it says each category's share.
+            .clearAndSetSemantics { contentDescription = "Memory by category" },
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
@@ -709,7 +719,7 @@ internal fun RamPeaksGraph(
                 text = "${parts[picked].name}  ${ramPartSize(parts[picked].ramMb)}",
                 fontSize = 9.sp,
                 fontWeight = FontWeight.Bold,
-                color = scheme.surface,
+                color = if (colors[picked % colors.size].luminance() > 0.4f) Color.Black else Color.White,
                 maxLines = 1,
                 modifier = Modifier
                     .align(Alignment.TopStart)

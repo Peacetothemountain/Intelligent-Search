@@ -11,6 +11,7 @@ import java.time.Instant
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 /**
@@ -76,20 +77,42 @@ internal data class DiscoverWeather(
  * Everything the Discover widget is drawn from. [weather] is null with Weather off or no forecast to show, and
  * [events] is null with Up Next off or no calendar access; otherwise it holds what the calendar has from now to the
  * end of tomorrow. [leaveAt] is when to leave for the next event, when the app knows. [weatherDue] says Weather is on
- * and has a place to ask for, so a missing forecast is one that couldn't be read, not one to turn on.
+ * and has a place to ask for, so a missing forecast is one that couldn't be read, not one to turn on. [blocked] says
+ * what keeps a switch that is on from showing anything, when there is nothing else to show.
  */
 internal data class DiscoverInput(
     val weather: DiscoverWeather?,
     val events: List<CalendarEvent>?,
     val leaveAt: Long? = null,
-    val weatherDue: Boolean = false
+    val weatherDue: Boolean = false,
+    val blocked: DiscoverBlock? = null
 )
+
+/** What keeps Up Next or Weather from showing anything while its switch is on, so the widget can say what to change. */
+internal enum class DiscoverBlock {
+    /** Weather is on, and Web Suggestions is off. */
+    WEB_SUGGESTIONS_OFF,
+    /** Weather is on, and Web is off in Search Sources. */
+    WEB_OFF,
+    /** Weather is on, and Tor is the search engine. */
+    TOR,
+    /** Weather is on, with no place set in Discover and no location access. */
+    NO_PLACE,
+    /** Up Next is on, without calendar access. */
+    NO_CALENDAR
+}
 
 /** What the small dot before the temperature says: sun, rain or snow on the way, or neither. */
 internal enum class DiscoverDot { SUN, RAIN, PLAIN }
 
-/** One row high: the temperature, then the next event ("Dentist" and " · 3:30 PM") or, without one, the conditions. */
+/**
+ * One row high: the temperature, then the next event ("Dentist ·" and " 3:30 PM") or, without one, the conditions.
+ * The dot ends the name, so a long name cut short ends at its "…" and the time follows, with no gap before a dot.
+ */
 internal data class DiscoverPill(val temperature: String?, val lead: String, val time: String?)
+
+/** What the wide size has room for: the line under the event ([meta]) and the weather strip ([weather]). */
+internal data class DiscoverWideRoom(val meta: Boolean, val weather: Boolean)
 
 /**
  * Two rows by two. With weather, the conditions over the temperature ([hero]) over the next event; without it, the
@@ -139,10 +162,25 @@ internal object DiscoverWidgetModel {
     const val NOTHING_ELSE = "Nothing else today"
     const val TURN_ON = "Turn on Up Next or Weather in Discover"
     const val NO_WEATHER = "No weather right now"
+    const val NEEDS_WEB_SUGGESTIONS = "Turn on Web Suggestions for weather"
+    const val NEEDS_WEB = "Turn on Web for weather"
+    const val NO_WEATHER_WITH_TOR = "No weather while Tor is your engine"
+    const val NEEDS_PLACE = "Set a weather place in Discover"
+    const val NEEDS_CALENDAR = "Allow calendar access for Up Next"
     private const val SEPARATOR = " · "
 
     /** How soon an event starts is shown only this close to it, where a still picture can keep it true. */
     val BADGE_WINDOW_MS: Long = Duration.ofMinutes(60).toMillis()
+
+    /**
+     * The widget is drawn again as the next event comes this close, and as it starts. Between those redraws how soon
+     * it starts is said as the step it is within ("within 30 min" from 30 minutes before until 15 before), which stays
+     * true for the whole time the still picture is shown; its time is beside it for the exact moment.
+     */
+    private val BADGE_STEPS_MS: List<Long> = listOf(5L, 15L, 30L, 60L).map { Duration.ofMinutes(it).toMillis() }
+
+    /** The step an event [untilMs] away is within: the first of [BADGE_STEPS_MS] at or above it; null past the hour. */
+    private fun badgeStep(untilMs: Long): Long? = BADGE_STEPS_MS.firstOrNull { untilMs <= it }
 
     /** The next event today: the first that hasn't started and has a time, as Discover's Up Next picks it. */
     fun nextEvent(events: List<CalendarEvent>, now: ZonedDateTime): CalendarEvent? =
@@ -159,28 +197,92 @@ internal object DiscoverWidgetModel {
 
     private fun dateOf(event: CalendarEvent, now: ZonedDateTime) = Instant.ofEpochMilli(event.beginMillis).atZone(now.zone).toLocalDate()
 
+    /** Whether [input] has nothing to show, so the widget says what to turn on and nothing changes with time. */
+    fun isSetUp(input: DiscoverInput): Boolean = input.weather == null && input.events == null && !input.weatherDue
+
     /**
-     * How long from [now] until the widget next has something new to say: an hour at most, and sooner for the next
-     * event: when it comes within the hour (how soon it starts appears), every five minutes from then on, and as
-     * it starts. Never past midnight, when today's events become tomorrow's.
+     * How long from [now] until the widget next has something new to say for [input], or null when nothing it shows
+     * changes with time (it says what to turn on). With the weather shown, or due, an hour at most, so a newer
+     * forecast is read and an old one is taken down. With events shown, midnight, when today's events become
+     * tomorrow's. Sooner for the next event: an hour, 30, 15 and 5 minutes before it, when how soon it starts moves to
+     * the next step, and as it starts; and when it is time to leave for it.
      */
-    fun nextRedrawDelayMs(now: ZonedDateTime, events: List<CalendarEvent>?): Long {
+    fun nextRedrawDelayMs(now: ZonedDateTime, input: DiscoverInput): Long? {
+        if (isSetUp(input)) return null
         val nowMs = now.toInstant().toEpochMilli()
-        val midnight = now.toLocalDate().plusDays(1).atStartOfDay(now.zone).toInstant().toEpochMilli()
-        var delay = minOf(REDRAW_MS, midnight - nowMs + AFTER_MS)
-        val next = events?.let { nextEvent(it, now) }
-        if (next != null) {
-            val until = next.beginMillis - nowMs
-            delay = minOf(delay, if (until > BADGE_WINDOW_MS) until - BADGE_WINDOW_MS else minOf(BADGE_STEP_MS, until + AFTER_MS))
+        val waits = mutableListOf<Long>()
+        if (input.weather != null || input.weatherDue) waits += REDRAW_MS
+        val events = input.events
+        if (events != null) {
+            val midnight = now.toLocalDate().plusDays(1).atStartOfDay(now.zone).toInstant().toEpochMilli()
+            waits += midnight - nowMs + AFTER_MS
+            val next = nextEvent(events, now)
+            if (next != null) {
+                // The first step still ahead; at the step itself how soon is already the step, so no wait past it.
+                BADGE_STEPS_MS.asReversed().map { next.beginMillis - it }.firstOrNull { it > nowMs }?.let { waits += it - nowMs }
+                waits += next.beginMillis - nowMs + AFTER_MS
+                input.leaveAt?.takeIf { it > nowMs }?.let { waits += it - nowMs + AFTER_MS }
+            }
         }
-        return delay.coerceAtLeast(AFTER_MS)
+        return waits.minOrNull()?.coerceAtLeast(AFTER_MS)
     }
 
-    /** The widget is drawn again this often with nothing else to wait for. */
+    /** The widget is drawn again this often while it shows the weather. */
     val REDRAW_MS: Long = Duration.ofMinutes(60).toMillis()
-    private val BADGE_STEP_MS: Long = Duration.ofMinutes(5).toMillis()
     /** Just past the moment waited for, so the redraw finds it passed. */
     private const val AFTER_MS = 1_000L
+
+    /**
+     * The wide size's rows, in dp at 100% text, as widget_discover_wide.xml lays them out: the label row (its text,
+     * and the padding of the badge beside it), the margins around the event's name, the name's smallest text, the
+     * line under it, and the weather strip (its margin and padding, and the dot).
+     */
+    private const val LABEL_SP = 12f
+    private const val BADGE_PADDING = 4f
+    private const val NAME_MARGINS = 8f
+    private const val NAME_MIN_SP = 16f
+    private const val META_SP = 14f
+    private const val STRIP_SP = 14f
+    private const val STRIP_SPACE = 10f + 16f
+    private const val STRIP_DOT = 16f
+    /** One line of the app's font, as a multiple of its size. */
+    private const val LINE = 1.25f
+
+    /**
+     * The height the wide size needs, in dp, with [ends] dp above and below its words, at [fontScale]: the label and
+     * two lines of the event's name at its smallest, and the line under it ([meta]) and the weather strip
+     * ([weather]) when asked.
+     */
+    private fun wideNeeds(fontScale: Float, ends: Int, meta: Boolean, weather: Boolean): Float {
+        fun line(sp: Float) = sp * LINE * fontScale
+        var need = 2f * ends + line(LABEL_SP) + BADGE_PADDING + NAME_MARGINS + 2 * line(NAME_MIN_SP)
+        if (meta) need += line(META_SP)
+        if (weather) need += STRIP_SPACE + maxOf(STRIP_DOT, line(STRIP_SP))
+        return need
+    }
+
+    /**
+     * What the wide size keeps at [heightDp] tall: the event's name always keeps two lines' room, so on a short cell
+     * or with large text the weather strip gives way first ([hasWeather]: there is one to show), then the line under
+     * the name ([hasMeta]).
+     */
+    fun wideRoom(heightDp: Float, fontScale: Float, ends: Int, hasMeta: Boolean, hasWeather: Boolean) = DiscoverWideRoom(
+        meta = hasMeta && heightDp >= wideNeeds(fontScale, ends, meta = true, weather = false),
+        weather = hasWeather && heightDp >= wideNeeds(fontScale, ends, meta = hasMeta, weather = true)
+    )
+
+    /**
+     * The heights, from [from] up, at which the wide size has room for more ([wideRoom]): [from] itself, then where
+     * the line under the name fits, then where the weather strip does. One layout is drawn for each, and the launcher
+     * shows the tallest that fits the cell.
+     */
+    fun wideHeights(from: Float, fontScale: Float, ends: Int, hasMeta: Boolean, hasWeather: Boolean): List<Float> {
+        val more = listOfNotNull(
+            wideNeeds(fontScale, ends, meta = true, weather = false).takeIf { hasMeta },
+            wideNeeds(fontScale, ends, meta = hasMeta, weather = true).takeIf { hasWeather }
+        ).map { ceil(it) }.filter { it > from }
+        return (listOf(from) + more).distinct().sorted()
+    }
 
     /** What the widget says for [input] at [now], with times on a 12 or 24 hour clock ([is24Hour]). */
     fun texts(input: DiscoverInput, now: ZonedDateTime, is24Hour: Boolean, locale: Locale = Locale.getDefault()): DiscoverTexts {
@@ -206,11 +308,19 @@ internal object DiscoverWidgetModel {
         val events = input.events
         val next = events?.let { nextEvent(it, now) }
         val tomorrow = events?.takeIf { next == null }?.let { tomorrowsFirst(it, now) }
-        val tomorrowLine = tomorrow?.let { "Tomorrow$SEPARATOR${it.title} ${clock(it.beginMillis)}" }
+        val tomorrowLine = tomorrow?.let { "Tomorrow$SEPARATOR${it.title}$SEPARATOR${clock(it.beginMillis)}" }
 
         if (weather == null && events == null) {
-            // Nothing to show: where to turn something on, or, with Weather on and waiting, that it has none yet.
-            val line = if (input.weatherDue) NO_WEATHER else TURN_ON
+            // Nothing to show: with Weather on and waiting, that it has none yet; else what keeps a switch that is on
+            // from showing anything, or, with both off, where to turn one on.
+            val line = if (input.weatherDue) NO_WEATHER else when (input.blocked) {
+                DiscoverBlock.WEB_SUGGESTIONS_OFF -> NEEDS_WEB_SUGGESTIONS
+                DiscoverBlock.WEB_OFF -> NEEDS_WEB
+                DiscoverBlock.TOR -> NO_WEATHER_WITH_TOR
+                DiscoverBlock.NO_PLACE -> NEEDS_PLACE
+                DiscoverBlock.NO_CALENDAR -> NEEDS_CALENDAR
+                null -> TURN_ON
+            }
             return DiscoverTexts(
                 pill = DiscoverPill(null, line, null),
                 tile = DiscoverTile(top = "DISCOVER", hero = null, headline = line, lead = null, time = null, accentBottom = false),
@@ -222,8 +332,9 @@ internal object DiscoverWidgetModel {
         }
 
         val time = next?.let { clock(it.beginMillis) }
-        val until = next?.let { it.beginMillis - nowMs }
-        val badge = until?.takeIf { it <= BADGE_WINDOW_MS }?.let { Durations.until(it).replaceFirstChar { c -> c.lowercase(locale) } }
+        // How soon it starts, in its last hour: the step it is within, which the next redraw moves on.
+        val step = next?.let { badgeStep(it.beginMillis - nowMs) }
+        val badge = step?.let { "within ${Durations.short(Duration.ofMillis(it).seconds)}" }
         val leaveBy = input.leaveAt?.takeIf { next != null && it > nowMs }?.let { "Leave by ${clock(it)}" }
         // The event's own line, where there is one: its name, or that the day is clear.
         val eventLead = when {
@@ -231,11 +342,14 @@ internal object DiscoverWidgetModel {
             next != null -> next.title
             else -> NOTHING_ELSE
         }
+        // The name ends with the dot before its time, so a name cut short ends at its "…", and the time follows it.
+        val leadBeforeTime = eventLead?.let { if (time != null) "$it$SEPARATOR".trimEnd() else it }
+        val timeAfterLead = time?.let { " $it" }
 
         val pill = DiscoverPill(
             temperature = temperature,
-            lead = eventLead ?: conditions.orEmpty(),
-            time = time?.let { SEPARATOR + it }
+            lead = leadBeforeTime ?: conditions.orEmpty(),
+            time = timeAfterLead
         )
 
         val tile = if (weather != null) {
@@ -244,8 +358,8 @@ internal object DiscoverWidgetModel {
                 hero = temperature,
                 headline = null,
                 // Without events, the line under the temperature is the rain ahead, when there is some.
-                lead = eventLead ?: rain,
-                time = time?.let { SEPARATOR + it },
+                lead = leadBeforeTime ?: rain,
+                time = timeAfterLead,
                 accentBottom = false
             )
         } else {
@@ -286,8 +400,10 @@ internal object DiscoverWidgetModel {
         }
         val spokenEvent = when {
             events == null -> null
+            // Each part its own phrase, how soon in words: "Up next, Dentist at 3:30 PM, within 1 hour, at 1200 Main St".
             next != null -> listOfNotNull(
-                "Up next, ${next.title} at $time", badge, next.location.trim().takeIf { it.isNotEmpty() }?.let { "at $it" }, leaveBy?.replaceFirstChar { it.lowercase(locale) }
+                "Up next, ${next.title} at $time", step?.let { spokenSoon(it) }, next.location.trim().takeIf { it.isNotEmpty() }?.let { "at $it" },
+                leaveBy?.replaceFirstChar { it.lowercase(locale) }
             ).joinToString(", ")
             else -> listOfNotNull(NOTHING_ELSE, tomorrow?.let { "tomorrow, ${it.title} at ${clock(it.beginMillis)}" }).joinToString(", ")
         }
@@ -302,4 +418,15 @@ internal object DiscoverWidgetModel {
     }
 
     private fun degrees(value: Double): String = "${value.roundToInt()}°"
+
+    /** How soon, within [stepMs], as TalkBack says it: "within 1 hour", "within 30 minutes". */
+    private fun spokenSoon(stepMs: Long): String {
+        val minutes = Duration.ofMillis(stepMs).toMinutes()
+        return if (minutes % 60 == 0L) {
+            val hours = minutes / 60
+            "within $hours ${if (hours == 1L) "hour" else "hours"}"
+        } else {
+            "within $minutes ${if (minutes == 1L) "minute" else "minutes"}"
+        }
+    }
 }

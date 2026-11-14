@@ -107,6 +107,8 @@ data class SearchUiState(
      * tap-through card while its [com.pixel.intelligentsearch.core.answers.LiveAnswer.query] is the query shown.
      */
     val liveAnswer: com.pixel.intelligentsearch.core.answers.LiveAnswer? = null,
+    /** The query whose instant-answer lookup has finished, with [liveAnswer] or with nothing to show. */
+    val liveAnswerSettled: String? = null,
     /** The file type the query names ("pdf invoice"), which [files] are limited to; null when there is none. */
     val fileTypeFilter: com.pixel.intelligentsearch.core.data.FileTypeGroup? = null,
     /**
@@ -424,6 +426,7 @@ class SearchViewModel @Inject constructor(
                 } catch (e: Exception) {
                     android.util.Log.w("SearchViewModel", "Instant answer failed", e)
                 }
+                _uiState.update { if (it.query == request.query) it.copy(liveAnswerSettled = request.query) else it }
             }
         }
 
@@ -926,7 +929,7 @@ class SearchViewModel @Inject constructor(
         executeLocalSearch(newQuery, previousQuery)
 
         // TIER 2: Web suggestions, paced in init. A query handed in waits for the user (confirmQuery).
-        if (settingsState.value.searchWeb && _queryConfirmed.value && parsedBang == null) {
+        if (settingsState.value.searchWeb && _queryConfirmed.value && parsedBang == null && suggestsFor(newQuery)) {
             _remoteSearchQueryFlow.value = newQuery
         } else {
             _remoteSearchQueryFlow.value = ""
@@ -1143,9 +1146,9 @@ class SearchViewModel @Inject constructor(
 
             val mathResult = unifiedResults.mathResult.takeIf { settings.searchCalculator }
             val mathStr = mathResult?.let(::formatMathResult)
+            currentCoroutineContext().ensureActive()
             noteComputation(mathResult.takeIf { mathStr != null })
 
-            currentCoroutineContext().ensureActive()
             val localContacts = if (settings.searchContacts) {
                 if (unifiedResults.contacts.isNotEmpty() || corpusIndexManager.isIndexReady.value) {
                     unifiedResults.contacts.take(settings.contactResultsCount)
@@ -1451,14 +1454,20 @@ class SearchViewModel @Inject constructor(
         val settings = settingsState.value
         if (settings.searchPreviousSearches && !com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(settings.searchEngine)) {
             unifiedSearchCoordinator.calculatorMemory.keep(done.shown, done.value)
+        } else {
+            // Searches aren't being kept, so neither are earlier results.
+            unifiedSearchCoordinator.calculatorMemory.clear()
         }
     }
 
     private fun mathAnsFor(query: String, math: String?): String? =
-        unifiedSearchCoordinator.calculatorMemory.takeIf { math != null && it.usesAns(query) }?.ans?.let { "ans = ${it.shown}" }
+        unifiedSearchCoordinator.calculatorMemory
+            .takeIf { math != null && unifiedSearchCoordinator.calculatorMemoryInUse() && it.usesAns(query) }
+            ?.ans?.let { "ans = ${it.shown}" }
 
     private fun earlierFor(math: String?): List<com.pixel.intelligentsearch.core.search.CalculatorMemory.Entry> =
-        if (math == null) emptyList() else unifiedSearchCoordinator.calculatorMemory.earlier
+        if (math == null || !unifiedSearchCoordinator.calculatorMemoryInUse()) emptyList()
+        else unifiedSearchCoordinator.calculatorMemory.earlier
 
     fun clearSearchHistory() {
         // Earlier calculations are things that were typed too.
@@ -1622,8 +1631,7 @@ class SearchViewModel @Inject constructor(
      */
     fun recordOpened(result: Any) {
         // Only counted, never what was opened: once the app has been well used it asks for a rating, one time.
-        val opens = settingsManager[SettingsManager.RATING_OPENS]
-        if (opens < RatingAsk.OPENS) settingsManager.set(SettingsManager.RATING_OPENS, opens + 1)
+        RatingAsk.countOpen(context)
         val key = when (result) {
             is AppItem -> if (result.inPrivateSpace) null else com.pixel.intelligentsearch.core.search.ResultKeys.app(result)
             is ContactItem -> com.pixel.intelligentsearch.core.search.ResultKeys.contact(result)

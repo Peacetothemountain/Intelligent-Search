@@ -52,7 +52,7 @@ internal fun WidgetSetupCodeDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "A setup code holds this profile's look: its colors, outline, corners and buttons. Buttons that open your own apps or websites, and everything else, stay on this phone.",
+                    "A setup code shares this profile's colors, outline, corners and buttons. Buttons for your own apps and websites aren't included.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 FilledTonalButton(
@@ -83,16 +83,17 @@ internal fun WidgetSetupCodeDialog(
                             Icon(Symbols.Outlined.ContentPaste, contentDescription = "Paste")
                         }
                     },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(
-                    text = when {
-                        pasted.isBlank() -> "A code loads into Profile $profile. Your widget changes only when you save."
-                        incoming == null -> "That isn't a setup code, or part of it is missing."
-                        else -> "Ready to load into Profile $profile."
+                    // Under the field, and read out with it: what a paste will do, or why it can't be loaded.
+                    supportingText = {
+                        Text(
+                            when {
+                                pasted.isBlank() -> "A code loads into Profile $profile. Your widget changes only when you save."
+                                incoming == null -> "That isn't a setup code, or part of it is missing."
+                                else -> "Ready to load into Profile $profile."
+                            }
+                        )
                     },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (pasted.isNotBlank() && incoming == null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         },

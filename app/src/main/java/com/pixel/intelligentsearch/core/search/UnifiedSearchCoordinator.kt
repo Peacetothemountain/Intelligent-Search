@@ -65,6 +65,9 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val randomAnswers = com.pixel.intelligentsearch.core.answers.RandomAnswers()
     private val phoneAnswers = com.pixel.intelligentsearch.core.answers.PhoneAnswers(context)
 
+    /** The last few calculations, which "ans" and the calculator card's Earlier row read. */
+    val calculatorMemory = CalculatorMemory()
+
     /**
      * The last chance answer drawn and the query it was drawn for. The same query runs again when the cursor moves, a
      * pin changes or the index finishes, and the coin or die must not land again each time: it is redrawn only once
@@ -173,7 +176,8 @@ class UnifiedSearchCoordinator @Inject constructor(
      * the repository allows only while the Calculator and Live Currency Rates are on and Tor isn't the engine.
      */
     private fun evaluateMath(query: String): MathematicalExpressionEngine.MathEvaluationResult? {
-        val result = MathematicalExpressionEngine.evaluate(query, currencyRates::current)
+        // "ans" stands for the last result kept; with none kept it is just a word, and no sum.
+        val result = MathematicalExpressionEngine.evaluate(calculatorMemory.withAns(query) ?: query, currencyRates::current)
         (result as? MathematicalExpressionEngine.MathEvaluationResult.UnitConversion)?.currencyRates
             ?.let(currencyRates::onCurrencyConverted)
         return result

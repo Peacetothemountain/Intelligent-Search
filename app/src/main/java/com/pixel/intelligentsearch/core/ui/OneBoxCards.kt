@@ -312,7 +312,12 @@ fun MathResultOneBox(
     expression: String,
     result: String,
     modifier: Modifier = Modifier,
-    onOpenCalculator: (() -> Unit)? = null
+    onOpenCalculator: (() -> Unit)? = null,
+    /** What "ans" stands for in [expression] ("ans = 55"), when it is used there. */
+    ansLine: String? = null,
+    /** Results kept from earlier sums, newest first; a tap hands one to [onEarlier] to go into what is being typed. */
+    earlier: List<String> = emptyList(),
+    onEarlier: ((index: Int) -> Unit)? = null
 ) {
     val context = LocalContext.current
     val view = LocalView.current
@@ -364,6 +369,16 @@ fun MathResultOneBox(
                         modifier = Modifier.size(20.dp)
                     )
                 }
+            }
+            if (ansLine != null) {
+                Text(
+                    text = ansLine,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontFamily = GoogleSansFlex,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -422,6 +437,42 @@ fun MathResultOneBox(
                         ),
                         border = calcChipBorder
                     )
+                }
+            }
+
+            if (earlier.isNotEmpty() && onEarlier != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
+                Spacer(modifier = Modifier.height(4.dp))
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    itemVerticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "EARLIER",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontFamily = GoogleSansFlex,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.8.sp
+                    )
+                    earlier.forEachIndexed { index, number ->
+                        AssistChip(
+                            onClick = {
+                                sensoryEngine.click(view)
+                                onEarlier(index)
+                            },
+                            label = { Text(number, fontFamily = GoogleSansFlex, fontWeight = FontWeight.SemiBold, maxLines = 1) },
+                            shape = calcChipShape,
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                labelColor = MaterialTheme.colorScheme.onSurface
+                            ),
+                            border = calcChipBorder,
+                            modifier = Modifier.semantics { contentDescription = "Use earlier result $number" }
+                        )
+                    }
                 }
             }
         }

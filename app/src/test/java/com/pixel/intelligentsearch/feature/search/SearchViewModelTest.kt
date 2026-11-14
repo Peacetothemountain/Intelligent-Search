@@ -286,6 +286,42 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun ansCarriesOnFromTheLastCalculationOnceItsQueryEnds() {
+        start()
+        assertTrue(search("12*4+7").mathResult!!.contains("55"))
+        // A result is kept when its query ends (the field is cleared), not on every keystroke.
+        search("")
+        val next = search("ans/5")
+        assertEquals("11", next.mathResult)
+        assertEquals("ans = 55", next.mathAns)
+        assertEquals(listOf("55"), next.earlierResults.map { it.shown })
+        // A sum without "ans" doesn't mention it, and the one before has joined the earlier results.
+        search("")
+        val plain = search("2+2")
+        assertEquals(null, plain.mathAns)
+        assertEquals(listOf("11", "55"), plain.earlierResults.map { it.shown })
+    }
+
+    @Test
+    fun withPreviousSearchesOffNoCalculationIsKept() {
+        prefs.edit().putBoolean(SettingsManager.SEARCH_PREVIOUS_SEARCHES.name, false).commit()
+        start()
+        search("12*4+7")
+        search("")
+        assertEquals(null, search("ans/5").mathResult)
+        assertEquals(emptyList<String>(), search("2+2").earlierResults.map { it.shown })
+    }
+
+    @Test
+    fun clearingRecentSearchesForgetsTheCalculations() {
+        start()
+        search("12*4+7")
+        search("")
+        viewModel.clearSearchHistory()
+        assertEquals(null, search("ans/5").mathResult)
+    }
+
+    @Test
     fun aCurrencyAnswerSaysWhereItsRatesComeFrom() {
         start()
         viewModel.onQueryChanged("100 usd to eur")

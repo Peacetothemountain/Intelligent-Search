@@ -63,6 +63,10 @@ data class SearchUiState(
     /** Android Settings pages (and App Info pages) matching the query; see [resultSectionOrder] for where they show. */
     val androidSettings: List<com.pixel.intelligentsearch.core.search.AndroidSettingResult> = emptyList(),
     val mathResult: String? = null,
+    /** What "ans" stands for in the query ("ans = 55"), while the calculation on show uses it. */
+    val mathAns: String? = null,
+    /** Results kept from earlier calculations, newest first, for the calculator card to offer back. */
+    val earlierResults: List<com.pixel.intelligentsearch.core.search.CalculatorMemory.Entry> = emptyList(),
     val instantAnswer: InstantAnswer? = null,
     val systemToggle: com.pixel.intelligentsearch.core.ui.SystemToggleUiState? = null,
     val volumeSlider: com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider? = null,
@@ -801,8 +805,10 @@ class SearchViewModel @Inject constructor(
             _remoteSearchQueryFlow.value = ""
             liveAnswerRequests.value = null
             searchJob?.cancel()
-            // Clearing the field (or closing the overlay) ends the query: a coin flipped again lands anew.
+            // Clearing the field (or closing the overlay) ends the query: a coin flipped again lands anew, and a
+            // calculation that was on show is kept as "ans" for the next one.
             unifiedSearchCoordinator.forgetChanceDraw()
+            keepComputation()
             _uiState.update { it.copy(
                 filteredApps = emptyList(),
                 contacts = emptyList(),
@@ -813,6 +819,7 @@ class SearchViewModel @Inject constructor(
                 enterAction = null,
                 guessedAction = null,
                 mathResult = null,
+                mathAns = null,
                 instantAnswer = null,
                 systemToggle = null,
                 volumeSlider = null,
@@ -857,6 +864,7 @@ class SearchViewModel @Inject constructor(
             else -> null
         }
         val tier0Math = tier0.mathResult?.takeIf { settingsState.value.searchCalculator }?.let(::formatMathResult)
+        noteComputation(tier0.mathResult.takeIf { tier0Math != null })
 
         val trigger = bangManager.getTriggerSymbol()
         val bangSuggestions = if (newQuery.startsWith(trigger) || newQuery.contains(" $trigger") || newQuery.startsWith("!") || newQuery.contains(" !")) {
@@ -889,6 +897,8 @@ class SearchViewModel @Inject constructor(
                     tier0.apps.filter { it.packageName !in settingsState.value.hiddenApps }
                 } else current.filteredApps,
                 mathResult = tier0Math,
+                mathAns = mathAnsFor(newQuery, tier0Math),
+                earlierResults = earlierFor(tier0Math),
                 systemToggle = tier0Toggle,
                 volumeSlider = tier0.systemAction as? com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider
             )
@@ -1112,6 +1122,7 @@ class SearchViewModel @Inject constructor(
 
             val mathResult = unifiedResults.mathResult.takeIf { settings.searchCalculator }
             val mathStr = mathResult?.let(::formatMathResult)
+            noteComputation(mathResult.takeIf { mathStr != null })
 
             currentCoroutineContext().ensureActive()
             val localContacts = if (settings.searchContacts) {
@@ -1231,6 +1242,8 @@ class SearchViewModel @Inject constructor(
                     androidSettings = androidSettings,
                     webSuggestions = resolvedSuggestions,
                     mathResult = mathStr,
+                    mathAns = mathAnsFor(newQuery, mathStr),
+                    earlierResults = earlierFor(mathStr),
                     instantAnswer = localInstantAnswer,
                     systemToggle = systemToggle,
                     volumeSlider = unifiedResults.systemAction as? com.pixel.intelligentsearch.core.search.SystemActionRouter.ActionResult.VolumeSlider,
@@ -1398,7 +1411,37 @@ class SearchViewModel @Inject constructor(
         }
     }
 
+    /** The calculation on show for the query being typed, kept as "ans" once that query ends. */
+    @Volatile
+    private var computationOnShow: com.pixel.intelligentsearch.core.search.CalculatorMemory.Entry? = null
+
+    private fun noteComputation(math: com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult?) {
+        computationOnShow = (math as? com.pixel.intelligentsearch.core.search.MathematicalExpressionEngine.MathEvaluationResult.Computation)
+            ?.let { com.pixel.intelligentsearch.core.search.CalculatorMemory.Entry(it.formattedResult, it.numericValue) }
+    }
+
+    /**
+     * Keeps the calculation that was on show when its query ended, as the calculator's "ans" and in its Earlier row.
+     * Only while searches are kept at all: with Previous Searches off, or over Tor, nothing typed is remembered.
+     */
+    private fun keepComputation() {
+        val done = computationOnShow ?: return
+        computationOnShow = null
+        val settings = settingsState.value
+        if (settings.searchPreviousSearches && !com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(settings.searchEngine)) {
+            unifiedSearchCoordinator.calculatorMemory.keep(done.shown, done.value)
+        }
+    }
+
+    private fun mathAnsFor(query: String, math: String?): String? =
+        unifiedSearchCoordinator.calculatorMemory.takeIf { math != null && it.usesAns(query) }?.ans?.let { "ans = ${it.shown}" }
+
+    private fun earlierFor(math: String?): List<com.pixel.intelligentsearch.core.search.CalculatorMemory.Entry> =
+        if (math == null) emptyList() else unifiedSearchCoordinator.calculatorMemory.earlier
+
     fun clearSearchHistory() {
+        // Earlier calculations are things that were typed too.
+        unifiedSearchCoordinator.calculatorMemory.clear()
         val currentSearches = _uiState.value.recentSearches
         // Snapshot before going async so an immediate Undo restores this clear, not an older one.
         // Descending timestamps keep the original most-recent-first order on restore.

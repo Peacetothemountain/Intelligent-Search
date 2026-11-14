@@ -507,6 +507,16 @@ private fun ResultRows(s: OverlayScope) {
                     MathResultOneBox(
                         expression = uiState.query,
                         result = uiState.mathResult,
+                        ansLine = uiState.mathAns,
+                        // The result on show is not offered back to itself.
+                        earlier = uiState.earlierResults.map { it.shown },
+                        onEarlier = { index ->
+                            uiState.earlierResults.getOrNull(index)?.let { kept ->
+                                val text = s.ui.textFieldValue.text + kept.typed
+                                s.ui.textFieldValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
+                                s.viewModel.onQueryChanged(text)
+                            }
+                        },
                         onOpenCalculator = {
                             hasStartedTyping = false
                             try {

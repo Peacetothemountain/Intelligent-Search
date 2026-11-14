@@ -1,0 +1,66 @@
+package com.pixel.intelligentsearch.core.search
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class CalculatorMemoryTest {
+
+    @Test
+    fun theLastFewResultsAreKeptNewestFirst() {
+        val memory = CalculatorMemory()
+        for (n in 1..6) memory.keep("$n", n.toDouble())
+        assertEquals(listOf("6", "5", "4", "3"), memory.earlier.map { it.shown })
+        assertEquals("6", memory.ans?.shown)
+    }
+
+    @Test
+    fun theSameResultAgainMovesToTheFrontOnce() {
+        val memory = CalculatorMemory()
+        memory.keep("55", 55.0)
+        memory.keep("48", 48.0)
+        memory.keep("55", 55.0)
+        assertEquals(listOf("55", "48"), memory.earlier.map { it.shown })
+    }
+
+    @Test
+    fun ansStandsForTheLastResultAsAWordOfItsOwn() {
+        val memory = CalculatorMemory()
+        assertNull("nothing kept yet", memory.withAns("ans/5"))
+        memory.keep("55", 55.0)
+        assertEquals("(55)/5", memory.withAns("ans/5"))
+        assertEquals("(55) * 2 + (55)", memory.withAns("ANS * 2 + ans"))
+        assertTrue(memory.usesAns("ans/5"))
+        // Words that merely contain the letters are left alone.
+        for (query in listOf("answer", "cans", "trans", "2 answers", "ans_1", "12*4")) {
+            assertNull(query, memory.withAns(query))
+            assertFalse(query, memory.usesAns(query))
+        }
+    }
+
+    @Test
+    fun aKeptNumberIsTypedBackWithoutGroupingOrExponent() {
+        assertEquals("1234567", CalculatorMemory.Entry("1,234,567", 1234567.0).typed)
+        assertEquals("0.1", CalculatorMemory.Entry("0.1", 0.1).typed)
+        assertEquals("-2.5", CalculatorMemory.Entry("-2.5", -2.5).typed)
+        assertEquals("0.00000012", CalculatorMemory.Entry("1.2E-7", 1.2e-7).typed)
+        // A negative result goes in brackets, so "ans*2" stays one number times two.
+        val memory = CalculatorMemory().apply { keep("-2.5", -2.5) }
+        assertEquals("(-2.5)*2", memory.withAns("ans*2"))
+    }
+
+    @Test
+    fun whatIsNotANumberIsNotKeptAndClearForgetsAll() {
+        val memory = CalculatorMemory()
+        memory.keep("NaN", Double.NaN)
+        memory.keep("∞", Double.POSITIVE_INFINITY)
+        memory.keep("", 3.0)
+        assertTrue(memory.earlier.isEmpty())
+        memory.keep("3", 3.0)
+        memory.clear()
+        assertNull(memory.ans)
+        assertNull(memory.withAns("ans+1"))
+    }
+}

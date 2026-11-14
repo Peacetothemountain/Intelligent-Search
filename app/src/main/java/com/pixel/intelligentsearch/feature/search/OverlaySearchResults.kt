@@ -247,6 +247,29 @@ private fun ResultRows(s: OverlayScope) {
             renderInlineShortcuts()
         }
 
+        // "@jo", "#tax", ">wifi": a chip says the search is limited to one kind of result and takes the limit off;
+        // under it come that kind's results, or one line when there are none to list.
+        val scoped = uiState.scoped
+        if (scoped != null) {
+            resultRow(key = ResultListKeys.SCOPE_CHIP, contentType = "scope_chip") {
+                SearchScopeChip(
+                    scoped.scope,
+                    onRemove = { removeSearchScope(s) },
+                    highlight = Modifier.keyboardHighlight(s, ResultListKeys.SCOPE_CHIP, FileTypeFilterChipShape)
+                )
+            }
+            scopeNotice(uiState)?.let { notice ->
+                resultRow(key = ResultListKeys.SCOPE_NOTICE, contentType = "scope_notice") {
+                    ScopeNoticeRow(notice, highlight = Modifier.keyboardHighlight(s, ResultListKeys.SCOPE_NOTICE, ScopeNoticeShape)) {
+                        hasStartedTyping = false
+                        focusManager.clearFocus(force = true)
+                        keyboardController?.hide()
+                        onOpenSettings(SEARCH_SOURCES_PAGE)
+                    }
+                }
+            }
+        }
+
         val systemToggle = uiState.systemToggle
         if (systemToggle != null) {
             resultRow(key = "system_toggle_card_${systemToggle.id}", contentType = "system_toggle") {
@@ -570,7 +593,8 @@ private fun ResultRows(s: OverlayScope) {
                     }
                 }
                 "web" -> {
-                    if ((settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty()) {
+                    // A search limited to one kind of result lists no past searches either.
+                    if ((settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty() && scoped == null) {
                         if (allDisplaySuggestions.isNotEmpty()) {
                             resultRows(allDisplaySuggestions, key = { suggestion -> ResultListKeys.suggestion(suggestion.query) }, contentType = { "web_suggestion" }) { suggestion ->
                                 val query = suggestion.query

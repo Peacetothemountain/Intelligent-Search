@@ -1,6 +1,9 @@
 package com.pixel.intelligentsearch.feature.search
 
 import android.content.Context
+import com.pixel.intelligentsearch.core.data.ContactItem
+import com.pixel.intelligentsearch.core.data.FileItem
+import com.pixel.intelligentsearch.core.search.SearchScope
 
 /*
  * What Enter does in the search overlay: the keyboard's search key, a physical keyboard's Enter, and (from the
@@ -24,6 +27,12 @@ internal sealed interface EnterOutcome {
     /** Searches the web for the query; a bang goes to its site. */
     data object SearchWeb : EnterOutcome
 
+    /**
+     * For a query limited to one kind of result ("@jo"): opens that kind's Best Match, else its first result, else
+     * nothing ([OverlayEnterKey.scopedTarget]). Never a web search, a bang, an action or an app.
+     */
+    data object OpenScopedResult : EnterOutcome
+
     /** Nothing typed: nothing to do. */
     data object NothingTyped : EnterOutcome
 }
@@ -32,7 +41,8 @@ internal sealed interface EnterOutcome {
 internal object OverlayEnterKey {
 
     /**
-     * What Enter does, in order: the result the arrow keys [highlighted] opens; with nothing typed, nothing. A bang
+     * What Enter does, in order: the result the arrow keys [highlighted] opens; with nothing typed, nothing. A query
+     * limited to one kind of result ([scoped]: "@jo", "#tax", ">wifi") opens a result of that kind or nothing. A bang
      * is an explicit request for its site, so it is searched. Otherwise the timer, alarm or reminder the query asks for
      * runs ([phrasingAction], [SearchUiState.enterAction]), else the top result opens. That action is only ever one
      * with nothing guessed (THE CERTAINTY RULE FOR ENTER): "remind me to call mom tomorrow at 5pm" sets it, while
@@ -43,13 +53,26 @@ internal object OverlayEnterKey {
         query: String,
         highlighted: NavTarget?,
         phrasingAction: DirectAction?,
-        isBang: Boolean
+        isBang: Boolean,
+        scoped: Boolean = false
     ): EnterOutcome = when {
         highlighted != null -> EnterOutcome.OpenHighlighted(highlighted)
         query.isEmpty() -> EnterOutcome.NothingTyped
+        scoped -> EnterOutcome.OpenScopedResult
         isBang -> EnterOutcome.SearchWeb
         phrasingAction != null -> EnterOutcome.RunAction(phrasingAction)
         else -> EnterOutcome.OpenTopResult
+    }
+
+    /**
+     * What Enter opens for [state], a search limited to one kind of result: that kind's [bestMatch], else the first
+     * of its results, else nothing (null). Only ever a contact, a file or a settings page of the kind asked for.
+     */
+    fun scopedTarget(state: SearchUiState, bestMatch: Any?): Any? = when (state.scoped?.scope) {
+        SearchScope.CONTACTS -> bestMatch as? ContactItem ?: state.contacts.firstOrNull()
+        SearchScope.FILES -> bestMatch as? FileItem ?: state.files.firstOrNull()
+        SearchScope.SETTINGS -> state.androidSettings.firstOrNull()
+        null -> null
     }
 }
 
@@ -69,13 +92,14 @@ internal fun OverlayScope.onEnter(context: Context, highlighted: NavTarget?) {
             // The highlight is gone once it has opened, so a second Enter would go on to the top result. What stays
             // in search with the same words (asking the AI, dropping a file filter) leaves Enter free.
             val staysInSearch = outcome.target is NavTarget.AskAi || outcome.target is NavTarget.RemoveFileTypeFilter ||
-                outcome.target is NavTarget.Correction ||
+                outcome.target is NavTarget.RemoveScope || outcome.target is NavTarget.Correction ||
                 (outcome.target as? NavTarget.Answer)?.action is AnswerAction.Copy
             if (!staysInSearch) ui.enterTakenFor = query
             openNavTarget(context, this, outcome.target)
         }
         EnterOutcome.NothingTyped -> Unit
         // Decided again once the results are in, with the phrasing's action and whether the query is a bang.
-        is EnterOutcome.RunAction, EnterOutcome.OpenTopResult, EnterOutcome.SearchWeb -> submitQuery(query, false)
+        is EnterOutcome.RunAction, EnterOutcome.OpenTopResult, EnterOutcome.SearchWeb, EnterOutcome.OpenScopedResult ->
+            submitQuery(query, false)
     }
 }

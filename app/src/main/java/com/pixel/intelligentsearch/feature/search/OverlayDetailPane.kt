@@ -38,6 +38,7 @@ import com.pixel.intelligentsearch.core.ui.icons.outlined.FilterListOff
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Info
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Person
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Search
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Settings
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Share
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Spellcheck
 import com.pixel.intelligentsearch.core.ui.icons.outlined.VerticalSplit
@@ -94,7 +95,9 @@ private const val MEDIUM_HEIGHT_DP = 480f
  */
 internal fun detailStop(rows: List<List<NavStop>>, highlightedKey: String?, query: String): NavStop? =
     rows.flatten().firstOrNull { it.key == highlightedKey }
-        ?: rows.firstOrNull()?.firstOrNull()?.takeIf { query.isNotEmpty() }
+        // The chip and the line of a search limited to one kind of result lead the list, but aren't results.
+        ?: rows.firstOrNull { it.first().target !is NavTarget.RemoveScope && it.first().target != NavTarget.OpenSearchSources }
+            ?.firstOrNull()?.takeIf { query.isNotEmpty() }
 
 /**
  * The detail pane beside the results on an expanded screen, for the highlighted or top result ([detailStop]): an app
@@ -307,6 +310,16 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
             DetailSymbol(fileTypeIcon(target.group))
             DetailTitle("${target.group.label} Only", "Only Files of This Type Are Shown.")
             DetailActions { DetailAction("Show All Files", Icons.Outlined.FilterListOff, emphasized = true, onClick = open) }
+        }
+        is NavTarget.RemoveScope -> {
+            DetailSymbol(searchScopeIcon(target.scope))
+            DetailTitle(target.scope.chipLabel, "Nothing Else Is Searched.")
+            DetailActions { DetailAction("Search Everything", Icons.Outlined.FilterListOff, emphasized = true, onClick = open) }
+        }
+        NavTarget.OpenSearchSources -> {
+            DetailSymbol(Icons.Outlined.Settings)
+            DetailTitle("Search Sources", "Choose What Is Searched.")
+            DetailActions { DetailAction("Open Search Sources", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true, onClick = open) }
         }
         is NavTarget.Notification -> {
             val entry = target.entry

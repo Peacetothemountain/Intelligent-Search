@@ -615,7 +615,8 @@ fun SearchOverlayScreen(
     }
 
     fun bestMatchIn(state: SearchUiState, apps: List<AppItem>): Any? = BestMatch.find(
-        state.query,
+        // A search limited to one kind of result ("@jo") is matched by its words, without the marker.
+        state.scoped?.rest ?: state.query,
         listOf(
             BestMatch.Domain(appWeight, settingsState.searchApps, apps, ResultKeys::app) { it.name },
             BestMatch.Domain(contactWeight, settingsState.searchContacts, state.contacts, ResultKeys::contact) { it.name },
@@ -719,7 +720,8 @@ fun SearchOverlayScreen(
             phrasingAction = results.enterAction?.takeIf { it.intent != null },
             // A bang is an explicit request for that site: it must not be taken over by an app match or Quick Launch
             // ("!g maps" would otherwise open Maps).
-            isBang = submittedQuery.isNotEmpty() && viewModel.resolveBangIntent(submittedQuery) != null
+            isBang = submittedQuery.isNotEmpty() && viewModel.resolveBangIntent(submittedQuery) != null,
+            scoped = results.scoped != null
         )
         when (outcome) {
             EnterOutcome.SearchWeb -> {
@@ -734,13 +736,18 @@ fun SearchOverlayScreen(
                 openDirectAction(context, outcome.action)
                 return@submit
             }
-            EnterOutcome.OpenTopResult -> Unit
+            EnterOutcome.OpenTopResult, EnterOutcome.OpenScopedResult -> Unit
             // Nothing typed; the highlight was handled by onEnter before the results settled.
             else -> return@submit
         }
+        val bestMatch = bestMatchIn(results, apps)
+        // "@jo", "#tax", ">wifi": that kind's Best Match or first result opens, and with none Enter does nothing.
+        val scopedTarget = if (outcome == EnterOutcome.OpenScopedResult) {
+            OverlayEnterKey.scopedTarget(results, bestMatch) ?: return@submit
+        } else null
         // As with a tap, only a web search or a typed web address is kept in Recent Searches (launchWebSearch keeps
         // the search): "spo" that opened Spotify would come back from there as a web search for "spo".
-        when (val match = bestMatchIn(results, apps)) {
+        when (val match = scopedTarget ?: bestMatch) {
             is ContactItem -> {
                 viewModel.recordOpened(match)
                 // A spoken name can be misheard, so voice opens the contact rather than calling straight away.
@@ -750,6 +757,13 @@ fun SearchOverlayScreen(
             is FileItem -> {
                 viewModel.recordOpened(match)
                 openFileResult(context, prefs, match)
+            }
+            // Only a search limited to settings pages opens one from here.
+            is com.pixel.intelligentsearch.core.search.AndroidSettingResult -> {
+                ui.hasStartedTyping = false
+                focusManager.clearFocus(force = true)
+                keyboardController?.hide()
+                match.appRoute?.let(onOpenSettings) ?: openAndroidSetting(context, match)
             }
             else -> {
                 val setting = topSettingIn(results, apps, fromVoice)
@@ -828,7 +842,8 @@ fun SearchOverlayScreen(
 
     // Read here so the keyboard's stops and the results list see the same cards and notifications.
     val glanceItems = rememberGlanceItems(settingsState.hiddenApps, active = uiState.query.isEmpty())
-    val notificationHits = rememberNotificationHits(uiState.query, settingsState.hiddenApps)
+    // A search limited to one kind of result ("@jo") lists no notifications.
+    val notificationHits = rememberNotificationHits(if (uiState.scoped == null) uiState.query else "", settingsState.hiddenApps)
     val sections = OverlayScope(
         onOpenSettings = onOpenSettings,
         viewModel = viewModel,

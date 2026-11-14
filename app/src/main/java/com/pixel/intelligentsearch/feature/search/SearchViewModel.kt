@@ -103,6 +103,15 @@ data class SearchUiState(
     val liveAnswer: com.pixel.intelligentsearch.core.answers.LiveAnswer? = null,
     /** The file type the query names ("pdf invoice"), which [files] are limited to; null when there is none. */
     val fileTypeFilter: com.pixel.intelligentsearch.core.data.FileTypeGroup? = null,
+    /**
+     * The one kind of result the query is limited to by its first character ("@jo": contacts matching "jo"), with the
+     * words searched for; null for an ordinary search. While set, only that kind's list here has anything in it.
+     */
+    val scoped: com.pixel.intelligentsearch.core.search.ScopedQuery? = null,
+    /** Whether [scoped]'s kind of result can't be searched: its source is switched off, or contacts may not be read. */
+    val scopedSourceOff: Boolean = false,
+    /** Whether [scoped]'s results for this query are in, so an empty list means nothing matches. */
+    val scopedResultsIn: Boolean = false,
     /** The provider the "Ask" row offers for a question; null when there is no row (see AiAnswers.offerFor). */
     val aiOffer: com.pixel.intelligentsearch.core.ai.AiProvider? = null,
     /** The answer to the question the user tapped Ask on, for this query only. */
@@ -125,6 +134,44 @@ data class SearchUiState(
                 (liveAnswer as? com.pixel.intelligentsearch.core.answers.LiveAnswer.Definition)?.query != query
         }
 }
+
+/**
+ * This state showing nothing but [scoped]'s kind of result ([contacts], [files] or [pages], the other two empty): the
+ * apps, the web suggestions and every answer, action, switch and offer are taken out. [resultsIn] says the lists are
+ * the ones found for this query, rather than the last query's still on screen.
+ */
+internal fun SearchUiState.limitedTo(
+    scoped: com.pixel.intelligentsearch.core.search.ScopedQuery,
+    sourceOff: Boolean,
+    resultsIn: Boolean,
+    contacts: List<ContactItem> = emptyList(),
+    files: List<FileItem> = emptyList(),
+    pages: List<com.pixel.intelligentsearch.core.search.AndroidSettingResult> = emptyList()
+): SearchUiState = copy(
+    scoped = scoped,
+    scopedSourceOff = sourceOff,
+    scopedResultsIn = resultsIn,
+    filteredApps = emptyList(),
+    contacts = contacts,
+    files = files,
+    fileTypeFilter = null,
+    androidSettings = pages,
+    webSuggestions = emptyList(),
+    mathResult = null,
+    instantAnswer = null,
+    liveAnswer = null,
+    systemToggle = null,
+    volumeSlider = null,
+    directActions = emptyList(),
+    enterAction = null,
+    guessedAction = null,
+    bangSuggestions = emptyList(),
+    bangWordStart = -1,
+    detectedBangQuery = null,
+    spellingSuggestion = null,
+    aiOffer = null,
+    aiAnswer = null
+)
 
 /**
  * This state without anything from the Private Space: its apps and the App Info rows for them in the settings
@@ -531,6 +578,7 @@ class SearchViewModel @Inject constructor(
      */
     fun reloadOnResume() {
         askAgainAfterFix()
+        searchAgainAfterSourceTurnedOn()
         if (!directBootManager.isUserUnlocked.value) return
         val last = lastInitialLoadAtMs
         if (last != null && android.os.SystemClock.elapsedRealtime() - last < RELOAD_GRACE_MS) return
@@ -548,6 +596,15 @@ class SearchViewModel @Inject constructor(
             if (failed.problem.settingsPage == null) return@update s
             s.copy(aiAnswer = null, aiOffer = if (s.detectedBangQuery == null) aiAnswers.offerFor(s.query) else null)
         }
+    }
+
+    /**
+     * A search limited to contacts or files that found its kind of search switched off sent the user to Search Sources
+     * to turn it on; back here, the same words are searched with the switches as they are now.
+     */
+    private fun searchAgainAfterSourceTurnedOn() {
+        val state = _uiState.value
+        if (state.scopedSourceOff) state.scoped?.let { executeScopedSearch(state.query, it) }
     }
 
     fun loadInitialData() {
@@ -673,7 +730,8 @@ class SearchViewModel @Inject constructor(
         _queryConfirmed.value = true
         val query = _uiState.value.query
         if (query.isBlank()) return
-        liveAnswerRequests.value = liveAnswerRequestFor(query)
+        // Text handed in is never a search limited to one kind of result, whatever it starts with.
+        liveAnswerRequests.value = liveAnswerRequestFor(query, scoped = false)
         if (settingsState.value.searchWeb && suggestsFor(query)) _remoteSearchQueryFlow.value = query
     }
 
@@ -683,11 +741,36 @@ class SearchViewModel @Inject constructor(
      */
     private fun suggestsFor(query: String): Boolean = bangManager.parseBangQuery(query) == null
 
-    /** [query]'s instant-answer question; one that asks a server only once the query is the user's own. */
-    private fun liveAnswerRequestFor(query: String): LiveAnswerRequest? =
+    /**
+     * [query]'s instant-answer question; one that asks a server only once the query is the user's own. A query limited
+     * to one kind of result ([scoped]: "@jo") asks nothing.
+     */
+    private fun liveAnswerRequestFor(query: String, scoped: Boolean = scopedQueryFor(query) != null): LiveAnswerRequest? =
         com.pixel.intelligentsearch.core.answers.LiveAnswerParser.parse(query)
-            ?.takeIf { _queryConfirmed.value || !asksServer(it) }
+            ?.takeIf { !scoped && (_queryConfirmed.value || !asksServer(it)) }
             ?.let { LiveAnswerRequest(query, it) }
+
+    /**
+     * The one kind of result [query] is limited to by its first character, "@" for contacts, "#" for files and ">" for
+     * settings pages, or null for an ordinary search. A symbol that starts the user's web shortcuts keeps meaning those,
+     * and so does a first word that calls one of them, whatever symbol it was saved with. Only what the user typed is
+     * read this way: text another app handed in ("#android", selected on a page) is searched as it is.
+     */
+    private fun scopedQueryFor(
+        query: String,
+        bang: () -> com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = { bangManager.parseBangQuery(query) }
+    ): com.pixel.intelligentsearch.core.search.ScopedQuery? =
+        com.pixel.intelligentsearch.core.search.ScopedQuery.parse(query, bangManager.activeTriggerSymbol())
+            ?.takeIf { _queryConfirmed.value && bang()?.isPrefix != true }
+
+    /** Whether [scope]'s kind of result can be searched now: its source is on, and contacts may be read. */
+    private fun scopeSourceOn(scope: com.pixel.intelligentsearch.core.search.SearchScope, settings: IntelligentSearchSettings): Boolean =
+        when (scope) {
+            com.pixel.intelligentsearch.core.search.SearchScope.CONTACTS -> settings.searchContacts &&
+                context.checkSelfPermission(android.Manifest.permission.READ_CONTACTS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            com.pixel.intelligentsearch.core.search.SearchScope.FILES -> settings.searchFiles
+            com.pixel.intelligentsearch.core.search.SearchScope.SETTINGS -> true
+        }
 
     private fun updateQuery(newQuery: String) {
         val previousQuery = _uiState.value.query
@@ -730,8 +813,31 @@ class SearchViewModel @Inject constructor(
                 spellingSuggestion = null,
                 liveAnswer = null,
                 aiOffer = null,
-                learnedPick = null
+                learnedPick = null,
+                scoped = null,
+                scopedSourceOff = false,
+                scopedResultsIn = false
             ) }
+            return
+        }
+
+        // "@jo", "#tax", ">wifi": one kind of result and nothing else. No answer, switch, action or shortcut is worked
+        // out for it, and nothing about it is asked of the web.
+        val availableBangs = bangManager.getAllBangsSync()
+        val parsedBang = bangManager.parseBangQuery(newQuery, availableBangs)
+        val scoped = scopedQueryFor(newQuery) { parsedBang }
+        if (scoped != null) {
+            val sourceOff = !scopeSourceOn(scoped.scope, settingsState.value)
+            _remoteSearchQueryFlow.value = ""
+            _uiState.update { current ->
+                // The results on screen stay until the new ones are in only when they are this same kind's.
+                val kept = current.takeIf { it.scoped?.scope == scoped.scope && scoped.rest.isNotEmpty() && !sourceOff }
+                current.limitedTo(
+                    scoped, sourceOff, resultsIn = false,
+                    contacts = kept?.contacts.orEmpty(), files = kept?.files.orEmpty(), pages = kept?.androidSettings.orEmpty()
+                )
+            }
+            executeScopedSearch(newQuery, scoped)
             return
         }
 
@@ -743,8 +849,6 @@ class SearchViewModel @Inject constructor(
         }
         val tier0Math = tier0.mathResult?.takeIf { settingsState.value.searchCalculator }?.let(::formatMathResult)
 
-        val availableBangs = bangManager.getAllBangsSync()
-        val parsedBang = bangManager.parseBangQuery(newQuery, availableBangs)
         val trigger = bangManager.getTriggerSymbol()
         val bangSuggestions = if (newQuery.startsWith(trigger) || newQuery.contains(" $trigger") || newQuery.startsWith("!") || newQuery.contains(" !")) {
             val activeTrigger = if (newQuery.startsWith(trigger) || newQuery.contains(" $trigger")) trigger else "!"
@@ -763,6 +867,9 @@ class SearchViewModel @Inject constructor(
 
         _uiState.update { current ->
             current.copy(
+                scoped = null,
+                scopedSourceOff = false,
+                scopedResultsIn = false,
                 spellingSuggestion = null,
                 // Offered only; nothing is sent until the row is tapped (askAi).
                 aiOffer = if (parsedBang == null) aiAnswers.offerFor(newQuery) else null,
@@ -808,7 +915,61 @@ class SearchViewModel @Inject constructor(
         executeLocalSearch(query)
     }
 
+    /**
+     * The search for a query limited to one kind of result: [scoped]'s words are looked up among the contacts, the
+     * files or the settings pages alone, and nothing else is worked out or shown for [newQuery].
+     */
+    private fun executeScopedSearch(newQuery: String, scoped: com.pixel.intelligentsearch.core.search.ScopedQuery) {
+        searchJob?.cancel()
+        val ready = kotlinx.coroutines.CompletableDeferred<Unit>()
+        localResultsReady = ready
+        searchJob = viewModelScope.launch(defaultDispatcher) {
+            val startTime = System.currentTimeMillis()
+            val settings = settingsState.value
+            val words = scoped.rest
+            val sourceOn = scopeSourceOn(scoped.scope, settings)
+            var contacts = emptyList<ContactItem>()
+            var files = emptyList<FileItem>()
+            var pages = emptyList<com.pixel.intelligentsearch.core.search.AndroidSettingResult>()
+            if (sourceOn && words.isNotEmpty()) when (scoped.scope) {
+                com.pixel.intelligentsearch.core.search.SearchScope.CONTACTS -> {
+                    val indexed = unifiedSearchCoordinator.searchResultsOnly(words).contacts
+                    // Until the contacts are indexed they are looked up where they are kept, as in an ordinary search.
+                    contacts = (if (indexed.isNotEmpty() || corpusIndexManager.isIndexReady.value) indexed else sources.contacts(words))
+                        .take(settings.contactResultsCount)
+                }
+                com.pixel.intelligentsearch.core.search.SearchScope.FILES ->
+                    files = unifiedSearchCoordinator.searchResultsOnly(words).files.take(settings.fileResultsCount)
+                com.pixel.intelligentsearch.core.search.SearchScope.SETTINGS -> {
+                    // No app's or person's name holds a page back here: settings are all that was asked for. An App
+                    // Info page is offered when the words ask for one outright ("app info chrome").
+                    val asksForAppInfo = com.pixel.intelligentsearch.core.search.AndroidSettingsSearch.appInfoTarget(
+                        com.pixel.intelligentsearch.core.search.QueryNormalizer.normalize(words)
+                    ) != null
+                    val shortcuts = resultShortcutStore.current
+                    pages = androidSettingsSearch.search(words, emptyList()) { name ->
+                        if (asksForAppInfo && settings.searchApps) {
+                            unifiedSearchCoordinator.searchApps(name, limit = 3).filter { it.packageName !in settings.hiddenApps }
+                        } else emptyList()
+                    }.sortedByDescending { shortcuts.isPinned(com.pixel.intelligentsearch.core.search.ResultKeys.setting(it)) }
+                }
+            }
+            val learnedPick = if (words.isEmpty()) null else selectionMemory.topPick(words)
+
+            currentCoroutineContext().ensureActive()
+            _uiState.update { current ->
+                if (current.query != newQuery) return@update current
+                current.limitedTo(scoped, !sourceOn, resultsIn = true, contacts, files, pages)
+                    .copy(lastQueryLatency = System.currentTimeMillis() - startTime, learnedPick = learnedPick)
+            }
+            ready.complete(Unit)
+        }
+    }
+
     private fun executeLocalSearch(newQuery: String, previousQuery: String = "") {
+        // A query limited to one kind of result keeps its own search, whatever runs it again (a pin, the index loading).
+        _uiState.value.takeIf { it.query == newQuery }?.scoped?.let { return executeScopedSearch(newQuery, it) }
+
         val verboseLogging = debugSwitch(SettingsManager.DEBUG_VERBOSE_LOGGING)
         val forceSearchError = debugSwitch(SettingsManager.DEBUG_FORCE_SEARCH_ERROR)
         val mockLargeDataset = debugSwitch(SettingsManager.DEBUG_MOCK_LARGE_DATASET)
@@ -1396,7 +1557,8 @@ class SearchViewModel @Inject constructor(
         val settings = settingsState.value
         val keepsSearches = settings.searchPreviousSearches &&
             !com.pixel.intelligentsearch.core.security.NetworkPolicy.isTorEngine(settings.searchEngine)
-        val query = _uiState.value.query.takeIf { keepsSearches }
+        // What was typed for it is the words searched for: "jo", whether typed as "jo" or as "@jo".
+        val query = _uiState.value.let { it.scoped?.rest ?: it.query }.takeIf { keepsSearches }
         viewModelScope.launch(ioDispatcher) { selectionMemory.record(key, query) }
     }
 

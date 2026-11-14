@@ -38,6 +38,7 @@ import com.pixel.intelligentsearch.core.data.FileTypeGroup
 import com.pixel.intelligentsearch.core.data.WebSuggestion
 import com.pixel.intelligentsearch.core.search.AndroidSettingResult
 import com.pixel.intelligentsearch.core.search.ResultKeys
+import com.pixel.intelligentsearch.core.search.SearchScope
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 import com.pixel.intelligentsearch.core.util.findActivity
 import com.pixel.intelligentsearch.feature.settings.focusRing
@@ -74,6 +75,15 @@ internal sealed interface NavTarget {
 
     /** The file-type chip above the files ("PDFs Only"): removes the limit to [group] for this query. */
     data class RemoveFileTypeFilter(val group: FileTypeGroup) : NavTarget
+
+    /**
+     * The chip over a search limited to one kind of result ("Contacts only" for "@jo"): takes the marker out of the
+     * search field, so the words after it are searched as usual.
+     */
+    data class RemoveScope(val scope: SearchScope) : NavTarget
+
+    /** The line that says a limited search's kind of result is switched off: opens Search Sources, where it is switched on. */
+    data object OpenSearchSources : NavTarget
 
     /** A matching notification: does what tapping it does, or opens its app. */
     data class Notification(val entry: IndexedNotification) : NavTarget
@@ -228,6 +238,9 @@ internal object ResultListKeys {
     const val ASK_AI = "ask_ai"
     const val AI_ANSWER = "ai_answer"
     const val FILE_TYPE_FILTER = "files_type_filter"
+    /** The chip over a search limited to one kind of result, and the line under it when there is nothing to list. */
+    const val SCOPE_CHIP = "search_scope_chip"
+    const val SCOPE_NOTICE = "search_scope_notice"
     /** At a Glance's one card; each of its items is a stop of its own inside it. */
     const val GLANCE = "at_a_glance"
 
@@ -258,6 +271,10 @@ internal object ResultListKeys {
  * list keys and main actions; [sectionOrder] is [resultSectionOrder]'s; each section's list is what it shows.
  */
 internal data class NavSources(
+    /** The one kind of result the search is limited to ("@jo"); its chip leads everything. */
+    val scope: SearchScope? = null,
+    /** Whether the line under that chip says its kind of search is off, and so opens Search Sources. */
+    val scopeIsOff: Boolean = false,
     val spellingSuggestion: String? = null,
     val directActions: List<DirectAction> = emptyList(),
     /** AI Answers' offer for the query's question, shown as the "Ask" row while there is no [aiAnswer]. */
@@ -286,6 +303,8 @@ internal data class NavSources(
     /** The stops, a row per result (the app and Pinned rows are one row of several). */
     fun rows(): List<List<NavStop>> = buildList {
         fun single(key: String, target: NavTarget) = add(listOf(NavStop(key, key, target)))
+        scope?.let { single(ResultListKeys.SCOPE_CHIP, NavTarget.RemoveScope(it)) }
+        if (scope != null && scopeIsOff) single(ResultListKeys.SCOPE_NOTICE, NavTarget.OpenSearchSources)
         spellingSuggestion?.let { single(ResultListKeys.DID_YOU_MEAN, NavTarget.Correction(it)) }
         directActions.distinctBy(ResultListKeys::directAction).forEach { single(ResultListKeys.directAction(it), NavTarget.Action(it)) }
         val answer = aiAnswer
@@ -369,7 +388,10 @@ internal fun navSources(s: OverlayScope): NavSources {
         if (live != null) liveAnswerAction(live)?.let { add(ResultListKeys.LIVE_ANSWER to it) }
         else if (instant != null) instantAnswerAction(instant, query)?.let { add(ResultListKeys.INSTANT_ANSWER to it) }
     }
+    val scopeNotice = scopeNotice(uiState)
     return NavSources(
+        scope = uiState.scoped?.scope,
+        scopeIsOff = scopeNotice?.opensSearchSources == true,
         spellingSuggestion = uiState.spellingSuggestion,
         directActions = uiState.directActions,
         aiAsk = uiState.askAi?.let { provider -> AiAnswers.questionIn(query)?.let { provider to it } },
@@ -382,7 +404,8 @@ internal fun navSources(s: OverlayScope): NavSources {
         sectionOrder = resultSectionOrder(s.appWeight, s.webWeight, s.contactWeight, s.fileWeight, uiState.androidSettings.any { it.isStrongMatch }),
         apps = if (settings.searchApps) s.filteredApps.ifEmpty { s.visibleApps } else emptyList(),
         androidSettings = if (query.isNotEmpty()) uiState.androidSettings else emptyList(),
-        suggestions = if ((settings.searchWeb || s.suggestionsEnabled) && query.isNotEmpty()) {
+        // A search limited to one kind of result lists no past searches either.
+        suggestions = if ((settings.searchWeb || s.suggestionsEnabled) && query.isNotEmpty() && uiState.scoped == null) {
             displayedSuggestions(query, uiState.recentSearches, settings.searchPreviousSearches, uiState.webSuggestions, settings.webResultsCount)
         } else emptyList(),
         history = uiState.recentSearches,
@@ -472,6 +495,11 @@ internal fun openNavTarget(context: Context, s: OverlayScope, target: NavTarget)
         // Nothing is sent until the row is chosen; then its answer card takes the row's place.
         is NavTarget.AskAi -> s.viewModel.askAi()
         is NavTarget.RemoveFileTypeFilter -> s.viewModel.clearFileTypeFilter()
+        is NavTarget.RemoveScope -> removeSearchScope(s)
+        NavTarget.OpenSearchSources -> {
+            s.ui.hasStartedTyping = false
+            s.onOpenSettings(SEARCH_SOURCES_PAGE)
+        }
         is NavTarget.Notification -> {
             s.ui.hasStartedTyping = false
             openPendingOrApp(context, target.entry.contentIntent, target.entry.packageName)

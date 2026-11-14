@@ -168,6 +168,9 @@ class SearchBangManager @Inject constructor(
      */
     private fun quickShortcutsEnabled(): Boolean = getPrefs()[SettingsManager.SEARCH_QUICK_SHORTCUTS]
 
+    /** The symbol that starts a shortcut now, or null while shortcuts are switched off and no query is read as one. */
+    fun activeTriggerSymbol(): String? = getTriggerSymbol().takeIf { quickShortcutsEnabled() }
+
     val bangsFlow: Flow<List<SearchBang>> = settingsManager.settingsFlow.map { settings ->
         bangsFor(settings.webShortcutTriggerSymbol.ifBlank { "!" }, settings.customBangsJson, settings.disabledWebShortcuts)
     }

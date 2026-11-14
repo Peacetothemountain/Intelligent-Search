@@ -58,15 +58,21 @@ import kotlinx.coroutines.launch
  * The Best Match completion drawn behind the search field: the [typed] text, invisible, then the rest of
  * [bestMatchName]. The hidden part is the typed text itself rather than the name's start, which can differ in case
  * ("gm" for "Gmail") and so in width, pushing the visible rest out of line with the letters typed. Null when the name
- * doesn't go on from the typed text.
+ * doesn't go on from the typed text. [markerLength] is 1 in a search limited to one kind of result ("@jo"), whose
+ * first character is not part of the name looked for.
  */
-internal fun ghostText(typed: String, bestMatchName: String?): androidx.compose.ui.text.AnnotatedString? {
-    if (bestMatchName == null || bestMatchName.length <= typed.length || !bestMatchName.startsWith(typed, ignoreCase = true)) {
+internal fun ghostText(typed: String, bestMatchName: String?, markerLength: Int = 0): androidx.compose.ui.text.AnnotatedString? {
+    // What the name has to go on from: the typed text after the marker of a search limited to one kind of result
+    // ("@jo" is "jo"), which is all of it in an ordinary search.
+    val words = typed.substring(markerLength.coerceIn(0, typed.length))
+    // With only the marker typed there is nothing for a name to go on from.
+    if (markerLength > 0 && words.isEmpty()) return null
+    if (bestMatchName == null || bestMatchName.length <= words.length || !bestMatchName.startsWith(words, ignoreCase = true)) {
         return null
     }
     return androidx.compose.ui.text.buildAnnotatedString {
         withStyle(androidx.compose.ui.text.SpanStyle(color = Color.Transparent)) { append(typed) }
-        withStyle(androidx.compose.ui.text.SpanStyle(color = Color.Unspecified)) { append(bestMatchName.substring(typed.length)) }
+        withStyle(androidx.compose.ui.text.SpanStyle(color = Color.Unspecified)) { append(bestMatchName.substring(words.length)) }
     }
 }
 
@@ -240,7 +246,12 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                 verticalArrangement = Arrangement.Center
             ) {
                 // From the field's own text, so the hidden part lines up with exactly what the field draws.
-                val ghostTextAnnotated = remember(textFieldValue.text, bestMatchText) { ghostText(textFieldValue.text, bestMatchText) }
+                // In a search limited to one kind of result the name goes on from the words after its marker.
+                val scopeMarker = uiState.scoped?.scope?.marker
+                val markerLength = if (scopeMarker != null && textFieldValue.text.firstOrNull() == scopeMarker) 1 else 0
+                val ghostTextAnnotated = remember(textFieldValue.text, bestMatchText, markerLength) {
+                    ghostText(textFieldValue.text, bestMatchText, markerLength)
+                }
 
                 androidx.compose.foundation.text.BasicTextField(
                     value = textFieldValue,

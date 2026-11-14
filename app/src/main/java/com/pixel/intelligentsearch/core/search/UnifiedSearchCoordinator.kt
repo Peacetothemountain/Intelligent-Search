@@ -742,7 +742,20 @@ class UnifiedSearchCoordinator @Inject constructor(
         return executeSearchInternal(rawQuery, cancellationCheck = null)
     }
 
-    private fun executeSearchInternal(rawQuery: String, cancellationCheck: (() -> Unit)? = null): UnifiedSearchResults {
+    /**
+     * The apps, contacts and files [rawQuery] finds, ranked as [executeSearch] ranks them, with no answer, action or
+     * switch worked out for it: for a search limited to one kind of result ("@jo" lists contacts and nothing else).
+     */
+    suspend fun searchResultsOnly(rawQuery: String): UnifiedSearchResults = withContext(Dispatchers.Default) {
+        if (rawQuery.isBlank()) UnifiedSearchResults(query = "")
+        else executeSearchInternal(rawQuery, resultsOnly = true) { ensureActive() }
+    }
+
+    private fun executeSearchInternal(
+        rawQuery: String,
+        resultsOnly: Boolean = false,
+        cancellationCheck: (() -> Unit)? = null
+    ): UnifiedSearchResults {
         val query = rawQuery.trim()
 
         if (query.isEmpty()) {
@@ -752,15 +765,16 @@ class UnifiedSearchCoordinator @Inject constructor(
         }
 
         // 1. Instant System Action / Slider Router
-        val systemAction = systemActionRouter.matchAction(query)
+        val systemAction = if (resultsOnly) null else systemActionRouter.matchAction(query)
 
         // 2. Instant Math, Scientific, & Unit Evaluator
-        val mathResult = evaluateMath(query)
-        val dateAnswer = dateMath.evaluate(query)
+        val mathResult = if (resultsOnly) null else evaluateMath(query)
+        val dateAnswer = if (resultsOnly) null else dateMath.evaluate(query)
         val is24Hour = android.text.format.DateFormat.is24HourFormat(context)
-        val timeAnswer = if (mathResult == null && dateAnswer == null) worldClock.evaluate(query, is24Hour) else null
-        val randomAnswer = if (mathResult == null && dateAnswer == null && timeAnswer == null) randomAnswer(query) else null
-        val phoneAnswer = if (mathResult == null && dateAnswer == null && timeAnswer == null && randomAnswer == null) {
+        val answers = !resultsOnly && mathResult == null && dateAnswer == null
+        val timeAnswer = if (answers) worldClock.evaluate(query, is24Hour) else null
+        val randomAnswer = if (answers && timeAnswer == null) randomAnswer(query) else null
+        val phoneAnswer = if (answers && timeAnswer == null && randomAnswer == null) {
             phoneAnswers.evaluate(query)
         } else null
 
@@ -770,10 +784,12 @@ class UnifiedSearchCoordinator @Inject constructor(
         val contactLookup: ((String) -> ContactItem?)? = if (prefs[SettingsManager.SEARCH_CONTACTS]) {
             { target -> namedContact(target) }
         } else null
-        val parsedIntent = NaturalLanguageIntentParser.parse(query, contactLookup = contactLookup, is24Hour = is24Hour)
+        val parsedIntent = if (resultsOnly) null else {
+            NaturalLanguageIntentParser.parse(query, contactLookup = contactLookup, is24Hour = is24Hour)
+        }
         // Only what the full phrasings, the calculator, the converters, date maths and the clock and chance answers
         // leave: "15 min in seconds", "15 min + 5" and "random 1 to 10" stay theirs.
-        val shortAction = if (parsedIntent == null && mathResult == null && dateAnswer == null && timeAnswer == null && randomAnswer == null) {
+        val shortAction = if (answers && parsedIntent == null && timeAnswer == null && randomAnswer == null) {
             ShortActionPhrasing.parse(query, is24Hour = is24Hour)
         } else null
 

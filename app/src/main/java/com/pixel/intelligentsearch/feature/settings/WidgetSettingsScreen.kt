@@ -408,6 +408,21 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     // Adding the widget from here: the launcher previews, and places, the saved design, so the design in the preview
     // is saved first. With unsaved changes the user is asked ([SaveBeforePinDialog]) rather than saved silently.
     var showSaveBeforePinDialog by remember { mutableStateOf(false) }
+    // Sharing the editor's look as a code, or loading one someone sent into the profile being edited.
+    var showSetupCodeDialog by remember { mutableStateOf(false) }
+    if (showSetupCodeDialog) {
+        WidgetSetupCodeDialog(
+            profile = activeProfile,
+            code = { com.pixel.intelligentsearch.core.data.widget.WidgetSetupCode.encode(editorDesign()) },
+            read = {
+                com.pixel.intelligentsearch.core.data.widget.WidgetSetupCode.decode(
+                    it, editorDesign(), WidgetDefaults(defaultUserMaterialColor, isDynamicActive)
+                )
+            },
+            onUse = { loadDesign(it) },
+            onDismiss = { showSetupCodeDialog = false }
+        )
+    }
     val pinWidget: () -> Unit = {
         val isMaterial = !isSystem
         coroutineScope.launch {
@@ -479,6 +494,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 smallTitle = true,
                 onTitleFitsInBar = { titleFitsInBar = it },
                 actions = {
+                    IconButton(onClick = { showSetupCodeDialog = true }) {
+                        Icon(Icons.Outlined.Share, contentDescription = "Share or Use a Setup Code")
+                    }
                     // As on Application Search: Reset puts the profile's saved state in the editor (Save puts it on
                     // the widget), and the save button records the editor's design as that saved state.
                     ProfileStateActions(

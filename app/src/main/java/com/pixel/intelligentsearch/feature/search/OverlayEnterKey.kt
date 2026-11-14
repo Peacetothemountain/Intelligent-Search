@@ -69,7 +69,8 @@ internal fun OverlayScope.onEnter(context: Context, highlighted: NavTarget?) {
             // The highlight is gone once it has opened, so a second Enter would go on to the top result. What stays
             // in search with the same words (asking the AI, dropping a file filter) leaves Enter free.
             val staysInSearch = outcome.target is NavTarget.AskAi || outcome.target is NavTarget.RemoveFileTypeFilter ||
-                outcome.target is NavTarget.Correction
+                outcome.target is NavTarget.Correction ||
+                (outcome.target as? NavTarget.Answer)?.action is AnswerAction.Copy
             if (!staysInSearch) ui.enterTakenFor = query
             openNavTarget(context, this, outcome.target)
         }

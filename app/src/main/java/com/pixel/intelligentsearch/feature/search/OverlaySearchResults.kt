@@ -796,6 +796,26 @@ internal fun OverlayInstantAnswer(s: OverlayScope, instantAnswer: InstantAnswer)
                 }
             )
         }
+        "storage" -> {
+            TimeWeatherOneBox(
+                title = instantAnswer.title,
+                subtitle = instantAnswer.subtitle,
+                iconType = instantAnswer.iconType,
+                onClick = {
+                    s.ui.hasStartedTyping = false
+                    launchSafeIntent(context, Intent(android.provider.Settings.ACTION_INTERNAL_STORAGE_SETTINGS))
+                }
+            )
+        }
+        "ip" -> {
+            TimeWeatherOneBox(
+                title = instantAnswer.title,
+                subtitle = instantAnswer.subtitle,
+                iconType = instantAnswer.iconType,
+                // Copied in place: the answer stays up to read.
+                onClick = { instantAnswer.copyText?.let { com.pixel.intelligentsearch.core.ui.copyAnswerText(context, it, "Address") } }
+            )
+        }
         else -> {
             TimeWeatherOneBox(
                 title = instantAnswer.title,

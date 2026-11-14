@@ -34,6 +34,8 @@ import com.pixel.intelligentsearch.core.ui.icons.filled.Language
 import com.pixel.intelligentsearch.core.ui.icons.filled.SyncAlt
 import com.pixel.intelligentsearch.core.ui.icons.filled.WbSunny
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Info
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Storage
+import com.pixel.intelligentsearch.core.ui.icons.outlined.Wifi
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -696,6 +698,22 @@ private data class OneBoxCategoryConfig(
     val label: String
 )
 
+/**
+ * Copies an answer's [text]. From Android 13 the system shows what was copied itself; before that a toast names it
+ * with [clipLabel] ("Address copied").
+ */
+fun copyAnswerText(context: Context, text: String, clipLabel: String) {
+    try {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+        clipboard?.setPrimaryClip(ClipData.newPlainText(clipLabel, text))
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            Toast.makeText(context.applicationContext, "$clipLabel copied", Toast.LENGTH_SHORT).show()
+        }
+    } catch (e: Throwable) {
+        android.util.Log.e("OneBoxCards", "Failed to set primary clip", e)
+    }
+}
+
 @Composable
 fun TimeWeatherOneBox(
     title: String,
@@ -725,6 +743,16 @@ fun TimeWeatherOneBox(
                 icon = Icons.Default.CalendarMonth,
                 containerType = OneBoxThemeContainer.Secondary,
                 label = "DATE CALCULATOR"
+            )
+            iconType == "storage" -> OneBoxCategoryConfig(
+                icon = Icons.Outlined.Storage,
+                containerType = OneBoxThemeContainer.Secondary,
+                label = "PHONE STORAGE"
+            )
+            iconType == "ip" -> OneBoxCategoryConfig(
+                icon = Icons.Outlined.Wifi,
+                containerType = OneBoxThemeContainer.Secondary,
+                label = "NETWORK ADDRESS"
             )
             else -> OneBoxCategoryConfig(
                 icon = Icons.Outlined.Info,

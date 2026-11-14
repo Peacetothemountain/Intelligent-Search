@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.feature.settings
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import androidx.compose.material.icons.Icons
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Keyboard
+import com.pixel.intelligentsearch.core.ui.icons.outlined.RecordVoiceOver
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -11,7 +12,8 @@ import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 
 /**
  * Search Behavior's Keyboard card: whether the assistant gesture opens search listening instead of typing, whether
- * the keyboard comes up when search opens, and whether Enter opens the first app when nothing is the Best Match.
+ * an answer to a voice search is read aloud, whether the keyboard comes up when search opens, and whether Enter opens
+ * the first app when nothing is the Best Match.
  * Enter opens the top result (OverlayEnterKey).
  */
 @Composable
@@ -26,6 +28,15 @@ internal fun KeyboardSettingsCard() {
             icon = Symbols.Outlined.Mic,
             isChecked = assistantVoice,
             onCheckedChange = { assistantVoice = it },
+            showDivider = true
+        )
+        var speakAnswers by rememberSetting(SettingsManager.SPEAK_ANSWERS)
+        SettingsRowToggle(
+            title = "Speak Answers After Voice Search",
+            subtitle = "When You Search by Voice and There Is an Answer, Hear It Read Aloud. Stays Quiet When Your Phone Is on Silent or Vibrate.",
+            icon = Icons.Outlined.RecordVoiceOver,
+            isChecked = speakAnswers,
+            onCheckedChange = { speakAnswers = it },
             showDivider = true
         )
         var showKeyboard by rememberSetting(SettingsManager.SHOW_KEYBOARD_ON_OPEN)

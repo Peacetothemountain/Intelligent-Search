@@ -46,7 +46,9 @@ data class DirectAction(
 data class InstantAnswer(
     val title: String,
     val subtitle: String,
-    val iconType: String
+    val iconType: String,
+    /** What a tap on the card copies, for an answer that is something to copy (the phone's network address). */
+    val copyText: String? = null
 )
 
 @androidx.compose.runtime.Immutable
@@ -146,7 +148,7 @@ internal val AppItem.inPrivateSpace: Boolean get() = isPrivateProfile || profile
 private const val SPELLING_PAUSE_MS = 450L
 
 /** Instant answers the device works out from the query's own words, which a "Did you mean" could only get wrong. */
-private val COMPUTED_ANSWER_TYPES = setOf("currency", "conversion", "date", "time", "random")
+private val COMPUTED_ANSWER_TYPES = setOf("currency", "conversion", "date", "time", "random", "storage", "ip")
 
 /**
  * The least time between two web suggestion requests: Chrome's omnibox default
@@ -1010,6 +1012,9 @@ class SearchViewModel @Inject constructor(
             } else if (unifiedResults.randomAnswer != null && settings.searchCalculator) {
                 // A coin, dice or a random number: drawn like a calculation, so it follows the Calculator switch too.
                 unifiedResults.randomAnswer.let { InstantAnswer(it.title, it.subtitle, "random") }
+            } else if (unifiedResults.phoneAnswer != null) {
+                // "storage", "my ip": what the phone itself says.
+                unifiedResults.phoneAnswer.let { InstantAnswer(it.title, it.subtitle, it.kind.iconType, it.copyable) }
             } else if (question is com.pixel.intelligentsearch.core.answers.LiveAnswerQuery.Weather) {
                 // The tap-through stands until (or unless) a live forecast replaces it: Web Suggestions off, Tor, offline.
                 val title = question.place?.let { "Weather in ${it.toDisplayPlaceName()}" } ?: "Weather"

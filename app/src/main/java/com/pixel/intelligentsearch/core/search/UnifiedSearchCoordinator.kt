@@ -63,6 +63,7 @@ class UnifiedSearchCoordinator @Inject constructor(
     private val dateMath = DateMathEngine()
     private val worldClock = com.pixel.intelligentsearch.core.answers.WorldClock()
     private val randomAnswers = com.pixel.intelligentsearch.core.answers.RandomAnswers()
+    private val phoneAnswers = com.pixel.intelligentsearch.core.answers.PhoneAnswers(context)
 
     /**
      * The last chance answer drawn and the query it was drawn for. The same query runs again when the cursor moves, a
@@ -132,6 +133,8 @@ class UnifiedSearchCoordinator @Inject constructor(
         val timeAnswer: com.pixel.intelligentsearch.core.answers.WorldClock.TimeAnswer? = null,
         /** "flip a coin", "roll 2d6", "random 1 to 10": the chance answer, when nothing above answers. */
         val randomAnswer: com.pixel.intelligentsearch.core.answers.RandomAnswers.RandomAnswer? = null,
+        /** "storage", "my ip": what the phone itself says, when nothing above answers. */
+        val phoneAnswer: com.pixel.intelligentsearch.core.answers.PhoneAnswers.PhoneAnswer? = null,
         val systemAction: SystemActionRouter.ActionResult? = null,
         val apps: List<AppItem> = emptyList(),
         val contacts: List<ContactItem> = emptyList(),
@@ -757,6 +760,9 @@ class UnifiedSearchCoordinator @Inject constructor(
         val is24Hour = android.text.format.DateFormat.is24HourFormat(context)
         val timeAnswer = if (mathResult == null && dateAnswer == null) worldClock.evaluate(query, is24Hour) else null
         val randomAnswer = if (mathResult == null && dateAnswer == null && timeAnswer == null) randomAnswer(query) else null
+        val phoneAnswer = if (mathResult == null && dateAnswer == null && timeAnswer == null && randomAnswer == null) {
+            phoneAnswers.evaluate(query)
+        } else null
 
         // 3. Natural Language Intent Parser
         // "Call X" / "Message X" only resolve names from contacts when contact search is turned on, and only to the one
@@ -895,6 +901,7 @@ class UnifiedSearchCoordinator @Inject constructor(
             dateAnswer = dateAnswer,
             timeAnswer = timeAnswer,
             randomAnswer = randomAnswer,
+            phoneAnswer = phoneAnswer,
             systemAction = systemAction,
             apps = matchedApps,
             contacts = matchedContacts,

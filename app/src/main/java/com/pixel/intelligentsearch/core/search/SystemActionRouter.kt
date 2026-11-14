@@ -68,7 +68,12 @@ class SystemActionRouter @Inject constructor(
         internal val KEYWORDS_BLUETOOTH = setOf("bluetooth", "bt", "blue tooth")
         internal val KEYWORDS_WIFI = setOf("wifi", "wi-fi", "internet", "wireless", "wlan")
         internal val KEYWORDS_HOTSPOT = setOf("hotspot", "tethering", "portable hotspot", "wifi hotspot", "personal hotspot")
-        internal val KEYWORDS_BATTERY = setOf("battery saver", "power saver", "low power mode", "battery", "saver")
+        internal val KEYWORDS_BATTERY = setOf(
+            "battery saver", "power saver", "low power mode", "battery", "saver",
+            // The card's second line is the level, so these are answered by it too.
+            "battery level", "battery percentage", "battery percent", "battery life", "how much battery",
+            "how much battery do i have", "how much battery is left", "how much battery do i have left"
+        )
         internal val KEYWORDS_DND = setOf("dnd", "do not disturb", "silence", "mute phone", "priority only")
         internal val KEYWORDS_AIRPLANE = setOf("airplane", "airplane mode", "aeroplane mode", "flight mode")
         internal val KEYWORDS_ROTATE = setOf("auto rotate", "autorotate", "rotation", "screen rotation", "rotate")

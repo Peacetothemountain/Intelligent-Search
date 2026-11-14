@@ -88,6 +88,10 @@ internal sealed interface AnswerAction {
     data class OpenAddress(val address: String) : AnswerAction
     data object OpenCalculator : AnswerAction
     data object ShowAlarms : AnswerAction
+    /** The storage answer's card: Android's Storage settings. */
+    data object OpenStorage : AnswerAction
+    /** An answer that is something to copy: [text], named [label] to the user ("Address copied"). */
+    data class Copy(val text: String, val label: String) : AnswerAction
     /** The weather app, else a web search for [query]. */
     data class OpenWeather(val query: String) : AnswerAction
     /** A translation's "Translate in Google Translate": [text] from [source] to [target]. */
@@ -347,6 +351,9 @@ internal fun instantAnswerAction(answer: InstantAnswer, query: String): AnswerAc
     "dictionary" -> AnswerAction.WebSearch("define ${answer.title}")
     "url" -> AnswerAction.OpenAddress(answer.title)
     "time" -> AnswerAction.ShowAlarms
+    "storage" -> AnswerAction.OpenStorage
+    // With no network there is no address to copy, and so no action.
+    "ip" -> answer.copyText?.let { AnswerAction.Copy(it, "Address") }
     else -> AnswerAction.WebSearch(query)
 }
 
@@ -443,12 +450,16 @@ internal fun openNavTarget(context: Context, s: OverlayScope, target: NavTarget)
             runDirectAction(context, s.viewModel, target.action)
         }
         is NavTarget.Answer -> {
-            s.ui.hasStartedTyping = false
-            when (val action = target.action) {
+            val action = target.action
+            // Copying stays in search, with the answer still up.
+            if (action !is AnswerAction.Copy) s.ui.hasStartedTyping = false
+            when (action) {
                 is AnswerAction.WebSearch -> s.launchWebSearch(action.query)
                 is AnswerAction.OpenAddress -> s.openWebAddress(action.address)
                 AnswerAction.OpenCalculator -> launchSafeIntent(context, Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR))
                 AnswerAction.ShowAlarms -> launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
+                AnswerAction.OpenStorage -> launchSafeIntent(context, Intent(android.provider.Settings.ACTION_INTERNAL_STORAGE_SETTINGS))
+                is AnswerAction.Copy -> com.pixel.intelligentsearch.core.ui.copyAnswerText(context, action.text, action.label)
                 is AnswerAction.OpenWeather -> {
                     val app = com.pixel.intelligentsearch.core.system.GoogleApps.weatherIntent(context)
                     if (app == null || !launchSafeIntent(context, app)) s.launchWebSearch(action.query)

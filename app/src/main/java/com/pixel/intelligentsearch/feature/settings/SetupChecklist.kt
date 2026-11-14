@@ -141,8 +141,8 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                     "Choosing Intelligent Search takes one step from a computer:\n\n" +
                         "1. Turn on USB debugging in Developer options.\n" +
                         "2. Connect your phone to a computer.\n" +
-                        "3. On a terminal with ADB accessibility, first input: adb shell.\n" +
-                        "4. Once the prompt is successful, paste the commands you copy below.\n\n" +
+                        "3. In a terminal on the computer, type adb shell and press Enter.\n" +
+                        "4. Paste the commands you copy below and press Enter.\n\n" +
                         "Then come back here and choose Intelligent Search.",
                     style = MaterialTheme.typography.bodyMedium
                 )

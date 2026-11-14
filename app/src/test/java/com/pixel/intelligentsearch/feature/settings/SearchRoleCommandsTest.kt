@@ -98,9 +98,9 @@ class SearchRoleCommandsTest {
             IntelligentSearchTheme(darkTheme = false) { SearchRoleInfoDialog(LocalContext.current) {} }
         }
         compose.waitForIdle()
-        compose.onNodeWithText(
-            "On a terminal with ADB accessibility, first input: adb shell. Once the prompt is successful, copy the following:"
-        ).assertExists()
+        // Step 2 of the note's three numbered steps, ahead of the step that says to paste the commands.
+        compose.onNodeWithText("In a terminal on the computer, type adb shell and press Enter.", useUnmergedTree = true).assertExists()
+        compose.onNodeWithText("Copy these commands, paste them in and press Enter.", useUnmergedTree = true).assertExists()
     }
 
     @Test

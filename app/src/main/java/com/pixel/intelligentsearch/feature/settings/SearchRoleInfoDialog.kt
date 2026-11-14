@@ -219,12 +219,19 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
     )
 }
 
-/** The Developer Note's Default Search Engine text, in the owner's words: the ADB steps on this page set it. */
+/** The Developer Note's Default Search Engine text: the three steps on this page set it. */
 private const val DEFAULT_SEARCH_ENGINE_NOTE =
-    "To set Intelligent Search as your Default Search please follow ADB cmd line steps to apply Intelligent Search as default on Pixel Launcher."
+    "To make Intelligent Search your default search on the Pixel Launcher, follow the three steps below from a computer."
+
+/** The steps that set it, in order; the commands themselves are listed under the last one. */
+internal val ADB_STEPS = listOf(
+    "Turn on USB debugging and connect your phone to a computer.",
+    "In a terminal on the computer, type adb shell and press Enter.",
+    "Copy these commands, paste them in and press Enter."
+)
 
 /** What to expect once the commands have run. */
-private const val ADB_DONE_NOTE = "The steps below check themselves off as each one is done."
+private const val ADB_DONE_NOTE = "The checklist below checks itself off as each one is done."
 
 /** The Developer Note dialog's cards: the Diagnostics and Hardware & Security pages' own, matte with a hairline. */
 private val NoteCardShape = RoundedCornerShape(16.dp)
@@ -347,15 +354,29 @@ private fun DeveloperNoteCards(context: Context, scheme: androidx.compose.materi
                 }
             ) {
                 Text(
-                    text = "The Intelligent Search widget is always there for you to use. To have Intelligent Search replace the Pixel Launcher's own search bar instead, turn on USB debugging and connect your phone to a computer.",
+                    text = "The Intelligent Search widget is always there for you to use. To have Intelligent Search replace the Pixel Launcher's own search bar instead:",
                     style = MaterialTheme.typography.bodyMedium,
                     color = scheme.onSurface
                 )
-                Text(
-                    text = "On a terminal with ADB accessibility, first input: adb shell. Once the prompt is successful, copy the following:",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = scheme.onSurface
-                )
+                ADB_STEPS.forEachIndexed { i, step ->
+                    // One line to a screen reader; the number hangs so a wrapped step stays lined up.
+                    Row(
+                        modifier = Modifier.semantics(mergeDescendants = true) {},
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "${i + 1}.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = scheme.primary
+                        )
+                        Text(
+                            text = step,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = scheme.onSurface
+                        )
+                    }
+                }
                 MatteShell(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),

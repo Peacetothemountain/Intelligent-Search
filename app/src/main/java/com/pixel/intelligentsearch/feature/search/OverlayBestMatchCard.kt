@@ -215,7 +215,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                         fontWeight = FontWeight.SemiBold
                                     )
                                     Text(
-                                        "Application",
+                                        if (otherProfile) "Work App" else "App",
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontSize = 13.sp,
                                         fontFamily = GoogleSansFlex
@@ -223,7 +223,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                 }
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                    contentDescription = "Open ${match.name}",
+                                    contentDescription = null,
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -300,7 +300,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                "Local Document",
+                                fileLocationLabel(match),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 12.sp,
                                 fontFamily = GoogleSansFlex
@@ -308,7 +308,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                         }
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = "Open ${match.name}",
+                            contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp)
                         )

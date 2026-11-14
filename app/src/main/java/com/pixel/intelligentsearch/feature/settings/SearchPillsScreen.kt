@@ -283,8 +283,8 @@ fun SearchPillsScreen(
         if (showMaxWarning) {
             AlertDialog(
                 onDismissRequest = { showMaxWarning = false },
-                title = { Text("Maximum Reached", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-                text = { Text("You cannot add more than ${SearchPillProfiles.MAX_PILLS} apps to the Quick Launch at a time.", style = MaterialTheme.typography.bodyLarge) },
+                title = { Text("Application Search Is Full", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
+                text = { Text("It holds up to ${SearchPillProfiles.MAX_PILLS} apps. Remove one to add another.", style = MaterialTheme.typography.bodyLarge) },
                 confirmButton = {
                     TextButton(onClick = { showMaxWarning = false }) {
                         Text("OK", style = MaterialTheme.typography.labelLarge)
@@ -337,7 +337,7 @@ fun SearchPillsScreen(
                             SettingsAppRow(
                                 title = appItem.label,
                                 subtitle = when {
-                                    isAlreadyAdded -> "Already in Quick Launch."
+                                    isAlreadyAdded -> "Already Added."
                                     com.pixel.intelligentsearch.core.bangs.AiAssistants.forPackage(packageName) != null -> "AI Assistant. Its Pill Asks It Your Search."
                                     // An app without a label of its own is already titled by its package name.
                                     appItem.label == packageName -> ""
@@ -432,7 +432,7 @@ fun SearchPillsScreen(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                "Tap '+' to Add Applications to Profile $activeProfile. All Changes Auto-Save in Real Time.",
+                                "Tap + to Add Apps to Profile $activeProfile. Changes Apply Right Away.",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,

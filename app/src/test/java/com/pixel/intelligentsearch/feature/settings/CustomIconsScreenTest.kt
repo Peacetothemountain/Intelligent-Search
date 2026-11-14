@@ -101,7 +101,7 @@ class CustomIconsScreenTest {
         // Changing from one pack to another asks first.
         compose.onNodeWithText("Pack B").performClick()
         compose.settle(steps = 5)
-        compose.onNodeWithText("Save").performClick()
+        compose.onNodeWithText("Change").performClick()
         compose.settle(steps = 5)
         assertEquals("com.example.packb", prefs[SettingsManager.ACTIVE_ICON_PACK])
         assertEquals(listOf("Pack B"), selectedPacks())

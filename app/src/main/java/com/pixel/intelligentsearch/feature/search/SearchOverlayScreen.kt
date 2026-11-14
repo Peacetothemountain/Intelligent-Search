@@ -106,9 +106,9 @@ internal fun searchProviderName(engine: String, customUrl: String, customName: S
 
 /** The first-run tutorial's steps on the overlay; Settings carries on from step 3. */
 internal val OverlayTutorialSteps = mapOf(
-    0 to TutorialStepInfo("Welcome!", "Hello! Thank you for installing Intelligent Search. Please follow the tutorial to show you around. [bugdroid]", Alignment.Center, showArrow = false),
-    1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps or search the web. You can add contacts and files in Settings, and swipe away recent search cards to remove them.", Alignment.Center, showArrow = true),
-    2 to TutorialStepInfo("Settings", "Tap the settings icon ( [three_bars] ) to customize your search experience. Press Next below to open Settings now.", Alignment.Center, showArrow = true, showCircle = true)
+    0 to TutorialStepInfo("Welcome", "Thanks for installing Intelligent Search. Here's a quick tour of what it can do. [bugdroid]", Alignment.Center, showArrow = false),
+    1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps or search the web. Turn on contact and file search in Settings, and swipe a recent search away to remove it.", Alignment.Center, showArrow = true),
+    2 to TutorialStepInfo("Settings", "Tap the Settings button ([three_bars]) to choose what search shows and how it looks. Tap Next to open Settings now.", Alignment.Center, showArrow = true, showCircle = true)
 )
 
 @Composable

@@ -138,7 +138,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
             title = { Text("Home Screen Search Bar", fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "Choosing Intelligent Search takes one step from a computer:\n\n" +
+                    "Choosing Intelligent Search takes a few steps on a computer:\n\n" +
                         "1. Turn on USB debugging in Developer options.\n" +
                         "2. Connect your phone to a computer.\n" +
                         "3. In a terminal on the computer, type adb shell and press Enter.\n" +
@@ -151,7 +151,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                 TextButton(onClick = {
                     val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
                     clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("ADB Commands", SearchRoleManager.ADB_ACTIVATION_COMMANDS))
-                    Toast.makeText(context, "Commands copied.", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
                     showSearchBarHelp = false
                 }) { Text("Copy Commands") }
             },
@@ -187,7 +187,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                         SetupStep.CONTACTS -> Triple("Contacts", "Find People as You Type, Then Call or Message Them.", Symbols.Outlined.Contacts)
                         SetupStep.NOTIFICATIONS -> Triple("Notifications", "Search Your Notifications. Then Turn On Timers and Media Controls in At a Glance.", Symbols.Outlined.Notifications)
                         SetupStep.FILES -> Triple("Files", "Choose the Folders to Search. Nothing Else Is Read.", Symbols.Outlined.Folder)
-                        SetupStep.SEARCH_BAR -> Triple("Home Screen Search Bar", "Power the Pixel Search Bar on Your Home Screen.", Symbols.Outlined.Search)
+                        SetupStep.SEARCH_BAR -> Triple("Home Screen Search Bar", "Use Intelligent Search in Your Home Screen's Search Bar.", Symbols.Outlined.Search)
                     }
                     SettingsRow(
                         title = title,

@@ -81,7 +81,7 @@ internal class EditMessage(val text: String, val undo: (() -> Unit)? = null)
 /**
  * Where one of the app's own parts stands when it has nothing to show: [note] ("Needs calendar access", "Shows while
  * something is playing"), and, when a tap can change that, what Add to Discover's tile says ([action], "Tap to
- * allow"), what the empty card's own button says ([button], "Allow calendar access") and what both do ([fix]: turn the
+ * allow"), what the empty card's own button says ([button], "Allow Calendar Access") and what both do ([fix]: turn the
  * part on, or ask for what it reads).
  */
 internal class PartStatus(
@@ -96,7 +96,7 @@ internal class PartStatus(
 /** What one of the page's own parts can wait for the user to allow, and what allowing it [shows] on the page. */
 internal enum class CardAccess(val shows: String) {
     CALENDAR("your next events"),
-    NOTIFICATIONS("timers, what's playing and missed messages"),
+    NOTIFICATIONS("timers, what's playing and what you missed"),
     LOCATION("the weather where you are")
 }
 
@@ -278,7 +278,7 @@ internal class DiscoverEditState(
     fun enter(id: String?) {
         editing = true
         selectedId = id
-        announce("Editing Discover. Drag a card to move it, pinch it to resize it.")
+        announce("Editing Discover. Drag a card to move it, or pinch it to resize it.")
     }
 
     /** Stops editing: the selection, any sheet and any card held let go. */
@@ -840,7 +840,7 @@ internal class DiscoverEditState(
             reveal = spec.id
         } else {
             // Nothing to select or scroll to: said on the page, or the tap would look as if it did nothing.
-            say("${kind.label} is back. It has nothing to show right now.")
+            say("${kind.label} is back")
         }
     }
 
@@ -865,12 +865,12 @@ internal class DiscoverEditState(
         if (spec.kind == CardKind.CONTROLS) out += CardAction("Choose controls", Icons.Outlined.Tune, true) { open(EditSheet.CONTROLS) }
         if (spec.kind.shaped) {
             out += if (spec.form == CardForm.SHAPE) {
-                CardAction("Make it a full card", EditIcons.CropSquare, true) { setForm(id, CardForm.CARD) }
+                CardAction("Make a full card", EditIcons.CropSquare, true) { setForm(id, CardForm.CARD) }
             } else {
-                CardAction("Make it a shape", Icons.Outlined.Interests, true) { setForm(id, CardForm.SHAPE) }
+                CardAction("Make a shape", Icons.Outlined.Interests, true) { setForm(id, CardForm.SHAPE) }
             }
         }
-        out += CardAction(if (spec.private) "Stop covering it" else "Make private", Icons.Filled.Lock, true) { togglePrivate(id) }
+        out += CardAction(if (spec.private) "Turn off Private" else "Make private", Icons.Filled.Lock, true) { togglePrivate(id) }
         out += if (spec.kind.builtIn) {
             CardAction("Hide card", Icons.Outlined.VisibilityOff, true) { removeCard(id) }
         } else {
@@ -916,6 +916,12 @@ private fun IntRect.toRect() = Rect(left.toFloat(), top.toFloat(), right.toFloat
 internal fun shapeName(name: String): String = when (name) {
     "verysunny" -> "Very sunny"
     "softburst" -> "Soft burst"
+    "cookie4" -> "4-sided cookie"
+    "cookie6" -> "6-sided cookie"
+    "cookie9" -> "9-sided cookie"
+    "cookie12" -> "12-sided cookie"
+    "clover4" -> "4-leaf clover"
+    "clover8" -> "8-leaf clover"
     else -> {
         val word = name.takeWhile { !it.isDigit() }.replaceFirstChar { it.uppercase() }
         val number = name.dropWhile { !it.isDigit() }

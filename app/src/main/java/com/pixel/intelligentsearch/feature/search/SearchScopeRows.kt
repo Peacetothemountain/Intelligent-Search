@@ -71,7 +71,7 @@ internal fun removeSearchScope(s: OverlayScope) {
     s.viewModel.onQueryChanged(words)
 }
 
-/** The chip over a limited search's results ("Contacts only"); tapping it searches everything again. */
+/** The chip over a limited search's results ("Contacts Only"); tapping it searches everything again. */
 @Composable
 internal fun SearchScopeChip(
     scope: SearchScope,

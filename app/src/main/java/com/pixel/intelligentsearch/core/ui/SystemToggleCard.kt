@@ -197,7 +197,10 @@ fun SystemToggleCard(
         label = "toggleCardElevation"
     )
 
-    val stateDesc = if (toggleState.isActionOnly) "Setting" else if (isChecked) "On" else "Off"
+    val stateDesc = if (isChecked) "On" else "Off"
+    // Bluetooth can't be switched by an app: a tap only opens its settings, so the switch waits for the real state
+    // rather than flipping to "Bluetooth is on" behind the settings panel.
+    val opensSettingsOnly = toggleState.id == "bluetooth"
 
     // Derive dynamic subtitle synchronized with live toggle state to prevent visual contradiction
     val dynamicSubtitle = remember(toggleState.id, toggleState.subtitle, isChecked) {
@@ -207,9 +210,9 @@ fun SystemToggleCard(
             when (toggleState.iconType) {
                 "flashlight" -> if (isChecked) "Flashlight is on" else "Flashlight is off"
                 "bluetooth" -> if (isChecked) "Bluetooth is on" else "Bluetooth is off"
-                "dnd" -> if (isChecked) "Do Not Disturb is on • Calls & Alerts silenced" else "Do Not Disturb is off"
-                "darkmode" -> if (isChecked) "Dark theme is active" else "Light theme is active"
-                "autorotate" -> if (isChecked) "Auto-rotate is on (Portrait & Landscape)" else "Portrait orientation locked"
+                "dnd" -> if (isChecked) "Do Not Disturb is on" else "Do Not Disturb is off"
+                "darkmode" -> if (isChecked) "Dark theme is on" else "Dark theme is off"
+                "autorotate" -> if (isChecked) "Auto-rotate is on" else "Auto-rotate is off"
                 "sound" -> if (isChecked) "Sound is muted" else "Sound is active"
                 else -> toggleState.subtitle
             }
@@ -223,9 +226,9 @@ fun SystemToggleCard(
 
     // Unified single-target semantics for accessibility
     val accessibilityModifier = if (toggleState.isActionOnly) {
+        // A card that only opens a settings page is a plain button: it has no state to read.
         Modifier.semantics {
             role = Role.Button
-            stateDescription = stateDesc
         }
     } else {
         Modifier.semantics {
@@ -258,7 +261,7 @@ fun SystemToggleCard(
                         toggleState.onOpenSettings()
                     } else {
                         val newState = !isChecked
-                        isChecked = newState
+                        if (!opensSettingsOnly) isChecked = newState
                         sensoryEngine.toggle(view)
                         toggleState.onToggle(newState)
                     }
@@ -343,7 +346,7 @@ fun SystemToggleCard(
                 com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
                     checked = isChecked,
                     onCheckedChange = { newState ->
-                        isChecked = newState
+                        if (!opensSettingsOnly) isChecked = newState
                         sensoryEngine.toggle(view)
                         toggleState.onToggle(newState)
                     },

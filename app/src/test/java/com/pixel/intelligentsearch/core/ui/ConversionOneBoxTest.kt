@@ -36,13 +36,13 @@ class ConversionOneBoxTest {
         }
         compose.onNodeWithText("CURRENCY CONVERSION").assertExists()
         compose.onNodeWithText("UNIT CONVERSION").assertDoesNotExist()
-        compose.onNodeWithContentDescription("Copy, Currency Conversion").assertExists()
+        compose.onNodeWithContentDescription("Copy Currency Conversion").assertExists()
     }
 
     @Test
     fun aUnitAnswerKeepsItsHeader() {
         compose.setContent { ConversionOneBox(conversionText = "1 km = 1,000 m") }
         compose.onNodeWithText("UNIT CONVERSION").assertExists()
-        compose.onNodeWithContentDescription("Copy, Unit Conversion").assertExists()
+        compose.onNodeWithContentDescription("Copy Unit Conversion").assertExists()
     }
 }

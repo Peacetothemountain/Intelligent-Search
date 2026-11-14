@@ -77,7 +77,7 @@ internal sealed interface NavTarget {
     data class RemoveFileTypeFilter(val group: FileTypeGroup) : NavTarget
 
     /**
-     * The chip over a search limited to one kind of result ("Contacts only" for "@jo"): takes the marker out of the
+     * The chip over a search limited to one kind of result ("Contacts Only" for "@jo"): takes the marker out of the
      * search field, so the words after it are searched as usual.
      */
     data class RemoveScope(val scope: SearchScope) : NavTarget
@@ -104,7 +104,7 @@ internal sealed interface AnswerAction {
     data class Copy(val text: String, val label: String) : AnswerAction
     /** The weather app, else a web search for [query]. */
     data class OpenWeather(val query: String) : AnswerAction
-    /** A translation's "Translate in Google Translate": [text] from [source] to [target]. */
+    /** A translation's "Open in Google Translate": [text] from [source] to [target]. */
     data class Translate(val text: String, val source: String?, val target: String) : AnswerAction
     /** An AI answer's "Continue in": [question] in [provider]'s assistant app or site. */
     data class ContinueInAssistant(val provider: AiProvider, val question: String) : AnswerAction

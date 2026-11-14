@@ -95,7 +95,7 @@ class OverlayAccessibilityTest {
     private val eightSearches = (1..8).map { "search $it" }
 
     private fun clearHistory() {
-        compose.onNodeWithText("Delete All").performClick()
+        compose.onNodeWithText("Clear All").performClick()
         compose.settle(steps = 5)
     }
 

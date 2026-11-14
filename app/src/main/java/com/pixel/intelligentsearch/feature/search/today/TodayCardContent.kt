@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.feature.search.today
 
 import android.content.Context
 import android.os.SystemClock
+import com.pixel.intelligentsearch.core.answers.HighLow
 import com.pixel.intelligentsearch.core.answers.WeatherCodes
 import com.pixel.intelligentsearch.core.answers.WeatherReport
 import com.pixel.intelligentsearch.core.data.CalendarEvent
@@ -30,7 +31,7 @@ private const val RAIN_CHANCE = 50
 
 /**
  * The weather now and the hours ahead: the temperature, its icon, and a headline that names the first rainy hour ahead
- * ("Rain at 8 PM") or else describes the sky now.
+ * ("Rain around 8 PM", or "Snow around 8 PM" when that hour's weather is snow) or else describes the sky now.
  */
 internal fun shapedWeather(context: Context, report: WeatherReport, now: Long): ShapedContent.Weather {
     val zone = ZoneId.systemDefault()
@@ -39,7 +40,9 @@ internal fun shapedWeather(context: Context, report: WeatherReport, now: Long): 
     val firstRain = hours.indices.firstOrNull { rain[it] }
     val headline = if (firstRain != null && firstRain > 0) {
         val at = hours[firstRain].time.withZoneSameInstant(zone)
-        "Rain at " + android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(at.toInstant().toEpochMilli()))
+        // The full card's words: the hour's own weather says whether it is rain or snow.
+        val falling = if (WeatherCodes.kind(hours[firstRain].code) == WeatherCodes.Kind.SNOW) "Snow" else "Rain"
+        "$falling around " + android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(at.toInstant().toEpochMilli()))
     } else {
         WeatherCodes.describe(report.code)
     }
@@ -63,7 +66,7 @@ internal fun shapedTimer(timer: GlanceTimer, now: Long): ShapedContent.Timer {
     val kind = if (timer.kind == GlanceTimer.Kind.Stopwatch) "Stopwatch" else "Timer"
     val label = timer.label.takeIf { it.isNotBlank() && !it.equals(kind, ignoreCase = true) } ?: kind
     return ShapedContent.Timer(
-        reading = timerReading(timer, now).removeSuffix(" Left"),
+        reading = timerReading(timer, now).removeSuffix(" left"),
         label = label,
         sweep = if (timer.kind == GlanceTimer.Kind.TimesUp) 0f else (now % 60_000L) / 60_000f
     )
@@ -79,13 +82,14 @@ internal fun shapedAlarm(context: Context, alarm: GlanceAlarm, now: Long): Shape
         today.plusDays(1) -> "Tomorrow"
         else -> at.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, context.resources.configuration.locales[0])
     }
-    val time = android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(alarm.triggerAt))
-        .replace(Regex("\\s?[AaPp]\\.?[Mm]\\.?$"), "")
+    val fullTime = android.text.format.DateFormat.getTimeFormat(context).format(java.util.Date(alarm.triggerAt))
+    val time = fullTime.replace(Regex("\\s?[AaPp]\\.?[Mm]\\.?$"), "")
     return ShapedContent.Alarm(
         time = time,
         day = day,
-        until = Durations.until(alarm.triggerAt - now).replaceFirstChar { it.lowercase() },
-        fraction = ((alarm.triggerAt - now).toFloat() / (24 * 3_600_000f)).coerceIn(0f, 1f)
+        until = Durations.until(alarm.triggerAt - now),
+        fraction = ((alarm.triggerAt - now).toFloat() / (24 * 3_600_000f)).coerceIn(0f, 1f),
+        spokenTime = fullTime
     )
 }
 
@@ -106,8 +110,8 @@ internal fun shapedBattery(battery: TodayBattery): ShapedContent.Battery {
         battery.full -> "Charged"
         battery.charging && battery.minutesToFull != null -> "Full in ${Durations.minutes(battery.minutesToFull * 60_000L)}"
         battery.charging -> "Charging"
-        battery.pluggedNotCharging -> "Not charging"
-        battery.saver -> "Battery Saver"
+        battery.pluggedNotCharging -> "Connected, not charging"
+        battery.saver -> "Battery Saver on"
         else -> "Not charging"
     }
     return ShapedContent.Battery(battery.level, battery.charging, detail)
@@ -168,15 +172,16 @@ internal fun shapedTomorrow(
     val locale = context.resources.configuration.locales[0]
     val format = android.text.format.DateFormat.getTimeFormat(context)
     val detail = when {
-        alarmAt != null -> "Alarm " + format.format(java.util.Date(alarmAt))
-        firstEvent != null -> firstEvent.title + " " + format.format(java.util.Date(firstEvent.beginMillis))
+        alarmAt != null -> "Alarm · " + format.format(java.util.Date(alarmAt))
+        firstEvent != null -> firstEvent.title + " · " + format.format(java.util.Date(firstEvent.beginMillis))
         weather != null -> WeatherCodes.describe(weather.code)
         else -> ""
     }
     return ShapedContent.Tomorrow(
         day = date.format(java.time.format.DateTimeFormatter.ofPattern("EEEE", locale)),
         icon = weather?.let { weatherIcon(it.code, true) },
-        temperatures = weather?.let { "${it.high.roundToInt()}° / ${it.low.roundToInt()}°" } ?: "",
-        detail = detail
+        temperatures = weather?.let { HighLow.drawn(it.high, it.low) } ?: "",
+        detail = detail,
+        spokenTemperatures = weather?.let { HighLow.spoken(it.high, it.low) } ?: ""
     )
 }

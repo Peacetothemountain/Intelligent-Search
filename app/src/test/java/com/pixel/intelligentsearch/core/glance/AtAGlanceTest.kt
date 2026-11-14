@@ -219,9 +219,9 @@ class AtAGlanceTest {
 
     @Test
     fun timerReadings() {
-        assertEquals("2:00 Left", timerReading(timer, now))
-        assertEquals("1:59 Left", timerReading(timer, now + 1_000L))
-        assertEquals("Time's Up", timerReading(timer, now + 120_000L))
+        assertEquals("2:00 left", timerReading(timer, now))
+        assertEquals("1:59 left", timerReading(timer, now + 1_000L))
+        assertEquals("Time's up", timerReading(timer, now + 120_000L))
         assertEquals("1:02:03", timerReading(timer.copy(kind = GlanceTimer.Kind.Stopwatch, baseTime = now - 3_723_000L), now))
         assertEquals("0:05", Durations.clock(5_400L))
         assertEquals("12:30", Durations.clock(750_000L))

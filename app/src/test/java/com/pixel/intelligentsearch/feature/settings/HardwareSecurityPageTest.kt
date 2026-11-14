@@ -79,7 +79,7 @@ class HardwareSecurityPageTest {
     fun whileVerifyingTheLineSaysSoThenReadsTheAnswer() {
         result = null
         show()
-        compose.onNodeWithText("Key Attestation: Verifying...").assertExists()
+        compose.onNodeWithText("Key Attestation: Verifying…").assertExists()
         result = attestation
         Snapshot.sendApplyNotifications()
         compose.mainClock.advanceTimeByFrame()

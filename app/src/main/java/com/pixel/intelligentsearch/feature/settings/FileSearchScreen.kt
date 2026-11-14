@@ -119,7 +119,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 val message = if (added < uris.size && mediaCount >= UserGrantedFiles.MAX_PICKED_MEDIA) {
                     "Added $added. You can choose up to ${UserGrantedFiles.MAX_PICKED_MEDIA} photos and videos."
                 } else {
-                    "$added photos and videos added to search."
+                    if (added == 1) "1 photo or video added to search." else "$added photos and videos added to search."
                 }
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
@@ -129,7 +129,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     if (confirmClearMedia) {
         AlertDialog(
             onDismissRequest = { confirmClearMedia = false },
-            title = { Text("Stop searching chosen photos and videos?") },
+            title = { Text("Stop Searching Chosen Photos and Videos?") },
             text = { Text("The $mediaCount photos and videos you chose will no longer appear in search results. Nothing in them is changed.") },
             confirmButton = {
                 TextButton(onClick = {
@@ -149,7 +149,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     folderPendingRemoval?.let { uri ->
         AlertDialog(
             onDismissRequest = { folderPendingRemoval = null },
-            title = { Text("Stop searching this folder?") },
+            title = { Text("Stop Searching This Folder?") },
             text = { Text("\"${folderNames[uri] ?: "This folder"}\" will no longer appear in search results. Nothing in the folder is changed.") },
             confirmButton = {
                 TextButton(onClick = {
@@ -216,7 +216,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     )
                 }
                 SettingsRow(
-                    title = "Choose Photos & Videos",
+                    title = "Choose Photos and Videos",
                     subtitle = if (mediaCount > 0) "$mediaCount Chosen. Tap to Add More." else "Pick Photos and Videos with the Android Photo Picker.",
                     icon = Symbols.Outlined.Image,
                     onClick = {
@@ -228,7 +228,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 )
                 if (mediaCount > 0) {
                     SettingsRow(
-                        title = "Clear Chosen Photos & Videos",
+                        title = "Clear Chosen Photos and Videos",
                         subtitle = "Stop Searching the $mediaCount Photos and Videos Chosen Above.",
                         icon = Symbols.Outlined.DeleteSweep,
                         onClick = { confirmClearMedia = true },
@@ -238,7 +238,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var hiddenFiles by rememberSetting(SettingsManager.FILES_HIDDEN_FILES)
                 SettingsRowToggle(
                     title = "Show Hidden Files",
-                    subtitle = "Include Files Hidden from Android Index.",
+                    subtitle = "Include Files Whose Names Start with a Dot.",
                     icon = Symbols.Outlined.Visibility,
                     isChecked = hiddenFiles,
                     onCheckedChange = { hiddenFiles = it },
@@ -247,7 +247,7 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var thumbnails by rememberSetting(SettingsManager.FILES_THUMBNAILS)
                 SettingsRowToggle(
                     title = "Show Thumbnails",
-                    subtitle = "Show Images and Video Thumbnails.",
+                    subtitle = "Show Previews of Photos and Videos in Results.",
                     icon = Symbols.Outlined.Image,
                     isChecked = thumbnails,
                     onCheckedChange = { thumbnails = it },

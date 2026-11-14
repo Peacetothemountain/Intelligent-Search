@@ -82,7 +82,7 @@ fun TorBrowserInstallDialog(
                 .padding(16.dp)
                 .semantics {
                     isTraversalGroup = true
-                    paneTitle = "Tor Browser Required Dialog"
+                    paneTitle = "Tor Browser Required"
                 }
         ) {
             Column(
@@ -103,7 +103,7 @@ fun TorBrowserInstallDialog(
                 ) {
                     Icon(
                         imageVector = Symbols.Outlined.Security,
-                        contentDescription = "Tor Security Shield",
+                        contentDescription = null,
                         tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.size(28.dp)
                     )
@@ -127,7 +127,7 @@ fun TorBrowserInstallDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "Tor Project search routes queries securely through the official Tor Project Browser. Download it from Google Play Store to enable search overlay passthrough.",
+                    text = "While Tor is your search engine, searches and websites open in Tor Browser. Install it from Google Play to continue.",
                     style = MaterialTheme.typography.bodyMedium,
                     fontFamily = GoogleSansFlex,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -160,7 +160,7 @@ fun TorBrowserInstallDialog(
                             .semantics {
                                 role = Role.Button
                                 traversalIndex = 3.1f
-                                contentDescription = "Close Tor Browser required dialog"
+                                contentDescription = "Close"
                             },
                         shape = RoundedCornerShape(percent = 50),
                         border = BorderStroke(
@@ -187,7 +187,7 @@ fun TorBrowserInstallDialog(
                             .semantics {
                                 role = Role.Button
                                 traversalIndex = 3.2f
-                                contentDescription = "Install Tor Browser from Google Play Store"
+                                contentDescription = "Install Tor Browser"
                             },
                         shape = RoundedCornerShape(percent = 50),
                         colors = ButtonDefaults.buttonColors(

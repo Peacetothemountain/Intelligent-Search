@@ -225,7 +225,7 @@
                 android:layout_marginStart="8dp"
                 android:clickable="true"
                 android:focusable="true"
-                android:contentDescription="@string/widget_talkback_search_action">
+                android:contentDescription="@string/widget_talkback_gemini_search">
 
                 <ImageView
                     android:id="@+id/widget_sound_icon"

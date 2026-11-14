@@ -122,7 +122,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     var vibrationEnabled by rememberSetting(SettingsManager.VIBRATION)
                     SettingsRowToggle(
                         title = "System Vibration",
-                        subtitle = "Enable Haptic Vibrations Across Intelligent Search.",
+                        subtitle = "A Light Vibration as You Tap and Swipe in Intelligent Search.",
                         icon = Symbols.Outlined.Vibration,
                         isChecked = vibrationEnabled,
                         // The haptic engines read this setting on every haptic, so saving it is enough.
@@ -143,7 +143,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     }
                     SettingsRowToggle(
                         title = "Enable Search Overlay Page",
-                        subtitle = "When Turned Off, Search Bar Widget Opens Native Google Search.",
+                        subtitle = "When Off, the Search Bar Widget Opens the Google App's Search Instead.",
                         icon = Symbols.Outlined.Layers,
                         isChecked = enableSearchOverlay,
                         onCheckedChange = { enableSearchOverlay = it },
@@ -153,7 +153,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     var overlayShowMic by rememberSetting(SettingsManager.OVERLAY_SHOW_MIC)
                     SettingsRowToggle(
                         title = "Show Microphone in Search Bar",
-                        subtitle = "Show Voice Search Button on Search Overlay Page.",
+                        subtitle = "Search by Voice from the Search Overlay Page's Search Bar.",
                         icon = Symbols.Outlined.Mic,
                         isChecked = overlayShowMic,
                         onCheckedChange = { overlayShowMic = it },
@@ -163,7 +163,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     var matrixAnimationEnabled by rememberSetting(SettingsManager.MATRIX_ANIMATION_ENABLED) {}
                     SettingsRowToggle(
                         title = "Enable Matrix Animation on Search Overlay Page",
-                        subtitle = "Enable Search Overlay Page Animation.",
+                        subtitle = "Small Stars Drift Behind the Search Overlay Page.",
                         icon = Symbols.Outlined.AutoAwesome,
                         isChecked = matrixAnimationEnabled,
                         onCheckedChange = { matrixAnimationEnabled = it },
@@ -173,7 +173,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     var morphAnimationEnabled by rememberSetting(SettingsManager.MORPH_ANIMATION_ENABLED) {}
                     SettingsRowToggle(
                         title = "Enable Material Morph Animation",
-                        subtitle = "Enable Material Expressive Bouncing Shapes.",
+                        subtitle = "Shapes Bounce Below the Cards on Search Sources, AI Answers and Launch Portal.",
                         icon = Symbols.Outlined.Animation,
                         isChecked = morphAnimationEnabled,
                         onCheckedChange = { morphAnimationEnabled = it },
@@ -183,7 +183,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                     var settingsBackToSearchOverlay by rememberSetting(SettingsManager.BACK_TO_SEARCH_OVERLAY) {}
                     SettingsRowToggle(
                         title = "Back Swipe to Enter Search Overlay Page",
-                        subtitle = "Swiping Back from Settings Menu Directs to Search Overlay Screen.",
+                        subtitle = "Swipe Back from Settings to Return to Search.",
                         icon = Symbols.AutoMirrored.Outlined.ArrowBack,
                         isChecked = settingsBackToSearchOverlay,
                         onCheckedChange = { settingsBackToSearchOverlay = it },
@@ -192,7 +192,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
 
                     SettingsRowToggle(
                         title = "Show Wallpaper",
-                        subtitle = "Show User's Wallpaper on Search Overlay Page.",
+                        subtitle = "Show Your Wallpaper Behind the Search Overlay Page.",
                         icon = Symbols.Outlined.Wallpaper,
                         isChecked = showWall,
                         onCheckedChange = { showWall = it },

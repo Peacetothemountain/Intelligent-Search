@@ -325,6 +325,7 @@ private fun ResultRows(s: OverlayScope) {
                             pushStyle(androidx.compose.ui.text.SpanStyle(fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary))
                             append(corrected)
                             pop()
+                            append("?")
                         },
                         color = MaterialTheme.colorScheme.onSurface,
                         fontSize = 15.sp,
@@ -480,12 +481,12 @@ private fun ResultRows(s: OverlayScope) {
                             ) {
                                 Icon(
                                     imageVector = Icons.Outlined.DeleteSweep,
-                                    contentDescription = "Delete All",
+                                    contentDescription = null,
                                     tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Text(
-                                    text = "Delete All",
+                                    text = "Clear All",
                                     color = MaterialTheme.colorScheme.error,
                                     fontSize = 11.5.sp,
                                     fontFamily = GoogleSansFlex,
@@ -512,7 +513,8 @@ private fun ResultRows(s: OverlayScope) {
                         earlier = uiState.earlierResults.map { it.shown },
                         onEarlier = { index ->
                             uiState.earlierResults.getOrNull(index)?.let { kept ->
-                                val text = s.ui.textFieldValue.text + kept.typed
+                                // As a calculator's memory recall: the number the sum ends with gives way to it.
+                                val text = com.pixel.intelligentsearch.core.search.CalculatorMemory.recall(s.ui.textFieldValue.text, kept.typed)
                                 s.ui.textFieldValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
                                 s.viewModel.onQueryChanged(text)
                             }
@@ -697,7 +699,7 @@ private fun ResultRows(s: OverlayScope) {
                                             }
                                         }
                                     ) {
-                                        Icon(imageVector = Icons.Default.Call, contentDescription = "Call", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                                        Icon(imageVector = Icons.Default.Call, contentDescription = "Call ${contact.name}", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                                     }
                                 }
                             }
@@ -842,12 +844,15 @@ internal fun OverlayInstantAnswer(s: OverlayScope, instantAnswer: InstantAnswer)
             )
         }
         "ip" -> {
+            val address = instantAnswer.copyText
             TimeWeatherOneBox(
                 title = instantAnswer.title,
                 subtitle = instantAnswer.subtitle,
                 iconType = instantAnswer.iconType,
+                // A tap copies, so the card shows the copy symbol; with no address there is nothing to tap.
+                trailingIcon = if (address != null) Icons.Default.ContentCopy else null,
                 // Copied in place: the answer stays up to read.
-                onClick = { instantAnswer.copyText?.let { com.pixel.intelligentsearch.core.ui.copyAnswerText(context, it, "Address") } }
+                onClick = address?.let { { com.pixel.intelligentsearch.core.ui.copyAnswerText(context, it, "Address") } }
             )
         }
         else -> {

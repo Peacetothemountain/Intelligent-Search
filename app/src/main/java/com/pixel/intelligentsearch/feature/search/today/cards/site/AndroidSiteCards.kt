@@ -412,7 +412,7 @@ internal class AndroidSiteCards private constructor(
         private val PAGE_TYPES = setOf("text/html", "application/xhtml+xml")
 
         // The messages a failed add shows, in the app's plain words.
-        const val NOT_AN_ADDRESS = "Type a website address, like example.com"
+        const val NOT_AN_ADDRESS = "Type a website address, like example.com."
         const val NOT_SECURE = "Only secure (https) sites can be added."
         const val NOT_PUBLIC = "Only public websites can be added."
         const val UNREACHABLE = "That site couldn't be reached. Check the address and try again."

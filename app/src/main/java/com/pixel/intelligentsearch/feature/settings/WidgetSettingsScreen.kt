@@ -384,7 +384,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         updateWidgets(context)
         android.widget.Toast.makeText(
             context,
-            if (isSystem) "System Design Saved" else "Material Design Saved",
+            if (isSystem) "System design saved." else "Material design saved.",
             android.widget.Toast.LENGTH_SHORT
         ).show()
         savedThemeStyle = localThemeStyle
@@ -463,7 +463,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
 
     if (showUnsavedChangesDialog) {
         WarningCard(
-            title = "Discard unsaved changes?",
+            title = "Discard Unsaved Changes?",
             message = "You have unsaved customizations. If you leave now, none of your changes will be applied.",
             acceptLabel = "Save",
             onAccept = {
@@ -514,7 +514,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                 if (hasUnsavedChanges) showSaveBeforePinDialog = true else pinWidget()
                             }
                         ) {
-                            Icon(Symbols.AutoMirrored.Outlined.AddToHomeScreen, contentDescription = "Add widget to Home screen")
+                            Icon(Symbols.AutoMirrored.Outlined.AddToHomeScreen, contentDescription = "Add Widget to Home Screen")
                         }
                     }
                     TextButton(onClick = saveSettings) {
@@ -934,6 +934,12 @@ internal fun WidgetPreviewBackdrop(
         }
     }
 }
+
+/**
+ * A widget shortcut as the editor names it. "Discover" opens the Google app's feed, so it is named Google Discover
+ * there, apart from the app's own Discover page; the stored key stays "Discover".
+ */
+internal fun shortcutDisplayName(key: String): String = if (key == "Discover") "Google Discover" else key
 
 /**
  * Asked when the widget is added to the Home screen with unsaved changes: the launcher's dialog previews, and places,

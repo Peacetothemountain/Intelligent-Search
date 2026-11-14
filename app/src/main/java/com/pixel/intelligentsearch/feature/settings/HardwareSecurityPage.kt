@@ -108,7 +108,7 @@ internal fun HardwareSecurityPage(
                 DetailLine("SoC Platform: ${hardwareInfo.socDisplayName}", scheme.onSurfaceVariant, null)
                 Spacer(modifier = Modifier.height(4.dp))
                 val status = when {
-                    verifying || attestationResult == null -> "Verifying..."
+                    verifying || attestationResult == null -> "Verifying…"
                     attestationResult.isHardwareAttested -> "Verified by Google's Hardware Root"
                     // Only a verified chain earns "Verified"; otherwise just name where the key lives.
                     attestationResult.securityLevel == HardwareSecurityLevel.STRONGBOX -> "StrongBox Backed (Unverified)"
@@ -120,7 +120,7 @@ internal fun HardwareSecurityPage(
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold,
                     color = if (verified) scheme.primary else scheme.onSurfaceVariant,
-                    // TalkBack hears the result as it changes, from "Verifying..." to the answer.
+                    // TalkBack hears the result as it changes, from "Verifying…" to the answer.
                     modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
                 )
                 CertificateChainRow(attestationResult, verified, verifying, animationsEnabled)
@@ -167,7 +167,7 @@ private fun CertificateChainRow(
         itemVerticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Certificate Chain: ${count?.let(::certificateCountLabel) ?: "Checking..."}",
+            text = "Certificate Chain: ${count?.let(::certificateCountLabel) ?: "Checking…"}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

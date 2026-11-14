@@ -134,7 +134,7 @@ class SettingsSectionHeaderTest {
             }
         }
         assertSectionHeader("Layout and Suggestions")
-        assertSectionHeader("Keyboard")
+        assertSectionHeader("Voice and Keyboard")
         page = 1
         compose.settle()
         assertSectionHeader("Add to Your Phone")

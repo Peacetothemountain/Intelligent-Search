@@ -128,7 +128,7 @@ class TypedFiltersEnterTest {
         assertEquals(ScopeNotice("Type a name"), scopeNotice(scoped(SearchScope.CONTACTS, "")))
         assertEquals(ScopeNotice("Type a file name"), scopeNotice(scoped(SearchScope.FILES, "")))
         assertEquals(ScopeNotice("Type a setting"), scopeNotice(scoped(SearchScope.SETTINGS, "")))
-        assertEquals(ScopeNotice("No contacts match \"jo\""), scopeNotice(scoped(SearchScope.CONTACTS, "jo")))
+        assertEquals(ScopeNotice("No contacts match “jo”"), scopeNotice(scoped(SearchScope.CONTACTS, "jo")))
         assertNull(scopeNotice(scoped(SearchScope.CONTACTS, "jo").copy(contacts = listOf(jo))))
         // While the results for the last letters are still on their way, nothing claims there are none.
         assertNull(scopeNotice(scoped(SearchScope.CONTACTS, "jo").copy(scopedResultsIn = false)))

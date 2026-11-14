@@ -176,10 +176,10 @@ fun timersFrom(entries: List<IndexedNotification>): List<GlanceTimer> = entries.
     GlanceTimer(entry.key, kind, entry.title, chronometer.baseTime, entry.appLabel, entry.packageName, entry.contentIntent)
 }.sortedWith(compareBy<GlanceTimer> { it.kind != GlanceTimer.Kind.TimesUp }.thenBy { it.kind }.thenBy { it.baseTime })
 
-/** What a timer card reads at [now]: the time left, "Time's Up", or a stopwatch's time so far. */
+/** What a timer card reads at [now]: the time left, "Time's up", or a stopwatch's time so far. */
 fun timerReading(timer: GlanceTimer, now: Long): String = when (timer.kind) {
-    GlanceTimer.Kind.Timer -> if (timer.baseTime > now) "${Durations.clock(timer.baseTime - now + 999)} Left" else "Time's Up"
-    GlanceTimer.Kind.TimesUp -> "Time's Up"
+    GlanceTimer.Kind.Timer -> if (timer.baseTime > now) "${Durations.clock(timer.baseTime - now + 999)} left" else "Time's up"
+    GlanceTimer.Kind.TimesUp -> "Time's up"
     GlanceTimer.Kind.Stopwatch -> Durations.clock(now - timer.baseTime)
 }
 

@@ -80,8 +80,8 @@ fun ManageHiddenAppsScreen(
     val iconPx = with(LocalDensity.current) { 24.dp.roundToPx() }
 
     val isAuthenticated = rememberProtectedPageUnlock(
-        title = "Unlock Private Search",
-        subtitle = "Verify Identity to View Hidden Items.",
+        title = "Unlock Hidden Apps",
+        subtitle = "Confirm It's You to See Your Hidden Apps.",
         onBack = onBack
     )
 
@@ -105,7 +105,7 @@ fun ManageHiddenAppsScreen(
 
     if (showUnsavedChangesCard) {
         WarningCard(
-            title = "Discard unsaved changes?",
+            title = "Discard Unsaved Changes?",
             message = "You changed which apps are hidden. If you leave now, none of your changes will be applied.",
             acceptLabel = "Save",
             onAccept = {
@@ -224,7 +224,7 @@ fun ManageHiddenAppsScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        "Biometric Authentication Required",
+                        "Unlock to See Hidden Apps",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -276,7 +276,7 @@ fun ManageHiddenAppsScreen(
             open = isSearching && isAuthenticated,
             query = searchQuery,
             onQueryChange = { searchQuery = it },
-            placeholder = "Search Hidden Apps",
+            placeholder = "Search Apps",
             modifier = Modifier.align(Alignment.BottomCenter)
         )
         }
@@ -305,6 +305,6 @@ private fun EnableAllToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit
             modifier = Modifier.size(18.dp)
         )
         Spacer(modifier = Modifier.width(4.dp))
-        Text("Enable All", style = MaterialTheme.typography.labelLarge, color = color, maxLines = 1)
+        Text("Hide All", style = MaterialTheme.typography.labelLarge, color = color, maxLines = 1)
     }
 }

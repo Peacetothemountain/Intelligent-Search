@@ -148,7 +148,7 @@ class CountdownWidgetViewsTest {
             val unset = shown(null, size)
             assertEquals(size.name, View.GONE, unset.findViewById<View>(R.id.countdown_hero).visibility)
             assertEquals(size.name, View.VISIBLE, unset.findViewById<View>(R.id.countdown_icon).visibility)
-            assertEquals(size.name, "Countdown, tap to choose a date", unset.findViewById<View>(android.R.id.background).contentDescription)
+            assertEquals(size.name, "Countdown, not set up yet", unset.findViewById<View>(android.R.id.background).contentDescription)
         }
         // On the day there is no unit under "Today".
         CountdownWidgetProvider.now = { ZonedDateTime.parse("2026-10-31T09:00-04:00[America/New_York]") }

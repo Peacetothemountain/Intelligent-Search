@@ -19,7 +19,7 @@ class PhoneAnswersTest {
         val answer = answers().evaluate("storage")!!
         assertEquals(Kind.STORAGE, answer.kind)
         assertEquals("118 GB free", answer.title)
-        assertEquals("of 256 GB • 53% used", answer.subtitle)
+        assertEquals("of 256 GB · 53% used", answer.subtitle)
         assertNull(answer.copyable)
     }
 
@@ -48,18 +48,18 @@ class PhoneAnswersTest {
         val answer = answers().evaluate("what's my ip?")!!
         assertEquals(Kind.ADDRESS, answer.kind)
         assertEquals("192.168.1.23", answer.title)
-        assertEquals("This phone's address on Wi-Fi • Tap to copy", answer.subtitle)
+        assertEquals("This phone's address on Wi-Fi · Tap to copy", answer.subtitle)
         assertEquals("192.168.1.23", answer.copyable)
     }
 
     @Test
     fun theAddressSaysWhichKindOfNetworkItIsOn() {
         assertEquals(
-            "This phone's address on mobile data • Tap to copy",
+            "This phone's address on mobile data · Tap to copy",
             answers(network = NetworkReading("10.20.30.40", wifi = false, mobile = true)).evaluate("my ip")!!.subtitle
         )
         assertEquals(
-            "This phone's address on this network • Tap to copy",
+            "This phone's address on this network · Tap to copy",
             answers(network = NetworkReading("10.8.0.2", wifi = false, mobile = false)).evaluate("ip address")!!.subtitle
         )
     }

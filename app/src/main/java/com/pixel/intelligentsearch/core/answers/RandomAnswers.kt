@@ -36,7 +36,7 @@ class RandomAnswers(private val random: Random = Random.Default, private val loc
         val shown = rolls.take(SHOWN_ROLLS).joinToString(" + ") { format(it.toLong()) } + if (count > SHOWN_ROLLS) " + …" else ""
         // Dice notation is never grouped: "1d1000", not "1d1,000".
         val dice = "${format(count.toLong(), grouped = false)}d${format(sides.toLong(), grouped = false)}"
-        return RandomAnswer(format(total), if (count == 1) "Dice roll • $dice" else "Dice roll • $dice: $shown")
+        return RandomAnswer(format(total), if (count == 1) "Dice roll · $dice" else "Dice roll · $dice: $shown")
     }
 
     /** "random number", "random number 1-100", "random 1 to 10", "pick a number between 1 and 6". */

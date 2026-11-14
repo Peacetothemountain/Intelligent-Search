@@ -53,7 +53,7 @@ class NotificationShortcutTest {
     fun itIsAnOngoingSearchShortcutOnItsChannel() {
         val notification = NotificationShortcut.build(context, lensAvailable = false)
         assertEquals(NotificationShortcut.CHANNEL_ID, notification.channelId)
-        assertEquals("Search Your Phone", notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
+        assertEquals("Search Phone and Web", notification.extras.getCharSequence(Notification.EXTRA_TITLE).toString())
         assertTrue(notification.flags and Notification.FLAG_ONGOING_EVENT != 0)
         assertTrue(notification.flags and Notification.FLAG_NO_CLEAR != 0)
         assertEquals(Notification.VISIBILITY_PRIVATE, notification.visibility)

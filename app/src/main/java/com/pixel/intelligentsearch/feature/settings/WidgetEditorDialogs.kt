@@ -192,7 +192,7 @@ internal fun WidgetEditorDialogs(
                                             }
                                         )
                                         androidx.compose.material3.DropdownMenuItem(
-                                            text = { Text("Custom App (APK)") },
+                                            text = { Text("Custom App") },
                                             onClick = {
                                                 customInputValue = ""
                                                 showCustomAppDialogFor = option.first
@@ -203,7 +203,7 @@ internal fun WidgetEditorDialogs(
                                 }
                             }
                             Text(
-                                text = option.first,
+                                text = shortcutDisplayName(option.first),
                                 style = MaterialTheme.typography.labelSmall,
                                 modifier = Modifier.padding(top = 8.dp),
                                 textAlign = TextAlign.Center

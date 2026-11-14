@@ -49,10 +49,10 @@ class FileSearchScreenTest {
 
     @Test
     fun clearingChosenPhotosAsksFirst() {
-        compose.onNodeWithText("Clear Chosen Photos & Videos").performScrollTo().performClick()
+        compose.onNodeWithText("Clear Chosen Photos and Videos").performScrollTo().performClick()
         compose.waitForIdle()
 
-        compose.onNodeWithText("Stop searching chosen photos and videos?").assertExists()
+        compose.onNodeWithText("Stop Searching Chosen Photos and Videos?").assertExists()
         assertEquals(2, UserGrantedFiles.mediaUris(prefs).size)
 
         compose.onNodeWithText("Cancel").performClick()
@@ -62,13 +62,13 @@ class FileSearchScreenTest {
 
     @Test
     fun confirmingClearsThem() {
-        compose.onNodeWithText("Clear Chosen Photos & Videos").performScrollTo().performClick()
+        compose.onNodeWithText("Clear Chosen Photos and Videos").performScrollTo().performClick()
         compose.waitForIdle()
         compose.onNodeWithText("Clear").performClick()
         compose.settle(steps = 5)
 
         assertEquals(0, UserGrantedFiles.mediaUris(prefs).size)
-        compose.onNodeWithText("Clear Chosen Photos & Videos").assertDoesNotExist()
+        compose.onNodeWithText("Clear Chosen Photos and Videos").assertDoesNotExist()
     }
 
     /** The note atop the page starts with an info icon in its top left corner, and reads in the rows' subtext style. */

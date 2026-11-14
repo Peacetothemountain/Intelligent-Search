@@ -21,7 +21,7 @@ class WorldClockTest {
     @Test
     fun theTimeHere() {
         for (query in listOf("time", "what time is it", "What time is it?", "current time", "what's the time")) {
-            assertEquals(query, WorldClock.TimeAnswer("10:30 PM", "Current time in your location"), answer(query))
+            assertEquals(query, WorldClock.TimeAnswer("10:30 PM", "Current local time"), answer(query))
         }
         assertEquals("3:30 PM", answer("time", here = ZoneId.of("America/Los_Angeles"))?.title)
         assertEquals("22:30", answer("time", is24Hour = true)?.title)
@@ -29,15 +29,15 @@ class WorldClockTest {
 
     @Test
     fun theTimeInAPlace() {
-        val tokyo = WorldClock.TimeAnswer("7:30 AM", "Current time in Tokyo • Tomorrow")
+        val tokyo = WorldClock.TimeAnswer("7:30 AM", "Current time in Tokyo · Tomorrow")
         for (query in listOf("time in tokyo", "what time is it in Tokyo?", "tokyo time", "Tokyo local time", "what's the time in tokyo", "time now in tokyo")) {
             assertEquals(query, tokyo, answer(query))
         }
         assertEquals(WorldClock.TimeAnswer("6:30 PM", "Current time in New York"), answer("new york time"))
-        assertEquals(WorldClock.TimeAnswer("4:00 AM", "Current time in India • Tomorrow"), answer("time in india"))
+        assertEquals(WorldClock.TimeAnswer("4:00 AM", "Current time in India · Tomorrow"), answer("time in india"))
         // "Yesterday" and "tomorrow" are from where the phone is.
         assertEquals("Current time in London", answer("time in london", here = ZoneId.of("Europe/London"))?.subtitle)
-        assertEquals("Current time in Honolulu • Yesterday", answer("honolulu time", here = ZoneId.of("Asia/Tokyo"))?.subtitle)
+        assertEquals("Current time in Honolulu · Yesterday", answer("honolulu time", here = ZoneId.of("Asia/Tokyo"))?.subtitle)
     }
 
     @Test
@@ -58,7 +58,7 @@ class WorldClockTest {
             val expected = time(zone)
             assertEquals(place, expected, answer("time in $place")?.title)
         }
-        assertEquals("Current time in Washington DC", answer("what time is it in washington d.c.")?.subtitle?.substringBefore(" •"))
+        assertEquals("Current time in Washington DC", answer("what time is it in washington d.c.")?.subtitle?.substringBefore(" ·"))
     }
 
     @Test
@@ -80,7 +80,7 @@ class WorldClockTest {
         )) {
             assertNull("\"$query\" should not be a time answer", answer(query))
         }
-        assertEquals(WorldClock.TimeAnswer(time("Pacific/Wake"), "Current time in Wake • Tomorrow"), answer("time in wake"))
+        assertEquals(WorldClock.TimeAnswer(time("Pacific/Wake"), "Current time in Wake · Tomorrow"), answer("time in wake"))
         assertEquals(time("America/North_Dakota/Center"), answer("what time is it in center")?.title)
         assertEquals(time("Antarctica/Davis"), answer("time in davis")?.title)
         // Other zone cities and the places named in the alias table still answer on their own.
@@ -106,7 +106,7 @@ class WorldClockTest {
     @Test
     fun anAmbiguousPlaceAskedForIsTheOnePeopleMean() {
         // The zone database's Petersburg is in Indiana, its Jersey the Channel Island and its Cordoba in Argentina.
-        assertEquals(WorldClock.TimeAnswer(time("Europe/Moscow"), "Current time in St Petersburg • Tomorrow"), answer("time in petersburg"))
+        assertEquals(WorldClock.TimeAnswer(time("Europe/Moscow"), "Current time in St Petersburg · Tomorrow"), answer("time in petersburg"))
         assertEquals(time("America/New_York"), answer("time in jersey")?.title)
         assertEquals(time("Europe/Madrid"), answer("time in cordoba")?.title)
     }
@@ -130,16 +130,16 @@ class WorldClockTest {
             assertEquals(query, unitedStates, answer(query))
         }
         val cities = mapOf(
-            "canada" to "Canada (Toronto)", "australia" to "Australia (Sydney) • Tomorrow", "brazil" to "Brazil (São Paulo)",
-            "russia" to "Russia (Moscow) • Tomorrow", "mexico" to "Mexico (Mexico City)",
-            "indonesia" to "Indonesia (Jakarta) • Tomorrow", "kazakhstan" to "Kazakhstan (Almaty) • Tomorrow"
+            "canada" to "Canada (Toronto)", "australia" to "Australia (Sydney) · Tomorrow", "brazil" to "Brazil (São Paulo)",
+            "russia" to "Russia (Moscow) · Tomorrow", "mexico" to "Mexico (Mexico City)",
+            "indonesia" to "Indonesia (Jakarta) · Tomorrow", "kazakhstan" to "Kazakhstan (Almaty) · Tomorrow"
         )
         for ((country, label) in cities) {
             assertEquals(country, "Current time in $label", answer("time in $country")?.subtitle)
         }
         assertEquals(time("Asia/Almaty"), answer("kazakhstan time")?.title)
         // A single-zone country keeps its plain name.
-        assertEquals("Current time in Japan • Tomorrow", answer("time in japan")?.subtitle)
+        assertEquals("Current time in Japan · Tomorrow", answer("time in japan")?.subtitle)
     }
 
     private fun time(zone: String): String {
@@ -159,14 +159,14 @@ class WorldClockTest {
         assertEquals("4:30 PM", answer("time in mst")?.title)
         assertEquals("10:30 PM", answer("time in gmt")?.title)
         assertEquals("10:30 PM", answer("utc time")?.title)
-        assertEquals(WorldClock.TimeAnswer("12:30 AM", "Current time in CEST • Tomorrow"), answer("time in cet"))
+        assertEquals(WorldClock.TimeAnswer("12:30 AM", "Current time in CEST · Tomorrow"), answer("time in cet"))
         assertEquals("12:30 AM", answer("time in cest")?.title)
         assertEquals("11:30 PM", answer("time in bst")?.title)
         // IST is India's.
-        assertEquals(WorldClock.TimeAnswer("4:00 AM", "Current time in IST • Tomorrow"), answer("time in ist"))
+        assertEquals(WorldClock.TimeAnswer("4:00 AM", "Current time in IST · Tomorrow"), answer("time in ist"))
         assertEquals("7:30 AM", answer("jst time")?.title)
         // Sydney is on summer time from October.
-        assertEquals(WorldClock.TimeAnswer("9:30 AM", "Current time in AEDT • Tomorrow"), answer("time in aest"))
+        assertEquals(WorldClock.TimeAnswer("9:30 AM", "Current time in AEDT · Tomorrow"), answer("time in aest"))
         assertEquals("9:30 AM", answer("time in aedt")?.title)
         // The bare PT is shown as typed.
         assertEquals(WorldClock.TimeAnswer("3:30 PM", "Current time in PT"), answer("time in pt"))
@@ -186,19 +186,19 @@ class WorldClockTest {
         // AEST in January is Sydney's summer clock, UTC+11, not UTC+10.
         assertEquals(WorldClock.TimeAnswer("11:00 PM", "Current time in AEDT"), winter("time in aest"))
         // 3pm in Los Angeles in winter is UTC-8.
-        assertEquals(WorldClock.TimeAnswer("4:30 AM", "In IST, next day • 3:00 PM PST"), winter("3pm pst in ist"))
+        assertEquals(WorldClock.TimeAnswer("4:30 AM", "In IST, next day · 3:00 PM PST"), winter("3pm pst in ist"))
     }
 
     @Test
     fun aTimeMovedToAnotherZone() {
         // 3pm in Los Angeles, on PDT in October (22:00 UTC), is 3:30am the next day in India. With PST as a fixed
         // UTC-8 it was 4:30am, an hour off.
-        assertEquals(WorldClock.TimeAnswer("3:30 AM", "In IST, next day • 3:00 PM PDT"), answer("3pm PST in IST"))
+        assertEquals(WorldClock.TimeAnswer("3:30 AM", "In IST, next day · 3:00 PM PDT"), answer("3pm PST in IST"))
         assertEquals(answer("3pm PST in IST"), answer("3 p.m. pst to ist"))
-        assertEquals(WorldClock.TimeAnswer("11:00 AM", "In EDT • 3:00 PM UTC"), answer("15:00 utc to est"))
-        assertEquals(WorldClock.TimeAnswer("6:00 PM", "In PDT, previous day • 1:00 AM UTC"), answer("1am utc to pst"))
-        assertEquals(WorldClock.TimeAnswer("1:30 AM", "In London • 9:30 AM Tokyo"), answer("9:30 am tokyo time to london"))
-        assertEquals(WorldClock.TimeAnswer("21:00", "In CEST • 12:00 PDT"), answer("noon pst in cet", is24Hour = true))
+        assertEquals(WorldClock.TimeAnswer("11:00 AM", "In EDT · 3:00 PM UTC"), answer("15:00 utc to est"))
+        assertEquals(WorldClock.TimeAnswer("6:00 PM", "In PDT, previous day · 1:00 AM UTC"), answer("1am utc to pst"))
+        assertEquals(WorldClock.TimeAnswer("1:30 AM", "In London · 9:30 AM Tokyo"), answer("9:30 am tokyo time to london"))
+        assertEquals(WorldClock.TimeAnswer("21:00", "In CEST · 12:00 PDT"), answer("noon pst in cet", is24Hour = true))
         assertEquals("12:00 AM", answer("midnight utc in utc")?.title)
     }
 

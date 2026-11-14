@@ -34,7 +34,7 @@ class TorBrowserInstallDialogHapticsTest {
     fun closePlaysTheButtonHaptic() {
         var dismissed = false
         compose.setContent { TorBrowserInstallDialog(onDismiss = { dismissed = true }) }
-        compose.onNodeWithContentDescription("Close Tor Browser required dialog").performClick()
+        compose.onNodeWithContentDescription("Close").performClick()
         compose.waitForIdle()
         assertEquals(true, dismissed)
         assertEquals(listOf(HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE), RecordingViewHaptics.played)

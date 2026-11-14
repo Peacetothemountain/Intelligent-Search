@@ -72,7 +72,7 @@ class WebSearchCustomEngineTest {
     @Test
     fun choosingCustomLeavesTheAddressBlank() {
         show()
-        tap("Primary Search App")
+        tap("Search Engine")
         tap("Custom")
         shadowOf(Looper.getMainLooper()).idle()
 

@@ -91,14 +91,14 @@ fun SearchSettingsItem(onClick: () -> Unit) {
         ) {
             Icon(
                 imageVector = Icons.Default.Search,
-                contentDescription = "Search Settings",
+                contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(24.dp)
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Search",
+            text = "Settings",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 12.sp,
             maxLines = 1,

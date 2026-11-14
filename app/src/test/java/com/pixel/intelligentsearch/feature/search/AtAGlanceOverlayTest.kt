@@ -133,7 +133,7 @@ class AtAGlanceOverlayTest {
         showOverlay(history = listOf("weather tomorrow"))
         val glance = compose.onNodeWithTag(GLANCE_HEADER_TAG).getUnclippedBoundsInRoot()
         val alarm = alarmRow.getUnclippedBoundsInRoot()
-        val birthday = compose.onNodeWithText("Ana Lima's Birthday").getUnclippedBoundsInRoot()
+        val birthday = compose.onNodeWithText("Ana Lima's birthday").getUnclippedBoundsInRoot()
         val recent = compose.onNodeWithText("Recent").getUnclippedBoundsInRoot()
         assertTrue("heading, alarm, birthday, then Recent", glance.top < alarm.top && alarm.top < birthday.top && birthday.top < recent.top)
         assertEquals("the empty search reads At a Glance", 1, collecting.get())
@@ -145,7 +145,7 @@ class AtAGlanceOverlayTest {
         prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).commit()
         showOverlay()
         val heading = compose.onNodeWithTag(GLANCE_HEADER_TAG).getUnclippedBoundsInRoot()
-        val birthday = compose.onNodeWithText("Ana Lima's Birthday").getUnclippedBoundsInRoot()
+        val birthday = compose.onNodeWithText("Ana Lima's birthday").getUnclippedBoundsInRoot()
         val alarm = alarmRow.getUnclippedBoundsInRoot()
         val clock = compose.onNodeWithTag(GLANCE_CLOCK_TAG).getUnclippedBoundsInRoot()
         assertTrue("the card starts at the list's start margin", heading.left < 40.dp)
@@ -177,14 +177,14 @@ class AtAGlanceOverlayTest {
         prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).put(SettingsManager.GLANCE_ALARM, false).commit()
         showOverlay()
         alarmRow.assertDoesNotExist()
-        compose.onNodeWithText("Ana Lima's Birthday").assertExists()
+        compose.onNodeWithText("Ana Lima's birthday").assertExists()
     }
 
     @Test
     fun theBirthdaysSwitchHidesThemEvenWithContactSearchOn() {
         prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).put(SettingsManager.GLANCE_BIRTHDAYS, false).commit()
         showOverlay()
-        compose.onNodeWithText("Ana Lima's Birthday").assertDoesNotExist()
+        compose.onNodeWithText("Ana Lima's birthday").assertDoesNotExist()
         alarmRow.assertExists()
     }
 
@@ -211,7 +211,7 @@ class AtAGlanceOverlayTest {
         val heading = compose.onNodeWithTag(GLANCE_HEADER_TAG).getUnclippedBoundsInRoot()
         val alarm = alarmRow.getUnclippedBoundsInRoot()
         val event = dentist.getUnclippedBoundsInRoot()
-        val birthday = compose.onNodeWithText("Ana Lima's Birthday").getUnclippedBoundsInRoot()
+        val birthday = compose.onNodeWithText("Ana Lima's birthday").getUnclippedBoundsInRoot()
         val recent = compose.onNodeWithText("Recent").getUnclippedBoundsInRoot()
         assertTrue("heading, alarm, event, birthday, then Recent", heading.top < alarm.top && alarm.top < event.top && event.top < birthday.top && birthday.top < recent.top)
         assertTrue("in the card, not a full-width row of its own", event.right < 300.dp)
@@ -274,7 +274,7 @@ class AtAGlanceOverlayTest {
     fun atAGlanceLeavesAsTypingStarts() {
         showOverlay(query = "ana")
         compose.onNodeWithTag(GLANCE_HEADER_TAG).assertDoesNotExist()
-        compose.onNodeWithText("Ana Lima's Birthday").assertDoesNotExist()
+        compose.onNodeWithText("Ana Lima's birthday").assertDoesNotExist()
     }
 
     @Test
@@ -287,7 +287,7 @@ class AtAGlanceOverlayTest {
     fun birthdaysNeedContactSearch() {
         prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).commit()
         showOverlay()
-        compose.onNodeWithText("Ana Lima's Birthday").assertDoesNotExist()
+        compose.onNodeWithText("Ana Lima's birthday").assertDoesNotExist()
         alarmRow.assertExists()
     }
 

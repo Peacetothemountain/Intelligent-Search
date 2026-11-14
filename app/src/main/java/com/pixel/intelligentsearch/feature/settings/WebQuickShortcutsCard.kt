@@ -108,7 +108,7 @@ internal fun WebQuickShortcutsCard() {
         var shortcutTriggerSymbol by rememberSetting(SettingsManager.WEB_SHORTCUT_TRIGGER_SYMBOL)
         SettingsRowToggle(
             title = "Enable Quick Web Shortcuts",
-            subtitle = "Prefix Queries with User Selected Symbol to Open Specific Web Applications.",
+            subtitle = "Start a Search with ${shortcutTriggerSymbol}yt or Another Shortcut to Search That Site or App Directly.",
             icon = Symbols.Outlined.TravelExplore,
             isChecked = quickShortcutsEnabled,
             onCheckedChange = { quickShortcutsEnabled = it },
@@ -315,7 +315,7 @@ internal fun WebQuickShortcutsCard() {
                         border = null
                     ) {
                         Text(
-                            text = "No Active Shortcuts. Tap Add or Restore Direct Shortcuts Below.",
+                            text = "No Active Shortcuts. Tap Add to Make One.",
                             style = MaterialTheme.typography.bodyMedium,
                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -379,7 +379,7 @@ internal fun WebQuickShortcutsCard() {
                                         ) {
                                             Icon(
                                                 imageVector = Symbols.Outlined.Delete,
-                                                contentDescription = "Delete shortcut",
+                                                contentDescription = "Delete Shortcut",
                                                 tint = iconTint,
                                                 modifier = Modifier.size(24.dp)
                                             )
@@ -483,7 +483,7 @@ internal fun WebQuickShortcutsCard() {
             var showAvailableDirectShortcuts by rememberSetting(SettingsManager.SHOW_AVAILABLE_DIRECT_SHORTCUTS)
             SettingsRowToggle(
                 title = "Available Direct Shortcuts",
-                subtitle = "Tap Add to Restore Any Direct Shortcut.",
+                subtitle = "List the Built-In Shortcuts You Removed, Each with Add to Bring It Back.",
                 icon = Symbols.Outlined.BookmarkBorder,
                 isChecked = showAvailableDirectShortcuts,
                 onCheckedChange = { showAvailableDirectShortcuts = it },

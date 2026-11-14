@@ -609,7 +609,7 @@ fun TutorialSpotlightOverlay(
                                             .height(welcomeVideoHeight)
                                             .offset(y = (-10).dp)
                                             .semantics {
-                                                contentDescription = "Animated 3D Bugdroid holding Google star balloon"
+                                                contentDescription = "Animated Bugdroid holding a Google star balloon"
                                             },
                                         scaleFactor = 0.95f
                                     )
@@ -671,7 +671,7 @@ fun TutorialSpotlightOverlay(
                                     ) {
                                         Icon(
                                             painter = painterResource(id = R.drawable.ic_three_bars),
-                                            contentDescription = "Settings icon",
+                                            contentDescription = null,
                                             tint = cardTextColor.copy(alpha = 0.95f),
                                             modifier = Modifier.size(18.dp)
                                         )
@@ -763,7 +763,7 @@ fun TutorialSpotlightOverlay(
                         // Primary / Advance Action Button (Guaranteed min 48x48dp touch target)
                         val isFinalStep = currentStep >= TutorialManager.TOTAL_STEPS - 1
                         val buttonLabel = if (isFinalStep) TUTORIAL_FINISH_LABEL else "Next"
-                        val buttonDesc = if (isFinalStep) "Finish tutorial" else "Next tutorial step"
+                        val buttonDesc = if (isFinalStep) "$TUTORIAL_FINISH_LABEL, finish tutorial" else "Next tutorial step"
                         Button(
                             onClick = advanceToNextStep,
                             colors = ButtonDefaults.buttonColors(
@@ -794,4 +794,4 @@ fun TutorialSpotlightOverlay(
 }
 
 /** The tutorial's last button, as its last step names it too. */
-internal const val TUTORIAL_FINISH_LABEL = "Got it"
+internal const val TUTORIAL_FINISH_LABEL = "Got It"

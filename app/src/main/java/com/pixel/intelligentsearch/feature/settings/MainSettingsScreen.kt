@@ -97,35 +97,35 @@ fun MainSettingsScreen(
             SettingsCard {
                 SettingsRow(
                     title = "Appearance",
-                    subtitle = "Theme, Wallpaper, Material Design Layouts.",
+                    subtitle = "Theme, Icons, Search Overlay, Discover Overlay and Wallpaper.",
                     icon = Symbols.Outlined.Palette,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.Appearance) },
                     showDivider = true,
                 )
                 SettingsRow(
                     title = "Search Sources",
-                    subtitle = "Apps, Contacts, Files, Etc.",
+                    subtitle = "Apps, Web, Contacts, Files and Calculator.",
                     icon = Symbols.Outlined.SavedSearch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchSources) },
                     showDivider = true,
                 )
                 SettingsRow(
                     title = "Search Behavior",
-                    subtitle = "Search Overlay, Keyboard, At a Glance and Display Settings.",
+                    subtitle = "Layout, Suggestions, Keyboard, Voice and At a Glance.",
                     icon = Symbols.Outlined.Tune,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.SearchBehavior) },
                     showDivider = true,
                 )
                 SettingsRow(
                     title = "Widget Customization",
-                    subtitle = "Customize Widget Colors, Themes, and Actions.",
+                    subtitle = "Colors, Icons, Shortcuts and Profiles for the Search Bar Widget.",
                     icon = Symbols.Outlined.Widgets,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization) },
                     showDivider = true,
                 )
                 SettingsRow(
                     title = "Launch Portal",
-                    subtitle = "Search Tile, Home Screen Shortcut, Notification Shortcut and Floating Button.",
+                    subtitle = "Search Tile, Home Screen Shortcut, Notification Shortcut and Floating Search Button.",
                     icon = Symbols.Outlined.RocketLaunch,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.LaunchPortal) },
                     showDivider = false,
@@ -135,7 +135,7 @@ fun MainSettingsScreen(
             SettingsCard {
                 SettingsRow(
                     title = "Encrypted Backup",
-                    subtitle = "Import, Export, and Restore Backup App Data.",
+                    subtitle = "Export Your Settings, Restore Them and Back Up Weekly.",
                     icon = Symbols.Outlined.Security,
                     onClick = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.BackupRestore) },
                     showDivider = true

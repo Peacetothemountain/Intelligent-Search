@@ -39,8 +39,22 @@ class SpokenAnswersTest {
 
     @Test
     fun storageIsSaidWithoutThePercentage() {
-        val answer = InstantAnswer("118 GB free", "of 256 GB • 53% used", "storage")
+        val answer = InstantAnswer("118 GB free", "of 256 GB · 53% used", "storage")
         assertEquals("118 GB free of 256 GB.", SpokenAnswers.instant(answer))
+    }
+
+    @Test
+    fun aDateIsSaidAsItsWholeSentence() {
+        val count = InstantAnswer("41 days", "Until Friday, December 25, 2026", "date", spoken = "41 days until Friday, December 25, 2026")
+        assertEquals("41 days until Friday, December 25, 2026.", SpokenAnswers.instant(count))
+        val week = InstantAnswer("Week 46", "Starting Monday, November 9, 2026", "date", spoken = "Saturday, November 14, 2026 is in week 46")
+        assertEquals("Saturday, November 14, 2026 is in week 46.", SpokenAnswers.instant(week))
+    }
+
+    @Test
+    fun aTimeSaysWhereItIs() {
+        assertEquals("Current time in Tokyo: 7:30 AM.", SpokenAnswers.instant(InstantAnswer("7:30 AM", "Current time in Tokyo · Tomorrow", "time")))
+        assertEquals("Current local time: 10:30 PM.", SpokenAnswers.instant(InstantAnswer("10:30 PM", "Current local time", "time")))
     }
 
     @Test

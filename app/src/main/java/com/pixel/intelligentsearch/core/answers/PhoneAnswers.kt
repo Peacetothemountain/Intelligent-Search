@@ -68,7 +68,7 @@ class PhoneAnswers(
             return PhoneAnswer(
                 Kind.STORAGE,
                 title = "${formatSize(free)} free",
-                subtitle = "of ${formatSize(reading.totalBytes)} • $usedPercent% used"
+                subtitle = "of ${formatSize(reading.totalBytes)} · $usedPercent% used"
             )
         }
 
@@ -81,7 +81,7 @@ class PhoneAnswers(
                     reading.mobile -> "This phone's address on mobile data"
                     else -> "This phone's address on this network"
                 }
-                PhoneAnswer(Kind.ADDRESS, reading.address, "$where • Tap to copy", copyable = reading.address)
+                PhoneAnswer(Kind.ADDRESS, reading.address, "$where · Tap to copy", copyable = reading.address)
             }
 
         /** Decimal sizes, as Android's Settings writes storage: "118 GB", "9.4 GB", "512 MB". */

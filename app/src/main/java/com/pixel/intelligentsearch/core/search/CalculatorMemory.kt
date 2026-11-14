@@ -51,6 +51,19 @@ class CalculatorMemory {
     companion object {
         const val MAX = 4
         private val ANS = Regex("(?<![\\p{L}\\p{N}_.])ans(?![\\p{L}\\p{N}_])", RegexOption.IGNORE_CASE)
+        private val TRAILING_NUMBER = Regex("(?:\\d+(?:\\.\\d*)?|\\.\\d+)$")
+
+        /**
+         * [text] with [number] recalled into it, as a calculator's memory recall does: a number [text] ends with is
+         * replaced ("2+2" becomes "2+55"), and otherwise [number] goes on the end ("2+" becomes "2+55", "ans*" becomes
+         * "ans*55", "(2+3)" becomes "(2+3)*55"). A negative number after something else goes in brackets, so "2*" becomes "2*(-3)".
+         */
+        fun recall(text: String, number: String): String {
+            val kept = TRAILING_NUMBER.find(text)?.let { text.substring(0, it.range.first) } ?: text
+            // After a closing bracket the number multiplies what is in it: "(2+3)" becomes "(2+3)*55".
+            val joint = if (kept.endsWith(")")) "*" else ""
+            return kept + joint + if (kept.isNotEmpty() && number.startsWith("-")) "($number)" else number
+        }
 
         internal fun plain(value: Double): String =
             if (value == Math.rint(value) && Math.abs(value) < 1e15) value.toLong().toString()

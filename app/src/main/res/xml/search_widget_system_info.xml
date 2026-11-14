@@ -15,4 +15,4 @@
     android:widgetCategory="home_screen|keyguard"
     android:widgetFeatures="reconfigurable|configuration_optional"
     android:configure="com.pixel.intelligentsearch.feature.settings.SettingsActivity"
-    android:description="@string/widget_system_search_bar" />
+    android:description="@string/widget_search_description" />

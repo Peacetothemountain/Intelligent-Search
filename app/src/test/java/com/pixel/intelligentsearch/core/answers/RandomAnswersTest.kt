@@ -41,7 +41,7 @@ class RandomAnswersTest {
     fun oneDieIsASixSidedRoll() {
         for (query in listOf("roll a die", "roll a dice", "Roll the dice", "roll dice", "dice roll", "throw a die")) {
             val (random, answers) = answers(4)
-            assertEquals(query, RandomAnswers.RandomAnswer("4", "Dice roll • 1d6"), answers.evaluate(query))
+            assertEquals(query, RandomAnswers.RandomAnswer("4", "Dice roll · 1d6"), answers.evaluate(query))
             assertEquals(query, listOf(1L to 7L), random.drawn)
         }
     }
@@ -49,13 +49,13 @@ class RandomAnswersTest {
     @Test
     fun severalDiceShowEachRollAndTheTotal() {
         val (random, answers) = answers(3, 5)
-        assertEquals(RandomAnswers.RandomAnswer("8", "Dice roll • 2d6: 3 + 5"), answers.evaluate("roll 2d6"))
+        assertEquals(RandomAnswers.RandomAnswer("8", "Dice roll · 2d6: 3 + 5"), answers.evaluate("roll 2d6"))
         assertEquals(listOf(1L to 7L, 1L to 7L), random.drawn)
 
-        assertEquals(RandomAnswers.RandomAnswer("17", "Dice roll • 1d20"), answers(17).second.evaluate("roll a d20"))
-        assertEquals("Dice roll • 1d20", answers(17).second.evaluate("roll d20")?.subtitle)
-        assertEquals(RandomAnswers.RandomAnswer("1,000", "Dice roll • 1d1000"), answers(1000).second.evaluate("roll a d1000"))
-        assertEquals(RandomAnswers.RandomAnswer("7", "Dice roll • 2d6: 1 + 6"), answers(1, 6).second.evaluate("roll 2 dice"))
+        assertEquals(RandomAnswers.RandomAnswer("17", "Dice roll · 1d20"), answers(17).second.evaluate("roll a d20"))
+        assertEquals("Dice roll · 1d20", answers(17).second.evaluate("roll d20")?.subtitle)
+        assertEquals(RandomAnswers.RandomAnswer("1,000", "Dice roll · 1d1000"), answers(1000).second.evaluate("roll a d1000"))
+        assertEquals(RandomAnswers.RandomAnswer("7", "Dice roll · 2d6: 1 + 6"), answers(1, 6).second.evaluate("roll 2 dice"))
         // A long roll lists its first ten dice.
         val many = answers(*LongArray(12) { 2 }).second.evaluate("roll 12d4")!!
         assertEquals("24", many.title)

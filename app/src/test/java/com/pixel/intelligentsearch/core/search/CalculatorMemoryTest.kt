@@ -52,6 +52,19 @@ class CalculatorMemoryTest {
     }
 
     @Test
+    fun anEarlierResultIsRecalledLikeACalculatorsMemory() {
+        // The number the sum ends with is replaced.
+        assertEquals("2+55", CalculatorMemory.recall("2+2", "55"))
+        assertEquals("55", CalculatorMemory.recall("12.5", "55"))
+        // After an operator or nothing at all it goes on the end; after a bracket it multiplies.
+        assertEquals("2+55", CalculatorMemory.recall("2+", "55"))
+        assertEquals("ans*55", CalculatorMemory.recall("ans*", "55"))
+        assertEquals("(2+3)*55", CalculatorMemory.recall("(2+3)", "55"))
+        assertEquals("55", CalculatorMemory.recall("", "55"))
+        assertEquals("2*(-2.5)", CalculatorMemory.recall("2*", "-2.5"))
+    }
+
+    @Test
     fun whatIsNotANumberIsNotKeptAndClearForgetsAll() {
         val memory = CalculatorMemory()
         memory.keep("NaN", Double.NaN)

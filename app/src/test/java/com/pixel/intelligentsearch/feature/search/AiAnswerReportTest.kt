@@ -44,7 +44,7 @@ class AiAnswerReportTest {
 
         compose.onNodeWithText("Report").performClick()
         compose.onNodeWithText("Inaccurate or Misleading").performClick()
-        compose.onNodeWithText("Send Report").performClick()
+        compose.onNodeWithText("Open in Email").performClick()
         compose.waitForIdle()
 
         compose.onNodeWithText("Rayleigh scattering.").assertDoesNotExist()

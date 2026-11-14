@@ -18,7 +18,7 @@ import com.pixel.intelligentsearch.core.data.settings.rememberSetting
  */
 @Composable
 internal fun KeyboardSettingsCard() {
-    SettingsSectionHeader("Keyboard")
+    SettingsSectionHeader("Voice and Keyboard")
     SettingsCard {
         // Voice or keyboard is the first choice search opens with, so it leads the card.
         var assistantVoice by rememberSetting(SettingsManager.ASSISTANT_STARTS_WITH_VOICE)

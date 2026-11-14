@@ -82,7 +82,7 @@ class Dictation(private val context: Context) {
         val hasEngine = otherRecognitionService(context) != null ||
             (Build.VERSION.SDK_INT >= 33 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context))
         if (!hasEngine) {
-            onProblem("Speech recognition service unavailable on device."); return
+            onProblem("Voice search isn't available on this phone."); return
         }
         this.onFinished = onFinished
         this.onProblem = onProblem
@@ -242,7 +242,7 @@ class Dictation(private val context: Context) {
             r.startListening(recognizeIntent())
         } catch (e: Exception) {
             Log.w(TAG, "Could not start listening", e)
-            fail("Voice recognizer error. Tap the mic to try again.")
+            fail("Voice search couldn't start. Tap the mic to try again.")
         }
     }
 
@@ -311,7 +311,7 @@ class Dictation(private val context: Context) {
                         useOnDeviceEngine(onDeviceFallback)
                         sessionEnded()
                     } else {
-                        fail("Voice search doesn't know your phone's languages yet. Add another language in Settings, under Languages.")
+                        fail("Voice search doesn't support your phone's languages yet. Add a language it supports in Android settings, under Languages.")
                     }
                 else -> if (!onDevice && onDeviceFallback != null && isNoConnection(error)) {
                     // No connection for the online engine: the on-device engine listens in its language, and stays.

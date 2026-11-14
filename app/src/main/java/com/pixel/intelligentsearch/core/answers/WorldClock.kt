@@ -45,7 +45,7 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
         return try {
             if (query in LOCAL_PHRASES) {
                 val now = now().atZone(localZone)
-                return TimeAnswer(time(now.toLocalTime(), is24Hour), "Current time in your location")
+                return TimeAnswer(time(now.toLocalTime(), is24Hour), "Current local time")
             }
             conversion(query, is24Hour) ?: placeTime(query, is24Hour, localZone)
         } catch (_: DateTimeException) {
@@ -63,8 +63,8 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
         val there = now.atZone(place.zone)
         val here = now.atZone(localZone)
         val day = when (ChronoUnit.DAYS.between(here.toLocalDate(), there.toLocalDate())) {
-            1L -> " • Tomorrow"
-            -1L -> " • Yesterday"
+            1L -> " · Tomorrow"
+            -1L -> " · Yesterday"
             else -> ""
         }
         return TimeAnswer(time(there.toLocalTime(), is24Hour), "Current time in ${place.labelAt(now)}$day")
@@ -86,7 +86,7 @@ class WorldClock(private val clock: Clock? = null, private val locale: Locale? =
             else -> return null
         }
         val instant = start.toInstant()
-        return TimeAnswer(time(end.toLocalTime(), is24Hour), "In ${to.labelAt(instant)}$day • ${time(timeOfDay, is24Hour)} ${from.labelAt(instant)}")
+        return TimeAnswer(time(end.toLocalTime(), is24Hour), "In ${to.labelAt(instant)}$day · ${time(timeOfDay, is24Hour)} ${from.labelAt(instant)}")
     }
 
     /** "3pm", "3:30 pm", "15:00", "noon", "midnight"; a bare hour needs am or pm, so "5 days" isn't a time. */

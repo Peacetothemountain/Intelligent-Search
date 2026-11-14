@@ -113,7 +113,7 @@ class VoicePermissionTest {
         compose.waitForIdle()
     }
 
-    private fun listening() = voice.active || problems.lastOrNull() == "Speech recognition service unavailable on device."
+    private fun listening() = voice.active || problems.lastOrNull() == "Voice search isn't available on this phone."
 
     /** Taps the microphone with it off; true when App Info opened. */
     private fun tapMic(allow: Boolean, whileAsking: () -> Unit = {}): Boolean {
@@ -165,7 +165,7 @@ class VoicePermissionTest {
         compose.waitForIdle()
         assertTrue(
             "listening starts: ${problems.last()}",
-            voice.active || problems.last() == "Speech recognition service unavailable on device."
+            voice.active || problems.last() == "Voice search isn't available on this phone."
         )
     }
 

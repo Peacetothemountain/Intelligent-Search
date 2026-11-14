@@ -174,7 +174,7 @@ internal fun SearchRoleInfoDialog(context: Context, onDismiss: () -> Unit) {
                                 com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).click(view)
                                 Toast.makeText(context, "ADB commands copied to clipboard.", Toast.LENGTH_SHORT).show()
                             }) {
-                                Text("Copy Command")
+                                Text("Copy Commands")
                             }
                         }
                     }
@@ -310,7 +310,7 @@ private fun DeveloperNoteCards(context: Context, scheme: androidx.compose.materi
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Intelligent Search is your active Default Search Engine.",
+                            text = "Intelligent Search is your default search engine.",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = scheme.onPrimaryContainer

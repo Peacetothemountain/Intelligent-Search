@@ -62,9 +62,9 @@ class SystemToggleManager @Inject constructor(
          * reads "<unknown ssid>"), so this says whether Wi-Fi is connected, never to which network.
          */
         fun wifiStatusText(enabled: Boolean, connected: Boolean): String = when {
-            connected -> "Wi-Fi is on • Connected"
-            enabled -> "Wi-Fi is on • Not connected"
-            else -> "Wi-Fi is turned off"
+            connected -> "Wi-Fi is on · Connected"
+            enabled -> "Wi-Fi is on · Not connected"
+            else -> "Wi-Fi is off"
         }
     }
 
@@ -348,7 +348,7 @@ class SystemToggleManager @Inject constructor(
     }
 
     fun getAirplaneModeStatusText(enabled: Boolean): String {
-        return if (enabled) "Airplane mode is on • Radios off" else "Airplane mode is off"
+        return if (enabled) "Airplane mode is on" else "Airplane mode is off"
     }
 
     fun openAirplaneModeSettings() {
@@ -383,7 +383,7 @@ class SystemToggleManager @Inject constructor(
     }
 
     fun getAutoRotateStatusText(enabled: Boolean): String {
-        return if (enabled) "Auto-rotate is on (Portrait & Landscape)" else "Portrait orientation locked"
+        return if (enabled) "Auto-rotate is on" else "Auto-rotate is off"
     }
 
     fun openAutoRotateSettings() {
@@ -428,7 +428,7 @@ class SystemToggleManager @Inject constructor(
     }
 
     fun getDndStatusText(enabled: Boolean): String {
-        return if (enabled) "Do Not Disturb is on • Calls & Alerts silenced" else "Do Not Disturb is off"
+        return if (enabled) "Do Not Disturb is on" else "Do Not Disturb is off"
     }
 
     fun openDndSettings() {
@@ -479,7 +479,7 @@ class SystemToggleManager @Inject constructor(
     fun isLocationEnabled(): Boolean = _isLocationEnabled.value
 
     fun getLocationStatusText(enabled: Boolean): String {
-        return if (enabled) "Location is enabled • Accurate GPS" else "Location is turned off"
+        return if (enabled) "Location is on" else "Location is off"
     }
 
     fun openLocationSettings() {
@@ -489,7 +489,7 @@ class SystemToggleManager @Inject constructor(
     // ==========================================
     // 10. HOTSPOT / TETHERING
     // ==========================================
-    fun getHotspotStatusText(): String = "Tap to manage portable Wi-Fi hotspot"
+    fun getHotspotStatusText(): String = "Open hotspot and tethering settings"
 
     fun openHotspotSettings() {
         openSettingsIntent(Settings.ACTION_WIRELESS_SETTINGS)
@@ -515,7 +515,7 @@ class SystemToggleManager @Inject constructor(
     }
 
     fun getDarkModeStatusText(enabled: Boolean): String {
-        return if (enabled) "Dark theme is active" else "Light theme is active"
+        return if (enabled) "Dark theme is on" else "Dark theme is off"
     }
 
     fun openDarkModeSettings() {
@@ -535,7 +535,7 @@ class SystemToggleManager @Inject constructor(
     fun isNfcEnabled(): Boolean = try { nfcAdapter?.isEnabled == true } catch (_: Exception) { false }
 
     fun getNfcStatusText(enabled: Boolean): String {
-        return if (enabled) "NFC is on • Contactless ready" else "NFC is turned off"
+        return if (enabled) "NFC is on" else "NFC is off"
     }
 
     fun openNfcSettings() {
@@ -585,7 +585,7 @@ internal fun batteryStatusText(level: Int?, charging: Boolean, saverOn: Boolean)
     val parts = buildList {
         if (level != null && level in 0..100) add("$level%")
         if (charging) add("Charging")
-        if (saverOn) add("Battery Saver On")
+        if (saverOn) add("Battery Saver is on")
     }
-    return parts.joinToString(" • ").ifEmpty { "Battery Saver Off" }
+    return parts.joinToString(" · ").ifEmpty { "Battery Saver is off" }
 }

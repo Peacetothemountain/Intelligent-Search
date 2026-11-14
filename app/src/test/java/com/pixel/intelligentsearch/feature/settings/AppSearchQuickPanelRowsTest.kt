@@ -144,7 +144,7 @@ class AppSearchQuickPanelRowsTest {
         compose.setContent { IntelligentSearchTheme(darkTheme = false) { AppSearchScreen(prefs, {}, {}) } }
 
         setMaxWithSlider(2)
-        compose.onNodeWithText("Accept").performClick()
+        compose.onNodeWithText("Remove").performClick()
         settleDialogs()
 
         assertEquals(2, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])

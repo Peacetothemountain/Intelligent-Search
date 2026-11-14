@@ -282,7 +282,7 @@ internal fun TodayBarButton(onClick: () -> Unit, modifier: Modifier = Modifier) 
         modifier = modifier
             .size(40.dp)
             .clip(CircleShape)
-            .semantics { contentDescription = "Discover Overlay" }
+            .semantics { contentDescription = "Discover" }
             .bouncyClickable(shape = CircleShape, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -403,17 +403,17 @@ internal fun TodayPage(
         notificationsFor = null
     }
     NotificationAccessDialog(notificationsRequest)
-    fun turnOn(on: () -> Unit) = PartStatus("Turned off", "Tap to turn on", "Turn on", on)
-    fun askNotifications(kind: CardKind) = PartStatus("Needs notification access", "Tap to allow", "Allow notification access", access = CardAccess.NOTIFICATIONS, fix = {
+    fun turnOn(on: () -> Unit) = PartStatus("Turned off", "Tap to turn on", "Turn On", on)
+    fun askNotifications(kind: CardKind) = PartStatus("Needs notification access", "Tap to allow", "Allow Notification Access", access = CardAccess.NOTIFICATIONS, fix = {
         notificationsFor = kind.key
         notificationsRequest.request()
     })
-    val calendarNeeded = PartStatus("Needs calendar access", "Tap to allow", "Allow calendar access", access = CardAccess.CALENDAR, fix = { calendarRequest.request() })
+    val calendarNeeded = PartStatus("Needs calendar access", "Tap to allow", "Allow Calendar Access", access = CardAccess.CALENDAR, fix = { calendarRequest.request() })
     fun partStatus(kind: CardKind): PartStatus = when (kind) {
         CardKind.UP_NEXT -> when {
             !calendarOk -> calendarNeeded
             !upNextOn -> turnOn { upNextOn = true }
-            else -> PartStatus("Shows in the hours before your next event")
+            else -> PartStatus("Shows when you have an event in the next 24 hours")
         }
         CardKind.REST_OF_DAY -> when {
             !calendarOk -> calendarNeeded
@@ -426,22 +426,22 @@ internal fun TodayPage(
                 when (weatherBlock) {
                     com.pixel.intelligentsearch.core.security.NetworkPolicy.Block.TOR -> "Off while Tor is your search engine"
                     com.pixel.intelligentsearch.core.security.NetworkPolicy.Block.WEB_OFF -> "Needs Web on in Search Sources"
-                    com.pixel.intelligentsearch.core.security.NetworkPolicy.Block.WEB_SUGGESTIONS_OFF -> "Needs Web Suggestions on"
+                    com.pixel.intelligentsearch.core.security.NetworkPolicy.Block.WEB_SUGGESTIONS_OFF -> "Needs Web Suggestions on in Web Search"
                 }
             )
-            !locationOk && homePlace.isBlank() -> PartStatus("Needs your location", "Tap to allow", "Use your location", access = CardAccess.LOCATION, fix = { locationRequest.request() })
+            !locationOk && homePlace.isBlank() -> PartStatus("Needs your location", "Tap to allow", "Allow Location", access = CardAccess.LOCATION, fix = { locationRequest.request() })
             else -> PartStatus("Shows once the forecast is in")
         }
         // Alarms need nothing; timers and packages are read from their apps' notifications.
-        CardKind.TILES -> if (!notificationsOk) askNotifications(kind) else PartStatus("Shows with a timer, an alarm within a day, or a package on its way")
+        CardKind.TILES -> if (!notificationsOk) askNotifications(kind) else PartStatus("Shows with a timer, an alarm within a day, or a package on its way while Catch Up is on")
         CardKind.NOW_PLAYING -> if (!notificationsOk) askNotifications(kind) else PartStatus("Shows while something is playing")
         CardKind.CATCH_UP -> when {
             !notificationsOk -> askNotifications(kind)
             !catchUpOn -> turnOn { catchUpOn = true }
-            else -> PartStatus("Shows when you have missed calls or messages")
+            else -> PartStatus("Shows missed calls, messages and emails from the last 12 hours")
         }
         CardKind.CONTROLS -> if (!controlsOn) turnOn { controlsOn = true } else PartStatus("Shows your quick controls")
-        CardKind.PHONE -> if (!phoneOn) turnOn { phoneOn = true } else PartStatus("Shows once the battery is read")
+        CardKind.PHONE -> if (!phoneOn) turnOn { phoneOn = true } else PartStatus("Shows your battery and screen time")
         CardKind.LEFT_OFF -> if (!leftOffOn) turnOn { leftOffOn = true } else PartStatus("Shows after your first search")
         CardKind.WORD -> if (!extrasOn) turnOn { extrasOn = true } else PartStatus("Shows today's word")
         CardKind.YEAR -> if (!extrasOn) turnOn { extrasOn = true } else PartStatus("Shows when a holiday is coming up")

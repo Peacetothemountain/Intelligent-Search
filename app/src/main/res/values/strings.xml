@@ -1,7 +1,7 @@
 <resources>
     <string name="settings_shortcut_label">Settings</string>
     <string name="app_name">Intelligent Search</string>
-    <string name="search_settings_desc">Enter Intelligent Search Settings</string>
+    <string name="search_settings_desc">Intelligent Search settings</string>
     <!-- The entry other apps show in their text selection menu and share sheet. -->
     <string name="selected_text_search_label">Intelligent Search</string>
     <string name="widget_search_description">Search phone and web</string>
@@ -9,7 +9,7 @@
     <string name="widget_material_search_bar">Material Design search bar</string>
     <string name="widget_home_search_bar">Home screen search bar</string>
     <!-- Shown by assistants that list what Intelligent Search can do for them. -->
-    <string name="app_functions_display_description">Find apps and contacts and do quick math, all on this phone</string>
+    <string name="app_functions_display_description">Find apps and contacts, and do quick math and unit conversions, all on this phone</string>
 
     <!-- App Widget Dynamic TalkBack Accessibility Descriptions -->
     <string name="widget_talkback_voice_search">Voice search</string>
@@ -17,27 +17,26 @@
     <string name="widget_talkback_assistant">Google Assistant</string>
     <string name="widget_talkback_translate_text">Translate text</string>
     <string name="widget_talkback_translate_camera">Translate with camera</string>
-    <string name="widget_talkback_weather">Check weather forecast</string>
-    <string name="widget_talkback_sports">Check sports scores</string>
-    <string name="widget_talkback_dictionary">Look up in dictionary</string>
-    <string name="widget_talkback_homework">Get homework help</string>
-    <string name="widget_talkback_finance">Check stock market and finance</string>
-    <string name="widget_talkback_saved">View saved collections</string>
-    <string name="widget_talkback_news">Read top news</string>
-    <string name="widget_talkback_search_action">Search and actions</string>
+    <string name="widget_talkback_weather">Weather</string>
+    <string name="widget_talkback_sports">Sports</string>
+    <string name="widget_talkback_dictionary">Dictionary</string>
+    <string name="widget_talkback_homework">Homework</string>
+    <string name="widget_talkback_finance">Finance</string>
+    <string name="widget_talkback_saved">Saved</string>
+    <string name="widget_talkback_news">News</string>
     <string name="widget_talkback_google_logo">Google search</string>
-    <string name="widget_talkback_gemini_search">Gemini and assistant search</string>
-    <string name="widget_talkback_now_playing">Pixel Now Playing song history</string>
-    <string name="tile_content_description">Search phone and web quick launcher</string>
+    <string name="widget_talkback_gemini_search">Search with your assistant</string>
+    <string name="widget_talkback_now_playing">Song search</string>
+    <string name="tile_content_description">Intelligent Search, search phone and web</string>
     <string name="widget_talkback_open_app">Open %1$s</string>
     <string name="widget_talkback_open_web">Open %1$s</string>
-    <string name="widget_talkback_calculator">Calculate in search</string>
+    <string name="widget_talkback_calculator">Calculator</string>
     <string name="widget_talkback_discover">Google Discover</string>
-    <string name="widget_talkback_voice_nebula">Search by voice</string>
+    <string name="widget_talkback_voice_nebula">Voice Nebula</string>
 
     <!-- The countdown widget: "9" over "days" under "Halloween" (in one row, "9 days · Halloween"). -->
     <string name="widget_countdown_label">Countdown</string>
-    <string name="widget_countdown_description">Days left until a date you choose</string>
+    <string name="widget_countdown_description">Counts the days to or from a date you choose</string>
     <plurals name="widget_countdown_days_left">
         <item quantity="one">day</item>
         <item quantity="other">days</item>
@@ -65,7 +64,7 @@
     </plurals>
     <string name="widget_talkback_countdown_today">%1$s is today</string>
     <string name="widget_talkback_countdown">%1$s, %2$s, search for %3$s</string>
-    <string name="widget_talkback_countdown_set_up">Countdown, tap to choose a date</string>
+    <string name="widget_talkback_countdown_set_up">Countdown, not set up yet</string>
     <string name="search_hint">Search</string>
     <!-- Doodle days: TalkBack reads "<day> doodle, search for <day>", and tapping the doodle searches for the day. -->
     <string name="widget_talkback_doodle">%1$s doodle, search for %1$s</string>
@@ -75,7 +74,7 @@
     <string name="occasion_earth_day">Earth Day</string>
     <string name="occasion_first_day_of_spring">First Day of Spring</string>
     <string name="occasion_first_day_of_summer">First Day of Summer</string>
-    <string name="occasion_first_day_of_autumn">First Day of Autumn</string>
+    <string name="occasion_first_day_of_autumn">First Day of Fall</string>
     <string name="occasion_first_day_of_winter">First Day of Winter</string>
     <string name="occasion_halloween">Halloween</string>
     <string name="occasion_holidays">Happy Holidays</string>
@@ -104,8 +103,8 @@
     <string name="occasion_kindness_day">World Kindness Day</string>
     <string name="occasion_thanksgiving">Thanksgiving</string>
     <!-- Global fun days, the same everywhere. -->
-    <string name="occasion_hugging_day">National Hugging Day</string>
-    <string name="occasion_pizza_day">National Pizza Day</string>
+    <string name="occasion_hugging_day">Hugging Day</string>
+    <string name="occasion_pizza_day">Pizza Day</string>
     <string name="occasion_happiness_day">International Day of Happiness</string>
     <string name="occasion_book_day">World Book Day</string>
     <string name="occasion_penguin_day">World Penguin Day</string>

@@ -40,6 +40,7 @@ import androidx.compose.ui.platform.LocalView
 import com.pixel.intelligentsearch.core.haptics.PixelHapticEngine
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.text
@@ -176,6 +177,8 @@ internal fun TodayBar(onBack: () -> Unit, onOpenSettings: () -> Unit, modifier: 
                 .align(Alignment.CenterStart)
                 .padding(start = BAR_BUTTON_INSET + BAR_BUTTON + 4.dp)
                 .graphicsLayer { alpha = formed() * (1f - smoothStep(0f, 0.35f, shrink.value)) }
+                // The back button beside it has the same name; read here too, and after the bar shrinks, it would be said twice.
+                .clearAndSetSemantics {}
         )
         IconButton(
             onClick = onOpenSettings,
@@ -189,7 +192,7 @@ internal fun TodayBar(onBack: () -> Unit, onOpenSettings: () -> Unit, modifier: 
                 .size(BAR_BUTTON)
                 .graphicsLayer { alpha = formed() }
         ) {
-            Icon(painterResource(R.drawable.ic_three_bars), contentDescription = "Discover Overlay Settings", tint = onPill)
+            Icon(painterResource(R.drawable.ic_three_bars), contentDescription = "Discover settings", tint = onPill)
         }
     }
 }

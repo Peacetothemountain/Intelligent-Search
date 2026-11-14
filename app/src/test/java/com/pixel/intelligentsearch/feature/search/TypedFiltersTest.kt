@@ -248,9 +248,9 @@ class TypedFiltersTest {
     @Test
     fun wordsThatMatchNothingSaySo() {
         start()
-        assertEquals(ScopeNotice("No contacts match \"zzqx\""), scopeNotice(search("@zzqx")))
-        assertEquals(ScopeNotice("No files match \"zzqx\""), scopeNotice(search("#zzqx")))
-        assertEquals(ScopeNotice("No settings match \"zzqx\""), scopeNotice(search(">zzqx")))
+        assertEquals(ScopeNotice("No contacts match “zzqx”"), scopeNotice(search("@zzqx")))
+        assertEquals(ScopeNotice("No files match “zzqx”"), scopeNotice(search("#zzqx")))
+        assertEquals(ScopeNotice("No settings match “zzqx”"), scopeNotice(search(">zzqx")))
     }
 
     @Test

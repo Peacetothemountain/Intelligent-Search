@@ -38,7 +38,7 @@ internal object SearchHints {
     const val HOLD_SECONDS = 2.9f
     const val CHANGE_SECONDS = 0.42f
 
-    private val EXAMPLES = listOf("10 min timer", "18% of 64", "weather tomorrow", "define ethereal", "20 usd in eur", "storage", "time in tokyo")
+    private val EXAMPLES = listOf("10 min timer", "18% of 64", "weather tomorrow", "define ethereal", "20 usd in eur", "free space", "time in tokyo")
     private val CALCULATED = setOf("18% of 64", "20 usd in eur")
 
     /** The examples to offer: the sums only while the Calculator is switched on, since otherwise they answer nothing. */

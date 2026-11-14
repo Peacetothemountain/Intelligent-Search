@@ -29,8 +29,8 @@ class WifiStatusTextTest {
     fun eachStateHasItsLine() {
         val connected = SystemToggleManager.wifiStatusText(enabled = true, connected = true)
         assertTrue(connected, connected.contains("Connected") && !connected.contains("Not connected"))
-        assertEquals("Wi-Fi is on • Not connected", SystemToggleManager.wifiStatusText(enabled = true, connected = false))
-        assertEquals("Wi-Fi is turned off", SystemToggleManager.wifiStatusText(enabled = false, connected = false))
+        assertEquals("Wi-Fi is on · Not connected", SystemToggleManager.wifiStatusText(enabled = true, connected = false))
+        assertEquals("Wi-Fi is off", SystemToggleManager.wifiStatusText(enabled = false, connected = false))
     }
 
     @Suppress("DEPRECATION") // NetworkInfo and setWifiEnabled are how Robolectric sets up the network
@@ -47,6 +47,6 @@ class WifiStatusTextTest {
         context.getSystemService(WifiManager::class.java).isWifiEnabled = true
 
         val toggle = SystemActionRouter(context, SystemToggleManager(context)).matchAction("wifi") as SystemActionRouter.ActionResult.Toggle
-        assertEquals("Wi-Fi is on • Connected", toggle.toggleUiState.subtitle)
+        assertEquals("Wi-Fi is on · Connected", toggle.toggleUiState.subtitle)
     }
 }

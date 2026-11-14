@@ -516,7 +516,7 @@ fun TranslationOneBox(
             overflow = TextOverflow.Ellipsis
         )
         AnswerChips {
-            AnswerChip(label = "Translate in Google Translate", icon = Icons.AutoMirrored.Filled.OpenInNew, emphasized = true, onClick = onOpenGoogleTranslate)
+            AnswerChip(label = "Open in Google Translate", icon = Icons.AutoMirrored.Filled.OpenInNew, emphasized = true, onClick = onOpenGoogleTranslate)
         }
     }
 }

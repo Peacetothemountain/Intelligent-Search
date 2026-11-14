@@ -14,12 +14,12 @@ enum class SearchScope(
     val noun: String,
     val offMessage: String?
 ) {
-    CONTACTS('@', "Contacts only", "Type a name", "contacts", "Contact search is off. Turn it on in Search Sources."),
-    FILES('#', "Files only", "Type a file name", "files", "File search is off. Turn it on in Search Sources."),
-    SETTINGS('>', "Settings only", "Type a setting", "settings", null);
+    CONTACTS('@', "Contacts Only", "Type a name", "contacts", "Contact search is off. Turn it on in Search Sources."),
+    FILES('#', "Files Only", "Type a file name", "files", "File search is off. Turn it on in Search Sources."),
+    SETTINGS('>', "Settings Only", "Type a setting", "settings", null);
 
-    /** What a search for [words] that found nothing says: No contacts match "jo". */
-    fun noMatchMessage(words: String): String = "No $noun match \"$words\""
+    /** What a search for [words] that found nothing says: No contacts match “jo”. */
+    fun noMatchMessage(words: String): String = "No $noun match “$words”"
 }
 
 /**

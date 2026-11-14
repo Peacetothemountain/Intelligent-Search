@@ -328,7 +328,7 @@ private fun InnerPillPalette(fields: WidgetDraftFields) {
     SettingsCard(lit = false, title = "Inner Pill & Circle Color Palette") {
         SettingsRowToggle(
             title = "Inner Pill & Circle State",
-            subtitle = "Force the Inner Pill & Circle to One Color.",
+            subtitle = "Paint the Inner Pill and Circle in the Color Below.",
             isChecked = lockBlack,
             onCheckedChange = { lockBlack = it },
             showDivider = false

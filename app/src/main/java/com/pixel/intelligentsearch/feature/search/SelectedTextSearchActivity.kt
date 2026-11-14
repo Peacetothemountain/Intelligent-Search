@@ -61,10 +61,10 @@ class SelectedTextSearchActivity : Activity() {
         private const val TAG = "SelectedTextSearch"
 
         /** Shown when a share carries no text, such as a shared file. */
-        const val NO_TEXT_MESSAGE = "Only text can be searched"
+        const val NO_TEXT_MESSAGE = "Only text can be searched."
 
         /** Shown when the search overlay is off and no app can take the text without searching it straight away. */
-        const val OVERLAY_OFF_MESSAGE = "Turn on the search overlay to search selected text"
+        const val OVERLAY_OFF_MESSAGE = "Turn on the search overlay to search selected text."
 
         /** The longest query handed to the overlay, as for every other way of opening it with text. */
         const val MAX_QUERY_LENGTH = 512

@@ -54,7 +54,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var bottomSearch by rememberSetting(SettingsManager.BOTTOM_SEARCH)
                 SettingsRowToggle(
                     title = "Bottom Search Bar",
-                    subtitle = "Position Search Bar at Bottom of Search Overlay Page.",
+                    subtitle = "Place the Search Bar at the Bottom of the Search Overlay Page.",
                     icon = Symbols.Outlined.VerticalAlignBottom,
                     isChecked = bottomSearch,
                     onCheckedChange = { bottomSearch = it },
@@ -63,7 +63,7 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 var bottomResult by rememberSetting(SettingsManager.BOTTOM_SEARCH_RESULT)
                 SettingsRowToggle(
                     title = "Bottom Search Results",
-                    subtitle = "Order List from Bottom Up Depending on Search Bar Placement.",
+                    subtitle = "With the Bottom Search Bar, List Results from the Bottom Up.",
                     icon = Symbols.Outlined.AlignVerticalBottom,
                     isChecked = bottomResult,
                     onCheckedChange = { bottomResult = it },
@@ -80,8 +80,8 @@ fun SearchBehaviorScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 )
                 var contextAwareApps by rememberSetting(SettingsManager.CONTEXT_AWARE_QUICK_APPS)
                 SettingsRowToggle(
-                    title = "Context Aware Quick Apps",
-                    subtitle = "Suggests Apps Based on When You Usually Open Them.",
+                    title = "Context-Aware Quick Apps",
+                    subtitle = "Fills the Quick App Panel with the Apps You Used Most Recently Instead of the Ones You Chose.",
                     icon = Symbols.Outlined.Insights,
                     isChecked = contextAwareApps,
                     onCheckedChange = { contextAwareApps = it },

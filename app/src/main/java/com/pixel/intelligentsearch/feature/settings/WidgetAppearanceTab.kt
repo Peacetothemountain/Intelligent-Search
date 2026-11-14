@@ -281,7 +281,7 @@ internal fun WidgetAppearanceTab(
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Sync All Colors", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                         Text(
-                            if (localKeepSystemG) "Set Shortcuts and Action Icon to the Same Color." else "Set G Icon, Shortcuts, and Action Icon to the Same Color.",
+                            if (localKeepSystemG) "Set Shortcuts and Action Icon to the Same Color." else "Set the G Icon, Shortcuts and Action Icon to the Same Color.",
                             style = MaterialTheme.typography.bodyMedium,
                             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -314,9 +314,9 @@ internal fun WidgetAppearanceTab(
                     slotOrder.forEach { key ->
                         when (key) {
                             "mic" -> if (localShowVoice) list.add(CustomElementTarget("mic", "Voice Search", localCustomMicColor))
-                            "shortcut1" -> if (localShortcut1 != "None") list.add(CustomElementTarget("shortcut1", localShortcut1, localCustomShortcut1Color))
-                            "shortcut2" -> if (localShortcut2 != "None") list.add(CustomElementTarget("shortcut2", localShortcut2, localCustomShortcut2Color))
-                            "shortcut3" -> if (localShortcut3 != "None") list.add(CustomElementTarget("shortcut3", localShortcut3, localCustomShortcut3Color))
+                            "shortcut1" -> if (localShortcut1 != "None") list.add(CustomElementTarget("shortcut1", shortcutDisplayName(localShortcut1), localCustomShortcut1Color))
+                            "shortcut2" -> if (localShortcut2 != "None") list.add(CustomElementTarget("shortcut2", shortcutDisplayName(localShortcut2), localCustomShortcut2Color))
+                            "shortcut3" -> if (localShortcut3 != "None") list.add(CustomElementTarget("shortcut3", shortcutDisplayName(localShortcut3), localCustomShortcut3Color))
                         }
                     }
                     if (isMaterialYou && localActionIcon != "None") {
@@ -341,7 +341,7 @@ internal fun WidgetAppearanceTab(
                 if (!localCustomSyncColors) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        "SELECT ELEMENT TO CUSTOMIZE",
+                        "Choose an Icon to Color",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
@@ -604,8 +604,8 @@ private fun WidgetBarShapeSection(fields: WidgetDraftFields, isMaterialDesign: B
 
 /** The subtext under each of the Material design's subtheme pills. */
 internal fun subthemeSubtext(option: String): String? = when (option) {
-    "Material" -> "Default Material Color Design"
-    "Custom" -> "Users Defined Color Design"
+    "Material" -> "Your Wallpaper's Colors"
+    "Custom" -> "Your Own Colors"
     else -> null
 }
 

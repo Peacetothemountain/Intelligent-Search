@@ -854,7 +854,7 @@ fun ResultsCountSetting(key: com.pixel.intelligentsearch.core.data.settings.Sett
         }
         Android17Slider(
             label = "$label results",
-            valueDescription = "$count results",
+            valueDescription = if (count == 1) "1 result" else "$count results",
             value = count.toFloat(),
             onValueChange = { count = it.toInt() },
             valueRange = 1f..20f,

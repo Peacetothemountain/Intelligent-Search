@@ -48,7 +48,9 @@ data class InstantAnswer(
     val subtitle: String,
     val iconType: String,
     /** What a tap on the card copies, for an answer that is something to copy (the phone's network address). */
-    val copyText: String? = null
+    val copyText: String? = null,
+    /** The answer in one sentence, for saying aloud after a voice search ("41 days until Friday, December 25, 2026"). */
+    val spoken: String? = null
 )
 
 @androidx.compose.runtime.Immutable
@@ -1031,14 +1033,17 @@ class SearchViewModel @Inject constructor(
                         directActions.add(DirectAction("Set Alarm", setFor(intent.ringsAtMillis), "alarm", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Timer -> {
-                        directActions.add(DirectAction("Set Timer", intent.label, "timer", intent.intent))
+                        // Named as the short phrasing names it ("Start 10 min Timer"), so the same timer reads the same.
+                        val length = com.pixel.intelligentsearch.core.util.Durations.short(intent.durationSeconds.toLong())
+                        directActions.add(DirectAction("Start $length Timer", "Clock Timer", "timer", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Reminder -> {
                         directActions.add(DirectAction("Set Reminder", "${setFor(intent.triggerMillis)} · ${intent.task}", "calendar", intent.intent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.DirectMessage -> {
-                        val app = if (intent.isWhatsApp) "WhatsApp" else "SMS"
-                        directActions.add(DirectAction("Message ${intent.recipientName} ($app)", intent.body, "message", intent.intent, intent.fallbackIntent))
+                        // As the contact's own buttons say it: "Message Mom on WhatsApp", or plain "Message Mom".
+                        val title = if (intent.isWhatsApp) "Message ${intent.recipientName} on WhatsApp" else "Message ${intent.recipientName}"
+                        directActions.add(DirectAction(title, intent.body, "message", intent.intent, intent.fallbackIntent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.PhoneCall -> {
                         var callIntent = intent.intent
@@ -1069,10 +1074,10 @@ class SearchViewModel @Inject constructor(
                         directActions.add(DirectAction("Call $displayName", displaySubtitle, "phone", callIntent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.Navigation -> {
-                        directActions.add(DirectAction("Navigate to ${intent.destination}", intent.destination, "navigation", intent.intent, intent.fallbackIntent))
+                        directActions.add(DirectAction("Navigate to ${intent.destination}", "Directions", "navigation", intent.intent, intent.fallbackIntent))
                     }
                     is com.pixel.intelligentsearch.core.search.NaturalLanguageIntentParser.ParsedIntent.MediaPlay -> {
-                        directActions.add(DirectAction("Play ${intent.query}", intent.appName ?: "Media app", "media", intent.intent, intent.fallbackIntent))
+                        directActions.add(DirectAction("Play ${intent.query}", intent.appName ?: "Music app", "media", intent.intent, intent.fallbackIntent))
                     }
                 }
             }
@@ -1102,7 +1107,7 @@ class SearchViewModel @Inject constructor(
                 directActions.add(
                     DirectAction(
                         title = "Unlock Private Space",
-                        subtitle = "Authenticate to access hidden private apps",
+                        subtitle = "Verify it's you to see your private apps",
                         iconType = "private_space",
                         intent = null
                     )
@@ -1186,7 +1191,7 @@ class SearchViewModel @Inject constructor(
                 if (rates != null) InstantAnswer(unitConv.formatted, rates.sourceLabel(), "currency")
                 else InstantAnswer(unitConv.formatted, "Unit Conversion", "conversion")
             } else if (dateAnswer != null) {
-                InstantAnswer(dateAnswer.title, dateAnswer.subtitle, "date")
+                InstantAnswer(dateAnswer.title, dateAnswer.subtitle, "date", spoken = dateAnswer.text)
             } else if (unifiedResults.timeAnswer != null) {
                 // "time", "tokyo time", "time in PST", "3pm PST in IST": unknown places get no answer, not the local time.
                 unifiedResults.timeAnswer.let { InstantAnswer(it.title, it.subtitle, "time") }

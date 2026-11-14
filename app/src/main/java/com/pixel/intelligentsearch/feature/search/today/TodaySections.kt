@@ -615,10 +615,10 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
             CardLabel(Icons.Filled.Forum, "Catch up", detail = "${entries.size} new", modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = 4.dp))
             val rows = entries.take(CATCH_UP_ROWS)
             rows.forEachIndexed { i, entry ->
-                val (icon, label) = when (entry.category) {
-                    Notification.CATEGORY_MISSED_CALL -> Icons.Filled.Call to "Call back"
-                    Notification.CATEGORY_EMAIL -> Icons.Filled.Email to "Open"
-                    else -> Icons.AutoMirrored.Filled.Message to "Reply"
+                val icon = when (entry.category) {
+                    Notification.CATEGORY_MISSED_CALL -> Icons.Filled.Call
+                    Notification.CATEGORY_EMAIL -> Icons.Filled.Email
+                    else -> Icons.AutoMirrored.Filled.Message
                 }
                 Row(
                     Modifier
@@ -644,8 +644,9 @@ internal fun CatchUp(entries: List<IndexedNotification>, now: Long) {
                         Text(entry.title, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         DetailLine(previewLine(entry), Durations.ago(now - entry.postedAt))
                     }
+                    // Only a picture of what the notification is: the row's one tap opens it, it calls or replies to no one.
                     Box(
-                        Modifier.size(40.dp).background(scheme.primaryContainer, CircleShape).semantics { contentDescription = label },
+                        Modifier.size(40.dp).background(scheme.primaryContainer, CircleShape).clearAndSetSemantics {},
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(icon, null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
@@ -946,7 +947,7 @@ internal fun LeftOff(searches: List<String>, onSearch: (String) -> Unit) {
                         .height(96.dp)
                         .clip(RoundedCornerShape(18.dp))
                         .background(scheme.surfaceContainerHigh)
-                        .bouncyClickable(shape = RoundedCornerShape(20.dp)) { onSearch(query) }
+                        .bouncyClickable(shape = RoundedCornerShape(18.dp)) { onSearch(query) }
                         .padding(11.dp)
                 ) {
                     Box(Modifier.size(30.dp).background(scheme.secondaryContainer, RoundedCornerShape(10.dp)), contentAlignment = Alignment.Center) {
@@ -963,7 +964,7 @@ internal fun LeftOff(searches: List<String>, onSearch: (String) -> Unit) {
 
 /**
  * Today's word, what kind of word it is and what it means, on the page's own card color with the word in the accent
- * color. Hear It says it aloud (Android's text to speech), Look it up searches its definition, and a tap anywhere else
+ * color. Hear it says it aloud (Android's text to speech), Look it up searches its definition, and a tap anywhere else
  * on the card makes the letters hop.
  */
 @Composable
@@ -1063,7 +1064,7 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
                         }
                         hops++
                     }
-                    .semantics { contentDescription = "Hear It" },
+                    .semantics { contentDescription = "Hear it" },
                 contentAlignment = Alignment.Center
             ) {
                 Icon(Icons.AutoMirrored.Outlined.VolumeUp, null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
@@ -1109,7 +1110,7 @@ internal fun AccessCard(asks: List<PartStatus>) {
             onClick = { first.fix?.invoke() },
             modifier = Modifier.align(Alignment.End).padding(top = 10.dp)
         ) {
-            // A second line at the largest text on a narrow screen, where one cut "Allow calendar access" short.
+            // A second line at the largest text on a narrow screen, where one cut "Allow Calendar Access" short.
             Text(first.button ?: "Allow", maxLines = 2, overflow = TextOverflow.Ellipsis, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
@@ -1189,9 +1190,9 @@ internal fun Tomorrow(date: LocalDate, alarmAt: Long?, weather: WeatherReport?, 
             val kind = WeatherCodes.describe(weather.code).lowercase(locale)
             TomorrowRow(
                 weatherIcon(weather.code, true),
-                "${weather.high.roundToInt()}° / ${weather.low.roundToInt()}°, $kind",
+                "${HighLow.drawn(weather.high, weather.low)}, $kind",
                 null,
-                // Read aloud, "53° / 43°" doesn't say which is the high.
+                // Read aloud, "H 53°  L 43°" would be read as letters.
                 spoken = "${HighLow.spoken(weather.high, weather.low)}, $kind"
             )
         }

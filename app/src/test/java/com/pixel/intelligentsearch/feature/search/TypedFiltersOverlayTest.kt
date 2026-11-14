@@ -250,7 +250,7 @@ class TypedFiltersOverlayTest {
         type("@")
         compose.onNodeWithText("Type a name").performClick()
         type("@zzqx")
-        compose.onNodeWithText("No contacts match \"zzqx\"").performClick()
+        compose.onNodeWithText("No contacts match “zzqx”").performClick()
         type(">")
         compose.onNodeWithText("Type a setting").assertExists()
         compose.settle()

@@ -175,7 +175,7 @@ class QuickPanelSettingsOverlayTest {
             .performSemanticsAction(SemanticsActions.SetProgress) { it(2f) }
         compose.settle(steps = 5)
         // Two is fewer than the apps chosen under Application Search, so the card asks before removing the rest.
-        compose.onNodeWithText("Accept").performClick()
+        compose.onNodeWithText("Remove").performClick()
         compose.settle(steps = 5)
         assertEquals(2, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
 

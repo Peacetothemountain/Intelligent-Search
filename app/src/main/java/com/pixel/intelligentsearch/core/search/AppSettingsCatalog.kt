@@ -27,7 +27,7 @@ object AppSettingsCatalog {
             "widget", "widgets", "search bar widget", "color studio", "widget shortcuts", "g icon"),
         page("launch_portal", "Launch Portal", "is_launch",
             "quick settings tile", "search tile", "home screen shortcut", "floating button", "notification shortcut"),
-        page("app_search", "App & Shortcut Search", "is_apps",
+        page("app_search", "App Search", "is_apps",
             "app search", "application search", "quick panel apps"),
         page("search_pills", "Application Search", "is_pills",
             "search pills", "add applications", "quick launch", "app pills"),

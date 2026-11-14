@@ -186,14 +186,14 @@ internal fun ExpressiveOneBoxCard(
 /**
  * Modern Material 3 Expressive Animated Copy Chip.
  * Transitions smoothly with spring physics between the idle copy state and the confirmed
- * "Copied!" state, triggering tactile sonic feedback, frame rate pacing, and adhering to Android 13+ clipboard standards.
+ * "Copied" state, triggering tactile sonic feedback, frame rate pacing, and adhering to Android 13+ clipboard standards.
  */
 @Composable
 fun AnimatedCopyChip(
     textToCopy: String,
     modifier: Modifier = Modifier,
     label: String = "Copy",
-    copiedLabel: String = "Copied!",
+    copiedLabel: String = "Copied",
     clipLabel: String = "Search Result"
 ) {
     var isCopied by remember { mutableStateOf(false) }
@@ -302,7 +302,7 @@ fun AnimatedCopyChip(
         modifier = modifier.semantics {
             liveRegion = LiveRegionMode.Polite
             role = Role.Button
-            contentDescription = if (isCopied) "$clipLabel copied" else "$label, $clipLabel"
+            contentDescription = if (isCopied) "$clipLabel copied" else "Copy $clipLabel"
         }
     )
 }
@@ -404,8 +404,8 @@ fun MathResultOneBox(
             ) {
                 AnimatedCopyChip(
                     textToCopy = result,
-                    label = "Copy Result",
-                    copiedLabel = "Copied!",
+                    label = "Copy",
+                    copiedLabel = "Copied",
                     clipLabel = "Calculation"
                 )
 
@@ -562,7 +562,7 @@ fun ConversionOneBox(
             AnimatedCopyChip(
                 textToCopy = conversionText,
                 label = "Copy",
-                copiedLabel = "Copied!",
+                copiedLabel = "Copied",
                 clipLabel = clipLabel
             )
         }
@@ -616,7 +616,7 @@ fun DictionaryOneBox(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "DICTIONARY DEFINITION",
+                    text = "DICTIONARY",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.tertiary,
                     fontFamily = GoogleSansFlex,
@@ -702,7 +702,7 @@ fun UrlNavigationOneBox(
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "WEBSITE NAVIGATION",
+                    text = "WEBSITE",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     fontFamily = GoogleSansFlex,
@@ -771,7 +771,10 @@ fun TimeWeatherOneBox(
     subtitle: String,
     iconType: String,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit
+    /** What the card's end shows: an arrow where a tap opens something, a copy symbol where it copies, or nothing. */
+    trailingIcon: ImageVector? = Icons.AutoMirrored.Filled.ArrowForward,
+    /** Null for a card a tap does nothing on (no network address to copy). */
+    onClick: (() -> Unit)?
 ) {
     val isWeather = iconType == "weather"
     val isTime = iconType == "time"
@@ -783,17 +786,17 @@ fun TimeWeatherOneBox(
             isWeather -> OneBoxCategoryConfig(
                 icon = Icons.Default.WbSunny,
                 containerType = OneBoxThemeContainer.Tertiary,
-                label = "WEATHER FORECAST"
+                label = "WEATHER"
             )
             isTime -> OneBoxCategoryConfig(
                 icon = Icons.Default.AccessTime,
                 containerType = OneBoxThemeContainer.Secondary,
-                label = "WORLD CLOCK & TIME"
+                label = "TIME"
             )
             isDate -> OneBoxCategoryConfig(
                 icon = Icons.Default.CalendarMonth,
                 containerType = OneBoxThemeContainer.Secondary,
-                label = "DATE CALCULATOR"
+                label = "DATE"
             )
             iconType == "storage" -> OneBoxCategoryConfig(
                 icon = Icons.Outlined.Storage,
@@ -808,7 +811,7 @@ fun TimeWeatherOneBox(
             else -> OneBoxCategoryConfig(
                 icon = Icons.Outlined.Info,
                 containerType = OneBoxThemeContainer.Primary,
-                label = "INSTANT ANSWER"
+                label = "RANDOM"
             )
         }
     }
@@ -883,7 +886,8 @@ fun TimeWeatherOneBox(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontFamily = GoogleSansFlex,
-                    maxLines = if (isDate) 2 else 1,
+                    // A long (IPv6) network address needs a second line, as a full date does.
+                    maxLines = if (isDate || iconType == "ip") 2 else 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
@@ -896,12 +900,14 @@ fun TimeWeatherOneBox(
                 )
             }
 
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                modifier = Modifier.size(20.dp)
-            )
+            if (trailingIcon != null) {
+                Icon(
+                    imageVector = trailingIcon,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
     }
 }

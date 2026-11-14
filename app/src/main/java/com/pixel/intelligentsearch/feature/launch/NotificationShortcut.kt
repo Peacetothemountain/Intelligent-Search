@@ -32,7 +32,7 @@ object NotificationShortcut {
     const val CHANNEL_ID = "search_shortcut"
     const val CHANNEL_NAME = "Notification Shortcut"
     const val NOTIFICATION_ID = 0x5EA2C4
-    const val TITLE = "Search Your Phone"
+    const val TITLE = "Search Phone and Web"
 
     private const val TAG = "SearchNotification"
     private const val REQUEST_SEARCH = 2101
@@ -98,7 +98,7 @@ object NotificationShortcut {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) BackgroundLaunchOptions.forCreator(context).toBundle() else null
     )
 
-    /** The notification: the search glyph and "Search Your Phone", a tap to search, Voice, and Lens when installed. */
+    /** The notification: the search glyph and "Search Phone and Web", a tap to search, Voice, and Lens when installed. */
     fun build(context: Context, lensAvailable: Boolean = GoogleApps.isLensAvailable(context)): Notification {
         val glyph = Icon.createWithResource(context, R.drawable.ic_search_lens_expressive)
         val builder = Notification.Builder(context, CHANNEL_ID)

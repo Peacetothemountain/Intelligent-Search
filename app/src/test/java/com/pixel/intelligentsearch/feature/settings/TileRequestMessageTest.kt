@@ -15,7 +15,7 @@ class TileRequestMessageTest {
     @Test
     fun aTileAlreadyAddedSaysSo() {
         assertEquals(
-            "Search tile is already in Quick Settings",
+            "Search tile is already in Quick Settings.",
             tileRequestMessage(StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED)
         )
     }

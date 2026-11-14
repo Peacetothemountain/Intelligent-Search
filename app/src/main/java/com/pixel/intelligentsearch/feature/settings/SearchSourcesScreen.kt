@@ -71,7 +71,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                                 if (searchApps) {
                                     onNavigate(Route.AppSearch) 
                                 } else {
-                                    Toast.makeText(context, "Enable Apps first to configure settings.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Turn on Apps to see its settings.", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             showDivider = true
@@ -87,7 +87,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                                 if (searchWeb) {
                                     onNavigate(Route.WebSearch) 
                                 } else {
-                                    Toast.makeText(context, "Enable Web first to configure settings.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Turn on Web to see its settings.", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             showDivider = true
@@ -121,7 +121,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
 
                         SettingsRowToggle(
                             title = "Contacts",
-                            subtitle = "Search Contacts.",
+                            subtitle = "Find People as You Type, Then Call or Message Them.",
                             icon = Symbols.Outlined.Contacts,
                             isChecked = searchContacts,
                             onCheckedChange = { isChecked -> 
@@ -131,7 +131,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                                 if (searchContacts) {
                                     onNavigate(Route.ContactSearch) 
                                 } else {
-                                    Toast.makeText(context, "Enable Contacts first to configure settings.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Turn on Contacts to see its settings.", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             showDivider = true
@@ -139,7 +139,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                         
                         SettingsRowToggle(
                             title = "Files",
-                            subtitle = "Search Files & Media in the Folders You Choose.",
+                            subtitle = "Search Files and Media in the Folders You Choose.",
                             icon = Symbols.Outlined.Folder,
                             isChecked = searchFiles,
                             onCheckedChange = { isChecked -> 
@@ -149,7 +149,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                                 if (searchFiles) {
                                     onNavigate(Route.FileSearch) 
                                 } else {
-                                    Toast.makeText(context, "Enable Files first to configure settings.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Turn on Files to see its settings.", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             showDivider = true
@@ -164,7 +164,7 @@ fun SearchSourcesScreen(onNavigate: (Route) -> Unit, onBack: () -> Unit) {
                         var searchCalc by rememberSetting(SettingsManager.SEARCH_CALCULATOR, onChanged = syncCurrencyRates)
                         SettingsRowToggle(
                             title = "Calculator",
-                            subtitle = "Calculate Mathematical Equations Inside Search Bar.",
+                            subtitle = "Answer Math, Unit Conversions and Currency as You Type.",
                             icon = Symbols.Outlined.Calculate,
                             isChecked = searchCalc,
                             onCheckedChange = { searchCalc = it },

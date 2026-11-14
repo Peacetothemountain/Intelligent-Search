@@ -100,7 +100,7 @@ fun PrioritySetting(key: SettingKey<Int>, label: String) {
             }
         }
         Text(
-            text = "Adjust Ranking Priority of $label Search.",
+            text = "How High $label Results Rank Among the Others.",
             style = MaterialTheme.typography.bodyMedium,
             fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
             color = MaterialTheme.colorScheme.onSurfaceVariant

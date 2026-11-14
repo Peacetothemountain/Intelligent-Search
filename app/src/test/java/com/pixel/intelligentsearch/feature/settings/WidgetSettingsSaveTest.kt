@@ -154,7 +154,7 @@ class WidgetSettingsSaveTest {
         compose.settle(steps = 5)
         compose.onNodeWithContentDescription("Back").performClick()
         compose.settle(steps = 5)
-        compose.onNodeWithText("Discard unsaved changes?").assertExists()
+        compose.onNodeWithText("Discard Unsaved Changes?").assertExists()
         compose.onNodeWithText("Discard").performClick()
         compose.settle(steps = 5)
 

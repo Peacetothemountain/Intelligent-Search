@@ -39,7 +39,7 @@ fun ContactSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 val phoneCalls = rememberPhoneCallsRequest()
                 SettingsRowToggle(
                     title = "Direct Call",
-                    subtitle = "Tap Contact to Call Directly.",
+                    subtitle = "Tap a Contact to Call Right Away Instead of Opening the Dialer.",
                     icon = Symbols.Outlined.Call,
                     isChecked = directCall,
                     onCheckedChange = {

@@ -326,7 +326,7 @@ internal fun CountdownSetupScreen(
                         Text(designLabel(option), style = MaterialTheme.typography.labelLarge, maxLines = 1, autoSize = oneLineAutoSize(MaterialTheme.typography.labelLarge))
                     }
                     Text(
-                        text = if (design == null) "Drawn in the Design Saved in Widget Customization, Like the Search Bar."
+                        text = if (design == null) "Matches the Search Bar's Design from Widget Customization."
                         else "Drawn in the ${designLabel(design)} Design Saved in Widget Customization.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,

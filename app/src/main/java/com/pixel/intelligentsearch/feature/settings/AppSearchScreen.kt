@@ -45,7 +45,7 @@ import com.pixel.intelligentsearch.core.navigation.Route
 fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     Scaffold(containerColor = Color.Transparent, topBar = {
-            SettingsTopBar("App & Shortcut Search", onBack)
+            SettingsTopBar("App Search", onBack)
         }
     ) { padding ->
         Column(
@@ -60,14 +60,14 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
             SettingsCard {
                 SettingsRow(
                     title = "Application Search",
-                    subtitle = "Customize Quick Launch Apps in Search Overlay Screen.",
+                    subtitle = "Choose the Apps in the Quick App Panel.",
                     icon = Symbols.Outlined.ViewCarousel,
                     onClick = { onNavigate(Route.SearchPills) },
                     showDivider = true
                 )
                 SettingsRow(
                     title = "Manage Hidden Apps",
-                    subtitle = "Search Apps to Dynamically Hide from Search.",
+                    subtitle = "Choose Apps That Never Show in Search.",
                     icon = Symbols.Outlined.VisibilityOff,
                     onClick = { onNavigate(Route.ManageHiddenApps) },
                     showDivider = true
@@ -117,7 +117,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                     WarningCard(
                         title = "Remove Apps from Application Search?",
                         message = quickPanelTrimMessage(newMax, removed),
-                        acceptLabel = "Accept",
+                        acceptLabel = "Remove",
                         onAccept = {
                             pendingMax = null
                             pillProfiles.setMaxQuickPanelApps(newMax)

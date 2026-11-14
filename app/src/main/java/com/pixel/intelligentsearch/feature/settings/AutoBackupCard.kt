@@ -74,7 +74,7 @@ internal fun AutoBackupCard(passkeySetUp: Boolean = false, obtainPassphrase: (on
         // With a passkey and no passphrase, the passkey alone protects the backups.
         if (passphrase.isEmpty() && passkeySetUp) {
             val turnedOn = autoBackup.enableWithPasskey(folder)
-            Toast.makeText(context, if (turnedOn) "Automatic backup is on" else "Set up the passkey again first", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, if (turnedOn) "Automatic backup is on." else "Set up the passkey again first.", Toast.LENGTH_SHORT).show()
             revision++
             return@rememberLauncherForActivityResult
         }
@@ -92,7 +92,7 @@ internal fun AutoBackupCard(passkeySetUp: Boolean = false, obtainPassphrase: (on
             val turnedOn = withContext(NonCancellable + Dispatchers.IO) { autoBackup.enable(folder, secret) }
             Toast.makeText(
                 context,
-                if (turnedOn) "Automatic backup is on" else "Couldn't protect the backup key on this phone",
+                if (turnedOn) "Automatic backup is on." else "Couldn't protect the backup key on this phone.",
                 Toast.LENGTH_SHORT
             ).show()
             revision++
@@ -175,7 +175,7 @@ internal fun AutoBackupCard(passkeySetUp: Boolean = false, obtainPassphrase: (on
                             }
                             isRunning = false
                             revision++
-                            Toast.makeText(context, if (ok) "Backup saved" else "Backup didn't finish", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, if (ok) "Backup saved." else "Backup didn't finish.", Toast.LENGTH_SHORT).show()
                         }
                     },
                     enabled = !isRunning,

@@ -4,7 +4,7 @@
         android:shortcutId="search"
         android:enabled="true"
         android:icon="@drawable/ic_search_lens_expressive"
-        android:shortcutShortLabel="@string/app_name"
+        android:shortcutShortLabel="@string/search_hint"
         android:shortcutLongLabel="@string/widget_search_description">
         <intent
             android:action="android.intent.action.MAIN"

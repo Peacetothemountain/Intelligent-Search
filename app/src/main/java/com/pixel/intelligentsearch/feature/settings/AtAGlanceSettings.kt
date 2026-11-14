@@ -135,7 +135,7 @@ internal fun AtAGlanceSettingsCard() {
                 }
                 NotificationAccessDialog(timersAccess)
                 SettingsRowToggle(
-                    title = "Timers & Stopwatch",
+                    title = "Timers and Stopwatches",
                     subtitle = "Show Running Timers and Stopwatches. Uses Notification Access.",
                     icon = Symbols.Outlined.Timer,
                     isChecked = timers && ready.timers,

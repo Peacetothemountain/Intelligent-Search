@@ -34,7 +34,7 @@ internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() 
             val calendarRequest = rememberCalendarRequest { upNext = true }
             SettingsRowToggle(
                 title = "Up Next and Rest of Your Day",
-                subtitle = "Your Next Event, Directions to It, and What Follows. Uses Calendar Access.",
+                subtitle = "Your Next Event, Directions to It and What Follows. Uses Calendar Access.",
                 icon = Symbols.Outlined.Event,
                 isChecked = upNext && calendarAllowed,
                 onCheckedChange = { on ->
@@ -50,7 +50,7 @@ internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() 
             val locationRequest = rememberTodayLocationRequest { leaveBy = true }
             SettingsRowToggle(
                 title = "Leave-By Time",
-                subtitle = "When to Leave for Your Next Event and About How Long It Takes. Uses Approximate Location.",
+                subtitle = "When to Leave for Your Next Event and About How Long It Takes. Uses Approximate Location and Web Search.",
                 icon = Symbols.Outlined.Schedule,
                 isChecked = leaveBy && locationAllowed,
                 onCheckedChange = { on ->
@@ -61,7 +61,7 @@ internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() 
                     }
                 }
             )
-            PartRow(SettingsManager.TODAY_WEATHER, "Weather", "Weather Now, the Next Hours and Tomorrow. Follows Web Suggestions.", Symbols.Outlined.Today)
+            PartRow(SettingsManager.TODAY_WEATHER, "Weather", "Weather Now, the Next Hours and Tomorrow. Needs Web Suggestions On.", Symbols.Filled.WbSunny)
             var catchUp by rememberSetting(SettingsManager.TODAY_CATCH_UP)
             val notificationsAllowed = rememberNotificationAccessGranted()
             val notificationsRequest = rememberNotificationAccessRequest { granted ->
@@ -84,10 +84,10 @@ internal fun androidx.compose.foundation.layout.ColumnScope.TodaySettingsRows() 
                     }
                 }
             )
-            PartRow(SettingsManager.TODAY_CONTROLS, "Quick Controls", "The Switches You Choose, From Do Not Disturb and Wi-Fi to Auto-Rotate.", Symbols.Outlined.Tune)
+            PartRow(SettingsManager.TODAY_CONTROLS, "Quick Controls", "The Switches You Choose, from Do Not Disturb and Internet to Auto-Rotate.", Symbols.Outlined.Tune)
             PartRow(SettingsManager.TODAY_PHONE, "Your Phone Today", "Battery and Screen Time.", Symbols.Outlined.Speed)
             PartRow(SettingsManager.TODAY_LEFT_OFF, "Pick Up Where You Left Off", "Your Last Searches, One Tap to Search Again.", Symbols.Outlined.History)
-            PartRow(SettingsManager.TODAY_EXTRAS, "Word of the Day and Countdown", "A New Word Each Day, and Days Until the Next Holiday.", Symbols.Outlined.Spellcheck, last = true)
+            PartRow(SettingsManager.TODAY_EXTRAS, "Word of the Day and Countdown", "A New Word Each Day and the Days Until the Next Holiday.", Symbols.Outlined.Spellcheck, last = true)
         }
     }
 }

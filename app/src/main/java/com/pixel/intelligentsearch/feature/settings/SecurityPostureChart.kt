@@ -611,7 +611,7 @@ private fun ImprovementList(
         val explained = axes.firstOrNull { it.axis == selected }
         if (plan.isEmpty() && explained == null) {
             Text(
-                text = if (axes.any { it.rating == SecurityPosture.Rating.Pending }) "Checking the rest..." else "Every check is at full strength. Nothing to improve.",
+                text = if (axes.any { it.rating == SecurityPosture.Rating.Pending }) "Checking the rest…" else "Every check is at full strength. Nothing to improve.",
                 style = MaterialTheme.typography.bodySmall,
                 color = scheme.onSurfaceVariant
             )

@@ -66,9 +66,13 @@ internal object SpokenAnswers {
 
     internal fun instant(answer: InstantAnswer): String? = when (answer.iconType) {
         "conversion", "currency" -> answer.title.replace(" = ", " is ")
-        "date", "time", "random" -> answer.title
-        // "118 GB free" + "of 256 GB • 53% used"
-        "storage" -> "${answer.title} ${answer.subtitle.substringBefore(" • ")}."
+        // "41 days until Friday, December 25, 2026.": the card's whole sentence, not "41 days" on its own.
+        "date" -> answer.spoken?.let { sentence -> "${sentence.replaceFirstChar { it.uppercase() }}." } ?: answer.title
+        // "Current time in Tokyo: 7:30 AM.", saying where as well as what time.
+        "time" -> "${answer.subtitle.substringBefore(" · ")}: ${answer.title}."
+        "random" -> answer.title
+        // "118 GB free" + "of 256 GB · 53% used"
+        "storage" -> "${answer.title} ${answer.subtitle.substringBefore(" · ")}."
         else -> null
     }
 

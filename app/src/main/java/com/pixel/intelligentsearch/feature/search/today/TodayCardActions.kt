@@ -76,7 +76,7 @@ internal fun newSiteCard(url: String): CardSpec = CardSpec(
 )
 
 /** What the Website tab says when the page is already a card. */
-internal const val SITE_ALREADY_ADDED = "That site is already on Discover."
+internal const val SITE_ALREADY_ADDED = "That page is already on Discover."
 
 /**
  * Lets go of what a removed custom card read: its widget is unbound, its website forgotten. Anything another card in
@@ -112,7 +112,7 @@ internal fun openShapedCard(
         is ShapedContent.Alarm -> alarm?.let { openGlanceItem(context, GlanceItem.Alarm(it)) }
         is ShapedContent.Media -> media?.controls?.open(context)
         is ShapedContent.Battery -> launchSafeIntent(context, Intent(Intent.ACTION_POWER_USAGE_SUMMARY))
-        is ShapedContent.Word -> onSearch(content.word)
+        is ShapedContent.Word -> onSearch("define ${content.word}")
         is ShapedContent.Search -> onSearch(content.query)
         is ShapedContent.Event -> upNext?.let { launchSafeIntent(context, calendarEventIntent(it)) }
         is ShapedContent.Agenda -> launchSafeIntent(
@@ -154,7 +154,7 @@ internal fun shapedSpoken(content: ShapedContent): String? {
     return when (content) {
         is ShapedContent.Weather -> said(content.temperature, content.headline)
         is ShapedContent.Timer -> said(content.label, content.reading)
-        is ShapedContent.Alarm -> said("${content.time} ${content.day}", content.until)
+        is ShapedContent.Alarm -> said(content.day, content.spokenTime, content.until)
         is ShapedContent.Delivery -> said(content.headline, content.detail)
         is ShapedContent.Media -> said(content.title, content.artist, if (content.playing) "playing" else "paused")
         is ShapedContent.Battery -> said("${content.level} percent", content.detail)
@@ -164,7 +164,7 @@ internal fun shapedSpoken(content: ShapedContent): String? {
         is ShapedContent.Agenda -> said(if (content.count == 1) "1 left today" else "${content.count} left today", "next ${content.nextTitle} at ${content.next}")
         is ShapedContent.CatchUp -> said(if (content.count == 1) "1 new" else "${content.count} new", content.who)
         is ShapedContent.Search -> said(content.query)
-        is ShapedContent.Tomorrow -> said(content.day, content.temperatures, content.detail)
+        is ShapedContent.Tomorrow -> said(content.day, content.spokenTemperatures, content.detail)
         is ShapedContent.App -> content.data.model?.let { model ->
             when (model.layout) {
                 SnapLayout.HERO -> said(model.hero, model.labels.firstOrNull())

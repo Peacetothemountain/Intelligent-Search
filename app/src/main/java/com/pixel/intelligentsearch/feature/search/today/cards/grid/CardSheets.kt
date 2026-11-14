@@ -21,7 +21,6 @@ import com.pixel.intelligentsearch.core.ui.icons.filled.Event
 import com.pixel.intelligentsearch.core.ui.icons.filled.ExpandMore
 import com.pixel.intelligentsearch.core.ui.icons.filled.Forum
 import com.pixel.intelligentsearch.core.ui.icons.filled.History
-import com.pixel.intelligentsearch.core.ui.icons.filled.HourglassBottom
 import com.pixel.intelligentsearch.core.ui.icons.filled.WbSunny
 import com.pixel.intelligentsearch.core.ui.icons.outlined.CalendarMonth
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Close
@@ -30,7 +29,7 @@ import com.pixel.intelligentsearch.core.ui.icons.outlined.MusicNote
 import com.pixel.intelligentsearch.core.ui.icons.outlined.PhoneAndroid
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Schedule
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Search
-import com.pixel.intelligentsearch.core.ui.icons.outlined.Spellcheck
+import com.pixel.intelligentsearch.core.ui.icons.automirrored.filled.MenuBook
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Timer
 import com.pixel.intelligentsearch.core.ui.icons.outlined.Tune
 import com.pixel.intelligentsearch.feature.search.today.AndroidTodaySources
@@ -326,7 +325,7 @@ private fun AddSheet(
         Row(Modifier.padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             CircularProgressIndicator(Modifier.size(20.dp).testTag(LOADING_INDICATOR_TAG), strokeWidth = 2.dp)
             Spacer(Modifier.width(12.dp))
-            Text("Finding widgets", style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+            Text("Finding widgets…", style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
         }
     } else if (groups.isEmpty() && ownParts.isEmpty()) {
         Text(
@@ -377,7 +376,7 @@ private fun OwnGroup(
         Row(
             Modifier
                 .fillMaxWidth()
-                .bouncyClickable(onClickLabel = if (expanded) "Close" else "Show cards", onClick = onToggle)
+                .bouncyClickable(onClickLabel = if (expanded) "Hide cards" else "Show cards", onClick = onToggle)
                 .heightIn(min = 64.dp)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -510,7 +509,7 @@ private fun SearchField(value: String, onChange: (String) -> Unit, onClear: () -
     TextField(
         value = value,
         onValueChange = onChange,
-        placeholder = { Text("Search apps, or type a website") },
+        placeholder = { Text("Search apps or type a website address") },
         leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
         trailingIcon = if (value.isNotEmpty()) {
             { IconButton(onClick = onClear) { Icon(Icons.Outlined.Close, contentDescription = "Clear") } }
@@ -617,7 +616,7 @@ private fun AppGroup(
         Row(
             Modifier
                 .fillMaxWidth()
-                .bouncyClickable(onClickLabel = if (expanded) "Close" else "Show widgets", onClick = onToggle)
+                .bouncyClickable(onClickLabel = if (expanded) "Hide widgets" else "Show widgets", onClick = onToggle)
                 .heightIn(min = 64.dp)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -663,7 +662,7 @@ private fun WidgetTile(choice: WidgetChoice, info: AppWidgetProviderInfo?, onCli
             .width(156.dp)
             .clip(RoundedCornerShape(20.dp))
             .bouncyClickable(shape = RoundedCornerShape(20.dp), onClickLabel = "Add", onClick = onClick)
-            .semantics(mergeDescendants = true) { contentDescription = "${choice.appLabel}, ${choice.widgetLabel}" }
+            .semantics(mergeDescendants = true) { contentDescription = listOf(choice.appLabel, choice.widgetLabel).filter { it.isNotBlank() }.distinct().joinToString(", ") }
             .padding(6.dp)
     ) {
         Box(
@@ -723,8 +722,8 @@ internal fun partIcon(kind: CardKind): ImageVector = when (kind) {
     CardKind.CONTROLS -> Icons.Outlined.Tune
     CardKind.PHONE -> Icons.Outlined.PhoneAndroid
     CardKind.LEFT_OFF -> Icons.Filled.History
-    CardKind.WORD -> Icons.Outlined.Spellcheck
-    CardKind.YEAR -> Icons.Filled.HourglassBottom
+    CardKind.WORD -> Icons.AutoMirrored.Filled.MenuBook
+    CardKind.YEAR -> Icons.Filled.Event
     CardKind.TOMORROW -> Icons.Outlined.CalendarMonth
     CardKind.APP -> Icons.Outlined.Widgets
     CardKind.SITE -> Icons.Outlined.Language
@@ -754,7 +753,7 @@ private fun AppIcon(choice: WidgetChoice) {
 @Composable
 private fun ActionsSheet(state: DiscoverEditState, layout: DiscoverLayout, close: () -> Unit) {
     val spec = layout.cards.firstOrNull { it.id == state.selectedId }
-    SheetHeading(spec?.let(state.label) ?: "Card actions", "Every edit is also here, for TalkBack, Switch Access and keyboards.")
+    SheetHeading(spec?.let(state.label) ?: "Card actions", "Every change you can make to this card.")
     if (spec == null) return
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         for (action in state.actions(spec)) {

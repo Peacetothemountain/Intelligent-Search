@@ -52,7 +52,7 @@ class CalendarEventWhenTest {
     fun anAllDayEventKeepsItsOwnDateWestOfUtc() {
         val todayAllDay = millis(6, 0, at = ZoneOffset.UTC)
         val tomorrowAllDay = millis(7, 0, at = ZoneOffset.UTC)
-        assertEquals("Today · All Day", whenIs(todayAllDay, now = millis(6, 20), allDay = true))
-        assertEquals("Tomorrow · All Day", whenIs(tomorrowAllDay, now = millis(6, 20), allDay = true))
+        assertEquals("Today · All day", whenIs(todayAllDay, now = millis(6, 20), allDay = true))
+        assertEquals("Tomorrow · All day", whenIs(tomorrowAllDay, now = millis(6, 20), allDay = true))
     }
 }

@@ -194,7 +194,7 @@ class WidgetEditorDialogsTest {
         tap("Shortcuts")
         tap("Slot 1 · Google Lens")
         tap("Weather")
-        tap("Custom App (APK)")
+        tap("Custom App")
 
         typeInDialog("com.not.installed")
         dialogButton("Confirm").assertIsNotEnabled()

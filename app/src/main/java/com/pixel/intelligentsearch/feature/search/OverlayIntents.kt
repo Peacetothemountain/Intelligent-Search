@@ -83,7 +83,7 @@ internal fun fileLocationLabel(file: FileItem): String {
     val parent = file.path.substringBeforeLast('/', missingDelimiterValue = file.path)
         .removePrefix("/storage/emulated/0/")
         .removePrefix("/storage/emulated/0")
-    return parent.ifBlank { file.mimeType }
+    return parent.ifBlank { "File" }
 }
 
 /** The system's own web search for [query], answered by whichever app handles it. */

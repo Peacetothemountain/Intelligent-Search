@@ -124,10 +124,10 @@ class SearchRoleCommandsTest {
             IntelligentSearchTheme(darkTheme = false) { SearchRoleInfoDialog(LocalContext.current) {} }
         }
         compose.waitForIdle()
-        compose.onNodeWithText("Intelligent Search is your active Default Search Engine.").assertExists()
+        compose.onNodeWithText("Intelligent Search is your default search engine.").assertExists()
         compose.onNodeWithText("You're all set").assertExists()
         compose.onAllNodes(androidx.compose.ui.test.hasText("Default Search Engine")).assertCountEquals(0)
-        compose.onAllNodes(androidx.compose.ui.test.hasText("Copy Command")).assertCountEquals(0)
+        compose.onAllNodes(androidx.compose.ui.test.hasText("Copy Commands")).assertCountEquals(0)
     }
 
     @Test
@@ -141,7 +141,7 @@ class SearchRoleCommandsTest {
             IntelligentSearchTheme(darkTheme = false) { SearchRoleInfoDialog(LocalContext.current) {} }
         }
         compose.waitForIdle()
-        compose.onNodeWithText("Copy Command").performClick()
+        compose.onNodeWithText("Copy Commands").performClick()
         compose.waitForIdle()
 
         val clipboard = ApplicationProvider.getApplicationContext<Context>().getSystemService(ClipboardManager::class.java)

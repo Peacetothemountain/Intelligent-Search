@@ -88,8 +88,8 @@ class ScopedQueryTest {
 
     @Test
     fun whatALimitedSearchSaysWhenItFindsNothing() {
-        assertEquals("No contacts match \"jo\"", SearchScope.CONTACTS.noMatchMessage("jo"))
-        assertEquals("No files match \"tax return\"", SearchScope.FILES.noMatchMessage("tax return"))
-        assertEquals("No settings match \"wifi\"", SearchScope.SETTINGS.noMatchMessage("wifi"))
+        assertEquals("No contacts match “jo”", SearchScope.CONTACTS.noMatchMessage("jo"))
+        assertEquals("No files match “tax return”", SearchScope.FILES.noMatchMessage("tax return"))
+        assertEquals("No settings match “wifi”", SearchScope.SETTINGS.noMatchMessage("wifi"))
     }
 }

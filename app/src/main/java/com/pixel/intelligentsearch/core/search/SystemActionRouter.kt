@@ -277,7 +277,7 @@ class SystemActionRouter @Inject constructor(
                     SystemToggleUiState(
                         id = "cast",
                         title = "Screen Cast",
-                        subtitle = "Mirror screen to TV / Displays",
+                        subtitle = "Show your screen on a TV or display",
                         iconType = "cast",
                         isEnabled = false,
                         isActionOnly = true,
@@ -307,7 +307,7 @@ class SystemActionRouter @Inject constructor(
                     SystemToggleUiState(
                         id = "privacy",
                         title = "Privacy & Sensors",
-                        subtitle = "Microphone & Camera Permissions",
+                        subtitle = "Microphone and camera access",
                         iconType = "privacy",
                         isEnabled = true,
                         isActionOnly = true,

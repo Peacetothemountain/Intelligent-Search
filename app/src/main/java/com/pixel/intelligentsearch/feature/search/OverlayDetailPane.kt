@@ -219,7 +219,7 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
             is AppItem -> {
                 val otherProfile = item.userHandle != null && item.userHandle != android.os.Process.myUserHandle()
                 DetailAppIcon(item, s.settingsState.activeIconPack, otherProfile, Modifier.launchIcon(s.launchIcons, LaunchIconKeys.DETAIL))
-                DetailTitle(item.name, if (otherProfile) "Work App" else "Application")
+                DetailTitle(item.name, if (otherProfile) "Work App" else "App")
                 val configuration = LocalConfiguration.current
                 val splitScreen = splitScreenOffered(isInMultiWindow(context), configuration.smallestScreenWidthDp, otherProfile)
                 DetailActions {
@@ -293,7 +293,7 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
         }
         is NavTarget.Correction -> {
             DetailSymbol(Icons.Outlined.Spellcheck)
-            DetailTitle(target.corrected, "Did You Mean")
+            DetailTitle(target.corrected, "Did You Mean?")
             DetailActions { DetailAction("Search for ${target.corrected}", Icons.Outlined.Search, emphasized = true, onClick = open) }
         }
         is NavTarget.Action -> {
@@ -451,7 +451,7 @@ private fun NumberFormsCard(forms: List<NumberForm>) {
                             clipboard?.setPrimaryClip(android.content.ClipData.newPlainText(form.label, form.copyValue))
                             // Android 13 and up confirm a copy themselves.
                             if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.TIRAMISU) {
-                                android.widget.Toast.makeText(context, "${form.label} Copied", android.widget.Toast.LENGTH_SHORT).show()
+                                android.widget.Toast.makeText(context, "${form.label} copied", android.widget.Toast.LENGTH_SHORT).show()
                             }
                         }
                         // A full 48dp touch target each, as the rows sit edge to edge.

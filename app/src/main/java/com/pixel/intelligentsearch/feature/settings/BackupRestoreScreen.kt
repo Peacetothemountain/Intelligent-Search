@@ -137,7 +137,7 @@ fun BackupRestoreScreen(
                     restoring = false
                     showRestorePassphraseDialog = false
                     dialogErrorMessage = null
-                    safeShowToast("Intelligent Search Settings Restored")
+                    safeShowToast("Settings restored.")
                 },
                 onError = { err ->
                     restoring = false
@@ -145,8 +145,9 @@ fun BackupRestoreScreen(
                         pendingRestoreUri = targetUri
                         dialogErrorMessage = err
                         showRestorePassphraseDialog = true
+                    } else {
+                        safeShowToast("Restore error: $err")
                     }
-                    safeShowToast("Restore error: $err")
                 }
             )
         }
@@ -163,13 +164,13 @@ fun BackupRestoreScreen(
         if (uri != null && exportWantsPassphrase && exportPassphrase.isNullOrBlank()) {
             // The passphrase was lost while the picker was open: remove the empty file and ask again.
             coroutineScope.launch(Dispatchers.IO) { deleteIfNothingWritten(context, uri) }
-            safeShowToast("Type your passphrase again, then export")
+            safeShowToast("Type your passphrase again, then export.")
             return@rememberLauncherForActivityResult
         }
         if (uri != null && activity != null) {
             if (viewModel == null) {
                 android.util.Log.e("BackupRestoreScreen", "viewModel is NULL in exportLauncher!")
-                safeShowToast("Error: Settings manager is not available")
+                safeShowToast("Couldn't export right now. Try again.")
                 return@rememberLauncherForActivityResult
             }
             val usedPassphrase = exportPassphrase
@@ -189,7 +190,7 @@ fun BackupRestoreScreen(
                             passkeyLeftOut -> "Backup exported. It opens with your passphrase only, since this phone can't read its backup passkey's key. Set up the passkey again."
                             passkeySetUp && !usedPassphrase.isNullOrBlank() -> "Backup exported. It opens with your passkey or passphrase."
                             passkeySetUp -> "Backup exported. It opens with your passkey."
-                            !usedPassphrase.isNullOrBlank() -> "Encrypted backup exported successfully!"
+                            !usedPassphrase.isNullOrBlank() -> "Backup exported. It opens with your passphrase."
                             else -> "Backup exported. Without a passphrase it can only be restored on this phone."
                         }
                     )
@@ -225,7 +226,7 @@ fun BackupRestoreScreen(
                     !saved.isNullOrBlank() -> onReady(saved)
                     !afterPrompt && activity != null -> context.appEntryPoint.biometricSearchGate().authenticate(
                         activity = activity,
-                        title = "Verify it’s you",
+                        title = "Verify It’s You",
                         subtitle = "To Use the Passphrase Saved to $keyHolder.",
                         onSuccess = { load(afterPrompt = true) },
                         onFailure = {
@@ -276,7 +277,7 @@ fun BackupRestoreScreen(
                             key = key,
                             onSuccess = {
                                 restoring = false
-                                safeShowToast("Intelligent Search Settings Restored")
+                                safeShowToast("Settings restored.")
                             },
                             onError = { err ->
                                 restoring = false
@@ -603,7 +604,7 @@ fun BackupRestoreScreen(
                                                 passphrase = ""
                                                 passphraseVisible = false
                                                 hapticEngine.performPredictiveBackHaptic()
-                                                safeShowToast("Passphrase saved to $keyHolder")
+                                                safeShowToast("Passphrase saved to $keyHolder.")
                                                 // Weekly backups keep the passphrase they were turned on with until told
                                                 // otherwise; moved to this one, they open with what the user now knows.
                                                 // Deriving the key takes seconds, so it runs off the main thread and
@@ -616,7 +617,7 @@ fun BackupRestoreScreen(
                                                     } else null
                                                 }
                                                 if (rekeyed != null) {
-                                                    safeShowToast(if (rekeyed) "Weekly backups now use this passphrase" else "Weekly backups still use your earlier passphrase")
+                                                    safeShowToast(if (rekeyed) "Weekly backups now use this passphrase." else "Weekly backups still use your earlier passphrase.")
                                                 }
                                             }
                                             outcome == com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager.PassphraseSave.NEEDS_AUTHENTICATION && !afterPrompt -> {
@@ -627,7 +628,7 @@ fun BackupRestoreScreen(
                                                 } else {
                                                     context.appEntryPoint.biometricSearchGate().authenticate(
                                                         activity = activity,
-                                                        title = "Verify it’s you",
+                                                        title = "Verify It’s You",
                                                         subtitle = "To Save the Passphrase to $keyHolder.",
                                                         onSuccess = { save(afterPrompt = true) },
                                                         onFailure = {
@@ -647,7 +648,7 @@ fun BackupRestoreScreen(
                                 }
                                 save(afterPrompt = false)
                             } else {
-                                safeShowToast("Use a passphrase of at least ${AutoBackup.MIN_PASSPHRASE_LENGTH} characters")
+                                safeShowToast("Use a passphrase of at least ${AutoBackup.MIN_PASSPHRASE_LENGTH} characters.")
                             }
                         },
                         shape = RoundedCornerShape(percent = 50),
@@ -712,7 +713,7 @@ fun BackupRestoreScreen(
 
             SettingsCard(modifier = Modifier.testTag("backup_card_export")) {
                 BackupCardTitle("Export Configuration")
-                BackupCardDescription("Settings, History, Shortcuts, and Priority Weights.")
+                BackupCardDescription("Settings, Widgets, Hidden Apps, Shortcuts and History.")
                 Spacer(modifier = Modifier.height(4.dp))
                 Button(
                     onClick = {
@@ -726,7 +727,7 @@ fun BackupRestoreScreen(
                                 showNoPassphraseWarningDialog = true
                             } else if (chosen.length < AutoBackup.MIN_PASSPHRASE_LENGTH) {
                                 // A portable backup can be attacked offline, so its passphrase needs some length.
-                                safeShowToast("Use a passphrase of at least ${AutoBackup.MIN_PASSPHRASE_LENGTH} characters")
+                                safeShowToast("Use a passphrase of at least ${AutoBackup.MIN_PASSPHRASE_LENGTH} characters.")
                             } else {
                                 exportPassphrase = chosen
                                 exportWantsPassphrase = true
@@ -747,7 +748,7 @@ fun BackupRestoreScreen(
 
             SettingsCard(modifier = Modifier.testTag("backup_card_restore")) {
                 BackupCardTitle("Restore from Backup")
-                BackupCardDescription("Decrypted and SHA-256 Verified Before Restoring.")
+                BackupCardDescription("Checked Before Anything Is Restored.")
                 Spacer(modifier = Modifier.height(4.dp))
                 OutlinedButton(
                     onClick = {
@@ -865,7 +866,7 @@ internal fun shouldAskForPassphrase(envelope: EncryptedBackupEnvelope?, error: S
 internal fun encryptionCardDescription(passkeySupported: Boolean, passkeySetUp: Boolean, keyHolder: String): String = when {
     passkeySetUp -> "Backups Open with Your Passkey on Any Phone Signed In to Your Password Manager. A Passphrase Adds a Second Way In."
     passkeySupported -> "Restore on Any Phone with a Passkey or Passphrase. Without Either, Backups Open Only on This Phone."
-    else -> "Set a Passphrase to Restore Your Backup on Any Device. If Left Blank, the Backup Is Encrypted with a Key in This Phone's $keyHolder and Can Only Be Restored on This Phone."
+    else -> "Set a Passphrase to Restore Your Backup on Any Phone. If Left Blank, the Backup Is Encrypted with a Key in This Phone's $keyHolder and Can Only Be Restored on This Phone."
 }
 
 /** The title of a card on this page, in the same style as the passphrase card's. */

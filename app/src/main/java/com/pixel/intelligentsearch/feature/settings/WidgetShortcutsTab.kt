@@ -62,7 +62,7 @@ internal fun WidgetShortcutsTab(
     // TAB 2: WIDGET SHORTCUTS
     SettingsSectionHeader("Widget Shortcuts")
     // Inset like the section header above it.
-    Text("Drag Handle to Reorder, Swipe to Disable, and Tap to Customize.", style = MaterialTheme.typography.bodyMedium, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 16.dp, bottom = 4.dp))
+    Text("Drag the Handle to Reorder, Swipe to Remove and Tap to Change.", style = MaterialTheme.typography.bodyMedium, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 16.dp, bottom = 4.dp))
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -102,7 +102,7 @@ internal fun WidgetShortcutsTab(
                 val isEmpty = actionName == "None"
                 // "Slot 1 · Google Lens": the position, then what the slot does. Under it, what kind of slot it is,
                 // or for an empty one, what tapping it adds.
-                val cardTitle = "Slot ${currentPositionIndex + 1} · ${if (isEmpty) "Empty" else actionName}"
+                val cardTitle = "Slot ${currentPositionIndex + 1} · ${if (isEmpty) "Empty" else shortcutDisplayName(actionName)}"
                 val cardSubtext = when {
                     isEmpty && isMic -> "Tap to Add Voice Search"
                     isEmpty -> "Tap to Add a Shortcut"

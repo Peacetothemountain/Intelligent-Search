@@ -384,7 +384,7 @@ private fun ReportAiAnswerDialog(onDismiss: () -> Unit, onReport: (AiReportReaso
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { onReport(reason) }) { Text("Send Report") } },
+        confirmButton = { TextButton(onClick = { onReport(reason) }) { Text("Open in Email") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }

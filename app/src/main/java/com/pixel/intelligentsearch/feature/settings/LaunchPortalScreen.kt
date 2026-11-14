@@ -49,7 +49,7 @@ private const val ADD_TILE_YOURSELF = "You can add it yourself: open Quick Setti
 internal fun tileRequestMessage(result: Int): String? = when (result) {
     StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED,
     StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_NOT_ADDED -> null
-    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> "Search tile is already in Quick Settings"
+    StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> "Search tile is already in Quick Settings."
     StatusBarManager.TILE_ADD_REQUEST_ERROR_APP_NOT_IN_FOREGROUND ->
         "Android only adds the tile while Intelligent Search is open. $ADD_TILE_YOURSELF"
     StatusBarManager.TILE_ADD_REQUEST_ERROR_REQUEST_IN_PROGRESS ->
@@ -110,7 +110,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                     SettingsCard {
                         SettingsRow(
                             title = "Search Tile",
-                            subtitle = "Add to Quick Settings Notification Panel.",
+                            subtitle = "Add a Search Tile to Quick Settings.",
                             icon = Symbols.Outlined.ViewAgenda,
                             onClick = {
                                 if (Build.VERSION.SDK_INT >= 33) {
@@ -132,7 +132,7 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         Log.w("IntelligentSearch", "Unexpected error", e)
                                     }
                                 } else {
-                                    Toast.makeText(context, "Please add the tile manually from your notification shade.", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, ADD_TILE_YOURSELF, Toast.LENGTH_LONG).show()
                                 }
                             },
                             showDivider = true
@@ -140,11 +140,11 @@ fun LaunchPortalScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                         
                         SettingsRow(
                             title = "Home Screen Shortcut",
-                            subtitle = "Add App Icon to Home Screen.",
+                            subtitle = "Add a Search Shortcut to Your Home Screen.",
                             icon = Symbols.Outlined.AddHome,
                             onClick = {
                                 if (!requestSearchShortcut(context)) {
-                                    Toast.makeText(context, "Pinning shortcuts not supported on this device.", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, "Your home screen can't add shortcuts from apps.", Toast.LENGTH_SHORT).show()
                                 }
                             },
                             showDivider = false

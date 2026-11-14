@@ -117,7 +117,7 @@ internal enum class QuickControl(val key: String, val label: String) {
     SAVER("saver", "Battery Saver"),
     AIRPLANE("airplane", "Airplane Mode"),
     LOCATION("location", "Location"),
-    ROTATION("rotation", "Auto-rotate"),
+    ROTATION("rotation", "Auto-Rotate"),
     DARK("dark", "Dark Theme"),
     NFC("nfc", "NFC"),
     CAST("cast", "Cast"),
@@ -379,7 +379,7 @@ internal fun ChooseControlsSheet(controls: TodayControls, onDismiss: () -> Unit)
     )
 }
 
-/** The last tile: an outlined control with a plus, which opens the list of controls. */
+/** The last tile: an outlined control with a pencil, which opens the list of controls. */
 @Composable
 private fun AddControlTile(modifier: Modifier, onClick: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
@@ -394,7 +394,7 @@ private fun AddControlTile(modifier: Modifier, onClick: () -> Unit) {
                 .semantics { contentDescription = "Edit controls" },
             contentAlignment = Alignment.Center
         ) {
-            Icon(EditIcons.Add, contentDescription = null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
+            Icon(EditIcons.Edit, contentDescription = null, tint = scheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
         }
         Text(
             "Edit",

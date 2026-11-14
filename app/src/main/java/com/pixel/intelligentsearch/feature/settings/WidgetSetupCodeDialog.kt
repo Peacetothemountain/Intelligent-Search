@@ -52,7 +52,7 @@ internal fun WidgetSetupCodeDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    "A setup is this profile's look: its colors, outline, corners and buttons. Nothing else is shared.",
+                    "A setup code holds this profile's look: its colors, outline, corners and buttons. Buttons that open your own apps or websites, and everything else, stay on this phone.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 FilledTonalButton(

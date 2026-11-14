@@ -363,13 +363,13 @@ private fun RateAskRow(onOpened: () -> Unit, rate: () -> Unit, modifier: Modifie
         // The card is narrow: the main button takes a line of its own, the two quieter ones share the next.
         Column(modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 8.dp, bottom = 6.dp)) {
             androidx.compose.material3.Button(onClick = rate, modifier = Modifier.fillMaxWidth()) {
-                Text("Rate on Google Play", maxLines = 1, softWrap = false)
+                Text("Rate on Google Play", textAlign = androidx.compose.ui.text.style.TextAlign.Center)
             }
             androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 androidx.compose.material3.OutlinedButton(onClick = {
                     onOpened()
                     RatingAsk.feedback(context)
-                }) { Text("Feedback") }
+                }) { Text("Send Feedback") }
                 androidx.compose.material3.TextButton(onClick = { RatingAsk.finish(context) }) { Text("Not Now") }
             }
         }
@@ -537,7 +537,7 @@ private fun BirthdayRow(birthday: GlanceBirthday, open: () -> Unit, modifier: Mo
             val source = lookupUri.takeIf { it.startsWith("content://") }?.let { ThumbnailSource.ContactPhoto(it) }
             ResultThumbnail(source, 40.dp) { GlanceBadge(Icons.Outlined.Cake) }
         },
-        title = "${birthday.name}'s Birthday",
+        title = "${birthday.name}'s birthday",
         subtitle = listOfNotNull(day, birthday.turning?.let { "Turns $it" }).joinToString(" · "),
         onClick = open,
         modifier = modifier
@@ -560,7 +560,7 @@ internal fun calendarEventIntent(event: CalendarEvent): Intent =
 
 /**
  * When an event is, under its title: "Now" once it has started, else "Today" or "Tomorrow" and its [time] (the
- * phone's 12 or 24 hour style), or "All Day". An all-day event is kept on its own date, which calendars store at
+ * phone's 12 or 24 hour style), or "All day". An all-day event is kept on its own date, which calendars store at
  * midnight UTC, so it isn't read as the evening before west of UTC.
  */
 internal fun calendarEventWhen(event: CalendarEvent, time: String, now: Long, zone: ZoneId = ZoneId.systemDefault()): String {
@@ -576,7 +576,7 @@ internal fun calendarEventWhen(event: CalendarEvent, time: String, now: Long, zo
         day == today.plusDays(1) -> "Tomorrow"
         else -> day.dayOfWeek.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
     }
-    return "$dayLabel · ${if (event.allDay) "All Day" else time}"
+    return "$dayLabel · ${if (event.allDay) "All day" else time}"
 }
 
 /** An upcoming calendar event: its title, then when it is ([calendarEventWhen]); opens the event in the calendar app. */

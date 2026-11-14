@@ -272,7 +272,7 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
                     systemMs > 0L && minutes != null && minutes <= 48 * 60 ->
                         "${DiagnosticsReadings.formatMinutes(minutes)} until full"
                     draining -> "Not gaining charge"
-                    minutes == null -> "Estimating..."
+                    minutes == null -> "Estimating…"
                     minutes > 48 * 60 -> "Charging slowly"
                     else -> "${DiagnosticsReadings.formatMinutes(minutes)} until full"
                 }
@@ -285,7 +285,7 @@ internal class DeviceDiagnosticsSampler(context: Context) : DiagnosticsSampler {
                 bTimeEstimateStr = untilEmpty(otherwise = "Charging paused")
             }
             BatteryReadings.ChargeState.PluggedUnknown, BatteryReadings.ChargeState.Discharging -> {
-                bTimeEstimateStr = untilEmpty(otherwise = "Estimating...")
+                bTimeEstimateStr = untilEmpty(otherwise = "Estimating…")
             }
         }
 
@@ -379,8 +379,8 @@ internal fun BatteryAndMemoryDiagnosticsPage(
     var batteryTechnology by remember { mutableStateOf("") }
     var thermalStatus by remember { mutableStateOf("Normal") }
     var isCharging by remember { mutableStateOf(false) }
-    var chargingRateStr by remember { mutableStateOf("Reading battery...") }
-    var timeEstimateStr by remember { mutableStateOf("Estimating...") }
+    var chargingRateStr by remember { mutableStateOf("Reading battery…") }
+    var timeEstimateStr by remember { mutableStateOf("Estimating…") }
     var power by remember { mutableStateOf<ChargingStatus.Status?>(null) }
 
     var totalRamGb by remember { mutableStateOf("0.0") }
@@ -612,7 +612,7 @@ internal fun BatteryAndMemoryDiagnosticsPage(
 
                         if (topProcesses.isEmpty()) {
                             Text(
-                                text = if (breakdownAvailable) "Reading memory..." else "Breakdown unavailable",
+                                text = if (breakdownAvailable) "Reading memory…" else "Breakdown unavailable",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontSize = 10.5.sp,
                                 color = scheme.onSurfaceVariant

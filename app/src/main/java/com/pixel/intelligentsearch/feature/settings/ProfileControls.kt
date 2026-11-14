@@ -73,7 +73,7 @@ internal fun ProfileStateActions(profile: Int, onReset: () -> Unit, onSave: () -
         onReset = onReset,
         onSave = onSave,
         resetMessage = "Profile $profile reset to its saved state.",
-        saveMessage = "Profile $profile saved.",
+        saveMessage = "Profile $profile's reset point saved.",
         saveDescription = "Save Profile State"
     )
 }

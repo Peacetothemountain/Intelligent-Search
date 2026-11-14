@@ -23,7 +23,7 @@ internal enum class CardKind(val key: String, val builtIn: Boolean, val shaped: 
     UP_NEXT("up_next", true, true, "Up next", 280),
     REST_OF_DAY("rest_of_day", true, true, "Rest of your day", 290),
     WEATHER("weather", true, true, "Weather ahead", 270),
-    TILES("tiles", true, true, "Timer and alarm", 290),
+    TILES("tiles", true, true, "Timer, alarm and package", 290),
     NOW_PLAYING("now_playing", true, true, "Now playing", 250),
     CATCH_UP("catch_up", true, true, "Catch up", 260),
     CONTROLS("controls", true, false, "Quick controls", 120),
@@ -271,14 +271,17 @@ internal interface SiteCards {
  */
 @Immutable
 internal sealed interface ShapedContent {
-    /** The weather now: [temperature] (with its degree sign), its [icon], the hours ahead ([hours] temperatures with [rain] flags), and a [headline] such as "Rain at 8 PM". */
+    /** The weather now: [temperature] (with its degree sign), its [icon], the hours ahead ([hours] temperatures with [rain] flags), and a [headline] such as "Rain around 8 PM". */
     data class Weather(val temperature: String, val icon: ImageVector, val headline: String, val hours: List<Int>, val rain: List<Boolean>) : ShapedContent
 
     /** A running timer or stopwatch: its [reading] now ("4:59"), its [label], and how far through the minute it is ([sweep], 0 to 1). */
     data class Timer(val reading: String, val label: String, val sweep: Float) : ShapedContent
 
-    /** The next alarm at [time] ("7:00"), on [day] ("Tomorrow"), [until] ("in 16 hr 22 min"); [fraction] of the way from now round the dial. */
-    data class Alarm(val time: String, val day: String, val until: String, val fraction: Float) : ShapedContent
+    /**
+     * The next alarm at [time] ("7:00", drawn without AM or PM), on [day] ("Tomorrow"), [until] ("In 16 hr 22 min");
+     * [fraction] of the way from now round the dial. [spokenTime] is the time in full ("7:00 AM"), for TalkBack.
+     */
+    data class Alarm(val time: String, val day: String, val until: String, val fraction: Float, val spokenTime: String = time) : ShapedContent
 
     /** A package on its way: [headline] ("Arriving today") and [detail]. */
     data class Delivery(val headline: String, val detail: String) : ShapedContent
@@ -307,8 +310,11 @@ internal sealed interface ShapedContent {
     /** The last search, [query], to search again. */
     data class Search(val query: String) : ShapedContent
 
-    /** Tomorrow: its [day] ("Saturday"), the weather's [icon] and [temperatures] ("58° / 41°") if known, and the first [detail] ("Alarm 7:00 AM"). */
-    data class Tomorrow(val day: String, val icon: ImageVector?, val temperatures: String, val detail: String) : ShapedContent
+    /**
+     * Tomorrow: its [day] ("Saturday"), the weather's [icon] and [temperatures] ("H 58°  L 41°") if known, and the first
+     * [detail] ("Alarm · 7:00 AM"). [spokenTemperatures] is how TalkBack says them ("High 58°, low 41°").
+     */
+    data class Tomorrow(val day: String, val icon: ImageVector?, val temperatures: String, val detail: String, val spokenTemperatures: String = temperatures) : ShapedContent
 
     /** An app card. [icon] is the app's icon for states that show it. */
     data class App(val data: AppCardData, val icon: ImageBitmap?) : ShapedContent

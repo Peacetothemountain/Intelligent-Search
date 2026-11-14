@@ -30,7 +30,7 @@
     <td width="25%" align="center" valign="top"><h3>⚡</h3><b>Instant</b><br/><sub>Answers, conversions and actions appear as you type, matched on your phone.</sub></td>
     <td width="25%" align="center" valign="top"><h3>☀️</h3><b>Your day at a glance</b><br/><sub>Discover lays out your plans, weather, controls and favorite widgets.</sub></td>
     <td width="25%" align="center" valign="top"><h3>🎨</h3><b>Made yours</b><br/><sub>Material You colors, shapes, widgets and icons, down to the last pixel.</sub></td>
-    <td width="25%" align="center" valign="top"><h3>🛡️</h3><b>Private by design</b><br/><sub>Matching never leaves the device; backups are encrypted with your passkey.</sub></td>
+    <td width="25%" align="center" valign="top"><h3>🛡️</h3><b>Private by design</b><br/><sub>Matching never leaves the device; backups are encrypted with your passkey or passphrase.</sub></td>
   </tr>
 </table>
 
@@ -66,7 +66,7 @@
   <tr>
     <td align="center" valign="top"><img src="docs/images/09_settings.png" width="190" alt="Settings" /><br/><sub><b>Settings</b></sub></td>
     <td align="center" valign="top"><img src="docs/images/10_appearance.png" width="190" alt="Appearance settings" /><br/><sub><b>Appearance</b></sub></td>
-    <td align="center" valign="top"><img src="docs/images/11_widget_customization.png" width="190" alt="Widget customization" /><br/><sub><b>Widget studio</b></sub></td>
+    <td align="center" valign="top"><img src="docs/images/11_widget_customization.png" width="190" alt="Widget customization" /><br/><sub><b>Widget Customization</b></sub></td>
   </tr>
 </table>
 
@@ -82,7 +82,7 @@
       <h3>🔍 Search everything</h3>
       <ul>
         <li>Apps across your personal, work and private space profiles, plus Android's settings pages.</li>
-        <li>Contacts, calendar events, notifications and files you pick through the system picker.</li>
+        <li>Contacts, notifications and files you pick through the system picker.</li>
         <li>Live web suggestions with pictures, and your recent searches, each of which can be turned off.</li>
         <li>Web shortcuts like <code>!yt</code>, <code>!w</code> or <code>!gh</code>, plus your own search engines.</li>
       </ul>
@@ -179,7 +179,7 @@ app/src/main/java/com/pixel/intelligentsearch
 ├── feature
 │   ├── search        The search overlay: results, answers, voice, quick apps
 │   │   └── today     Discover: the freeform card page, its shapes, app widget and website cards
-│   ├── settings      Settings, the widget studio, backup and restore, setup checklist
+│   ├── settings      Settings, Widget Customization, backup and restore, setup checklist
 │   ├── widget        Search bar and countdown widgets, the Quick Settings tile, Voice Nebula
 │   ├── voice         Assistant service, speech recognition, dictation
 │   ├── launch        Notification shortcut and floating button
@@ -229,8 +229,8 @@ The tests run on Robolectric and Roborazzi, so no device is needed. Screenshot r
 
 GitHub Actions runs on GitHub-hosted runners, with every action pinned to a commit SHA.
 
-- **`ci.yml`** runs lint, every test (screenshot comparisons included) and a release build on each push and pull
-  request to `main` and `dev`. `main` is protected: a commit reaches it only after this check passes.
+- **`ci.yml`** runs lint, every test (screenshot comparisons included) and a release build on each push to `dev` and each pull
+  request to `main` or `dev`. `main` is protected: a commit reaches it only after this check passes.
 - **`release.yml`** builds and signs the APK for a `v<version>-<code>` tag on `main`, and publishes it with its R8
   mapping as a GitHub release.
 

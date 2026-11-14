@@ -66,7 +66,7 @@ fun WebSearchScreen(
                 var showTorDialog by remember { mutableStateOf(false) }
 
                 SettingsDropdownRow(
-                    title = "Primary Search App",
+                    title = "Search Engine",
                     subtitle = effectiveSearchEngineName,
                     icon = Symbols.Outlined.Search,
                     options = listOf("Google", "DuckDuckGo", "Bing", "Tor Project", "Custom"),
@@ -156,7 +156,7 @@ fun WebSearchScreen(
                 var searchPreviousSearches by rememberSetting(SettingsManager.SEARCH_PREVIOUS_SEARCHES)
                 SettingsRowToggle(
                     title = "Search History",
-                    subtitle = "Previously Searched Web Queries.",
+                    subtitle = "Keep Your Searches on This Phone and Show Recent Ones Before You Type.",
                     icon = Symbols.Outlined.History,
                     isChecked = searchPreviousSearches,
                     onCheckedChange = { searchPreviousSearches = it },

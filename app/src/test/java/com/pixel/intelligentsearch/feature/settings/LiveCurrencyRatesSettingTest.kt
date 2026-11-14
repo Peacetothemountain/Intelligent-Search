@@ -116,7 +116,7 @@ class LiveCurrencyRatesSettingTest {
 
         currencyRates.onCurrencyConverted(CurrencyRates.BUILT_IN)
         assertTrue(dailyWorkEnqueued())
-        tap("Primary Search App")
+        tap("Search Engine")
         tap("Tor Project")
         assertEquals("Tor Project", prefs[SettingsManager.SEARCH_ENGINE])
         assertTrue(dailyWorkCancelled())

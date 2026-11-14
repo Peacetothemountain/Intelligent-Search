@@ -459,12 +459,13 @@ private fun TimerTile(timer: GlanceTimer, modifier: Modifier) {
     val now = rememberGlanceNow(1_000L, enabled = timer.kind != GlanceTimer.Kind.TimesUp)
     val kind = if (timer.kind == GlanceTimer.Kind.Stopwatch) "Stopwatch" else "Timer"
     val label = timer.label.takeIf { it.isNotBlank() && !it.equals(kind, ignoreCase = true) } ?: kind
-    val reading = timerReading(timer, now).removeSuffix(" Left")
+    val reading = timerReading(timer, now).removeSuffix(" left")
     Tile(Icons.Outlined.Timer, label, onClick = { openGlanceItem(context, GlanceItem.Timer(timer)) }, modifier = modifier) {
         Row(verticalAlignment = Alignment.Bottom) {
             Column(Modifier.weight(1f)) {
                 Text(reading, style = MaterialTheme.typography.headlineMedium, color = scheme.onSurface, modifier = Modifier.padding(top = 6.dp))
-                DetailLine(kind, timer.appLabel)
+                // The kind only when the tile's name is the timer's own label: otherwise the name already says it.
+                DetailLine(kind.takeIf { label != kind }, timer.appLabel)
             }
             // A ring sweeping once a minute, so the tile is visibly running.
             val sweep = (now % 60_000L) / 60_000f
@@ -520,6 +521,8 @@ internal fun NowPlaying(media: GlanceMedia) {
                     .size(46.dp)
                     .clip(CircleShape)
                     .background(scheme.surfaceContainerHigh)
+                    // The title beside it opens the same player and says what it is, so TalkBack stops there only.
+                    .clearAndSetSemantics {}
                     .bouncyClickable(shape = CircleShape) { media.controls.open(context) },
                 contentAlignment = Alignment.Center
             ) {

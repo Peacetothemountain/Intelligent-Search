@@ -104,9 +104,9 @@ class ManageHiddenAppsScreenTest {
         compose.settle(steps = 5)
 
         compose.onNode(hasSetTextAction())
-            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Search Hidden Apps")))
+            .assert(SemanticsMatcher.expectValue(SemanticsProperties.ContentDescription, listOf("Search Apps")))
             .assertIsFocused()
-        compose.onNodeWithText("Search Hidden Apps").assertExists()
+        compose.onNodeWithText("Search Apps").assertExists()
 
         compose.onNode(hasSetTextAction()).performTextInput("zzzz")
         compose.settle(steps = 5)
@@ -124,7 +124,7 @@ class ManageHiddenAppsScreenTest {
     fun theTitleSitsFlushLeftUnderBackWithEnableAllJustAfterIt() {
         val back = compose.onNodeWithContentDescription("Back").getBoundsInRoot()
         val title = compose.onNodeWithText("Manage Hidden Apps").getBoundsInRoot()
-        val enableAll = compose.onNodeWithText("Enable All").getBoundsInRoot()
+        val enableAll = compose.onNodeWithText("Hide All").getBoundsInRoot()
         val search = compose.onNodeWithContentDescription("Search").getBoundsInRoot()
         val reset = compose.onNodeWithContentDescription("Reset to Saved State").getBoundsInRoot()
         val save = compose.onNodeWithContentDescription("Save Hidden Apps").getBoundsInRoot()
@@ -151,14 +151,14 @@ class ManageHiddenAppsScreenTest {
 
     @Test
     fun enableAllHidesEveryAppAndCheckedAgainShowsThemAll() {
-        compose.onNodeWithText("Enable All").assertIsOff()
-        compose.onNodeWithText("Enable All").performClick()
+        compose.onNodeWithText("Hide All").assertIsOff()
+        compose.onNodeWithText("Hide All").performClick()
         compose.settle(steps = 5)
-        compose.onNodeWithText("Enable All").assertIsOn()
+        compose.onNodeWithText("Hide All").assertIsOn()
         tap("Save Hidden Apps")
         assertEquals(setOf("com.example.alpha", "com.example.beta"), hidden())
 
-        compose.onNodeWithText("Enable All").performClick()
+        compose.onNodeWithText("Hide All").performClick()
         compose.settle(steps = 5)
         tap("Save Hidden Apps")
         assertEquals(emptySet<String>(), hidden())
@@ -176,7 +176,7 @@ class ManageHiddenAppsScreenTest {
         compose.onNodeWithContentDescription("Search").performClick()
         compose.settle(steps = 5)
         compose.onNodeWithText("Manage Hidden Apps").assertExists()
-        compose.onNodeWithText("Enable All").assertExists()
+        compose.onNodeWithText("Hide All").assertExists()
         assertEquals("the title doesn't move", title, compose.onNodeWithText("Manage Hidden Apps").getBoundsInRoot())
         val field = compose.onNode(hasSetTextAction()).getBoundsInRoot()
         assertTrue("the pill is at the bottom of the page, far below the title", field.top > title.bottom + 1000.dp)
@@ -208,7 +208,7 @@ class ManageHiddenAppsScreenTest {
         compose.settle(steps = 5)
         compose.onNodeWithContentDescription("Back").performClick()
         compose.settle(steps = 5)
-        compose.onNodeWithText("Discard unsaved changes?").assertExists()
+        compose.onNodeWithText("Discard Unsaved Changes?").assertExists()
         compose.onNodeWithText("Discard").performClick()
         compose.settle(steps = 5)
         assertEquals("Discard leaves without saving", emptySet<String>(), hidden())

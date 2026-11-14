@@ -64,8 +64,8 @@ internal fun snapNumber(m: SnapModel, v: Double, format: NumberFormat?): String 
 /** Whether a change reads as a fall ("-0.46%", or with a true minus sign). */
 internal fun isFall(change: String): Boolean = change.trimStart().let { it.startsWith("-") || it.startsWith("−") }
 
-/** "Updated 2 hr ago", or "Updated just now". */
-internal fun updatedNote(ago: String): String = if (ago == "Now") "Updated just now" else "Updated $ago"
+/** "Updated 2 hr ago", "Updated yesterday", or "Updated just now". */
+internal fun updatedNote(ago: String): String = if (ago == "Now") "Updated just now" else "Updated ${ago.replaceFirstChar { it.lowercase() }}"
 
 /** An app card in any shape, in any of its states. */
 internal fun Stage.app(c: ShapedContent.App, x: CardExtras) {

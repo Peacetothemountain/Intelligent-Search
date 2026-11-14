@@ -169,8 +169,8 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
             if (pendingIconPack != null) {
                 AlertDialog(
                     onDismissRequest = { pendingIconPack = null },
-                    title = { Text("Change Icon Pack", fontWeight = FontWeight.Bold) },
-                    text = { Text("Are you sure you want to change the icon pack?") },
+                    title = { Text("Change Icon Pack?", fontWeight = FontWeight.Bold) },
+                    text = { Text("App icons in search use this pack from now on.") },
                     confirmButton = {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -186,7 +186,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     }
                                 }
                             ) {
-                                Text("Never show again", fontSize = 13.sp, color = MaterialTheme.colorScheme.outline)
+                                Text("Don't show this again", fontSize = 13.sp, color = MaterialTheme.colorScheme.outline)
                             }
                             
                             Row {
@@ -202,7 +202,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                         }
                                     }
                                 ) {
-                                    Text("Save")
+                                    Text("Change")
                                 }
                             }
                         }
@@ -343,7 +343,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                 color = MaterialTheme.colorScheme.onSurface
                                             )
                                             Text(
-                                                text = if (packageName == "system_default") "Default Monet Dynamic Icons." else packageName,
+                                                text = if (packageName == "system_default") "Your Phone's Own Icons." else packageName,
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -354,13 +354,14 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         // The row handles the tap and announces the selection.
                                         RadioButton(selected = isSelected, onClick = null)
-                                        Spacer(modifier = Modifier.width(12.dp))
                                         val currentPkg by rememberUpdatedState(packageName)
                                         Icon(
                                             imageVector = Symbols.Outlined.DragHandle,
                                             contentDescription = "Drag to reorder",
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                            modifier = Modifier.pointerInput(currentPkg) {
+                                            // A 48dp touch target around the 24dp handle; its padding stands in for the gap after
+                                            // the radio button.
+                                            modifier = Modifier.size(48.dp).pointerInput(currentPkg) {
                                                 detectVerticalDragGestures(
                                                     onDragStart = {
                                                         hapticEngine.performPredictiveBackHaptic(view)
@@ -422,7 +423,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                                         }
                                                     }
                                                 )
-                                            }
+                                            }.padding(12.dp)
                                         )
                                     }
                                 }

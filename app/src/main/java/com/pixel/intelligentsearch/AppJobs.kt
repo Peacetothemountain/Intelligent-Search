@@ -13,6 +13,7 @@ import android.util.Log
 import com.pixel.intelligentsearch.core.backup.AutoBackup
 import com.pixel.intelligentsearch.core.currency.CurrencyRateWork
 import com.pixel.intelligentsearch.feature.widget.CountdownWidgetProvider
+import com.pixel.intelligentsearch.feature.widget.DiscoverWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.WidgetDoodles
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -53,6 +54,16 @@ enum class AppJob(val id: Int) {
     },
     PALETTE_CHANGE(1007) {
         override suspend fun run(context: Context, extras: PersistableBundle) = WidgetPaletteWatch.changed(context)
+    },
+    /** The Discover widgets' regular redraw, with the forecast read again; each run arranges the next. */
+    DISCOVER_REFRESH(1008) {
+        override suspend fun run(context: Context, extras: PersistableBundle) {
+            AppWidgetManager.getInstance(context)?.let { DiscoverWidgetProvider.redrawAll(context, it, DiscoverWidgetProvider.Refresh.WEATHER) }
+        }
+    },
+    /** The calendar changed while a Discover widget shows events. */
+    DISCOVER_CALENDAR(1009) {
+        override suspend fun run(context: Context, extras: PersistableBundle) = DiscoverWidgetProvider.calendarChanged(context)
     };
 
     abstract suspend fun run(context: Context, extras: PersistableBundle)

@@ -77,6 +77,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.answers.HighLow
+import com.pixel.intelligentsearch.core.answers.RainAhead
 import com.pixel.intelligentsearch.core.answers.ScreenTimeReport
 import com.pixel.intelligentsearch.core.answers.WeatherCodes
 import com.pixel.intelligentsearch.core.answers.WeatherReport
@@ -469,15 +470,14 @@ internal fun WeatherAhead(report: WeatherReport) {
             .onFirstSeen { seen = true }
             .padding(14.dp)
     ) {
-        // The chance is of rain or snow alike, so the hour's own weather says which to name.
-        val rainAt = hours.indexOfFirst { (it.precipitation ?: 0) >= 50 }
-        val falling = if (rainAt >= 0 && WeatherCodes.kind(hours[rainAt].code) == WeatherCodes.Kind.SNOW) "Snow" else "Rain"
+        // The first hour rain or snow is likely, worded as the Discover widget words it too.
+        val wet = RainAhead.hour(hours)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (rainAt >= 0) {
+            if (wet != null) {
                 CardLabel(
                     weatherIcon(report.code, report.isDay),
                     "Weather ahead",
-                    detail = "$falling around ${hours[rainAt].time.withZoneSameInstant(zone).format(DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h a", locale))}"
+                    detail = RainAhead.words(RainAhead.isSnow(wet), wet.time.withZoneSameInstant(zone), is24, locale)
                 )
             } else {
                 CardLabel(weatherIcon(report.code, report.isDay), "Weather ahead", detail = HighLow.drawn(report.high, report.low), spokenDetail = HighLow.spoken(report.high, report.low))

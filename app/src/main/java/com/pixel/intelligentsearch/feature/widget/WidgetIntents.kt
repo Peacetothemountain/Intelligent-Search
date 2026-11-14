@@ -313,6 +313,32 @@ fun getCalculatorIntent(context: Context): Intent =
 
 private const val ACTION_LAUNCH_CALCULATOR = "com.pixel.intelligentsearch.LAUNCH_CALCULATOR"
 
+/** The Discover widget tells the search overlay to open with the Discover page showing. */
+const val EXTRA_OPEN_DISCOVER = "com.pixel.intelligentsearch.extra.OPEN_DISCOVER"
+
+/**
+ * What tapping the Discover widget opens: the search, as the bar opens it, with the Discover page showing when
+ * Discover is on (the search alone when it isn't, which the search decides as it opens). The extra is honoured only
+ * through the private WidgetActivity. With the overlay switched off it opens Google search like the bar does.
+ */
+internal fun discoverPageIntent(context: Context, prefs: android.content.SharedPreferences, appWidgetId: Int): Intent =
+    SearchWidgetProvider.mainSearchIntent(context, prefs, appWidgetId).apply {
+        if (component?.className == WidgetActivity::class.java.name) putExtra(EXTRA_OPEN_DISCOVER, true)
+    }
+
+/**
+ * What tapping a Discover widget with nothing to show opens: the settings page with Discover's switches. It goes
+ * through the private WidgetActivity, which opens that page itself and shows nothing.
+ */
+internal fun discoverSettingsIntent(context: Context): Intent =
+    Intent(context, WidgetActivity::class.java).apply {
+        action = ACTION_DISCOVER_SETTINGS
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+    }
+
+/** [discoverSettingsIntent]'s action. */
+const val ACTION_DISCOVER_SETTINGS = "com.pixel.intelligentsearch.DISCOVER_SETTINGS"
+
 /** Whether the Discover shortcut can open Discover: the Google app is installed and can be opened. */
 fun isDiscoverAvailable(context: Context): Boolean = context.packageManager.getLaunchIntentForPackage(GoogleApps.GOOGLE_APP) != null
 

@@ -128,7 +128,7 @@
     <td width="50%" valign="top">
       <h3>🏠 Widgets and launch points</h3>
       <ul>
-        <li>Resizable System and Material search bar widgets, and a countdown widget.</li>
+        <li>Resizable System and Material search bar widgets, a countdown widget, and a Discover widget with your next event and the weather.</li>
         <li>Color Studio, custom shortcuts and G icon styles, with a live preview and saved profiles.</li>
         <li>Animated mini doodles around the G on 71 holidays and special days.</li>
         <li>A Quick Settings tile, app shortcuts, a notification shortcut and a floating button.</li>
@@ -180,7 +180,7 @@ app/src/main/java/com/pixel/intelligentsearch
 │   ├── search        The search overlay: results, answers, voice, quick apps
 │   │   └── today     Discover: the freeform card page, its shapes, app widget and website cards
 │   ├── settings      Settings, Widget Customization, backup and restore, setup checklist
-│   ├── widget        Search bar and countdown widgets, the Quick Settings tile, Voice Nebula
+│   ├── widget        Search bar, countdown and Discover widgets, the Quick Settings tile, Voice Nebula
 │   ├── voice         Assistant service, speech recognition, dictation
 │   ├── launch        Notification shortcut and floating button
 │   └── appfunctions  App Functions for on-device assistants

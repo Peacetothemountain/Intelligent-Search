@@ -7,6 +7,7 @@ import com.pixel.intelligentsearch.core.currency.CurrencyRateRepository
 import com.pixel.intelligentsearch.feature.launch.LaunchSurfaces
 import com.pixel.intelligentsearch.feature.search.SelectedTextSearchActivity
 import com.pixel.intelligentsearch.feature.widget.CountdownWidgetProvider
+import com.pixel.intelligentsearch.feature.widget.DiscoverWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.WidgetDoodles
 
 /**
@@ -23,6 +24,7 @@ internal object StartupSync {
         // A force stop cancels every scheduled job, so each start arranges again the ones the settings call for.
         AutoBackup.syncSchedule(context)
         CountdownWidgetProvider.syncSchedule(context)
+        DiscoverWidgetProvider.syncSchedule(context)
         // Redraw the widgets when the day's doodle next changes (a doodle day starts or ends at midnight). One already
         // arranged is kept: the start Android makes to run that redraw must not replace it before it has run.
         WidgetDoodles.scheduleNextChange(context, keepExisting = true)

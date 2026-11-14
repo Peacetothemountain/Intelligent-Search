@@ -180,6 +180,19 @@ data class WeatherReport(
     }
 }
 
+/** Rain or snow on the way: the first hour it is likely, and how Weather Ahead and the Discover widget word it. */
+object RainAhead {
+    /** The first of [hours] with an even chance or more of rain or snow; null when none has. */
+    fun hour(hours: List<WeatherHour>): WeatherHour? = hours.firstOrNull { (it.precipitation ?: 0) >= 50 }
+
+    /** The chance is of rain or snow alike, so the hour's own weather says which to name. */
+    fun isSnow(hour: WeatherHour): Boolean = WeatherCodes.kind(hour.code) == WeatherCodes.Kind.SNOW
+
+    /** "Rain around 8 PM", or "Snow around 20:00" on a 24 hour clock, for rain or snow at [time]. */
+    fun words(snow: Boolean, time: ZonedDateTime, is24Hour: Boolean, locale: Locale): String =
+        "${if (snow) "Snow" else "Rain"} around ${time.format(java.time.format.DateTimeFormatter.ofPattern(if (is24Hour) "HH:mm" else "h a", locale))}"
+}
+
 /** What WMO weather codes (the ones Open-Meteo reports) mean, in words. */
 object WeatherCodes {
     enum class Kind { CLEAR, PARTLY_CLOUDY, CLOUDY, FOG, DRIZZLE, RAIN, FREEZING_RAIN, SNOW, SHOWERS, THUNDERSTORM }

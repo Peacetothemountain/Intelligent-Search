@@ -214,9 +214,9 @@ open class SearchWidgetProvider : AppWidgetProvider() {
         }
 
         /**
-         * Redraws every widget the app has: the search bars of each design and the countdown widgets, which are drawn
-         * from the same saved design and theme, so a design saved in Widget Customization or a theme change reaches
-         * them all. Then the Android 15+ widget picker's previews.
+         * Redraws every widget the app has: the search bars of each design and the countdown and Discover widgets,
+         * which are drawn from the same saved design and theme, so a design saved in Widget Customization or a theme
+         * change reaches them all. Then the Android 15+ widget picker's previews.
          */
         fun updateAllWidgets(context: Context, pendingResult: android.content.BroadcastReceiver.PendingResult? = null) {
             val appContext = context.applicationContext
@@ -253,6 +253,13 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                         CountdownWidgetProvider.redrawAll(appContext, appWidgetManager)
                     } catch (e: Throwable) {
                         Log.w(TAG, "Couldn't redraw the countdown widgets", e)
+                    }
+                    try {
+                        DiscoverWidgetProvider.redrawAll(appContext, appWidgetManager, DiscoverWidgetProvider.Refresh.QUICK)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        Log.w(TAG, "Couldn't redraw the Discover widgets", e)
                     }
 
                     // Android 15+ (API 35) / Android 16 / Android 17 (Canary ZP11 / API 37)
@@ -320,6 +327,22 @@ open class SearchWidgetProvider : AppWidgetProvider() {
                 }
             } catch (e: Throwable) {
                 Log.w(TAG, "Couldn't update the countdown widget picker preview", e)
+            }
+            // The Discover widget's: a sample afternoon in the same design, with the phone's clock and temperature scale.
+            val discover = DiscoverWidgetProvider::class.java
+            try {
+                val design = if (isMaterialStyle(prefs[SettingsManager.WIDGET_THEME_STYLE])) WidgetDesign.MATERIAL else WidgetDesign.SYSTEM
+                val inputs = previewInputs(context, prefs, design, isDark, widgetColors) + design +
+                    android.text.format.DateFormat.is24HourFormat(context) + prefs[SettingsManager.TEMPERATURE_UNIT]
+                if (publishedPreviews[discover.name] != inputs) {
+                    if (publish(ComponentName(context, discover), DiscoverWidgetProvider.pickerPreview(context, prefs))) {
+                        publishedPreviews[discover.name] = inputs
+                    } else {
+                        Log.w(TAG, "The widget picker refused the Discover preview (rate limited); pushing it again next redraw")
+                    }
+                }
+            } catch (e: Throwable) {
+                Log.w(TAG, "Couldn't update the Discover widget picker preview", e)
             }
         }
 

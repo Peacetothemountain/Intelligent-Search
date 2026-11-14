@@ -254,6 +254,8 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         // Back from App info, say: a permission allowed there is no longer declined.
         com.pixel.intelligentsearch.feature.settings.forgetDeclinesNowAllowed(this)
         if (checkAndForwardIfSearchOverlayDisabled()) return
+        // A Discover widget on the home screen is brought up to date while the phone's location can be read.
+        com.pixel.intelligentsearch.feature.widget.DiscoverWidgetProvider.refreshInForeground(this)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -281,6 +283,28 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         }
         applyCalculatorRequest(intent)
         requestVoiceIfAsked(intent, restoreKeyboard = true)
+        requestDiscoverIfAsked(intent)
+    }
+
+    /**
+     * The Discover widget asks the search to open with the Discover page showing, the keyboard kept down. Only while
+     * Discover is on; with it off the search opens as it always does. Asked only through the private WidgetActivity:
+     * SearchActivity is exported, so there the extra is ignored.
+     */
+    private fun requestDiscoverIfAsked(intent: Intent?) {
+        val asked = this !is com.pixel.intelligentsearch.feature.search.SearchActivity &&
+            intent?.getBooleanExtra(com.pixel.intelligentsearch.feature.widget.EXTRA_OPEN_DISCOVER, false) == true
+        if (!asked || !SettingsManager.storedPrefs(this)[SettingsManager.TODAY_BUTTON]) return
+        applySoftInputMode(keyboardVisible = false)
+        searchViewModel.requestDiscover()
+    }
+
+    /** Opens the settings page that holds Discover's switches, for a Discover widget with nothing to show yet. */
+    private fun openDiscoverSettings() {
+        val settings = com.pixel.intelligentsearch.core.security.InternalLaunchToken.stamp(
+            Intent(this, SettingsActivity::class.java).putExtra("extra_screen", "appearance")
+        )
+        com.pixel.intelligentsearch.core.system.launchSafeIntent(this, settings)
     }
 
     /**
@@ -425,6 +449,7 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         // Only a fresh open starts voice: a recreated activity (rotation) still carries the extra but must not restart it.
         if (savedInstanceState == null) requestVoiceIfAsked(intent)
         if (savedInstanceState == null) applyCalculatorRequest(intent)
+        if (savedInstanceState == null) requestDiscoverIfAsked(intent)
 
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
@@ -599,6 +624,7 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
             intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS" -> launchLens(translate = false)
             intent.action == "com.pixel.intelligentsearch.LAUNCH_LENS_TRANSLATE" -> launchLens(translate = true)
             intent.action == com.pixel.intelligentsearch.feature.widget.ACTION_SEARCH_WEB -> searchWebFromWidget(intent)
+            intent.action == com.pixel.intelligentsearch.feature.widget.ACTION_DISCOVER_SETTINGS -> openDiscoverSettings()
             // The launcher's "Voice search" shortcut. With no recognizer installed, the overlay opens instead.
             intent.getBooleanExtra("auto_voice", false) -> {
                 val voice = com.pixel.intelligentsearch.feature.widget.getVoiceSearchIntent(this)

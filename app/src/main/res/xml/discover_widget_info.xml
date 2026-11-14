@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Redrawn by a scheduled job about once an hour, sooner as the next event nears, and when the calendar changes
+     (DiscoverWidgetProvider), so no update period is needed. Responsive: a pill like the search bar one row high, a
+     tile two rows by two, and wider the next event with the weather underneath (the launcher picks the layout for the
+     size it is given). It has nothing to set up. For the home screen only: it shows the calendar, which a lock
+     screen would show to anyone holding the phone. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="48dp"
+    android:maxResizeWidth="1024dp"
+    android:maxResizeHeight="1024dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_discover_initial"
+    android:previewLayout="@layout/widget_discover_preview"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_discover_description" />

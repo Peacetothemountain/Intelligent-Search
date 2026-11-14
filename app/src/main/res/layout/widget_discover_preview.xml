@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The Discover widget as the widget picker shows it: the wide size of the System design, as placed by default, with a
+    sample event and sample weather in the system's own colors. On Android 15 and later the picker gets a preview drawn
+    in the saved design instead (DiscoverWidgetProvider.pickerPreview).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/bg_countdown_preview"
+        android:scaleType="fitXY"
+        android:importantForAccessibility="no" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center_vertical"
+        android:paddingStart="18dp"
+        android:paddingEnd="18dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_discover_preview_label"
+            android:textColor="@color/widget_countdown_preview_text"
+            android:alpha="0.76"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="600"
+            android:textSize="12sp"
+            android:letterSpacing="0.06"
+            android:includeFontPadding="false"
+            android:maxLines="1" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/widget_discover_preview_title"
+            android:textColor="@color/widget_countdown_preview_text"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="400"
+            android:textSize="22sp"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/widget_discover_preview_time"
+            android:textColor="@color/widget_countdown_preview_text"
+            android:alpha="0.76"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="400"
+            android:textSize="14sp"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:text="@string/widget_discover_preview_weather"
+            android:textColor="@color/widget_countdown_preview_hero"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="500"
+            android:textSize="14sp"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end" />
+    </LinearLayout>
+</FrameLayout>

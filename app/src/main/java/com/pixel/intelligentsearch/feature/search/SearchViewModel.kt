@@ -275,6 +275,19 @@ class SearchViewModel @Inject constructor(
     }
     fun takeVoiceRequest(): Boolean = voiceRequestPending.also { voiceRequestPending = false }
 
+    private val _discoverRequests = MutableStateFlow(0)
+    /**
+     * Bumps for each request to open with the Discover page showing (a tap on the Discover widget). The screen claims
+     * each with [takeDiscoverRequest], which answers true once per request, as voice requests are claimed.
+     */
+    val discoverRequests: StateFlow<Int> = _discoverRequests.asStateFlow()
+    private var discoverRequestPending = false
+    fun requestDiscover() {
+        discoverRequestPending = true
+        _discoverRequests.value++
+    }
+    fun takeDiscoverRequest(): Boolean = discoverRequestPending.also { discoverRequestPending = false }
+
     private val _freshOpens = MutableStateFlow(0)
     /**
      * Bumps for each search opened onto a screen that is still there, waiting behind a page opened from the Discover

@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import com.pixel.intelligentsearch.core.theme.DynamicThemeDetector
 import com.pixel.intelligentsearch.feature.widget.CountdownWidgetProvider
+import com.pixel.intelligentsearch.feature.widget.DiscoverWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.SearchBoxWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetMaterialProvider
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
@@ -18,10 +19,10 @@ import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
  */
 internal object WidgetPaletteWatch {
 
-    /** The widgets drawn in the palette: the search bars and the countdown. */
+    /** The widgets drawn in the palette: the search bars, the countdown and Discover. */
     private val PROVIDERS = listOf(
         SearchWidgetProvider::class.java, SearchWidgetMaterialProvider::class.java,
-        SearchBoxWidgetProvider::class.java, CountdownWidgetProvider::class.java
+        SearchBoxWidgetProvider::class.java, CountdownWidgetProvider::class.java, DiscoverWidgetProvider::class.java
     )
 
     /** Leaves the new wallpaper's colors a moment to take effect before the widgets read them. */

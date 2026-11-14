@@ -141,7 +141,16 @@ fun SearchOverlayScreen(
     val savedHasStartedTyping = rememberSaveable { mutableStateOf(false) }
     // With Show Keyboard When Search Opens off, search opens as if the keyboard had been put away: the field waits for a tap.
     val savedKeyboardDismissed = rememberSaveable { mutableStateOf(!keyboardUpOnOpen(prefs)) }
-    val ui = remember { OverlayUiState(savedHasStartedTyping, savedKeyboardDismissed, initialQuery = uiState.query) }
+    val ui = remember {
+        OverlayUiState(savedHasStartedTyping, savedKeyboardDismissed, initialQuery = uiState.query).apply {
+            // Opened from the Discover widget: the page is up from the first frame, so it arrives with the search's
+            // own entrance, and the keyboard stays down under it.
+            if (viewModel.takeDiscoverRequest()) {
+                todayOpen = true
+                isKeyboardDismissedByUser = true
+            }
+        }
+    }
     var hasStartedTyping by ui::hasStartedTyping
     var textFieldValue by ui::textFieldValue
     var enterTakenFor by ui::enterTakenFor
@@ -465,6 +474,16 @@ fun SearchOverlayScreen(
             ui.todayClosesAtOnce = true
             ui.todayOpen = false
         }
+    }
+    // The Discover widget tapped while this screen was still there (after the fresh open above closed the page).
+    val discoverRequests by viewModel.discoverRequests.collectAsStateWithLifecycle()
+    LaunchedEffect(discoverRequests) {
+        if (!viewModel.takeDiscoverRequest()) return@LaunchedEffect
+        ui.isKeyboardDismissedByUser = true
+        focusManager.clearFocus(force = true)
+        keyboardController?.hide()
+        ui.todayClosesAtOnce = false
+        ui.todayOpen = true
     }
     val voiceRequests by viewModel.voiceRequests.collectAsStateWithLifecycle()
     LaunchedEffect(voiceRequests) {

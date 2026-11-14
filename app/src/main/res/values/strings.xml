@@ -34,6 +34,15 @@
     <string name="widget_talkback_discover">Google Discover</string>
     <string name="widget_talkback_voice_nebula">Voice Nebula</string>
 
+    <!-- The Discover widget: the next calendar event and the weather. -->
+    <string name="widget_discover_label">Discover</string>
+    <string name="widget_discover_description">Your next event and the weather</string>
+    <!-- The widget picker's sample event and weather. -->
+    <string name="widget_discover_preview_label">UP NEXT</string>
+    <string name="widget_discover_preview_title">Dentist</string>
+    <string name="widget_discover_preview_time">3:30 PM</string>
+    <string name="widget_discover_preview_weather">63° Clear · H 68°</string>
+
     <!-- The countdown widget: "9" over "days" under "Halloween" (in one row, "9 days · Halloween"). -->
     <string name="widget_countdown_label">Countdown</string>
     <string name="widget_countdown_description">Counts the days to or from a date you choose</string>

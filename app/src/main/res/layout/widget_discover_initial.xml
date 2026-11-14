@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The Discover widget's first frame, for the moment before it is drawn: its surface alone, in the system's own
+    colors. No sample event or weather here, which would read as the user's own for that moment.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToOutline="true">
+
+    <ImageView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:src="@drawable/bg_countdown_preview"
+        android:scaleType="fitXY"
+        android:importantForAccessibility="no" />
+</FrameLayout>

@@ -405,6 +405,27 @@
                 android:resource="@xml/countdown_widget_info" />
         </receiver>
 
+        <!-- The Discover widget: the next calendar event and the weather. Redrawn by its own scheduled job, and when
+             the clock, time zone or language (its times and words) changes. Direct boot aware like the other
+             widgets, though it draws only once the phone is unlocked: before that neither the calendar nor its last
+             reading of the weather can be read. -->
+        <receiver
+            android:name="com.pixel.intelligentsearch.feature.widget.DiscoverWidgetProvider"
+            android:label="@string/widget_discover_label"
+            android:directBootAware="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.LOCALE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/discover_widget_info" />
+        </receiver>
+
         <!-- Sets up a countdown widget. Not exported: the launcher's widget setup goes through SettingsActivity (the
              app's one widget configuration entry point), which hands a countdown widget's setup on to it. Opened from
              the widget it runs on its own, so Save or Back goes home rather than into Settings left open earlier; the

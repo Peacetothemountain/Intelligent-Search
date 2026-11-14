@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The Discover widget two rows by two: the conditions on top, the temperature as its hero and the next event along
+    the bottom. Without weather the event leads instead: its label, its name large, and when it is. The backdrop is the
+    search bar's (the outline, the Material design's rim, around the surface, faded at once by Transparency); the
+    provider sets its colors, corners and outline from the design saved in Widget Customization
+    (DiscoverWidgetProvider), and the content's padding to clear the outline.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@android:id/background"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipToOutline="true"
+    android:clickable="true"
+    android:focusable="true">
+
+    <FrameLayout
+        android:id="@+id/discover_backdrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="noHideDescendants">
+
+        <ImageView
+            android:id="@+id/discover_outline"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:src="@drawable/bg_widget_r32"
+            android:scaleType="fitXY"
+            android:importantForAccessibility="no" />
+
+        <ImageView
+            android:id="@+id/discover_surface"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="8dp"
+            android:src="@drawable/bg_widget_r24"
+            android:scaleType="fitXY"
+            android:importantForAccessibility="no" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/discover_content"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:padding="24dp"
+        android:importantForAccessibility="noHideDescendants">
+
+        <TextView
+            android:id="@+id/discover_top"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="400"
+            android:textSize="14sp"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:importantForAccessibility="no" />
+
+        <!-- The hero: the temperature, as large as the room left for it allows. -->
+        <TextView
+            android:id="@+id/discover_hero"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:gravity="start|bottom"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="400"
+            android:includeFontPadding="false"
+            android:maxLines="1"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="20sp"
+            android:autoSizeMaxTextSize="54sp"
+            android:autoSizeStepGranularity="2sp"
+            android:importantForAccessibility="no" />
+
+        <!-- Shown instead of the hero without weather: the next event's name. -->
+        <TextView
+            android:id="@+id/discover_headline"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="4dp"
+            android:gravity="start|bottom"
+            android:fontFamily="@font/google_sans_flex"
+            android:textFontWeight="400"
+            android:includeFontPadding="false"
+            android:maxLines="3"
+            android:ellipsize="end"
+            android:autoSizeTextType="uniform"
+            android:autoSizeMinTextSize="16sp"
+            android:autoSizeMaxTextSize="30sp"
+            android:autoSizeStepGranularity="2sp"
+            android:visibility="gone"
+            android:importantForAccessibility="no" />
+
+        <!-- The event's name gives way first, so its time is never cut off. -->
+        <LinearLayout
+            android:id="@+id/discover_event"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/discover_lead"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="@font/google_sans_flex"
+                android:textFontWeight="400"
+                android:textSize="14sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/discover_time"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/google_sans_flex"
+                android:textFontWeight="400"
+                android:textSize="14sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:importantForAccessibility="no" />
+        </LinearLayout>
+    </LinearLayout>
+</FrameLayout>

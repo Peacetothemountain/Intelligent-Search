@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The Discover widget one row high: a pill like the search bar's, in the same design: a small dot for the weather,
+    the temperature, then the next event and its time ("63° · Dentist · 3:30 PM"). The backdrop is the bar's (the
+    outline, the Material design's rim, around the pill, faded at once by Transparency); the provider sets its colors,
+    corners and outline from the design saved in Widget Customization (DiscoverWidgetProvider). The pill is at least
+    the bar's height and grows with large text, so nothing is cut.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <!-- The pill, centered in the cell. It clips to its own outline, so the launcher doesn't round it again. -->
+    <FrameLayout
+        android:id="@android:id/background"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:clipToOutline="true"
+        android:clickable="true"
+        android:focusable="true"
+        tools:ignore="UselessParent">
+
+        <FrameLayout
+            android:id="@+id/discover_backdrop"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:importantForAccessibility="noHideDescendants">
+
+            <ImageView
+                android:id="@+id/discover_outline"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:src="@drawable/bg_widget_r32"
+                android:scaleType="fitXY"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:id="@+id/discover_surface"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_margin="8dp"
+                android:src="@drawable/bg_widget_r24"
+                android:scaleType="fitXY"
+                android:importantForAccessibility="no" />
+        </FrameLayout>
+
+        <!-- At least the bar's height: the provider sets the words' minimum height, and this padding to clear the
+             outline. -->
+        <LinearLayout
+            android:id="@+id/discover_content"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:paddingStart="28dp"
+            android:paddingEnd="28dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:importantForAccessibility="noHideDescendants">
+
+            <ImageView
+                android:id="@+id/discover_dot"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginEnd="10dp"
+                android:src="@drawable/bg_widget_r8"
+                android:scaleType="fitXY"
+                android:importantForAccessibility="no" />
+
+            <TextView
+                android:id="@+id/discover_temperature"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="10dp"
+                android:fontFamily="@font/google_sans_flex"
+                android:textFontWeight="600"
+                android:textSize="20sp"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:importantForAccessibility="no" />
+
+            <ImageView
+                android:id="@+id/discover_separator"
+                android:layout_width="4dp"
+                android:layout_height="4dp"
+                android:layout_marginEnd="10dp"
+                android:src="@drawable/bg_widget_r2"
+                android:scaleType="fitXY"
+                android:importantForAccessibility="no" />
+
+            <!-- The event's name gives way first, so its time is never cut off. -->
+            <LinearLayout
+                android:id="@+id/discover_event"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical">
+
+                <TextView
+                    android:id="@+id/discover_lead"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_vertical"
+                    android:fontFamily="@font/google_sans_flex"
+                    android:textFontWeight="500"
+                    android:textSize="16sp"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:importantForAccessibility="no" />
+
+                <TextView
+                    android:id="@+id/discover_time"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="@font/google_sans_flex"
+                    android:textFontWeight="500"
+                    android:textSize="16sp"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:importantForAccessibility="no" />
+            </LinearLayout>
+        </LinearLayout>
+    </FrameLayout>
+</FrameLayout>

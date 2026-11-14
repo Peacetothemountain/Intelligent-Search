@@ -214,7 +214,7 @@ fun MainSettingsScreen(
             SettingsCard {
                 SettingsRow(
                     title = "Rate Intelligent Search",
-                    subtitle = "Open Its Google Play Page.",
+                    subtitle = "Rate on Google Play.",
                     icon = Symbols.Outlined.Star,
                     onClick = { com.pixel.intelligentsearch.feature.search.RatingAsk.rate(context) },
                     showDivider = true

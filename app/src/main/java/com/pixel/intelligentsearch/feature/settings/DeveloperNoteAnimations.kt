@@ -629,7 +629,7 @@ private fun LoopResult(time: () -> Float, icon: ImageBitmap?, modifier: Modifier
             Spacer(Modifier.width(16.dp))
             Column {
                 Text(SearchLoopTimes.NAME, color = scheme.onSurface, fontSize = 21.sp, fontWeight = FontWeight.SemiBold, fontFamily = GoogleSansFlex, maxLines = 1)
-                Text("Application", color = scheme.onSurfaceVariant, fontSize = 15.sp, fontFamily = GoogleSansFlex, maxLines = 1)
+                Text("App", color = scheme.onSurfaceVariant, fontSize = 15.sp, fontFamily = GoogleSansFlex, maxLines = 1)
             }
         }
     }

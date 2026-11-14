@@ -757,8 +757,11 @@ class SearchViewModel @Inject constructor(
     /**
      * Whether [query] gets web suggestions. Not while a bang is typed ("!w android"): the engine would read "!w" as
      * words ("with android phone"), and a suggestion tapped would search the engine rather than the bang's site.
+     * Nor for a sum that carries on from the last result ("ans/5"): "ans" is the calculator's own word, and the
+     * engine reads it as "and" ("and 5 letter words").
      */
-    private fun suggestsFor(query: String): Boolean = bangManager.parseBangQuery(query) == null
+    private fun suggestsFor(query: String): Boolean =
+        bangManager.parseBangQuery(query) == null && !unifiedSearchCoordinator.calculatorMemory.usesAns(query)
 
     /**
      * [query]'s instant-answer question; one that asks a server only once the query is the user's own. A query limited

@@ -295,6 +295,8 @@ class SearchViewModelTest {
         assertEquals("11", next.mathResult)
         assertEquals("ans = 55", next.mathAns)
         assertEquals(listOf("55"), next.earlierResults.map { it.shown })
+        // "ans" is the calculator's word, so the sum is not sent off for web suggestions ("and 5 letter words").
+        assertEquals(emptyList<String>(), next.webSuggestions.map { it.query })
         // A sum without "ans" doesn't mention it, and the one before has joined the earlier results.
         search("")
         val plain = search("2+2")

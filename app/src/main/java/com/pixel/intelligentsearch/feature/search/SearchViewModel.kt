@@ -1600,6 +1600,9 @@ class SearchViewModel @Inject constructor(
      * on, and not with Tor as the engine); Private Space apps leave no trace.
      */
     fun recordOpened(result: Any) {
+        // Only counted, never what was opened: once the app has been well used it asks for a rating, one time.
+        val opens = settingsManager[SettingsManager.RATING_OPENS]
+        if (opens < RatingAsk.OPENS) settingsManager.set(SettingsManager.RATING_OPENS, opens + 1)
         val key = when (result) {
             is AppItem -> if (result.inPrivateSpace) null else com.pixel.intelligentsearch.core.search.ResultKeys.app(result)
             is ContactItem -> com.pixel.intelligentsearch.core.search.ResultKeys.contact(result)

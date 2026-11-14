@@ -131,6 +131,11 @@ sealed interface GlanceItem {
     data class Birthday(val birthday: GlanceBirthday) : GlanceItem {
         override val key get() = "glance_birthday_${birthday.contactId}"
     }
+
+    /** The one-time line asking for a rating, once the app has been well used. */
+    data object RateAsk : GlanceItem {
+        override val key get() = "glance_rate_ask"
+    }
 }
 
 /** How far ahead the next alarm shows: half a day, as the Pixel's own At a Glance does. */

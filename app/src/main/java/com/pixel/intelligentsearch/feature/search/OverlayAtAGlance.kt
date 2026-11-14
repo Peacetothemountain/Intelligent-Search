@@ -192,7 +192,10 @@ internal fun rememberGlanceItems(hiddenApps: Set<String>, active: Boolean): List
         }
     }
     val now = rememberGlanceNow(GLANCE_COARSE_TICK_MS, enabled = snapshot.alarm != null)
-    return remember(snapshot, toggles, now) { glanceItems(snapshot, toggles, now) }
+    val items = remember(snapshot, toggles, now) { glanceItems(snapshot, toggles, now) }
+    // Once, a week in and after enough use: one line asking for a rating, ahead of the rest.
+    val askForRating = rememberRatingAskDue() && toggles.enabled
+    return remember(items, askForRating) { if (askForRating) listOf(GlanceItem.RateAsk) + items else items }
 }
 
 /** The At a Glance card's corner radius: the recent-search pill's 28 dp, on a squarer card. */
@@ -338,6 +341,38 @@ private fun GlanceItemRow(item: GlanceItem, onOpened: () -> Unit, modifier: Modi
         is GlanceItem.Media -> MediaRow(item.media, open, modifier)
         is GlanceItem.Event -> EventRow(item.event, open, modifier)
         is GlanceItem.Birthday -> BirthdayRow(item.birthday, open, modifier)
+        GlanceItem.RateAsk -> RateAskRow(onOpened, open, modifier)
+    }
+}
+
+/**
+ * The one-time rating line: a tap on it, or on Rate on Google Play, opens the app's Play Store page. Send Feedback
+ * opens an email to the developer, and Not Now only puts the line away. Any of the three is the last time it shows.
+ */
+@Composable
+private fun RateAskRow(onOpened: () -> Unit, rate: () -> Unit, modifier: Modifier) {
+    val context = LocalContext.current
+    Column(modifier = Modifier.fillMaxWidth()) {
+        GlanceRow(
+            leading = { GlanceBadge(com.pixel.intelligentsearch.core.ui.symbols.Symbols.Outlined.Star) },
+            title = "Enjoying Intelligent Search?",
+            subtitle = "A rating helps other people find it",
+            onClick = rate,
+            modifier = modifier
+        )
+        // The card is narrow: the main button takes a line of its own, the two quieter ones share the next.
+        Column(modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 8.dp, bottom = 6.dp)) {
+            androidx.compose.material3.Button(onClick = rate, modifier = Modifier.fillMaxWidth()) {
+                Text("Rate on Google Play", maxLines = 1, softWrap = false)
+            }
+            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.OutlinedButton(onClick = {
+                    onOpened()
+                    RatingAsk.feedback(context)
+                }) { Text("Feedback") }
+                androidx.compose.material3.TextButton(onClick = { RatingAsk.finish(context) }) { Text("Not Now") }
+            }
+        }
     }
 }
 
@@ -353,6 +388,7 @@ internal fun openGlanceItem(context: Context, item: GlanceItem) {
             openPendingOrApp(context, show, show?.creatorPackage.orEmpty(), fallback = Intent(AlarmClock.ACTION_SHOW_ALARMS))
         }
         is GlanceItem.Media -> item.media.controls.open(context)
+        GlanceItem.RateAsk -> RatingAsk.rate(context)
         is GlanceItem.Event -> launchSafeIntent(context, calendarEventIntent(item.event))
         is GlanceItem.Birthday -> item.birthday.lookupUri.takeIf { it.isNotEmpty() }
             ?.let { launchSafeIntent(context, Intent(Intent.ACTION_VIEW, it.toUri())) }

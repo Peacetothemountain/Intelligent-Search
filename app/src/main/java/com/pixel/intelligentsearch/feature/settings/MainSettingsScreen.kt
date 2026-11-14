@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.animation.core.*
 import androidx.compose.material.icons.Icons
 import com.pixel.intelligentsearch.core.ui.icons.outlined.*
+import com.pixel.intelligentsearch.core.ui.icons.filled.Email
 import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -207,6 +208,24 @@ fun MainSettingsScreen(
                         showDivider = false
                     )
                 }
+            }
+
+            // Always there, whatever the one-time rating line in At a Glance was answered with.
+            SettingsCard {
+                SettingsRow(
+                    title = "Rate Intelligent Search",
+                    subtitle = "Open Its Google Play Page.",
+                    icon = Symbols.Outlined.Star,
+                    onClick = { com.pixel.intelligentsearch.feature.search.RatingAsk.rate(context) },
+                    showDivider = true
+                )
+                SettingsRow(
+                    title = "Send Feedback",
+                    subtitle = "Email the Developer.",
+                    icon = Icons.Filled.Email,
+                    onClick = { com.pixel.intelligentsearch.feature.search.RatingAsk.feedback(context) },
+                    showDivider = false
+                )
             }
 
             Spacer(modifier = Modifier.height(32.dp))

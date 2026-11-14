@@ -754,14 +754,23 @@ class SearchViewModel @Inject constructor(
      * The one kind of result [query] is limited to by its first character, "@" for contacts, "#" for files and ">" for
      * settings pages, or null for an ordinary search. A symbol that starts the user's web shortcuts keeps meaning those,
      * and so does a first word that calls one of them, whatever symbol it was saved with. Only what the user typed is
-     * read this way: text another app handed in ("#android", selected on a page) is searched as it is.
+     * read this way: text another app handed in ("#android", selected on a page) is searched as it is. And only for a
+     * kind of result the user has switched on: with file search off "#news" is an ordinary search, not a dead end.
      */
     private fun scopedQueryFor(
         query: String,
         bang: () -> com.pixel.intelligentsearch.core.bangs.ParsedBangQuery? = { bangManager.parseBangQuery(query) }
     ): com.pixel.intelligentsearch.core.search.ScopedQuery? =
         com.pixel.intelligentsearch.core.search.ScopedQuery.parse(query, bangManager.activeTriggerSymbol())
-            ?.takeIf { _queryConfirmed.value && bang()?.isPrefix != true }
+            ?.takeIf { _queryConfirmed.value && bang()?.isPrefix != true && scopeSwitchedOn(it.scope, settingsState.value) }
+
+    /** Whether the user has [scope]'s kind of result switched on in Search Sources; settings pages have no switch. */
+    private fun scopeSwitchedOn(scope: com.pixel.intelligentsearch.core.search.SearchScope, settings: IntelligentSearchSettings): Boolean =
+        when (scope) {
+            com.pixel.intelligentsearch.core.search.SearchScope.CONTACTS -> settings.searchContacts
+            com.pixel.intelligentsearch.core.search.SearchScope.FILES -> settings.searchFiles
+            com.pixel.intelligentsearch.core.search.SearchScope.SETTINGS -> true
+        }
 
     /** Whether [scope]'s kind of result can be searched now: its source is on, and contacts may be read. */
     private fun scopeSourceOn(scope: com.pixel.intelligentsearch.core.search.SearchScope, settings: IntelligentSearchSettings): Boolean =

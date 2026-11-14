@@ -89,8 +89,7 @@ class TypedFiltersOverlayTest {
     private val camille = ContactItem("Camille Roy", "+1 202-555-0143", "content://contacts/camille")
 
     private val contactsChip = "Showing only contacts. Remove filter"
-    private val filesChip = "Showing only files. Remove filter"
-    private val fileSearchOff = "File search is off. Turn it on in Search Sources."
+    private val contactSearchOff = "Contact search is off. Turn it on in Search Sources."
 
     @Before fun setUp() {
         hilt.inject()
@@ -101,7 +100,7 @@ class TypedFiltersOverlayTest {
             // Live web suggestions come from the network; these tests must not depend on them.
             .put(SettingsManager.SEARCH_WEB_SUGGESTIONS, false)
             .put(SettingsManager.SEARCH_CONTACTS, true)
-            .put(SettingsManager.SEARCH_FILES, false)
+            .put(SettingsManager.SEARCH_FILES, true)
             // With Quick Launch on, Enter on "cam" opens Camera: a filtered search must never fall through to that.
             .put(SettingsManager.APP_QUICK_LAUNCH, true)
             .commit()
@@ -206,7 +205,7 @@ class TypedFiltersOverlayTest {
     @Test
     fun enterWithNothingOfThatKindToOpenDoesNothing() {
         showOverlay()
-        // File search off, no such contact, no such setting, only the marker, and a shortcut after the words.
+        // No such file, contact or setting, only the marker, and a shortcut after the words.
         for (query in listOf("#cam", "@zzqx", ">zzqx", "@", "#", "@zzqx !g", "#example.com", "#15 min")) {
             type(query)
             pressEnterOnTheKeyboard()
@@ -233,10 +232,12 @@ class TypedFiltersOverlayTest {
 
     @Test
     fun theLineForASearchThatIsOffOpensSearchSources() {
+        // Contact search is switched on, but the phone no longer lets the app read contacts.
+        shadowOf(app).denyPermissions(Manifest.permission.READ_CONTACTS)
         showOverlay()
-        type("#cam")
-        compose.onNodeWithContentDescription(filesChip).assertExists()
-        compose.onNodeWithText(fileSearchOff).performClick()
+        type("@cam")
+        compose.onNodeWithContentDescription(contactsChip).assertExists()
+        compose.onNodeWithText(contactSearchOff).performClick()
         compose.settle()
         assertEquals(listOf("search_sources"), openedSettings)
     }
@@ -245,8 +246,7 @@ class TypedFiltersOverlayTest {
     fun theOtherLinesOnlySaySomething() {
         showOverlay()
         type("#")
-        // File search is off here, so even the marker alone says so; with contacts on, "@" asks for a name.
-        compose.onNodeWithText(fileSearchOff).assertExists()
+        compose.onNodeWithText("Type a file name").assertExists()
         type("@")
         compose.onNodeWithText("Type a name").performClick()
         type("@zzqx")
@@ -283,8 +283,9 @@ class TypedFiltersOverlayTest {
 
     @Test
     fun theArrowKeysReachTheLineThatOpensSearchSources() {
+        shadowOf(app).denyPermissions(Manifest.permission.READ_CONTACTS)
         showOverlay()
-        type("#cam")
+        type("@cam")
         // The chip, then the line; there is nothing after it to move on to.
         press(listOf(Key.DirectionDown, Key.DirectionDown, Key.DirectionDown, Key.Enter))
         assertEquals(listOf("search_sources"), openedSettings)

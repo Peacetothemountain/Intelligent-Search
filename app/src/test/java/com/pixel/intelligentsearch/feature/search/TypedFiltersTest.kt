@@ -254,8 +254,22 @@ class TypedFiltersTest {
     }
 
     @Test
-    fun withContactSearchOffTheFilterSaysWhereToTurnItOn() {
+    fun withContactSearchSwitchedOffAnAtSignIsAnOrdinarySearch() {
+        // Someone who never turned contact search on and types "@name" is searching, not filtering.
         prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).commit()
+        start()
+        val state = search("@cam")
+        assertNull(state.scoped)
+        assertFalse(state.scopedSourceOff)
+        assertNull(scopeNotice(state))
+        // The other two are still read.
+        assertEquals(SearchScope.SETTINGS, search(">search sources").scoped?.scope)
+        assertEquals(SearchScope.FILES, search("#cam").scoped?.scope)
+    }
+
+    @Test
+    fun withoutAccessToContactsTheFilterSaysWhereToTurnItOn() {
+        shadowOf(app).denyPermissions(Manifest.permission.READ_CONTACTS)
         start()
         val state = search("@cam")
         assertEquals(ScopedQuery(SearchScope.CONTACTS, "cam"), state.scoped)
@@ -271,13 +285,13 @@ class TypedFiltersTest {
     }
 
     @Test
-    fun backFromTurningTheSearchOnTheSameWordsFindTheirResults() {
-        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, false).commit()
+    fun backFromAllowingContactsTheSameWordsFindTheirResults() {
+        shadowOf(app).denyPermissions(Manifest.permission.READ_CONTACTS)
         start()
         assertTrue(search("@cam").scopedSourceOff)
 
-        // The line opened Search Sources, the user switched Contacts on there (which indexes them) and came back.
-        prefs.edit().put(SettingsManager.SEARCH_CONTACTS, true).commit()
+        // The line opened Search Sources, the user allowed contacts there (which indexes them) and came back.
+        shadowOf(app).grantPermissions(Manifest.permission.READ_CONTACTS)
         coordinator.replaceContacts(TypedFilterSources.CONTACTS)
         finishBackgroundWork()
         viewModel.reloadOnResume()
@@ -288,26 +302,14 @@ class TypedFiltersTest {
     }
 
     @Test
-    fun withoutAccessToContactsTheFilterSaysTheSame() {
-        shadowOf(app).denyPermissions(Manifest.permission.READ_CONTACTS)
-        start()
-        val state = search("@cam")
-        assertTrue(state.scopedSourceOff)
-        assertEquals(emptyList<ContactItem>(), state.contacts)
-        assertEquals(true, scopeNotice(state)?.opensSearchSources)
-    }
-
-    @Test
-    fun withFileSearchOffTheFilterSaysWhereToTurnItOn() {
+    fun withFileSearchSwitchedOffAHashIsAnOrdinarySearch() {
+        // "#news" from someone who never turned file search on is a search for a hashtag.
         prefs.edit().put(SettingsManager.SEARCH_FILES, false).commit()
         start()
         val state = search("#cam")
-        assertTrue(state.scopedSourceOff)
-        assertEquals(emptyList<FileItem>(), state.files)
-        assertEquals(
-            ScopeNotice("File search is off. Turn it on in Search Sources.", opensSearchSources = true),
-            scopeNotice(state)
-        )
+        assertNull(state.scoped)
+        assertFalse(state.scopedSourceOff)
+        assertNull(scopeNotice(state))
         // Settings pages have no switch, and the contacts' is still on.
         assertFalse(search(">search sources").scopedSourceOff)
         assertEquals(listOf(TypedFilterSources.CAMILLE), search("@cam").contacts)

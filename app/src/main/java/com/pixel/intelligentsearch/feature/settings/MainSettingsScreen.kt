@@ -249,8 +249,6 @@ fun MainSettingsScreen(
                 val baseScale = (containerWidth / 390.dp).coerceIn(0.82f, 1.0f)
                 val titleFontSize = (18.8f * baseScale).coerceIn(15.0f, 18.8f).sp
                 val titleLineHeight = (titleFontSize.value * 1.28f).sp
-                val subtextFontSize = (13.5f * baseScale).coerceIn(11.0f, 13.5f).sp
-                val subtextLineHeight = (subtextFontSize.value * 1.36f).sp
 
                 // Without a player (below Android 13, or when the video can't be keyed) there is no bugdroid to stand
                 // beside, so the thank-you centers on its own instead of leaving the bugdroid's room empty.
@@ -288,27 +286,6 @@ fun MainSettingsScreen(
                             color = MaterialTheme.colorScheme.onSurface,
                             lineHeight = titleLineHeight,
                             textAlign = footerAlign
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                        // No line limit: large text wraps instead of hiding the address. Zero-width spaces let the
-                        // address break after "support." and "@" on narrow screens rather than mid-word.
-                        Text(
-                            text = "If you need support, please email me at:\nsupport.\u200Bngdesigns@\u200Bgmail.com",
-                            fontSize = subtextFontSize,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            lineHeight = subtextLineHeight,
-                            textAlign = footerAlign,
-                            modifier = Modifier.bouncyClickable {
-                                try {
-                                    uriHandler.openUri("mailto:support.ngdesigns@gmail.com")
-                                } catch (e: Exception) {
-                                    // No mail app installed: copy the address instead of crashing.
-                                    val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
-                                    clipboard?.setPrimaryClip(android.content.ClipData.newPlainText("Support email", "support.ngdesigns@gmail.com"))
-                                    android.widget.Toast.makeText(context, "No email app found. Address copied.", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            }
                         )
                     }
                 }

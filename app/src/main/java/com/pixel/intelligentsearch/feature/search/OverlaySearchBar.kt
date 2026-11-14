@@ -6,6 +6,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.core.content.edit
 import com.pixel.intelligentsearch.core.ui.ClickDebouncer
+import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import androidx.compose.ui.layout.boundsInRoot
@@ -101,6 +102,11 @@ internal fun OverlaySearchBar(s: OverlayScope) {
     var showDebugPill by s.ui::showDebugPill
     var isKeyboardDismissedByUser by s.ui::isKeyboardDismissedByUser
     val context = LocalContext.current
+    // In the first week after installing, once the tutorial is done, the empty bar shows things to type.
+    val hintExamples = remember(settingsState.searchCalculator) {
+        val firstWeek = SearchHints.inFirstWeek(SearchHints.firstInstallMs(context), System.currentTimeMillis())
+        if (firstWeek && prefs[SettingsManager.TUTORIAL_COMPLETED]) SearchHints.examples(settingsState.searchCalculator) else emptyList()
+    }
     val coroutineScope = rememberCoroutineScope()
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -303,8 +309,13 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     decorationBox = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (uiState.query.isEmpty()) {
-                                // One line: in a field too narrow for it (a small screen at the largest text) it wrapped out of the bar.
-                                Text(if (voice.active) "Listening…" else if (calculatorKeyboard) "Calculate…" else "Search…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex, maxLines = 1, softWrap = false)
+                                if (!voice.active && !calculatorKeyboard && hintExamples.isNotEmpty()) {
+                                    // The first week: things to type, in place of the plain hint.
+                                    SearchHint(hintExamples)
+                                } else {
+                                    // One line: in a field too narrow for it (a small screen at the largest text) it wrapped out of the bar.
+                                    Text(if (voice.active) "Listening…" else if (calculatorKeyboard) "Calculate…" else SearchHints.PLAIN, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex, maxLines = 1, softWrap = false)
+                                }
                             } else if (ghostTextAnnotated != null) {
                                 // The suggested ending in full onSurfaceVariant, readable at 4.5:1, and set apart
                                 // from the typed text's onSurface by its color, as the "Search…" hint is.

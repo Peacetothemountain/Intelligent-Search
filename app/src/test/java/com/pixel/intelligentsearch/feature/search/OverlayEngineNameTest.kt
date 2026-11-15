@@ -71,7 +71,7 @@ class OverlayEngineNameTest {
         compose.mainClock.autoAdvance = false
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) {
-                SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> }, isKeyboardDisabled = true)
+                SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> true }, isKeyboardDisabled = true)
             }
         }
         compose.settle()

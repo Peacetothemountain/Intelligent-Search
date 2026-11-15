@@ -86,7 +86,7 @@ class OverlayKeyboardInputTest {
                 if (query.isNotEmpty()) LaunchedEffect(Unit) { viewModel.onQueryChanged(query) }
                 SearchOverlayScreen(
                     onOpenSettings = {},
-                    onLaunchApp = { _, _, _, _ -> },
+                    onLaunchApp = { _, _, _, _ -> true },
                     viewModel = viewModel,
                     isKeyboardDisabled = keyboardDisabled
                 )

@@ -36,6 +36,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowToast
 import javax.inject.Singleton
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -65,6 +66,8 @@ class AppLaunchAnimationOverlayTest {
     private val context get() = ApplicationProvider.getApplicationContext<Context>()
     private val prefs get() = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
     private val launches = mutableListOf<Pair<String, AppLaunchOptions?>>()
+    /** Whether the launch opens the app (false: it was turned off or removed since search listed it). */
+    private var opens = true
     private val camera = FakeDeviceSearchSources().apps.single { it.packageName == "com.example.camera" }
 
     @Before fun setUp() {
@@ -83,7 +86,7 @@ class AppLaunchAnimationOverlayTest {
                 androidx.compose.runtime.LaunchedEffect(Unit) { viewModel.onQueryChanged(query) }
                 SearchOverlayScreen(
                     onOpenSettings = {},
-                    onLaunchApp = { packageName, _, _, launch -> launches += packageName to launch },
+                    onLaunchApp = { packageName, _, _, launch -> launches += packageName to launch; opens },
                     viewModel = viewModel,
                     isKeyboardDisabled = true
                 )
@@ -199,6 +202,19 @@ class AppLaunchAnimationOverlayTest {
         // The overlay stayed in front: nothing took over from the drawn splash.
         frames(APP_OPENING_HANDOFF_TIMEOUT_MS + 400)
         assertEquals(0, openingLayers())
+    }
+
+    @Test
+    fun anAppThatDoesNotOpenGivesTheOverlayBackAtOnceAndSaysSo() = withAnimations {
+        opens = false
+        search("Camera")
+        icon(LaunchIconKeys.app(camera)).performClick()
+        frames(800)
+        assertEquals(1, launches.size)
+        // Nothing waits for an app that can't come up: the drawn splash goes well before the handoff would give up.
+        frames(300)
+        assertEquals(0, openingLayers())
+        assertEquals("Couldn't open ${camera.name}.", ShadowToast.getTextOfLatestToast())
     }
 
     @Test

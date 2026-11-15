@@ -61,7 +61,7 @@ class OverlayMicSettingTest {
         compose.setContent {
             IntelligentSearchTheme(darkTheme = false) {
                 val viewModel: SearchViewModel = hiltViewModel()
-                SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
+                SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> true }, viewModel = viewModel, isKeyboardDisabled = true)
             }
         }
         compose.settle()

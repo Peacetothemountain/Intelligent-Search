@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.core.search
 
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
+import com.pixel.intelligentsearch.core.data.ProfileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -103,5 +104,35 @@ class ResultShortcutsTest {
         // Unknown kinds (and a removed Saved Link's pin) go, a key appears once, and an entry with nothing set goes.
         assertEquals(listOf(spotify), set.entries.map { it.key })
         assertEquals("Spotify", set[spotify]?.title)
+    }
+
+    /**
+     * Older versions named an app's profile by Android's number for it, which changes when a work profile is made again
+     * or a backup goes to another phone or user. Such a pin is named by its profile's kind once the phone's profiles
+     * are known, and one whose profile is gone, or a Private Space app's, is dropped rather than kept out of reach.
+     */
+    @Test
+    fun anOlderVersionsProfileNumbersBecomeTheProfilesKind() {
+        val profiles = mapOf(10 to ProfileType.PERSONAL, 11 to ProfileType.WORK, 12 to ProfileType.PRIVATE)
+        val older = ResultShortcuts.fromJson(
+            """
+            [
+              {"key":"app:com.a/A@10","title":"A","pinned":true},
+              {"key":"app:com.b/B@11","title":"B","pinned":true},
+              {"key":"app:com.c/C@12","title":"C","pinned":true},
+              {"key":"app:com.d/D@13","title":"D","pinned":true},
+              {"key":"$spotify","title":"Spotify","pinned":true},
+              {"key":"$dad","title":"John","pinned":true}
+            ]
+            """.trimIndent()
+        )
+        val current = older.withCurrentKeys(profiles)
+        assertEquals(listOf("app:com.a/A@0", "app:com.b/B@work", spotify, dad), current.pinned.map { it.key })
+        assertEquals("B", current["app:com.b/B@work"]?.title)
+        // Named as this version names it, a set has nothing left to change.
+        assertEquals(current, current.withCurrentKeys(profiles))
+        // A Private Space app is never pinned, from the menu or a crafted backup.
+        assertTrue(ResultShortcuts.fromJson("""[{"key":"app:com.c/C@private","title":"C","pinned":true}]""").entries.isEmpty())
+        assertTrue(ResultShortcuts.EMPTY.withPinned("app:com.c/C@private", "C", true).entries.isEmpty())
     }
 }

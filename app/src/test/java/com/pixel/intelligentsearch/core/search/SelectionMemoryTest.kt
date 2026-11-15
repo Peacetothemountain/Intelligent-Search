@@ -3,6 +3,7 @@ package com.pixel.intelligentsearch.core.search
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.test.core.app.ApplicationProvider
+import com.pixel.intelligentsearch.core.data.ProfileType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -179,5 +180,22 @@ class SelectionMemoryTest {
         assertTrue(chrome in keys)
         assertTrue(mom in keys)
         assertEquals(setOf(chrome), memory.candidateKeys("c", frequent = 0))
+    }
+
+    /** What was learned for a work app under an older version's key (its profile's number) carries over to its new key. */
+    @Test
+    fun whatWasLearnedUnderAnOlderKeyCarriesOver() {
+        val olderWork = "app:com.example.mail/Main@11"
+        val gone = "app:com.example.old/Main@13"
+        val memory = memory()
+        memory.record(olderWork, "ma")
+        memory.record(gone, "ol")
+        memory.record(chrome, "ch")
+        memory().useCurrentKeys(mapOf(0 to ProfileType.PERSONAL, 11 to ProfileType.WORK))
+        val reread = memory()
+        assertEquals(1f, reread.learnedWeight("app:com.example.mail/Main@work", "ma"), 0.001f)
+        assertEquals(0f, reread.learnedWeight(olderWork, "ma"), 0.001f)
+        assertNull(reread.usage(gone))
+        assertEquals(1f, reread.learnedWeight(chrome, "ch"), 0.001f)
     }
 }

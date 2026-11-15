@@ -53,6 +53,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
@@ -111,14 +112,25 @@ internal val OverlayTutorialSteps = mapOf(
     2 to TutorialStepInfo("Settings", "Tap the Settings button ([three_bars]) to choose what search shows and how it looks. Tap Next to open Settings now.", Alignment.Center, showArrow = true, showCircle = true)
 )
 
+/** The name search shows for the app [packageName] ([activityName]'s icon, when known), or null when none lists it. */
+internal fun launchedAppName(state: SearchUiState, packageName: String, activityName: String?): String? {
+    fun AppItem.isIt() = this.packageName == packageName && (activityName == null || this.activityName == activityName)
+    return (state.filteredApps.firstOrNull { it.isIt() } ?: state.allApps.firstOrNull { it.isIt() }
+        ?: state.recentApps.firstOrNull { it.isIt() })?.name?.takeIf { it.isNotBlank() }
+}
+
+/** What the overlay says when an app it was asked to open didn't open. */
+internal fun couldNotOpenAppMessage(name: String?): String = if (name == null) "Couldn't open the app." else "Couldn't open $name."
+
 @Composable
 fun SearchOverlayScreen(
     onOpenSettings: (String) -> Unit,
     /**
      * Launches an app in its own profile: package, profile (null = personal), launcher activity if known, and the
-     * launch's animation and source bounds (null for the system's default animation).
+     * launch's animation and source bounds (null for the system's default animation). Returns whether the app opened:
+     * false for one turned off or removed, or a profile that wouldn't open it.
      */
-    onLaunchApp: (packageName: String, user: android.os.UserHandle?, activityName: String?, launch: AppLaunchOptions?) -> Unit,
+    onLaunchApp: (packageName: String, user: android.os.UserHandle?, activityName: String?, launch: AppLaunchOptions?) -> Boolean,
     viewModel: SearchViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel(),
     isKeyboardDisabled: Boolean = false
@@ -237,12 +249,21 @@ fun SearchOverlayScreen(
     val animationsEnabled by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
     val iconTint = MaterialTheme.colorScheme.onSurfaceVariant
     val iconPack = settingsState.activeIconPack
-    val openApp: (String, android.os.UserHandle?, String?, LaunchSource, (AppLaunchOptions) -> Unit) -> Unit =
-        remember(sensoryEngine, view, keyboardController, focusManager, animationsEnabled, iconTint, iconPack) {
-            { packageName, user, activityName, from, start ->
+    val openApp: (String, android.os.UserHandle?, String?, LaunchSource, (AppLaunchOptions) -> Boolean) -> Unit =
+        remember(sensoryEngine, view, keyboardController, focusManager, animationsEnabled, iconTint, iconPack, viewModel, context) {
+            { packageName, user, activityName, from, startApp ->
                 val icon = launchIcons.bounds(from.iconKeys)
                 val grows = animationsEnabled && view.width > 0 && view.height > 0
                 val launch = AppLaunchAnimation.launch(view, icon, drawnSplash = grows)
+                // An app that didn't open (turned off or removed since search listed it) says so at once.
+                val start: (AppLaunchOptions) -> Boolean = { options ->
+                    startApp(options).also { opened ->
+                        if (!opened) {
+                            val name = launchedAppName(viewModel.uiState.value, packageName, activityName)
+                            Toast.makeText(context, couldNotOpenAppMessage(name), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
                 val opening = if (grows) {
                     // Out of the icon, else out of the touch, else out of the middle of the overlay.
                     val size = 48f * view.resources.displayMetrics.density
@@ -1092,6 +1113,8 @@ fun SearchOverlayScreen(
                         .fillMaxSize()
                         .graphicsLayer {
                             alpha = overlayProgressAnim.value.coerceIn(0f, 1f)
+                            // Full size, and resized by the keyboard as it rises: no offscreen copy for the fade.
+                            compositingStrategy = CompositingStrategy.ModulateAlpha
                         }
                 ) {
                     AnimatedMatrixBackground(isPaused = overlayFullyHidden)
@@ -1136,6 +1159,10 @@ fun SearchOverlayScreen(
 
                         transformOrigin = TransformOrigin(0.5f, 0.5f)
                         alpha = if (exitingByBack) (1f - exit) else (progress * (1f - backProg * 0.15f)).coerceIn(0f, 1f)
+                        // As it opens the keyboard rises and the panel's height changes on every frame: faded as one
+                        // offscreen picture it took a new full-panel buffer each frame (over 100 MB of them, kept for
+                        // seconds). Each drawing takes the fade itself then; predictive back keeps the one picture.
+                        compositingStrategy = if (backProg == 0f && exit == 0f) CompositingStrategy.ModulateAlpha else CompositingStrategy.Auto
                         shape = RoundedCornerShape(shellCornerRadius)
                         clip = true
                     }
@@ -1194,6 +1221,8 @@ fun SearchOverlayScreen(
                                 val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
                                 val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
                                 alpha = a
+                                // Its height follows the keyboard as it rises, as the panel's does.
+                                compositingStrategy = CompositingStrategy.ModulateAlpha
                                 translationY = (1f - a) * contentOffsetPx
                             }
                             ) {
@@ -1204,6 +1233,8 @@ fun SearchOverlayScreen(
                                 val p = if (exitingByBack) 1f else overlayProgressAnim.value.coerceIn(0f, 1f)
                                 val a = (p - 0.2f).coerceIn(0f, 0.8f) / 0.8f
                                 alpha = a
+                                // Its height follows the keyboard as it rises, as the panel's does.
+                                compositingStrategy = CompositingStrategy.ModulateAlpha
                                 translationY = -(1f - a) * contentOffsetPx
                             }
                                 // Android 18 progressive blur: only dissolves words as they are scrolled by under the bottom search pill

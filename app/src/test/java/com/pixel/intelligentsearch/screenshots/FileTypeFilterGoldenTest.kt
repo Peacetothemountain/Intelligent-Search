@@ -79,7 +79,7 @@ class FileTypeFilterGoldenTest(private val dark: Boolean) {
                 LaunchedEffect(Unit) { viewModel.onQueryChanged("pdf invoice") }
                 SearchOverlayScreen(
                     onOpenSettings = {},
-                    onLaunchApp = { _, _, _, _ -> },
+                    onLaunchApp = { _, _, _, _ -> true },
                     viewModel = viewModel,
                     isKeyboardDisabled = true
                 )

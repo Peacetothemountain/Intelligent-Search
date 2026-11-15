@@ -117,6 +117,19 @@ class App : Application() {
         if (level >= TRIM_MEMORY_BACKGROUND) {
             com.pixel.intelligentsearch.feature.search.clearAllUiMemoryCaches()
         }
+        if (level >= TRIM_MEMORY_UI_HIDDEN) Thread(::letGoOfOtherAppsResources, "LetGoOfAppResources").start()
+    }
+
+    /**
+     * Reading apps' names and icons opens each app's own resources, which keep its APK file mapped: over 200 MB on a
+     * full phone. Once read they are garbage, but too little of it is on the Java heap for a collection to start, and
+     * Android freezes this process soon after search closes (notification access keeps it alive all day), holding all
+     * of it until then. A collection as the screen goes, and the finalizers that close those resources, let it go.
+     */
+    private fun letGoOfOtherAppsResources() {
+        Runtime.getRuntime().gc()
+        System.runFinalization()
+        Runtime.getRuntime().gc()
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -226,7 +239,6 @@ class App : Application() {
                 removeRetiredSecretsOnce()
                 redrawWidgetsIfPaletteChanged()
                 WidgetPaletteWatch.sync(this@App, keepExisting = true)
-                SystemDataProvider.getAllApps(this@App, forceRefresh = false)
             } catch (e: Exception) {
                 Log.w("AppWarmup", "Background service warm-up non-fatal error", e)
             }

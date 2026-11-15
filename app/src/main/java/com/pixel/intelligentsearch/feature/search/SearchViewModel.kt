@@ -385,6 +385,8 @@ class SearchViewModel @Inject constructor(
         viewModelScope.launch {
             var first = true
             resultShortcutStore.flow.collect { shortcuts ->
+                // A restore can bring pins an older version named by profile number.
+                useCurrentKeys(multiProfileManager.profilesState.value, ranking = false)
                 _uiState.update { it.copy(shortcuts = shortcuts) }
                 refreshPinned()
                 val query = _uiState.value.query
@@ -453,7 +455,7 @@ class SearchViewModel @Inject constructor(
             var previousLocked = multiProfileManager.profilesState.value
                 .any { it.profileType == ProfileType.PRIVATE && it.isLocked }
             multiProfileManager.profilesState.collect { profiles ->
-                forgetPrivatePins(profiles.filter { it.profileType == ProfileType.PRIVATE }.map { it.userHandle })
+                useCurrentKeys(profiles, ranking = true)
                 val hasLocked = profiles.any { it.profileType == ProfileType.PRIVATE && it.isLocked }
                 if (hasLocked) {
                     unifiedSearchCoordinator.purgePrivateProfileItems()
@@ -1546,18 +1548,21 @@ class SearchViewModel @Inject constructor(
     }
 
     /**
-     * Takes the pins of apps in [privateUsers]' profiles out of the store. A Private Space app can't be pinned
-     * ([ResultMenuTarget.App.key]), but one pinned by an earlier version would stay, with its name, in the settings and
-     * in every backup, and its menu no longer offers Unpin.
+     * Names the pins and what ranking learned as this version does, by the kind of profile an app is in rather than
+     * the number an older version used, which changes when a work profile is made again or a backup goes to another
+     * phone ([com.pixel.intelligentsearch.core.search.ResultKeys.current]); with [ranking], what ranking learned too.
+     * A pin whose profile is gone, or a Private Space app's (which can't be pinned, but an earlier version allowed it),
+     * is dropped: it would never show, its menu couldn't unpin it, and every backup would carry it. Only once
+     * [profiles] has been read (the personal profile is always in it), so a work app's pin isn't taken for one whose
+     * profile is gone.
      */
-    private fun forgetPrivatePins(privateUsers: List<android.os.UserHandle>) {
-        if (privateUsers.isEmpty()) return
-        val endings = privateUsers.map { "@" + it.hashCode() }
-        val stale = resultShortcutStore.current.entries.map { it.key }.filter { key ->
-            com.pixel.intelligentsearch.core.search.ResultKeys.kindOf(key) == com.pixel.intelligentsearch.core.search.ResultKind.APP &&
-                endings.any(key::endsWith)
+    private fun useCurrentKeys(profiles: List<com.pixel.intelligentsearch.core.profile.ProfileDescriptor>, ranking: Boolean) {
+        if (profiles.none { it.profileType == ProfileType.PERSONAL }) return
+        val byUser = profiles.associate { it.userHandle.hashCode() to it.profileType }
+        if (resultShortcutStore.current.entries.any { com.pixel.intelligentsearch.core.search.ResultKeys.isOlderAppKey(it.key) }) {
+            resultShortcutStore.update { it.withCurrentKeys(byUser) }
         }
-        if (stale.isNotEmpty()) resultShortcutStore.update { shortcuts -> stale.fold(shortcuts) { kept, key -> kept.without(key) } }
+        if (ranking) viewModelScope.launch(ioDispatcher) { selectionMemory.useCurrentKeys(byUser) }
     }
 
     /**

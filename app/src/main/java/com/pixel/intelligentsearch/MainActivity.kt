@@ -519,14 +519,9 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
                                     }
                                 },
                                 onLaunchApp = { packageName, user, activityName, launch ->
-                                    // A Private Space app leaves no trace: its launches aren't counted for suggestions.
-                                    val inPrivateSpace = multiProfileManager.profilesState.value.any {
-                                        it.userHandle == user && it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE
-                                    }
-                                    if (!inPrivateSpace) searchViewModel.notifyAppLaunch(packageName)
                                     // The results stay as they are while the app opens out of the tapped icon (App
                                     // Animations); the query is cleared once the overlay is out of sight (onStop).
-                                    try {
+                                    val opened = try {
                                         multiProfileManager.launchApp(
                                             packageName = packageName,
                                             userHandle = user,
@@ -538,7 +533,14 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
                                         )
                                     } catch (e: Throwable) {
                                         android.util.Log.e("MainActivity", "App launch failed: ${e.javaClass.simpleName}") // no package name: it may be a hidden or Private Space app
+                                        false
                                     }
+                                    // A Private Space app leaves no trace: its launches aren't counted for suggestions.
+                                    val inPrivateSpace = multiProfileManager.profilesState.value.any {
+                                        it.userHandle == user && it.profileType == com.pixel.intelligentsearch.core.data.ProfileType.PRIVATE
+                                    }
+                                    if (opened && !inPrivateSpace) searchViewModel.notifyAppLaunch(packageName)
+                                    opened
                                 },
                                 viewModel = searchViewModel,
                                 settingsViewModel = settingsViewModel,

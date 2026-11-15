@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
+import com.pixel.intelligentsearch.core.data.ProfileType
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -24,10 +25,55 @@ enum class ResultKind(val prefix: String) {
  */
 object ResultKeys {
 
-    /** "app:<package>/<activity>@<user>", the user being the profile's id (0 for the personal profile). */
-    fun app(app: AppItem): String {
-        val user = (app.userHandle ?: android.os.Process.myUserHandle())?.hashCode() ?: 0
-        return "${ResultKind.APP.prefix}:${app.packageName}/${app.activityName.orEmpty()}@$user"
+    /**
+     * "app:<package>/<activity>@<profile>": the profile by its kind, "0" for the personal one and "work", "clone" or
+     * "private" for the others. Not by Android's number for it, which changes when a work profile is made again and
+     * differs on another phone or user a backup is restored to.
+     */
+    fun app(app: AppItem): String =
+        "${ResultKind.APP.prefix}:${app.packageName}/${app.activityName.orEmpty()}@${profileTag(app.profileType)}"
+
+    private fun profileTag(type: ProfileType): String = when (type) {
+        ProfileType.PERSONAL -> PERSONAL_TAG
+        ProfileType.WORK -> "work"
+        ProfileType.CLONE -> "clone"
+        ProfileType.PRIVATE -> PRIVATE_TAG
+    }
+
+    private const val PERSONAL_TAG = "0"
+    private const val PRIVATE_TAG = "private"
+
+    /** The profile an app [key] names: a tag [app] writes, or an older version's Android user id. */
+    private fun appProfile(key: String): String = key.substringAfterLast('@', "")
+
+    /**
+     * Whether [key] names something that may be pinned or remembered: a kind this version writes, and for an app a
+     * profile, never a Private Space (whose apps leave no trace).
+     */
+    fun isKept(key: String): Boolean = when (kindOf(key)) {
+        null -> false
+        ResultKind.APP -> appProfile(key).let { it in KEPT_PROFILES || isOlderProfile(it) }
+        else -> true
+    }
+
+    private val KEPT_PROFILES = setOf(PERSONAL_TAG, "work", "clone")
+
+    private fun isOlderProfile(tag: String) = tag != PERSONAL_TAG && tag.isNotEmpty() && tag.length <= 9 && tag.all { it in '0'..'9' }
+
+    /** Whether [key] names its app's profile the way an older version did, by its Android user id. */
+    fun isOlderAppKey(key: String): Boolean = kindOf(key) == ResultKind.APP && isOlderProfile(appProfile(key))
+
+    /**
+     * [key] as this version writes it, given the phone's [profiles] now (each one's Android user id and kind). Older
+     * versions named an app's profile by that id: a pinned work app keeps its pin under "work", and an id no profile
+     * has any more (a work profile removed, or a backup from another phone or user), or a Private Space's, gives null,
+     * so it is dropped rather than kept where it never shows and can't be unpinned. Other keys are kept as they are.
+     */
+    fun current(key: String, profiles: Map<Int, ProfileType>): String? {
+        if (!isOlderAppKey(key)) return key.takeIf(::isKept)
+        val type = profiles[appProfile(key).toInt()] ?: return null
+        if (type == ProfileType.PRIVATE) return null
+        return key.substringBeforeLast('@') + "@" + profileTag(type)
     }
 
     /** "contact:<lookup key>", or null for a contact with no lookup URI (nothing to find it by again). */
@@ -92,7 +138,7 @@ class ResultShortcuts(val entries: List<ResultShortcut>) {
 
     /** This set with [key]'s entry changed by [change]; an entry left with nothing set is dropped. */
     fun update(key: String, title: String, change: (ResultShortcut) -> ResultShortcut): ResultShortcuts {
-        if (ResultKeys.kindOf(key) == null) return this
+        if (!ResultKeys.isKept(key)) return this
         val existing = byKey[key]
         val updated = change(existing ?: ResultShortcut(key, title)).copy(key = key, title = title.ifBlank { existing?.title.orEmpty() })
         val next = if (existing == null) entries + updated else entries.map { if (it.key == key) updated else it }
@@ -104,6 +150,18 @@ class ResultShortcuts(val entries: List<ResultShortcut>) {
 
     /** Clears everything set on [key]. */
     fun without(key: String): ResultShortcuts = ResultShortcuts(entries.filterNot { it.key == key })
+
+    /**
+     * This set with every key as this version writes it, given the phone's [profiles] ([ResultKeys.current]): an entry
+     * whose app's profile is gone goes, and of two that now name the same result the one set first stays.
+     */
+    fun withCurrentKeys(profiles: Map<Int, ProfileType>): ResultShortcuts {
+        if (entries.none { ResultKeys.isOlderAppKey(it.key) }) return this
+        val seenKeys = HashSet<String>()
+        return ResultShortcuts(entries.mapNotNull { entry ->
+            ResultKeys.current(entry.key, profiles)?.takeIf(seenKeys::add)?.let { entry.copy(key = it) }
+        })
+    }
 
     fun toJson(): String = JSON.encodeToString(ListSerializer(StoredShortcut.serializer()), entries.map {
         StoredShortcut(it.key, it.title, it.pinned)
@@ -135,7 +193,7 @@ class ResultShortcuts(val entries: List<ResultShortcut>) {
         /**
          * Reads what [toJson] wrote, or an older version's entries with nicknames and trigger words (dropped). The text
          * may come from a backup someone else made, so anything malformed reads as nothing set, and entries are checked:
-         * known kinds only, one entry per result, pinned ones only.
+         * known kinds only (never a Private Space app), one entry per result, pinned ones only.
          */
         fun fromJson(json: String): ResultShortcuts {
             if (json.isBlank()) return EMPTY
@@ -146,7 +204,7 @@ class ResultShortcuts(val entries: List<ResultShortcut>) {
             }
             val seenKeys = HashSet<String>()
             val entries = stored.asSequence()
-                .filter { ResultKeys.kindOf(it.key) != null && seenKeys.add(it.key) }
+                .filter { ResultKeys.isKept(it.key) && seenKeys.add(it.key) }
                 .map { ResultShortcut(it.key, it.title.take(200), it.pinned) }
                 .filterNot { it.isEmpty }
                 .take(MAX_ENTRIES)

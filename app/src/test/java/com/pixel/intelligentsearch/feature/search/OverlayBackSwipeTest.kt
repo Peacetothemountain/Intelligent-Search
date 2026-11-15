@@ -70,7 +70,7 @@ class OverlayBackSwipeTest {
             IntelligentSearchTheme(darkTheme = false) {
                 SearchOverlayScreen(
                     onOpenSettings = {},
-                    onLaunchApp = { _, _, _, _ -> },
+                    onLaunchApp = { _, _, _, _ -> true },
                     viewModel = hiltViewModel(),
                     isKeyboardDisabled = true
                 )

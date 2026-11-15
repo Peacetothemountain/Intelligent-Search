@@ -245,7 +245,7 @@ internal fun OverlayBestMatchCard(s: OverlayScope, bestMatch: Any) {
                                             s.openApp(match.packageName, null, null, LaunchSource.tap(LaunchIconKeys.BEST_MATCH)) { launch ->
                                                 intent.sourceBounds = launch.sourceBounds
                                                 intent.addFlags(launch.intentFlags)
-                                                if (!launchSafeIntent(context, intent, launch.options)) {
+                                                launchSafeIntent(context, intent, launch.options) || run {
                                                     intent.setPackage(null)
                                                     launchSafeIntent(context, intent, launch.options)
                                                 }

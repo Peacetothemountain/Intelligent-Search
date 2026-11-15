@@ -64,19 +64,19 @@ internal class OverlayUiState(
      */
     var enterTakenFor: String? = null
 
-    /** Removals waiting for the list to have drawn its rows with their closing-up motion ([takeRowAway]). */
+    /** Removals waiting for the list to have laid its rows out with their closing-up motion ([takeRowAway]). */
     private val rowsToRemove = ArrayList<() -> Unit>()
 
-    /** The user is taking a row out of the results now (swiping it off, pinning or unpinning it). */
-    fun rowTakenAway() {
+    private fun rowTakenAway() {
         rowTakenAwayAt = textFieldValue.text
         rowsTakenAway++
     }
 
     /**
-     * The user tapped a row away (its Remove button, Delete All, a menu). [remove] takes it out of the results once
-     * the list has drawn its rows with their closing-up motion, a frame from now, so the row fades out rather than
-     * vanishing; at once if the list isn't showing.
+     * The user took a row away (swiped it off, tapped Remove or Clear All, pinned, unpinned or hid it from its menu).
+     * [remove] takes it out of the results once the list has laid its rows out with their closing-up motion, two
+     * frames from now, so the row fades out rather than vanishing and the others glide from where they were; at once
+     * if the list isn't showing.
      */
     fun takeRowAway(remove: () -> Unit) {
         if (!resultsShown) {
@@ -129,9 +129,9 @@ internal class OverlayScope(
     /**
      * Opens an app (or one of its actions) from a source: package, profile (null = personal), launcher activity if
      * known, what it was opened from, and how to start it. The app grows out of its icon first (AppOpeningLayer), and
-     * [start] then gets the ActivityOptions and source bounds to start it with.
+     * [start] then gets the ActivityOptions and source bounds to start it with, and returns whether it opened.
      */
-    val openApp: (String, android.os.UserHandle?, String?, LaunchSource, (AppLaunchOptions) -> Unit) -> Unit,
+    val openApp: (String, android.os.UserHandle?, String?, LaunchSource, (AppLaunchOptions) -> Boolean) -> Unit,
     val closeOverlay: () -> Unit,
     val launchWebSearch: (String) -> Unit,
     val openWebAddress: (String) -> Unit,

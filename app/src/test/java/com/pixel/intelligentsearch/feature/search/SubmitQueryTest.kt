@@ -94,7 +94,7 @@ class SubmitQueryTest {
                 viewModel = hiltViewModel()
                 SearchOverlayScreen(
                     onOpenSettings = {},
-                    onLaunchApp = { packageName, _, _, _ -> launchedApps += packageName },
+                    onLaunchApp = { packageName, _, _, _ -> launchedApps += packageName; true },
                     viewModel = viewModel,
                     isKeyboardDisabled = true
                 )

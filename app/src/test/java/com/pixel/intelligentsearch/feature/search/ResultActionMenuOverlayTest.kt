@@ -75,7 +75,7 @@ class ResultActionMenuOverlayTest {
                 }
                 SearchOverlayScreen(
                     onOpenSettings = {},
-                    onLaunchApp = { _, _, _, _ -> },
+                    onLaunchApp = { _, _, _, _ -> true },
                     viewModel = viewModel,
                     isKeyboardDisabled = true
                 )

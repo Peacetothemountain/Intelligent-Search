@@ -103,9 +103,14 @@ internal fun OverlaySearchResults(s: OverlayScope) {
     }
     LaunchedEffect(rowsTakenAway) {
         if (rowsTakenAway > 0) {
-            // A row tapped away goes once the rows have been drawn with their closing-up motion (and goes all the
-            // same if this is cut short), so it fades out as the others glide.
+            // A row taken away goes once the list has laid its rows out with their closing-up motion (and goes all
+            // the same if this is cut short), so it fades out as the others glide from where they were. A list that
+            // last laid its rows out without that motion doesn't know where they were: rows that should glide land
+            // at once, and rows that should stay jump and settle back.
             try {
+                withFrameNanos { }
+                val list = s.listState
+                list.requestScrollToItem(list.firstVisibleItemIndex, list.firstVisibleItemScrollOffset)
                 withFrameNanos { }
             } finally {
                 ui.removeTakenRows()
@@ -340,8 +345,7 @@ private fun ResultRows(s: OverlayScope) {
         if (uiState.directActions.isNotEmpty()) {
             resultRows(uiState.directActions, key = ResultListKeys::directAction, contentType = { "direct_action" }) { action ->
                 val swipe = rememberSwipeToDismiss(sensoryEngine, view) {
-                    s.ui.rowTakenAway()
-                    viewModel.dismissDirectAction(action)
+                    s.ui.takeRowAway { viewModel.dismissDirectAction(action) }
                 }
 
                 Box(

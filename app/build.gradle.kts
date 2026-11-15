@@ -17,8 +17,8 @@ android {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
         targetSdk = 37
-        versionCode = 135
-        versionName = "9.6.1"
+        versionCode = 136
+        versionName = "9.7"
     }
 
     // The app is written in English only. Without this, every library's translations (about 80 languages)

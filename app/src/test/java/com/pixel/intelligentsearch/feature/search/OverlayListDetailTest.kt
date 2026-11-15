@@ -71,7 +71,7 @@ class OverlayListDetailTest {
             IntelligentSearchTheme(darkTheme = false) {
                 val viewModel: SearchViewModel = hiltViewModel()
                 if (query.isNotEmpty()) LaunchedEffect(Unit) { viewModel.onQueryChanged(query) }
-                SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
+                SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> true }, viewModel = viewModel, isKeyboardDisabled = true)
             }
         }
         compose.settle()

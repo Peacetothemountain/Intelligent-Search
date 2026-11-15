@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.feature.search.today.cards.site
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.util.AtomicFile
@@ -319,7 +318,7 @@ internal class AndroidSiteCards private constructor(
 
         val data = LinkedHashMap<String, SiteData>()
         for (entry in loadedEntries) {
-            val bitmap = entry.image?.let { name -> runCatching { BitmapFactory.decodeFile(File(dir, name).path) }.getOrNull() }
+            val bitmap = entry.image?.let { name -> runCatching { decodeSiteImage(File(dir, name).readBytes()) }.getOrNull() }
             val kept = if (entry.image != null && bitmap == null) entry.copy(image = null) else entry
             entries[kept.url] = kept
             data[kept.url] = kept.toData(bitmap)

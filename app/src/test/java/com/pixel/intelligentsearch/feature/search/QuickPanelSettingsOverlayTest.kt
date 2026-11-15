@@ -114,7 +114,7 @@ class QuickPanelSettingsOverlayTest {
                     AppSearchScreen(prefs, {}, {})
                 } else {
                     val viewModel: SearchViewModel = hiltViewModel()
-                    SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
+                    SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> true }, viewModel = viewModel, isKeyboardDisabled = true)
                 }
             }
         }

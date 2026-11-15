@@ -21,10 +21,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.R
+import com.pixel.intelligentsearch.core.ui.decodeSampledResource
 import kotlinx.coroutines.delay
 import kotlin.math.cos
 import kotlin.math.sin
@@ -40,33 +42,23 @@ fun AnimatedBugdroidEmoji(
     modifier: Modifier = Modifier
 ) {
     val resources = androidx.compose.ui.platform.LocalResources.current
+    // Each picture is decoded only as large as the mascot is drawn (its 40 dp width), not at its full 418 px.
+    val px = with(LocalDensity.current) { MASCOT_WIDTH.roundToPx() }
 
-    val balloonBitmap = remember(resources) {
-        android.graphics.BitmapFactory.decodeResource(
-            resources,
-            R.drawable.ic_bugdroid_balloon
-        ).asImageBitmap()
+    val balloonBitmap = remember(resources, px) {
+        decodeSampledResource(resources, R.drawable.ic_bugdroid_balloon, px)?.asImageBitmap()
     }
 
-    val bodyOpenBitmap = remember(resources) {
-        android.graphics.BitmapFactory.decodeResource(
-            resources,
-            R.drawable.ic_bugdroid_body
-        ).asImageBitmap()
+    val bodyOpenBitmap = remember(resources, px) {
+        decodeSampledResource(resources, R.drawable.ic_bugdroid_body, px)?.asImageBitmap()
     }
 
-    val bodyHalfBitmap = remember(resources) {
-        android.graphics.BitmapFactory.decodeResource(
-            resources,
-            R.drawable.ic_bugdroid_body_half
-        )?.asImageBitmap() ?: bodyOpenBitmap
+    val bodyHalfBitmap = remember(resources, px) {
+        decodeSampledResource(resources, R.drawable.ic_bugdroid_body_half, px)?.asImageBitmap() ?: bodyOpenBitmap
     }
 
-    val bodyBlinkBitmap = remember(resources) {
-        android.graphics.BitmapFactory.decodeResource(
-            resources,
-            R.drawable.ic_bugdroid_body_blink
-        )?.asImageBitmap() ?: bodyOpenBitmap
+    val bodyBlinkBitmap = remember(resources, px) {
+        decodeSampledResource(resources, R.drawable.ic_bugdroid_body_blink, px)?.asImageBitmap() ?: bodyOpenBitmap
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "bugdroid_motion_transition")
@@ -135,11 +127,11 @@ fun AnimatedBugdroidEmoji(
 
     Box(
         // The default size comes after the caller's modifier, so a size the caller passes wins.
-        modifier = modifier.size(width = 40.dp, height = 56.dp),
+        modifier = modifier.size(width = MASCOT_WIDTH, height = 56.dp),
         contentAlignment = Alignment.Center
     ) {
         // Layer 1: Balloon & String (drawn behind hand, anchored at hand pivot 0.2033f, 0.4455f)
-        Image(
+        if (balloonBitmap != null) Image(
             bitmap = balloonBitmap,
             contentDescription = null,
             contentScale = ContentScale.Fit,
@@ -157,7 +149,7 @@ fun AnimatedBugdroidEmoji(
         )
 
         // Layer 2: Bugdroid Body (hand grips over string anchor, floating & blinking)
-        Image(
+        if (currentBodyBitmap != null) Image(
             bitmap = currentBodyBitmap,
             contentDescription = "Bugdroid",
             contentScale = ContentScale.Fit,
@@ -170,3 +162,6 @@ fun AnimatedBugdroidEmoji(
         )
     }
 }
+
+/** How wide the mascot is drawn; its pictures are decoded for this, not their full size. */
+private val MASCOT_WIDTH = 40.dp

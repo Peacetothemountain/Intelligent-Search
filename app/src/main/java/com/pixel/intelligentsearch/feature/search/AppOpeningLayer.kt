@@ -57,7 +57,7 @@ internal const val APP_OPENING_TAG = "app_opening"
 /**
  * One app opening from the overlay: [from], the bounds it grows out of in the overlay's view (the tapped icon), the
  * icon drawn there now ([startIcon], tinted [startTint] when monochrome), and [start], which opens the app once the
- * motion has reached the middle of the screen.
+ * motion has reached the middle of the screen and says whether it did.
  */
 @Stable
 internal class AppOpening(
@@ -68,7 +68,7 @@ internal class AppOpening(
     val startIcon: ImageBitmap?,
     val startIconMonochrome: Boolean,
     val startTint: Color,
-    val start: () -> Unit
+    val start: () -> Boolean
 )
 
 /** The app opening now, if any: one at a time, so a second tap while one grows is ignored. */
@@ -105,7 +105,8 @@ internal const val APP_OPENING_HANDOFF_TIMEOUT_MS = 1500L
  * app's window): the tapped icon becomes a rounded window in the app's splash color that grows out of the icon's place
  * to fill the screen, the icon riding in its middle and turning into the app's splash icon, while the overlay dims
  * behind it. Near the end the app is started, its splash screen showing the same icon on the same color, so it takes
- * over seamlessly. The layer goes once the overlay is out of sight, or fades away if the app never came up.
+ * over seamlessly. The layer goes once the overlay is out of sight, or fades away if the app never came up (at once
+ * when it didn't open at all).
  */
 @Composable
 internal fun AppOpeningLayer(openings: AppOpenings) {
@@ -138,9 +139,10 @@ private fun AppOpeningSurface(opening: AppOpening, onProgress: (Float) -> Unit, 
         // Critically damped: it comes to rest without overshooting, so it is still when the real splash takes over.
         launch { progress.animateTo(1f, spring(dampingRatio = 1f, stiffness = 500f)) }
         snapshotFlow { progress.value }.first { it >= APP_OPENING_START_AT }
-        opening.start()
-        // The app covers the overlay (which then stops) or it never came up: then the overlay comes back.
-        val left = withTimeoutOrNull(APP_OPENING_HANDOFF_TIMEOUT_MS) {
+        val opened = opening.start()
+        // The app covers the overlay (which then stops) or it never came up: then the overlay comes back. One that
+        // didn't open at all (turned off or removed) has nothing to wait for.
+        val left = if (!opened) null else withTimeoutOrNull(APP_OPENING_HANDOFF_TIMEOUT_MS) {
             snapshotFlow { lifecycleOwner.lifecycle.currentState }.first { !it.isAtLeast(Lifecycle.State.RESUMED) }
         }
         if (left == null) {

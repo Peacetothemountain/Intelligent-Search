@@ -328,16 +328,14 @@ private fun runCommand(context: Context, s: OverlayScope, target: ResultMenuTarg
     val app = (target as? ResultMenuTarget.App)?.app
     when (command) {
         ResultCommand.PIN, ResultCommand.UNPIN -> if (key != null) {
-            s.ui.rowTakenAway()
-            s.viewModel.setPinned(key, target.title, command == ResultCommand.PIN)
+            s.ui.takeRowAway { s.viewModel.setPinned(key, target.title, command == ResultCommand.PIN) }
         }
         ResultCommand.APP_INFO, ResultCommand.UNINSTALL -> if (app != null) {
             s.ui.hasStartedTyping = false
             openAppInfo(context, app)
         }
         ResultCommand.HIDE -> if (app != null) {
-            s.ui.rowTakenAway()
-            s.viewModel.hideApp(app.packageName)
+            s.ui.takeRowAway { s.viewModel.hideApp(app.packageName) }
         }
         ResultCommand.SPLIT_SCREEN -> if (app != null) {
             val intent = splitScreenIntent(context, app)

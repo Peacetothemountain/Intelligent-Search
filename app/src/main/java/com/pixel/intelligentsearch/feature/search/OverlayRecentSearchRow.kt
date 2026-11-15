@@ -39,8 +39,7 @@ internal fun LazyItemScope.OverlayRecentSearchRow(s: OverlayScope, recentQuery: 
     val sensoryEngine = rememberTactileSonicEngine()
     val view = androidx.compose.ui.platform.LocalView.current
     val swipe = rememberSwipeToDismiss(sensoryEngine, view, threshold = 120f, fadeDistance = 500f, maxDragFade = 0.7f) {
-        s.ui.rowTakenAway()
-        viewModel.removeSearchHistory(recentQuery)
+        s.ui.takeRowAway { viewModel.removeSearchHistory(recentQuery) }
     }
 
     Box(

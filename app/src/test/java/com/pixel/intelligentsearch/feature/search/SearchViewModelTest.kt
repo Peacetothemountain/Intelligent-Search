@@ -141,7 +141,7 @@ class SearchViewModelTest {
         scenario.onActivity { activity ->
             activity.setContent {
                 IntelligentSearchTheme(darkTheme = false) {
-                    SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
+                    SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> true }, viewModel = viewModel, isKeyboardDisabled = true)
                 }
             }
         }

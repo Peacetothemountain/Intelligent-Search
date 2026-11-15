@@ -120,7 +120,7 @@ class AtAGlanceOverlayTest {
                     if (query.isNotEmpty()) viewModel.onQueryChanged(query)
                 }
                 CompositionLocalProvider(LocalGlanceSource provides source, LocalGlanceClock provides GlanceClock({ noon }, ticks = true)) {
-                    SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> }, viewModel = viewModel, isKeyboardDisabled = true)
+                    SearchOverlayScreen(onOpenSettings = {}, onLaunchApp = { _, _, _, _ -> true }, viewModel = viewModel, isKeyboardDisabled = true)
                 }
             }
         }

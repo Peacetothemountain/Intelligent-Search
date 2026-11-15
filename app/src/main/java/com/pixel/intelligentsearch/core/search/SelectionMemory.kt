@@ -63,7 +63,7 @@ class SelectionMemory internal constructor(
      * or when searches aren't being remembered).
      */
     fun record(key: String, query: String?) {
-        if (ResultKeys.kindOf(key) == null) return
+        if (!ResultKeys.isKept(key)) return
         val prefs = store() ?: return
         val now = clock()
         val normalized = query?.let(::normalizeQuery).orEmpty()
@@ -172,6 +172,26 @@ class SelectionMemory internal constructor(
         }
     }
 
+    /**
+     * Names every remembered result as this version does ([ResultKeys.current] with the phone's [profiles]), so what
+     * was learned for a work app outlives the older key; one whose profile is gone is forgotten. Of two that now name
+     * the same result, the one opened last stays.
+     */
+    fun useCurrentKeys(profiles: Map<Int, com.pixel.intelligentsearch.core.data.ProfileType>) {
+        val prefs = store() ?: return
+        synchronized(lock) {
+            val before = entries()
+            if (before.keys.none(ResultKeys::isOlderAppKey)) return
+            val after = LinkedHashMap<String, Entry>()
+            for ((key, entry) in before) {
+                val current = ResultKeys.current(key, profiles) ?: continue
+                val kept = after[current]
+                if (kept == null || entry.lastMs > kept.lastMs) after[current] = entry
+            }
+            save(prefs, after)
+        }
+    }
+
     /** Puts back what [clearPicks] returned (Undo). */
     fun restore(snapshot: Map<String, Entry>) {
         if (snapshot.isEmpty()) return
@@ -212,7 +232,7 @@ class SelectionMemory internal constructor(
         }
         val out = LinkedHashMap<String, Entry>()
         for (entry in stored.asSequence().take(MAX_RESULTS)) {
-            if (ResultKeys.kindOf(entry.k) == null || !entry.o.isFinite() || entry.o < 0f) continue
+            if (!ResultKeys.isKept(entry.k) || !entry.o.isFinite() || entry.o < 0f) continue
             val picks = entry.p.asSequence()
                 .filter { it.q.isNotEmpty() && it.q.length <= MAX_QUERY_LENGTH && it.w.isFinite() && it.w > 0f }
                 .take(MAX_PICKS_PER_RESULT)

@@ -65,7 +65,7 @@ commits that were never on GitHub.
 | 9.5.5 | 133 | `610eb61d` | 2026-11-06 |
 | 9.6 | 134 | see `Release 9.6 (134)` | 2026-11-11 |
 | 9.6.1 | 135 | `3891a1c6` | 2026-11-13 |
-| 9.7 | 139 | see `Release 9.7 (139)`; 136 to 138 were built and replaced before release | 2026-11-15 |
+| 9.7 | 140 | see `Release 9.7 (140)`; 136 to 139 were built and replaced before release | 2026-11-15 |
 
 Some codes that reached Google Play were never committed with their number: 9.06 (105), 9.1.1 (109), and 111, 117 and
 119. A crash report from one of them belongs to the code between the tags either side of it: 105 sits between

@@ -52,6 +52,7 @@ import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 import com.pixel.intelligentsearch.feature.search.today.NebulaPainter
 import com.pixel.intelligentsearch.feature.search.today.hueOf
 import com.pixel.intelligentsearch.feature.search.today.rememberLoop
+import com.pixel.intelligentsearch.feature.voice.QuietEarcons
 import kotlin.math.max
 import kotlin.math.min
 
@@ -70,6 +71,11 @@ class VoiceNebulaActivity : ComponentActivity() {
     private val main = Handler(Looper.getMainLooper())
     private val haptics by lazy { PixelHapticEngine.get(this) }
     private var recognizer: SpeechRecognizer? = null
+    /**
+     * The engine's start and stop tones, kept quiet: the nebula already shows it listening. Its own handler, so the
+     * channel is still given back after [onDestroy] clears [main].
+     */
+    private val tones by lazy { QuietEarcons(this, Handler(Looper.getMainLooper())) }
     private val level = mutableFloatStateOf(0f)
     private var heard by mutableStateOf("")
     private var phase by mutableStateOf(Phase.Listening)
@@ -114,6 +120,7 @@ class VoiceNebulaActivity : ComponentActivity() {
         recognizer = r
         r.setRecognitionListener(listener)
         haptics.performPredictiveBackHaptic(window.decorView)
+        tones.hold()
         r.startListening(
             Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH)
@@ -124,6 +131,7 @@ class VoiceNebulaActivity : ComponentActivity() {
 
     private fun stopListening() {
         recognizer?.let {
+            tones.hold()
             runCatching { it.cancel() }
             runCatching { it.destroy() }
         }
@@ -131,10 +139,11 @@ class VoiceNebulaActivity : ComponentActivity() {
     }
 
     private val listener = object : RecognitionListener {
-        override fun onReadyForSpeech(params: Bundle?) {}
+        // The start tone plays as the engine becomes ready, the stop tone as it stops hearing.
+        override fun onReadyForSpeech(params: Bundle?) = tones.hold()
         override fun onBeginningOfSpeech() {}
         override fun onBufferReceived(buffer: ByteArray?) {}
-        override fun onEndOfSpeech() {}
+        override fun onEndOfSpeech() = tones.hold()
         override fun onEvent(eventType: Int, params: Bundle?) {}
 
         // About -2 dB in silence to about 10 dB speaking up, as Google's recognizer reports it.

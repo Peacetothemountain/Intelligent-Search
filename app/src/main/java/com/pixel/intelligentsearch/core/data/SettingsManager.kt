@@ -184,8 +184,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         /** The one-time rating line in At a Glance has been answered (rated, feedback sent or "Not Now"). */
         val RATING_ASK_DONE = BooleanSetting("rating_ask_done", false)
 
-        /** After a voice search with an answer on screen, the answer is read aloud (never on silent or vibrate). */
-        val SPEAK_ANSWERS = BooleanSetting("speak_answers", true)
         val ACTIVE_ICON_PACK = StringSetting("active_icon_pack", "system_default")
         val SEARCH_OVERLAY_ENABLED = BooleanSetting("search_overlay_enabled", true)
         val CUSTOM_ICON_PILLS = StringSetting("custom_icon_pills", "", "custom_icon_packs_order")
@@ -328,7 +326,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             QUICK_SEARCH_HORIZONTAL, WEB_RESULTS_COUNT, CONTACT_RESULTS_COUNT, FILE_RESULTS_COUNT,
             SHORTCUT_RESULTS_COUNT, SEARCH_WEIGHT_APPS, SEARCH_WEIGHT_CONTACTS, SEARCH_WEIGHT_FILES,
             SEARCH_WEIGHT_WEB, CONTEXT_AWARE_QUICK_APPS, SMART_CLIPBOARD_SUGGESTIONS, ASSISTANT_STARTS_WITH_VOICE,
-            SPEAK_ANSWERS, RATING_ASK_DONE, ACTIVE_ICON_PACK,
+            RATING_ASK_DONE, ACTIVE_ICON_PACK,
             SEARCH_OVERLAY_ENABLED, CUSTOM_ICON_PILLS, NEVER_SHOW_ICON_PACK_WARNING, CUSTOM_BANGS_JSON,
             WEB_SHORTCUT_TRIGGER_SYMBOL, SEARCH_QUICK_SHORTCUTS, SHOW_AVAILABLE_DIRECT_SHORTCUTS,
             DIAGNOSTICS_OVERLAY_ENABLED, MATRIX_ANIMATION_ENABLED,
@@ -400,7 +398,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             // Assistant rows under results, which had no place in settings: the rows always show.
             "adaptive_icon_shape", "dynamic_icon_masking", "shortcut.inline", "shortcut_inline",
             // The countdown widget, removed, and the dates each placed one counted to.
-            "countdown_widget_events"
+            "countdown_widget_events",
+            // Speak Answers After Voice Search, removed: answers stay on screen, unspoken.
+            "speak_answers"
         )
 
         /**

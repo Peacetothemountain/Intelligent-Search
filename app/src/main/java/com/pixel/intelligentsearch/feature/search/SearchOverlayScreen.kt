@@ -89,7 +89,7 @@ private const val BACK_EXIT_MS = 200
 internal fun keyboardUpOnOpen(prefs: android.content.SharedPreferences): Boolean = prefs[SettingsManager.SHOW_KEYBOARD_ON_OPEN]
 
 /** How long a spoken question waits for a definition or forecast to arrive before it goes on to a web search. */
-private const val SPOKEN_ANSWER_WAIT_MS = 3500L
+private const val VOICE_ANSWER_WAIT_MS = 3500L
 
 /**
  * The engine's name as the search bar and "Search …" show it. A custom engine goes by the Search App Name the user
@@ -821,50 +821,30 @@ fun SearchOverlayScreen(
         // The user may have typed on meanwhile; then this query is theirs no longer.
         if (viewModel.uiState.value.query == query) submitQuery(query, fromVoice)
     }
-    // An answer to a voice search is read aloud. The engine starts with the first answer and is let go with the screen.
-    val answerSpeaker = remember { com.pixel.intelligentsearch.feature.voice.AnswerSpeaker(context) }
-    var speakingFor by remember { mutableStateOf<String?>(null) }
-    DisposableEffect(answerSpeaker) { onDispose { answerSpeaker.shutdown() } }
-    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_STOP) { answerSpeaker.stop() }
-    // New words, typed or spoken, and listening again end what was being said.
-    LaunchedEffect(uiState.query, voice.active) {
-        if (voice.active || uiState.query != speakingFor) {
-            answerSpeaker.stop()
-            speakingFor = null
-        }
-    }
-    // Stays in search with the answer to the [spoken] words on screen, and says it aloud when [speak] (Speak Answers on).
-    // False when there is no answer to them, or when Enter would open something for these words (an app, a contact, a
-    // file, a timer to set): that still opens.
-    val answerSpoken: suspend (String, Boolean) -> Boolean = speak@{ spoken, speak ->
+    // Stays in search with the answer to the [spoken] words on screen. False when there is no answer to them, or when
+    // Enter would open something for these words (an app, a contact, a file, a timer to set): that still opens.
+    val answeredOnScreen: suspend (String) -> Boolean = speak@{ spoken ->
         viewModel.awaitSearch()
         var results = viewModel.uiState.value
         // The user typed on meanwhile; then these words are theirs no longer.
         if (results.query != spoken) return@speak true
         val opens = results.enterAction?.intent != null || bestMatchIn(results, visibleAppsIn(results)) != null ||
             viewModel.resolveBangIntent(spoken) != null
-        if (opens || !SpokenAnswers.mayAnswer(results)) return@speak false
-        if (SpokenAnswers.awaitsLiveAnswer(results)) {
-            // A definition or forecast is on its way: give it a moment, then say whatever answer there is.
-            results = kotlinx.coroutines.withTimeoutOrNull(SPOKEN_ANSWER_WAIT_MS) {
+        if (opens || !VoiceAnswers.mayAnswer(results)) return@speak false
+        if (VoiceAnswers.awaitsLiveAnswer(results)) {
+            // A definition or forecast is on its way: give it a moment to arrive.
+            results = kotlinx.coroutines.withTimeoutOrNull(VOICE_ANSWER_WAIT_MS) {
                 viewModel.uiState.first { it.query != spoken || it.liveAnswer?.query == spoken || it.liveAnswerSettled == spoken }
             } ?: viewModel.uiState.value
             if (results.query != spoken) return@speak true
         }
-        val sentence = SpokenAnswers.sentence(results)
-        // A sum written in another base ("255 in hex") is an answer on screen, though not one to say.
-        if (sentence == null && results.mathResult == null) return@speak false
-        if (speak && sentence != null) {
-            speakingFor = spoken
-            answerSpeaker.speak(sentence)
-        }
-        true
+        VoiceAnswers.shows(results)
     }
-    // The check button's "go": once the results for the spoken words are in, an answer to them stays on screen (and is
-    // read aloud with Speak Answers on); with none, they are acted on exactly as Enter would.
+    // The check button's "go": once the results for the spoken words are in, an answer to them stays on screen; with
+    // none, they are acted on exactly as Enter would.
     LaunchedEffect(spokenQuery) {
         val spoken = spokenQuery ?: return@LaunchedEffect
-        if (!answerSpoken(spoken, prefs[SettingsManager.SPEAK_ANSWERS])) submitWhenSettled(spoken, true)
+        if (!answeredOnScreen(spoken)) submitWhenSettled(spoken, true)
         spokenQuery = null
     }
 

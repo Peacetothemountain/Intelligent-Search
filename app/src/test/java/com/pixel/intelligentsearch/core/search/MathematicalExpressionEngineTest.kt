@@ -755,6 +755,13 @@ class MathematicalExpressionEngineTest {
         assertEquals("4", computed("square root of 16"))
         assertEquals("12", computed("15 percent of 80"))
         assertEquals("42", computed("6 multiplied by 7"))
+        // Voice search writes small numbers as words.
+        assertEquals("81", computed("What's nine times nine"))
+        assertEquals("81", computed("What's 9 times nine"))
+        assertEquals("105", computed("one hundred and five times one"))
+        assertEquals("63", computed("twenty-one times three"))
+        assertEquals("5", computed("two point five times two"))
+        assertEquals("2000", computed("two thousand times one"))
         // Words that aren't a sum stay a search.
         assertNull(MathematicalExpressionEngine.evaluate("what is love"))
         assertNull(MathematicalExpressionEngine.evaluate("times square"))

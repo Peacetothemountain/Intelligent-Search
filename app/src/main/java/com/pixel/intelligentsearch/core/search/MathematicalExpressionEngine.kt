@@ -76,7 +76,9 @@ object MathematicalExpressionEngine {
      * "100 divided by 4" is 100/4, "2 to the power of 10" is 2^10, "5 squared" is 5^2, "square root of 16" is sqrt(16).
      * Only between numbers (or after one, for "squared"), so words that aren't a sum stay words.
      */
-    private fun withSigns(text: String): String {
+    private fun withSigns(spoken: String): String {
+        // Voice search writes small numbers as words: "nine times nine", "9 times nine".
+        val text = SpokenNumbers.withDigits(spoken)
         if (!text.any { it.isDigit() }) return text
         return text
             .replace(REGEX_SPOKEN_ROOT) { "sqrt(${it.groupValues[1]})" }

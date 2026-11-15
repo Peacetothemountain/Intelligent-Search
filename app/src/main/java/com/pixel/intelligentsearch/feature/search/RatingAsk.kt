@@ -49,6 +49,13 @@ internal object RatingAsk {
     private const val COUNT_FILE = "rating_count"
     private const val COUNT_KEY = "opens"
 
+    /** When this app was first installed, or 0 when the phone won't say. */
+    fun firstInstallMs(context: Context): Long = try {
+        context.packageManager.getPackageInfo(context.packageName, 0).firstInstallTime
+    } catch (_: Exception) {
+        0L
+    }
+
     /** Puts the ask away for good. */
     fun finish(context: Context) {
         context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE).edit { put(SettingsManager.RATING_ASK_DONE, true) }
@@ -95,6 +102,6 @@ internal fun rememberRatingAskDue(): Boolean {
     // Read as At a Glance opens: the count only matters once a session, not as it changes.
     val opens = remember(context) { RatingAsk.opens(context) }
     val tutorialDone by rememberSetting(SettingsManager.TUTORIAL_COMPLETED)
-    val installed = remember(context) { SearchHints.firstInstallMs(context) }
+    val installed = remember(context) { RatingAsk.firstInstallMs(context) }
     return RatingAsk.due(installed, System.currentTimeMillis(), opens, done, tutorialDone)
 }

@@ -65,6 +65,7 @@ commits that were never on GitHub.
 | 9.5.5 | 133 | `610eb61d` | 2026-11-06 |
 | 9.6 | 134 | see `Release 9.6 (134)` | 2026-11-11 |
 | 9.6.1 | 135 | `3891a1c6` | 2026-11-13 |
+| 9.7 | 136 | see `Release 9.7 (136)` | 2026-11-15 |
 
 Some codes that reached Google Play were never committed with their number: 9.06 (105), 9.1.1 (109), and 111, 117 and
 119. A crash report from one of them belongs to the code between the tags either side of it: 105 sits between
@@ -91,6 +92,7 @@ Crashes already traced to their fixes:
 | `IntelligentSearchDatabase ... onOpen`, `SQLiteException` | 9.1.1 (109) | 9.1.2 (110), then 9.3 (123) (`DatabaseOpenPragmasTest`) |
 | `SearchTileService.onClick`, "pendingIntentBackgroundActivityStartMode must not be set when creating a PendingIntent" | 9.1.5 (115) | `BackgroundLaunchOptions.forCreator`, with a fallback launch |
 | `LayoutNodeSubcompositionsState.subcompose` in the overlay's list (a key used twice) | 9.06 (105) | 9.3 (123) (`UniqueLazyItemsTest`) |
+| `Activity.finishAffinity`, "Can not be called to deliver a result" (Back to Home from Settings opened to set up a widget) | 9.6 (134) | 9.6.1 (135): a widget's setup, or Settings opened for an answer, only closes itself |
 
 ## Commits
 

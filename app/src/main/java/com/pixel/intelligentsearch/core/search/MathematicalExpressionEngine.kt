@@ -69,6 +69,21 @@ object MathematicalExpressionEngine {
         raw.trim().trimEnd('?').trim().replace(REGEX_QUESTION_PREFIX, "").trim().trim('=').trim()
             // The minus sign keyboards and copied text use ("−5+3") is the hyphen's minus.
             .replace('−', '-')
+            .let(::withSigns)
+
+    /**
+     * [text] with the words a sum is said in turned into its signs, as voice search writes it down: "9 times 9" is 9*9,
+     * "100 divided by 4" is 100/4, "2 to the power of 10" is 2^10, "5 squared" is 5^2, "square root of 16" is sqrt(16).
+     * Only between numbers (or after one, for "squared"), so words that aren't a sum stay words.
+     */
+    private fun withSigns(text: String): String {
+        if (!text.any { it.isDigit() }) return text
+        return text
+            .replace(REGEX_SPOKEN_ROOT) { "sqrt(${it.groupValues[1]})" }
+            .replace(REGEX_SPOKEN_POWER) { "^${if (it.groupValues[1].equals("squared", ignoreCase = true)) 2 else 3}" }
+            .replace(REGEX_SPOKEN_PERCENT, "%")
+            .replace(REGEX_SPOKEN_OPERATOR) { SPOKEN_OPERATORS.getValue(it.groupValues[1].lowercase(Locale.ROOT).replace(REGEX_WHITESPACE, " ")) }
+    }
 
 
     /**
@@ -86,6 +101,19 @@ object MathematicalExpressionEngine {
     // ---------------------------------------------------------------------------------------------
 
     private val REGEX_QUESTION_PREFIX = Regex("^(?:what(?:'s|’s|s| is)|how much is|calculate|compute)\\s+", RegexOption.IGNORE_CASE)
+
+    /** A sum's signs as they are said, by the words ([withSigns]). */
+    private val SPOKEN_OPERATORS = mapOf(
+        "times" to "*", "multiplied by" to "*", "plus" to "+", "added to" to "+", "minus" to "-",
+        "divided by" to "/", "over" to "/", "to the power of" to "^", "to the" to "^", "mod" to "%", "modulo" to "%"
+    )
+    private val REGEX_SPOKEN_OPERATOR = Regex(
+        "(?<=[0-9)%])\\s+(times|multiplied\\s+by|plus|added\\s+to|minus|divided\\s+by|over|to\\s+the\\s+power\\s+of|to\\s+the|mod|modulo)\\s+(?=[-0-9(.])",
+        RegexOption.IGNORE_CASE
+    )
+    private val REGEX_SPOKEN_POWER = Regex("(?<=[0-9)])\\s+(squared|cubed)\\b", RegexOption.IGNORE_CASE)
+    private val REGEX_SPOKEN_PERCENT = Regex("(?<=[0-9])\\s*percent\\b", RegexOption.IGNORE_CASE)
+    private val REGEX_SPOKEN_ROOT = Regex("\\b(?:the\\s+)?square\\s+root\\s+of\\s+([0-9.]+)", RegexOption.IGNORE_CASE)
 
     private val REGEX_MULTIPLICATION_X = Regex("(?<=[0-9)])(?:(?<!(?<![0-9.])0)\\s*[xX]|\\s+[xX])\\s*(?=[0-9(])")
     private val REGEX_ALLOWED_CHARS = Regex("^[0-9a-zA-Z.+\\-*/%^!()_,]+$")

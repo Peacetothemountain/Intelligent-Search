@@ -398,4 +398,12 @@ class LiveAnswerParserTest {
             assertNull(query, parse(query))
         }
     }
+
+    @Test
+    fun aCurlyApostropheReadsAsAStraightOne() {
+        // "What’s", as voice search and some keyboards write it.
+        assertEquals(Weather(null, ForecastDay.TODAY), parse("What’s the weather"))
+        assertEquals(Weather(null, ForecastDay.TOMORROW), parse("What’s the weather tomorrow"))
+        assertEquals(parse("what's the weather in boston"), parse("What’s the weather in Boston"))
+    }
 }

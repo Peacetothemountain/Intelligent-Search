@@ -4,7 +4,6 @@ import android.app.job.JobInfo
 import android.app.job.JobParameters
 import android.app.job.JobScheduler
 import android.app.job.JobService
-import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
@@ -12,8 +11,6 @@ import android.os.PersistableBundle
 import android.util.Log
 import com.pixel.intelligentsearch.core.backup.AutoBackup
 import com.pixel.intelligentsearch.core.currency.CurrencyRateWork
-import com.pixel.intelligentsearch.feature.widget.CountdownWidgetProvider
-import com.pixel.intelligentsearch.feature.widget.DiscoverWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.WidgetDoodles
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -29,6 +26,9 @@ import java.util.concurrent.ConcurrentHashMap
  * The app's background jobs, each with a fixed id, run by Android's JobScheduler through [AppJobService]. The service
  * isn't direct-boot aware, so a job never runs before the user's first unlock after a restart, while scheduling one
  * then is fine. A force stop cancels them all; [StartupSync] arranges them again at the next start.
+ *
+ * Retired ids, never to be given out again: 1005 (the countdown widget's midnight redraw) and 1008 and 1009 (the
+ * Discover widget's redraw and calendar watch). One still waiting from an older version runs once into nothing.
  */
 enum class AppJob(val id: Int) {
     AUTO_BACKUP(1001) {
@@ -44,29 +44,11 @@ enum class AppJob(val id: Int) {
         override suspend fun run(context: Context, extras: PersistableBundle) =
             CurrencyRateWork.run(context, extras.getInt(CurrencyRateWork.ATTEMPT, 1))
     },
-    COUNTDOWN_MIDNIGHT(1005) {
-        override suspend fun run(context: Context, extras: PersistableBundle) {
-            AppWidgetManager.getInstance(context)?.let { CountdownWidgetProvider.redrawAll(context, it) }
-        }
-    },
     DOODLE_CHANGE(1006) {
         override suspend fun run(context: Context, extras: PersistableBundle) = WidgetDoodles.changeNow(context)
     },
     PALETTE_CHANGE(1007) {
         override suspend fun run(context: Context, extras: PersistableBundle) = WidgetPaletteWatch.changed(context)
-    },
-    /**
-     * The Discover widgets' regular redraw, with the forecast read again for the place set in the app only (it runs
-     * with the app out of view, so the phone's location is never read); each run arranges the next.
-     */
-    DISCOVER_REFRESH(1008) {
-        override suspend fun run(context: Context, extras: PersistableBundle) {
-            AppWidgetManager.getInstance(context)?.let { DiscoverWidgetProvider.redrawAll(context, it, DiscoverWidgetProvider.Refresh.WEATHER) }
-        }
-    },
-    /** The calendar changed while a Discover widget shows events. */
-    DISCOVER_CALENDAR(1009) {
-        override suspend fun run(context: Context, extras: PersistableBundle) = DiscoverWidgetProvider.calendarChanged(context)
     };
 
     abstract suspend fun run(context: Context, extras: PersistableBundle)

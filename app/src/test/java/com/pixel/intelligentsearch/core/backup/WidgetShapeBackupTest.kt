@@ -7,8 +7,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.data.IntelligentSearchDatabase
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
-import com.pixel.intelligentsearch.core.data.widget.CountdownEvent
-import com.pixel.intelligentsearch.core.data.widget.CountdownEventStore
 import com.pixel.intelligentsearch.core.data.widget.WidgetDefaults
 import com.pixel.intelligentsearch.core.data.widget.WidgetDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetSettingsStore
@@ -24,7 +22,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.io.File
-import java.time.LocalDate
 
 /** The widget's outline, corners and profiles come back from a backup; countdown events don't. */
 @RunWith(RobolectricTestRunner::class)
@@ -56,7 +53,6 @@ class WidgetShapeBackupTest {
         val dusk = WidgetProfileDesign(WidgetDesign.MATERIAL, store.load(WidgetDesign.SYSTEM, defaults), material.copy(cornerRadius = 20))
         profiles.saveState(3, dusk)
         prefs.edit().also { profiles.commit(it, active = 2, left = mapOf(3 to dusk), previousLive = dusk) }.commit()
-        CountdownEventStore(prefs).put(5, CountdownEvent("Halloween", LocalDate.of(2026, 10, 31), yearly = true))
         backup.exportToFile(uri, PASSPHRASE).getOrThrow()
 
         prefs.edit().clear().commit()
@@ -73,8 +69,6 @@ class WidgetShapeBackupTest {
         assertEquals(dusk, restoredProfiles.savedState(3, live))
         // Profile 1 was on the widget when profile 2 replaced it, so it keeps the design the widget had.
         assertEquals(dusk, restoredProfiles.design(1, live))
-        // A countdown belongs to a widget placed on this phone, by its id: it stays with the phone.
-        assertEquals(null, CountdownEventStore(prefs).get(5))
     }
 
     private companion object {

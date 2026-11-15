@@ -470,7 +470,7 @@ internal fun WeatherAhead(report: WeatherReport) {
             .onFirstSeen { seen = true }
             .padding(14.dp)
     ) {
-        // The first hour rain or snow is likely, worded as the Discover widget words it too.
+        // The first hour rain or snow is likely.
         val wet = RainAhead.hour(hours)
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (wet != null) {

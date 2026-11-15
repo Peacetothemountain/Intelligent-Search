@@ -306,7 +306,8 @@ object LiveAnswerParser {
     fun parse(rawQuery: String): LiveAnswerQuery? {
         val trimmed = rawQuery.trim()
         if (trimmed.isEmpty() || trimmed.length > MAX_TRANSLATE_CHARS + 40) return null
-        val lower = trimmed.lowercase(Locale.ROOT).replace(WHITESPACE, " ")
+        // "What’s the weather", as voice search and some keyboards write it, is "what's the weather".
+        val lower = trimmed.lowercase(Locale.ROOT).replace('’', '\'').replace('‘', '\'').replace(WHITESPACE, " ")
         // A trailing question mark or full stop is punctuation, except on a bare "word?", which it marks.
         val sentence = lower.trimEnd('?', '.', '!').trim()
         if (sentence.isEmpty()) return null

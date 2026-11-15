@@ -33,47 +33,6 @@
     <string name="widget_talkback_calculator">Calculator</string>
     <string name="widget_talkback_discover">Google Discover</string>
     <string name="widget_talkback_voice_nebula">Voice Nebula</string>
-
-    <!-- The Discover widget: the next calendar event and the weather. -->
-    <string name="widget_discover_label">Discover</string>
-    <string name="widget_discover_description">Your next event and the weather</string>
-    <!-- The widget picker's sample event and weather. -->
-    <string name="widget_discover_preview_label">UP NEXT</string>
-    <string name="widget_discover_preview_title">Dentist</string>
-    <string name="widget_discover_preview_time">3:30 PM</string>
-    <string name="widget_discover_preview_weather">63° Clear · H 68°</string>
-
-    <!-- The countdown widget: "9" over "days" under "Halloween" (in one row, "9 days · Halloween"). -->
-    <string name="widget_countdown_label">Countdown</string>
-    <string name="widget_countdown_description">Counts the days to or from a date you choose</string>
-    <plurals name="widget_countdown_days_left">
-        <item quantity="one">day</item>
-        <item quantity="other">days</item>
-    </plurals>
-    <plurals name="widget_countdown_days_ago">
-        <item quantity="one">day ago</item>
-        <item quantity="other">days ago</item>
-    </plurals>
-    <string name="widget_countdown_today">Today</string>
-    <string name="widget_countdown_set_up">Tap to choose a date</string>
-    <!-- One row high: what the days are (if anything), then the event: "days · Halloween". -->
-    <string name="widget_countdown_caption">%1$s · %2$s</string>
-    <!-- The widget picker's sample countdown. -->
-    <string name="widget_countdown_preview_title">Vacation</string>
-    <string name="widget_countdown_preview_days">12</string>
-    <string name="widget_countdown_preview_unit">days</string>
-    <!-- TalkBack: "9 days until Halloween, Saturday, October 31, search for Halloween". -->
-    <plurals name="widget_talkback_countdown_until">
-        <item quantity="one">%1$d day until %2$s</item>
-        <item quantity="other">%1$d days until %2$s</item>
-    </plurals>
-    <plurals name="widget_talkback_countdown_since">
-        <item quantity="one">%1$d day since %2$s</item>
-        <item quantity="other">%1$d days since %2$s</item>
-    </plurals>
-    <string name="widget_talkback_countdown_today">%1$s is today</string>
-    <string name="widget_talkback_countdown">%1$s, %2$s, search for %3$s</string>
-    <string name="widget_talkback_countdown_set_up">Countdown, not set up yet</string>
     <string name="search_hint">Search</string>
     <!-- Doodle days: TalkBack reads "<day> doodle, search for <day>", and tapping the doodle searches for the day. -->
     <string name="widget_talkback_doodle">%1$s doodle, search for %1$s</string>

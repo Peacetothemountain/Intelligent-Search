@@ -6,7 +6,7 @@ import com.pixel.intelligentsearch.core.system.WidgetUpdater
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
-/** [WidgetUpdater] for both search bar widget designs and the countdown widget ([SearchWidgetProvider.updateAllWidgets]). */
+/** [WidgetUpdater] for both search bar widget designs ([SearchWidgetProvider.updateAllWidgets]). */
 class SearchWidgetUpdater @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) : WidgetUpdater {

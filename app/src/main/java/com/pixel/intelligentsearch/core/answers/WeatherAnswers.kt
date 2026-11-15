@@ -180,7 +180,7 @@ data class WeatherReport(
     }
 }
 
-/** Rain or snow on the way: the first hour it is likely, and how Weather Ahead and the Discover widget word it. */
+/** Rain or snow on the way: the first hour it is likely, and how Weather Ahead words it. */
 object RainAhead {
     /** The first of [hours] with an even chance or more of rain or snow; null when none has. */
     fun hour(hours: List<WeatherHour>): WeatherHour? = hours.firstOrNull { (it.precipitation ?: 0) >= 50 }

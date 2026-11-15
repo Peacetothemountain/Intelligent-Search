@@ -34,6 +34,8 @@ class Dictation(private val context: Context) {
     val amplitude = mutableFloatStateOf(0f)
 
     private val main = Handler(Looper.getMainLooper())
+    /** The engine's own start and stop tones, kept quiet: the listening glow already shows when it listens. */
+    private val tones = QuietEarcons(context, main)
     private var recognizer: SpeechRecognizer? = null
     private val heard = mutableListOf<String>()
     private var pending = ""
@@ -106,6 +108,7 @@ class Dictation(private val context: Context) {
         phase.value = Phase.Finishing
         // Between sessions (or before the engine is ready) there are no last words to wait for.
         if (!live) { deliver(); return }
+        tones.hold()
         runCatching { recognizer?.stopListening() }
         main.postDelayed(finishTimeout, FINISH_WAIT_MS)
     }
@@ -238,6 +241,7 @@ class Dictation(private val context: Context) {
         main.removeCallbacks(languageTimeout)
         if (recognizer !== r || listeningStarted) return
         listeningStarted = true
+        tones.hold()
         try {
             r.startListening(recognizeIntent())
         } catch (e: Exception) {
@@ -265,6 +269,8 @@ class Dictation(private val context: Context) {
 
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
+            // The start tone plays as the engine becomes ready, which can be a moment after it was asked to listen.
+            tones.hold()
             live = true
             if (phase.value == Phase.Starting) phase.value = Phase.Listening
         }
@@ -379,6 +385,7 @@ class Dictation(private val context: Context) {
 
     private fun release() {
         recognizer?.let { r ->
+            tones.hold()
             runCatching { r.cancel() }
             runCatching { r.destroy() }
         }

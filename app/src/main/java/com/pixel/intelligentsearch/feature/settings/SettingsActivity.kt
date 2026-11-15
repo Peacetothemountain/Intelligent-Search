@@ -64,12 +64,6 @@ class SettingsActivity : ComponentActivity() {
         
         val isWidgetConfigure = isWidgetConfigure(intent)
         val appWidgetId = configuredWidgetId(this, intent)
-        // A countdown widget is set up on its own screen, which answers the launcher in this activity's place.
-        if (isWidgetConfigure && com.pixel.intelligentsearch.feature.widget.CountdownConfigActivity.isCountdownWidget(this, appWidgetId)) {
-            startActivity(com.pixel.intelligentsearch.feature.widget.CountdownConfigActivity.setupIntent(this, appWidgetId))
-            finish()
-            return
-        }
         if (appWidgetId != android.appwidget.AppWidgetManager.INVALID_APPWIDGET_ID) {
             val resultValue = android.content.Intent().putExtra(android.appwidget.AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
             setResult(RESULT_OK, resultValue)

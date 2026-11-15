@@ -305,11 +305,6 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
         val WIDGET_PROFILE_SAVED_DESIGNS: List<StringSetting> =
             (1..WidgetProfiles.PROFILE_COUNT).map { StringSetting("widget_profile_${it}_saved", "") }
         /**
-         * What each placed countdown widget counts down to, by widget id (CountdownEventStore), as JSON. Widget ids are
-         * this phone's own, so backups leave it out (BackupPreferenceSchema.DEVICE_LOCAL_KEYS).
-         */
-        val COUNTDOWN_EVENTS = StringSetting("countdown_widget_events", "{}")
-        /**
          * Launch Portal's extra ways to open search. Each is off by default and works only with its permission
          * (notifications; display over other apps), so a restore never switches one on.
          */
@@ -347,7 +342,7 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             TODAY_EXTRAS, TODAY_LEAVE_BY, TODAY_MEMORIES,
             RESULT_SHORTCUTS, WEATHER_HOME_LOCATION, TEMPERATURE_UNIT, FILES_EXCLUDED_FOLDERS,
             WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
-            WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE, COUNTDOWN_EVENTS,
+            WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE,
             AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL, AI_MODELS, AI_REASONING, AI_FAST_MODELS, AI_FAVORITE_MODELS,
             NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION
         ) + FILES_OPEN_WITH.values + WIDGET_PROFILE_DESIGNS + WIDGET_PROFILE_SAVED_DESIGNS
@@ -403,7 +398,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             "app_animations", "app.animation",
             // An icon shape and icon masking no screen ever offered or read, and the switch for the Lens, Voice and
             // Assistant rows under results, which had no place in settings: the rows always show.
-            "adaptive_icon_shape", "dynamic_icon_masking", "shortcut.inline", "shortcut_inline"
+            "adaptive_icon_shape", "dynamic_icon_masking", "shortcut.inline", "shortcut_inline",
+            // The countdown widget, removed, and the dates each placed one counted to.
+            "countdown_widget_events"
         )
 
         /**

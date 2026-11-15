@@ -741,4 +741,24 @@ class MathematicalExpressionEngineTest {
         assertEquals("10", computed("\$5 + \$5"))
         assertEquals("12", computed("15% of \$80"))
     }
+
+    @Test
+    fun aSumSaidInWordsIsWorkedOut() {
+        // As voice search writes down what was said.
+        assertEquals("81", computed("What's 9 times 9"))
+        assertEquals("81", computed("What’s 9 times 9"))
+        assertEquals("25", computed("What is 100 divided by 4"))
+        assertEquals("19", computed("12 plus 7"))
+        assertEquals("5", computed("12 minus 7"))
+        assertEquals("1024", computed("What's 2 to the power of 10"))
+        assertEquals("25", computed("5 squared"))
+        assertEquals("4", computed("square root of 16"))
+        assertEquals("12", computed("15 percent of 80"))
+        assertEquals("42", computed("6 multiplied by 7"))
+        // Words that aren't a sum stay a search.
+        assertNull(MathematicalExpressionEngine.evaluate("what is love"))
+        assertNull(MathematicalExpressionEngine.evaluate("times square"))
+        assertNull(MathematicalExpressionEngine.evaluate("plus size dresses"))
+        assertNull(MathematicalExpressionEngine.evaluate("game over"))
+    }
 }

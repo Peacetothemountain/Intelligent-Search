@@ -154,14 +154,7 @@ fun SearchOverlayScreen(
     // With Show Keyboard When Search Opens off, search opens as if the keyboard had been put away: the field waits for a tap.
     val savedKeyboardDismissed = rememberSaveable { mutableStateOf(!keyboardUpOnOpen(prefs)) }
     val ui = remember {
-        OverlayUiState(savedHasStartedTyping, savedKeyboardDismissed, initialQuery = uiState.query).apply {
-            // Opened from the Discover widget: the page is up from the first frame, so it arrives with the search's
-            // own entrance, and the keyboard stays down under it.
-            if (viewModel.takeDiscoverRequest()) {
-                todayOpen = true
-                isKeyboardDismissedByUser = true
-            }
-        }
+        OverlayUiState(savedHasStartedTyping, savedKeyboardDismissed, initialQuery = uiState.query)
     }
     var hasStartedTyping by ui::hasStartedTyping
     var textFieldValue by ui::textFieldValue
@@ -495,16 +488,6 @@ fun SearchOverlayScreen(
             ui.todayClosesAtOnce = true
             ui.todayOpen = false
         }
-    }
-    // The Discover widget tapped while this screen was still there (after the fresh open above closed the page).
-    val discoverRequests by viewModel.discoverRequests.collectAsStateWithLifecycle()
-    LaunchedEffect(discoverRequests) {
-        if (!viewModel.takeDiscoverRequest()) return@LaunchedEffect
-        ui.isKeyboardDismissedByUser = true
-        focusManager.clearFocus(force = true)
-        keyboardController?.hide()
-        ui.todayClosesAtOnce = false
-        ui.todayOpen = true
     }
     val voiceRequests by viewModel.voiceRequests.collectAsStateWithLifecycle()
     LaunchedEffect(voiceRequests) {
@@ -850,9 +833,10 @@ fun SearchOverlayScreen(
             speakingFor = null
         }
     }
-    // Says the answer to the [spoken] words and stays in search with it on screen. False when there is none to say,
-    // or when Enter would open something for these words (an app, a contact, a file, a timer to set): that still opens.
-    val speakAnswerTo: suspend (String) -> Boolean = speak@{ spoken ->
+    // Stays in search with the answer to the [spoken] words on screen, and says it aloud when [speak] (Speak Answers on).
+    // False when there is no answer to them, or when Enter would open something for these words (an app, a contact, a
+    // file, a timer to set): that still opens.
+    val answerSpoken: suspend (String, Boolean) -> Boolean = speak@{ spoken, speak ->
         viewModel.awaitSearch()
         var results = viewModel.uiState.value
         // The user typed on meanwhile; then these words are theirs no longer.
@@ -867,16 +851,20 @@ fun SearchOverlayScreen(
             } ?: viewModel.uiState.value
             if (results.query != spoken) return@speak true
         }
-        val sentence = SpokenAnswers.sentence(results) ?: return@speak false
-        speakingFor = spoken
-        answerSpeaker.speak(sentence)
+        val sentence = SpokenAnswers.sentence(results)
+        // A sum written in another base ("255 in hex") is an answer on screen, though not one to say.
+        if (sentence == null && results.mathResult == null) return@speak false
+        if (speak && sentence != null) {
+            speakingFor = spoken
+            answerSpeaker.speak(sentence)
+        }
         true
     }
-    // The check button's "go": once the results for the spoken words are in, an answer to them is read aloud; with
-    // none, they are acted on exactly as Enter would.
+    // The check button's "go": once the results for the spoken words are in, an answer to them stays on screen (and is
+    // read aloud with Speak Answers on); with none, they are acted on exactly as Enter would.
     LaunchedEffect(spokenQuery) {
         val spoken = spokenQuery ?: return@LaunchedEffect
-        if (!prefs[SettingsManager.SPEAK_ANSWERS] || !speakAnswerTo(spoken)) submitWhenSettled(spoken, true)
+        if (!answerSpoken(spoken, prefs[SettingsManager.SPEAK_ANSWERS])) submitWhenSettled(spoken, true)
         spokenQuery = null
     }
 

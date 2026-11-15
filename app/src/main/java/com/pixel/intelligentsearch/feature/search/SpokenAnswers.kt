@@ -23,7 +23,7 @@ internal object SpokenAnswers {
      * answered, where a search with no answer goes on to the web as Enter would.
      */
     fun mayAnswer(state: SearchUiState): Boolean =
-        sentence(state) != null || awaitsLiveAnswer(state)
+        sentence(state) != null || state.mathResult != null || awaitsLiveAnswer(state)
 
     /** True while a definition, forecast or screen time for the query may still arrive. */
     fun awaitsLiveAnswer(state: SearchUiState): Boolean {

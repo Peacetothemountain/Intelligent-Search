@@ -10,8 +10,6 @@ import androidx.test.core.app.ApplicationProvider
 import com.pixel.intelligentsearch.core.system.WidgetUpdater
 import com.pixel.intelligentsearch.di.AppModule
 import com.pixel.intelligentsearch.di.ApplicationScope
-import com.pixel.intelligentsearch.feature.widget.CountdownConfigActivity
-import com.pixel.intelligentsearch.feature.widget.CountdownWidgetProvider
 import com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider
 import dagger.hilt.android.testing.BindValue
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -56,11 +54,8 @@ class SettingsActivityWidgetConfigureTest {
     @Before fun setUp() {
         com.pixel.intelligentsearch.screenshots.disableHandRolledAnimations()
         val manager = AppWidgetManager.getInstance(context)
-        val countdown = AppWidgetProviderInfo().apply { provider = ComponentName(context, CountdownWidgetProvider::class.java) }
         val search = AppWidgetProviderInfo().apply { provider = ComponentName(context, SearchWidgetProvider::class.java) }
-        shadowOf(manager).addInstalledProvider(countdown)
         shadowOf(manager).addInstalledProvider(search)
-        shadowOf(manager).addBoundWidget(COUNTDOWN, countdown)
         shadowOf(manager).addBoundWidget(SEARCH, search)
     }
 
@@ -75,11 +70,7 @@ class SettingsActivityWidgetConfigureTest {
     fun aWidgetIdWithoutTheConfigureActionIsIgnored() {
         val search = created(intent(SEARCH, configure = false))
         assertNotEquals(Activity.RESULT_OK, shadowOf(search).resultCode)
-
-        val countdown = created(intent(COUNTDOWN, configure = false))
-        assertNotEquals(Activity.RESULT_OK, shadowOf(countdown).resultCode)
-        assertFalse("no countdown setup", shadowOf(countdown).nextStartedActivity?.component?.className == CountdownConfigActivity::class.java.name)
-        assertFalse(countdown.isFinishing)
+        assertFalse(search.isFinishing)
     }
 
     @Test
@@ -87,11 +78,6 @@ class SettingsActivityWidgetConfigureTest {
         val search = created(intent(SEARCH, configure = true))
         assertEquals(Activity.RESULT_OK, shadowOf(search).resultCode)
         assertEquals(SEARCH, shadowOf(search).resultIntent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
-
-        val countdown = created(intent(COUNTDOWN, configure = true))
-        val handOff = shadowOf(countdown).nextStartedActivity
-        assertEquals(CountdownConfigActivity::class.java.name, handOff.component?.className)
-        assertEquals(COUNTDOWN, handOff.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1))
     }
 
     @Test
@@ -115,7 +101,6 @@ class SettingsActivityWidgetConfigureTest {
     }
 
     private companion object {
-        const val COUNTDOWN = 11
         const val SEARCH = 12
         const val FOREIGN = 13
         const val UNBOUND = 14

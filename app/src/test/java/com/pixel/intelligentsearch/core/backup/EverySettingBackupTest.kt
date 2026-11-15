@@ -59,7 +59,7 @@ class EverySettingBackupTest {
      * is one: a new phone needs its own permissions and folders, so its checklist shows again.
      */
     private val staysOnThisPhone = setOf<SettingKey<*>>(
-        SettingsManager.COUNTDOWN_EVENTS, SettingsManager.FILES_EXCLUDED_FOLDERS, SettingsManager.SETUP_CHECKLIST_DISMISSED
+        SettingsManager.FILES_EXCLUDED_FOLDERS, SettingsManager.SETUP_CHECKLIST_DISMISSED
     )
 
     /**

@@ -76,6 +76,8 @@ class App : Application() {
         widgetPalette = DynamicThemeDetector.paletteFingerprint(this)
 
         setupStrictMode()
+        // Gives back the notification channel if a voice search's unmute was dropped after its screen closed.
+        registerActivityLifecycleCallbacks(com.pixel.intelligentsearch.feature.voice.QuietEarcons.LeftMutedCheck)
         deleteLegacyCrashLog()
         warmupServices()
     }

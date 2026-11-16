@@ -1,6 +1,7 @@
 package com.pixel.intelligentsearch.core.answers
 
 import com.pixel.intelligentsearch.core.util.Durations
+import com.pixel.intelligentsearch.core.util.queryIntentActivitiesCompat
 import android.app.AppOpsManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
@@ -22,7 +23,8 @@ data class ScreenTimeReport(val totalMs: Long, val topApps: List<ScreenTimeApp>)
 /**
  * Works out screen time from usage events the way Digital Wellbeing counts it: the time each app's activities were
  * in the foreground since midnight. An app already open at midnight counts from midnight; one still open counts up
- * to now; the screen turning off ends whatever was showing.
+ * to now; the screen turning off ends whatever was showing. The total is the time any counted app was on screen, so
+ * two apps side by side count that time once, though each app's own time includes it.
  */
 object ScreenTimeCalculator {
     /** The usage event kinds counted (UsageEvents.Event constants, so this stays testable off the phone). */
@@ -33,6 +35,9 @@ object ScreenTimeCalculator {
     const val DEVICE_SHUTDOWN = 26
 
     class Event(val packageName: String, val type: Int, val timeMs: Long, val className: String? = null)
+
+    /** Each counted app's foreground time, and the time any of them was on screen. */
+    class Tally(val perApp: Map<String, Long>, val onScreenMs: Long)
 
     /**
      * Foreground time per package between [startMs] and [endMs], leaving out [excluded] packages (the home screen).
@@ -45,16 +50,35 @@ object ScreenTimeCalculator {
         endMs: Long,
         excluded: Set<String> = emptySet(),
         eventsFromMs: Long = startMs
-    ): Map<String, Long> {
+    ): Map<String, Long> = tally(events, startMs, endMs, { it !in excluded }, eventsFromMs).perApp
+
+    /** [perApp] for the packages [counts] accepts, with the time any of them was on screen. */
+    fun tally(
+        events: List<Event>,
+        startMs: Long,
+        endMs: Long,
+        counts: (String) -> Boolean,
+        eventsFromMs: Long = startMs
+    ): Tally {
         val totals = HashMap<String, Long>()
+        // When each counted app was in front, to find the time any of them was.
+        val spans = ArrayList<LongArray>()
         // Open activities, by package and class: an app with two activities resumed at once is counted once.
         val openSince = HashMap<String, Long>()
         val openByPackage = HashMap<String, MutableSet<String>>()
         val seenAny = HashSet<String>()
+        val counted = HashMap<String, Boolean>()
+        fun isCounted(packageName: String) = counted.getOrPut(packageName) { counts(packageName) }
+
+        fun count(packageName: String, from: Long, to: Long) {
+            if (to <= from || !isCounted(packageName)) return
+            totals.merge(packageName, to - from, Long::plus)
+            spans += longArrayOf(from, to)
+        }
 
         fun close(packageName: String, at: Long) {
             val since = openSince.remove(packageName) ?: return
-            if (packageName !in excluded) totals.merge(packageName, (at - since).coerceAtLeast(0L), Long::plus)
+            count(packageName, since, at)
         }
 
         for (event in events.sortedBy { it.timeMs }) {
@@ -74,7 +98,7 @@ object ScreenTimeCalculator {
                         // before its next resumes: counted from midnight, that was 20 hours for 2 seconds).
                         seenAny += event.packageName
                         val openAtStart = eventsFromMs >= startMs
-                        if (openAtStart && event.packageName !in excluded) totals.merge(event.packageName, (at - startMs).coerceAtLeast(0L), Long::plus)
+                        if (openAtStart) count(event.packageName, startMs, at)
                     } else if (activities != null) {
                         activities -= event.className.orEmpty()
                         if (activities.isEmpty()) close(event.packageName, at)
@@ -89,14 +113,36 @@ object ScreenTimeCalculator {
             }
         }
         for (packageName in openSince.keys.toList()) close(packageName, endMs)
-        return totals.filterValues { it > 0L }
+        return Tally(totals.filterValues { it > 0L }, mergedLength(spans))
     }
 
-    /** The report for [perApp] durations: their total and the [top] longest, named by [label]. */
-    fun report(perApp: Map<String, Long>, top: Int = 5, label: (String) -> String?): ScreenTimeReport {
+    /** How long [spans] cover, counting a stretch they share once. */
+    private fun mergedLength(spans: MutableList<LongArray>): Long {
+        spans.sortBy { it[0] }
+        var total = 0L
+        var from = Long.MIN_VALUE
+        var to = Long.MIN_VALUE
+        for ((start, end) in spans) {
+            if (start > to) {
+                if (to > from) total += to - from
+                from = start
+                to = end
+            } else if (end > to) {
+                to = end
+            }
+        }
+        if (to > from) total += to - from
+        return total
+    }
+
+    /**
+     * The report for [perApp] durations: [totalMs] (by default their sum; [Tally.onScreenMs] counts time two apps
+     * shared once) and the [top] longest, named by [label].
+     */
+    fun report(perApp: Map<String, Long>, top: Int = 5, totalMs: Long = perApp.values.sum(), label: (String) -> String?): ScreenTimeReport {
         val named = perApp.entries.sortedByDescending { it.value }
             .mapNotNull { (pkg, ms) -> label(pkg)?.let { ScreenTimeApp(pkg, it, ms) } }
-        return ScreenTimeReport(perApp.values.sum(), named.take(top))
+        return ScreenTimeReport(totalMs, named.take(top))
     }
 
     /** "3 hr 12 min", "45 min", "Under 1 min", in the app's one duration style ([Durations.minutes]). */
@@ -133,11 +179,15 @@ class ScreenTimeRepository(private val context: Context) {
             raw.getNextEvent(event)
             events += ScreenTimeCalculator.Event(event.packageName ?: continue, event.eventType, event.timeStamp, event.className)
         }
-        // The home screen isn't screen time to anyone; Digital Wellbeing leaves it out too.
+        // Like Digital Wellbeing, only apps with an icon in the app drawer count: not the home screen, the system UI,
+        // or the screen saver on a charging Pixel (an hour a day logged under a system app with no icon).
         val excluded = setOfNotNull(homePackage(), "com.android.systemui")
-        val perApp = ScreenTimeCalculator.perApp(events, midnight, nowMs, excluded, eventsFromMs = eventsFrom)
+        val withIcons = appsWithIcons()
+        // An app list that couldn't be read leaves only the home screen and system UI out, as before.
+        val counts: (String) -> Boolean = if (withIcons.isEmpty()) { pkg -> pkg !in excluded } else { pkg -> pkg in withIcons && pkg !in excluded }
+        val tally = ScreenTimeCalculator.tally(events, midnight, nowMs, counts, eventsFromMs = eventsFrom)
         val pm = context.packageManager
-        return ScreenTimeCalculator.report(perApp) { pkg ->
+        return ScreenTimeCalculator.report(tally.perApp, totalMs = tally.onScreenMs) { pkg ->
             runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() }.getOrNull()
         }
     }
@@ -146,6 +196,11 @@ class ScreenTimeRepository(private val context: Context) {
         context.packageManager.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
             ?.activityInfo?.packageName
     }.getOrNull()
+
+    private fun appsWithIcons(): Set<String> = runCatching {
+        context.packageManager.queryIntentActivitiesCompat(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER))
+            .mapTo(HashSet()) { it.activityInfo.packageName }
+    }.getOrDefault(emptySet())
 
     private companion object {
         const val LOOK_BACK_MS = 24 * 60 * 60 * 1000L

@@ -76,6 +76,18 @@ class ScreenTimeCalculatorTest {
     }
 
     @Test
+    fun twoAppsSideBySideCountTheirSharedTimeOnceInTheTotal() {
+        // Split screen: both apps are in front from 10 to 20; each app's time includes it, the day's total once.
+        val events = listOf(
+            Event("maps", RESUMED, 10 * minute), Event("chat", RESUMED, 10 * minute),
+            Event("chat", PAUSED, 20 * minute), Event("maps", PAUSED, 30 * minute)
+        )
+        val tally = ScreenTimeCalculator.tally(events, start, end, { true })
+        assertEquals(mapOf("maps" to 20 * minute, "chat" to 10 * minute), tally.perApp)
+        assertEquals(20 * minute, tally.onScreenMs)
+    }
+
+    @Test
     fun theReportTotalsEverythingAndNamesTheTopFive() {
         val perApp = (1..7).associate { "app$it" to it * minute } + ("gone" to 100 * minute)
         val report = ScreenTimeCalculator.report(perApp) { pkg -> if (pkg == "gone") null else pkg.uppercase() }

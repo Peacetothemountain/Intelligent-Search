@@ -34,11 +34,21 @@ import com.pixel.intelligentsearch.core.ui.WeatherLocationOneBox
 import com.pixel.intelligentsearch.core.ui.WeatherOneBox
 import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 
-/** Where today's screen time is broken down in full: Digital Wellbeing (Pixel's, or Samsung's), if the phone has it. */
-internal fun digitalWellbeingIntent(context: Context): Intent? =
-    listOf("com.google.android.apps.wellbeing", "com.samsung.android.forest")
-        .firstNotNullOfOrNull { context.packageManager.getLaunchIntentForPackage(it) }
-        ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+/**
+ * Where today's screen time is broken down in full: Digital Wellbeing (Pixel's, or Samsung's), if the phone has it.
+ * Pixel's lives in Settings with no app icon unless the user adds one, so it has no launch intent; its own dashboard
+ * (each app's time today) is opened by the action it exports for that.
+ */
+internal fun digitalWellbeingIntent(context: Context): Intent? {
+    val pm = context.packageManager
+    val pixelDashboard = Intent(PIXEL_WELLBEING_DASHBOARD).setPackage(PIXEL_WELLBEING)
+    val found = pixelDashboard.takeIf { pm.resolveActivityCompat(it) != null }
+        ?: listOf(PIXEL_WELLBEING, "com.samsung.android.forest").firstNotNullOfOrNull { pm.getLaunchIntentForPackage(it) }
+    return found?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+}
+
+private const val PIXEL_WELLBEING = "com.google.android.apps.wellbeing"
+private const val PIXEL_WELLBEING_DASHBOARD = "com.google.android.apps.wellbeing.action.APP_USAGE_DASHBOARD"
 
 
 /**

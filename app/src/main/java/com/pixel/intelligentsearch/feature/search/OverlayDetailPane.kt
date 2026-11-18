@@ -69,7 +69,6 @@ import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.search.AndroidSettingResult
-import com.pixel.intelligentsearch.core.ui.MathResultOneBox
 import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveCornerTokens
 import com.pixel.intelligentsearch.core.ui.expressive.MatteShell
 import com.pixel.intelligentsearch.core.util.findActivity
@@ -91,13 +90,30 @@ private const val MEDIUM_HEIGHT_DP = 480f
 
 /**
  * The result the detail pane shows: the one the keyboard highlights, else (with something typed) the top result, as
- * Enter would open it.
+ * Enter would open it. Stops for which [shownInFull] is true are skipped: their whole card is already in the list, so
+ * the pane shows the next result instead of the same card a second time.
  */
-internal fun detailStop(rows: List<List<NavStop>>, highlightedKey: String?, query: String): NavStop? =
-    rows.flatten().firstOrNull { it.key == highlightedKey }
+internal fun detailStop(
+    rows: List<List<NavStop>>,
+    highlightedKey: String?,
+    query: String,
+    shownInFull: (NavStop) -> Boolean = { false }
+): NavStop? =
+    rows.flatten().firstOrNull { it.key == highlightedKey }?.takeUnless(shownInFull)
         // The chip and the line of a search limited to one kind of result lead the list, but aren't results.
-        ?: rows.firstOrNull { it.first().target !is NavTarget.RemoveScope && it.first().target != NavTarget.OpenSearchSources }
+        ?: rows.firstOrNull { it.first().target !is NavTarget.RemoveScope && it.first().target != NavTarget.OpenSearchSources && !shownInFull(it.first()) }
             ?.firstOrNull()?.takeIf { query.isNotEmpty() }
+
+/**
+ * Whether the list already shows all of [stop]: an answer's card (weather, a definition, a conversion, a live or AI
+ * answer) and an At a Glance item are drawn whole in the list. A calculation is the exception while it has other forms
+ * to show ([numberForms]), which its card doesn't.
+ */
+private fun shownInFullInList(stop: NavStop, mathHasOtherForms: Boolean): Boolean = when (stop.target) {
+    is NavTarget.Answer -> !(stop.listKey == ResultListKeys.MATH && mathHasOtherForms)
+    is NavTarget.Glance -> true
+    else -> false
+}
 
 /**
  * The detail pane beside the results on an expanded screen, for the highlighted or top result ([detailStop]): an app
@@ -107,7 +123,10 @@ internal fun detailStop(rows: List<List<NavStop>>, highlightedKey: String?, quer
  */
 @Composable
 internal fun OverlayDetailPane(s: OverlayScope, modifier: Modifier = Modifier) {
-    val stop = detailStop(s.navRows, s.ui.highlightedKey, s.uiState.query)
+    val mathResult = s.uiState.mathResult.orEmpty()
+    val query = s.uiState.query
+    val forms = remember(mathResult, query) { if (mathResult.isEmpty()) emptyList() else numberForms(mathResult, value = mathValue(query, mathResult)) }
+    val stop = detailStop(s.navRows, s.ui.highlightedKey, query) { shownInFullInList(it, forms.isNotEmpty()) }
     val context = LocalContext.current
     val scroll = rememberScrollState()
     BoxWithConstraints(
@@ -126,39 +145,12 @@ internal fun OverlayDetailPane(s: OverlayScope, modifier: Modifier = Modifier) {
             verticalArrangement = if (s.settingsState.bottomSearch) Arrangement.Bottom else Arrangement.Top
         ) {
             when {
-                stop == null -> DetailEmpty()
-                // The answer's own card, across the whole pane.
-                stop.target is NavTarget.Answer -> when (stop.listKey) {
-                    // The list already shows the answer's card, so the pane shows only what the card can't: the
-                    // number written the other ways (bases, grouping, fraction), each copied with a tap. With no
-                    // other forms it falls back to the card so the pane isn't empty.
-                    ResultListKeys.MATH -> {
-                        val result = s.uiState.mathResult.orEmpty()
-                        val query = s.uiState.query
-                        val forms = remember(result, query) { numberForms(result, value = mathValue(query, result)) }
-                        if (forms.isNotEmpty()) {
-                            NumberFormsCard(forms)
-                        } else {
-                            MathResultOneBox(
-                                expression = s.uiState.query,
-                                result = result,
-                                onOpenCalculator = { openNavTarget(context, s, stop.target) }
-                            )
-                        }
-                    }
-                    ResultListKeys.LIVE_ANSWER -> s.uiState.liveAnswer?.let { OverlayLiveAnswer(s, it) }
-                    ResultListKeys.INSTANT_ANSWER -> s.uiState.instantAnswer?.let { OverlayInstantAnswer(s, it) }
-                    ResultListKeys.AI_ANSWER -> s.uiState.aiAnswer?.let { answer ->
-                        AiAnswerCard(
-                            answer,
-                            model = rememberAiModel(answer.provider),
-                            onOpenSettings = { page -> s.onOpenSettings(page) },
-                            onRetry = { s.viewModel.askAi() }
-                        ) { openNavTarget(context, s, stop.target) }
-                    }
-                }
-                // The highlighted item in the At a Glance card, the card across the pane as the answers are.
-                stop.target is NavTarget.Glance -> GlanceCard(listOf(stop.target.item), onOpened = { s.ui.hasStartedTyping = false }, fullWidth = true)
+                // With something typed and only answers to show, the list holds all of it and the pane stays empty.
+                stop == null -> if (query.isEmpty()) DetailEmpty()
+                // The list already shows the answers' cards whole (shownInFullInList), so the only answer the pane
+                // gets is a calculation's: what its card can't show, the number written the other ways (bases,
+                // grouping, fraction), each copied with a tap.
+                stop.target is NavTarget.Answer -> NumberFormsCard(forms)
                 else -> DetailCard(s, stop.target)
             }
         }
@@ -329,7 +321,7 @@ private fun ColumnScope.DetailContent(s: OverlayScope, target: NavTarget) {
             DetailTitle(entry.title.ifBlank { entry.appLabel }, notificationDetail(entry, System.currentTimeMillis()))
             DetailActions { DetailAction("Open", Icons.AutoMirrored.Outlined.ArrowForward, emphasized = true, onClick = open) }
         }
-        is NavTarget.Answer, is NavTarget.Glance -> Unit // drawn as their own cards by OverlayDetailPane
+        is NavTarget.Answer, is NavTarget.Glance -> Unit // shown whole in the list, or as their other forms (OverlayDetailPane)
     }
 }
 

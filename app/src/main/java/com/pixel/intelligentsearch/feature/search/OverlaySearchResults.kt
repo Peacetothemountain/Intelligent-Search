@@ -30,6 +30,7 @@ import com.pixel.intelligentsearch.core.ui.icons.rounded.*
 import com.pixel.intelligentsearch.core.ui.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -183,6 +184,20 @@ private fun ResultRows(s: OverlayScope) {
             .collect { listPosition.atTop = it }
     }
     if (!inlineShortcutsFirst && listPosition.atTop) searchResultsListState.requestScrollToItem(0)
+    // With the rows first, a list just tall enough for them cut the top result off flat at the search bar (a 4:3
+    // unfolded screen, a phone with the keyboard up): while the list shows its top, the top result is scrolled fully
+    // into view as it arrives and as it grows (a forecast coming in), the rows above it leaving at the top edge.
+    val topResultKey = if (inlineShortcutsFirst) s.navRows.firstOrNull()?.firstOrNull()?.listKey else null
+    LaunchedEffect(searchResultsListState, topResultKey) {
+        if (topResultKey == null) return@LaunchedEffect
+        snapshotFlow { searchResultsListState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == topResultKey }?.size }
+            .distinctUntilChanged()
+            .collect {
+                val list = searchResultsListState
+                val shownFirst = list.layoutInfo.visibleItemsInfo.firstOrNull()?.key
+                if (!list.isScrollInProgress && shownFirst in INLINE_SHORTCUT_KEYS) list.scrollIntoView(topResultKey, towardEnd = true, animate = false)
+            }
+    }
     // The keyboard's highlight is scrolled into view as it moves.
     val highlightedKey = s.ui.highlightedKey
     val animationsOn by com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled()
@@ -774,6 +789,9 @@ private fun ResultRows(s: OverlayScope) {
 
 /** Below this window height (the height Material counts as compact: a phone on its side) a window is short. */
 private val SHORT_WINDOW_HEIGHT = 480.dp
+
+/** The keys of the Lens, Voice and Assistant rows and the line over them. */
+private val INLINE_SHORTCUT_KEYS = setOf("inline_shortcuts_divider", "lens_shortcut", "voice_shortcut", "assistant_shortcut")
 
 /** Whether the results list was last seen at its very top; a plain field, so reading it recomposes nothing. */
 private class ListTopFlag {

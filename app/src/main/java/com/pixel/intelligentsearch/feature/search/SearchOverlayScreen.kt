@@ -1110,6 +1110,10 @@ fun SearchOverlayScreen(
                     // Nearly edge to edge: just enough margin to keep the panel's rounded outline on screen.
                     .padding(horizontal = 4.dp)
                     .padding(bottom = 16.dp)
+                    // Starts below the status bar on every screen. Without a camera cutout up there (a phone on its
+                    // side, a 4:3 inner screen), only the cutout was padded and the panel ran up under the status
+                    // bar, the results cut off beneath its icons.
+                    .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
                     .graphicsLayer {
                         val progress = overlayProgressAnim.value.coerceIn(0.001f, 1f)
                         val backProg = predictiveBackProgress.value.coerceIn(0f, 1f)
@@ -1212,6 +1216,16 @@ fun SearchOverlayScreen(
                                     if (searchResultsListState.canScrollForward) {
                                         Modifier.progressiveEdgeBlur(
                                             edge = ProgressiveBlurDirection.BottomToTop,
+                                            edgeHeight = 18.dp,
+                                            maxBlur = 10.dp
+                                        )
+                                    } else Modifier
+                                )
+                                // And as they leave at the top, where the panel's edge would cut them off flat.
+                                .then(
+                                    if (searchResultsListState.canScrollBackward) {
+                                        Modifier.progressiveEdgeBlur(
+                                            edge = ProgressiveBlurDirection.TopToBottom,
                                             edgeHeight = 18.dp,
                                             maxBlur = 10.dp
                                         )

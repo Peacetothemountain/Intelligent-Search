@@ -40,7 +40,7 @@ class RatingAskTest {
     fun feedbackIsAnEmailToTheDeveloperNamingTheVersion() {
         val intent = RatingAsk.feedbackIntent("9.6.1")
         assertEquals(Intent.ACTION_SENDTO, intent.action)
-        assertEquals("mailto:support.ngdesigns@gmail.com", intent.data.toString())
+        assertEquals("mailto:support.ngdesigns@gmail.com?subject=Intelligent%20Search%20feedback%20(9.6.1)", intent.data.toString())
         assertEquals("Intelligent Search feedback (9.6.1)", intent.getStringExtra(Intent.EXTRA_SUBJECT))
         assertEquals("Intelligent Search feedback", RatingAsk.feedbackIntent("").getStringExtra(Intent.EXTRA_SUBJECT))
     }

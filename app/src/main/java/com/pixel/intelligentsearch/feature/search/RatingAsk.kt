@@ -82,10 +82,16 @@ internal object RatingAsk {
         }
     }
 
-    internal fun feedbackIntent(version: String): Intent =
-        Intent(Intent.ACTION_SENDTO, "mailto:$SUPPORT_ADDRESS".toUri())
-            .putExtra(Intent.EXTRA_SUBJECT, "Intelligent Search feedback${if (version.isBlank()) "" else " ($version)"}")
+    /**
+     * The subject is in the mailto address itself as well as in the subject extra: Gmail takes a SENDTO email's subject
+     * from the address and left it empty with the extra alone.
+     */
+    internal fun feedbackIntent(version: String): Intent {
+        val subject = "Intelligent Search feedback${if (version.isBlank()) "" else " ($version)"}"
+        return Intent(Intent.ACTION_SENDTO, "mailto:$SUPPORT_ADDRESS?subject=${android.net.Uri.encode(subject)}".toUri())
+            .putExtra(Intent.EXTRA_SUBJECT, subject)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
 
     private fun versionName(context: Context): String = try {
         context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()

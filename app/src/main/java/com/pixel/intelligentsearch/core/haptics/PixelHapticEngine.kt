@@ -82,6 +82,26 @@ class PixelHapticEngine @Inject constructor(@param:ApplicationContext private va
         perform(view, GestureThreshold.DEACTIVATE)
     }
 
+    /**
+     * Gallery's swatch fan, the one place with its own feel: a strip passing plays the frequent-segment tick and a
+     * strip landing on a new look the confirm. Like every haptic here, nothing plays with the Vibration setting off.
+     */
+    fun performFanPass(view: View) = performViewEffect(
+        view,
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) HapticFeedbackConstants.SEGMENT_FREQUENT_TICK
+        else HapticFeedbackConstants.CLOCK_TICK
+    )
+
+    fun performFanLand(view: View) = performViewEffect(view, HapticFeedbackConstants.CONFIRM)
+
+    private fun performViewEffect(view: View, constant: Int) {
+        val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
+        if (!prefs[SettingsManager.VIBRATION]) return
+        try {
+            view.performHapticFeedback(constant, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING)
+        } catch (_: Exception) {}
+    }
+
     private fun perform(view: View?, threshold: GestureThreshold) {
         val prefs = context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
         if (!prefs[SettingsManager.VIBRATION]) return

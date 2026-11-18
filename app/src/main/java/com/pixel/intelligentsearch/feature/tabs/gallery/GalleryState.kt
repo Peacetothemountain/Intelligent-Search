@@ -43,6 +43,10 @@ internal class GalleryState(val today: LocalDate) {
     var opens by mutableIntStateOf(0)
     private var seq = 0
     private var attached = false
+    /** Every setting a look touches as it was before [before] was replaced: what Undo and the Before tile put back. */
+    private var undoTo by mutableStateOf<Look?>(null)
+    /** The stored value as this session last wrote or read it: anything else there (a restore) is read in again. */
+    @Volatile private var known: String? = null
 
     /**
      * Look of the week, fixed for the whole week: picked once (skipping the look that was on then) and kept on the phone,
@@ -64,10 +68,23 @@ internal class GalleryState(val today: LocalDate) {
         val app = context.applicationContext
         this.context = app
         val prefs = GalleryLive.prefs(app)
+        load(app, prefs)
+        scope.launch {
+            snapshotFlow { GalleryKept(current, before, saved.toList(), seq, row, week to hero.id, undoTo) }
+                .drop(1)
+                .collect { k -> withContext(Dispatchers.IO) { known = GalleryDisk.write(prefs, k) } }
+        }
+    }
+
+    /** Reads what is stored into the session: the looks, the row, the look of the week and the look that is on. */
+    private fun load(app: Context, prefs: android.content.SharedPreferences) {
+        known = GalleryDisk.raw(prefs)
+        GalleryLive.refreshG(app)
         val disk = GalleryDisk.read(prefs)
+        before = disk?.before
+        undoTo = disk?.undoTo
+        saved.clear()
         disk?.let { k ->
-            before = k.before
-            saved.clear()
             saved.addAll(k.saved)
             seq = maxOf(seq, k.seq)
             row = k.row
@@ -75,18 +92,18 @@ internal class GalleryState(val today: LocalDate) {
         current = disk?.current?.takeIf { GalleryLive.isOn(app, it) } ?: GalleryLive.read(app)
         val kept = disk?.hero?.takeIf { it.first == week }?.let { (_, id) -> BUILT_IN_LOOKS.firstOrNull { it.id == id } }
         hero = kept ?: lookOfTheWeek(today, current.id)
-        val heroKept = week to hero.id
-        scope.launch {
-            snapshotFlow { GalleryKept(current, before, saved.toList(), seq, row, heroKept) }
-                .drop(1)
-                .collect { k -> withContext(Dispatchers.IO) { GalleryDisk.write(prefs, k) } }
-        }
     }
 
-    /** Back on the page: the settings may have changed meanwhile (Widget Customization, a restore). */
+    /**
+     * Back on the page: the settings may have changed meanwhile (Widget Customization, a restore). A restore replaces
+     * what Gallery kept, so a stored value this session didn't write is read in whole, never written over.
+     */
     fun resync() {
         val app = context ?: return
-        if (!GalleryLive.isOn(app, current)) current = GalleryLive.read(app)
+        val prefs = GalleryLive.prefs(app)
+        GalleryLive.refreshG(app)
+        if (GalleryDisk.raw(prefs) != known) load(app, prefs)
+        else if (!GalleryLive.isOn(app, current)) current = GalleryLive.read(app)
     }
 
     /** Puts [look] on the real widget and search page. */
@@ -149,7 +166,11 @@ internal class GalleryState(val today: LocalDate) {
                 kept = true
             } else if (!force) return Commit.AskKeep
         }
-        write(look)
+        // A built-in look leaves the theme, the G and the clock as they are, so the way back is the settings as they are
+        // now, every field set, not the look that was on.
+        val snapshot = context?.let { GalleryLive.read(it) }
+        write(if (restore) undoTo ?: look else look)
+        undoTo = snapshot
         before = prevKept
         current = look
         if (restore) return Commit.Done(Snack("Your look from before is back on your search bar and search page."))
@@ -160,7 +181,9 @@ internal class GalleryState(val today: LocalDate) {
 
     fun undo(): Boolean {
         val b = before ?: return false
-        write(b)
+        val snapshot = context?.let { GalleryLive.read(it) }
+        write(undoTo ?: b)
+        undoTo = snapshot
         before = current
         current = b
         return true

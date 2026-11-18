@@ -91,7 +91,9 @@ class PageSwap<T : Any>(initial: T) {
 
     /** Where [page] sits now, in page widths from its place (0 = in place, 1 = one page width to the right). */
     fun offsetOf(page: T): Float {
-        val p = progress.value
+        // A page never passes its place: the spring's overshoot would uncover a strip of what is under the pages (the
+        // wallpaper, while Gallery is in sight). The pill's indicator reads [progress] itself and keeps the bounce.
+        val p = progress.value.coerceIn(0f, 1f)
         return when (page) {
             front -> direction * (1f - p)
             behind -> -direction * p

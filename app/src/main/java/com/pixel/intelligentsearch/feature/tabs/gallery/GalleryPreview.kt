@@ -432,10 +432,12 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
     // Status bar icons suit what is behind them: the wallpaper, or the search page's light or dark.
     val wallDarkIcons = rememberWallpaperWantsDarkIcons()
     val meshColors = rememberWallpaperColors()
+    // Leaving, the icons suit the app's theme as it is then: Apply may have changed it while the preview was up, and the
+    // theme doesn't set them again on its own.
+    val appDark = androidx.compose.runtime.rememberUpdatedState(MaterialTheme.colorScheme.isDark)
     DisposableEffect(window) {
         val c = window?.let { WindowCompat.getInsetsController(it, it.decorView) }
-        val was = c?.isAppearanceLightStatusBars
-        onDispose { if (c != null && was != null) c.isAppearanceLightStatusBars = was }
+        onDispose { if (c != null) c.isAppearanceLightStatusBars = !appDark.value }
     }
     val ownTopLight = if (store != null && wallpaper != null) store.palettes[wallpaper.id]?.lightTop ?: (Color(wallpaper.base).luminance() > 0.5f) else null
     LaunchedEffect(pv.search, searchDark, q.wallpaper, wallDarkIcons, ownTopLight, host.backdrop) {
@@ -622,7 +624,7 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
                     of, host.phoneDark, blurAvailable, dx, reveal,
                     top = top,
                     bottom = tbTop - with(density) { 16.dp.toPx() } - noteMax,
-                    fieldShift = { (barY.value - top - with(density) { 8.dp.toPx() }) * (1f - pv.searchReveal.value) }
+                    fieldShift = { at -> (barY.value - top - at - with(density) { 8.dp.toPx() }) * (1f - pv.searchReveal.value) }
                 )
             }
         }
@@ -755,9 +757,11 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
 @Composable
 private fun SearchPagePane(
     look: Look, phoneDark: Boolean, blurAvailable: Boolean, dx: Float, reveal: Float, top: Float, bottom: Float,
-    fieldShift: () -> Float
+    fieldShift: (Float) -> Float
 ) {
     val density = LocalDensity.current
+    val context = LocalContext.current
+    val layout = remember(context) { GalleryLive.pageLayout(context) }
     val schemes = rememberLookSchemes(look)
     val searchScheme = schemes.of(look.appDark(phoneDark))
     val q = look.search
@@ -780,7 +784,7 @@ private fun SearchPagePane(
                 .heightIn(max = with(density) { (bottom - top).coerceAtLeast(0f).toDp() })
                 .semantics(mergeDescendants = true) { contentDescription = "Sample results. Nothing here is searched or saved." }
         ) {
-            SearchPageContent(look, reveal = { reveal }, fieldShift = fieldShift)
+            SearchPageContent(look, reveal = { reveal }, fieldShift = fieldShift, layout = layout)
         }
     }
 }

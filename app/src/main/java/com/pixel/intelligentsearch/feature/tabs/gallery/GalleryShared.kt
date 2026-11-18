@@ -175,25 +175,24 @@ internal fun Modifier.bakedBlur(
 }
 
 /**
- * The cards' haptics, Android 16 and later's gesture feedback through the View, so the phone's own haptics setting
- * applies: a light tick when a card is picked up, a frequent-segment tick as a card passes another, and a firmer
- * thump when a card comes to rest in its slot.
+ * The cards' haptics, through the app's haptic engine so its Vibration setting applies: a light tick when a card is
+ * picked up, a frequent-segment tick as a card passes another, and a firmer thump when a card comes to rest in its slot.
  */
 internal object CardHaptics {
     /** Picking a strip up is the lightest moment: the same faint texture tick a strip passing makes. */
     fun start(view: android.view.View) = pass(view)
 
     fun pass(view: android.view.View) {
-        view.performHapticFeedback(
-            if (android.os.Build.VERSION.SDK_INT >= 34) android.view.HapticFeedbackConstants.SEGMENT_FREQUENT_TICK
-            else android.view.HapticFeedbackConstants.CLOCK_TICK
-        )
+        engine(view)?.performFanPass(view)
     }
 
     /** A strip coming to rest on a new look is the one that registers: the firmer confirm. */
     fun land(view: android.view.View) {
-        view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+        engine(view)?.performFanLand(view)
     }
+
+    private fun engine(view: android.view.View) =
+        runCatching { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(view.context) }.getOrNull()
 }
 
 /**
@@ -204,7 +203,7 @@ internal object CardHaptics {
 internal fun LookWindowBox(
     look: Look, phoneDark: Boolean, w: Dp, h: Dp, shape: Shape, modifier: Modifier = Modifier,
     register: ((LayoutCoordinates) -> Unit)? = null, registerBar: ((LayoutCoordinates) -> Unit)? = null,
-    badge: Boolean = false, onClick: (() -> Unit)? = null, content: @Composable () -> Unit = {}
+    badge: Boolean = false, onClick: (() -> Unit)? = null, label: String = look.name, content: @Composable () -> Unit = {}
 ) {
     Box(
         modifier
@@ -212,7 +211,7 @@ internal fun LookWindowBox(
             .then(if (register != null) Modifier.onGloballyPositioned(register) else Modifier)
             .lookWindow(look, shape)
             .clip(shape)
-            .then(if (onClick != null) Modifier.bouncyTry(shape, look.name, onClick).semantics { contentDescription = "Try ${look.name}" } else Modifier),
+            .then(if (onClick != null) Modifier.bouncyTry(shape, label, onClick).semantics { contentDescription = "Try $label" } else Modifier),
         contentAlignment = Alignment.Center
     ) {
         Box(if (registerBar != null) Modifier.onGloballyPositioned(registerBar) else Modifier) {

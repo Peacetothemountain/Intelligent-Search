@@ -13,7 +13,7 @@ import com.pixel.intelligentsearch.feature.tabs.ui.findActivity
  * the back gesture is held): Android plays only the arrow for it. So the window shows the wallpaper only while a page
  * that looks through to it is in sight (Gallery), and Settings, where back leaves the app, never does.
  *
- * The window is translucent from its start (MainActivity), so turning this on later is safe: the wallpaper shows at
+ * The window is translucent from its start (SettingsActivity.onCreate), so turning this on later is safe: the wallpaper shows at
  * once, behind every frame, and the window's buffer is cleared between frames (on the Pixel 11 Pro XL, Android 17,
  * switched on and off five times in a row it showed the wallpaper each time).
  */

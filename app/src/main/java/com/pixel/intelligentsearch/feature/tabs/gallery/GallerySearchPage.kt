@@ -35,6 +35,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -380,17 +384,47 @@ private fun GlanceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, tit
 /**
  * The search page's empty state with fixed sample content: the search bar, quick apps, the At a Glance card and two
  * sample results (a setting and a calculation). Drawn in the look's light or dark, always in the phone's colors.
- * [reveal] (0 to 1) opens each part in height in turn; nothing fades.
+ * [reveal] (0 to 1) opens each part in height in turn; nothing fades. As on the person's real page, the bar is at the
+ * bottom when theirs is ([layout] fills the height given then) and the clock shows only when theirs does.
+ * [fieldShift] gets the bar's top in the page and gives how far it is moved from there.
  */
 @Composable
-internal fun SearchPageContent(look: Look, reveal: () -> Float, fieldShift: () -> Float, modifier: Modifier = Modifier) {
-    val scheme = MaterialTheme.colorScheme
+internal fun SearchPageContent(
+    look: Look, reveal: () -> Float, fieldShift: (Float) -> Float, layout: GalleryLive.PageLayout, modifier: Modifier = Modifier
+) {
     val clock = look.search.clock ?: "cookie"
+    val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+    var barTop by remember { mutableFloatStateOf(0f) }
+    val bar = @Composable {
+        Box(
+            Modifier
+                .onPlaced { barTop = it.positionInParent().y }
+                .graphicsLayer { translationY = fieldShift(barTop) }
+        ) { SearchBarPreview(look) }
+    }
+    val apps = @Composable { Box(Modifier.revealed(reveal, 0.1f)) { QuickAppPills(if (fontScale >= 1.3f) 0.8f else 1f) } }
+    if (layout.barAtBottom) {
+        Column(modifier.fillMaxHeight(), verticalArrangement = Arrangement.Bottom) {
+            SampleCards(look, reveal, clock.takeIf { layout.showsClock })
+            apps()
+            bar()
+        }
+    } else {
+        Column(modifier) {
+            bar()
+            apps()
+            SampleCards(look, reveal, clock.takeIf { layout.showsClock })
+        }
+    }
+}
+
+/** The At a Glance card, with the person's clock when they show it ([clock]), and two sample results. */
+@Composable
+private fun SampleCards(look: Look, reveal: () -> Float, clock: String?) {
+    val scheme = MaterialTheme.colorScheme
     val today = remember { LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.US)) }
     val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
-    Column(modifier) {
-        Box(Modifier.layerTranslate(fieldShift)) { SearchBarPreview(look) }
-        Box(Modifier.revealed(reveal, 0.1f)) { QuickAppPills(if (fontScale >= 1.3f) 0.8f else 1f) }
+    Column {
         Box(Modifier.revealed(reveal, 0.2f).padding(horizontal = 16.dp, vertical = 4.dp)) {
             Column(
                 Modifier
@@ -406,7 +440,7 @@ internal fun SearchPageContent(look: Look, reveal: () -> Float, fieldShift: () -
                         "At a Glance", color = scheme.primary, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.weight(1f).padding(end = 8.dp)
                     )
-                    GlanceClock(clock)
+                    if (clock != null) GlanceClock(clock)
                 }
                 GlanceRow(Icons.Filled.WbCloudy, "Partly cloudy · 54°", today)
             }
@@ -430,8 +464,6 @@ private fun Modifier.revealed(reveal: () -> Float, start: Float): Modifier = gra
     shape = GenericShape { size, _ -> addRect(Rect(0f, 0f, size.width, size.height * p)) }
     translationY = (1f - p) * 44.dp.toPx()
 }
-
-private fun Modifier.layerTranslate(f: () -> Float): Modifier = graphicsLayer { translationY = f() }
 
 /* ── The drifting star matrix (AnimatedMatrixBackground), its GPU path ── */
 

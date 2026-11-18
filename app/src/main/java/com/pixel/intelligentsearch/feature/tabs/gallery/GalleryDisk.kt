@@ -23,12 +23,18 @@ internal class GalleryKept(
     val seq: Int,
     val row: Int,
     /** The look of the week and the week it was picked for ("2026-W47" to "meadow"). */
-    val hero: Pair<String, String>? = null
+    val hero: Pair<String, String>? = null,
+    /** Every setting a look touches as it was before [before] was replaced: what Undo and the Before tile put back. */
+    val undoTo: Look? = null
 )
 
 internal object GalleryDisk {
     private const val VERSION = 1
-    fun write(prefs: SharedPreferences, kept: GalleryKept) {
+    /** The stored value as it is, to tell whether something else (a restore) has replaced it. */
+    fun raw(prefs: SharedPreferences): String = prefs[SettingsManager.GALLERY_LOOKS]
+
+    /** Writes [kept] and returns the value written. */
+    fun write(prefs: SharedPreferences, kept: GalleryKept): String {
         val json = JSONObject().apply {
             put("version", VERSION)
             put("current", kept.current.toJson())
@@ -37,8 +43,10 @@ internal object GalleryDisk {
             put("seq", kept.seq)
             put("row", kept.row)
             kept.hero?.let { (week, id) -> put("heroWeek", week); put("hero", id) }
+            kept.undoTo?.let { put("undoTo", it.toJson()) }
         }.toString()
         prefs.edit { put(SettingsManager.GALLERY_LOOKS, json) }
+        return json
     }
 
     fun read(prefs: SharedPreferences): GalleryKept? = runCatching {
@@ -51,7 +59,8 @@ internal object GalleryDisk {
             saved = saved,
             seq = o.optInt("seq", 2),
             row = o.optInt("row", 5).coerceIn(0, 5),
-            hero = o.optString("heroWeek").ifEmpty { null }?.let { w -> o.optString("hero").ifEmpty { null }?.let { w to it } }
+            hero = o.optString("heroWeek").ifEmpty { null }?.let { w -> o.optString("hero").ifEmpty { null }?.let { w to it } },
+            undoTo = o.optJSONObject("undoTo")?.let { runCatching { it.toLook() }.getOrNull() }
         )
     }.getOrNull()
 

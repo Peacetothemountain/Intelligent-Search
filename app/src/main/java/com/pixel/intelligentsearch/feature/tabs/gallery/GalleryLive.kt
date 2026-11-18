@@ -44,6 +44,25 @@ internal object GalleryLive {
     /** The live look's id: the person's own design, as the settings have it now. */
     const val LIVE_ID = "live"
 
+    /**
+     * The person's G icon style for each design as the settings have it ([refreshG]): what a look that keeps the G
+     * shows in its previews (StyleSpec.resolve), as applying it keeps that G.
+     */
+    val liveG = androidx.compose.runtime.mutableStateMapOf<Design, String>()
+
+    fun refreshG(context: Context) {
+        val l = live(context, prefs(context))
+        liveG[Design.SYSTEM] = l.system.gIconTheme
+        liveG[Design.MATERIAL] = l.material.gIconTheme
+    }
+
+    /** How the person's search page is laid out, which no look changes: where its bar is, and whether it shows the clock. */
+    class PageLayout(val barAtBottom: Boolean, val showsClock: Boolean)
+
+    fun pageLayout(context: Context): PageLayout = prefs(context).let {
+        PageLayout(it[SettingsManager.BOTTOM_SEARCH], it[SettingsManager.GLANCE_CLOCK])
+    }
+
     fun prefs(context: Context): SharedPreferences =
         context.getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
 
@@ -165,6 +184,7 @@ internal object GalleryLive {
         editor.put(SettingsManager.MATRIX_ANIMATION_ENABLED, s.stars)
         s.clock?.let { editor.put(SettingsManager.GLANCE_CLOCK_STYLE, it) }
         }
+        refreshG(context)
         // Leaving Settings redraws the widgets too (SettingsActivity.onPause); this shows the look at once.
         runCatching { com.pixel.intelligentsearch.feature.widget.SearchWidgetProvider.updateAllWidgets(context.applicationContext, null) }
     }

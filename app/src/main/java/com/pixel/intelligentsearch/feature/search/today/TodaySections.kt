@@ -125,7 +125,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.runtime.mutableIntStateOf
 import com.pixel.intelligentsearch.core.ui.icons.filled.LocalShipping
-import com.pixel.intelligentsearch.core.ui.icons.automirrored.outlined.VolumeUp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
@@ -1029,8 +1028,6 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
                             drawCircle(ring.copy(alpha = 1f - r), radius = size.minDimension / 2f * (1f + 0.35f * r), style = Stroke(2.dp.toPx()))
                         }
                     }
-                    .clip(CircleShape)
-                    .background(scheme.primaryContainer)
                     .bouncyClickable(shape = CircleShape) {
                         val ready = speech
                         if (ready != null) {
@@ -1067,11 +1064,27 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
                     .semantics { contentDescription = "Hear it" },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.AutoMirrored.Outlined.VolumeUp, null, tint = scheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
+                Icon(SpeakingHead, null, tint = scheme.primary, modifier = Modifier.size(30.dp))
             }
         }
         Text(word.meaning, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface, modifier = Modifier.padding(top = 8.dp))
     }
+}
+
+/** Word of the Day's Hear It: a head in profile facing left, speaking, drawn as an outline with no container. */
+private val SpeakingHead: ImageVector by lazy {
+    ImageVector.Builder("SpeakingHead", 24.dp, 24.dp, 24f, 24f).apply {
+        fun line(d: String) = addPath(
+            androidx.compose.ui.graphics.vector.PathParser().parsePathString(d).toNodes(),
+            stroke = androidx.compose.ui.graphics.SolidColor(Color.Black),
+            strokeLineWidth = 1.8f,
+            strokeLineCap = StrokeCap.Round,
+            strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round
+        )
+        line("M18.8 2.8C15.8 3.9 14.1 6.1 14.1 8.6L12.0 11.3C11.7 11.8 12.0 12.2 12.6 12.2L13.6 12.3L12.9 13.6L13.9 14.2L13.1 15.2C12.8 15.8 13.3 16.5 14.3 16.6C15.9 16.7 16.9 17.6 17.1 19L17.3 21.2")
+        line("M9.0 9.2C7.6 11.1 7.6 13.5 9.0 15.4")
+        line("M5.9 6.4C3.1 10 3.1 14.6 5.9 18.2")
+    }.build()
 }
 
 /**

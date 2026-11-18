@@ -52,6 +52,9 @@ internal object GalleryLive {
      */
     val liveG = androidx.compose.runtime.mutableStateMapOf<Design, String>()
 
+    /** The person's buttons and G switches for each design as the settings have them ([refreshG]; BarButtons.of). */
+    val liveButtons = androidx.compose.runtime.mutableStateMapOf<Design, BarButtons>()
+
     /** Yours Now, the first look of the fan: the search bar as the settings have it now ([refreshG] reads it). */
     const val NOW_ID = "yours"
     private const val NOW_NAME = "Yours Now"
@@ -63,9 +66,18 @@ internal object GalleryLive {
         val l = live(context, prefs(context))
         liveG[Design.SYSTEM] = l.system.gIconTheme
         liveG[Design.MATERIAL] = l.material.gIconTheme
+        l.system.buttons().let { if (liveButtons[Design.SYSTEM] != it) liveButtons[Design.SYSTEM] = it }
+        l.material.buttons().let { if (liveButtons[Design.MATERIAL] != it) liveButtons[Design.MATERIAL] = it }
         val look = read(context).copy(id = NOW_ID, name = NOW_NAME, desc = NOW_DESC)
         if (look != now) now = look
     }
+
+    private fun WidgetDesignSettings.buttons() = BarButtons(
+        showG = showGIcon, keepSystemG = keepSystemG, colors = elementColors, syncColors = syncColors,
+        showVoice = showVoice, order = slotOrder.split(",").filter { it.isNotBlank() },
+        shortcuts = mapOf("shortcut1" to shortcut1, "shortcut2" to shortcut2, "shortcut3" to shortcut3),
+        actionIcon = actionIcon
+    )
 
     /** How the person's search page is laid out, which no look changes: where its bar is, and whether it shows the clock. */
     class PageLayout(val barAtBottom: Boolean, val showsClock: Boolean)

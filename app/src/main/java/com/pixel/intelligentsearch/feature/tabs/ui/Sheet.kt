@@ -176,6 +176,46 @@ internal fun SheetButtons(modifier: Modifier = Modifier, content: @Composable Fl
     )
 }
 
+/**
+ * A sheet's buttons as one M3 button group: each row's buttons share its width equally, the confirming one last. On a
+ * narrow window, or at large text, a button whose words don't fit its share starts a row above; the last buttons stay
+ * together on the bottom row, so the confirming one keeps its place.
+ */
+@Composable
+internal fun SheetButtonGroup(modifier: Modifier = Modifier, gap: Dp = 8.dp, content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content, modifier.fillMaxWidth().padding(top = 16.dp)) { buttons, constraints ->
+        val width = constraints.maxWidth
+        val g = gap.roundToPx()
+        val wants = buttons.map { it.maxIntrinsicWidth(androidx.compose.ui.unit.Constraints.Infinity) }
+        fun share(count: Int) = (width - g * (count - 1)) / count
+        // Rows from the end: each takes as many of the buttons before it as fit at an equal share.
+        val rows = ArrayDeque<IntRange>()
+        var end = buttons.lastIndex
+        while (end >= 0) {
+            var start = end
+            while (start > 0 && (start - 1..end).all { wants[it] <= share(end - start + 2) }) start--
+            rows.addFirst(start..end)
+            end = start - 1
+        }
+        val placed = rows.map { row ->
+            val each = share(row.count())
+            row.map { buttons[it].measure(androidx.compose.ui.unit.Constraints.fixedWidth(each)) }
+        }
+        val heights = placed.map { row -> row.maxOfOrNull { it.height } ?: 0 }
+        layout(width, heights.sum()) {
+            var y = 0
+            placed.forEachIndexed { r, row ->
+                var x = 0
+                row.forEach {
+                    it.placeRelative(x, y + (heights[r] - it.height) / 2)
+                    x += it.width + g
+                }
+                y += heights[r]
+            }
+        }
+    }
+}
+
 /** A snackbar to show: its words and, optionally, one action. */
 class Snack(val message: String, val actionLabel: String? = null, val action: (() -> Unit)? = null) {
     val id = System.nanoTime()

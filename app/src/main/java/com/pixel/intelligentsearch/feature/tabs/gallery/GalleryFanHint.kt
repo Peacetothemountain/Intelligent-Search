@@ -104,7 +104,7 @@ internal class FanHint(private val prefs: SharedPreferences) {
     }
 
     companion object {
-        /** The light's run stops short of the heads, so it never sits on them. */
+        /** The light's run stops short of the heads; its glow is also wiped away around them ([HintPaints.clear]). */
         const val F0 = 14f
         const val F1 = 86f
         /** Seconds: a glide, the tail drawing in after it, when the glide back starts, and the whole loop. */
@@ -249,6 +249,11 @@ internal class HintPaints {
     }
     val core = android.graphics.Paint(glow)
     var blur = 0f
+    /** Wipes the light away around each head, softly, so its glow never tints them. */
+    val clear = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.DST_OUT)
+    }
+    val bounds = android.graphics.RectF()
 }
 
 /** The hint, drawn through the lens ([FanEngine.hintPlane]) at [unit] px per mockup px. */
@@ -299,8 +304,24 @@ internal fun DrawScope.drawFanHint(engine: FanEngine, hint: FanHint, unit: Float
         paints.glow.strokeWidth = 13f * unit * s * lz
         paints.core.shader = shade(colors.core, 1f)
         paints.core.strokeWidth = 3.4f * unit * s * lz
-        drawContext.canvas.nativeCanvas.drawPath(path, paints.glow)
-        drawContext.canvas.nativeCanvas.drawPath(path, paints.core)
+        val nc = drawContext.canvas.nativeCanvas
+        // In a layer of its own, wiped away around the heads: the glow is wider than the gap the run leaves them.
+        path.computeBounds(paints.bounds, false)
+        val reach = 16f * unit * s
+        paints.bounds.inset(-reach, -reach)
+        val layer = nc.saveLayer(paints.bounds, null)
+        nc.drawPath(path, paints.glow)
+        nc.drawPath(path, paints.core)
+        val clearR = 12f * unit * s
+        val fadeR = clearR + 8f * unit * s
+        for (tip in listOf(map(e0), map(e1))) {
+            paints.clear.shader = android.graphics.RadialGradient(
+                tip.x, tip.y, fadeR, intArrayOf(android.graphics.Color.BLACK, android.graphics.Color.BLACK, android.graphics.Color.TRANSPARENT),
+                floatArrayOf(0f, clearR / fadeR, 1f), Shader.TileMode.CLAMP
+            )
+            nc.drawCircle(tip.x, tip.y, fadeR, paints.clear)
+        }
+        nc.restoreToCount(layer)
     }
     // The two heads, over the light: wings trailing back along the curve's own direction at each end.
     val heads = Path()

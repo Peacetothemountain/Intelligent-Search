@@ -133,6 +133,11 @@ internal object FanDims {
      */
     const val PUSH_SPEED = 0.45f
     const val PUSH_ALONG = 0.7f
+    /**
+     * A push also starts from a finger resting on the swatch: at least this long (ms) from touching it to moving past
+     * the slop. A scroll sets off at once, however slowly, so a page scroll that starts on the spread stays the page's.
+     */
+    const val PUSH_REST = 120L
     /** A push released past this much of a strip turns one look, unless the finger was pulling back at [BACK_V] dp/s. */
     const val COMMIT = 0.35f
     const val BACK_V = 250f
@@ -691,6 +696,8 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
     private var lastX = 0f
     /** When the finger was last still (within a dp of where it went down): how fast it then set off tells a push from a scroll. */
     private var stillAt = 0L
+    /** When the finger went down: a push rests on the swatch first ([FanDims.PUSH_REST]). */
+    private var downAt = 0L
     /** How far the finger has gone around the rivet (dp, clockwise positive), and its last tenth of a second of it. */
     private var travel = 0f
     private val samples = ArrayDeque<Pair<Long, Float>>()
@@ -724,6 +731,7 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
         y0 = y
         lastX = x
         stillAt = t
+        downAt = t
         travel = 0f
         samples.clear()
         samples.addLast(t to 0f)
@@ -780,11 +788,12 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
     }
 
     /**
-     * Up or down on the spread is a push on a swatch, not a page scroll, only when it sets off slowly (under
-     * [FanDims.PUSH_SPEED] from where the finger was last still), follows the arc around the rivet, and the fan can
+     * Up or down on the spread is a push on a swatch, not a page scroll, only when the finger rested on the swatch
+     * first ([FanDims.PUSH_REST]), sets off slowly (under [FanDims.PUSH_SPEED] from where it was last still), follows the arc around the rivet, and the fan can
      * still turn that way. A quick flick, or a push past either end of the deck, scrolls the page.
      */
     private fun isPush(dist: Float, t: Long): Boolean {
+        if (t - downAt < FanDims.PUSH_REST) return false
         val speed = dist / (t - stillAt).coerceAtLeast(1L)
         if (speed > FanDims.PUSH_SPEED) return false
         if (abs(travel) < FanDims.PUSH_ALONG * dist) return false

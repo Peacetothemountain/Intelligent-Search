@@ -18,6 +18,8 @@ internal enum class Design { SYSTEM, MATERIAL }
 internal const val G_SYSTEM = "System G Icon"
 internal const val G_MATERIAL = "Material G Icon"
 internal const val G_ACCENTED = "Accented G Icon"
+/** The person's own style, never a look's: the G (and the buttons) in colors they picked. */
+internal const val G_CUSTOM = "Custom G Icon"
 
 /** One design's fields a look sets; null keeps the design's default. Field names follow the app's key suffixes. */
 internal data class StyleSpec(
@@ -124,13 +126,36 @@ internal fun gName(g: String?) = when (g) {
     else -> "Material"
 }
 
-/** The person's own buttons, which looks leave alone (sample: Lens, voice, Translate and the search circle). */
-internal object SampleButtons {
-    const val SHOW_G = true
-    const val SHOW_VOICE = true
-    val order = listOf("shortcut1", "mic", "shortcut2", "shortcut3")
-    val shortcuts = mapOf("shortcut1" to "Google Lens", "shortcut2" to "Translate (text)", "shortcut3" to "None")
-    const val ACTION_ICON = "Search"
+/**
+ * The buttons on a preview's bar and the G's own switches, which no look changes: whether the G shows, and, for the
+ * Custom G style, Keep System G and the colors picked for the G and each button.
+ */
+internal data class BarButtons(
+    val showG: Boolean = true,
+    val keepSystemG: Boolean = false,
+    /** The Custom G style's colors as picked, before the bar adjusts them; null when there are none to show. */
+    val colors: com.pixel.intelligentsearch.core.data.widget.WidgetElementColors? = null,
+    /** Sync All Colors: every button takes the G's color. */
+    val syncColors: Boolean = false,
+    val showVoice: Boolean = true,
+    val order: List<String> = listOf("shortcut1", "mic", "shortcut2", "shortcut3"),
+    val shortcuts: Map<String, String> = mapOf("shortcut1" to "Google Lens", "shortcut2" to "Translate (text)", "shortcut3" to "None"),
+    val actionIcon: String = "Search"
+) {
+    companion object {
+        /** Sample buttons for the looks: Lens, voice, Translate and the search circle. */
+        val SAMPLE = BarButtons()
+
+        /**
+         * What [look]'s bar on [design] shows: the person's own G switches on every look, as applying any look keeps
+         * them; the person's own buttons on their own design ("Your design", Yours Now), the sample ones on the rest.
+         */
+        fun of(look: Look, design: Design): BarButtons {
+            val mine = GalleryLive.liveButtons[design] ?: return SAMPLE
+            return if (look.origin == Origin.Mine) mine
+            else SAMPLE.copy(showG = mine.showG, keepSystemG = mine.keepSystemG, colors = mine.colors, syncColors = mine.syncColors)
+        }
+    }
 }
 
 private fun c(hex: Long) = hex.toInt()

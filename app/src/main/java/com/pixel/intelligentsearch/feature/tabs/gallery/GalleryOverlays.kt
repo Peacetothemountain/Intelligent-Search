@@ -286,7 +286,9 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
                     textStyle = MaterialTheme.typography.bodyLarge.copy(
                         color = scheme.onSurface,
                         fontFamily = MaterialTheme.typography.bodyLarge.fontFamily,
-                        fontSize = if (multi) 12.sp else MaterialTheme.typography.bodyLarge.fontSize
+                        fontSize = if (multi) 12.sp else MaterialTheme.typography.bodyLarge.fontSize,
+                        // A code in tabular figures, as the share sheet shows it.
+                        fontFeatureSettings = if (multi) "tnum" else null
                     ),
                     cursorBrush = SolidColor(scheme.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
@@ -352,7 +354,7 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
                     }
                 }
             } else {
-                SheetButtons {
+                SheetButtonGroup {
                     d.actions.forEachIndexed { i, a ->
                         // A code's Try It waits until something that could be a code is in the field.
                         val ready = d.onInput == null || d.inputHint == null || i != d.actions.lastIndex || text.text.contains("IS2.", ignoreCase = true)
@@ -435,7 +437,7 @@ private fun ColumnScope.InfoSheet(info: Pop.Info, onClose: () -> Unit) {
             }
         }
     }
-    SheetButtons {
+    SheetButtonGroup {
         info.bringBack?.let { PreviewButton("Bring Back Your Wallpaper", ButtonKind.Text, icon = Symbols.Wallpaper) { onClose(); it() } }
         info.putBack?.let { PreviewButton("Use My Last Look", ButtonKind.Tonal, icon = Symbols.Undo) { onClose(); it() } }
         PreviewButton("Done", ButtonKind.Filled, onClick = onClose)
@@ -539,7 +541,11 @@ private fun ColumnScope.ShareSheet(look: Look, phoneDark: Boolean, onClose: () -
         Spacer(Modifier.height(12.dp))
         Text(
             code,
-            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, fontSize = 11.5.sp, lineHeight = 17.sp, color = scheme.onSurface,
+            color = scheme.onSurface,
+            // Tabular figures: every digit the same width, so the code reads evenly (no monospace: the app is Google Sans Flex).
+            style = androidx.compose.ui.text.TextStyle(
+                fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, fontSize = 11.5.sp, lineHeight = 17.sp, fontFeatureSettings = "tnum"
+            ),
             modifier = Modifier.fillMaxWidth().heightIn(max = 120.dp).clip(RoundedCornerShape(16.dp)).background(scheme.surfaceContainerHighest)
                 .semantics { contentDescription = "Look code" }.verticalScroll(rememberScrollState()).padding(horizontal = 14.dp, vertical = 12.dp)
         )
@@ -548,7 +554,7 @@ private fun ColumnScope.ShareSheet(look: Look, phoneDark: Boolean, onClose: () -
             Modifier.padding(top = 10.dp)
         )
     }
-    SheetButtons {
+    SheetButtonGroup {
         PreviewButton("Copy Code", ButtonKind.Tonal, icon = Symbols.ContentCopy) {
             context.getSystemService(ClipboardManager::class.java)?.setPrimaryClip(ClipData.newPlainText("Look code", code))
             onClose()
@@ -610,7 +616,7 @@ private fun ColumnScope.WallpaperSheet(sheet: Pop.Wallpaper, phoneDark: Boolean,
             style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp)
         )
     }
-    SheetButtons {
+    SheetButtonGroup {
         PreviewButton("Cancel", ButtonKind.Text, onClick = onClose)
         PreviewButton(if (sheet.busy) "Setting…" else "Set Wallpaper", ButtonKind.Filled) {
             if (!sheet.busy) {

@@ -269,7 +269,9 @@ internal data class BarColors(
     val accentPrimary: Color,
     val materialIconAccents: IconAccents,
     val systemIconTint: Color,
-    val usesMaterialYouIcons: Boolean
+    val usesMaterialYouIcons: Boolean,
+    /** The Material design's pill is locked to a dark color (WidgetColorRules.locksDark): its icons aren't darkened. */
+    val lockDark: Boolean = false
 )
 
 private fun previewPill(
@@ -353,7 +355,8 @@ internal fun barColors(
         accentPrimary = accentPrimary,
         materialIconAccents = WidgetRules.materialIconAccents(draft, isPillLight, iconAccents),
         systemIconTint = systemIconTint,
-        usesMaterialYouIcons = WidgetRules.usesMaterialYouIcons(isMaterialDesign, draft.gIconTheme, isPillLight, draft.subtheme)
+        usesMaterialYouIcons = WidgetRules.usesMaterialYouIcons(isMaterialDesign, draft.gIconTheme, isPillLight, draft.subtheme),
+        lockDark = WidgetRules.locksDark(draft, themeColors)
     )
 }
 

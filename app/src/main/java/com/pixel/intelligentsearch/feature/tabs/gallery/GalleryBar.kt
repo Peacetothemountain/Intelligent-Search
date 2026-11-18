@@ -96,14 +96,15 @@ internal fun GalleryBar(look: Look, phoneDark: Boolean, modifier: Modifier = Mod
         )
     }
     val shape = remember(style, isMaterial) { BarShape.of(style, isMaterial) }
-    val showsCircle = isMaterial && SampleButtons.ACTION_ICON != "None"
+    val buttons = BarButtons.of(look, look.hero)
+    val showsCircle = isMaterial && buttons.actionIcon != "None"
     Box(
         modifier
             .clearAndSetSemantics { }
             .scaledTo(scale, BAR_WIDTH, shape.height.dp)
     ) {
         BarBackdrop(colors, shape, showsCircle, Modifier.matchParentSize())
-        BarIcons(colors, style, shape, isMaterial, showsCircle)
+        BarIcons(colors, style, buttons, shape, isMaterial, showsCircle)
     }
 }
 
@@ -147,15 +148,30 @@ private fun BarBackdrop(colors: BarColors, shape: BarShape, showsCircle: Boolean
 
 /** The icons, laid out on the same lines as the backdrop (the editor preview's Row). */
 @Composable
-private fun BarIcons(colors: BarColors, style: WidgetStyle, shape: BarShape, isMaterial: Boolean, showsCircle: Boolean) {
-    val gTheme = style.gIconTheme
+private fun BarIcons(colors: BarColors, style: WidgetStyle, buttons: BarButtons, shape: BarShape, isMaterial: Boolean, showsCircle: Boolean) {
     val pillLight = colors.pill.isLight
     val gPrimary = colors.accentPrimary
     val mPrimary = Color(colors.materialIconAccents.primary)
     val mSecondary = Color(colors.materialIconAccents.secondary)
     val mTertiary = Color(colors.materialIconAccents.tertiary)
-    val tint: (String) -> List<Color> = {
-        when (gTheme) {
+    // The Custom G style (the person's own, kept by a look that keeps the G): each icon in the color picked for it,
+    // adjusted as the widget adjusts it (WidgetColorRules.customIconColors). Without colors to show, as Accented.
+    val picked = buttons.colors?.takeIf { style.gIconTheme == G_CUSTOM }
+    val gTheme = if (style.gIconTheme == G_CUSTOM && picked == null) G_ACCENTED else style.gIconTheme
+    fun drawn(color: Int) = Color(WidgetRules.iconColor(color, isMaterial, colors.lockDark, pillLight))
+    val tint: (String) -> List<Color> = { key ->
+        if (picked != null) {
+            val c = when {
+                buttons.syncColors -> picked.gIcon
+                key == "mic" -> picked.mic
+                key == "shortcut1" -> picked.shortcut1
+                key == "shortcut2" -> picked.shortcut2
+                key == "shortcut3" -> picked.shortcut3
+                key == "action" -> picked.action
+                else -> picked.gIcon
+            }
+            List(4) { drawn(c) }
+        } else when (gTheme) {
             G_ACCENTED -> List(4) { gPrimary }
             G_MATERIAL -> listOf(mPrimary, mSecondary, mTertiary, mPrimary)
             else -> List(4) { colors.systemIconTint }
@@ -166,18 +182,21 @@ private fun BarIcons(colors: BarColors, style: WidgetStyle, shape: BarShape, isM
             Modifier.weight(1f).height(shape.pillHeight.dp).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (SampleButtons.SHOW_G) {
+            if (buttons.showG) {
+                // Keep System G is a choice within the Custom G style: Google's own colors (the widget's useOriginalG).
+                val original = gTheme == G_SYSTEM || (picked != null && buttons.keepSystemG)
+                val customG = if (picked != null && !buttons.keepSystemG) drawn(picked.gIcon) else null
                 GIcon(
                     Modifier.size(24.dp), mPrimary, mSecondary, mTertiary,
-                    isAccented = gTheme == G_ACCENTED, accentColor = gPrimary,
-                    useOriginalColors = gTheme == G_SYSTEM, isPillLight = pillLight
+                    isAccented = gTheme == G_ACCENTED || customG != null, accentColor = customG ?: gPrimary,
+                    useOriginalColors = original, isPillLight = pillLight
                 )
             }
             Spacer(Modifier.weight(1f))
-            val items = SampleButtons.order.mapNotNull { key ->
+            val items = buttons.order.mapNotNull { key ->
                 when (key) {
-                    "mic" -> if (SampleButtons.SHOW_VOICE) key to (if (colors.usesMaterialYouIcons) R.drawable.gallery_ic_mic else R.drawable.gallery_ic_mic_original) else null
-                    else -> SampleButtons.shortcuts[key]?.takeIf { it != "None" }?.let { key to shortcutIcon(it) }
+                    "mic" -> if (buttons.showVoice) key to (if (colors.usesMaterialYouIcons) R.drawable.gallery_ic_mic else R.drawable.gallery_ic_mic_original) else null
+                    else -> buttons.shortcuts[key]?.takeIf { it != "None" }?.let { key to shortcutIcon(it, colors.usesMaterialYouIcons) }
                 }
             }
             items.forEachIndexed { i, (key, res) ->
@@ -190,16 +209,17 @@ private fun BarIcons(colors: BarColors, style: WidgetStyle, shape: BarShape, isM
             Spacer(Modifier.width(8.dp))
             Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
                 val (p, s, t) = tint("action")
-                ActionIcon(SampleButtons.ACTION_ICON, Modifier.size(24.dp), p, s, t, isMaterialTheme = gTheme == G_MATERIAL, isPillLight = pillLight)
+                ActionIcon(buttons.actionIcon, Modifier.size(24.dp), p, s, t, isMaterialTheme = gTheme == G_MATERIAL, isPillLight = pillLight)
             }
         }
     }
 }
 
 /** getShortcutIconRes, for the buttons the preview shows. */
-private fun shortcutIcon(name: String): Int = when (name) {
+private fun shortcutIcon(name: String, materialYou: Boolean): Int = when (name) {
     "Translate (text)" -> R.drawable.gallery_ic_translate
-    else -> R.drawable.gallery_ic_camera
+    "Google Lens" -> R.drawable.gallery_ic_camera
+    else -> com.pixel.intelligentsearch.feature.widget.getShortcutIconRes(name, materialYou)
 }
 
 /** SearchIconPaths: the lens with its sparkle and Rambler's mic, in a 24-unit square. */
@@ -308,7 +328,13 @@ private fun ActionIcon(
     isMaterialTheme: Boolean, isPillLight: Boolean
 ) {
     val colors = rememberIconColors(primary, secondary, tertiary, isPillLight)
-    if (iconType != "Search") return
+    if (iconType != "Search") {
+        // The person's own circle, in "Your design": drawn as Widget Customization draws it.
+        com.pixel.intelligentsearch.feature.settings.ComposeActionIcon(
+            iconType, modifier, primary, secondary, tertiary, isMaterialTheme = isMaterialTheme, isPillLight = isPillLight
+        )
+        return
+    }
     if (isMaterialTheme) {
         LensDrawing(Color(colors.lensRim), Color(colors.lensTop), Color(colors.lensHandle), Color(colors.lensSparkle), modifier)
         return

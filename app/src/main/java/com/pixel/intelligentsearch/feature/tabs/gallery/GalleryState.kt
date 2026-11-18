@@ -120,10 +120,13 @@ internal class GalleryState(val today: LocalDate) {
 
     val savedFull: Boolean get() = saved.size >= 5
 
+    /** [look] is what is on the phone now: the look that is on, or Yours Now (which is the settings as they are). */
+    fun isOn(look: Look): Boolean = look.id == current.id || look.id == GalleryLive.NOW_ID
+
     /** The current look needs saving before another replaces it: hand-made or pasted, and not saved. */
     val currentUnsaved: Boolean get() = current.origin == Origin.Mine || current.origin == Origin.Shared
 
-    fun find(id: String): Look? = BUILT_IN_LOOKS.firstOrNull { it.id == id }
+    fun find(id: String): Look? = (if (id == GalleryLive.NOW_ID) GalleryLive.now else BUILT_IN_LOOKS.firstOrNull { it.id == id })
         ?: listOfNotNull(current, before, shared).firstOrNull { it.id == id }
         ?: saved.firstOrNull { it.id == id }
 
@@ -163,7 +166,7 @@ internal class GalleryState(val today: LocalDate) {
      */
     fun commit(look: Look, force: Boolean = false, viaBefore: Boolean = false, onUndo: () -> Unit): Commit {
         val prev = current
-        if (look.id == prev.id) return Commit.Nothing
+        if (isOn(look)) return Commit.Nothing
         val restore = viaBefore && look === before
         var kept = false
         var prevKept = prev
@@ -221,7 +224,7 @@ internal class GallerySession(today: LocalDate, val scope: CoroutineScope) {
     /** True once the page has shown in this process: a saved state handed back later is older than what is here. */
     var uiSettled = false
 
-    /** Where the fan stands (the strip upright, or the one it is turning to): kept with the session, not the page. */
+    /** Where the fan stands (the look upright, or the one it is turning to, by its place in the order): kept with the session, not the page. */
     var fanAt = 0
 
     /** What the screen's saved state keeps: the fan's place, a pasted look (as its code), and the preview if it is open. */

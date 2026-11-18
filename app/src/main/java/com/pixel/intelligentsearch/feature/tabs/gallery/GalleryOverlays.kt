@@ -93,6 +93,19 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.core.content.edit
+import com.pixel.intelligentsearch.core.data.SettingsManager
+import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.settings.put
 import kotlin.math.roundToInt
 
 /* ── Popups: menus, dialogs, the share sheet. Separate windows on Android, so solid surface container high. ── */
@@ -117,10 +130,13 @@ internal sealed interface Pop {
     ) : Pop
     class Share(val look: Look) : Pop
 
+    /** The number picker, grown out of the fan's counter at [anchor] (page px) on look [start]; [onGo] turns the fan to a look. */
+    class Picker(val anchor: Rect, val start: Int, val onGo: (Int) -> Unit) : Pop
+
     /**
-     * How Looks Work, from the top bar's info icon: what a look is and how to turn the fan, then the backdrop choice,
-     * Put Back Your Last Look ([putBack], while there is a look before) and Bring Back Your Wallpaper ([bringBack], while a
-     * wallpaper set from here can still be undone).
+     * How Looks Work, from the top bar's info icon: how to use the swatch cards and the Gesture Hints switch, then the
+     * backdrop choice, Use My Last Look ([putBack], while there is a look before) and Bring Back Your Wallpaper
+     * ([bringBack], while a wallpaper set from here can still be undone).
      */
     class Info(
         val backdrop: Backdrop,
@@ -168,6 +184,7 @@ internal fun PopLayer(pop: Pop?, phoneDark: Boolean, onClose: () -> Unit, snack:
             .clickable(remember { MutableInteractionSource() }, indication = null) { onClose() }
     ) {
         when (pop) {
+            is Pop.Picker -> NumberPicker(pop, phoneDark, onClose)
             is Pop.Menu -> MenuPopup(pop, onClose)
             is Pop.Dialog -> DialogPopup(pop, phoneDark, onClose)
             else -> {}
@@ -342,38 +359,44 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
     }
 }
 
-/** How Looks Work: three plain lines in tiles, the backdrop choice, and the ways back. */
+/** How Looks Work: how to use the swatch cards in three plain lines and the Gesture Hints switch, in tiles; the backdrop choice; and the ways back. */
 @Composable
 private fun ColumnScope.InfoSheet(info: Pop.Info, onClose: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     var backdrop by remember(info) { mutableStateOf(info.backdrop) }
     Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(44.dp).background(scheme.tertiary, ScallopShape), contentAlignment = Alignment.Center) {
+            // The badge: the cookie turns slowly while the sheet is up, once in 24 s, and the i stays upright. With
+            // animations off it stands still.
+            val animate by rememberAnimationsEnabled()
+            val turn = if (!animate) null
+            else rememberInfiniteTransition(label = "badge").animateFloat(0f, 360f, infiniteRepeatable(tween(24_000, easing = LinearEasing)), label = "turn")
+            Box(Modifier.size(44.dp), contentAlignment = Alignment.Center) {
+                Box(Modifier.matchParentSize().graphicsLayer { rotationZ = turn?.value ?: 0f }.background(scheme.tertiary, ScallopShape))
                 Icon(Symbols.Info, null, tint = scheme.onTertiary, modifier = Modifier.size(24.dp))
             }
             Column {
                 SheetTitle("How Looks Work", Modifier.padding(bottom = 0.dp))
-                SheetText("The short version.")
+                SheetText("A look is a new style for your search bar.")
             }
         }
-        // The three lines, each in a tile of its own, stacked as one group.
+        // The three lines and the switch, each in a tile of its own, stacked as one group.
         val lines = listOf(
-            Triple(Symbols.Checkroom, "A look is an outfit for your search bar.", "Its shape, its colors, and a wallpaper to match."),
-            Triple(Symbols.SwipeVertical, "Turn the fan to browse.", "Swipe it, or push a swatch up or down."),
-            Triple(Symbols.TouchApp, "Tap the one standing up to try it on.", "Nothing changes until you tap Apply.")
+            Triple(Symbols.Swipe, "Swipe the Swatch Cards to see more.", "You can also push a card up or down."),
+            Triple(Symbols.TouchApp, "Tap a Swatch Card to try out a New Look.", "Your search bar stays the same until you tap Apply."),
+            Triple(Symbols.PinFilled, "Tap the number to jump to any look.", "Scroll to a number from 1 to ${FAN_ORDER.size}, then tap Go to Look.")
         )
         Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             lines.forEachIndexed { i, (icon, title, text) ->
                 val top = if (i == 0) 20.dp else 6.dp
-                val bottom = if (i == lines.lastIndex) 20.dp else 6.dp
-                InfoLine(icon, title, text, RoundedCornerShape(top, top, bottom, bottom))
+                InfoLine(icon, title, text, RoundedCornerShape(top, top, 6.dp, 6.dp))
             }
+            HintSwitchLine(RoundedCornerShape(6.dp, 6.dp, 20.dp, 20.dp))
         }
         Row(Modifier.fillMaxWidth().padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f).padding(end = 12.dp)) {
                 Text("Backdrop", style = MaterialTheme.typography.titleSmall, color = scheme.onSurface, modifier = Modifier.semantics { heading() })
-                Text("What sits behind each look.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                Text("Pick what shows behind each look.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
             }
             // A connected button group: one choice of three.
             Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -405,8 +428,58 @@ private fun ColumnScope.InfoSheet(info: Pop.Info, onClose: () -> Unit) {
     }
     SheetButtons {
         info.bringBack?.let { PreviewButton("Bring Back Your Wallpaper", ButtonKind.Text, icon = Symbols.Wallpaper) { onClose(); it() } }
-        info.putBack?.let { PreviewButton("Put Back Your Last Look", ButtonKind.Tonal, icon = Symbols.Undo) { onClose(); it() } }
-        PreviewButton("Got It", ButtonKind.Filled, onClick = onClose)
+        info.putBack?.let { PreviewButton("Use My Last Look", ButtonKind.Tonal, icon = Symbols.Undo) { onClose(); it() } }
+        PreviewButton("Done", ButtonKind.Filled, onClick = onClose)
+    }
+}
+
+/**
+ * Gesture Hints, the last tile of How Looks Work: the fan's arrow on or off (the one setting, gallery_hints). Turned on
+ * again, the arrow comes back and counts its three turns from the start.
+ */
+@Composable
+private fun HintSwitchLine(shape: Shape) {
+    val scheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val view = LocalView.current
+    val prefs = remember(context) { GalleryLive.prefs(context.applicationContext) }
+    var on by remember { mutableStateOf(prefs[SettingsManager.GALLERY_HINTS]) }
+    // The third turn of the fan switches it off under the sheet's feet; a restore may change it too.
+    DisposableEffect(prefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { sp, k ->
+            if (k == null || k in SettingsManager.GALLERY_HINTS.allNames) on = sp[SettingsManager.GALLERY_HINTS]
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    fun set(next: Boolean) {
+        runCatching { com.pixel.intelligentsearch.core.haptics.TactileSonicEngine.get(context).toggle(view) }
+        prefs.edit {
+            if (next) put(SettingsManager.GALLERY_HINT_TURNS, 0)
+            put(SettingsManager.GALLERY_HINTS, next)
+        }
+        on = next
+    }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = 60.dp)
+            .clip(shape)
+            .background(scheme.surfaceContainerHighest)
+            .toggleable(value = on, role = Role.Switch, onValueChange = ::set)
+            .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Icon(Symbols.Gesture, null, tint = scheme.primary, modifier = Modifier.size(22.dp))
+        Column(Modifier.weight(1f)) {
+            Text("Gesture Hints", style = MaterialTheme.typography.titleSmall, color = scheme.onSurface)
+            Text("Show the arrow that teaches the swipe.", style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+        }
+        // The row is the switch for TalkBack; the switch itself still takes taps and drags.
+        Box(Modifier.clearAndSetSemantics { }) {
+            com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(checked = on, onCheckedChange = ::set, label = "Gesture Hints")
+        }
     }
 }
 

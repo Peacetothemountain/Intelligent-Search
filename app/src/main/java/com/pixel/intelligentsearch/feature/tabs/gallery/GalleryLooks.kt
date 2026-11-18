@@ -220,13 +220,13 @@ private fun rimmed(ring: Long, pill: Long, outline: Int, g: String?, corner: Int
 /** Twenty-four more looks, each with a wallpaper of its own, filed under the same kinds (the approved swatch fan). */
 private val MORE_LOOKS: List<Look> = listOf(
     // Your Colors
-    Look("tide", "Tide", "Like looking down into deep, quiet water.", true, Design.SYSTEM, setOf("colors"),
+    Look("tide", "Tide", "A deep, dark bar in your wallpaper's color.", true, Design.SYSTEM, setOf("colors"),
         StyleSpec(subtheme = "Dark", gIcon = G_SYSTEM), StyleSpec(lockedPill = c(0xFF0F3740), outline = 6, gIcon = G_SYSTEM),
         SearchLook(blur = 60, transparency = 40)),
-    Look("clay", "Clay", "Warm as sun-baked terracotta.", true, Design.MATERIAL, setOf("colors"),
+    Look("clay", "Clay", "A soft rim in your wallpaper's color.", true, Design.MATERIAL, setOf("colors"),
         StyleSpec(outline = 2, gIcon = G_ACCENTED), StyleSpec(lockedPill = c(0xFFFDF0E6), outline = 8, transparency = 0, gIcon = G_ACCENTED),
         SearchLook(blur = 50, transparency = 50)),
-    Look("meadow", "Meadow", "A sunny field on the first warm day.", true, Design.SYSTEM, setOf("colors"),
+    Look("meadow", "Meadow", "A light bar, tinted by your wallpaper.", true, Design.SYSTEM, setOf("colors"),
         StyleSpec(subtheme = "Light"), StyleSpec(lockedPill = c(0xFFEEF7DC), outline = 6),
         SearchLook(blur = 40, transparency = 60, stars = false)),
     // Light

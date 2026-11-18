@@ -172,7 +172,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     // wallpaper; on the looks' own wallpapers only while one of the owner's own looks (which have none) is on the page
     // or in the preview; never on Colors only. Otherwise the shell keeps the window's back-to-home preview.
     val holes = showsReal && (backdrop == Backdrop.RealWallpaper || standIn ||
-        (listOfNotNull(state.current, state.before) + state.saved).any { wallpaperOf(it) == null } ||
+        (listOfNotNull(state.current, state.before, state.hero) + state.saved).any { wallpaperOf(it) == null } ||
         (pv.open && (-1..1).any { d -> pv.list.getOrNull(pv.index + d)?.let { wallpaperOf(it) == null } == true }))
     LaunchedEffect(holes) { chrome.showWallpaper(holes) }
     ShowWallpaperBehindWindow(holes)
@@ -435,7 +435,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     val season = Season.of(today)
     val inSeason = remember(today) { rack("seasonal", today).filter { it.season == season } }
     val rackLooks = remember(today) { fullRack(today) }
-    LaunchedEffect(store) { store?.start(rackLooks.map { it.id }) }
+    LaunchedEffect(store) { store?.start(rackLooks.filter { wallpaperOf(it) != null }.map { it.id }) }
     val keys = buildList {
         add("title"); add("hero"); add("yoursHead"); add("yours")
         if (inSeason.isNotEmpty()) add("season")
@@ -446,10 +446,10 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     // All Looks: the swatch fan and the clock its strips turn on. Its place is kept in the session, so a tab switch or a
     // recreated screen finds it where it was; the selected chip is the kind of the look it stands on (or turns to).
     val clock = remember { MotionClock() }
-    val fan = remember { FanEngine(clock, session.fanAt) }
+    val fan = remember { FanEngine(clock, stripOfLook(session.fanAt)) }
     LaunchedEffect(fan) { clock.run { fan.layout() } }
-    LaunchedEffect(fan) { snapshotFlow { fan.dest }.collect { session.fanAt = it } }
-    val chip by remember(fan) { derivedStateOf { fanGroupOf(FAN_ORDER[fan.dest]).f } }
+    LaunchedEffect(fan) { snapshotFlow { fan.dest }.collect { session.fanAt = lookOfStrip(it) } }
+    val chip by remember(fan) { derivedStateOf { fanGroupOf(stripLookId(fan.dest)).f } }
     // Where a strip's picture and bar lie on the page (set by the fan).
     val fanRects = remember { arrayOfNulls<(Int) -> Pair<Rect, Rect?>?>(1) }
     // Once the preview has closed, the strip it came out of drops back into its slot.
@@ -478,7 +478,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                 // Closing on a look of the fan goes home to its own strip: the fan is turned to it first, and the strip is
                 // held raised out of the deck until the preview has come down onto it.
                 if (key.startsWith("rack:")) {
-                    val i = FAN_ORDER.indexOf(look.id)
+                    val i = FAN_ORDER.indexOf(look.id).let { if (it >= 0) stripOfLook(it) else -1 }
                     if (i >= 0) {
                         fan.toFront(i)
                         fan.raise(true, i, now = true)
@@ -612,16 +612,24 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                                     onOpen = { look -> openPreview(look, "season", "season:${look.id}") },
                                     onApply = { look -> applyLook(look) }, onCustomize = ::customize
                                 )
-                                "allHead" -> SectionTitle("All Looks", count = FAN_ORDER.size)
+                                // The counter says where the fan is in the deck; a tap on it opens the number picker.
+                                "allHead" -> SectionTitle("All Looks", badge = {
+                                    FanCounter(fan, { rootCoords }) { anchor ->
+                                        pop = Pop.Picker(anchor, lookOfStrip(fan.dest)) { k ->
+                                            fan.show(stripOfLook(k))
+                                            scope.launch { listState.animateScrollToItem(keys.indexOf("allHead")) }
+                                        }
+                                    }
+                                })
                                 "filters" -> FanChips(chip) { f ->
-                                    fan.show(FAN_ORDER.indexOf(FAN_GROUPS.first { it.f == f }.ids[0]))
+                                    fan.show(stripOfLook(FAN_ORDER.indexOf(FAN_GROUPS.first { it.f == f }.ids[0])))
                                     scope.launch { listState.animateScrollToItem(keys.indexOf("allHead")) }
                                 }
                                 "fan" -> SwatchFan(
                                     fan, phoneDark, GalleryGutter, wallColors,
                                     FanActions(
                                         onOpen = { look, pic, bar ->
-                                            val i = FAN_ORDER.indexOf(look.id)
+                                            val i = FAN_ORDER.indexOf(look.id).let { if (it >= 0) stripOfLook(it) else -1 }
                                             if (!pv.open && i >= 0) {
                                                 fan.raise(true, i)
                                                 openPreview(look, "rack", "rack:${look.id}", fromRect = pic, fromBarRect = bar)

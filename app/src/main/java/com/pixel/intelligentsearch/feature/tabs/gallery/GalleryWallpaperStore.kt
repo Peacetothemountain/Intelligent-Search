@@ -223,11 +223,16 @@ internal object WallpaperColorMath {
     }
 }
 
+/** The Your Colors looks of the fan: they take the owner's wallpaper and its colors, as Yours Now does. */
+internal val ON_YOUR_WALLPAPER = setOf("square", "tide", "clay", "meadow")
+
 /**
  * The wallpaper [look] comes with: a built-in look's own, or the one of the look a saved copy was made from. With
  * [dark] false, its twin for the light theme where it has one. Null for a look the owner made: that has none.
  */
 internal fun wallpaperOf(look: Look, dark: Boolean = true): Wallpaper? {
+    // Your Colors are shown on the owner's own wallpaper, in its colors: they have no picture of their own.
+    if (look.id in ON_YOUR_WALLPAPER || look.base in ON_YOUR_WALLPAPER) return null
     val own = WALLPAPERS[look.id] ?: look.base?.let { WALLPAPERS[it] } ?: return null
     return if (dark) own else WALLPAPERS[own.id + ".light"] ?: own
 }

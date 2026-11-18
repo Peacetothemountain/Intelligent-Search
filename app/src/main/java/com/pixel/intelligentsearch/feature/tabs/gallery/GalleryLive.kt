@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.tabs.gallery
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.core.content.edit
 import android.content.Context
 import android.content.SharedPreferences
@@ -50,10 +52,19 @@ internal object GalleryLive {
      */
     val liveG = androidx.compose.runtime.mutableStateMapOf<Design, String>()
 
+    /** Yours Now, the first look of the fan: the search bar as the settings have it now ([refreshG] reads it). */
+    const val NOW_ID = "yours"
+    private const val NOW_NAME = "Yours Now"
+    private const val NOW_DESC = "Your search bar as it is right now, on your wallpaper."
+    var now by androidx.compose.runtime.mutableStateOf(Look(NOW_ID, NOW_NAME, NOW_DESC, origin = Origin.Mine))
+        private set
+
     fun refreshG(context: Context) {
         val l = live(context, prefs(context))
         liveG[Design.SYSTEM] = l.system.gIconTheme
         liveG[Design.MATERIAL] = l.material.gIconTheme
+        val look = read(context).copy(id = NOW_ID, name = NOW_NAME, desc = NOW_DESC)
+        if (look != now) now = look
     }
 
     /** How the person's search page is laid out, which no look changes: where its bar is, and whether it shows the clock. */

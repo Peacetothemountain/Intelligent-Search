@@ -127,18 +127,6 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
                         isChecked = vibrationEnabled,
                         // The haptic engines read this setting on every haptic, so saving it is enough.
                         onCheckedChange = { vibrationEnabled = it },
-                        showDivider = true
-                    )
-
-                    var gestureHints by rememberSetting(SettingsManager.GALLERY_HINTS)
-                    var hintTurns by rememberSetting(SettingsManager.GALLERY_HINT_TURNS)
-                    SettingsRowToggle(
-                        title = "Gesture Hints",
-                        subtitle = "Show How to Turn the Swatches.",
-                        icon = com.pixel.intelligentsearch.feature.tabs.ui.Symbols.SwipeVertical,
-                        isChecked = gestureHints,
-                        // On again, Gallery's arrow comes back and counts its three turns from the start.
-                        onCheckedChange = { if (it) hintTurns = 0; gestureHints = it },
                         showDivider = false
                     )
                 }

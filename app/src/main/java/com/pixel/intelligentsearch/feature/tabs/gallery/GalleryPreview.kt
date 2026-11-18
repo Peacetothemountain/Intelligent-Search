@@ -191,8 +191,8 @@ internal class PreviewController {
 
 /**
  * A full-preview card is a swatch too: it turns on a pivot far below the screen, as the strips turn on their rivet.
- * Going on, the next look swings in from the right and lands on the current one; going back, the current one swings
- * off to the right and the one before is there under it. [A] is its angle: 0 upright, [FP_SWING] wholly off the screen.
+ * Going on, the current look swings off to the right and the next one is there under it; going back, the look before
+ * swings in from the right and lands on the current one. [A] is its angle: 0 upright, [FP_SWING] wholly off the screen.
  */
 internal class FpCard(val look: Look, val seq: Int, clock: MotionClock) {
     val A = Spr(0f, SP.spatial, clock, 0.01f)
@@ -331,9 +331,10 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
     }
 
     /*
-     * Previous (-1) or next (+1): a swatch turn, with the whole screen as the strip. On, the next look swings in from the
-     * right over the current one and lands on it. Back, the look before is laid under, and the current one swings off
-     * to the right. A tap while cards are still turning adds to the same motion; every card stays whole and opaque.
+     * Previous (-1) or next (+1): a swatch turn, with the whole screen as the strip, the way the deck turns. On, the next
+     * look is laid under, and the current one swings off to the right. Back, the look before swings in from the right
+     * over the current one and lands on it. A tap while cards are still turning adds to the same motion; every card
+     * stays whole and opaque.
      */
     fun fileTo(dir: Int) {
         val size = pv.list.size
@@ -358,7 +359,7 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
         pv.applied = false
         val n = FpCard(pv.list[j], ++pv.fpSeq, clock)
         CardHaptics.pass(view)
-        if (dir > 0) {
+        if (dir < 0) {
             n.A.set(FP_SWING)
             n.A.to(0f, 0f, SP.spatial) { pv.stack.forEach { c -> if (c !== n && c.seq < n.seq) c.kill() }; clock.kick() }
             pv.stack.add(n)
@@ -382,7 +383,7 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
 
     fun apply() {
         val asBefore = pv.context == "yours" && look === state.before
-        if (look.id == state.current.id) return host.customize()
+        if (state.isOn(look)) return host.customize()
         if (pv.applied) return
         host.apply(look, asBefore) { result ->
             if (result !is Commit.Done) return@apply
@@ -928,7 +929,7 @@ private fun Toolbar(
 ) {
     val scheme = MaterialTheme.colorScheme
     val look = pv.look ?: return
-    val on = look.id == state.current.id
+    val on = state.isOn(look)
     val shape = RoundedCornerShape(if (lg) 28.dp else 32.dp)
     // The name rides the pager with the wallpaper and the bar: each look's name on its page, as far across this title
     // as its wallpaper is across the screen. Just one look: no count, no arrows.

@@ -319,8 +319,9 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          */
         val GALLERY_LOOKS = StringSetting("gallery_looks", "")
         /**
-         * Gesture Hints: Gallery's fan shows a curved arrow that says how to turn it. It goes away for good after
-         * [GALLERY_HINT_TURNS] reaches three turns that changed the look; turning the switch back on starts the count again.
+         * Gesture Hints (the switch in Gallery's How Looks Work): Gallery's fan shows a curved arrow that says how to turn
+         * it. It goes away for good after [GALLERY_HINT_TURNS] reaches three turns that changed the look; turning the switch
+         * back on starts the count again.
          */
         val GALLERY_HINTS = BooleanSetting("gallery_hints", true)
         val GALLERY_HINT_TURNS = IntSetting("gallery_hint_turns", 0, 0..3)

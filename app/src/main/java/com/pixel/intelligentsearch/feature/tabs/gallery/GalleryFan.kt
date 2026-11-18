@@ -27,11 +27,13 @@ import kotlin.math.tan
 
 /*
  * All Looks as a paint swatch fan deck (the approved mockup, Direction B swatch fan): forty paper strips on one rivet,
- * stacked in order and never restacked. Strip i+1 always lies on strip i. One strip stands upright (p, fractional
- * while the fan turns); a strip's angle depends only on how far it is from p: under it, the earlier ones fan out to
- * the left; over it, the later ones are spread out to the right and down, the next only far enough to clear the
- * upright strip's picture, the ones after at growing angles, the rest tucked close under the last. Turning to the next
- * look swings the nearest of those back over the upright strip; turning back swings the upright strip off to the right.
+ * stacked in order and never restacked. Strip i+1 always lies on strip i. The deck is read from the top: the first look
+ * (Yours Now) is the top strip and the last (Seasonal) the bottom one, so look n is strip 39 - n ([stripOfLook]). One
+ * strip stands upright (p, fractional while the fan turns); a strip's angle depends only on how far it is from p: under
+ * it, the looks still to come fan out to the left; over it, the looks already seen are spread out to the right and down,
+ * the last one seen only far enough to clear the upright strip's picture, the ones before it at growing angles, the rest
+ * tucked close under the first. Turning to the next look swings the upright strip off to the right, off the one below;
+ * turning back swings the nearest of the spread back over the upright strip.
  *
  * This file is the fan's model and motion, a straight port of the mockup's setupFan: the same angles, lens, flex,
  * lift, shadows, settle, pace and haptics. Lengths are the mockup's px in a 360 px wide box.
@@ -42,7 +44,9 @@ internal class FanGroup(val f: String, val name: String, val icon: ImageVector, 
 
 internal val FAN_GROUPS: List<FanGroup> by lazy {
     listOf(
-        FanGroup("colors", "Your Colors", Symbols.PaletteFilled, listOf("classic", "square", "tide", "clay", "meadow")),
+        // Yours Now (the search bar as it is set, GalleryLive.now) stands where Classic stood. Classic is still a look
+        // (BUILT_IN_LOOKS): a saved copy, a look of the week or a kept look that names it resolves as before.
+        FanGroup("colors", "Your Colors", Symbols.PaletteFilled, listOf(GalleryLive.NOW_ID, "square", "tide", "clay", "meadow")),
         FanGroup("light", "Light", Symbols.LightModeFilled, listOf("paper", "pastel", "linen", "sky", "peach", "mint")),
         FanGroup("dark", "Dark", Symbols.DarkModeFilled, listOf("ink", "neon", "midnight", "ember", "forest", "carbon")),
         FanGroup("glass", "Glass", Symbols.BlurOn, listOf("glass", "sunset", "lagoon", "rose", "smoke")),
@@ -52,10 +56,19 @@ internal val FAN_GROUPS: List<FanGroup> by lazy {
     )
 }
 
-/** The looks in the fan's order (the full preview steps through them in it). */
+/** The looks in the fan's order, from the top of the deck down (the full preview steps through them in it). */
 internal val FAN_ORDER: List<String> by lazy { FAN_GROUPS.flatMap { it.ids } }
 
-internal fun fanLook(id: String): Look = BUILT_IN_LOOKS.first { it.id == id }
+internal fun fanLook(id: String): Look = if (id == GalleryLive.NOW_ID) GalleryLive.now else BUILT_IN_LOOKS.first { it.id == id }
+
+/** The strip look [n] (its place in [FAN_ORDER]) is printed on: the first look is the top strip of the deck. */
+internal fun stripOfLook(n: Int): Int = FAN_ORDER.size - 1 - n
+
+/** The place in [FAN_ORDER] of the look on strip [i]. */
+internal fun lookOfStrip(i: Int): Int = FAN_ORDER.size - 1 - i
+
+/** The look printed on strip [i]. */
+internal fun stripLookId(i: Int): String = FAN_ORDER[lookOfStrip(i)]
 internal fun fanGroupOf(id: String): FanGroup = FAN_GROUPS.first { id in it.ids }
 
 /** The fan's geometry and feel, as the mockup has them. */
@@ -92,7 +105,7 @@ internal object FanDims {
     const val UNDER_SEEN = 9
     const val OVER_SEEN = 16
     const val A_UNDER = 8f
-    /** Over the last strips the ones already passed open out further on the left, so the last look never stands alone. */
+    /** Over the top strips of the deck (the first looks, which have no spread yet) the ones under open out further on the left, so the first look never stands alone. */
     const val A_UNDER_END = 16f
     const val UNDER_END_OVER = 6f
     const val S_UNDER = 4.2f
@@ -438,6 +451,11 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
     /** Nothing going on: no finger on the fan, the fan at rest and no strip raised. The hint plays only then. */
     var calm by mutableStateOf(true)
         private set
+    /** A finger is turning the fan: the hint's light follows it. */
+    var pulling by mutableStateOf(false)
+        private set
+    /** How far that drag has turned the fan toward the next look (strips; negative, back), from the look it started on. */
+    val pull: Float get() = from - M.x
     /** The hint's arc in the fan box: the rivet's plane through the lens, as the strips' own matrices are made. */
     val hintPlane: FloatArray = M4.plane(M4.chain(M4.t(FanDims.RX, FanDims.RY), viewPre))
 
@@ -466,7 +484,7 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
         }
         // A strip landing from the right pushes the upright strip and the ones under it a little to the left; one landing
         // on the spread pushes the spread a little further round. Less and less with every strip away from it.
-        // Over the last strips the under-fan opens out, so the looks already passed show on the left.
+        // Over the top strips the under-fan opens out, so the looks still to come show on the left.
         val endT = ((p - (n - 1 - FanDims.UNDER_END_OVER)) / FanDims.UNDER_END_OVER).coerceIn(0f, 1f)
         val under = FanDims.A_UNDER + (FanDims.A_UNDER_END - FanDims.A_UNDER) * endT * endT * (3f - 2f * endT)
         for (i in 0 until n) {
@@ -734,6 +752,7 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
                 return false
             }
             dragging = true
+            pulling = true
             ox = travel
             p0 = M.x
             tickEvery = 1
@@ -761,6 +780,7 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
     fun up(t: Long): Boolean {
         if (!held) return false
         held = false
+        pulling = false
         clock.kick()
         if (!dragging) {
             if (caught) {

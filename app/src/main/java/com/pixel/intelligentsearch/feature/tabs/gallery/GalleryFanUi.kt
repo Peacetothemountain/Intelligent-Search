@@ -185,7 +185,15 @@ internal fun SwatchFan(
         engine.onGrab = { CardHaptics.start(view) }
     }
     val c = rememberFanColors()
-    val tertiary = MaterialTheme.colorScheme.tertiary
+    val scheme = MaterialTheme.colorScheme
+    val hintColors = remember(scheme) {
+        HintColors(
+            arrow = scheme.primary.copy(alpha = 0.78f).compositeOver(scheme.background),
+            glow = if (scheme.dark) scheme.tertiary else lerp(scheme.tertiary, Color(0xFFFF9A3D), 0.45f),
+            core = if (scheme.dark) lerp(scheme.tertiary, Color.White, 0.55f) else scheme.tertiaryContainer
+        )
+    }
+    val hintPaints = remember { HintPaints() }
     val window = LocalWindowInfo.current.containerSize
     val screenW = with(density) { (if (view.width > 0) view.width else window.width).toFloat().toDp() }
     val screenH = with(density) { (if (window.height > 0) window.height else view.height).toFloat().toDp() }
@@ -211,7 +219,7 @@ internal fun SwatchFan(
         val origin = root.localPositionOf(fc, Offset.Zero)
         val pb = engine.pictureBox(i)
         val pic = Rect(origin.x + pb.left * unit, origin.y + pb.top * unit, origin.x + pb.right * unit, origin.y + pb.bottom * unit)
-        val look = fanLook(FAN_ORDER[i])
+        val look = fanLook(stripLookId(i))
         val wp = wallpaperOf(look, look.appDark(phoneDark))
         val focus = wp?.focus ?: 0.5f
         val place = stripPicture(wallRatio, focus)
@@ -225,7 +233,7 @@ internal fun SwatchFan(
     }
     fun openStrip(i: Int) {
         val r = rectsOf(i) ?: return
-        actions.onOpen(fanLook(FAN_ORDER[i]), r.first, r.second)
+        actions.onOpen(fanLook(stripLookId(i)), r.first, r.second)
     }
     opener[0] = ::openStrip
     actions.rects[0] = ::rectsOf
@@ -245,17 +253,17 @@ internal fun SwatchFan(
             // One node for TalkBack: the look upright, and actions to turn the fan and open the look (the strips' own
             // printed names stay out of it).
             .clearAndSetSemantics {
-                val id = FAN_ORDER[engine.top]
-                contentDescription = "All looks, a fan of paint swatches"
-                stateDescription = "${fanLook(id).name}, ${engine.top + 1} of ${engine.n}, ${fanGroupOf(id).name}"
+                val id = stripLookId(engine.top)
+                contentDescription = "All looks, a fan of swatch cards"
+                stateDescription = "${fanLook(id).name}, ${lookOfStrip(engine.top) + 1} of ${engine.n}, ${fanGroupOf(id).name}"
                 onClick(label = "Open preview") { opener[0]?.invoke(engine.top); true }
-                // Only the turns there are: none past either end.
+                // Only the turns there are: none past either end. The next look is the strip under the upright one.
                 customActions = listOfNotNull(
-                    if (engine.dest >= engine.n - 1) null else CustomAccessibilityAction("Next look") {
-                        if (engine.dest >= engine.n - 1) false else { engine.turnTo(engine.dest + 1); true }
-                    },
-                    if (engine.dest <= 0) null else CustomAccessibilityAction("Previous look") {
+                    if (engine.dest <= 0) null else CustomAccessibilityAction("Next look") {
                         if (engine.dest <= 0) false else { engine.turnTo(engine.dest - 1); true }
+                    },
+                    if (engine.dest >= engine.n - 1) null else CustomAccessibilityAction("Previous look") {
+                        if (engine.dest >= engine.n - 1) false else { engine.turnTo(engine.dest + 1); true }
                     }
                 )
             }
@@ -316,16 +324,17 @@ internal fun SwatchFan(
                     Path().apply { addOval(Rect((FanDims.RX - 62f) * u, (FanDims.RY - 50f) * u, (FanDims.RX + 74f) * u, (FanDims.RY + 46f) * u)) }
                 }
         )
-        // The gesture hint, on the page under the strips (they swing over it).
-        Box(Modifier.fillMaxSize().drawBehind { drawFanHint(engine, hint, unit, c.primary, tertiary) })
         for (i in 0 until engine.n) key(i) {
             StripSlot(engine, i, unit, c, hidden = { actions.isRaisedHidden(i) }) { rec ->
                 // The shadows its edges throw: turned out around the rivet as far as the gap on that side allows.
                 EdgeShadow(left = true, k = k, color = c.cardShadow) { engine.out[i].leftShadow }
                 EdgeShadow(left = false, k = k, color = c.cardShadow) { engine.out[i].rightShadow }
-                StripFace(engine, i, fanLook(FAN_ORDER[i]), phoneDark, k, c, wallRatio, wallColors, rec, hidden = { actions.isRaisedHidden(i) })
+                StripFace(engine, i, fanLook(stripLookId(i)), phoneDark, k, c, wallRatio, wallColors, rec, hidden = { actions.isRaisedHidden(i) })
             }
         }
+        // The gesture hint, over the strips (one swinging through the gap under a finger never hides it) and under the
+        // rivet. A layer of its own: its light moving redraws nothing else.
+        Box(Modifier.fillMaxSize().drawBehind { drawFanHint(engine, hint, unit, hintColors, hintPaints) })
         // The one rivet everything turns on: a small eyelet at the foot, metal in the theme's primary.
         Box(
             Modifier
@@ -369,7 +378,7 @@ internal fun SwatchFan(
 @Composable
 private fun FanCaption(engine: FanEngine, ts: Float, large: Boolean, modifier: Modifier) {
     val scheme = MaterialTheme.colorScheme
-    val id = FAN_ORDER[engine.top]
+    val id = stripLookId(engine.top)
     val look = fanLook(id)
     val g = fanGroupOf(id)
     Column(
@@ -421,7 +430,7 @@ private fun FanCaption(engine: FanEngine, ts: Float, large: Boolean, modifier: M
                 .height(4.dp)
                 .drawBehind {
                     engine.frame.intValue
-                    val f = ((engine.p.coerceIn(0f, engine.n - 1f) + 1f) / engine.n).coerceIn(0f, 1f)
+                    val f = ((engine.n - engine.p.coerceIn(0f, engine.n - 1f)) / engine.n).coerceIn(0f, 1f)
                     val cr = CornerRadius(size.height / 2f)
                     drawRoundRect(track, cornerRadius = cr)
                     drawRoundRect(fill, size = Size(size.width * f, size.height), cornerRadius = cr)

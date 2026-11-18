@@ -115,9 +115,11 @@ internal fun DisplayTitle() {
     )
 }
 
-/** A section's title in primary, with an optional count or button at its end. */
+/** A section's title in primary, with an optional count or [badge] beside it and a button at its end. */
 @Composable
-internal fun SectionTitle(title: String, modifier: Modifier = Modifier, count: Int? = null, trailing: (@Composable () -> Unit)? = null) {
+internal fun SectionTitle(
+    title: String, modifier: Modifier = Modifier, count: Int? = null, badge: (@Composable () -> Unit)? = null, trailing: (@Composable () -> Unit)? = null
+) {
     val scheme = MaterialTheme.colorScheme
     Row(modifier.fillMaxWidth().padding(start = 2.dp, end = 2.dp, top = 28.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Text(title, color = scheme.primary, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 24.sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.1).sp), modifier = Modifier.semantics { heading() })
@@ -125,6 +127,7 @@ internal fun SectionTitle(title: String, modifier: Modifier = Modifier, count: I
             Modifier.padding(start = 8.dp).heightIn(min = 26.dp).widthIn(min = maxOf(32.dp, 18.dp + 8.dp * count.toString().length)).background(scheme.primaryContainer, RoundedCornerShape(13.dp)).padding(horizontal = 6.dp),
             contentAlignment = Alignment.Center
         ) { Text("$count", color = scheme.onPrimaryContainer, style = MaterialTheme.typography.labelLarge.copy(fontSize = 13.sp, fontWeight = FontWeight.Bold)) }
+        badge?.invoke()
         Spacer(Modifier.weight(1f))
         trailing?.invoke()
     }

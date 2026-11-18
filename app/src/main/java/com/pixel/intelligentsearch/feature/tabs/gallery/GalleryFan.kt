@@ -618,6 +618,22 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
         dest = to
     }
 
+    /** Whether a mouse wheel or trackpad can turn the fan [dir] (1, the next look): not past either end of the deck. */
+    fun canWheel(dir: Int): Boolean = (dest - dir) in 0 until n
+
+    /**
+     * A notch of a mouse wheel or a step of a trackpad swipe: one look on ([dir] 1, the strip under the upright one) or
+     * back, landing as a turn by hand does. A finger on the fan keeps it.
+     */
+    fun wheel(dir: Int) {
+        if (held || !canWheel(dir)) return
+        val to = dest - dir
+        tickEvery = 1
+        byHand = false
+        M.go(to.toFloat())
+        dest = to
+    }
+
     /** Stands [i] upright at once, without a tick (closing the preview on another look comes home to its strip). */
     fun toFront(i: Int) {
         quiet = true

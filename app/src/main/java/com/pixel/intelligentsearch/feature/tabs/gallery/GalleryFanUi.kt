@@ -95,6 +95,7 @@ import com.pixel.intelligentsearch.feature.settings.oneLineAutoSize
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
+import com.pixel.intelligentsearch.core.ui.wheelSteps
 
 /* The fan's drawing: the side text, the shadow on the page under the rivet, the forty strips (each a picture of its
  * own, moved on the page by the lens's matrix: nothing is laid out or repainted as the fan turns), and the rivet. */
@@ -267,6 +268,8 @@ internal fun SwatchFan(
                     }
                 )
             }
+            // A mouse wheel or trackpad turns it a look at a time, down for the next; past either end the page scrolls.
+            .wheelSteps(engine, canStep = { engine.canWheel(it) }, step = { engine.wheel(it) })
             .pointerInput(engine) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)

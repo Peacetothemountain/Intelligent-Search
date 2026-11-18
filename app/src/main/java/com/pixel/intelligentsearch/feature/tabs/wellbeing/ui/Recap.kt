@@ -73,6 +73,7 @@ import com.pixel.intelligentsearch.feature.tabs.wellbeing.model.WellbeingModel
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import com.pixel.intelligentsearch.core.ui.wheelSteps
 
 private enum class Tone { P, S, T, H }
 private class Slide(val title: String, val tone: Tone, val body: @Composable () -> Unit)
@@ -121,6 +122,9 @@ internal fun RecapLayer(m: WellbeingModel, view: ViewState, actions: WellbeingAc
                         else if (view.recapSlide < n - 1) to(view.recapSlide + 1)
                     }
                 }
+                // A mouse wheel or trackpad turns the slides too, down or right for the next (a slide's own words
+                // scroll first while they can).
+                .wheelSteps(n, w, minGapMillis = 300L, canStep = { d -> view.recapSlide + d in 0 until n }, step = { d -> to(view.recapSlide + d) })
                 .pointerInput(n, w) {
                     val tracker = VelocityTracker()
                     detectHorizontalDragGestures(

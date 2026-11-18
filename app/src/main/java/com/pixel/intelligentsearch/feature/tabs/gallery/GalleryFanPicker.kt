@@ -90,6 +90,7 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
+import com.pixel.intelligentsearch.core.ui.wheelSteps
 
 /*
  * The counter beside All Looks and the number picker it opens (the approved mockup, round b4). The counter says where
@@ -250,6 +251,12 @@ internal fun NumberPicker(pick: Pop.Picker, phoneDark: Boolean, onClose: () -> U
                             if (chosen <= 0) null else CustomAccessibilityAction("Previous number") { scope.launch { wheel.animateTo((chosen - 1f).coerceAtLeast(0f), WheelSpring) }; true }
                         )
                     }
+                    // A mouse wheel or trackpad turns it a number at a time, down for the next.
+                    .wheelSteps(
+                        wheel, minGapMillis = 90L,
+                        canStep = { d -> wheel.targetValue.roundToInt() + d in 0 until n },
+                        step = { d -> scope.launch { wheel.animateTo((wheel.targetValue.roundToInt() + d).coerceIn(0, n - 1).toFloat(), WheelSpring) } }
+                    )
                     .pointerInput(wheel) {
                         awaitEachGesture {
                             val down = awaitFirstDown()

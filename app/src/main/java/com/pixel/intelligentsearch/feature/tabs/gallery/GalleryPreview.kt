@@ -101,6 +101,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import com.pixel.intelligentsearch.core.ui.wheelSteps
 
 /** What a card draws in its window besides the bar, which the full preview carries while it grows and shrinks. */
 internal enum class Decor { None, Badge, SmallBadge, Hero, HeroOn }
@@ -531,6 +532,15 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
                     }
                 }
             }
+            // A mouse wheel or trackpad moves to the next look (down or right) or the one before, as a swipe does.
+            .wheelSteps(
+                pv, pageWidth, minGapMillis = 250L,
+                canStep = { d -> !pv.closing && pv.index + d in pv.list.indices },
+                step = { d ->
+                    pv.endStack()
+                    go(d)
+                }
+            )
             .pointerInput(pv, pageWidth) {
                 var dx = 0f
                 var start = 0f

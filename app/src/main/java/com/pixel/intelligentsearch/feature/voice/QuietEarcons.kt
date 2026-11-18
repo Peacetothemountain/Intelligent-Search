@@ -10,9 +10,13 @@ import android.os.SystemClock
 import androidx.core.content.edit
 
 /**
- * Keeps the speech engine's start and stop tones quiet. Google's on-device engine (Android System Intelligence on a
- * Pixel) plays them itself on the notification channel, and Android gives apps no switch for them, so that channel is
- * muted for the moment a tone can play and given back right after. A channel the user had muted is left as it is.
+ * Keeps the speech engine's start and stop tones quieter where the app can't stop them: only when the engine opens the
+ * microphone itself (Android 12, or an engine that won't take the app's audio). Elsewhere the app hands the engine its
+ * own recording ([MicFeed]) and no tone plays at all. Google's engine plays them itself on the notification channel
+ * (Speech Services by Google: "Playing beep com.google.android.tts:raw/open", as a notification event), and Android
+ * gives apps no switch for them, so that channel is muted for the moment a tone can play and given back right after.
+ * It can't be relied on: the tone starts a few milliseconds before the mute reaches it, and the stop tone can come
+ * seconds later. A channel the user had muted is left as it is.
  *
  * The channel is often given back after the app's screen has closed (the tone comes as listening stops, as Google's
  * search opens). Android 17 can ignore a volume change from an app with nothing on screen, so the mute is also written

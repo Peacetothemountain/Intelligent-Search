@@ -52,6 +52,7 @@ import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 import com.pixel.intelligentsearch.feature.search.today.NebulaPainter
 import com.pixel.intelligentsearch.feature.search.today.hueOf
 import com.pixel.intelligentsearch.feature.search.today.rememberLoop
+import com.pixel.intelligentsearch.feature.voice.MicFeed
 import com.pixel.intelligentsearch.feature.voice.QuietEarcons
 import kotlin.math.max
 import kotlin.math.min
@@ -71,9 +72,11 @@ class VoiceNebulaActivity : ComponentActivity() {
     private val main = Handler(Looper.getMainLooper())
     private val haptics by lazy { PixelHapticEngine.get(this) }
     private var recognizer: SpeechRecognizer? = null
+    /** The app's own recording, handed to the engine so it plays no tones; null while the engine records itself. */
+    private var feed: MicFeed? = null
     /**
-     * The engine's start and stop tones, kept quiet: the nebula already shows it listening. Its own handler, so the
-     * channel is still given back after [onDestroy] clears [main].
+     * Only where the engine can't be handed audio (Android 12): its start and stop tones, kept quiet. Its own handler,
+     * so the channel is still given back after [onDestroy] clears [main].
      */
     private val tones by lazy { QuietEarcons(this, Handler(Looper.getMainLooper())) }
     private val level = mutableFloatStateOf(0f)
@@ -112,59 +115,112 @@ class VoiceNebulaActivity : ComponentActivity() {
         super.onDestroy()
     }
 
-    private fun listen() {
+    @android.annotation.SuppressLint("MissingPermission") // Only called with the microphone allowed.
+    private fun listen(feedAudio: Boolean = true) {
         val r = runCatching { SpeechRecognizer.createSpeechRecognizer(this) }.getOrNull() ?: run {
             openGoogleVoice()
             return
         }
         recognizer = r
         r.setRecognitionListener(listener)
-        haptics.performPredictiveBackHaptic(window.decorView)
-        tones.hold()
-        r.startListening(
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH)
-                .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
-        )
+        if (feedAudio) haptics.performPredictiveBackHaptic(window.decorView)
+        // The app records and hands the engine the audio, so the engine never opens the microphone and never plays
+        // its start and stop tones. Android 12 can't hand it audio: there the tones are only muted.
+        feed = if (feedAudio) MicFeed.start(main) { setLevel(it) } else null
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+            .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH)
+            .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            .putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, packageName)
+        feed?.let {
+            // One session for as long as the audio runs; the first phrase heard is the search (see [listener]).
+            it.into(intent, wholeSession = true)
+            main.postDelayed(noWords, NO_WORDS_MS)
+            main.postDelayed(enough, LONGEST_MS)
+        } ?: tones.hold()
+        try {
+            r.startListening(intent)
+        } catch (e: Exception) {
+            stopListening()
+            openGoogleVoice()
+        }
+    }
+
+    private fun setLevel(rmsdB: Float) {
+        level.floatValue = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
     }
 
     private fun stopListening() {
+        main.removeCallbacks(noWords)
+        main.removeCallbacks(enough)
+        main.removeCallbacks(settled)
         recognizer?.let {
-            tones.hold()
+            if (feed == null) tones.hold()
             runCatching { it.cancel() }
             runCatching { it.destroy() }
         }
         recognizer = null
+        feed?.stop()
+        feed = null
+    }
+
+    /** Fed audio, the engine never stops by itself: nothing said in time closes, as Google's page does. */
+    private val noWords = Runnable { if (phase == Phase.Listening && heard.isBlank()) close() }
+    /** The words stopped changing a while ago and the engine hasn't called them a phrase yet: search with them. */
+    private val settled = Runnable { done(heard) }
+    /** A safety stop for a microphone left open. */
+    private val enough = Runnable { done(heard) }
+
+    private fun done(words: String) {
+        if (phase != Phase.Listening) return
+        if (words.isBlank()) close() else search(words)
     }
 
     private val listener = object : RecognitionListener {
-        // The start tone plays as the engine becomes ready, the stop tone as it stops hearing.
-        override fun onReadyForSpeech(params: Bundle?) = tones.hold()
+        // Without fed audio (Android 12), the start tone plays as the engine becomes ready, the stop tone as it stops
+        // hearing.
+        override fun onReadyForSpeech(params: Bundle?) { if (feed == null) tones.hold() }
         override fun onBeginningOfSpeech() {}
         override fun onBufferReceived(buffer: ByteArray?) {}
-        override fun onEndOfSpeech() = tones.hold()
+        override fun onEndOfSpeech() { if (feed == null) tones.hold() }
         override fun onEvent(eventType: Int, params: Bundle?) {}
 
-        // About -2 dB in silence to about 10 dB speaking up, as Google's recognizer reports it.
+        // About -2 dB in silence to about 10 dB speaking up, as Google's recognizer reports it. Fed audio is measured
+        // by the app itself.
         override fun onRmsChanged(rmsdB: Float) {
-            level.floatValue = ((rmsdB + 2f) / 12f).coerceIn(0f, 1f)
+            if (feed == null) setLevel(rmsdB)
         }
 
         override fun onPartialResults(partialResults: Bundle?) {
-            first(partialResults)?.let { heard = it }
+            val words = first(partialResults) ?: return
+            if (words == heard) return
+            heard = words
+            if (feed != null) {
+                main.removeCallbacks(settled)
+                main.postDelayed(settled, SETTLED_MS)
+            }
         }
 
-        override fun onResults(results: Bundle?) {
-            val words = first(results) ?: heard
-            if (words.isBlank()) close() else search(words)
+        // Fed audio runs as one segmented session: the first phrase is the search.
+        override fun onSegmentResults(segmentResults: Bundle) {
+            val words = first(segmentResults) ?: heard
+            if (words.isNotBlank()) done(words)
         }
+
+        override fun onEndOfSegmentedSession() = done(heard)
+
+        override fun onResults(results: Bundle?) = done(first(results) ?: heard)
 
         override fun onError(error: Int) {
             if (phase != Phase.Listening) return
-            when (error) {
+            when {
                 // Nothing said, or nothing it could make out: just go, as Google's page does.
-                SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> close()
+                error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> done(heard)
+                // An engine that won't take the audio: once more, letting it open the microphone itself.
+                feed != null && heard.isBlank() &&
+                    (error == SpeechRecognizer.ERROR_AUDIO || error == SpeechRecognizer.ERROR_CLIENT) -> {
+                    stopListening()
+                    listen(feedAudio = false)
+                }
                 else -> {
                     stopListening()
                     openGoogleVoice()
@@ -282,6 +338,11 @@ class VoiceNebulaActivity : ComponentActivity() {
 
     private companion object {
         const val SETTLE_MS = 380L
+        /** Fed audio: how long to wait for the first words, as Google's own voice search waits. */
+        const val NO_WORDS_MS = 6_000L
+        /** Fed audio: how long the words may sit unchanged before they're taken as said, if the engine hasn't said. */
+        const val SETTLED_MS = 1_800L
+        const val LONGEST_MS = 20_000L
         const val LOOP_MS = 600_000
         /** What [NebulaPainter] reads from the voice: loudness, low, middle and high sound, and a syllable's start. */
         const val SOUND_VALUES = 5

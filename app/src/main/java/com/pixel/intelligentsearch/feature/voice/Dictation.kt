@@ -34,7 +34,12 @@ class Dictation(private val context: Context) {
     val amplitude = mutableFloatStateOf(0f)
 
     private val main = Handler(Looper.getMainLooper())
-    /** The engine's own start and stop tones, kept quiet: the listening glow already shows when it listens. */
+    /**
+     * The app's own recording, handed to the engine (Android 13+): an engine given the audio never opens the
+     * microphone, so it never plays its start and stop tones. Null while the engine records itself.
+     */
+    private var feed: MicFeed? = null
+    /** Only where the engine records itself (Android 12): its start and stop tones, kept quiet. */
     private val tones = QuietEarcons(context, main)
     private var recognizer: SpeechRecognizer? = null
     private val heard = mutableListOf<String>()
@@ -108,8 +113,10 @@ class Dictation(private val context: Context) {
         phase.value = Phase.Finishing
         // Between sessions (or before the engine is ready) there are no last words to wait for.
         if (!live) { deliver(); return }
-        tones.hold()
+        if (feed == null) tones.hold()
         runCatching { recognizer?.stopListening() }
+        // The audio ends too, so an engine reading it hears the microphone close.
+        feed?.stop()
         main.postDelayed(finishTimeout, FINISH_WAIT_MS)
     }
 
@@ -237,13 +244,15 @@ class Dictation(private val context: Context) {
         onDeviceFallback = null
     }
 
+    @android.annotation.SuppressLint("MissingPermission") // start() checked the microphone.
     private fun startListening(r: SpeechRecognizer) {
         main.removeCallbacks(languageTimeout)
         if (recognizer !== r || listeningStarted) return
         listeningStarted = true
-        tones.hold()
+        feed = MicFeed.start(main) { amplitude.floatValue = computeAmplitudeStep(amplitude.floatValue, normalizeRmsDb(it)) }
+        if (feed == null) tones.hold()
         try {
-            r.startListening(recognizeIntent())
+            r.startListening(recognizeIntent().also { intent -> feed?.into(intent) })
         } catch (e: Exception) {
             Log.w(TAG, "Could not start listening", e)
             fail("Voice search couldn't start. Tap the mic to try again.")
@@ -269,14 +278,16 @@ class Dictation(private val context: Context) {
 
     private val listener = object : RecognitionListener {
         override fun onReadyForSpeech(params: Bundle?) {
-            // The start tone plays as the engine becomes ready, which can be a moment after it was asked to listen.
-            tones.hold()
+            // Without fed audio, the start tone plays as the engine becomes ready, which can be a moment after it was
+            // asked to listen.
+            if (feed == null) tones.hold()
             live = true
             if (phase.value == Phase.Starting) phase.value = Phase.Listening
         }
         override fun onBeginningOfSpeech() { if (phase.value == Phase.Starting) phase.value = Phase.Listening }
         override fun onRmsChanged(rmsdB: Float) {
-            amplitude.floatValue = computeAmplitudeStep(amplitude.floatValue, normalizeRmsDb(rmsdB))
+            // Fed audio is measured by the app itself.
+            if (feed == null) amplitude.floatValue = computeAmplitudeStep(amplitude.floatValue, normalizeRmsDb(rmsdB))
         }
         override fun onBufferReceived(buffer: ByteArray?) {}
         override fun onEndOfSpeech() {}
@@ -385,11 +396,13 @@ class Dictation(private val context: Context) {
 
     private fun release() {
         recognizer?.let { r ->
-            tones.hold()
+            if (feed == null) tones.hold()
             runCatching { r.cancel() }
             runCatching { r.destroy() }
         }
         recognizer = null
+        feed?.stop()
+        feed = null
     }
 
     companion object {

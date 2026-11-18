@@ -11,7 +11,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -25,6 +24,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -1022,7 +1022,7 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
             val ring = scheme.primary
             Box(
                 Modifier
-                    .size(44.dp)
+                    .size(48.dp)
                     .drawBehind {
                         if (ripple != null) {
                             val r = ripple()
@@ -1065,26 +1065,33 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
                     .semantics { contentDescription = "Hear it" },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(SpeakingHead, null, tint = scheme.primary, modifier = Modifier.offset(x = 7.dp).size(30.dp))
+                // Flush with the target's right edge, so the head lines up with the card's text inset rather than floating in.
+                Icon(SpeakingHead, null, tint = scheme.primary, modifier = Modifier.offset(x = 5.dp).size(38.dp))
             }
         }
         Text(word.meaning, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface, modifier = Modifier.padding(top = 8.dp))
     }
 }
 
-/** Word of the Day's Hear It: a head in profile facing left, speaking, drawn as an outline with no container. */
+/**
+ * Word of the Day's Hear It: a solid head in profile facing left, with two sound arcs leaving its mouth. No container,
+ * so the head reads at a glance.
+ */
 private val SpeakingHead: ImageVector by lazy {
     ImageVector.Builder("SpeakingHead", 24.dp, 24.dp, 24f, 24f).apply {
-        fun line(d: String) = addPath(
-            androidx.compose.ui.graphics.vector.PathParser().parsePathString(d).toNodes(),
-            stroke = androidx.compose.ui.graphics.SolidColor(Color.Black),
-            strokeLineWidth = 1.8f,
-            strokeLineCap = StrokeCap.Round,
-            strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round
+        fun nodes(d: String) = androidx.compose.ui.graphics.vector.PathParser().parsePathString(d).toNodes()
+        val ink = androidx.compose.ui.graphics.SolidColor(Color.Black)
+        addPath(
+            nodes(
+                "M15.2 2.5C19.2 2.5 22 5.4 22 9.2C22 11.6 21 13.6 19.6 15L19.6 21.5L12.6 21.5L12.6 18.9L11.2 18.9" +
+                    "C10.2 18.9 9.6 18.2 9.6 17.3L9.6 16.9L8.8 16.1L10.5 15.3L8.8 14.5L9.7 13.7L7.5 12.7L9.5 9.6" +
+                    "C9.5 5.6 11.6 2.5 15.2 2.5Z"
+            ),
+            fill = ink
         )
-        line("M14.8 3.4C13.6 5.6 12.0 7.8 10.2 10.0L12.4 10.9L11.5 12.2L12.5 12.8L11.7 13.8L12.7 14.7C12.3 15.3 11.8 15.7 11.9 16.3C12.1 17.0 13.0 17.4 14.2 17.4L19.6 17.4")
-        line("M8.2 8.6C6.8 10.4 6.8 12.8 8.2 14.6")
-        line("M5.4 6.6C2.8 9.6 2.8 13.6 5.4 16.6")
+        fun arc(d: String) = addPath(nodes(d), stroke = ink, strokeLineWidth = 1.9f, strokeLineCap = StrokeCap.Round)
+        arc("M5.45 13.48A3.8 3.8 0 0 0 5.45 17.72")
+        arc("M3.13 11.91A6.6 6.6 0 0 0 3.13 19.29")
     }.build()
 }
 

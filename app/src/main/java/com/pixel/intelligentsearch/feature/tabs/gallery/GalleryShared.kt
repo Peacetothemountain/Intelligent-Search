@@ -104,6 +104,8 @@ import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.roundToInt
 import kotlin.math.sin
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.text.rememberTextMeasurer
 
 
 /* What the Gallery page draws its looks with: the M3 shape library, windows onto a look, a look's chips and colors,
@@ -344,10 +346,22 @@ internal fun MorphButton(b: GroupButton, height: Dp, rest: List<Dp>, modifier: M
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center
     ) {
-        if (b.icon != null) Icon(b.icon, null, tint = b.fg, modifier = Modifier.size(20.dp))
-        Text(
-            b.text, color = b.fg, maxLines = 1, modifier = Modifier.padding(start = if (b.icon != null) 8.dp else 0.dp),
-            style = MaterialTheme.typography.labelLarge.copy(fontSize = fontSize.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.1.sp)
-        )
+        val style = MaterialTheme.typography.labelLarge.copy(fontSize = fontSize.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.1.sp)
+        val measurer = rememberTextMeasurer(cacheSize = 2)
+        // In a narrow window (a third of a split screen) the label keeps its room: the icon goes first, then the label
+        // shrinks a little, and only then does it end in an ellipsis.
+        BoxWithConstraints(contentAlignment = Alignment.Center) {
+            val labelWidth = with(LocalDensity.current) { measurer.measure(b.text, style, maxLines = 1).size.width.toDp() }
+            val withIcon = b.icon != null && labelWidth + 28.dp <= maxWidth
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (withIcon) Icon(b.icon, null, tint = b.fg, modifier = Modifier.size(20.dp))
+                Text(
+                    b.text, color = b.fg, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+                    autoSize = com.pixel.intelligentsearch.feature.tabs.ui.oneLineAutoSize(style),
+                    modifier = Modifier.padding(start = if (withIcon) 8.dp else 0.dp),
+                    style = style
+                )
+            }
+        }
     }
 }

@@ -102,6 +102,9 @@ import com.pixel.intelligentsearch.feature.tabs.ui.rememberTick
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.unit.Dp
 
 /** Screenshot tests fix the date (the look of the week and the season follow it). */
 internal val LocalGalleryToday = androidx.compose.runtime.staticCompositionLocalOf<LocalDate?> { null }
@@ -192,6 +195,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     val statusTop = chrome.contentPadding.calculateTopPadding()
     val bottomPad = chrome.contentPadding.calculateBottomPadding()
     val appBarHeight = statusTop + 64.dp
+    var listHeight by remember { mutableIntStateOf(0) }
 
     fun show(s: Snack) { snack = s }
     // The page is pictured as it leaves (the back gesture shows that picture), so the menu goes first and the page is
@@ -579,7 +583,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                     )
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        modifier = Modifier.weight(1f).fillMaxWidth().onSizeChanged { listHeight = it.height },
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
                             start = GalleryGutter, end = GalleryGutter, top = 0.dp, bottom = bottomPad + 16.dp
                         )
@@ -638,7 +642,12 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                                         isRaisedHidden = { i -> pv.open && pv.context == "rack" && fan.raised == i },
                                         rects = fanRects
                                     ),
-                                    rootCoords = { rootCoords }
+                                    rootCoords = { rootCoords },
+                                    // What the list shows under the top bar, above the navigation bar (the floating pill
+                                    // moves out of the way as the page scrolls down to the fan).
+                                    room = if (listHeight > 0) {
+                                        with(density) { listHeight.toDp() } - (bottomPad - com.pixel.intelligentsearch.feature.tabs.PILL_HEIGHT - com.pixel.intelligentsearch.feature.tabs.PILL_BOTTOM_GAP) - 16.dp
+                                    } else Dp.Unspecified
                                 )
                                 "foot" -> Footer()
                             }

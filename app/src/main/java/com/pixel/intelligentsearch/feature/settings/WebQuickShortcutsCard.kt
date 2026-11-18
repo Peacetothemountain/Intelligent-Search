@@ -683,7 +683,7 @@ internal fun WebQuickShortcutsCard() {
                     },
                     text = {
                         Column(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             OutlinedTextField(

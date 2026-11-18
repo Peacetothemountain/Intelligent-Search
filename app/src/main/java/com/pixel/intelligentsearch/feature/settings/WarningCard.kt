@@ -24,6 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import com.pixel.intelligentsearch.core.ui.wholeWords
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 /**
  * The app's warning card: an amber warning icon, a title and what will happen, then "Don't show this again" on the far
@@ -52,7 +54,7 @@ internal fun WarningCard(
             tonalElevation = 6.dp,
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)
         ) {
-            Column(modifier = Modifier.padding(24.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()).padding(24.dp)) {
                 Icon(
                     imageVector = Symbols.Outlined.WarningAmber,
                     contentDescription = null,

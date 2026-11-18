@@ -65,6 +65,8 @@ import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 @Composable
 fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
@@ -170,7 +172,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 AlertDialog(
                     onDismissRequest = { pendingIconPack = null },
                     title = { Text("Change Icon Pack?", fontWeight = FontWeight.Bold) },
-                    text = { Text("App icons in search use this pack from now on.") },
+                    text = { Text("App icons in search use this pack from now on.", Modifier.verticalScroll(rememberScrollState())) },
                     confirmButton = {
                         Row(
                             modifier = Modifier.fillMaxWidth(),

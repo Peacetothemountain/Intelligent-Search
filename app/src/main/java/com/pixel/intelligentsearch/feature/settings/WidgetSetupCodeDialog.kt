@@ -29,6 +29,8 @@ import com.pixel.intelligentsearch.core.data.widget.WidgetProfileDesign
 import com.pixel.intelligentsearch.core.data.widget.WidgetSetupCode
 import com.pixel.intelligentsearch.core.system.launchSafeIntent
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 /**
  * Shares the editor's look as a setup code, or loads one someone sent into [profile]. [code] makes the code for what
@@ -50,7 +52,7 @@ internal fun WidgetSetupCodeDialog(
         onDismissRequest = onDismiss,
         title = { Text("Widget Setup Code", fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
                     "A setup code shares this profile's colors, outline, corners and buttons. Buttons for your own apps and websites aren't included.",
                     style = MaterialTheme.typography.bodyMedium

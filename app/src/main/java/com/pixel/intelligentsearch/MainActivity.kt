@@ -190,9 +190,74 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
             getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked != true
     }.getOrDefault(true)
 
+    /**
+     * When this overlay's screen last changed: the phone folded or unfolded onto its other display (or turned). A fold
+     * stops the overlay as the other display comes up, often behind the lock screen; that isn't leaving it.
+     */
+    private var displayChangedAt = Long.MIN_VALUE / 2
+
+    private val displayChanges = object : android.hardware.display.DisplayManager.DisplayListener {
+        override fun onDisplayAdded(displayId: Int) = Unit
+        override fun onDisplayRemoved(displayId: Int) = Unit
+        override fun onDisplayChanged(displayId: Int) {
+            val own = runCatching { display?.displayId }.getOrNull() ?: android.view.Display.DEFAULT_DISPLAY
+            if (displayId == own) displayChangedAt = android.os.SystemClock.uptimeMillis()
+        }
+    }
+
+    /**
+     * Whether this stop came from the screen rather than the user: it went off or locked, or the phone folded onto its
+     * other display. The overlay then stays as it is, with what was typed, its results and the tutorial's step, and
+     * shows again once the user is back ([heldOutOfSight]).
+     */
+    private fun stoppedByScreen(): Boolean = runCatching {
+        getSystemService(android.os.PowerManager::class.java)?.isInteractive == false ||
+            phoneLocked() ||
+            android.os.SystemClock.uptimeMillis() - displayChangedAt <= SCREEN_CHANGE_MS
+    }.getOrDefault(false)
+
+    /** True while the overlay, stopped by the screen ([stoppedByScreen]), waits to be shown again. */
+    private var heldForScreen = false
+
+    /** When the screen was first back in use, unlocked and on, while the overlay was held; 0 until then. */
+    private var heldInUseSince = 0L
+
+    /**
+     * While the overlay is held through a fold or the screen locking: once the screen is in use again it either shows
+     * (onStart lets the hold go) or the user has gone somewhere else from the lock screen or the other display, and it
+     * closes then as a stop always closes it. Time with the screen off or locked doesn't count.
+     */
+    private val heldOutOfSight = object : Runnable {
+        override fun run() {
+            if (isFinishing || !heldForScreen) return
+            if (!screenInUse()) {
+                heldInUseSince = 0L
+                waitWatch.postDelayed(this, HOLD_CHECK_MS)
+                return
+            }
+            val now = android.os.SystemClock.uptimeMillis()
+            if (heldInUseSince == 0L) heldInUseSince = now
+            val inUseFor = now - heldInUseSince
+            val left = if (canTellTaskInSight) {
+                inUseFor >= HOLD_GRACE_MS && ownTaskWhileInUse()?.isVisible == false
+            } else {
+                inUseFor >= HOLD_GIVE_UP_MS
+            }
+            if (left) {
+                heldForScreen = false
+                searchViewModel.onQueryChanged("")
+                if (isTopOfTask()) finishAndRemoveTask() else finish()
+            } else {
+                waitWatch.postDelayed(this, HOLD_CHECK_MS)
+            }
+        }
+    }
+
     override fun onStart() {
         super.onStart()
         waitWatch.removeCallbacks(leftWhileWaiting)
+        waitWatch.removeCallbacks(heldOutOfSight)
+        heldForScreen = false
         awayInOwnSettings = false
         awayGrantingAccess = false
         waitForUnlockIfLocked()
@@ -202,6 +267,8 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
 
     override fun onDestroy() {
         waitWatch.removeCallbacks(leftWhileWaiting)
+        waitWatch.removeCallbacks(heldOutOfSight)
+        runCatching { getSystemService(android.hardware.display.DisplayManager::class.java)?.unregisterDisplayListener(displayChanges) }
         super.onDestroy()
     }
 
@@ -210,8 +277,10 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         // grows out of the icon that was tapped, which must still be there, and a dialog over the overlay (a
         // permission) must not wipe what was typed, nor must a permission page or one of the app's own settings pages
         // the user comes Back from (a fix-it chip's Open AI Answers keeps the question to ask again). Nor does the
-        // overlay being rebuilt for a change on the phone (a keyboard plugged in): it is the same search.
-        if (!isChangingConfigurations && !awayGrantingAccess && !awayInOwnSettings) searchViewModel.onQueryChanged("")
+        // overlay being rebuilt for a change on the phone (a keyboard plugged in): it is the same search. Nor the
+        // screen going off or locking, or the phone folding onto its other display: the user comes back to it.
+        val byScreen = !isChangingConfigurations && !isFinishing && stoppedByScreen()
+        if (!isChangingConfigurations && !awayGrantingAccess && !awayInOwnSettings && !byScreen) searchViewModel.onQueryChanged("")
         frameMetricsMonitor.detach()
         adpfThermalManager.stopHeadroomMonitoring()
         super.onStop()
@@ -223,7 +292,12 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         // is unlocked the wait is over, whether or not the lock screen said so.
         if (awaitingUnlock && phoneLocked()) return
         awaitingUnlock = false
-        if (!isChangingConfigurations && !isFinishing && !awayInOwnSettings && !awaitingSpeech && !awayGrantingAccess) {
+        if (byScreen && !awayInOwnSettings && !awaitingSpeech && !awayGrantingAccess) {
+            heldForScreen = true
+            heldInUseSince = 0L
+            waitWatch.removeCallbacks(heldOutOfSight)
+            waitWatch.postDelayed(heldOutOfSight, HOLD_CHECK_MS)
+        } else if (!isChangingConfigurations && !isFinishing && !awayInOwnSettings && !awaitingSpeech && !awayGrantingAccess) {
             // The whole task only when this overlay is its top: another overlay entry opened over it in the same task
             // (the singleTask entries share one affinity) must not go with it.
             if (isTopOfTask()) finishAndRemoveTask() else finish()
@@ -349,6 +423,10 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         }
 
         window.setBackgroundDrawable(android.graphics.Color.TRANSPARENT.toDrawable())
+        runCatching {
+            getSystemService(android.hardware.display.DisplayManager::class.java)
+                ?.registerDisplayListener(displayChanges, android.os.Handler(android.os.Looper.getMainLooper()))
+        }
         window.setDimAmount(0f)
         window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
         window.setWindowAnimations(0)
@@ -741,6 +819,18 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
          * ([leftWhileWaiting]): longer than turning on a permission or saying a search takes.
          */
         const val WAIT_GIVE_UP_MS = 2 * 60 * 1000L
+
+        /** A stop this soon after the overlay's display changed (a fold) is the screen's doing ([stoppedByScreen]). */
+        const val SCREEN_CHANGE_MS = 1500L
+
+        /** How often an overlay held through a fold or lock checks whether the user is back ([heldOutOfSight]). */
+        const val HOLD_CHECK_MS = 500L
+
+        /** How long the screen is in use again before a held overlay still out of sight counts as left. */
+        const val HOLD_GRACE_MS = 1000L
+
+        /** The same where Android can't say whether the overlay is in sight (Android 12): it shows by then if wanted. */
+        const val HOLD_GIVE_UP_MS = 3000L
     }
 
     private fun searchOverlayEnabled(): Boolean =

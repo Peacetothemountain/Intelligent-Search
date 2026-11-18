@@ -221,16 +221,18 @@ internal fun WidgetEditorDialogs(
             onDismissRequest = { showHexInput = false },
             title = { Text("Enter Hex Color") },
             text = {
-                androidx.compose.material3.OutlinedTextField(
-                    value = tempHexInput,
-                    onValueChange = { tempHexInput = it },
-                    label = { Text("Hex Code") },
-                    singleLine = true,
-                    isError = tempHexInput.isNotBlank() && parsed == null,
-                    supportingText = if (tempHexInput.isNotBlank() && parsed == null) {
-                        { Text(HEX_COLOR_HINT) }
-                    } else null
-                )
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = tempHexInput,
+                        onValueChange = { tempHexInput = it },
+                        label = { Text("Hex Code") },
+                        singleLine = true,
+                        isError = tempHexInput.isNotBlank() && parsed == null,
+                        supportingText = if (tempHexInput.isNotBlank() && parsed == null) {
+                            { Text(HEX_COLOR_HINT) }
+                        } else null
+                    )
+                }
             },
             confirmButton = {
                 TextButton(enabled = parsed != null, onClick = {
@@ -256,16 +258,18 @@ internal fun WidgetEditorDialogs(
             onDismissRequest = { showCustomHexDialog = false },
             title = { Text("Enter Hex Color") },
             text = {
-                androidx.compose.material3.OutlinedTextField(
-                    value = tempCustomHexInput,
-                    onValueChange = { tempCustomHexInput = it },
-                    label = { Text("Hex Code (e.g. #4285F4)") },
-                    singleLine = true,
-                    isError = tempCustomHexInput.isNotBlank() && parsed == null,
-                    supportingText = if (tempCustomHexInput.isNotBlank() && parsed == null) {
-                        { Text(HEX_COLOR_HINT) }
-                    } else null
-                )
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = tempCustomHexInput,
+                        onValueChange = { tempCustomHexInput = it },
+                        label = { Text("Hex Code (e.g. #4285F4)") },
+                        singleLine = true,
+                        isError = tempCustomHexInput.isNotBlank() && parsed == null,
+                        supportingText = if (tempCustomHexInput.isNotBlank() && parsed == null) {
+                            { Text(HEX_COLOR_HINT) }
+                        } else null
+                    )
+                }
             },
             confirmButton = {
                 TextButton(enabled = parsed != null, onClick = {
@@ -312,16 +316,18 @@ internal fun WidgetEditorDialogs(
             title = { Text("Custom URL for ${showCustomUrlDialogFor}") },
             text = {
                 val candidate = customInputValue.trim()
-                androidx.compose.material3.OutlinedTextField(
-                    value = customInputValue,
-                    onValueChange = { customInputValue = it },
-                    label = { Text("Enter URL") },
-                    singleLine = true,
-                    isError = candidate.isNotEmpty() && !isValidShortcutUrl(candidate),
-                    supportingText = if (candidate.isNotEmpty() && !isValidShortcutUrl(candidate)) {
-                        { Text("Enter a web address, e.g. example.com or https://example.com") }
-                    } else null
-                )
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = customInputValue,
+                        onValueChange = { customInputValue = it },
+                        label = { Text("Enter URL") },
+                        singleLine = true,
+                        isError = candidate.isNotEmpty() && !isValidShortcutUrl(candidate),
+                        supportingText = if (candidate.isNotEmpty() && !isValidShortcutUrl(candidate)) {
+                            { Text("Enter a web address, e.g. example.com or https://example.com") }
+                        } else null
+                    )
+                }
             },
             confirmButton = {
                 TextButton(enabled = isValidShortcutUrl(customInputValue.trim()), onClick = {
@@ -357,16 +363,18 @@ internal fun WidgetEditorDialogs(
             onDismissRequest = { showCustomAppDialogFor = null },
             title = { Text("Custom App for ${showCustomAppDialogFor}") },
             text = {
-                androidx.compose.material3.OutlinedTextField(
-                    value = customInputValue,
-                    onValueChange = { customInputValue = it },
-                    label = { Text("Enter Package Name") },
-                    singleLine = true,
-                    isError = packageName.isNotEmpty() && !installed,
-                    supportingText = if (packageName.isNotEmpty() && !installed) {
-                        { Text("No installed app with that package name") }
-                    } else null
-                )
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    androidx.compose.material3.OutlinedTextField(
+                        value = customInputValue,
+                        onValueChange = { customInputValue = it },
+                        label = { Text("Enter Package Name") },
+                        singleLine = true,
+                        isError = packageName.isNotEmpty() && !installed,
+                        supportingText = if (packageName.isNotEmpty() && !installed) {
+                            { Text("No installed app with that package name") }
+                        } else null
+                    )
+                }
             },
             confirmButton = {
                 TextButton(enabled = installed, onClick = {

@@ -1098,7 +1098,9 @@ fun SearchOverlayScreen(
             val windowWidthDp = with(density) { windowSize.width.toDp() }
             val windowHeightDp = with(density) { windowSize.height.toDp() }
             val listDetail = useListDetailLayout(windowWidthDp.value, windowHeightDp.value)
-            val listPaneWidth = (windowWidthDp * 0.42f).coerceIn(360.dp, 520.dp)
+            // Wide enough that the search bar keeps room for the words beside its buttons (a folded-open phone in
+            // landscape gave it 360 dp, which showed only the end of a query).
+            val listPaneWidth = (windowWidthDp * 0.42f).coerceIn(440.dp, 520.dp)
 
             Box(
                 modifier = Modifier

@@ -287,7 +287,7 @@ fun SearchPillsScreen(
             AlertDialog(
                 onDismissRequest = { showMaxWarning = false },
                 title = { Text("Application Search Is Full", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
-                text = { Text("It holds up to ${SearchPillProfiles.MAX_PILLS} apps. Remove one to add another.", style = MaterialTheme.typography.bodyLarge) },
+                text = { Text("It holds up to ${SearchPillProfiles.MAX_PILLS} apps. Remove one to add another.", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.verticalScroll(rememberScrollState())) },
                 confirmButton = {
                     TextButton(onClick = { showMaxWarning = false }) {
                         Text("OK", style = MaterialTheme.typography.labelLarge)

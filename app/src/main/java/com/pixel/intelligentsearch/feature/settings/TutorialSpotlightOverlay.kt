@@ -532,9 +532,12 @@ fun TutorialSpotlightOverlay(
                 ) {
                     // The step text scrolls within whatever height is left (small screens, large text), so Skip
                     // and Next below it always stay in view.
+                    BoxWithConstraints(Modifier.weight(1f, fill = false)) {
+                    // The height the step's words have before they must scroll (the Welcome video sizes to it).
+                    val scrollRoom = maxHeight
+                    val scrollWidth = maxWidth
                     Column(
                         modifier = Modifier
-                            .weight(1f, fill = false)
                             .verticalScroll(rememberScrollState()),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
@@ -586,12 +589,19 @@ fun TutorialSpotlightOverlay(
                         val bugdroidTag = "[bugdroid]"
                         val rawText = stepInfo.text
                         if (rawText.contains(bugdroidTag) || rawText.contains(":)")) {
-                            // 275 dp on a phone, but never more than 30% of the window, so short screens keep room for text.
-                            val windowHeightPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height
-                            val welcomeVideoHeight = with(androidx.compose.ui.platform.LocalDensity.current) {
-                                minOf(275.dp, (windowHeightPx * 0.3f).toDp())
-                            }
                             val cleanText = rawText.replace(bugdroidTag, "").replace(":)", "").trim()
+                            // 275 dp on a phone, but never more than 30% of the window, so short screens keep room for text,
+                            // and never so tall that the words under it are pushed out of the card (a 4:3 unfolded screen):
+                            // the card's room less the step's heading and the words.
+                            val windowHeightPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.height
+                            val welcomeMeasurer = androidx.compose.ui.text.rememberTextMeasurer(cacheSize = 1)
+                            val welcomeStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 22.sp)
+                            val welcomeVideoHeight = with(androidx.compose.ui.platform.LocalDensity.current) {
+                                val textWidth = (scrollWidth.roundToPx() - 16.dp.roundToPx()).coerceAtLeast(1)
+                                val words = welcomeMeasurer.measure(cleanText, welcomeStyle, constraints = androidx.compose.ui.unit.Constraints(maxWidth = textWidth)).size.height.toDp()
+                                val fits = scrollRoom - WELCOME_HEADING_ROOM - words
+                                minOf(275.dp, (windowHeightPx * 0.3f).toDp(), fits.coerceAtLeast(WELCOME_VIDEO_MIN))
+                            }
                             if (welcomePlayer != null) {
                                 Column(
                                     modifier = Modifier
@@ -720,6 +730,7 @@ fun TutorialSpotlightOverlay(
                             TutorialDiscoverSwitch()
                         }
                     }
+                    }
 
                     Spacer(modifier = Modifier.height(20.dp))
 
@@ -795,3 +806,9 @@ fun TutorialSpotlightOverlay(
 
 /** The tutorial's last button, as its last step names it too. */
 internal const val TUTORIAL_FINISH_LABEL = "Got It"
+
+/** Above the Welcome video: the step's number and title, and the room between them and the words under it. */
+private val WELCOME_HEADING_ROOM = 72.dp
+
+/** The Welcome video never shrinks below this to make room: the card scrolls instead. */
+private val WELCOME_VIDEO_MIN = 96.dp

@@ -68,6 +68,8 @@ import com.pixel.intelligentsearch.core.ai.chosenModel
 import com.pixel.intelligentsearch.core.theme.GoogleSansFlex
 import com.pixel.intelligentsearch.core.ui.AnimatedCopyChip
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 
 /**
  * A suggested action at the top of the results ("Start 15 min Timer", "Call Mom", "Ask Claude"): its icon on a
@@ -363,7 +365,7 @@ private fun ReportAiAnswerDialog(onDismiss: () -> Unit, onReport: (AiReportReaso
         icon = { Icon(Icons.Outlined.Flag, contentDescription = null) },
         title = { Text("Report This Answer", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
         text = {
-            Column(Modifier.selectableGroup()) {
+            Column(Modifier.selectableGroup().verticalScroll(rememberScrollState())) {
                 Text(
                     "The answer is hidden right away. Your report opens in your email app with the question and the answer, so you can read it over before sending it to the developer.",
                     style = MaterialTheme.typography.bodyMedium

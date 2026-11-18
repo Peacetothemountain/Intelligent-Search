@@ -96,6 +96,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
 import com.pixel.intelligentsearch.core.ui.wheelSteps
+import androidx.compose.ui.unit.isSpecified
 
 /* The fan's drawing: the side text, the shadow on the page under the rivet, the forty strips (each a picture of its
  * own, moved on the page by the lens's matrix: nothing is laid out or repainted as the fan turns), and the rivet. */
@@ -174,7 +175,8 @@ internal class FanActions(
  */
 @Composable
 internal fun SwatchFan(
-    engine: FanEngine, phoneDark: Boolean, bleed: Dp, wallColors: List<Color>, actions: FanActions, rootCoords: () -> LayoutCoordinates?
+    engine: FanEngine, phoneDark: Boolean, bleed: Dp, wallColors: List<Color>, actions: FanActions, rootCoords: () -> LayoutCoordinates?,
+    room: Dp = Dp.Unspecified
 ) {
     val density = LocalDensity.current
     val view = LocalView.current
@@ -198,15 +200,20 @@ internal fun SwatchFan(
     val window = LocalWindowInfo.current.containerSize
     val screenW = with(density) { (if (view.width > 0) view.width else window.width).toFloat().toDp() }
     val screenH = with(density) { (if (window.height > 0) window.height else view.height).toFloat().toDp() }
-    val kH = if (screenH.value > 0f) screenH.value * 0.75f / FanDims.FAN_H else Float.MAX_VALUE
-    val k = min(screenW.value / 360f, kH)
+    // Three quarters of the window's height at most, and never taller than the list shows under its top bar ([room]),
+    // so in a short window (a split screen) the whole fan is in view at once.
+    val kWindow = if (screenH.value > 0f) screenH.value * 0.75f / FanDims.FAN_H else Float.MAX_VALUE
+    val kH = if (room.isSpecified && room.value > 0f) min(kWindow, room.value / FanDims.FAN_H) else kWindow
+    val kW = screenW.value / 360f
+    val k = min(kW, kH)
     val unit = k * density.density
     SideEffect { engine.scale = k }
     // The side text grows with the fan, more gently (the square root of its scale); larger text settings grow it already.
     val large = density.fontScale >= 1.3f
     val textK = if (large) 1f else sqrt(max(1f, k))
     // At the largest text the side text has no room beside the strips: it goes under the fan, full width.
-    val under = density.fontScale >= 1.6f
+    // So does a fan the window's height has made small, so the text keeps its size and the hint never runs over it.
+    val under = density.fontScale >= 1.6f || (kH < kW && k < UNDER_BELOW)
     val fanCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
     val captionBox = remember { arrayOfNulls<Rect>(1) }
     val opener = remember { arrayOfNulls<(Int) -> Unit>(1) }
@@ -687,3 +694,6 @@ private fun EdgeShadow(left: Boolean, k: Float, color: Color, angle: () -> Float
             }
     )
 }
+
+/** A fan the window's height has made smaller than this (of its width's size) has its text under it. */
+private const val UNDER_BELOW = 0.8f

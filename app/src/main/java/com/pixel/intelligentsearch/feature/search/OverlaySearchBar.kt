@@ -10,6 +10,7 @@ import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.data.settings.put
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.onGloballyPositioned
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.util.findActivity
@@ -80,8 +81,11 @@ internal fun ghostText(typed: String, bestMatchName: String?, markerLength: Int 
 /** The search pill's alpha for the Search Pill Opacity setting: [opacity] percent, so a higher setting is never more see-through. */
 internal fun pillAlpha(opacity: Int): Float = (opacity / 100f).coerceIn(0f, 1f)
 
-/** Below this width the search bar gives its Discover button and mic's room to the words being typed. */
-private const val NARROW_BAR_DP = 360
+/**
+ * Below this width of its own (a phone under 360 dp, less the panel's margins, or a narrow pane beside results) the
+ * search bar gives its Discover button and mic's room to the words being typed.
+ */
+private const val NARROW_BAR_DP = 352
 
 /** The overlay's search bar: the text field, its ghost text, the pills around it and the engine chip. */
 @Composable
@@ -108,7 +112,9 @@ internal fun OverlaySearchBar(s: OverlayScope) {
     val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
     val usedKeyPresses = remember { mutableSetOf<androidx.compose.ui.input.key.Key>() }
 
-    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+    // The bar's own width: the whole panel on a phone, the start pane beside the results on a large screen.
+    var barWidthPx by remember { mutableIntStateOf(0) }
+    Column(modifier = Modifier.fillMaxWidth().onSizeChanged { barWidthPx = it.width }, horizontalAlignment = Alignment.CenterHorizontally) {
         AnimatedVisibility(
             visible = showDebugPill,
             enter = fadeIn(animationSpec = ExpressiveMotionTokens.morphSpring()) + expandVertically(animationSpec = ExpressiveMotionTokens.morphSpring()),
@@ -161,8 +167,11 @@ internal fun OverlaySearchBar(s: OverlayScope) {
         val showMic by rememberSetting(SettingsManager.OVERLAY_SHOW_MIC)
         // Under 360 dp (a small phone, or the largest display size) the bar's buttons leave the field room for a
         // few letters only, so while words are typed the Discover button and the mic stand aside for them.
+        // Until the bar has been measured, the window less the panel's margins.
         val windowWidthPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width
-        val narrowBar = with(androidx.compose.ui.platform.LocalDensity.current) { windowWidthPx < NARROW_BAR_DP.dp.roundToPx() }
+        val narrowBar = with(androidx.compose.ui.platform.LocalDensity.current) {
+            (if (barWidthPx > 0) barWidthPx else windowWidthPx - 8.dp.roundToPx()) < NARROW_BAR_DP.dp.roundToPx()
+        }
         val typingOnNarrowBar = narrowBar && uiState.query.isNotEmpty()
         Row(
             modifier = Modifier

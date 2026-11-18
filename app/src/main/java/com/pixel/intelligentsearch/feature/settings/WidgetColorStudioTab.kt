@@ -400,16 +400,18 @@ private fun InnerPillPalette(fields: WidgetDraftFields) {
             onDismissRequest = { showHex = false },
             title = { Text("Inner Pill & Circle Hex") },
             text = {
-                OutlinedTextField(
-                    value = hexInput,
-                    onValueChange = { hexInput = it },
-                    label = { Text("Hex Code") },
-                    singleLine = true,
-                    isError = hexInput.isNotBlank() && parsed == null,
-                    supportingText = if (hexInput.isNotBlank() && parsed == null) {
-                        { Text("Enter six hex digits, e.g. #121212") }
-                    } else null
-                )
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    OutlinedTextField(
+                        value = hexInput,
+                        onValueChange = { hexInput = it },
+                        label = { Text("Hex Code") },
+                        singleLine = true,
+                        isError = hexInput.isNotBlank() && parsed == null,
+                        supportingText = if (hexInput.isNotBlank() && parsed == null) {
+                            { Text("Enter six hex digits, e.g. #121212") }
+                        } else null
+                    )
+                }
             },
             confirmButton = {
                 TextButton(enabled = parsed != null, onClick = {

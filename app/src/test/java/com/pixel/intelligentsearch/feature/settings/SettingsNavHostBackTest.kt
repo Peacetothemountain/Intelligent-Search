@@ -4,6 +4,8 @@ import android.content.Context
 import android.view.View
 import androidx.activity.BackEventCompat
 import androidx.compose.ui.test.junit4.v2.createAndroidComposeRule
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isHeading
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
@@ -53,7 +55,7 @@ class SettingsNavHostBackTest {
     fun cancellingTheExitSwipePutsThePageBack() {
         compose.mainClock.autoAdvance = false
         compose.settle(steps = 5)
-        val title = compose.onNodeWithText("Settings")
+        val title = compose.onNode(hasText("Settings") and isHeading())
         val before = title.fetchSemanticsNode().boundsInRoot
 
         val dispatcher = compose.activity.onBackPressedDispatcher
@@ -105,7 +107,7 @@ class SettingsNavHostBackTest {
         compose.runOnIdle { compose.activity.onBackPressedDispatcher.onBackPressed() }
         compose.settle(steps = 5)
 
-        compose.onNodeWithText("Settings").assertExists()
+        compose.onNode(hasText("Settings") and isHeading()).assertExists()
         compose.onNodeWithText("Launch Portal").assertExists()
         assertFalse(compose.activity.isFinishing)
     }

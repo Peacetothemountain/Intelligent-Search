@@ -49,6 +49,11 @@ enum class AppJob(val id: Int) {
     },
     PALETTE_CHANGE(1007) {
         override suspend fun run(context: Context, extras: PersistableBundle) = WidgetPaletteWatch.changed(context)
+    },
+    /** Settings' Wellbeing tab: its daily summary brought up to date about once a day. */
+    WELLBEING_CATCH_UP(1010) {
+        override suspend fun run(context: Context, extras: PersistableBundle) =
+            com.pixel.intelligentsearch.core.wellbeing.WellbeingCatchUp.run(context)
     };
 
     abstract suspend fun run(context: Context, extras: PersistableBundle)

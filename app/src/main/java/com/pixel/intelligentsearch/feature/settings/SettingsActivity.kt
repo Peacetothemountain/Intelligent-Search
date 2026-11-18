@@ -41,6 +41,11 @@ class SettingsActivity : ComponentActivity() {
         // settings session and defeated LTPO. The system raises the rate for scrolling and animations, and
         // the predictive-back gesture boosts it only while it runs.
         super.onCreate(savedInstanceState)
+        // Translucent from the start, so Settings' Gallery tab can look through to the real wallpaper: the tab shows the
+        // wallpaper behind the window only while Gallery is in sight (WallpaperBehindWindow), because a window over the
+        // wallpaper loses Android's back-to-home preview. Made translucent later, the window kept its opaque buffer,
+        // never cleared between frames. Every other page paints its own opaque background, as before.
+        window.setFormat(android.graphics.PixelFormat.TRANSLUCENT)
 
         
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {

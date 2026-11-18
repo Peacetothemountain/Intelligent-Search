@@ -30,6 +30,8 @@
          dialer opens with the number ready. -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" tools:ignore="ProtectedPermissions" />
+    <!-- Settings' Gallery sets a look's wallpaper as the phone's, only when the user taps Set Wallpaper and confirms. -->
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Weather answers for "here", only if the user taps Use Approximate Location on the weather card; asked for then. Never precise. -->

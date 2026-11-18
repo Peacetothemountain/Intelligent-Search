@@ -27,6 +27,8 @@ internal object StartupSync {
         // Keep the daily currency refresh only while the Calculator and Live Currency Rates are on and Tor isn't the
         // engine.
         currencyRates.syncSchedule()
+        // Wellbeing's daily catch-up, while it has a summary to keep.
+        com.pixel.intelligentsearch.core.wellbeing.WellbeingCatchUp.syncSchedule(context)
         // Saved definitions and forecasts: none for a feature that is off, and none past their lifetime.
         instantAnswers.syncCaches()
         // Launch Portal's Notification Shortcut and floating button, when on and allowed. This start also runs

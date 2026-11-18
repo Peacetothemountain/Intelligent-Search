@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Official 2026 Google Super G logo — Exact official Android / Pixel Launcher asset.
+    Continuous circular sweep gradient across the outer loop with crisp horizontal crossbar cover.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+  <!-- Main outer loop with official circular sweep gradient -->
+  <path
+      android:pathData="M12,18.63C15.23,18.63 17.45,16.79 17.92,14.26L20,12L22.409,14.26C21.604,19.462 17.649,23 12,23C5.92,23 1,18.08 1,12C1,5.92 5.92,1 12,1C14.97,1 17.45,2.09 19.36,3.87L16.21,7.02C15.06,5.94 13.62,5.38 12,5.38C8.41,5.38 5.49,8.43 5.49,12.01C5.49,15.59 8.41,18.63 12,18.63Z">
+    <aapt:attr name="android:fillColor">
+      <gradient
+          android:type="sweep"
+          android:centerX="12"
+          android:centerY="12">
+        <item android:color="#ff3186ff" android:offset="0.0"/>
+        <item android:color="#ff3186ff" android:offset="0.08"/>
+        <item android:color="#ff00a5b7" android:offset="0.15"/>
+        <item android:color="#ff0ebc5f" android:offset="0.22"/>
+        <item android:color="#ff0ebc5f" android:offset="0.28"/>
+        <item android:color="#ff3dc130" android:offset="0.35"/>
+        <item android:color="#ff6cc500" android:offset="0.375"/>
+        <item android:color="#ffffcc00" android:offset="0.45"/>
+        <item android:color="#ffffd314" android:offset="0.5"/>
+        <item android:color="#ffffcc00" android:offset="0.55"/>
+        <item android:color="#ffffc006" android:offset="0.575"/>
+        <item android:color="#ffff6b2b" android:offset="0.635"/>
+        <item android:color="#ffff4641" android:offset="0.68"/>
+        <item android:color="#ffff4641" android:offset="0.78"/>
+        <item android:color="#fffd5061" android:offset="0.88"/>
+        <item android:color="#fffd5061" android:offset="0.92"/>
+        <item android:color="#ff3186ff" android:offset="1.0"/>
+      </gradient>
+    </aapt:attr>
+  </path>
+
+  <!-- Horizontal crossbar cover -->
+  <path
+      android:fillColor="#ff3186ff"
+      android:pathData="M12,14.26V10H22.36C22.49,10.72 22.56,11.47 22.56,12.25C22.56,12.943 22.509,13.614 22.409,14.26H17.92H12Z"/>
+
+</vector>

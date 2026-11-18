@@ -183,8 +183,12 @@ fun SettingsScreensHub(
         // glow as it was when taken; as the real page takes the picture's place, the drift is set back to that moment,
         // so the light carries on from the picture and never jumps. It stands still on Widget Customization, which
         // has no glow, except while a back swipe shows the page underneath.
+        // The tab Settings' main page shows (its floating pill: Settings, Gallery, Wellbeing), kept with the screen.
+        val mainTab = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(com.pixel.intelligentsearch.feature.tabs.SettingsTab.Settings) }
+        val onMainPage = currentBackStackEntry?.destination?.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.Main>() == true
+        val onGallery = onMainPage && mainTab.value == com.pixel.intelligentsearch.feature.tabs.SettingsTab.Gallery
         val glowClock = com.pixel.intelligentsearch.core.ui.rememberSettableMeshClock(
-            isPaused = onWidgetPage && !nativeBack.active,
+            isPaused = (onWidgetPage || onGallery) && !nativeBack.active,
             frameGapMs = com.pixel.intelligentsearch.core.ui.PAGE_GLOW_FRAME_GAP_MS
         )
         var enteringGlow by remember { mutableFloatStateOf(1f) }
@@ -483,7 +487,14 @@ fun SettingsScreensHub(
                         )
                     }
                 ) {
-                    composable<com.pixel.intelligentsearch.core.navigation.Route.Main> { MainSettingsScreen(prefs, onNavigate, onBack, context, bugdroidPlayer, showTutorial) }
+                    composable<com.pixel.intelligentsearch.core.navigation.Route.Main> {
+                        com.pixel.intelligentsearch.feature.tabs.SettingsTabs(
+                            tab = mainTab, hidePill = showTutorial, glowClock = glowClock,
+                            openWidgetSettings = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization) }
+                        ) {
+                            MainSettingsScreen(prefs, onNavigate, onBack, context, bugdroidPlayer, showTutorial)
+                        }
+                    }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Appearance> { AppearanceScreen(prefs, onNavigate, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.CustomIcons> { CustomIconsScreen(prefs, onBack) }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.SearchSources> { SearchSourcesScreen(onNavigate, onBack) }

@@ -394,7 +394,9 @@ private fun FanCaption(engine: FanEngine, ts: Float, large: Boolean, modifier: M
         // needs here, so the progress line under them holds still as the fan turns.
         val nameStyle = MaterialTheme.typography.headlineMedium.copy(fontSize = (27f * ts).sp, lineHeight = (29f * ts).sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.35).sp)
         Text(
-            look.name, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = (10f * ts).dp, bottom = 6.dp),
+            look.name, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            // A fixed line height, so a long name that shrinks to fit doesn't lift everything under it.
+            modifier = Modifier.padding(top = (10f * ts).dp, bottom = 6.dp).height(with(LocalDensity.current) { nameStyle.lineHeight.toDp() }),
             style = nameStyle, autoSize = oneLineAutoSize(nameStyle, shrinkBy = 0.2f)
         )
         val descStyle = MaterialTheme.typography.bodyMedium.copy(

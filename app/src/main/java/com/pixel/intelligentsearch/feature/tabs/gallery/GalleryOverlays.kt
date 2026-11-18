@@ -428,7 +428,7 @@ private val ScallopShape: Shape = object : Shape {
 private fun InfoLine(icon: ImageVector, title: String, text: String, shape: Shape) {
     val scheme = MaterialTheme.colorScheme
     Row(
-        Modifier.fillMaxWidth().background(scheme.surfaceContainerHigh, shape).padding(14.dp).semantics(mergeDescendants = true) { },
+        Modifier.fillMaxWidth().background(scheme.surfaceContainerHighest, shape).padding(14.dp).semantics(mergeDescendants = true) { },
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Icon(icon, null, tint = scheme.primary, modifier = Modifier.padding(top = 1.dp).size(22.dp))

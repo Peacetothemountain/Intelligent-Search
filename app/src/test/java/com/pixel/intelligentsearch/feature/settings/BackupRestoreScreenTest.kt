@@ -21,6 +21,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -361,7 +362,7 @@ class BackupRestoreScreenTest {
 
     /** How far the page can scroll, in pixels: 0 when everything fits on the screen. */
     private fun scrollRange(): Float =
-        compose.onNode(hasScrollAction()).fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].maxValue()
+        compose.onNode(hasScrollAction() and SemanticsMatcher.keyIsDefined(SemanticsProperties.VerticalScrollAxisRange)).fetchSemanticsNode().config[SemanticsProperties.VerticalScrollAxisRange].maxValue()
 
     /** The bugdroid's height in dp (the window is xhdpi), whether or not it is scrolled into view. */
     private fun bugdroidHeightDp(): Float = compose.onNodeWithTag("backup_bugdroid").fetchSemanticsNode().size.height / 2f

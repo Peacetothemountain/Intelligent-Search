@@ -254,29 +254,57 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     ghostText(textFieldValue.text, bestMatchText, markerLength)
                 }
 
-                androidx.compose.foundation.text.BasicTextField(
-                    value = textFieldValue,
-                    onValueChange = { newTfv ->
-                        if (voice.active) voice.stop()
-                        textFieldValue = newTfv
-                        val newQuery = newTfv.text
-                        if (newQuery.isNotEmpty()) {
-                            hasStartedTyping = true
+                // What the user types, as it is typed (the field reports nothing it is given: a clear, a suggestion,
+                // a voice result). The secret words *xy88x* unlock Debug, and leave the field empty.
+                val typed: (String) -> Boolean = { newQuery ->
+                    if (voice.active) voice.stop()
+                    if (newQuery.isNotEmpty()) {
+                        hasStartedTyping = true
+                    }
+                    if (newQuery == "*xy88x*") {
+                        prefs.edit { put(SettingsManager.DEBUG_UNLOCKED, true) }
+                        viewModel.onQueryChanged("")
+                        showDebugPill = true
+                        coroutineScope.launch {
+                            delay(3000)
+                            showDebugPill = false
+                            onOpenSettings("debug")
                         }
-                        if (newQuery == "*xy88x*") {
-                            prefs.edit { put(SettingsManager.DEBUG_UNLOCKED, true) }
-                            viewModel.onQueryChanged("")
-                            textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
-                            showDebugPill = true
-                            coroutineScope.launch {
-                                delay(3000)
-                                showDebugPill = false
-                                onOpenSettings("debug")
-                            }
+                        false
+                    } else {
+                        viewModel.onQueryChanged(newQuery)
+                        true
+                    }
+                }
+                val latestTyped by rememberUpdatedState(typed)
+                val typing = remember {
+                    androidx.compose.foundation.text.input.InputTransformation {
+                        if (latestTyped(asCharSequence().toString())) {
+                            s.ui.fieldSeen = androidx.compose.ui.text.input.TextFieldValue(asCharSequence().toString(), selection)
                         } else {
-                            viewModel.onQueryChanged(newQuery)
+                            replace(0, length, "")
+                            s.ui.fieldSeen = androidx.compose.ui.text.input.TextFieldValue("")
                         }
-                    },
+                    }
+                }
+                // A change the field makes past the typing above (an undo, or a tap moving the cursor) counts as the
+                // user's too.
+                LaunchedEffect(s.ui) {
+                    snapshotFlow { androidx.compose.ui.text.input.TextFieldValue(s.ui.fieldState.text.toString(), s.ui.fieldState.selection) }
+                        .collect { now ->
+                            val seen = s.ui.fieldSeen
+                            if (now == seen) return@collect
+                            s.ui.fieldSeen = now
+                            if (now.text != seen.text) {
+                                if (!latestTyped(now.text)) s.ui.textFieldValue = androidx.compose.ui.text.input.TextFieldValue("")
+                            } else if (voice.active) {
+                                voice.stop()
+                            }
+                        }
+                }
+                androidx.compose.foundation.text.BasicTextField(
+                    state = s.ui.fieldState,
+                    inputTransformation = typing,
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focusRequester)
@@ -286,7 +314,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         // A physical keyboard's arrows, Tab, Enter and Escape move through the results first.
                         .onPreviewKeyEvent { s.onResultsKey(it, context, rtl, usedKeyPresses) },
                     textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontFamily = GoogleSansFlex),
-                    singleLine = true,
+                    lineLimits = androidx.compose.foundation.text.input.TextFieldLineLimits.SingleLine,
                     cursorBrush = androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary),
                     keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                         capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.None,
@@ -295,13 +323,13 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         keyboardType = if (calculatorKeyboard) androidx.compose.ui.text.input.KeyboardType.Phone else androidx.compose.ui.text.input.KeyboardType.Text,
                         imeAction = androidx.compose.ui.text.input.ImeAction.Search
                     ),
-                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
+                    onKeyboardAction = {
                         hasStartedTyping = false
                         keyboardController?.hide()
                         // The highlight, then the phrasing's action or the top result (OverlayEnterKey).
                         s.onEnter(context, highlighted = null)
-                    }),
-                    decorationBox = { innerTextField ->
+                    },
+                    decorator = { innerTextField ->
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (uiState.query.isEmpty()) {
                                 // One line: in a field too narrow for it (a small screen at the largest text) it wrapped out of the bar.

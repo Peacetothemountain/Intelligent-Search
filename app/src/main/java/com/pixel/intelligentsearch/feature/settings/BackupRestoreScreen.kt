@@ -51,8 +51,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.foundation.layout.ColumnScope
@@ -64,6 +62,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.TextObfuscationMode
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.material3.OutlinedSecureTextField
+import androidx.compose.runtime.derivedStateOf
 
 @Composable
 fun BackupRestoreScreen(
@@ -75,7 +79,8 @@ fun BackupRestoreScreen(
     val viewModel = LocalSettingsViewModel.current
     val hapticEngine = remember { com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(context) }
 
-    var passphrase by remember { mutableStateOf("") }
+    val passphraseField = remember { TextFieldState() }
+    val passphrase by remember { derivedStateOf { passphraseField.text.toString() } }
     // The passphrase an export in progress will use, kept in memory only while the file picker is open.
     var exportPassphrase by remember { mutableStateOf<String?>(null) }
     // Whether the export in progress was started with a passphrase. The passphrase itself is never put in saved state;
@@ -95,7 +100,8 @@ fun BackupRestoreScreen(
     var showRestorePassphraseDialog by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var pendingEnvelope by remember { mutableStateOf<EncryptedBackupEnvelope?>(null) }
-    var dialogPassphrase by remember { mutableStateOf("") }
+    val dialogPassphraseField = remember { TextFieldState() }
+    val dialogPassphrase by remember { derivedStateOf { dialogPassphraseField.text.toString() } }
     var dialogPassphraseVisible by remember { mutableStateOf(false) }
     var dialogErrorMessage by remember { mutableStateOf<String?>(null) }
     // A passphrase restore spends seconds deriving the key; meanwhile it shows progress and can't be started again.
@@ -262,7 +268,7 @@ fun BackupRestoreScreen(
                 val needsPass = envelope?.opensWithPassphrase == true
                 val askForPassphrase = {
                     pendingRestoreUri = uri
-                    dialogPassphrase = ""
+                    dialogPassphraseField.clearText()
                     dialogErrorMessage = null
                     showRestorePassphraseDialog = true
                 }
@@ -368,12 +374,9 @@ fun BackupRestoreScreen(
                     }
                     Spacer(modifier = Modifier.height(16.dp))
                     androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.text.LocalAutofillHighlightBrush provides androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))) {
-                    OutlinedTextField(
-                        value = dialogPassphrase,
-                        onValueChange = {
-                            dialogPassphrase = it
-                            dialogErrorMessage = null
-                        },
+                    OutlinedSecureTextField(
+                        state = dialogPassphraseField,
+                        inputTransformation = remember { InputTransformation { dialogErrorMessage = null } },
                         placeholder = { Text("Enter Passphrase", fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, fontSize = 14.sp) },
                         leadingIcon = {
                             Icon(
@@ -393,12 +396,11 @@ fun BackupRestoreScreen(
                                 )
                             }
                         },
-                        visualTransformation = if (dialogPassphraseVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        textObfuscationMode = if (dialogPassphraseVisible) TextObfuscationMode.Visible else TextObfuscationMode.Hidden,
                         // Password type keeps the keyboard from learning or suggesting the passphrase, even when shown.
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50)),
                         shape = RoundedCornerShape(percent = 50),
-                        singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -514,9 +516,8 @@ fun BackupRestoreScreen(
                 // Autofill's highlight is drawn over the whole field, so clipping the field to its own pill shape makes
                 // the highlight a pill; the colour is a light, see-through tint of the theme instead of yellow.
                 androidx.compose.runtime.CompositionLocalProvider(androidx.compose.foundation.text.LocalAutofillHighlightBrush provides androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))) {
-                OutlinedTextField(
-                    value = passphrase,
-                    onValueChange = { passphrase = it },
+                OutlinedSecureTextField(
+                    state = passphraseField,
                     placeholder = {
                         Text(
                             if (isPassphraseSavedOnChip) "Saved to $keyHolder · Type to Replace" else "Enter Passphrase (Optional)",
@@ -535,7 +536,7 @@ fun BackupRestoreScreen(
                     trailingIcon = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             if (passphrase.isNotEmpty()) {
-                                IconButton(onClick = { passphrase = "" }, modifier = Modifier.size(48.dp)) {
+                                IconButton(onClick = { passphraseField.clearText() }, modifier = Modifier.size(48.dp)) {
                                     Icon(
                                         imageVector = Symbols.Filled.Close,
                                         contentDescription = "Clear",
@@ -555,7 +556,7 @@ fun BackupRestoreScreen(
                             Spacer(modifier = Modifier.width(4.dp))
                         }
                     },
-                    visualTransformation = if (passphraseVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    textObfuscationMode = if (passphraseVisible) TextObfuscationMode.Visible else TextObfuscationMode.Hidden,
                     // Password type keeps the keyboard from learning or suggesting the passphrase, even when shown.
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                     modifier = Modifier
@@ -563,7 +564,6 @@ fun BackupRestoreScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                         .clip(RoundedCornerShape(percent = 50)),
                     shape = RoundedCornerShape(percent = 50),
-                    singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                         unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -601,7 +601,7 @@ fun BackupRestoreScreen(
                                             outcome == com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager.PassphraseSave.SAVED -> {
                                                 isPassphraseSavedOnChip = true
                                                 // Entered once, then gone: the passphrase lives only on the chip now.
-                                                passphrase = ""
+                                                passphraseField.clearText()
                                                 passphraseVisible = false
                                                 hapticEngine.performPredictiveBackHaptic()
                                                 safeShowToast("Passphrase saved to $keyHolder.")

@@ -37,7 +37,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -61,6 +60,11 @@ import com.pixel.intelligentsearch.di.appEntryPoint
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.TextObfuscationMode
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.material3.OutlinedSecureTextField
 
 /**
  * AI Answers, reached from Web Search: the opt-in switch, the provider and model, and the user's own API key, saved
@@ -261,33 +265,32 @@ private fun ApiKeyRows(vault: AiKeyVault, provider: AiProvider, hasKey: Boolean,
             showDivider = true
         )
     } else {
-        var typed by remember(provider) { mutableStateOf("") }
+        val typed = remember(provider) { TextFieldState() }
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(Symbols.Outlined.Key, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.size(16.dp))
-            OutlinedTextField(
-                value = typed,
+            OutlinedSecureTextField(
+                state = typed,
                 // A key has no spaces or control characters, so a line break pasted inside one is dropped too.
-                onValueChange = { typed = it.filterNot { c -> c.isWhitespace() || c.isISOControl() }.take(MAX_KEY_LENGTH) },
+                inputTransformation = KeyCharacters,
                 label = { Text("${provider.displayName} API Key") },
                 supportingText = { Text("Create One at ${provider.keyPage}.") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
+                textObfuscationMode = TextObfuscationMode.Hidden,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                 shape = RoundedCornerShape(24.dp),
                 modifier = Modifier.weight(1f)
             )
             TextButton(
-                enabled = typed.isNotBlank(),
+                enabled = typed.text.isNotBlank(),
                 onClick = {
-                    val key = typed
+                    val key = typed.text.toString()
                     scope.launch {
                         val ok = withContext(Dispatchers.IO) { vault.save(provider, key) }
                         if (ok) {
-                            typed = ""
+                            typed.clearText()
                             onChanged()
                         } else {
                             Toast.makeText(context, "Couldn't save the key on this phone.", Toast.LENGTH_SHORT).show()
@@ -301,3 +304,9 @@ private fun ApiKeyRows(vault: AiKeyVault, provider: AiProvider, hasKey: Boolean,
 
 /** No provider's key is longer; a longer paste isn't a key. */
 private const val MAX_KEY_LENGTH = 512
+
+/** What a key may hold: no spaces or control characters, and no more than [MAX_KEY_LENGTH] of them. */
+private val KeyCharacters = InputTransformation {
+    val kept = asCharSequence().filterNot { c -> c.isWhitespace() || c.isISOControl() }.take(MAX_KEY_LENGTH)
+    if (!kept.contentEquals(asCharSequence())) replace(0, length, kept)
+}

@@ -12,7 +12,9 @@ plugins {
 
 android {
     namespace = "com.pixel.intelligentsearch"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) { minorApiLevel = 1 }
+    }
     defaultConfig {
         applicationId = "com.pixel.intelligentsearch"
         minSdk = 31
@@ -248,4 +250,17 @@ tasks.register<Zip>("packageNativeDebugSymbols") {
     destinationDirectory.set(file("${layout.buildDirectory.get()}/outputs/native-debug-symbols/release"))
     from("${layout.buildDirectory.get()}/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib")
     dependsOn("mergeReleaseNativeLibs")
+}
+
+// Compose 1.13 and Material 3 1.5, the November 2026 release. Its BOM (2026.11.01) isn't on Google Maven yet, so the BOM
+// stays at 2026.09.00 and this lifts Compose to the release's candidates. Once the BOM is there, set it and drop this.
+configurations.configureEach {
+  resolutionStrategy.eachDependency {
+    val group = requested.group
+    when {
+      group == "androidx.compose.material3" -> useVersion(libs.versions.composeMaterial3Rc.get())
+      group in setOf("androidx.compose.ui", "androidx.compose.foundation", "androidx.compose.animation", "androidx.compose.runtime") ||
+        (group == "androidx.compose.material" && requested.name.startsWith("material-ripple")) -> useVersion(libs.versions.composeRc.get())
+    }
+  }
 }

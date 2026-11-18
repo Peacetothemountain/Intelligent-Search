@@ -2,6 +2,7 @@ package com.pixel.intelligentsearch.feature.search
 
 import android.content.SharedPreferences
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -28,7 +29,27 @@ internal class OverlayUiState(
 ) {
     var hasStartedTyping by hasStartedTyping
     var isKeyboardDismissedByUser by isKeyboardDismissedByUser
-    var textFieldValue by mutableStateOf(TextFieldValue(initialQuery, TextRange(initialQuery.length)))
+    /** The search field's own text and cursor. */
+    val fieldState = TextFieldState(initialQuery, TextRange(initialQuery.length))
+
+    /**
+     * The field's words and cursor as one value. Setting it replaces both: a change made for the user (a clear, a
+     * suggestion, a voice result), which the field doesn't report back as typing ([fieldSeen]).
+     */
+    var textFieldValue: TextFieldValue
+        get() = TextFieldValue(fieldState.text.toString(), fieldState.selection)
+        set(value) {
+            val text = value.text
+            val selection = TextRange(value.selection.start.coerceIn(0, text.length), value.selection.end.coerceIn(0, text.length))
+            fieldState.edit {
+                replace(0, length, text)
+                this.selection = selection
+            }
+            fieldSeen = TextFieldValue(text, selection)
+        }
+
+    /** The field as last set or typed into, so a change it makes on its own (undo, a moved cursor) can be told apart. */
+    var fieldSeen = TextFieldValue(initialQuery, TextRange(initialQuery.length))
     var showDebugPill by mutableStateOf(false)
     var showHistoryClearedSnackbar by mutableStateOf(false)
     var showTorInstallPopup by mutableStateOf(false)

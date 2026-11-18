@@ -82,6 +82,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.intellij.lang.annotations.Language
 import kotlin.math.exp
 import kotlin.math.max
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
 
 // Search's open and close on the pages that search at the bottom (Manage Hidden Apps, Add Applications). The pill's
 // slide uses a curve that is its own mirror image, so the close is exactly the open played backward; it moves from
@@ -150,8 +152,7 @@ internal fun SearchToggleButton(open: Boolean, onToggle: () -> Unit) {
 @Composable
 internal fun BottomSearchPill(
     open: Boolean,
-    query: String,
-    onQueryChange: (String) -> Unit,
+    query: TextFieldState,
     placeholder: String,
     modifier: Modifier = Modifier
 ) {
@@ -231,13 +232,12 @@ internal fun BottomSearchPill(
                 .graphicsLayer { alpha = fade.value * smoothStep(0.82f, 1f, reveal.value) }
         ) {
             val onPill = MaterialTheme.colorScheme.onSurfaceVariant
-            if (query.isEmpty()) {
+            if (query.text.isEmpty()) {
                 Text(placeholder, color = onPill, fontSize = PILL_TEXT, fontFamily = GoogleSansFlex, maxLines = 1)
             }
             BasicTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                singleLine = true,
+                state = query,
+                lineLimits = TextFieldLineLimits.SingleLine,
                 textStyle = TextStyle(color = onPill, fontSize = PILL_TEXT, fontFamily = GoogleSansFlex),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -299,6 +299,10 @@ private fun Modifier.manifestingPill(
         }
     }
 }
+
+/** How far ahead of a scroll a long list of apps makes its rows, and how far behind it keeps them. */
+internal val AppListAhead = 320.dp
+internal val AppListBehind = 160.dp
 
 /** Room around the pill for its light to spill past its edge. */
 private val PILL_GLOW_PAD = 30.dp

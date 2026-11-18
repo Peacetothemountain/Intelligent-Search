@@ -77,7 +77,10 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.foundation.text.input.InputTransformation
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.graphics.Shape
@@ -259,7 +262,7 @@ private fun MenuPopup(menu: Pop.Menu, onClose: () -> Unit) {
 @Composable
 private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
-    var text by remember { mutableStateOf(TextFieldValue(d.input ?: "", TextRange(0, (d.input ?: "").length))) }
+    val text = remember { TextFieldState(d.input ?: "", TextRange(0, (d.input ?: "").length)) }
     var error by remember { mutableStateOf<String?>(null) }
     val focus = remember { FocusRequester() }
     Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.ime).padding(24.dp), contentAlignment = Alignment.Center) {
@@ -271,9 +274,15 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
             if (d.onInput != null) {
                 val multi = d.inputHint != null
                 BasicTextField(
-                    value = text,
-                    onValueChange = { text = if (multi) it else it.copy(text = it.text.take(24)); error = null },
-                    singleLine = !multi,
+                    state = text,
+                    // A name keeps to 24 characters (a longer paste is cut there); any change clears the error.
+                    inputTransformation = remember(multi) {
+                        InputTransformation {
+                            if (!multi && length > 24) replace(24, length, "")
+                            error = null
+                        }
+                    },
+                    lineLimits = if (multi) TextFieldLineLimits.MultiLine() else TextFieldLineLimits.SingleLine,
                     textStyle = MaterialTheme.typography.bodyLarge.copy(
                         color = scheme.onSurface,
                         fontFamily = MaterialTheme.typography.bodyLarge.fontFamily,
@@ -281,7 +290,7 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
                     ),
                     cursorBrush = SolidColor(scheme.primary),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { d.onInput.invoke(text.text.trim())?.let { error = it } ?: onClose() }),
+                    onKeyboardAction = { d.onInput.invoke(text.text.toString().trim())?.let { error = it } ?: onClose() },
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focus)
@@ -290,7 +299,7 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
                         // A long pasted code scrolls inside the field, which keeps to a few lines, so the buttons stay in view.
                         .heightIn(min = if (multi) 118.dp else 56.dp, max = if (multi) 132.dp else Dp.Unspecified)
                         .padding(horizontal = 16.dp, vertical = 16.dp),
-                    decorationBox = { inner ->
+                    decorator = { inner ->
                         Box {
                             if (text.text.isEmpty() && d.inputHint != null) Text(d.inputHint, color = scheme.onSurfaceVariant, fontSize = 12.sp, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex)
                             inner()
@@ -306,7 +315,7 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
                             context.getSystemService(ClipboardManager::class.java)?.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(context)?.toString()
                         }.getOrNull()
                         if (!clip.isNullOrBlank()) {
-                            text = TextFieldValue(clip, TextRange(clip.length))
+                            text.setTextAndPlaceCursorAtEnd(clip)
                             error = null
                         }
                     }
@@ -338,7 +347,7 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
             if (d.stacked) {
                 Column(Modifier.fillMaxWidth().padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (a in d.actions) PreviewButton(a.label, a.kind, Modifier.fillMaxWidth()) {
-                        if (d.onInput != null) d.onInput.invoke(text.text.trim())?.let { error = it } ?: onClose()
+                        if (d.onInput != null) d.onInput.invoke(text.text.toString().trim())?.let { error = it } ?: onClose()
                         else if (a.onClick()) onClose()
                     }
                 }
@@ -349,7 +358,7 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
                         val ready = d.onInput == null || d.inputHint == null || i != d.actions.lastIndex || text.text.contains("IS2.", ignoreCase = true)
                         PreviewButton(a.label, a.kind, enabled = ready) {
                             // The last action of an input dialog is its confirm: it checks the input first.
-                            if (d.onInput != null && i == d.actions.lastIndex) d.onInput.invoke(text.text.trim())?.let { error = it } ?: onClose()
+                            if (d.onInput != null && i == d.actions.lastIndex) d.onInput.invoke(text.text.toString().trim())?.let { error = it } ?: onClose()
                             else if (a.onClick()) onClose()
                         }
                     }

@@ -43,6 +43,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.core.graphics.createBitmap
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 
 // SEARCH PILLS SCREEN
 // -----------------------------------------------------------------------------------------
@@ -153,11 +155,12 @@ fun SearchPillsScreen(
     var showMaxWarning by remember { mutableStateOf(false) }
     // The picker's search, opened from the magnifier into a pill at the bottom; leaving the picker closes and clears it.
     var pickerSearching by remember { mutableStateOf(false) }
-    var appSearchQuery by remember { mutableStateOf("") }
+    val appSearchField = remember { TextFieldState() }
+    val appSearchQuery = appSearchField.text.toString()
     LaunchedEffect(showAppPicker) {
         if (!showAppPicker) {
             pickerSearching = false
-            appSearchQuery = ""
+            appSearchField.clearText()
         }
     }
 
@@ -202,7 +205,7 @@ fun SearchPillsScreen(
     // Back closes the picker's search first.
     BackHandler(enabled = showAppPicker && pickerSearching) {
         pickerSearching = false
-        appSearchQuery = ""
+        appSearchField.clearText()
     }
 
     Scaffold(
@@ -246,7 +249,7 @@ fun SearchPillsScreen(
                         }
                     } else if (showAppPicker) {
                         SearchToggleButton(open = pickerSearching, onToggle = {
-                            if (pickerSearching) appSearchQuery = ""
+                            if (pickerSearching) appSearchField.clearText()
                             pickerSearching = !pickerSearching
                         })
                     } else {
@@ -322,7 +325,9 @@ fun SearchPillsScreen(
                     ) {
                     androidx.compose.foundation.lazy.LazyColumn(
                         modifier = Modifier.fillMaxSize().padding(vertical = 8.dp).underBottomSearch(pickerSearching),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = if (pickerSearching) PILL_CLEARANCE else 0.dp)
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = if (pickerSearching) PILL_CLEARANCE else 0.dp),
+                        // Rows (and their icons) are made a little ahead of a scroll and kept a little behind it.
+                        cacheWindow = remember { androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow(ahead = AppListAhead, behind = AppListBehind) }
                     ) {
                         items(filteredApps.size, key = { filteredApps[it].packageName }) { index ->
                             val appItem = filteredApps[index]
@@ -385,8 +390,7 @@ fun SearchPillsScreen(
             }
             BottomSearchPill(
                 open = pickerSearching,
-                query = appSearchQuery,
-                onQueryChange = { appSearchQuery = it },
+                query = appSearchField,
                 placeholder = "Search Apps",
                 modifier = Modifier.align(Alignment.BottomCenter)
             )

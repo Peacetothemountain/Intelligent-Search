@@ -416,8 +416,11 @@ fun VolumeSliderCard(
                     fontFamily = GoogleSansFlex,
                     modifier = Modifier.clearAndSetSemantics {}
                 )
+                val sliderSteps = (safeMax - 1).coerceAtLeast(0)
+                val sliderState = remember(sliderSteps, safeMax) { SliderState(level, sliderSteps, 0f..safeMax.toFloat()) }
+                sliderState.value = level
                 Slider(
-                    value = level,
+                    state = sliderState,
                     onValueChange = { newValue ->
                         val stepped = newValue.roundToInt().coerceIn(0, safeMax)
                         if (stepped != level.toInt()) {
@@ -426,8 +429,6 @@ fun VolumeSliderCard(
                         }
                         level = stepped.toFloat()
                     },
-                    valueRange = 0f..safeMax.toFloat(),
-                    steps = (safeMax - 1).coerceAtLeast(0),
                     modifier = Modifier.semantics {
                         contentDescription = title
                         stateDescription = "${level.toInt()} of $safeMax"

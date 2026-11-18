@@ -57,6 +57,8 @@ import com.pixel.intelligentsearch.core.data.SystemDataProvider
 import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.clearText
 
 /** An installed app with its icon already drawn at row size. */
 private class HiddenAppRow(val app: AppItem, val icon: ImageBitmap?)
@@ -76,7 +78,8 @@ fun ManageHiddenAppsScreen(
     var showUnsavedChangesCard by remember { mutableStateOf(false) }
     var installedApps by remember { mutableStateOf<List<HiddenAppRow>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
+    val searchField = remember { TextFieldState() }
+    val searchQuery = searchField.text.toString()
     val iconPx = with(LocalDensity.current) { 24.dp.roundToPx() }
 
     val isAuthenticated = rememberProtectedPageUnlock(
@@ -142,7 +145,7 @@ fun ManageHiddenAppsScreen(
     // Back closes search before it leaves the page (or asks about unsaved changes).
     BackHandler(enabled = isSearching) {
         isSearching = false
-        searchQuery = ""
+        searchField.clearText()
     }
 
     Scaffold(containerColor = Color.Transparent, topBar = {
@@ -154,7 +157,7 @@ fun ManageHiddenAppsScreen(
                     // Nothing to search or save until the page is unlocked.
                     if (isAuthenticated) {
                         SearchToggleButton(open = isSearching, onToggle = {
-                            if (isSearching) searchQuery = ""
+                            if (isSearching) searchField.clearText()
                             isSearching = !isSearching
                         })
                         // As on Application Search: switches edit a draft, Reset puts back the apps last saved and Save
@@ -241,7 +244,9 @@ fun ManageHiddenAppsScreen(
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(vertical = 8.dp).underBottomSearch(isSearching),
-                    contentPadding = PaddingValues(bottom = if (isSearching) PILL_CLEARANCE else 0.dp)
+                    contentPadding = PaddingValues(bottom = if (isSearching) PILL_CLEARANCE else 0.dp),
+                    // Rows (and their icons) are made a little ahead of a scroll and kept a little behind it.
+                    cacheWindow = remember { androidx.compose.foundation.lazy.layout.LazyLayoutCacheWindow(ahead = AppListAhead, behind = AppListBehind) }
                 ) {
                     items(
                         count = filteredApps.size,
@@ -274,8 +279,7 @@ fun ManageHiddenAppsScreen(
         }
         BottomSearchPill(
             open = isSearching && isAuthenticated,
-            query = searchQuery,
-            onQueryChange = { searchQuery = it },
+            query = searchField,
             placeholder = "Search Apps",
             modifier = Modifier.align(Alignment.BottomCenter)
         )

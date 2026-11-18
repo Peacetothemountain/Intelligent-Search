@@ -99,7 +99,7 @@ internal fun HeroEyebrow(on: Boolean, maxWidth: Dp) {
 @Composable
 internal fun Footer() {
     Text(
-        "Tap the one standing up to try it on.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        "Tap the one standing up to try it on.", style = MaterialTheme.typography.bodyMedium.copy(lineBreak = androidx.compose.ui.text.style.LineBreak.Paragraph), color = MaterialTheme.colorScheme.onSurfaceVariant,
         textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 6.dp)
     )
 }

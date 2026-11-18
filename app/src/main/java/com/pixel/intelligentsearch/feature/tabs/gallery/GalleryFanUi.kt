@@ -67,6 +67,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -88,6 +89,9 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.LineBreak
+import androidx.compose.foundation.layout.BoxWithConstraints
+import com.pixel.intelligentsearch.feature.settings.oneLineAutoSize
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -177,7 +181,7 @@ internal fun SwatchFan(
     val hint = rememberFanHint(engine)
     SideEffect {
         engine.onTick = { CardHaptics.pass(view) }
-        engine.onLand = { CardHaptics.land(view); hint.turned() }
+        engine.onLand = { byHand -> CardHaptics.land(view); if (byHand) hint.turned() }
         engine.onGrab = { CardHaptics.start(view) }
     }
     val c = rememberFanColors()
@@ -350,7 +354,7 @@ internal fun SwatchFan(
     if (under) FanCaption(
         engine, textK, large,
         Modifier
-            .padding(start = 4.dp, end = 4.dp, top = 8.dp)
+            .padding(start = 4.dp, end = 4.dp, top = 8.dp, bottom = 16.dp)
             // A tap opens the look, as the fan's own "Open preview" does for TalkBack: no node of its own here.
             .pointerInput(engine) { detectTapGestures { tick(); engine.tap(engine.top) { opener[0]?.invoke(it) } } }
     )
@@ -386,14 +390,25 @@ private fun FanCaption(engine: FanEngine, ts: Float, large: Boolean, modifier: M
                 style = MaterialTheme.typography.labelMedium.copy(fontSize = max(11.5f, 11.5f * ts).sp, fontWeight = FontWeight.SemiBold)
             )
         }
+        // The name keeps to one line (a long one shrinks a little), and the line about it keeps the room the longest one
+        // needs here, so the progress line under them holds still as the fan turns.
+        val nameStyle = MaterialTheme.typography.headlineMedium.copy(fontSize = (27f * ts).sp, lineHeight = (29f * ts).sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.35).sp)
         Text(
-            look.name, color = scheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = (10f * ts).dp, bottom = 6.dp),
-            style = MaterialTheme.typography.headlineMedium.copy(fontSize = (27f * ts).sp, lineHeight = (29f * ts).sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.35).sp)
+            look.name, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = (10f * ts).dp, bottom = 6.dp),
+            style = nameStyle, autoSize = oneLineAutoSize(nameStyle, shrinkBy = 0.2f)
         )
-        Text(
-            look.desc, color = scheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.bodyMedium.copy(fontSize = max(13.5f, 12.5f * ts).sp, lineHeight = (max(13.5f, 12.5f * ts) * 1.38f).sp)
+        val descStyle = MaterialTheme.typography.bodyMedium.copy(
+            fontSize = max(13.5f, 12.5f * ts).sp, lineHeight = (max(13.5f, 12.5f * ts) * 1.38f).sp, lineBreak = LineBreak.Paragraph
         )
+        val measurer = rememberTextMeasurer(cacheSize = 0)
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val wpx = constraints.maxWidth
+            val lines = remember(wpx, descStyle) {
+                if (wpx <= 0 || wpx == Constraints.Infinity) 2
+                else FAN_ORDER.maxOf { measurer.measure(fanLook(it).desc, descStyle, constraints = Constraints(maxWidth = wpx)).lineCount }.coerceIn(1, 3)
+            }
+            Text(look.desc, color = scheme.onSurfaceVariant, minLines = lines, maxLines = 3, overflow = TextOverflow.Ellipsis, style = descStyle)
+        }
         // Where you are in the deck: it fills as the fan moves, strip by strip.
         val track = scheme.outlineVariant
         val fill = scheme.primary

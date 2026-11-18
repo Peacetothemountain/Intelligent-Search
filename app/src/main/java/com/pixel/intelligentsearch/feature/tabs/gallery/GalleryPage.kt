@@ -581,7 +581,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                         state = listState,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            start = GalleryGutter, end = GalleryGutter, top = 0.dp, bottom = bottomPad + 24.dp
+                            start = GalleryGutter, end = GalleryGutter, top = 0.dp, bottom = bottomPad + 16.dp
                         )
                     ) {
                         items(keys, key = { it }, contentType = { it }) { key ->

@@ -76,10 +76,8 @@ private class Showing {
  * showing behind a dialog or a see-through screen keeps counting, ended early by the screen turning off or the phone
  * shutting down), and the day's total is the time any counted app was on screen, so split screen counts once.
  *
- * Screen time follows Intelligent Search's ScreenTimeCalculator (ScreenTimeAnswers.kt) with two changes the preview
- * makes first: time runs to STOPPED rather than PAUSED, and an app the phone never logged as closed (a crash, a forced
- * restart) ends at the last thing the phone logged before it started again or the screen came back on, not hours later.
- * The rest (hours, opens, unlocks, notifications, the night) is built on the same spans.
+ * The screen-time answers (ScreenTimeCalculator in ScreenTimeAnswers.kt) count by these same [spans], so they and
+ * Wellbeing agree. The rest (hours, opens, unlocks, notifications, the night) is built on the same spans.
  */
 object DayCalculator {
     /**
@@ -108,6 +106,12 @@ object DayCalculator {
     private const val CAME_BACK_MS = 3_000L
     /** A phone start logs its events (the screen, the home screen, the start itself) within this of each other. */
     private const val BOOT_CLUSTER_MS = 2_000L
+    /**
+     * How near a midnight the events may begin for the day to be read whole: the phone's oldest daily file starts a few
+     * seconds before one. Events that begin this little before a window begin at it, so an app already open then counts
+     * from the window's start.
+     */
+    private const val START_SLACK_MS = 5 * 60_000L
 
     /**
      * Each counted app's spans on screen between [startMs] and [endMs]. [eventsFromMs] is when [events] begin (see
@@ -139,6 +143,10 @@ object DayCalculator {
         val counted = HashMap<String, Boolean>()
         // Recent times something was seen on screen, to find the last one before a phone start's own burst of events.
         val recent = ArrayDeque<Long>()
+        // The events begin at the window (or just before it), so an app first seen closing was open at its start.
+        val fromStart = eventsFromMs >= startMs - START_SLACK_MS
+        // The first time in the window the screen went dark: an app open at the start can't count past it.
+        var firstDark = Long.MAX_VALUE
         fun isCounted(key: String) = counted.getOrPut(key) { Attribution.counts(key, packageCounts) }
         fun add(key: String, from: Long, to: Long) {
             if (to <= from || !isCounted(key)) return
@@ -171,13 +179,16 @@ object DayCalculator {
                 EventKind.PAUSED -> {
                     if (after) break
                     // Still on screen until it stops. Open since before the events begin: from the window's start, but
-                    // only when the events start there (read from earlier, they would have shown its resume).
+                    // only when the events start there (read from earlier, they would have shown its resume), and no
+                    // later than the screen first went dark.
                     val key = Attribution.keyOf(event)
                     if (key !in seenAny) {
                         seenAny += key
-                        if (eventsFromMs >= startMs) {
-                            showing.getOrPut(key) { Showing() }.add(event)
-                            openSince.putIfAbsent(key, startMs)
+                        if (fromStart) {
+                            if (firstDark == Long.MAX_VALUE) {
+                                showing.getOrPut(key) { Showing() }.add(event)
+                                openSince.putIfAbsent(key, startMs)
+                            } else add(key, startMs, firstDark)
                         }
                     }
                 }
@@ -187,19 +198,21 @@ object DayCalculator {
                     val screens = showing[key]
                     if (key !in seenAny) {
                         seenAny += key
-                        if (eventsFromMs >= startMs) add(key, startMs, at)
+                        if (fromStart) add(key, startMs, min(at, firstDark))
                     } else if (screens != null) {
                         screens.remove(event)
                         if (screens.isEmpty) close(key, at)
                     }
                 }
                 EventKind.SCREEN_OFF -> {
+                    if (firstDark == Long.MAX_VALUE) firstDark = at
                     closeAll(at)
                     if (after) break
                 }
                 EventKind.SHUTDOWN -> {
                     // Android also writes this when it starts after a crash, at its last save: either way nothing was
                     // seen on screen after the last activity, screen or lock event, so what is open ends there.
+                    if (firstDark == Long.MAX_VALUE) firstDark = (recent.lastOrNull() ?: at).coerceIn(startMs, at)
                     for (key in openSince.keys.toList()) {
                         val since = openSince.getValue(key)
                         close(key, (recent.lastOrNull() ?: since).coerceIn(since, at))
@@ -460,7 +473,7 @@ object DayCalculator {
             awayStartMin = if (awayFrom >= 0) minuteOf(awayFrom) else null,
             awayLenMin = if (awayFrom >= 0) (awayLen / 60_000L).toInt() else null,
             notificationsWhileDown = notificationsWhileDown,
-            complete = nowMs >= dayEnd && eventsFromMs <= dayStart + 5 * 60_000L,
+            complete = nowMs >= dayEnd && eventsFromMs <= dayStart + START_SLACK_MS,
             inUseAtMidnight = atMidnight,
             phoneDownLenMin = if (downTo > 0) ((downTo - downFrom) / 60_000L).toInt() else null,
             nightPickups = if (downTo > 0) nightPickups else 0,

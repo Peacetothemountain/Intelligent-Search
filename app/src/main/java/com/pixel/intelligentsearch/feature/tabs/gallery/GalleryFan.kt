@@ -10,7 +10,9 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.pixel.intelligentsearch.feature.tabs.ui.Symbols
 import kotlin.math.E
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.exp
@@ -77,7 +79,10 @@ internal object FanDims {
     const val H = 0.3f
     const val CX = 60f
     const val CY = -60f
-    /** A strip per 88 dp of finger travel; a flick adds strips only from 1800 dp/s, one more per 1600 dp/s, three at most. */
+    /**
+     * A strip per 88 dp of finger travel (on a strip, travel around the rivet at the finger's own distance from it); a
+     * flick adds strips only from 1800 dp/s, one more per 1600 dp/s, three at most, and none once the drag has earned one.
+     */
     const val STEP_DP = 88f
     const val SLOP = 8f
     const val FLING = 1800f
@@ -105,6 +110,20 @@ internal object FanDims {
     const val SETTLE_W = 30f
     const val RAISE_LIFT = 26f
     const val RAISE_SHADOW = 1.6f
+    /** Inside this distance (mockup px) of the rivet a drag counts sideways travel: the angle there is too jumpy. */
+    const val ROUND_MIN = 26f
+    /** A strip turned further than this (degrees) lies on the spread: pushing it up or down turns the fan. */
+    const val SPREAD_A = 35f
+    /**
+     * The gesture hint: a double-headed arrow on an arc [HINT_R] from the rivet, from [HINT_A0] to [HINT_A1] degrees
+     * (clockwise from upright), in the wedge between the upright strip and the spread. The fan turns [HINT_NUDGE] of a
+     * strip each way as its light runs along the arc. It goes for good after [HINT_TURNS] turns that change the look.
+     */
+    const val HINT_R = 140f
+    const val HINT_A0 = 25f
+    const val HINT_A1 = 53f
+    const val HINT_NUDGE = 0.13f
+    const val HINT_TURNS = 3
 }
 
 /** A strip's angle (degrees) [d] strips above (+) or below (-) the upright one; [under] is how far the under-fan opens. */
@@ -392,13 +411,27 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
     val p: Float get() = M.x
     val moving: Boolean get() = M.active
 
+    /** The hint's small turn of the whole fan, on top of where it stands (no ticks: it never reaches another strip). */
+    var ghost = 0f
+        set(v) {
+            if (field != v) {
+                field = v
+                clock.kick()
+            }
+        }
+    /** Nothing going on: no finger on the fan, the fan at rest and no strip raised. The hint plays only then. */
+    var calm by mutableStateOf(true)
+        private set
+    /** The hint's arc in the fan box: the rivet's plane through the lens, as the strips' own matrices are made. */
+    val hintPlane: FloatArray = M4.plane(M4.chain(M4.t(FanDims.RX, FanDims.RY), viewPre))
+
     private fun seenAt(i: Int, p: Float) = i == n - 1 || (i - p > -FanDims.UNDER_SEEN && i - p < FanDims.OVER_SEEN)
 
     private fun shadowTurn(gap: Float) = FanDims.EMAX * (1f - exp(-gap / FanDims.EGAP))
 
     /** One frame: every strip where the fan puts it. */
     fun layout() {
-        val p = M.x
+        val p = if (ghost == 0f) M.x else (M.x + ghost).coerceIn(-0.2f, n - 0.8f)
         val now = System.nanoTime()
         val dt = if (lastNanos == 0L || now - lastNanos > 50_000_000L) 1f / 60f else max(0.001f, (now - lastNanos) / 1e9f)
         lastNanos = now
@@ -511,6 +544,8 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
         }
         val destNow = end().roundToInt().coerceIn(0, n - 1)
         if (destNow != dest) dest = destNow
+        val c = !held && !M.active && raised < 0 && !Rz.active
+        if (c != calm) calm = c
         quiet = false
         frame.intValue++
         if (busy) clock.kick()
@@ -587,54 +622,110 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
 
     // ---- The finger ----
 
+    /** Dp per mockup px: the fan's scale on this screen (set by the page), for finding the rivet and the strips. */
+    var scale = 1f
     private var held = false
     private var x0 = 0f
     private var y0 = 0f
     private var ox = 0f
     private var p0 = 0f
+    private var from = 0
+    /** On a strip, and on one of the spread. */
+    private var onStrip = false
+    private var onSpread = false
+    /** The finger around the rivet: its angle (radians, clockwise from upright) and distance (dp). */
+    private var ang = 0f
+    private var rad = 0f
+    private var lastX = 0f
+    /** How far the finger has gone around the rivet (dp, clockwise positive), and its last tenth of a second of it. */
+    private var travel = 0f
+    private val samples = ArrayDeque<Pair<Long, Float>>()
+    private var lastMove = 0L
     var dragging = false
         private set
     var dead = false
         private set
     private var caught = false
 
-    /** A finger down at ([x], [y]) dp. A hand on a turning fan stops it where it is (unless it has as good as landed). */
-    fun down(x: Float, y: Float) {
+    /** The rivet, where the lens puts it, in dp in the fan box. */
+    private fun rivet(): Pair<Float, Float> {
+        val s = FanDims.P / (FanDims.P - FanDims.L)
+        return (FanDims.RX + FanDims.CX - FanDims.CX * s) * scale to (FanDims.RY + FanDims.CY - FanDims.CY * s) * scale
+    }
+
+    private fun polar(x: Float, y: Float): Pair<Float, Float> {
+        val (rx, ry) = rivet()
+        val dx = x - rx
+        val dy = y - ry
+        return atan2(dx, -dy) to sqrt(dx * dx + dy * dy)
+    }
+
+    /** A finger down at ([x], [y]) dp at [t] ms. A hand on a turning fan stops it where it is (unless it has as good as landed). */
+    fun down(x: Float, y: Float, t: Long) {
         held = true
         dragging = false
         dead = false
+        calm = false
         x0 = x
         y0 = y
+        lastX = x
+        travel = 0f
+        samples.clear()
+        samples.addLast(t to 0f)
+        lastMove = t
+        val i = stripAt(x / scale, y / scale)
+        onStrip = i >= 0
+        onSpread = i >= 0 && out[i].a > FanDims.SPREAD_A
+        from = M.x.roundToInt().coerceIn(0, n - 1)
+        polar(x, y).let { ang = it.first; rad = it.second }
         caught = M.active && !(M.goal.isNaN() && abs(M.x - M.t) < 0.05f && abs(M.v) < 1.5f)
         if (caught) M.hold()
     }
 
-    /** Returns true while the fan has the finger (a sideways drag past the slop); up or down belongs to the page. */
-    fun move(x: Float, y: Float): Boolean {
+    /**
+     * Returns true while the fan has the finger. On a strip what counts is how far the finger goes around the rivet, at
+     * its own distance from it, so pushing a strip of the spread up brings it upright and pulling the upright one down
+     * swings it away; off the strips (or right at the rivet) a sideways swipe turns it the same way. Up or down belongs
+     * to the page, except on a strip of the spread.
+     */
+    fun move(x: Float, y: Float, t: Long): Boolean {
         if (!held || dead) return false
+        val (a, r) = polar(x, y)
+        var da = a - ang
+        if (da > PI) da -= (2 * PI).toFloat()
+        if (da < -PI) da += (2 * PI).toFloat()
+        val minR = FanDims.ROUND_MIN * scale
+        travel += if (onStrip && r > minR && rad > minR) da * (r + rad) / 2f else x - lastX
+        ang = a
+        rad = r
+        lastX = x
+        samples.addLast(t to travel)
+        while (samples.size > 32) samples.removeFirst()
+        lastMove = t
         val dx = x - x0
         val dy = y - y0
         if (!dragging) {
             if (sqrt(dx * dx + dy * dy) <= FanDims.SLOP) return false
-            if (abs(dy) > abs(dx)) {
+            if (!onSpread && abs(dy) > abs(dx)) {
                 dead = true
                 return false
             }
             dragging = true
-            ox = dx
+            ox = travel
             p0 = M.x
             tickEvery = 1
             onGrab()
         }
         // The fan follows the finger: 88 dp a strip, no snapping.
-        M.set(band(p0 - (dx - ox) / FanDims.STEP_DP))
+        M.set(band(p0 - (travel - ox) / FanDims.STEP_DP))
         return true
     }
 
-    /** The finger lifts moving [vx] dp/s. Returns whether it was a tap (the caller finds what it was on). */
-    fun up(vx: Float): Boolean {
+    /** The finger lifts at [t] ms. Returns whether it was a tap (the caller finds what it was on). */
+    fun up(t: Long): Boolean {
         if (!held) return false
         held = false
+        clock.kick()
         if (!dragging) {
             if (caught) {
                 M.go(M.x.roundToInt().coerceIn(0, n - 1).toFloat())
@@ -643,29 +734,25 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
             return !dead
         }
         dragging = false
-        // Let go: it settles on the nearest strip. A real fling (1800 dp/s and up) turns one look even when the drag fell
-        // short of it; a fling the drag already carried a strip or more is that look, however fast, unless it also went
-        // a long way (a strip and a half or more): then each further 1600 dp/s adds one more, three in all at most, each
-        // passing in its own 140 ms or so.
-        val a = abs(vx)
-        val extra = if (a >= FanDims.FLING) min(FanDims.MAX_EXTRA, 1 + ((a - FanDims.FLING) / FanDims.PER_EXTRA).toInt()) else 0
-        val f = -sign(vx).toInt()
-        val earned = (M.x.roundToInt() - p0.roundToInt()) * f
-        val moved = (M.x - p0) * f
-        val more = when {
-            extra == 0 -> 0
-            earned < 1 -> 1
-            moved < 1.5f -> 0
-            else -> extra - 1
-        }
-        val target = (M.x.roundToInt() + f * more).coerceIn(0, n - 1)
+        // The release speed (dp/s around the rivet) over the finger's last tenth of a second; a finger that rested a
+        // tenth of a second before lifting hands over none.
+        val recent = samples.filter { lastMove - it.first <= 100 }
+        val v = if (t - lastMove > 100 || recent.size < 2) 0f
+        else (recent.last().second - recent.first().second) / ((recent.last().first - recent.first().first).coerceAtLeast(8) / 1000f)
+        // Let go: it settles on the nearest strip. A real fling (1800 dp/s and up) turns one look more, and one more for
+        // every further 1600 dp/s, three at most, each passing in its own 140 ms or so; but none once the drag itself
+        // has turned the fan a strip or more.
+        val a = abs(v)
+        val near = M.x.roundToInt().coerceIn(0, n - 1)
+        val extra = if (near == from && a >= FanDims.FLING) min(FanDims.MAX_EXTRA, 1 + ((a - FanDims.FLING) / FanDims.PER_EXTRA).toInt()) else 0
+        val target = (near - sign(v).toInt() * extra).coerceIn(0, n - 1)
         lastSwipe = target - p0.roundToInt()
         // The strip just passed under the finger is where it lands: its landing says so, without the passing tick.
         if (heldTick >= 0) {
             if (heldTick != target || target == restAt) onTick()
             heldTick = -1
         }
-        M.go(target.toFloat(), -vx / FanDims.STEP_DP, pacedIn = more > 0)
+        M.go(target.toFloat(), -v / FanDims.STEP_DP, pacedIn = extra > 0)
         return false
     }
 

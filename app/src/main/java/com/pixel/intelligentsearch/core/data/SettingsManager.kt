@@ -318,6 +318,12 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * as JSON (GalleryDisk). Backed up with the rest, so saved looks come back with a restore.
          */
         val GALLERY_LOOKS = StringSetting("gallery_looks", "")
+        /**
+         * Gesture Hints: Gallery's fan shows a curved arrow that says how to turn it. It goes away for good after
+         * [GALLERY_HINT_TURNS] reaches three turns that changed the look; turning the switch back on starts the count again.
+         */
+        val GALLERY_HINTS = BooleanSetting("gallery_hints", true)
+        val GALLERY_HINT_TURNS = IntSetting("gallery_hint_turns", 0, 0..3)
 
         /** Every declared setting, for migration, backup validation and change filtering. */
         val ALL: List<SettingKey<*>> = listOf(
@@ -348,7 +354,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
             WIDGET_SYSTEM_OUTLINE_THICKNESS, WIDGET_MATERIAL_OUTLINE_THICKNESS,
             WIDGET_SYSTEM_CORNER_RADIUS, WIDGET_MATERIAL_CORNER_RADIUS, WIDGET_ACTIVE_PROFILE,
             AI_ANSWERS_ENABLED, AI_PROVIDER, AI_MODEL, AI_MODELS, AI_REASONING, AI_FAST_MODELS, AI_FAVORITE_MODELS,
-            NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION, GALLERY_LOOKS
+            NOTIFICATION_SHORTCUT, FLOATING_SEARCH_BUTTON, FLOATING_BUTTON_EDGE, FLOATING_BUTTON_POSITION, GALLERY_LOOKS,
+            GALLERY_HINTS, GALLERY_HINT_TURNS
         ) + FILES_OPEN_WITH.values + WIDGET_PROFILE_DESIGNS + WIDGET_PROFILE_SAVED_DESIGNS
 
         private val BY_STORED_NAME: Map<String, SettingKey<*>> =

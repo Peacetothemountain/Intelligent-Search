@@ -37,7 +37,8 @@ internal data class StyleSpec(
         val d = if (design == Design.SYSTEM) SYSTEM_DEFAULT else MATERIAL_DEFAULT
         return WidgetStyle(
             subtheme = subtheme ?: d.subtheme,
-            gIconTheme = gIcon ?: d.gIconTheme,
+            // A look that keeps the G shows the person's own (GalleryLive.liveG), as applying it does.
+            gIconTheme = gIcon ?: GalleryLive.liveG[design] ?: d.gIconTheme,
             hue = hue?.toFloat() ?: d.hue,
             saturation = saturation?.toFloat() ?: d.saturation,
             lightness = lightness?.toFloat() ?: d.lightness,
@@ -136,60 +137,60 @@ private fun c(hex: Long) = hex.toInt()
 
 /** The first sixteen built-in looks, exactly as gallery_mechanics.md section 4 lists them. */
 private val FIRST_LOOKS: List<Look> = listOf(
-    Look("classic", "Classic", "The bar as it comes, Google's colors on the G. Search as it comes.", true, Design.SYSTEM, setOf("colors"),
+    Look("classic", "Classic", "The one you know, just as it comes.", true, Design.SYSTEM, setOf("colors"),
         StyleSpec(gIcon = G_SYSTEM), StyleSpec(gIcon = G_SYSTEM, corner = 24)),
-    Look("glass", "Wallpaper Glass", "See-through bar. Search over your lightly blurred wallpaper.", true, Design.SYSTEM, setOf("colors", "glass"),
+    Look("glass", "Wallpaper Glass", "Lets your wallpaper shine right through.", true, Design.SYSTEM, setOf("colors", "glass"),
         // A quarter see-through: at half, its icons fell under 3:1 on the brighter part of its wallpaper.
         StyleSpec(transparency = 25), StyleSpec(lockBlack = false, transparency = 25, outline = 4),
         SearchLook(blur = 30, transparency = 80, pillOpacity = 70, stars = false)),
-    Look("ring", "Tonal Ring", "Thick solid rim in your wallpaper's color. Softly blurred search.", true, Design.MATERIAL, setOf("colors", "bold"),
+    Look("ring", "Tonal Ring", "A chunky ring that picks up your colors.", true, Design.MATERIAL, setOf("colors", "bold"),
         StyleSpec(gIcon = G_ACCENTED, outline = 4), StyleSpec(outline = 12, transparency = 0, gIcon = G_ACCENTED),
         SearchLook(blur = 60, transparency = 40)),
-    Look("square", "Soft Square", "Squared corners. Square clock in search.", true, Design.MATERIAL, setOf("colors"),
+    Look("square", "Soft Square", "Soft corners with a little more backbone.", true, Design.MATERIAL, setOf("colors"),
         StyleSpec(corner = 14), StyleSpec(outline = 6, corner = 12), SearchLook(clock = "square")),
-    Look("ink", "Ink", "Always dark, for bright wallpapers. Dark, deeply blurred search.", true, Design.SYSTEM, setOf("colors", "dark"),
+    Look("ink", "Ink", "Bold black that holds its own anywhere.", true, Design.SYSTEM, setOf("colors", "dark"),
         StyleSpec(subtheme = "Dark", gIcon = G_ACCENTED), StyleSpec(lockedPill = c(0xFF131313), gIcon = G_ACCENTED),
         SearchLook(theme = ThemeChoice.Dark, blur = 70, transparency = 30)),
-    Look("paper", "Paper", "Always light and calm. Plain light search.", true, Design.SYSTEM, setOf("colors", "light", "quiet"),
+    Look("paper", "Paper", "Clean and quiet, like a fresh page.", true, Design.SYSTEM, setOf("colors", "light", "quiet"),
         StyleSpec(subtheme = "Light", gIcon = G_SYSTEM), StyleSpec(lockedPill = c(0xFFF7F7F7), outline = 2, transparency = 0),
         SearchLook(theme = ThemeChoice.Light, wallpaper = false, stars = false)),
-    Look("bare", "Bare", "No bar, just the icons on your wallpaper. Clear wallpaper behind search.", true, Design.SYSTEM, setOf("colors", "glass", "quiet"),
+    Look("bare", "Bare", "Barely there. Your wallpaper does the talking.", true, Design.SYSTEM, setOf("colors", "glass", "quiet"),
         StyleSpec(transparency = 100), StyleSpec(lockBlack = false, transparency = 100, outline = 0),
         SearchLook(blur = 0, transparency = 100, pillOpacity = 60, stars = false), note = "Best on a calm wallpaper"),
-    Look("bold", "Bold", "Solid, outlined, nothing see-through. Plain search, easiest to read.", true, Design.SYSTEM, setOf("colors", "bold"),
+    Look("bold", "Bold", "Big, bright, and impossible to lose.", true, Design.SYSTEM, setOf("colors", "bold"),
         StyleSpec(outline = 2, gIcon = G_SYSTEM), StyleSpec(outline = 10, transparency = 0, gIcon = G_ACCENTED),
         SearchLook(wallpaper = false, stars = false)),
-    Look("mono", "Mono", "Grayscale bar. Dim, heavily blurred search.", false, Design.SYSTEM, setOf("dark", "quiet"),
+    Look("mono", "Mono", "Everything in soft gray, easy on the eyes.", false, Design.SYSTEM, setOf("dark", "quiet"),
         StyleSpec(subtheme = "Custom", hue = 0, saturation = 0, lightness = 22, gIcon = G_ACCENTED),
         StyleSpec(subtheme = "Custom", hue = 0, saturation = 0, lightness = 35, lockedPill = c(0xFF1A1A1A), outline = 6, transparency = 0, gIcon = G_ACCENTED),
         SearchLook(blur = 80, transparency = 20, stars = false)),
-    Look("neon", "Neon", "Near-black pill, vivid violet rim. Dark search with drifting stars.", false, Design.MATERIAL, setOf("dark", "bold"),
+    Look("neon", "Neon", "Lights off, one violet glow left on.", false, Design.MATERIAL, setOf("dark", "bold"),
         StyleSpec(subtheme = "Custom", hue = 305, saturation = 60, lightness = 10, outline = 2, gIcon = G_ACCENTED),
         StyleSpec(subtheme = "Custom", hue = 305, saturation = 100, lightness = 60, lockedPill = c(0xFF0D0718), outline = 4, transparency = 0, gIcon = G_ACCENTED),
         SearchLook(theme = ThemeChoice.Dark, blur = 80, transparency = 20)),
-    Look("sunset", "Sunset", "Warm, slightly see-through bar. Light blur in search.", false, Design.SYSTEM, setOf("glass"),
+    Look("sunset", "Sunset", "Golden hour, every time you look.", false, Design.SYSTEM, setOf("glass"),
         // Mostly solid (85%): at 60% the wallpaper's plum came through and muddied the bar under its icons.
         StyleSpec(subtheme = "Custom", hue = 45, saturation = 70, lightness = 75, colorOpacity = 85, gIcon = G_ACCENTED),
         StyleSpec(subtheme = "Custom", hue = 45, saturation = 80, lightness = 65, lockedPill = c(0xFFFFF1E3), outline = 6, transparency = 0, gIcon = G_ACCENTED),
         SearchLook(blur = 40, transparency = 70, pillOpacity = 80, stars = false)),
-    Look("pastel", "Pastel", "Soft lilac bar. Light, airy search.", false, Design.MATERIAL, setOf("light", "quiet"),
+    Look("pastel", "Pastel", "Soft lilac, light as soap bubbles.", false, Design.MATERIAL, setOf("light", "quiet"),
         StyleSpec(subtheme = "Custom", hue = 300, saturation = 25, lightness = 92),
         StyleSpec(subtheme = "Custom", hue = 300, saturation = 35, lightness = 80, lockedPill = c(0xFFF7EEF6), outline = 8),
         SearchLook(theme = ThemeChoice.Light, blur = 60, transparency = 60, pillOpacity = 90, stars = false)),
     // Seasonal: fixed colors, one per season; they leave the theme and the wallpaper switch as the person has them.
-    Look("harvest", "Harvest", "Burnt orange on cream. Deeper blur in search.", false, Design.MATERIAL, setOf("seasonal"),
+    Look("harvest", "Harvest", "Sweater weather, in orange and cream.", false, Design.MATERIAL, setOf("seasonal"),
         StyleSpec(subtheme = "Custom", hue = 50, saturation = 60, lightness = 90, gIcon = G_ACCENTED),
         StyleSpec(subtheme = "Custom", hue = 50, saturation = 75, lightness = 45, lockedPill = c(0xFFFFF1E3), outline = 8, gIcon = G_ACCENTED),
         SearchLook(blur = 60, transparency = 40, stars = false), season = Season.FALL),
-    Look("frost", "First Frost", "Icy blue bar. Stars drift like snow in search.", false, Design.MATERIAL, setOf("seasonal"),
+    Look("frost", "First Frost", "A still, snowy morning in pale blue.", false, Design.MATERIAL, setOf("seasonal"),
         StyleSpec(subtheme = "Custom", hue = 240, saturation = 30, lightness = 94, gIcon = G_ACCENTED),
         StyleSpec(subtheme = "Custom", hue = 240, saturation = 45, lightness = 70, lockedPill = c(0xFFF4FBFF), outline = 8, gIcon = G_ACCENTED),
         SearchLook(blur = 70, transparency = 50, stars = true), season = Season.WINTER),
-    Look("bloom", "Bloom", "Blossom pink bar. Soft blur and the cookie clock in search.", false, Design.SYSTEM, setOf("seasonal"),
+    Look("bloom", "Bloom", "The week the cherry trees bloom.", false, Design.SYSTEM, setOf("seasonal"),
         StyleSpec(subtheme = "Custom", hue = 350, saturation = 40, lightness = 90),
         StyleSpec(subtheme = "Custom", hue = 350, saturation = 55, lightness = 75, lockedPill = c(0xFFFFF3F6), outline = 6),
         SearchLook(blur = 50, transparency = 60, stars = false, clock = "cookie"), season = Season.SPRING),
-    Look("summer", "High Summer", "Sunlit yellow bar. Sunny clock in search.", false, Design.SYSTEM, setOf("seasonal"),
+    Look("summer", "High Summer", "A bright afternoon with nothing to do.", false, Design.SYSTEM, setOf("seasonal"),
         StyleSpec(subtheme = "Custom", hue = 90, saturation = 70, lightness = 88, gIcon = G_ACCENTED),
         StyleSpec(subtheme = "Custom", hue = 90, saturation = 85, lightness = 80, lockedPill = c(0xFFFFFBE6), outline = 8, gIcon = G_ACCENTED),
         SearchLook(blur = 30, transparency = 70, stars = false, clock = "sunny"), season = Season.SUMMER),
@@ -219,82 +220,82 @@ private fun rimmed(ring: Long, pill: Long, outline: Int, g: String?, corner: Int
 /** Twenty-four more looks, each with a wallpaper of its own, filed under the same kinds (the approved swatch fan). */
 private val MORE_LOOKS: List<Look> = listOf(
     // Your Colors
-    Look("tide", "Tide", "Deep sea green with a bright G.", true, Design.SYSTEM, setOf("colors"),
+    Look("tide", "Tide", "Like looking down into deep, quiet water.", true, Design.SYSTEM, setOf("colors"),
         StyleSpec(subtheme = "Dark", gIcon = G_SYSTEM), StyleSpec(lockedPill = c(0xFF0F3740), outline = 6, gIcon = G_SYSTEM),
         SearchLook(blur = 60, transparency = 40)),
-    Look("clay", "Clay", "A warm clay rim on a soft pill.", true, Design.MATERIAL, setOf("colors"),
+    Look("clay", "Clay", "Warm as sun-baked terracotta.", true, Design.MATERIAL, setOf("colors"),
         StyleSpec(outline = 2, gIcon = G_ACCENTED), StyleSpec(lockedPill = c(0xFFFDF0E6), outline = 8, transparency = 0, gIcon = G_ACCENTED),
         SearchLook(blur = 50, transparency = 50)),
-    Look("meadow", "Meadow", "Fresh green, light and easy.", true, Design.SYSTEM, setOf("colors"),
+    Look("meadow", "Meadow", "A sunny field on the first warm day.", true, Design.SYSTEM, setOf("colors"),
         StyleSpec(subtheme = "Light"), StyleSpec(lockedPill = c(0xFFEEF7DC), outline = 6),
         SearchLook(blur = 40, transparency = 60, stars = false)),
     // Light
-    Look("linen", "Linen", "Off-white with a fine line.", false, Design.SYSTEM, setOf("light"),
+    Look("linen", "Linen", "Crisp and simple, like a pressed shirt.", false, Design.SYSTEM, setOf("light"),
         fixed(0xFFFDFAF4, G_SYSTEM, outline = 2), rimmed(0xFFCDBFA6, 0xFFFDFAF4, 2, G_SYSTEM),
         SearchLook(theme = ThemeChoice.Light, wallpaper = false, stars = false)),
-    Look("sky", "Sky", "A pale blue rim, bright search.", false, Design.MATERIAL, setOf("light"),
+    Look("sky", "Sky", "A clear morning with nowhere to be.", false, Design.MATERIAL, setOf("light"),
         fixed(0xFFF6FBFF, G_ACCENTED), rimmed(0xFFA9CFF2, 0xFFF6FBFF, 8, G_ACCENTED),
         SearchLook(theme = ThemeChoice.Light, blur = 40, transparency = 70, stars = false)),
-    Look("peach", "Peach", "Soft peach, warm and light.", false, Design.SYSTEM, setOf("light"),
+    Look("peach", "Peach", "Sweet and mellow, a little bit sunny.", false, Design.SYSTEM, setOf("light"),
         fixed(0xFFFFF0E6, null), rimmed(0xFFFFC9B3, 0xFFFFF0E6, 6, null),
         SearchLook(theme = ThemeChoice.Light, blur = 50, transparency = 60, stars = false)),
-    Look("mint", "Mint", "Cool mint with squared corners.", false, Design.MATERIAL, setOf("light"),
+    Look("mint", "Mint", "Cool and fresh, like the first sip.", false, Design.MATERIAL, setOf("light"),
         fixed(0xFFF3FCF8, G_ACCENTED, corner = 14), rimmed(0xFFA8DCC6, 0xFFF3FCF8, 6, G_ACCENTED, corner = 12),
         SearchLook(theme = ThemeChoice.Light, blur = 50, transparency = 60, stars = false, clock = "square")),
     // Dark
-    Look("midnight", "Midnight", "Deep navy under a night sky.", false, Design.SYSTEM, setOf("dark"),
+    Look("midnight", "Midnight", "Deep blue for the quiet hours.", false, Design.SYSTEM, setOf("dark"),
         fixed(0xFF0E1838, G_ACCENTED), rimmed(0xFF3A4C8C, 0xFF0E1838, 4, G_ACCENTED),
         SearchLook(theme = ThemeChoice.Dark, blur = 70, transparency = 30)),
-    Look("ember", "Ember", "Near-black with a glowing orange rim.", false, Design.MATERIAL, setOf("dark"),
+    Look("ember", "Ember", "The last warm glow of a campfire.", false, Design.MATERIAL, setOf("dark"),
         fixed(0xFF160A07, G_ACCENTED, outline = 2), rimmed(0xFFE6602D, 0xFF160A07, 4, G_ACCENTED),
         SearchLook(theme = ThemeChoice.Dark, blur = 80, transparency = 20)),
-    Look("forest", "Forest", "Dark green, calm at night.", false, Design.SYSTEM, setOf("dark"),
+    Look("forest", "Forest", "Pines at dusk, still and green.", false, Design.SYSTEM, setOf("dark"),
         fixed(0xFF11261B, null), rimmed(0xFF2E5A42, 0xFF11261B, 6, null),
         SearchLook(theme = ThemeChoice.Dark, blur = 70, transparency = 30, stars = false)),
-    Look("carbon", "Carbon", "Graphite with a fine outline.", false, Design.SYSTEM, setOf("dark"),
+    Look("carbon", "Carbon", "Sleek and dark, nothing extra.", false, Design.SYSTEM, setOf("dark"),
         fixed(0xFF1B1B1E, G_SYSTEM, outline = 2), rimmed(0xFF55555C, 0xFF1B1B1E, 4, G_SYSTEM),
         SearchLook(theme = ThemeChoice.Dark, blur = 80, transparency = 20, stars = false)),
     // Glass
-    Look("lagoon", "Lagoon", "Clear glass over turquoise water.", true, Design.SYSTEM, setOf("glass"),
+    Look("lagoon", "Lagoon", "Clear as a lagoon you could swim in.", true, Design.SYSTEM, setOf("glass"),
         StyleSpec(transparency = 50), StyleSpec(lockBlack = false, transparency = 40, outline = 4),
         SearchLook(blur = 30, transparency = 80, pillOpacity = 70, stars = false)),
-    Look("rose", "Rose Glass", "Pink-tinted glass, soft and bright.", false, Design.SYSTEM, setOf("glass"),
+    Look("rose", "Rose Glass", "A soft blush, like rose-tinted glasses.", false, Design.SYSTEM, setOf("glass"),
         fixed(0xFFFFE8F0, G_ACCENTED, transparency = 44), rimmed(0xFFF2A9C1, 0xFFFFE8F0, 6, G_ACCENTED).copy(lockBlack = false, transparency = 40),
         SearchLook(blur = 30, transparency = 75, pillOpacity = 75, stars = false)),
-    Look("smoke", "Smoke", "Dark glass for busy wallpapers.", false, Design.SYSTEM, setOf("glass"),
+    Look("smoke", "Smoke", "Smoky glass that calms a busy wallpaper.", false, Design.SYSTEM, setOf("glass"),
         fixed(0xFF22242E, G_ACCENTED, transparency = 45), rimmed(0xFF3A3D4C, 0xFF22242E, 4, G_ACCENTED).copy(lockBlack = false, transparency = 40),
         SearchLook(theme = ThemeChoice.Dark, blur = 50, transparency = 50, pillOpacity = 75, stars = false)),
     // Bold
-    Look("signal", "Signal", "Yellow and black, hard to miss.", false, Design.SYSTEM, setOf("bold"),
+    Look("signal", "Signal", "Loud on purpose. You will never miss it.", false, Design.SYSTEM, setOf("bold"),
         fixed(0xFFFFD92E, G_ACCENTED, outline = 2), rimmed(0xFF141414, 0xFFFFD92E, 8, G_ACCENTED),
         SearchLook(wallpaper = false, stars = false)),
-    Look("cobalt", "Cobalt", "A thick cobalt rim.", false, Design.MATERIAL, setOf("bold"),
+    Look("cobalt", "Cobalt", "Deep blue with real confidence.", false, Design.MATERIAL, setOf("bold"),
         fixed(0xFFE9EEFF, G_ACCENTED, outline = 2), rimmed(0xFF0F2172, 0xFFE9EEFF, 10, G_ACCENTED),
         SearchLook(blur = 40, transparency = 50, stars = false)),
-    Look("pop", "Pop", "Hot pink with white icons.", false, Design.SYSTEM, setOf("bold"),
+    Look("pop", "Pop", "Hot pink and not sorry about it.", false, Design.SYSTEM, setOf("bold"),
         fixed(0xFFFF2F77, G_ACCENTED, outline = 2), rimmed(0xFFFFFFFF, 0xFFFF2F77, 6, G_ACCENTED),
         SearchLook(blur = 40, transparency = 50, stars = false)),
-    Look("stencil", "Stencil", "Hard corners and heavy lines.", false, Design.MATERIAL, setOf("bold"),
+    Look("stencil", "Stencil", "Sharp edges, straight talk.", false, Design.MATERIAL, setOf("bold"),
         fixed(0xFFF4F0E6, G_ACCENTED, outline = 2, corner = 8), rimmed(0xFF111111, 0xFFF4F0E6, 6, G_ACCENTED, corner = 6),
         SearchLook(wallpaper = false, stars = false, clock = "square")),
     // Quiet
-    Look("fog", "Fog", "A faint bar in soft gray.", true, Design.SYSTEM, setOf("quiet"),
+    Look("fog", "Fog", "A hush of gray, like morning fog.", true, Design.SYSTEM, setOf("quiet"),
         StyleSpec(subtheme = "Light", transparency = 74), StyleSpec(lockBlack = false, transparency = 70, outline = 2),
         SearchLook(blur = 60, transparency = 60, pillOpacity = 70, stars = false)),
-    Look("sand", "Sand", "Warm, low contrast and calm.", false, Design.SYSTEM, setOf("quiet"),
+    Look("sand", "Sand", "Warm and unhurried, like a long beach walk.", false, Design.SYSTEM, setOf("quiet"),
         fixed(0xFFEFE2C9, null), rimmed(0xFFD9C6A2, 0xFFEFE2C9, 6, null),
         SearchLook(blur = 50, transparency = 60, stars = false)),
-    Look("dusk", "Dusk", "Muted violet for the evening.", false, Design.SYSTEM, setOf("quiet"),
+    Look("dusk", "Dusk", "That soft purple right after sunset.", false, Design.SYSTEM, setOf("quiet"),
         fixed(0xFF3A3154, null), rimmed(0xFF5A4C80, 0xFF3A3154, 6, null),
         SearchLook(theme = ThemeChoice.Dark, blur = 70, transparency = 30)),
     // Seasonal
-    Look("maple", "Maple", "Red maple on warm cream.", false, Design.MATERIAL, setOf("seasonal"),
+    Look("maple", "Maple", "Red leaves on a crisp afternoon.", false, Design.MATERIAL, setOf("seasonal"),
         fixed(0xFFFFF1E6, G_ACCENTED, outline = 2), rimmed(0xFFC2412D, 0xFFFFF1E6, 8, G_ACCENTED),
         SearchLook(blur = 60, transparency = 40, stars = false), season = Season.FALL),
-    Look("aurora", "Aurora", "Northern lights over snow.", false, Design.SYSTEM, setOf("seasonal"),
+    Look("aurora", "Aurora", "The sky putting on a show over fresh snow.", false, Design.SYSTEM, setOf("seasonal"),
         fixed(0xFF0D2233, G_ACCENTED), rimmed(0xFF2F8F72, 0xFF0D2233, 6, G_ACCENTED),
         SearchLook(theme = ThemeChoice.Dark, blur = 70, transparency = 30, stars = true), season = Season.WINTER),
-    Look("shore", "Shore", "Sea blue on warm sand.", false, Design.SYSTEM, setOf("seasonal"),
+    Look("shore", "Shore", "Toes in the sand, waves rolling in.", false, Design.SYSTEM, setOf("seasonal"),
         fixed(0xFFFFF7E2, G_ACCENTED), rimmed(0xFF7FC6DC, 0xFFFFF7E2, 8, G_ACCENTED),
         SearchLook(blur = 30, transparency = 70, stars = false), season = Season.SUMMER),
 )
@@ -363,6 +364,10 @@ internal object LookCode {
     private val G_STYLES = setOf(G_SYSTEM, G_MATERIAL, G_ACCENTED)
     private val CLOCKS = setOf("cookie", "sunny", "square", "digital")
     private val NAME = Regex("^[\\p{L}\\p{N} ._'&-]{1,24}$")
+    /** The most pasted text, code and unpacked look read: far above any real code, far below what could hurt. */
+    private const val MAX_TEXT = 16 * 1024
+    private const val MAX_CODE = 4 * 1024
+    private const val MAX_JSON = 8 * 1024
 
     private fun StyleSpec.toJson() = JSONObject().apply {
         subtheme?.let { put("subtheme", it) }
@@ -441,7 +446,11 @@ internal object LookCode {
     /** The look in [text], or null when it holds no valid code (an unknown field is dropped; a bad value refuses it). */
     fun decode(text: String): Look? {
         // The "IS2." prefix in any case (typed by hand, or changed by a keyboard); the code after it is case-sensitive.
+        // A real code is well under a kilobyte, packed or not; anything far bigger is refused before it is unpacked, so a
+        // crafted code can't fill the memory.
+        if (text.length > MAX_TEXT) return null
         val m = Regex("[Ii][Ss]2\\.([A-Za-z0-9_-]{8,})").find(text) ?: return null
+        if (m.groupValues[1].length > MAX_CODE) return null
         return try {
             val b = Base64.decode(m.groupValues[1], Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
             if (b.size < 6) return null
@@ -451,12 +460,16 @@ internal object LookCode {
                 val inflater = Inflater(true).apply { setInput(body) }
                 val out = java.io.ByteArrayOutputStream()
                 val chunk = ByteArray(1024)
-                while (!inflater.finished()) {
-                    val k = inflater.inflate(chunk)
-                    if (k == 0 && (inflater.needsInput() || inflater.needsDictionary())) break
-                    out.write(chunk, 0, k)
+                try {
+                    while (!inflater.finished()) {
+                        val k = inflater.inflate(chunk)
+                        if (k == 0 && (inflater.needsInput() || inflater.needsDictionary())) break
+                        if (out.size() + k > MAX_JSON) return null
+                        out.write(chunk, 0, k)
+                    }
+                } finally {
+                    inflater.end()
                 }
-                inflater.end()
                 out.toByteArray()
             } else body
             val crc = CRC32().apply { update(json) }.value

@@ -233,7 +233,7 @@ internal fun YoursRowB(
     val tiles = buildList {
         add("now" to state.current)
         state.before?.let { add("before" to it) }
-        state.saved.filter { it.id != state.current.id }.forEach { add("saved" to it) }
+        state.saved.filter { it.id != state.current.id && it.id != state.before?.id }.forEach { add("saved" to it) }
     }
     Row(
         Modifier
@@ -245,8 +245,10 @@ internal fun YoursRowB(
     ) {
         for ((kind, look) in tiles) {
             val name = if (kind == "before") "Before" else look.name
+            // TalkBack says one name for the tile and its menu: "Before: Ink", as the title alone doesn't say which look.
+            val spoken = if (kind == "before") "Before: ${look.name}" else look.name
             val sub = when (kind) {
-                "now" -> "On your phone"
+                "now" -> "Wearing it now"
                 "before" -> "Your look before"
                 else -> "Saved"
             }
@@ -255,7 +257,7 @@ internal fun YoursRowB(
                 LookWindowBox(
                     look, phoneDark, 150.dp, 84.dp, RoundedCornerShape(20.dp),
                     register = { register(look.id, it) }, registerBar = { registerBar(look.id, it) },
-                    badge = kind == "now", onClick = { onOpen(look) }
+                    badge = kind == "now", onClick = { onOpen(look) }, label = spoken
                 ) {
                     Box(Modifier.fillMaxWidth().height(84.dp)) {
                         Box(
@@ -271,13 +273,13 @@ internal fun YoursRowB(
                                     val c = more
                                     if (root != null && c != null && c.isAttached) onMenu(root.localBoundingBoxOf(c, clipBounds = false), kind, look)
                                 }
-                                .semantics { contentDescription = "More for $name" },
+                                .semantics { contentDescription = "More for $spoken" },
                             contentAlignment = Alignment.Center
                         ) { Icon(Symbols.MoreVert, null, tint = Color.White, modifier = Modifier.size(19.dp)) }
                     }
                 }
                 Text(name, color = scheme.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 7.dp))
-                Text(sub, color = scheme.onSurfaceVariant, maxLines = 1, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp), modifier = Modifier.padding(horizontal = 4.dp))
+                Text(sub, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp), modifier = Modifier.padding(horizontal = 4.dp))
             }
         }
         if (state.currentUnsaved) {
@@ -286,8 +288,8 @@ internal fun YoursRowB(
                 Box(Modifier.fillMaxWidth().height(84.dp).background(if (scheme.dark) scheme.surfaceContainer else scheme.surfaceContainerLowest, RoundedCornerShape(20.dp)), contentAlignment = Alignment.Center) {
                     ShapeBadge(PolarShape.Sunny, 46.dp, scheme.primary) { Icon(if (full) Symbols.Bookmarks else Symbols.BookmarkAddFilled, null, tint = scheme.onPrimary, modifier = Modifier.size(22.dp)) }
                 }
-                Text(if (full) "Saved Looks Are Full" else "Save Current", color = scheme.onSurface, maxLines = 2, style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 7.dp))
-                if (!full) Text("Keep it here", color = scheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp), modifier = Modifier.padding(horizontal = 4.dp))
+                Text(if (full) "Saved Looks Are Full" else "Save This One", color = scheme.onSurface, maxLines = 2, style = MaterialTheme.typography.titleSmall.copy(fontSize = 14.sp, fontWeight = FontWeight.SemiBold), modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 7.dp))
+                if (!full) Text("Keep it for later", color = scheme.onSurfaceVariant, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp), modifier = Modifier.padding(horizontal = 4.dp))
             }
         }
     }
@@ -330,7 +332,7 @@ internal fun SeasonSection(
             ShapeBadge(PolarShape.Burst, 44.dp, scheme.tertiary) { Icon(Symbols.EcoFilled, null, tint = scheme.onTertiary, modifier = Modifier.size(22.dp)) }
             Column(Modifier.padding(start = 12.dp)) {
                 Text("${season.title} Looks", color = fg, style = MaterialTheme.typography.headlineSmall.copy(fontSize = 24.sp, lineHeight = 28.sp, fontWeight = FontWeight.Medium), modifier = Modifier.semantics { heading() })
-                Text("In season now", color = fgSub, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold))
+                Text(if (season == Season.FALL) "Made for sweater weather" else "In season now", color = fgSub, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold))
             }
         }
         for (look in looks) {

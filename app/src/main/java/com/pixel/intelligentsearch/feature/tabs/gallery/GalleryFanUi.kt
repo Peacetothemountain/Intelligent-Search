@@ -174,18 +174,21 @@ internal fun SwatchFan(
     val density = LocalDensity.current
     val view = LocalView.current
     val tick = rememberTick()
+    val hint = rememberFanHint(engine)
     SideEffect {
         engine.onTick = { CardHaptics.pass(view) }
-        engine.onLand = { CardHaptics.land(view) }
+        engine.onLand = { CardHaptics.land(view); hint.turned() }
         engine.onGrab = { CardHaptics.start(view) }
     }
     val c = rememberFanColors()
+    val tertiary = MaterialTheme.colorScheme.tertiary
     val window = LocalWindowInfo.current.containerSize
     val screenW = with(density) { (if (view.width > 0) view.width else window.width).toFloat().toDp() }
     val screenH = with(density) { (if (window.height > 0) window.height else view.height).toFloat().toDp() }
     val kH = if (screenH.value > 0f) screenH.value * 0.75f / FanDims.FAN_H else Float.MAX_VALUE
     val k = min(screenW.value / 360f, kH)
     val unit = k * density.density
+    SideEffect { engine.scale = k }
     // The side text grows with the fan, more gently (the square root of its scale); larger text settings grow it already.
     val large = density.fontScale >= 1.3f
     val textK = if (large) 1f else sqrt(max(1f, k))
@@ -255,24 +258,17 @@ internal fun SwatchFan(
             .pointerInput(engine) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    // The finger's last tenth of a second of travel (time, x), for its speed at release.
-                    val samples = ArrayDeque<Pair<Long, Float>>()
-                    samples.addLast(down.uptimeMillis to down.position.x)
-                    var lastMove = down.uptimeMillis
                     val d = density.density
-                    engine.down(down.position.x / d, down.position.y / d)
+                    engine.down(down.position.x / d, down.position.y / d, down.uptimeMillis)
                     while (true) {
                         val ev = awaitPointerEvent()
                         val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
                         if (!ch.pressed) {
-                            // The release speed comes from the touch input itself (dp/s over its last tenth of a second); a
-                            // finger that rested a tenth of a second before lifting hands over none.
-                            val recent = samples.filter { lastMove - it.first <= 100 }
-                            val vx = if (ch.uptimeMillis - lastMove > 100 || recent.size < 2) 0f
-                            else (recent.last().second - recent.first().second) / d / ((recent.last().first - recent.first().first).coerceAtLeast(8) / 1000f)
+                            // The release speed comes from the touch input itself (the engine keeps its last tenth of a
+                            // second of travel around the rivet).
                             val wasDrag = engine.dragging
                             if (wasDrag) ch.consume()
-                            val tap = engine.up(vx)
+                            val tap = engine.up(ch.uptimeMillis)
                             if (tap && !ch.isConsumed) {
                                 val i = engine.stripAt(ch.position.x / unit, ch.position.y / unit)
                                 if (i >= 0) {
@@ -287,12 +283,9 @@ internal fun SwatchFan(
                             break
                         }
                         if (ch.positionChange() != Offset.Zero) {
-                            ch.historical.forEach { h -> samples.addLast(h.uptimeMillis to h.position.x) }
-                            samples.addLast(ch.uptimeMillis to ch.position.x)
-                            while (samples.size > 32) samples.removeFirst()
-                            lastMove = ch.uptimeMillis
-                        }
-                        if (engine.move(ch.position.x / d, ch.position.y / d)) ch.consume()
+                            ch.historical.forEach { h -> engine.move(h.position.x / d, h.position.y / d, h.uptimeMillis) }
+                            if (engine.move(ch.position.x / d, ch.position.y / d, ch.uptimeMillis)) ch.consume()
+                        } else if (engine.dragging) ch.consume()
                     }
                 }
             }
@@ -319,6 +312,8 @@ internal fun SwatchFan(
                     Path().apply { addOval(Rect((FanDims.RX - 62f) * u, (FanDims.RY - 50f) * u, (FanDims.RX + 74f) * u, (FanDims.RY + 46f) * u)) }
                 }
         )
+        // The gesture hint, on the page under the strips (they swing over it).
+        Box(Modifier.fillMaxSize().drawBehind { drawFanHint(engine, hint, unit, c.primary, tertiary) })
         for (i in 0 until engine.n) key(i) {
             StripSlot(engine, i, unit, c, hidden = { actions.isRaisedHidden(i) }) { rec ->
                 // The shadows its edges throw: turned out around the rivet as far as the gap on that side allows.
@@ -362,37 +357,58 @@ internal fun SwatchFan(
     }
 }
 
-/** The upright look, named on the page beside the fan (the strips swing over this as they turn), or under it. */
+/**
+ * The upright look, named on the page beside the fan (the strips swing over this as they turn), or under it: its kind
+ * as a small tonal tag, its name as the hero line, one line about it, and a thin line that fills as the fan moves
+ * through the deck. TalkBack hears the fan's own node instead ("n of 40").
+ */
 @Composable
 private fun FanCaption(engine: FanEngine, ts: Float, large: Boolean, modifier: Modifier) {
     val scheme = MaterialTheme.colorScheme
     val id = FAN_ORDER[engine.top]
     val look = fanLook(id)
     val g = fanGroupOf(id)
-    val small = max(12.5f, 11f * ts).sp
     Column(
         modifier
             .fillMaxWidth()
             .clearAndSetSemantics { }
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(g.icon, null, tint = scheme.primary, modifier = Modifier.size((17f * ts).dp))
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(scheme.secondaryContainer.copy(alpha = 0.72f))
+                .padding(start = 7.dp, end = 10.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(g.icon, null, tint = scheme.onSecondaryContainer, modifier = Modifier.size((15f * ts).dp))
             Text(
-                g.name, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp).weight(1f),
-                style = MaterialTheme.typography.labelLarge.copy(fontSize = small, fontWeight = FontWeight.SemiBold)
-            )
-            Text(
-                "${engine.top + 1} of ${engine.n}", color = scheme.onSurfaceVariant, maxLines = 1, modifier = Modifier.padding(start = 8.dp),
-                style = MaterialTheme.typography.labelLarge.copy(fontSize = small, fontWeight = FontWeight.SemiBold, fontFeatureSettings = "tnum")
+                g.name, color = scheme.onSecondaryContainer, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 5.dp),
+                style = MaterialTheme.typography.labelMedium.copy(fontSize = max(11.5f, 11.5f * ts).sp, fontWeight = FontWeight.SemiBold)
             )
         }
         Text(
-            look.name, color = scheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = (8f * ts).dp, bottom = 4.dp),
-            style = MaterialTheme.typography.headlineSmall.copy(fontSize = (22f * ts).sp, lineHeight = (25f * ts).sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.2).sp)
+            look.name, color = scheme.onSurface, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = (10f * ts).dp, bottom = 6.dp),
+            style = MaterialTheme.typography.headlineMedium.copy(fontSize = (27f * ts).sp, lineHeight = (29f * ts).sp, fontWeight = FontWeight.Medium, letterSpacing = (-0.35).sp)
         )
         Text(
-            look.desc, color = scheme.onSurfaceVariant, maxLines = if (large) 3 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.bodyMedium.copy(fontSize = max(13f, 12f * ts).sp, lineHeight = (max(13f, 12f * ts) * 1.35f).sp)
+            look.desc, color = scheme.onSurfaceVariant, maxLines = 3, overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.bodyMedium.copy(fontSize = max(13.5f, 12.5f * ts).sp, lineHeight = (max(13.5f, 12.5f * ts) * 1.38f).sp)
+        )
+        // Where you are in the deck: it fills as the fan moves, strip by strip.
+        val track = scheme.outlineVariant
+        val fill = scheme.primary
+        Box(
+            Modifier
+                .padding(top = 12.dp)
+                .width(if (large) 96.dp else (112f * ts).dp)
+                .height(4.dp)
+                .drawBehind {
+                    engine.frame.intValue
+                    val f = ((engine.p.coerceIn(0f, engine.n - 1f) + 1f) / engine.n).coerceIn(0f, 1f)
+                    val cr = CornerRadius(size.height / 2f)
+                    drawRoundRect(track, cornerRadius = cr)
+                    drawRoundRect(fill, size = Size(size.width * f, size.height), cornerRadius = cr)
+                }
         )
     }
 }

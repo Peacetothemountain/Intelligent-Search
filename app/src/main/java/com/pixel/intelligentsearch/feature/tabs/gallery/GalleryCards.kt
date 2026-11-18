@@ -97,15 +97,11 @@ internal fun HeroEyebrow(on: Boolean, maxWidth: Dp) {
 }
 
 @Composable
-internal fun Footer(backdrop: Backdrop) {
-    val color = MaterialTheme.colorScheme.onSurfaceVariant
-    Column(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("A look changes your search bar and your search page. Nothing else on your phone changes.", style = MaterialTheme.typography.bodyMedium, color = color, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        if (backdrop == Backdrop.LookWallpaper) {
-            Text("A look's wallpaper goes on your phone only when you tap Set Wallpaper in its preview.", style = MaterialTheme.typography.bodyMedium, color = color, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-        }
-        Text("Glass bars show your wallpaper through them. Only the search page blurs it.", style = MaterialTheme.typography.bodyMedium, color = color, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
-    }
+internal fun Footer() {
+    Text(
+        "Tap the one standing up to try it on.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 6.dp)
+    )
 }
 
 internal suspend fun scrollToTop(state: LazyListState) {

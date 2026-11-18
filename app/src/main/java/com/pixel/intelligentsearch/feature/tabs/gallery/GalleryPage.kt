@@ -194,7 +194,16 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     val appBarHeight = statusTop + 64.dp
 
     fun show(s: Snack) { snack = s }
-    fun customize() = chrome.openWidgetSettings()
+    // The page is pictured as it leaves (the back gesture shows that picture), so the menu goes first and the page is
+    // drawn without it before Widget Customization opens.
+    fun customize() {
+        pop = null
+        scope.launch {
+            withFrameNanos { }
+            withFrameNanos { }
+            chrome.openWidgetSettings()
+        }
+    }
 
     fun boundsOf(map: Map<String, LayoutCoordinates>, key: String): Rect? {
         val root = rootCoords ?: return null
@@ -351,7 +360,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
 
     fun paste() {
         pop = Pop.Dialog(
-            "Paste a Look Code", null, listOf(DialogAction("Cancel"), DialogAction("Try It", ButtonKind.Filled)),
+            "Paste a Code", "Got a look from a friend? Paste it here and it's yours.", listOf(DialogAction("Cancel"), DialogAction("Try It", ButtonKind.Filled)),
             input = "", inputHint = "IS2.…",
             onInput = { text ->
                 val look = LookCode.decode(text)
@@ -412,18 +421,13 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
         pop = Pop.Menu(anchor, items)
     }
 
-    fun backdropMenu(anchor: LayoutCoordinates?) {
-        val root = rootCoords ?: return
-        if (anchor == null || !anchor.isAttached) return
-        pop = Pop.Menu(
-            root.localBoundingBoxOf(anchor, clipBounds = false),
-            Backdrop.entries.map { choice ->
-                MenuItem(if (choice == backdrop) Symbols.RadioButtonChecked else Symbols.RadioButtonUnchecked, choice.label, selected = choice == backdrop) { backdropName = choice.name }
-            } + listOfNotNull(
-                // The lasting undo for a wallpaper set from here, while the old one is kept.
-                if (keptWallpaper) MenuItem(Symbols.Undo, "Bring Back Your Wallpaper") { restoreWallpaper() } else null
-            ),
-            title = "Backdrop"
+    fun info() {
+        pop = Pop.Info(
+            backdrop,
+            onBackdrop = { backdropName = it.name },
+            putBack = state.before?.let { b -> { applyLook(b, asBefore = true) } },
+            // The lasting undo for a wallpaper set from here, while the old one is kept.
+            bringBack = if (keptWallpaper) ({ restoreWallpaper() }) else null
         )
     }
 
@@ -565,13 +569,12 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                         .pageGlow(clock = glowClock)
                 ) {
                   Column(Modifier.fillMaxSize()) {
-                    // The top bar: back, the small title once the big one has scrolled away, and the backdrop menu.
-                    var more by remember { mutableStateOf<LayoutCoordinates?>(null) }
+                    // The top bar: back, the small title once the big one has scrolled away, and How Looks Work.
                     GalleryTopBar(
                         showTitle,
                         onBack = chrome.onBack,
                         onTitle = { scope.launch { scrollToTop(listState) } },
-                        more = { TopBarAction(Symbols.MoreVert, "More Options", { backdropMenu(more) }, Modifier.onGloballyPositioned { more = it }) },
+                        more = { TopBarAction(Symbols.Info, "How Looks Work", { info() }) },
                         modifier = Modifier.padding(top = statusTop).semantics { isTraversalGroup = true; traversalIndex = -2f }
                     )
                     LazyColumn(
@@ -629,7 +632,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                                     ),
                                     rootCoords = { rootCoords }
                                 )
-                                "foot" -> Footer(backdrop)
+                                "foot" -> Footer()
                             }
                         }
                     }

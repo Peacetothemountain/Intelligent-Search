@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -108,6 +109,18 @@ internal sealed interface Pop {
     ) : Pop
     class Share(val look: Look) : Pop
 
+    /**
+     * How Looks Work, from the top bar's info icon: what a look is and how to turn the fan, then the backdrop choice,
+     * Put Back My Look ([putBack], while there is a look before) and Bring Back Your Wallpaper ([bringBack], while a
+     * wallpaper set from here can still be undone).
+     */
+    class Info(
+        val backdrop: Backdrop,
+        val onBackdrop: (Backdrop) -> Unit,
+        val putBack: (() -> Unit)?,
+        val bringBack: (() -> Unit)?
+    ) : Pop
+
     /** Set [look]'s wallpaper on the phone: where, and whether it can be undone ([canUndo]), asked before anything is set. */
     class Wallpaper(val look: Look, val canUndo: Boolean, val onSet: (PhoneWallpaper.Where) -> Unit) : Pop {
         var busy by mutableStateOf(false)
@@ -121,17 +134,24 @@ internal sealed interface Pop {
 @Composable
 internal fun PopLayer(pop: Pop?, phoneDark: Boolean, onClose: () -> Unit, snack: (Snack) -> Unit) {
     PreviewSheet(
-        value = pop?.takeIf { it is Pop.Share || it is Pop.Wallpaper },
+        value = pop?.takeIf { it is Pop.Share || it is Pop.Wallpaper || it is Pop.Info },
         onDismiss = onClose,
-        paneTitle = { if (it is Pop.Share) "Share Look Code" else "Set Wallpaper" }
+        paneTitle = {
+            when (it) {
+                is Pop.Share -> "Share Look Code"
+                is Pop.Info -> "How Looks Work"
+                else -> "Set Wallpaper"
+            }
+        }
     ) { sheet ->
         when (sheet) {
             is Pop.Share -> ShareSheet(sheet.look, phoneDark, onClose, snack)
             is Pop.Wallpaper -> WallpaperSheet(sheet, phoneDark, onClose)
+            is Pop.Info -> InfoSheet(sheet, onClose)
             else -> {}
         }
     }
-    if (pop == null || pop is Pop.Share || pop is Pop.Wallpaper) return
+    if (pop == null || pop is Pop.Share || pop is Pop.Wallpaper || pop is Pop.Info) return
     BackHandler { onClose() }
     Box(
         Modifier
@@ -311,6 +331,74 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
                 }
             }
       }
+    }
+}
+
+/** How Looks Work: three plain lines, the backdrop choice, and the ways back. */
+@Composable
+private fun ColumnScope.InfoSheet(info: Pop.Info, onClose: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    var backdrop by remember(info) { mutableStateOf(info.backdrop) }
+    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Box(Modifier.size(44.dp).background(scheme.tertiary, CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Symbols.Info, null, tint = scheme.onTertiary, modifier = Modifier.size(24.dp))
+            }
+            Column {
+                SheetTitle("How Looks Work", Modifier.padding(bottom = 0.dp))
+                SheetText("The short version.")
+            }
+        }
+        Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            InfoLine(Symbols.Palette, "A look is an outfit for your search bar.", "Its shape, its colors, and a wallpaper to match.")
+            InfoLine(Symbols.SwipeVertical, "Turn the fan to browse.", "Swipe it, or push a swatch up or down.")
+            InfoLine(Symbols.Fullscreen, "Tap the one standing up to try it on.", "Nothing changes until you tap Apply.")
+        }
+        Text(
+            "Backdrop", style = MaterialTheme.typography.titleSmall, color = scheme.onSurface,
+            modifier = Modifier.padding(top = 20.dp).semantics { heading() }
+        )
+        SheetText("What sits behind each look.", Modifier.padding(bottom = 8.dp))
+        Column(Modifier.fillMaxWidth().semantics { contentDescription = "Backdrop" }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            for (choice in Backdrop.entries) {
+                val on = choice == backdrop
+                val corner by animateDpAsState(if (on) 28.dp else 12.dp, Springs.morph(), label = "backdrop")
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 52.dp)
+                        .bouncyClickable(RoundedCornerShape(corner), role = Role.RadioButton) { backdrop = choice; info.onBackdrop(choice) }
+                        .background(if (on) scheme.secondaryContainer else scheme.surfaceContainerHighest)
+                        .semantics { selected = on }
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        if (on) Symbols.RadioButtonChecked else Symbols.RadioButtonUnchecked, null,
+                        tint = if (on) scheme.onSecondaryContainer else scheme.onSurfaceVariant, modifier = Modifier.size(22.dp)
+                    )
+                    Text(choice.label, style = MaterialTheme.typography.bodyLarge, color = if (on) scheme.onSecondaryContainer else scheme.onSurface)
+                }
+            }
+        }
+    }
+    SheetButtons {
+        info.bringBack?.let { PreviewButton("Bring Back Your Wallpaper", ButtonKind.Text, icon = Symbols.Wallpaper) { onClose(); it() } }
+        info.putBack?.let { PreviewButton("Put Back My Look", ButtonKind.Tonal, icon = Symbols.Undo) { onClose(); it() } }
+        PreviewButton("Got It", ButtonKind.Filled, onClick = onClose)
+    }
+}
+
+@Composable
+private fun InfoLine(icon: ImageVector, title: String, text: String) {
+    val scheme = MaterialTheme.colorScheme
+    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+        Icon(icon, null, tint = scheme.primary, modifier = Modifier.padding(top = 2.dp).size(22.dp))
+        Column {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = scheme.onSurface)
+            Text(text, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)
+        }
     }
 }
 

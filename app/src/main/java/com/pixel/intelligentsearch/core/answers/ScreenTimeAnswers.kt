@@ -3,12 +3,15 @@ package com.pixel.intelligentsearch.core.answers
 import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.util.queryIntentActivitiesCompat
 import android.app.AppOpsManager
-import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.os.Process
 import androidx.compose.runtime.Immutable
+import com.pixel.intelligentsearch.core.wellbeing.DayCalculator
+import com.pixel.intelligentsearch.core.wellbeing.EventKind
+import com.pixel.intelligentsearch.core.wellbeing.UsageEvent
+import com.pixel.intelligentsearch.core.wellbeing.WellbeingRepository
 import java.time.Instant
 import java.time.ZoneId
 
@@ -21,18 +24,28 @@ data class ScreenTimeApp(val packageName: String, val label: String, val duratio
 data class ScreenTimeReport(val totalMs: Long, val topApps: List<ScreenTimeApp>)
 
 /**
- * Works out screen time from usage events the way Digital Wellbeing counts it: the time each app's activities were
- * in the foreground since midnight. An app already open at midnight counts from midnight; one still open counts up
- * to now; the screen turning off ends whatever was showing. The total is the time any counted app was on screen, so
- * two apps side by side count that time once, though each app's own time includes it.
+ * Works out screen time from usage events the way Digital Wellbeing counts it, by the same rules as Settings'
+ * Wellbeing tab ([DayCalculator.spans]), so the answer and the tab never disagree:
+ *
+ * - An app's activity counts from RESUMED until STOPPED or DESTROYED. A pause doesn't end it: a paused activity can
+ *   still be on screen (behind a dialog or a see-through screen), and Digital Wellbeing counts it until it stops.
+ * - An app already open when the events begin counts from the window's start; one still open counts up to now.
+ * - The screen turning off, or the phone shutting down, ends whatever was showing. The phone starting up, or the
+ *   screen coming on, while something is still open means the phone never logged what closed it: it ends at the last
+ *   thing the phone logged before that moment, not hours later.
+ * - The total is the time any counted app was on screen, so two apps side by side (split screen) count that time
+ *   once, though each app's own time includes it.
  */
 object ScreenTimeCalculator {
     /** The usage event kinds counted (UsageEvents.Event constants, so this stays testable off the phone). */
-    const val RESUMED = 1
-    const val PAUSED = 2
-    const val STOPPED = 23
-    const val SCREEN_NON_INTERACTIVE = 16
-    const val DEVICE_SHUTDOWN = 26
+    const val RESUMED = EventKind.RESUMED
+    const val PAUSED = EventKind.PAUSED
+    const val STOPPED = EventKind.STOPPED
+    const val ACTIVITY_DESTROYED = EventKind.ACTIVITY_DESTROYED
+    const val SCREEN_INTERACTIVE = EventKind.SCREEN_ON
+    const val SCREEN_NON_INTERACTIVE = EventKind.SCREEN_OFF
+    const val DEVICE_SHUTDOWN = EventKind.SHUTDOWN
+    const val DEVICE_STARTUP = EventKind.STARTUP
 
     class Event(val packageName: String, val type: Int, val timeMs: Long, val className: String? = null)
 
@@ -59,61 +72,14 @@ object ScreenTimeCalculator {
         endMs: Long,
         counts: (String) -> Boolean,
         eventsFromMs: Long = startMs
-    ): Tally {
+    ): Tally = tallyOf(events.sortedBy { it.timeMs }.map { UsageEvent(it.packageName, it.type, it.timeMs, it.className) }, startMs, endMs, counts, eventsFromMs)
+
+    /** [tally] for events as the phone gave them ([WellbeingRepository.readEvents]), in time order. */
+    fun tallyOf(events: List<UsageEvent>, startMs: Long, endMs: Long, counts: (String) -> Boolean, eventsFromMs: Long): Tally {
+        val spans = DayCalculator.spans(events, startMs, endMs, counts, eventsFromMs)
         val totals = HashMap<String, Long>()
-        // When each counted app was in front, to find the time any of them was.
-        val spans = ArrayList<LongArray>()
-        // Open activities, by package and class: an app with two activities resumed at once is counted once.
-        val openSince = HashMap<String, Long>()
-        val openByPackage = HashMap<String, MutableSet<String>>()
-        val seenAny = HashSet<String>()
-        val counted = HashMap<String, Boolean>()
-        fun isCounted(packageName: String) = counted.getOrPut(packageName) { counts(packageName) }
-
-        fun count(packageName: String, from: Long, to: Long) {
-            if (to <= from || !isCounted(packageName)) return
-            totals.merge(packageName, to - from, Long::plus)
-            spans += longArrayOf(from, to)
-        }
-
-        fun close(packageName: String, at: Long) {
-            val since = openSince.remove(packageName) ?: return
-            count(packageName, since, at)
-        }
-
-        for (event in events.sortedBy { it.timeMs }) {
-            val at = event.timeMs.coerceIn(startMs, endMs)
-            when (event.type) {
-                RESUMED -> {
-                    seenAny += event.packageName
-                    val activities = openByPackage.getOrPut(event.packageName) { mutableSetOf() }
-                    activities += event.className.orEmpty()
-                    openSince.putIfAbsent(event.packageName, at)
-                }
-                PAUSED, STOPPED -> {
-                    val activities = openByPackage[event.packageName]
-                    if (event.packageName !in seenAny) {
-                        // Open since before the events begin: count from the window's start. Events from before the
-                        // window would have shown that resume, so then it wasn't open (Chrome's first screen pauses
-                        // before its next resumes: counted from midnight, that was 20 hours for 2 seconds).
-                        seenAny += event.packageName
-                        val openAtStart = eventsFromMs >= startMs
-                        if (openAtStart) count(event.packageName, startMs, at)
-                    } else if (activities != null) {
-                        activities -= event.className.orEmpty()
-                        if (activities.isEmpty()) close(event.packageName, at)
-                    }
-                }
-                SCREEN_NON_INTERACTIVE, DEVICE_SHUTDOWN -> {
-                    for (packageName in openSince.keys.toList()) {
-                        close(packageName, at)
-                        openByPackage[packageName]?.clear()
-                    }
-                }
-            }
-        }
-        for (packageName in openSince.keys.toList()) close(packageName, endMs)
-        return Tally(totals.filterValues { it > 0L }, mergedLength(spans))
+        for (span in spans) totals.merge(span.key, span.length, Long::plus)
+        return Tally(totals.filterValues { it > 0L }, mergedLength(spans.mapTo(ArrayList()) { longArrayOf(it.from, it.to) }))
     }
 
     /** How long [spans] cover, counting a stretch they share once. */
@@ -170,25 +136,20 @@ class ScreenTimeRepository(private val context: Context) {
         val usage = context.getSystemService(UsageStatsManager::class.java) ?: return null
         val midnight = Instant.ofEpochMilli(nowMs).atZone(ZoneId.systemDefault()).toLocalDate()
             .atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
-        val events = ArrayList<ScreenTimeCalculator.Event>()
-        // Read from a day before midnight, so an app open at midnight shows its resume and a stray pause doesn't.
+        // Read from a day before midnight, so an app open at midnight shows its resume and a stray pause doesn't; from
+        // the oldest of the phone's files that still holds records then, each event once (as Wellbeing reads them).
         val eventsFrom = midnight - LOOK_BACK_MS
-        val raw = runCatching { usage.queryEvents(eventsFrom, nowMs) }.getOrNull() ?: return null
-        val event = UsageEvents.Event()
-        while (raw.hasNextEvent()) {
-            raw.getNextEvent(event)
-            events += ScreenTimeCalculator.Event(event.packageName ?: continue, event.eventType, event.timeStamp, event.className)
-        }
+        val events = runCatching { WellbeingRepository.readEvents(usage, eventsFrom, nowMs) }.getOrNull() ?: return null
         // Like Digital Wellbeing, only apps with an icon in the app drawer count: not the home screen, the system UI,
         // or the screen saver on a charging Pixel (an hour a day logged under a system app with no icon).
         val excluded = setOfNotNull(homePackage(), "com.android.systemui")
         val withIcons = appsWithIcons()
         // An app list that couldn't be read leaves only the home screen and system UI out, as before.
         val counts: (String) -> Boolean = if (withIcons.isEmpty()) { pkg -> pkg !in excluded } else { pkg -> pkg in withIcons && pkg !in excluded }
-        val tally = ScreenTimeCalculator.tally(events, midnight, nowMs, counts, eventsFromMs = eventsFrom)
+        val tally = ScreenTimeCalculator.tallyOf(events, midnight, nowMs, counts, eventsFromMs = eventsFrom)
         val pm = context.packageManager
         return ScreenTimeCalculator.report(tally.perApp, totalMs = tally.onScreenMs) { pkg ->
-            runCatching { pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString() }.getOrNull()
+            WellbeingRepository.labelOf(pm, pkg)
         }
     }
 

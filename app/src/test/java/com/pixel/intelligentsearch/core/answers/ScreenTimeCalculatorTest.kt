@@ -18,8 +18,8 @@ class ScreenTimeCalculatorTest {
     @Test
     fun eachAppCountsTheTimeItWasInFront() {
         val events = listOf(
-            Event("maps", RESUMED, 10 * minute), Event("maps", PAUSED, 25 * minute),
-            Event("chat", RESUMED, 25 * minute), Event("chat", PAUSED, 30 * minute),
+            Event("maps", RESUMED, 10 * minute), Event("maps", PAUSED, 25 * minute), Event("maps", STOPPED, 25 * minute),
+            Event("chat", RESUMED, 25 * minute), Event("chat", PAUSED, 30 * minute), Event("chat", STOPPED, 30 * minute),
             Event("maps", RESUMED, 40 * minute), Event("maps", STOPPED, 45 * minute)
         )
         assertEquals(mapOf("maps" to 20 * minute, "chat" to 5 * minute), ScreenTimeCalculator.perApp(events, start, end))
@@ -28,7 +28,7 @@ class ScreenTimeCalculatorTest {
     @Test
     fun anAppOpenAtMidnightCountsFromMidnightAndOneStillOpenUpToNow() {
         val events = listOf(
-            Event("reader", PAUSED, 15 * minute),
+            Event("reader", PAUSED, 15 * minute), Event("reader", STOPPED, 15 * minute),
             Event("video", RESUMED, 590 * minute)
         )
         assertEquals(mapOf("reader" to 15 * minute, "video" to 10 * minute), ScreenTimeCalculator.perApp(events, start, end))
@@ -38,9 +38,10 @@ class ScreenTimeCalculatorTest {
     fun readFromBeforeMidnightAPauseWithNoResumeIsNothing() {
         val events = listOf(
             Event("reader", RESUMED, start - 20 * minute, "Book"), Event("reader", PAUSED, 15 * minute, "Book"),
+            Event("reader", STOPPED, 15 * minute, "Book"),
             // An app's first screen pausing just before its next one resumes.
             Event("browser", PAUSED, 300 * minute, "FirstRun"), Event("browser", RESUMED, 300 * minute, "Main"),
-            Event("browser", PAUSED, 302 * minute, "Main")
+            Event("browser", PAUSED, 302 * minute, "Main"), Event("browser", STOPPED, 302 * minute, "Main")
         )
         assertEquals(
             mapOf("reader" to 15 * minute, "browser" to 2 * minute),
@@ -63,15 +64,15 @@ class ScreenTimeCalculatorTest {
         val events = listOf(
             Event("mail", RESUMED, 10 * minute, "Inbox"),
             Event("mail", RESUMED, 12 * minute, "Compose"),
-            Event("mail", PAUSED, 14 * minute, "Inbox"),
-            Event("mail", PAUSED, 20 * minute, "Compose")
+            Event("mail", PAUSED, 14 * minute, "Inbox"), Event("mail", STOPPED, 14 * minute, "Inbox"),
+            Event("mail", PAUSED, 20 * minute, "Compose"), Event("mail", STOPPED, 20 * minute, "Compose")
         )
         assertEquals(mapOf("mail" to 10 * minute), ScreenTimeCalculator.perApp(events, start, end))
     }
 
     @Test
     fun theHomeScreenIsLeftOut() {
-        val events = listOf(Event("launcher", RESUMED, 0), Event("launcher", PAUSED, 50 * minute), Event("maps", RESUMED, 50 * minute), Event("maps", PAUSED, 60 * minute))
+        val events = listOf(Event("launcher", RESUMED, 0), Event("launcher", PAUSED, 50 * minute), Event("maps", RESUMED, 50 * minute), Event("maps", PAUSED, 60 * minute), Event("maps", STOPPED, 60 * minute))
         assertEquals(mapOf("maps" to 10 * minute), ScreenTimeCalculator.perApp(events, start, end, excluded = setOf("launcher")))
     }
 
@@ -80,7 +81,8 @@ class ScreenTimeCalculatorTest {
         // Split screen: both apps are in front from 10 to 20; each app's time includes it, the day's total once.
         val events = listOf(
             Event("maps", RESUMED, 10 * minute), Event("chat", RESUMED, 10 * minute),
-            Event("chat", PAUSED, 20 * minute), Event("maps", PAUSED, 30 * minute)
+            Event("chat", PAUSED, 20 * minute), Event("chat", STOPPED, 20 * minute),
+            Event("maps", PAUSED, 30 * minute), Event("maps", STOPPED, 30 * minute)
         )
         val tally = ScreenTimeCalculator.tally(events, start, end, { true })
         assertEquals(mapOf("maps" to 20 * minute, "chat" to 10 * minute), tally.perApp)

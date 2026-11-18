@@ -58,6 +58,7 @@ class ScreenTimeRepositoryTest {
         event("com.android.chrome", UsageEvents.Event.ACTIVITY_PAUSED, at(20, 15, 49), "FirstRun")
         event("com.android.chrome", UsageEvents.Event.ACTIVITY_RESUMED, at(20, 15, 49), "Main")
         event("com.android.chrome", UsageEvents.Event.ACTIVITY_PAUSED, at(20, 15, 51), "Main")
+        event("com.android.chrome", UsageEvents.Event.ACTIVITY_STOPPED, at(20, 15, 51), "Main")
 
         val report = ScreenTimeRepository(context).today(nowMs = at(20, 30))!!
         // Counted as open since midnight, this was "Chrome 20 hr 15 min".
@@ -69,6 +70,7 @@ class ScreenTimeRepositoryTest {
         withIcon("com.example.reader")
         event("com.example.reader", UsageEvents.Event.ACTIVITY_RESUMED, at(23, 40, day = today.minusDays(1)), "Book")
         event("com.example.reader", UsageEvents.Event.ACTIVITY_PAUSED, at(0, 15), "Book")
+        event("com.example.reader", UsageEvents.Event.ACTIVITY_STOPPED, at(0, 15), "Book")
 
         val report = ScreenTimeRepository(context).today(nowMs = at(9, 0))!!
         assertEquals(15 * minute, report.totalMs)
@@ -81,6 +83,7 @@ class ScreenTimeRepositoryTest {
         withIcon("com.example.video")
         event("com.example.video", UsageEvents.Event.ACTIVITY_RESUMED, at(8, 0), "Player")
         event("com.example.video", UsageEvents.Event.ACTIVITY_PAUSED, at(8, 20), "Player")
+        event("com.example.video", UsageEvents.Event.ACTIVITY_STOPPED, at(8, 20), "Player")
         event("com.google.assistant.hubui", UsageEvents.Event.ACTIVITY_RESUMED, at(8, 20), "android.service.dreams.DreamActivity")
         event("com.google.assistant.hubui", UsageEvents.Event.ACTIVITY_PAUSED, at(9, 26), "android.service.dreams.DreamActivity")
 

@@ -11,6 +11,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -1064,7 +1065,7 @@ internal fun WordOfTheDay(word: TodayWord, onSearch: (String) -> Unit) {
                     .semantics { contentDescription = "Hear it" },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(SpeakingHead, null, tint = scheme.primary, modifier = Modifier.size(30.dp))
+                Icon(SpeakingHead, null, tint = scheme.primary, modifier = Modifier.offset(x = 7.dp).size(30.dp))
             }
         }
         Text(word.meaning, style = MaterialTheme.typography.bodyLarge, color = scheme.onSurface, modifier = Modifier.padding(top = 8.dp))
@@ -1081,9 +1082,9 @@ private val SpeakingHead: ImageVector by lazy {
             strokeLineCap = StrokeCap.Round,
             strokeLineJoin = androidx.compose.ui.graphics.StrokeJoin.Round
         )
-        line("M18.8 2.8C15.8 3.9 14.1 6.1 14.1 8.6L12.0 11.3C11.7 11.8 12.0 12.2 12.6 12.2L13.6 12.3L12.9 13.6L13.9 14.2L13.1 15.2C12.8 15.8 13.3 16.5 14.3 16.6C15.9 16.7 16.9 17.6 17.1 19L17.3 21.2")
-        line("M9.0 9.2C7.6 11.1 7.6 13.5 9.0 15.4")
-        line("M5.9 6.4C3.1 10 3.1 14.6 5.9 18.2")
+        line("M14.8 3.4C13.6 5.6 12.0 7.8 10.2 10.0L12.4 10.9L11.5 12.2L12.5 12.8L11.7 13.8L12.7 14.7C12.3 15.3 11.8 15.7 11.9 16.3C12.1 17.0 13.0 17.4 14.2 17.4L19.6 17.4")
+        line("M8.2 8.6C6.8 10.4 6.8 12.8 8.2 14.6")
+        line("M5.4 6.6C2.8 9.6 2.8 13.6 5.4 16.6")
     }.build()
 }
 

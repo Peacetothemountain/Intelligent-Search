@@ -61,6 +61,9 @@ internal class FanHint(private val prefs: SharedPreferences) {
 
     companion object {
         const val MID = (FanDims.HINT_A0 + FanDims.HINT_A1) / 2f
+        /** The light's run stops short of the heads, so it never sits on them. */
+        const val DOT_A0 = FanDims.HINT_A0 + 6f
+        const val DOT_A1 = FanDims.HINT_A1 - 6f
     }
 }
 
@@ -92,11 +95,14 @@ internal fun rememberFanHint(engine: FanEngine): FanHint {
                 return@collectLatest
             }
             delay(1200)
-            while (true) {
-                // Up the arc as the fan turns a little toward the next look, down as it turns back, then a rest.
-                hintPhase(hint, FanDims.HINT_NUDGE, FanDims.HINT_A0, 900)
-                hintPhase(hint, -FanDims.HINT_NUDGE * 0.75f, FanDims.HINT_A1, 1000)
-                hintPhase(hint, 0f, FanHint.MID, 3700)
+            // Up the arc as the fan turns a little toward the next look, down as it turns back, then a rest. Only the
+            // first run turns the fan (that redraws every strip); the later ones run the light alone, which redraws
+            // just the hint, and after a few it sleeps until the fan is next left alone.
+            for (run in 0 until FanDims.HINT_RUNS) {
+                val nudge = if (run == 0) FanDims.HINT_NUDGE else 0f
+                hintPhase(hint, nudge, FanHint.DOT_A0, 900)
+                hintPhase(hint, -nudge * 0.75f, FanHint.DOT_A1, 1000)
+                hintPhase(hint, 0f, FanHint.MID, if (run == 0) 3700 else 6000)
             }
         }
     }
@@ -104,10 +110,10 @@ internal fun rememberFanHint(engine: FanEngine): FanHint {
 }
 
 private suspend fun hintPhase(hint: FanHint, ghost: Float, dot: Float, ms: Long) = coroutineScope {
-    val a = launch { hint.ghost.animateTo(ghost, hintSpring) }
+    val a = if (hint.ghost.value != ghost || hint.ghost.isRunning) launch { hint.ghost.animateTo(ghost, hintSpring) } else null
     val b = launch { hint.dot.animateTo(dot, hintSpring) }
     delay(ms)
-    a.cancel()
+    a?.cancel()
     b.cancel()
 }
 
@@ -128,34 +134,38 @@ internal fun DrawScope.drawFanHint(engine: FanEngine, hint: FanHint, unit: Float
         val (x, y) = M3.ap(engine.hintPlane, q.x, q.y)
         return Offset(x * unit, y * unit)
     }
+    // A curve around the rivet, bowed out more than the circle through its ends, so it reads as a turn.
+    val e0 = arcPoint(FanDims.HINT_A0)
+    val e1 = arcPoint(FanDims.HINT_A1)
+    val ctl = arcPoint(FanHint.MID, FanDims.HINT_BOW_R)
+    fun at(t: Float): Offset = e0 * ((1 - t) * (1 - t)) + ctl * (2 * t * (1 - t)) + e1 * (t * t)
     val path = Path()
     val steps = 24
     for (j in 0..steps) {
-        val pt = map(arcPoint(FanDims.HINT_A0 + (FanDims.HINT_A1 - FanDims.HINT_A0) * j / steps))
+        val pt = map(at(j / steps.toFloat()))
         if (j == 0) path.moveTo(pt.x, pt.y) else path.lineTo(pt.x, pt.y)
     }
-    // The two heads: wings trailing back along the arc from each end.
-    fun head(deg: Float, dir: Float) {
-        val tip = arcPoint(deg)
-        val a = Math.toRadians(deg.toDouble())
-        val tx = (cos(a) * dir).toFloat()
-        val ty = (sin(a) * dir).toFloat()
+    // The two heads: wings trailing back along the curve's own direction at each end.
+    fun head(tip: Offset, back: Offset) {
+        val len = back.getDistance().coerceAtLeast(0.001f)
+        val tx = back.x / len
+        val ty = back.y / len
         for (w in listOf(1f, -1f)) {
             val r = Math.toRadians(32.0 * w)
             val c = cos(r).toFloat()
             val n = sin(r).toFloat()
-            val wing = Offset(tip.x + 11f * (tx * c - ty * n), tip.y + 11f * (tx * n + ty * c))
+            val wing = Offset(tip.x + 9f * (tx * c - ty * n), tip.y + 9f * (tx * n + ty * c))
             val p0 = map(tip)
             val p1 = map(wing)
             path.moveTo(p0.x, p0.y)
             path.lineTo(p1.x, p1.y)
         }
     }
-    head(FanDims.HINT_A0, 1f)
-    head(FanDims.HINT_A1, -1f)
+    head(e0, ctl - e0)
+    head(e1, ctl - e1)
     drawPath(path, primary.copy(alpha = 0.78f), style = Stroke(width = 3.2f * unit * s, cap = StrokeCap.Round, join = StrokeJoin.Round))
     // The light on the arc, with its glow.
-    val d = map(arcPoint(hint.dot.value))
+    val d = map(at(((hint.dot.value - FanDims.HINT_A0) / (FanDims.HINT_A1 - FanDims.HINT_A0)).coerceIn(0f, 1f)))
     val r = 5f * unit * s
     drawCircle(Brush.radialGradient(listOf(tertiary.copy(alpha = 0.55f), Color.Transparent), d, r * 3.4f), r * 3.4f, d)
     drawCircle(tertiary.copy(alpha = 0.28f), r + 2f * unit * s, d)

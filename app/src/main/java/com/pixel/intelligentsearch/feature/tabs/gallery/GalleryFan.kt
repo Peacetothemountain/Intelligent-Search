@@ -46,7 +46,7 @@ internal val FAN_GROUPS: List<FanGroup> by lazy {
         FanGroup("light", "Light", Symbols.LightModeFilled, listOf("paper", "pastel", "linen", "sky", "peach", "mint")),
         FanGroup("dark", "Dark", Symbols.DarkModeFilled, listOf("ink", "neon", "midnight", "ember", "forest", "carbon")),
         FanGroup("glass", "Glass", Symbols.BlurOn, listOf("glass", "sunset", "lagoon", "rose", "smoke")),
-        FanGroup("bold", "Bold", Symbols.FormatBold, listOf("ring", "bold", "signal", "cobalt", "pop", "stencil")),
+        FanGroup("bold", "Bold", Symbols.Contrast, listOf("ring", "bold", "signal", "cobalt", "pop", "stencil")),
         FanGroup("quiet", "Quiet", Symbols.SelfImprovement, listOf("bare", "mono", "fog", "sand", "dusk")),
         FanGroup("seasonal", "Seasonal", Symbols.EcoFilled, listOf("harvest", "maple", "frost", "aurora", "bloom", "summer", "shore")),
     )
@@ -115,13 +115,26 @@ internal object FanDims {
     /** A strip turned further than this (degrees) lies on the spread: pushing it up or down turns the fan. */
     const val SPREAD_A = 35f
     /**
+     * Up or down on the spread turns the fan only as a push: setting off slower than this (dp per ms), and at least
+     * [PUSH_ALONG] of the way along the arc. Faster, it is the page's scroll.
+     */
+    const val PUSH_SPEED = 0.45f
+    const val PUSH_ALONG = 0.7f
+    /** A push released past this much of a strip turns one look, unless the finger was pulling back at [BACK_V] dp/s. */
+    const val COMMIT = 0.35f
+    const val BACK_V = 250f
+    /**
      * The gesture hint: a double-headed arrow on an arc [HINT_R] from the rivet, from [HINT_A0] to [HINT_A1] degrees
      * (clockwise from upright), in the wedge between the upright strip and the spread. The fan turns [HINT_NUDGE] of a
      * strip each way as its light runs along the arc. It goes for good after [HINT_TURNS] turns that change the look.
      */
     const val HINT_R = 140f
-    const val HINT_A0 = 25f
-    const val HINT_A1 = 53f
+    const val HINT_A0 = 27f
+    const val HINT_A1 = 51f
+    /** The curve's control point lies this far from the rivet, midway: it bows about 12 px over its 58 px. */
+    const val HINT_BOW_R = 162f
+    /** Demo runs per rest of the fan before the hint sleeps until the next one. */
+    const val HINT_RUNS = 3
     const val HINT_NUDGE = 0.13f
     const val HINT_TURNS = 3
 }
@@ -244,7 +257,10 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
     val nameAlpha = List(n) { mutableFloatStateOf(nameShown((it - at0).toFloat())) }
     /** Haptics, from the page's View. */
     var onTick: () -> Unit = {}
-    var onLand: () -> Unit = {}
+    /** The fan came to rest on another look; [byHand] when a finger's drag turned it there (not a chip or TalkBack). */
+    var onLand: (byHand: Boolean) -> Unit = {}
+    /** The turn under way was started by a finger's drag. */
+    private var byHand = false
     var onGrab: () -> Unit = {}
 
     private var quiet = true
@@ -390,7 +406,7 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
                     lastUp = T
                     if (T != restAt) {
                         restAt = T
-                        onLand()
+                        onLand(byHand)
                     }
                     if (abs(t - from) > 0.15f) settle(dirn, T, FanDims.SETTLE * (vmax / FanDims.PACE).coerceIn(0.3f, 1f))
                 }
@@ -570,6 +586,7 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
         val dist = abs(to - M.x)
         tickEvery = max(1, ceil(dist / 12f).toInt())
         passes = 0
+        byHand = false
         M.go(to.toFloat(), 0f, pace = max(FanDims.PACE, dist / 0.85f), travel = SP.slow)
         dest = to
     }
@@ -578,6 +595,7 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
     fun turnTo(i: Int) {
         val to = i.coerceIn(0, n - 1)
         tickEvery = 1
+        byHand = false
         M.go(to.toFloat())
         dest = to
     }
@@ -637,6 +655,8 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
     private var ang = 0f
     private var rad = 0f
     private var lastX = 0f
+    /** When the finger was last still (within a dp of where it went down): how fast it then set off tells a push from a scroll. */
+    private var stillAt = 0L
     /** How far the finger has gone around the rivet (dp, clockwise positive), and its last tenth of a second of it. */
     private var travel = 0f
     private val samples = ArrayDeque<Pair<Long, Float>>()
@@ -669,6 +689,7 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
         x0 = x
         y0 = y
         lastX = x
+        stillAt = t
         travel = 0f
         samples.clear()
         samples.addLast(t to 0f)
@@ -705,8 +726,10 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
         val dx = x - x0
         val dy = y - y0
         if (!dragging) {
-            if (sqrt(dx * dx + dy * dy) <= FanDims.SLOP) return false
-            if (!onSpread && abs(dy) > abs(dx)) {
+            val dist = sqrt(dx * dx + dy * dy)
+            if (dist <= 1f) stillAt = t
+            if (dist <= FanDims.SLOP) return false
+            if (abs(dy) > abs(dx) && !(onSpread && isPush(dist, t))) {
                 dead = true
                 return false
             }
@@ -719,6 +742,19 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
         // The fan follows the finger: 88 dp a strip, no snapping.
         M.set(band(p0 - (travel - ox) / FanDims.STEP_DP))
         return true
+    }
+
+    /**
+     * Up or down on the spread is a push on a swatch, not a page scroll, only when it sets off slowly (under
+     * [FanDims.PUSH_SPEED] from where the finger was last still), follows the arc around the rivet, and the fan can
+     * still turn that way. A quick flick, or a push past either end of the deck, scrolls the page.
+     */
+    private fun isPush(dist: Float, t: Long): Boolean {
+        val speed = dist / (t - stillAt).coerceAtLeast(1L)
+        if (speed > FanDims.PUSH_SPEED) return false
+        if (abs(travel) < FanDims.PUSH_ALONG * dist) return false
+        val towards = M.x - sign(travel)
+        return towards >= -0.5f && towards <= n - 0.5f
     }
 
     /** The finger lifts at [t] ms. Returns whether it was a tap (the caller finds what it was on). */
@@ -734,6 +770,7 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
             return !dead
         }
         dragging = false
+        byHand = true
         // The release speed (dp/s around the rivet) over the finger's last tenth of a second; a finger that rested a
         // tenth of a second before lifting hands over none.
         val recent = samples.filter { lastMove - it.first <= 100 }
@@ -745,7 +782,11 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
         val a = abs(v)
         val near = M.x.roundToInt().coerceIn(0, n - 1)
         val extra = if (near == from && a >= FanDims.FLING) min(FanDims.MAX_EXTRA, 1 + ((a - FanDims.FLING) / FanDims.PER_EXTRA).toInt()) else 0
-        val target = (near - sign(v).toInt() * extra).coerceIn(0, n - 1)
+        // A deliberate push that has carried the strip past [FanDims.COMMIT] of the way, and isn't being pulled back,
+        // turns one look that way, rather than dropping back.
+        val moved = M.x - from
+        val committed = near == from && extra == 0 && abs(moved) >= FanDims.COMMIT && !(a >= FanDims.BACK_V && sign(-v) != sign(moved))
+        val target = (if (committed) from + sign(moved).toInt() else near - sign(v).toInt() * extra).coerceIn(0, n - 1)
         lastSwipe = target - p0.roundToInt()
         // The strip just passed under the finger is where it lands: its landing says so, without the passing tick.
         if (heldTick >= 0) {
@@ -766,6 +807,7 @@ internal class FanEngine(val clock: MotionClock, start: Int = 0) {
         if (i == top && abs(M.x - i) < 0.05f) open(i)
         else if (i.toFloat() != end()) {
             tickEvery = 1
+            byHand = false
             M.go(i.toFloat())
         }
     }

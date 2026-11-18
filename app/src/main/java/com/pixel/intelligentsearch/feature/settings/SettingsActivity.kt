@@ -103,6 +103,13 @@ class SettingsActivity : ComponentActivity() {
             Route.fromKey(sanitizedScreenKey)
         }
 
+        // The search's screen time opens the main page on its Wellbeing tab.
+        val initialTab = if (sanitizedScreenKey?.lowercase()?.trim() == "wellbeing") {
+            com.pixel.intelligentsearch.feature.tabs.SettingsTab.Wellbeing
+        } else {
+            com.pixel.intelligentsearch.feature.tabs.SettingsTab.Settings
+        }
+
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             val settingsState by settingsViewModel.settingsState.collectAsStateWithLifecycle()
@@ -120,6 +127,7 @@ class SettingsActivity : ComponentActivity() {
                     ) {
                         SettingsScreensHub(
                             initialRoute = initialRoute,
+                            initialTab = initialTab,
                             fromSearchOverlay = fromSearchOverlay,
                             prefs = prefs,
                             // The hub leaves through this activity itself; this is only its fallback.

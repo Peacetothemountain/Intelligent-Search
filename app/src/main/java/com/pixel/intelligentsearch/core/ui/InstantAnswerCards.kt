@@ -599,7 +599,7 @@ fun ScreenTimeOneBox(
         }
         if (onOpenDetails != null) {
             AnswerChips {
-                AnswerChip(label = "Open Digital Wellbeing", icon = Icons.AutoMirrored.Filled.OpenInNew, onClick = onOpenDetails)
+                AnswerChip(label = "Open Wellbeing", icon = Icons.AutoMirrored.Filled.OpenInNew, onClick = onOpenDetails)
             }
         }
     }

@@ -42,7 +42,9 @@ fun MainSettingsScreen(
     onBack: () -> Unit,
     context: Context,
     bugdroidPlayer: BugdroidVideo? = null,
-    showTutorial: Boolean = false
+    showTutorial: Boolean = false,
+    /** Room the floating pill takes over the bottom of the page (above the navigation bar), so the end clears it. */
+    pillRoom: androidx.compose.ui.unit.Dp = 0.dp
 ) {
     var showInfoDialog by remember { mutableStateOf(false) }
 
@@ -290,7 +292,8 @@ fun MainSettingsScreen(
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(32.dp))
+            // Under the pill, the thank-you and the mascot rest above it at the end of the list.
+            Spacer(modifier = Modifier.height(if (pillRoom > 0.dp) pillRoom + 16.dp else 32.dp))
         }
     }
 }

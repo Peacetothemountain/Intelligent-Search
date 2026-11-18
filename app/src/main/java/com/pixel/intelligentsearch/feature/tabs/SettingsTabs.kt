@@ -63,7 +63,8 @@ private val TABS = listOf(
 /**
  * Settings' main page with its floating pill: Settings (the page as it always was, [settingsPage]), Gallery and
  * Wellbeing. [tab] is the tab on screen, held by the settings hub so its page glow can step aside for Gallery; it is
- * saved with the screen, so a recreated screen opens on the tab it was on, and Settings always opens on Settings.
+ * saved with the screen, so a recreated screen opens on the tab it was on; Settings opens on Settings unless the search
+ * asks for Wellbeing (its screen time).
  *
  * - Tabs switch by sliding the pages sideways on the spatial spring (no fade). Back from Gallery or Wellbeing (the
  *   gesture, predictive, or a page's back arrow) slides back to Settings; back on Settings does what it always did.

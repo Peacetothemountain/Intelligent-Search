@@ -92,8 +92,11 @@ internal val SETTINGS_TUTORIAL_STEPS = mapOf(
  * A page ([closing]) leaving at the end of a back swipe, taken off the back stack by [pop] once its animation ([job])
  * has played, or at once by [finishNow] when the next swipe starts first.
  */
-/** A page as last seen before another opened over it, with the glow's moment in it. */
-private class PagePicture(val image: androidx.compose.ui.graphics.ImageBitmap, val glowTime: Float)
+/**
+ * A page as last seen before another opened over it, with the glow's moment in it. [wallpaper]: the window showed
+ * Android's wallpaper then (Gallery's windows look through to it), so the picture has holes where the wallpaper was.
+ */
+private class PagePicture(val image: androidx.compose.ui.graphics.ImageBitmap, val glowTime: Float, val wallpaper: Boolean)
 
 private class LeavingPage(val closing: androidx.navigation.NavBackStackEntry?, private val pop: () -> Unit) {
     var job: kotlinx.coroutines.Job? = null
@@ -133,6 +136,8 @@ internal suspend fun awaitOpened(lifecycle: androidx.lifecycle.Lifecycle?) {
 @Composable
 fun SettingsScreensHub(
     initialRoute: com.pixel.intelligentsearch.core.navigation.Route = com.pixel.intelligentsearch.core.navigation.Route.Main,
+    /** The main page's tab to open on (Wellbeing, from the search's screen time). */
+    initialTab: com.pixel.intelligentsearch.feature.tabs.SettingsTab = com.pixel.intelligentsearch.feature.tabs.SettingsTab.Settings,
     fromSearchOverlay: Boolean = false,
     prefs: SharedPreferences,
     onBackToLauncher: () -> Unit,
@@ -184,7 +189,7 @@ fun SettingsScreensHub(
         // so the light carries on from the picture and never jumps. It stands still on Widget Customization, which
         // has no glow, except while a back swipe shows the page underneath.
         // The tab Settings' main page shows (its floating pill: Settings, Gallery, Wellbeing), kept with the screen.
-        val mainTab = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(com.pixel.intelligentsearch.feature.tabs.SettingsTab.Settings) }
+        val mainTab = androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(initialTab) }
         val onMainPage = currentBackStackEntry?.destination?.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.Main>() == true
         val onGallery = onMainPage && mainTab.value == com.pixel.intelligentsearch.feature.tabs.SettingsTab.Gallery
         val glowClock = com.pixel.intelligentsearch.core.ui.rememberSettableMeshClock(
@@ -192,6 +197,10 @@ fun SettingsScreensHub(
             frameGapMs = com.pixel.intelligentsearch.core.ui.PAGE_GLOW_FRAME_GAP_MS
         )
         var enteringGlow by remember { mutableFloatStateOf(1f) }
+        // The picture of the page underneath a back swipe has holes through to the wallpaper (Gallery): the window shows
+        // the wallpaper again while the picture is up, so they show it as the page did, not the page's background.
+        var enteringWallpaper by remember { mutableStateOf(false) }
+        com.pixel.intelligentsearch.feature.tabs.WallpaperBehindWindow(nativeBack.active && enteringWallpaper)
         // The glow's moment in the picture of the page underneath a back swipe, until the real page has taken over.
         var enteringGlowTime by remember { mutableStateOf<Float?>(null) }
         fun carryGlowOnFromPicture() {
@@ -211,10 +220,12 @@ fun SettingsScreensHub(
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
             val leaving = navController.currentBackStackEntry
             val glowTime = glowClock.floatValue
+            val wallpaper = context.findActivity()?.window?.attributes?.flags
+                ?.let { it and android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER != 0 } == true
             // The picture is of the page as last drawn, so it is taken now, before the new page draws over it; it
             // arrives a few milliseconds later on its own and nothing waits for it.
             pagePicture.take(pageBounds) { picture ->
-                if (leaving != null && picture != null) pageSnapshots[leaving.id] = PagePicture(picture, glowTime)
+                if (leaving != null && picture != null) pageSnapshots[leaving.id] = PagePicture(picture, glowTime, wallpaper)
             }
             navController.navigate(route) {
                 launchSingleTop = true
@@ -373,7 +384,12 @@ fun SettingsScreensHub(
                 Modifier
                     .fillMaxSize()
                     .backFrame(frame = { nativeBack.enteringFrame() }, cornerPx = { screenCorner })
-                    .background(MaterialTheme.colorScheme.background)
+                    .then(
+                        // Cleared to the wallpaper behind the window, for the picture's holes; otherwise the page's
+                        // background.
+                        if (enteringWallpaper) Modifier.drawBehind { drawRect(Color.Black, blendMode = androidx.compose.ui.graphics.BlendMode.Clear) }
+                        else Modifier.background(MaterialTheme.colorScheme.background)
+                    )
                     .pageGlow(strength = { enteringGlow }, clock = glowClock)
                     .drawBehind {
                         nativeBack.entering?.let {
@@ -492,7 +508,10 @@ fun SettingsScreensHub(
                             tab = mainTab, hidePill = showTutorial, glowClock = glowClock,
                             openWidgetSettings = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization) }
                         ) {
-                            MainSettingsScreen(prefs, onNavigate, onBack, context, bugdroidPlayer, showTutorial)
+                            MainSettingsScreen(
+                                prefs, onNavigate, onBack, context, bugdroidPlayer, showTutorial,
+                                pillRoom = com.pixel.intelligentsearch.feature.tabs.PILL_HEIGHT + com.pixel.intelligentsearch.feature.tabs.PILL_BOTTOM_GAP
+                            )
                         }
                     }
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Appearance> { AppearanceScreen(prefs, onNavigate, onBack) }
@@ -615,6 +634,7 @@ fun SettingsScreensHub(
                         val widgetPage = previous.destination.hasRoute<com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization>()
                         enteringGlow = if (picture != null || widgetPage) 0f else 1f
                         enteringGlowTime = picture?.glowTime
+                        enteringWallpaper = picture?.wallpaper == true
                         nativeBack.begin(event, picture?.image)
                         started = true
                     } else {

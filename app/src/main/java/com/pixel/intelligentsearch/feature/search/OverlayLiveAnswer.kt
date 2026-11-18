@@ -34,21 +34,19 @@ import com.pixel.intelligentsearch.core.ui.WeatherLocationOneBox
 import com.pixel.intelligentsearch.core.ui.WeatherOneBox
 import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 
-/**
- * Where today's screen time is broken down in full: Digital Wellbeing (Pixel's, or Samsung's), if the phone has it.
- * Pixel's lives in Settings with no app icon unless the user adds one, so it has no launch intent; its own dashboard
- * (each app's time today) is opened by the action it exports for that.
- */
-internal fun digitalWellbeingIntent(context: Context): Intent? {
-    val pm = context.packageManager
-    val pixelDashboard = Intent(PIXEL_WELLBEING_DASHBOARD).setPackage(PIXEL_WELLBEING)
-    val found = pixelDashboard.takeIf { pm.resolveActivityCompat(it) != null }
-        ?: listOf(PIXEL_WELLBEING, "com.samsung.android.forest").firstNotNullOfOrNull { pm.getLaunchIntentForPackage(it) }
-    return found?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-}
+/** Settings' Wellbeing tab, opened from the search (SettingsActivity reads the page key). */
+internal const val WELLBEING_PAGE = "wellbeing"
 
-private const val PIXEL_WELLBEING = "com.google.android.apps.wellbeing"
-private const val PIXEL_WELLBEING_DASHBOARD = "com.google.android.apps.wellbeing.action.APP_USAGE_DASHBOARD"
+/**
+ * Where today's screen time is broken down in full: the app's own Wellbeing tab, whose numbers come from the same
+ * calculator as the search's answer, so they agree.
+ */
+internal fun ownWellbeingIntent(context: Context): Intent =
+    com.pixel.intelligentsearch.core.security.InternalLaunchToken.stamp(
+        Intent(context, com.pixel.intelligentsearch.feature.settings.SettingsActivity::class.java)
+            .putExtra("extra_screen", WELLBEING_PAGE)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    )
 
 
 /**
@@ -155,15 +153,12 @@ private fun ScreenTimePrompt(s: OverlayScope, answer: LiveAnswer.ScreenTime) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    val details = remember { digitalWellbeingIntent(context) }
     ScreenTimeOneBox(
         report = answer.report,
         onAllowUsageAccess = { showRationale = true },
-        onOpenDetails = details?.let { intent ->
-            {
-                s.ui.hasStartedTyping = false
-                launchSafeIntent(context, intent)
-            }
+        onOpenDetails = {
+            s.ui.hasStartedTyping = false
+            s.onOpenSettings(WELLBEING_PAGE)
         }
     )
     if (showRationale) {

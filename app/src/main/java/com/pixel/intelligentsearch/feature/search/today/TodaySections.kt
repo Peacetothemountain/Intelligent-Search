@@ -113,7 +113,7 @@ import com.pixel.intelligentsearch.core.ui.icons.outlined.BatteryStd
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import com.pixel.intelligentsearch.core.util.Durations
 import com.pixel.intelligentsearch.core.util.initialOf
-import com.pixel.intelligentsearch.feature.search.digitalWellbeingIntent
+import com.pixel.intelligentsearch.feature.search.ownWellbeingIntent
 import com.pixel.intelligentsearch.feature.settings.bouncyClickable
 import java.time.Instant
 import java.time.LocalDate
@@ -739,15 +739,15 @@ internal fun PhoneToday(sources: TodaySources, active: Boolean) {
         if (allowed) value = true to kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { sources.screenTime() }
     }.value ?: return
     val screenTime = usage.second
-    // The tile shows only with Usage Access, so a tap opens the full breakdown in Digital Wellbeing, as the search's
-    // screen time answer does; a phone without it has nowhere better to go, so the tile isn't a button there.
-    val wellbeing = remember(context) { digitalWellbeingIntent(context) }
+    // The tile shows only with Usage Access, so a tap opens the full breakdown in the app's own Wellbeing tab, as the
+    // search's screen time answer does.
+    val wellbeing = remember(context) { ownWellbeingIntent(context) }
     if (battery == null && screenTime == null) return
     Column(Modifier.onFirstSeen { phoneSeen.value = true }) {
         Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             if (battery != null) BatteryTile(battery, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value, compact = !usage.first)
             if (screenTime != null) {
-                ScreenTimeTile(screenTime, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value, wellbeing?.let { { launchSafeIntent(context, it) } })
+                ScreenTimeTile(screenTime, Modifier.weight(1f).fillMaxHeight(), phoneSeen.value) { launchSafeIntent(context, wellbeing) }
             }
         }
     }

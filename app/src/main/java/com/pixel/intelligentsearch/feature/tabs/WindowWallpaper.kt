@@ -23,7 +23,22 @@ internal fun WallpaperBehindWindow(enabled: Boolean) {
     DisposableEffect(enabled, context) {
         val window = context.findActivity()?.window
         if (!enabled || window == null) return@DisposableEffect onDispose { }
-        window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
-        onDispose { window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER) }
+        // Counted: the tabs and the back swipe's picture of Gallery may both ask, and one letting go mustn't take the
+        // wallpaper from the other.
+        val askers = (wallpaperAskers[window] ?: 0) + 1
+        wallpaperAskers[window] = askers
+        if (askers == 1) window.addFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+        onDispose {
+            val left = (wallpaperAskers[window] ?: 1) - 1
+            if (left > 0) {
+                wallpaperAskers[window] = left
+            } else {
+                wallpaperAskers.remove(window)
+                window.clearFlags(WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER)
+            }
+        }
     }
 }
+
+/** How many [WallpaperBehindWindow]s want each window's wallpaper now. Main thread only. */
+private val wallpaperAskers = java.util.WeakHashMap<android.view.Window, Int>()

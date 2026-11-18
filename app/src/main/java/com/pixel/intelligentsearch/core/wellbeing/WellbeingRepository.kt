@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Process
+import com.pixel.intelligentsearch.core.util.queryIntentActivitiesCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -46,13 +47,7 @@ class WellbeingRepository(context: Context) {
     private val app = context.applicationContext
     private val store = HistoryStore(File(app.filesDir, HistoryStore.FILE_NAME))
 
-    fun hasAccess(): Boolean {
-        val appOps = app.getSystemService(AppOpsManager::class.java) ?: return false
-        val mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), app.packageName)
-        return if (mode == AppOpsManager.MODE_DEFAULT) {
-            app.checkSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) == PackageManager.PERMISSION_GRANTED
-        } else mode == AppOpsManager.MODE_ALLOWED
-    }
+    fun hasAccess(): Boolean = hasAccess(app)
 
     /**
      * Brings the summary up to date and returns every day. [onProgress] hears (days read, days to read) while the phone's
@@ -142,7 +137,7 @@ class WellbeingRepository(context: Context) {
         // From when the records are whole: where this process began reading them, or, where the phone has already let
         // older days go, the moment its own records begin (partway through a day: that day is not a whole one).
         val coverFrom = maxOf(c.readFrom, c.recordsFrom)
-        val counts = countedPackages()
+        val counts = countedPackages(app)
         var d = Instant.ofEpochMilli(coverFrom).atZone(zone).toLocalDate()
         var redone = false
         var checked = 0
@@ -248,21 +243,6 @@ class WellbeingRepository(context: Context) {
         return ours < phoneSec - maxOf(600L, phoneSec / 20)
     }
 
-    /**
-     * Like Digital Wellbeing, only apps with an icon in the app drawer count: not the home screen, the system UI or the
-     * charging screen saver (an hour a day on a Pixel under a system app with no icon).
-     */
-    private fun countedPackages(): (String) -> Boolean {
-        val pm = app.packageManager
-        val home = runCatching { pm.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)?.activityInfo?.packageName }.getOrNull()
-        val excluded = setOfNotNull(home, "com.android.systemui")
-        val withIcons = runCatching {
-            @Suppress("DEPRECATION") pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-                .mapTo(HashSet()) { it.activityInfo.packageName }
-        }.getOrDefault(emptySet())
-        return if (withIcons.isEmpty()) { pkg -> pkg !in excluded } else { pkg -> pkg in withIcons && pkg !in excluded }
-    }
-
     /** [recordsFrom]: when the phone's own records begin, as found at the first read. */
     private class EventCache(val events: ArrayList<UsageEvent>, var readFrom: Long, var readTo: Long, val recordsFrom: Long)
 
@@ -270,6 +250,31 @@ class WellbeingRepository(context: Context) {
     internal class PhoneFile(val begin: Long, val end: Long, val visibleMs: Map<String, Long>)
 
     companion object {
+        /** Whether Usage Access is granted: Wellbeing and the screen-time answers both need it. */
+        fun hasAccess(context: Context): Boolean {
+            val appOps = context.getSystemService(AppOpsManager::class.java) ?: return false
+            val mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.packageName)
+            return if (mode == AppOpsManager.MODE_DEFAULT) {
+                context.checkSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) == PackageManager.PERMISSION_GRANTED
+            } else mode == AppOpsManager.MODE_ALLOWED
+        }
+
+        /**
+         * Which packages count, here and in the screen-time answers. Like Digital Wellbeing, only apps with an icon in
+         * the app drawer: not the home screen, the system UI or the charging screen saver (an hour a day on a Pixel
+         * under a system app with no icon). An app list that can't be read leaves out only the home screen and system UI.
+         */
+        fun countedPackages(context: Context): (String) -> Boolean {
+            val pm = context.packageManager
+            val home = runCatching { pm.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)?.activityInfo?.packageName }.getOrNull()
+            val excluded = setOfNotNull(home, "com.android.systemui")
+            val withIcons = runCatching {
+                pm.queryIntentActivitiesCompat(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER))
+                    .mapTo(HashSet()) { it.activityInfo.packageName }
+            }.getOrDefault(emptySet())
+            return if (withIcons.isEmpty()) { pkg -> pkg !in excluded } else { pkg -> pkg in withIcons && pkg !in excluded }
+        }
+
         /**
          * The phone's usage events from [from] to [to], as Wellbeing reads them: from the oldest of the phone's day-long
          * files that still holds records after [from] (a read starting exactly at [from] can miss a whole file), each

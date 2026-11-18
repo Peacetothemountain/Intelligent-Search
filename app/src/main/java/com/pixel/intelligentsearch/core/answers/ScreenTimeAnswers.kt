@@ -1,12 +1,8 @@
 package com.pixel.intelligentsearch.core.answers
 
 import com.pixel.intelligentsearch.core.util.Durations
-import com.pixel.intelligentsearch.core.util.queryIntentActivitiesCompat
-import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.content.Context
-import android.content.Intent
-import android.os.Process
 import androidx.compose.runtime.Immutable
 import com.pixel.intelligentsearch.core.wellbeing.DayCalculator
 import com.pixel.intelligentsearch.core.wellbeing.EventKind
@@ -121,14 +117,8 @@ object ScreenTimeCalculator {
  */
 class ScreenTimeRepository(private val context: Context) {
 
-    /** Whether Usage Access is granted. */
-    fun hasUsageAccess(): Boolean {
-        val appOps = context.getSystemService(AppOpsManager::class.java) ?: return false
-        val mode = appOps.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), context.packageName)
-        return if (mode == AppOpsManager.MODE_DEFAULT) {
-            context.checkSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        } else mode == AppOpsManager.MODE_ALLOWED
-    }
+    /** Whether Usage Access is granted (Wellbeing's check). */
+    fun hasUsageAccess(): Boolean = WellbeingRepository.hasAccess(context)
 
     /** Today's report, or null when Usage Access isn't granted. */
     fun today(nowMs: Long = System.currentTimeMillis()): ScreenTimeReport? {
@@ -140,28 +130,14 @@ class ScreenTimeRepository(private val context: Context) {
         // the oldest of the phone's files that still holds records then, each event once (as Wellbeing reads them).
         val eventsFrom = midnight - LOOK_BACK_MS
         val events = runCatching { WellbeingRepository.readEvents(usage, eventsFrom, nowMs) }.getOrNull() ?: return null
-        // Like Digital Wellbeing, only apps with an icon in the app drawer count: not the home screen, the system UI,
-        // or the screen saver on a charging Pixel (an hour a day logged under a system app with no icon).
-        val excluded = setOfNotNull(homePackage(), "com.android.systemui")
-        val withIcons = appsWithIcons()
-        // An app list that couldn't be read leaves only the home screen and system UI out, as before.
-        val counts: (String) -> Boolean = if (withIcons.isEmpty()) { pkg -> pkg !in excluded } else { pkg -> pkg in withIcons && pkg !in excluded }
+        // The apps Wellbeing counts: those with an icon in the app drawer, less the home screen and system UI.
+        val counts = WellbeingRepository.countedPackages(context)
         val tally = ScreenTimeCalculator.tallyOf(events, midnight, nowMs, counts, eventsFromMs = eventsFrom)
         val pm = context.packageManager
         return ScreenTimeCalculator.report(tally.perApp, totalMs = tally.onScreenMs) { pkg ->
             WellbeingRepository.labelOf(pm, pkg)
         }
     }
-
-    private fun homePackage(): String? = runCatching {
-        context.packageManager.resolveActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0)
-            ?.activityInfo?.packageName
-    }.getOrNull()
-
-    private fun appsWithIcons(): Set<String> = runCatching {
-        context.packageManager.queryIntentActivitiesCompat(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER))
-            .mapTo(HashSet()) { it.activityInfo.packageName }
-    }.getOrDefault(emptySet())
 
     private companion object {
         const val LOOK_BACK_MS = 24 * 60 * 60 * 1000L

@@ -86,7 +86,7 @@ internal fun GalleryBar(look: Look, phoneDark: Boolean, modifier: Modifier = Mod
     val style = look.heroStyle
     val appDark = look.appDark(phoneDark)
     val scheme = schemes.of(appDark)
-    val colors = remember(look, appDark, schemes) {
+    val colors = remember(look, appDark, schemes, style) {
         barColors(
             draft = style,
             isMaterialDesign = isMaterial,

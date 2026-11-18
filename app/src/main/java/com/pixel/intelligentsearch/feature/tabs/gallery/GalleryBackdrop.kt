@@ -43,8 +43,8 @@ import com.pixel.intelligentsearch.feature.tabs.ui.findActivity
  * What the windows in the page show: each look on the wallpaper made for it (drawn by the app), Android's real
  * wallpaper behind the window, or a mesh of the real wallpaper's colors.
  */
-internal enum class Backdrop(val label: String) {
-    LookWallpaper("The Look's Wallpaper"), RealWallpaper("Your Wallpaper"), ColorsOnly("Colors Only");
+internal enum class Backdrop(val label: String, val short: String) {
+    LookWallpaper("The Look's Wallpaper", "Look's"), RealWallpaper("Your Wallpaper", "Yours"), ColorsOnly("Colors Only", "Colors");
 
     /** Where a preview of [look] is shown, in words. A look of the owner's own has no wallpaper: it is on theirs. */
     fun where(look: Look): String = when {

@@ -35,7 +35,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -81,6 +80,15 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.asComposePath
+import androidx.compose.foundation.selection.selectableGroup
+import com.pixel.intelligentsearch.feature.settings.MaterialMorphShapes
+import androidx.graphics.shapes.toPath
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -111,7 +119,7 @@ internal sealed interface Pop {
 
     /**
      * How Looks Work, from the top bar's info icon: what a look is and how to turn the fan, then the backdrop choice,
-     * Put Back My Look ([putBack], while there is a look before) and Bring Back Your Wallpaper ([bringBack], while a
+     * Put Back Your Last Look ([putBack], while there is a look before) and Bring Back Your Wallpaper ([bringBack], while a
      * wallpaper set from here can still be undone).
      */
     class Info(
@@ -334,14 +342,14 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
     }
 }
 
-/** How Looks Work: three plain lines, the backdrop choice, and the ways back. */
+/** How Looks Work: three plain lines in tiles, the backdrop choice, and the ways back. */
 @Composable
 private fun ColumnScope.InfoSheet(info: Pop.Info, onClose: () -> Unit) {
     val scheme = MaterialTheme.colorScheme
     var backdrop by remember(info) { mutableStateOf(info.backdrop) }
     Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(Modifier.size(44.dp).background(scheme.tertiary, CircleShape), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(44.dp).background(scheme.tertiary, ScallopShape), contentAlignment = Alignment.Center) {
                 Icon(Symbols.Info, null, tint = scheme.onTertiary, modifier = Modifier.size(24.dp))
             }
             Column {
@@ -349,52 +357,81 @@ private fun ColumnScope.InfoSheet(info: Pop.Info, onClose: () -> Unit) {
                 SheetText("The short version.")
             }
         }
-        Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            InfoLine(Symbols.Palette, "A look is an outfit for your search bar.", "Its shape, its colors, and a wallpaper to match.")
-            InfoLine(Symbols.SwipeVertical, "Turn the fan to browse.", "Swipe it, or push a swatch up or down.")
-            InfoLine(Symbols.Fullscreen, "Tap the one standing up to try it on.", "Nothing changes until you tap Apply.")
-        }
-        Text(
-            "Backdrop", style = MaterialTheme.typography.titleSmall, color = scheme.onSurface,
-            modifier = Modifier.padding(top = 20.dp).semantics { heading() }
+        // The three lines, each in a tile of its own, stacked as one group.
+        val lines = listOf(
+            Triple(Symbols.Checkroom, "A look is an outfit for your search bar.", "Its shape, its colors, and a wallpaper to match."),
+            Triple(Symbols.SwipeVertical, "Turn the fan to browse.", "Swipe it, or push a swatch up or down."),
+            Triple(Symbols.TouchApp, "Tap the one standing up to try it on.", "Nothing changes until you tap Apply.")
         )
-        SheetText("What sits behind each look.", Modifier.padding(bottom = 8.dp))
-        Column(Modifier.fillMaxWidth().semantics { contentDescription = "Backdrop" }, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            for (choice in Backdrop.entries) {
-                val on = choice == backdrop
-                val corner by animateDpAsState(if (on) 28.dp else 12.dp, Springs.morph(), label = "backdrop")
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 52.dp)
-                        .bouncyClickable(RoundedCornerShape(corner), role = Role.RadioButton) { backdrop = choice; info.onBackdrop(choice) }
-                        .background(if (on) scheme.secondaryContainer else scheme.surfaceContainerHighest)
-                        .semantics { selected = on }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        if (on) Symbols.RadioButtonChecked else Symbols.RadioButtonUnchecked, null,
-                        tint = if (on) scheme.onSecondaryContainer else scheme.onSurfaceVariant, modifier = Modifier.size(22.dp)
+        Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            lines.forEachIndexed { i, (icon, title, text) ->
+                val top = if (i == 0) 20.dp else 6.dp
+                val bottom = if (i == lines.lastIndex) 20.dp else 6.dp
+                InfoLine(icon, title, text, RoundedCornerShape(top, top, bottom, bottom))
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f).padding(end = 12.dp)) {
+                Text("Backdrop", style = MaterialTheme.typography.titleSmall, color = scheme.onSurface, modifier = Modifier.semantics { heading() })
+                Text("What sits behind each look.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+            }
+            // A connected button group: one choice of three.
+            Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Backdrop.entries.forEachIndexed { i, choice ->
+                    val on = choice == backdrop
+                    val outer = 20.dp
+                    val inner by animateDpAsState(if (on) 20.dp else 6.dp, Springs.morph(), label = "backdrop")
+                    val shape = RoundedCornerShape(
+                        topStart = if (i == 0) outer else inner, bottomStart = if (i == 0) outer else inner,
+                        topEnd = if (i == Backdrop.entries.lastIndex) outer else inner, bottomEnd = if (i == Backdrop.entries.lastIndex) outer else inner
                     )
-                    Text(choice.label, style = MaterialTheme.typography.bodyLarge, color = if (on) scheme.onSecondaryContainer else scheme.onSurface)
+                    Box(
+                        Modifier
+                            .heightIn(min = 48.dp)
+                            .bouncyClickable(shape, role = Role.RadioButton) { backdrop = choice; info.onBackdrop(choice) }
+                            .background(if (on) scheme.secondaryContainer else scheme.surfaceContainerHighest)
+                            .semantics { selected = on; contentDescription = choice.label }
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            choice.short, style = MaterialTheme.typography.labelLarge, maxLines = 1,
+                            color = if (on) scheme.onSecondaryContainer else scheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
     }
     SheetButtons {
         info.bringBack?.let { PreviewButton("Bring Back Your Wallpaper", ButtonKind.Text, icon = Symbols.Wallpaper) { onClose(); it() } }
-        info.putBack?.let { PreviewButton("Put Back My Look", ButtonKind.Tonal, icon = Symbols.Undo) { onClose(); it() } }
+        info.putBack?.let { PreviewButton("Put Back Your Last Look", ButtonKind.Tonal, icon = Symbols.Undo) { onClose(); it() } }
         PreviewButton("Got It", ButtonKind.Filled, onClick = onClose)
     }
 }
 
+/** The sheet's badge: Material's nine-sided cookie. */
+private val ScallopShape: Shape = object : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val polygon = MaterialMorphShapes.byName.getValue("Cookie9Sided")
+        val path = polygon.toPath()
+        val b = android.graphics.RectF().also { path.computeBounds(it, true) }
+        val m = android.graphics.Matrix().apply {
+            setRectToRect(b, android.graphics.RectF(0f, 0f, size.width, size.height), android.graphics.Matrix.ScaleToFit.FILL)
+        }
+        path.transform(m)
+        return Outline.Generic(path.asComposePath())
+    }
+}
+
 @Composable
-private fun InfoLine(icon: ImageVector, title: String, text: String) {
+private fun InfoLine(icon: ImageVector, title: String, text: String, shape: Shape) {
     val scheme = MaterialTheme.colorScheme
-    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-        Icon(icon, null, tint = scheme.primary, modifier = Modifier.padding(top = 2.dp).size(22.dp))
+    Row(
+        Modifier.fillMaxWidth().background(scheme.surfaceContainerHigh, shape).padding(14.dp).semantics(mergeDescendants = true) { },
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Icon(icon, null, tint = scheme.primary, modifier = Modifier.padding(top = 1.dp).size(22.dp))
         Column {
             Text(title, style = MaterialTheme.typography.titleSmall, color = scheme.onSurface)
             Text(text, style = MaterialTheme.typography.bodyMedium, color = scheme.onSurfaceVariant)

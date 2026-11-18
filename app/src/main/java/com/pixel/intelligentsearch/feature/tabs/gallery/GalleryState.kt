@@ -72,7 +72,14 @@ internal class GalleryState(val today: LocalDate) {
         scope.launch {
             snapshotFlow { GalleryKept(current, before, saved.toList(), seq, row, week to hero.id, undoTo) }
                 .drop(1)
-                .collect { k -> withContext(Dispatchers.IO) { known = GalleryDisk.write(prefs, k) } }
+                .collect { k ->
+                    withContext(Dispatchers.IO) {
+                        // Known before it is stored, so a resume in between never takes this session's own write for a restore.
+                        val json = GalleryDisk.json(k)
+                        known = json
+                        GalleryDisk.put(prefs, json)
+                    }
+                }
         }
     }
 

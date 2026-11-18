@@ -33,9 +33,9 @@ internal object GalleryDisk {
     /** The stored value as it is, to tell whether something else (a restore) has replaced it. */
     fun raw(prefs: SharedPreferences): String = prefs[SettingsManager.GALLERY_LOOKS]
 
-    /** Writes [kept] and returns the value written. */
-    fun write(prefs: SharedPreferences, kept: GalleryKept): String {
-        val json = JSONObject().apply {
+    /** What [kept] is stored as. */
+    fun json(kept: GalleryKept): String =
+        JSONObject().apply {
             put("version", VERSION)
             put("current", kept.current.toJson())
             kept.before?.let { put("before", it.toJson()) }
@@ -45,8 +45,10 @@ internal object GalleryDisk {
             kept.hero?.let { (week, id) -> put("heroWeek", week); put("hero", id) }
             kept.undoTo?.let { put("undoTo", it.toJson()) }
         }.toString()
+
+    /** Stores [json] (made by [json]). */
+    fun put(prefs: SharedPreferences, json: String) {
         prefs.edit { put(SettingsManager.GALLERY_LOOKS, json) }
-        return json
     }
 
     fun read(prefs: SharedPreferences): GalleryKept? = runCatching {

@@ -47,8 +47,9 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Data Guarantee**: File paths, thumbnails, and media contents are processed 100% locally and are never exfiltrated.
 
 ### E. App Usage Statistics (`android.permission.PACKAGE_USAGE_STATS`)
-* **Purpose**: Used optionally to rank your most frequently and recently used applications at the top of search suggestions, and to answer "screen time" searches with today's total and the apps that took most of it.
+* **Purpose**: Used optionally to rank your most frequently and recently used applications at the top of search suggestions, to answer "screen time" searches with today's total and the apps that took most of it, and to show the **Wellbeing** page (screen time, unlocks and notifications by day, week and month).
 * **Processing & Security**: Queried locally via Android `UsageStatsManager`. Access requires explicit authorization through the Android "Usage Access" system settings screen. No usage metrics or device statistics are ever transmitted externally.
+* **Wellbeing history**: a daily summary (time per app, unlocks and notification counts) is kept on your phone for up to 400 days so past days stay available after Android drops its own records. It is never sent anywhere and is not included in backups. **Clear History** on the Wellbeing page deletes it.
 
 ### F. System Settings & Toggles (`WRITE_SETTINGS`, `ACCESS_NOTIFICATION_POLICY`, `ACCESS_WIFI_STATE`, `ACCESS_NETWORK_STATE`)
 * **Purpose**: Powers quick search-action tiles (such as Wi-Fi status, Do Not Disturb, Flashlight, Brightness, Screen Timeout, Auto-Rotate, and Airplane Mode).
@@ -97,6 +98,9 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **User Control**: Switch the options off on the same page, or revoke the permissions in Android System Settings. A restored backup never switches them on (see Section 4).
 
 ---
+
+### P. Wallpaper (`SET_WALLPAPER`)
+* **Purpose**: Lets **Gallery** set a look's matching wallpaper on your phone, only when you tap **Set Wallpaper** and confirm. The wallpaper is drawn on your phone; nothing is downloaded or sent.
 
 ## 3. Web Search, External Search Engines, Live Currency Rates, Instant Answers & AI Answers
 

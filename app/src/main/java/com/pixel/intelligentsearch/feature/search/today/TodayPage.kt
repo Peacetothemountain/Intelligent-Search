@@ -553,8 +553,10 @@ internal fun TodayPage(
         Column(
             Modifier
                 .fillMaxSize()
-                .verticalScroll(scroll)
+                // Outside the scroll: the page scrolls under its own top edge, below the status bar, not under the
+                // clock and battery.
                 .statusBarsPadding()
+                .verticalScroll(scroll)
                 .padding(start = 14.dp, end = 14.dp, top = 8.dp, bottom = 100.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {

@@ -36,7 +36,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.runtime.withFrameNanos
@@ -403,9 +405,11 @@ internal fun SearchPageContent(
         ) { SearchBarPreview(look) }
     }
     val apps = @Composable { Box(Modifier.revealed(reveal, 0.1f)) { QuickAppPills(if (fontScale >= 1.3f) 0.8f else 1f) } }
+    // The bar and the quick apps always show; the cards take the room left and keep only those that fit whole (in a
+    // short window, large text or a third of a split screen they squeezed the bar to nothing).
     if (layout.barAtBottom) {
         Column(modifier.fillMaxHeight(), verticalArrangement = Arrangement.Bottom) {
-            SampleCards(look, reveal, clock.takeIf { layout.showsClock })
+            SampleCards(look, reveal, clock.takeIf { layout.showsClock }, nearEnd = true, Modifier.weight(1f, fill = false))
             apps()
             bar()
         }
@@ -413,18 +417,21 @@ internal fun SearchPageContent(
         Column(modifier) {
             bar()
             apps()
-            SampleCards(look, reveal, clock.takeIf { layout.showsClock })
+            SampleCards(look, reveal, clock.takeIf { layout.showsClock }, nearEnd = false, Modifier.weight(1f, fill = false))
         }
     }
 }
 
-/** The At a Glance card, with the person's clock when they show it ([clock]), and two sample results. */
+/**
+ * The At a Glance card, with the person's clock when they show it ([clock]), and two sample results. Where they don't
+ * all fit, those farthest from the bar go: with the bar under them ([nearEnd]) the top ones, else the bottom ones.
+ */
 @Composable
-private fun SampleCards(look: Look, reveal: () -> Float, clock: String?) {
+private fun SampleCards(look: Look, reveal: () -> Float, clock: String?, nearEnd: Boolean, modifier: Modifier = Modifier) {
     val scheme = MaterialTheme.colorScheme
     val today = remember { LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.US)) }
     val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
-    Column {
+    FitColumn(keepEnd = nearEnd, spacing = 8.dp, modifier = modifier) {
         Box(Modifier.revealed(reveal, 0.2f).padding(horizontal = 16.dp, vertical = 4.dp)) {
             Column(
                 Modifier
@@ -445,13 +452,43 @@ private fun SampleCards(look: Look, reveal: () -> Float, clock: String?) {
                 GlanceRow(Icons.Filled.WbCloudy, "Partly cloudy · 54°", today)
             }
         }
-        Spacer(Modifier.size(8.dp))
         Box(Modifier.revealed(reveal, 0.3f).padding(horizontal = 16.dp, vertical = 4.dp)) {
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).geminiPlate(28.dp, look.search.pillOpacity / 100f).padding(6.dp)
             ) {
                 GlanceRow(Icons.Rounded.Settings, "Display", "Settings")
                 GlanceRow(AppSymbols.Outlined.Calculate, "9 × 9 = 81", "Calculator")
+            }
+        }
+    }
+}
+
+/**
+ * A column of [content] [spacing] apart that keeps only the children that fit whole in the height it is given: from
+ * the top, or from the bottom with [keepEnd] (the ones at the top going first).
+ */
+@Composable
+private fun FitColumn(keepEnd: Boolean, spacing: Dp, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Layout(content, modifier) { measurables, constraints ->
+        val gap = spacing.roundToPx()
+        val loose = constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity)
+        val placeables = measurables.map { it.measure(loose) }
+        val order = if (keepEnd) placeables.indices.reversed() else placeables.indices
+        val kept = ArrayList<Int>()
+        var used = 0
+        for (i in order) {
+            val need = used + (if (kept.isEmpty()) 0 else gap) + placeables[i].height
+            if (need > constraints.maxHeight) break
+            used = need
+            kept += i
+        }
+        kept.sort()
+        val width = kept.maxOfOrNull { placeables[it].width }?.coerceAtLeast(constraints.minWidth) ?: constraints.minWidth
+        layout(width, used.coerceAtLeast(constraints.minHeight)) {
+            var y = 0
+            for (i in kept) {
+                placeables[i].place(0, y)
+                y += placeables[i].height + gap
             }
         }
     }

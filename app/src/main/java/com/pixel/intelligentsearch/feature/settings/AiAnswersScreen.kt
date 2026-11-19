@@ -65,6 +65,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.TextObfuscationMode
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.material3.OutlinedSecureTextField
+import com.pixel.intelligentsearch.core.ui.secretForAccessibility
 
 /**
  * AI Answers, reached from Web Search: the opt-in switch, the provider and model, and the user's own API key, saved
@@ -281,7 +282,8 @@ private fun ApiKeyRows(vault: AiKeyVault, provider: AiProvider, hasKey: Boolean,
                 textObfuscationMode = TextObfuscationMode.Hidden,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                 shape = RoundedCornerShape(24.dp),
-                modifier = Modifier.weight(1f)
+                // Accessibility services read bullets, not the key.
+                modifier = Modifier.weight(1f).secretForAccessibility(typed.text.length)
             )
             TextButton(
                 enabled = typed.text.isNotBlank(),

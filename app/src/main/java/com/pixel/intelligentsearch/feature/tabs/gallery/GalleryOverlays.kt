@@ -404,35 +404,54 @@ private fun ColumnScope.InfoSheet(info: Pop.Info, onClose: () -> Unit) {
             }
             HintSwitchLine(RoundedCornerShape(6.dp, 6.dp, 20.dp, 20.dp))
         }
-        Row(Modifier.fillMaxWidth().padding(top = 18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f).padding(end = 12.dp)) {
-                Text("Backdrop", style = MaterialTheme.typography.titleSmall, color = scheme.onSurface, modifier = Modifier.semantics { heading() })
-                Text("Pick what shows behind each look.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+        // In a narrow sheet (a third of a split screen) or with large text, the label goes over the buttons and the
+        // buttons share the width; beside them it was squeezed to a letter or two a line.
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(top = 18.dp)) {
+            val stacked = maxWidth < BACKDROP_STACK_BELOW || LocalDensity.current.fontScale >= 1.3f
+            val label = @Composable { m: Modifier ->
+                Column(m) {
+                    Text("Backdrop", style = MaterialTheme.typography.titleSmall, color = scheme.onSurface, modifier = Modifier.semantics { heading() })
+                    Text("Pick what shows behind each look.", style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
+                }
             }
             // A connected button group: one choice of three.
-            Row(Modifier.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                Backdrop.entries.forEachIndexed { i, choice ->
-                    val on = choice == backdrop
-                    val outer = 20.dp
-                    val inner by animateDpAsState(if (on) 20.dp else 6.dp, Springs.morph(), label = "backdrop")
-                    val shape = RoundedCornerShape(
-                        topStart = if (i == 0) outer else inner, bottomStart = if (i == 0) outer else inner,
-                        topEnd = if (i == Backdrop.entries.lastIndex) outer else inner, bottomEnd = if (i == Backdrop.entries.lastIndex) outer else inner
-                    )
-                    Box(
-                        Modifier
-                            .heightIn(min = 48.dp)
-                            .bouncyClickable(shape, role = Role.RadioButton) { backdrop = choice; info.onBackdrop(choice) }
-                            .background(if (on) scheme.secondaryContainer else scheme.surfaceContainerHighest)
-                            .semantics { selected = on; contentDescription = choice.label }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            choice.short, style = MaterialTheme.typography.labelLarge, maxLines = 1,
-                            color = if (on) scheme.onSecondaryContainer else scheme.onSurfaceVariant
+            val choices = @Composable { m: Modifier ->
+                Row(m.selectableGroup(), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Backdrop.entries.forEachIndexed { i, choice ->
+                        val on = choice == backdrop
+                        val outer = 20.dp
+                        val inner by animateDpAsState(if (on) 20.dp else 6.dp, Springs.morph(), label = "backdrop")
+                        val shape = RoundedCornerShape(
+                            topStart = if (i == 0) outer else inner, bottomStart = if (i == 0) outer else inner,
+                            topEnd = if (i == Backdrop.entries.lastIndex) outer else inner, bottomEnd = if (i == Backdrop.entries.lastIndex) outer else inner
                         )
+                        Box(
+                            Modifier
+                                .then(if (stacked) Modifier.weight(1f) else Modifier)
+                                .heightIn(min = 48.dp)
+                                .bouncyClickable(shape, role = Role.RadioButton) { backdrop = choice; info.onBackdrop(choice) }
+                                .background(if (on) scheme.secondaryContainer else scheme.surfaceContainerHighest)
+                                .semantics { selected = on; contentDescription = choice.label }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                choice.short, style = MaterialTheme.typography.labelLarge, maxLines = 1,
+                                color = if (on) scheme.onSecondaryContainer else scheme.onSurfaceVariant
+                            )
+                        }
                     }
+                }
+            }
+            if (stacked) {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    label(Modifier.fillMaxWidth())
+                    choices(Modifier.fillMaxWidth())
+                }
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    label(Modifier.weight(1f).padding(end = 12.dp))
+                    choices(Modifier)
                 }
             }
         }
@@ -626,3 +645,6 @@ private fun ColumnScope.WallpaperSheet(sheet: Pop.Wallpaper, phoneDark: Boolean,
         }
     }
 }
+
+/** Below this sheet width the Backdrop label goes over its buttons. */
+private val BACKDROP_STACK_BELOW = 360.dp

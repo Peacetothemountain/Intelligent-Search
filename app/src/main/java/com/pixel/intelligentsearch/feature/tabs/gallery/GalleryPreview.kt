@@ -264,7 +264,9 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
     val state = host.state
     val tick = rememberTick()
     val fontScale = density.fontScale
-    val lg = fontScale >= 1.3f
+    // Large text, or a narrow window (a third of a split screen): the top row and the bottom bar stack their parts, so
+    // the tabs' labels and the look's name and count keep their room.
+    val lg = fontScale >= 1.3f || with(density) { pageWidth.toDp() } < STACKED_BELOW_WIDTH
     val screenRadius = remember(view) {
         view.rootWindowInsets?.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)?.radius?.toFloat() ?: with(density) { 28.dp.toPx() }
     }
@@ -1105,3 +1107,6 @@ private fun FpStack(
     }
 
 }
+
+/** Below this page width the preview's top row and bottom bar stack their parts, as they do with large text. */
+private val STACKED_BELOW_WIDTH = 360.dp

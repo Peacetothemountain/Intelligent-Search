@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -213,7 +214,13 @@ internal fun SwatchFan(
     val textK = if (large) 1f else sqrt(max(1f, k))
     // At the largest text the side text has no room beside the strips: it goes under the fan, full width.
     // So does a fan the window's height has made small, so the text keeps its size and the hint never runs over it.
-    val under = density.fontScale >= 1.6f || (kH < kW && k < UNDER_BELOW)
+    val underBySize = density.fontScale >= 1.6f || (kH < kW && k < UNDER_BELOW)
+    // Beside the strips the caption is measured once for this size: too narrow for its words (a third of a split
+    // screen) or reaching into the hint's arrow (a fan the height keeps small beside text that doesn't shrink with it),
+    // it goes under the fan too. Until then it is laid out unseen, so it never shows in the wrong place.
+    val hintBox = remember(engine) { fanHintBounds(engine) }
+    val captionFit = remember(k, textK, screenW, underBySize) { mutableIntStateOf(CAPTION_UNMEASURED) }
+    val under = underBySize || captionFit.intValue == CAPTION_UNDER
     val fanCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
     val captionBox = remember { arrayOfNulls<Rect>(1) }
     val opener = remember { arrayOfNulls<(Int) -> Unit>(1) }
@@ -323,7 +330,17 @@ internal fun SwatchFan(
                     val p = m.measure(cs.copy(minWidth = wpx, maxWidth = wpx))
                     layout(cs.maxWidth, p.height) { p.place(0, 0) }
                 }
-                .onGloballyPositioned { cc -> captionBox[0] = fanCoords[0]?.takeIf { it.isAttached }?.localBoundingBoxOf(cc, clipBounds = false) }
+                .onGloballyPositioned { cc ->
+                    val box = fanCoords[0]?.takeIf { it.isAttached }?.localBoundingBoxOf(cc, clipBounds = false)
+                    captionBox[0] = box
+                    if (box != null && captionFit.intValue == CAPTION_UNMEASURED) {
+                        val u = unit
+                        val hint = Rect(hintBox.left * u, hintBox.top * u, hintBox.right * u, hintBox.bottom * u)
+                        val tooNarrow = box.width < CAPTION_MIN_WIDTH.toPx(density)
+                        captionFit.intValue = if (tooNarrow || box.overlaps(hint)) CAPTION_UNDER else CAPTION_BESIDE
+                    }
+                }
+                .graphicsLayer { alpha = if (captionFit.intValue == CAPTION_UNMEASURED) 0f else 1f }
         )
         // The deck's own shadow on the page, under the rivet.
         Box(
@@ -697,3 +714,13 @@ private fun EdgeShadow(left: Boolean, k: Float, color: Color, angle: () -> Float
 
 /** A fan the window's height has made smaller than this (of its width's size) has its text under it. */
 private const val UNDER_BELOW = 0.8f
+
+/** Whether the caption beside the strips has been measured yet, and whether it fits there or goes under the fan. */
+private const val CAPTION_UNMEASURED = 0
+private const val CAPTION_BESIDE = 1
+private const val CAPTION_UNDER = 2
+
+/** The least width the caption keeps beside the strips. */
+private val CAPTION_MIN_WIDTH = 150.dp
+
+private fun androidx.compose.ui.unit.Dp.toPx(density: androidx.compose.ui.unit.Density): Float = with(density) { toPx() }

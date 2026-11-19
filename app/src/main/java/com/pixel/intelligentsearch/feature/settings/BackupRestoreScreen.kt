@@ -67,6 +67,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.TextObfuscationMode
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.material3.OutlinedSecureTextField
+import com.pixel.intelligentsearch.core.ui.secretForAccessibility
 import androidx.compose.runtime.derivedStateOf
 
 @Composable
@@ -399,7 +400,9 @@ fun BackupRestoreScreen(
                         textObfuscationMode = if (dialogPassphraseVisible) TextObfuscationMode.Visible else TextObfuscationMode.Hidden,
                         // Password type keeps the keyboard from learning or suggesting the passphrase, even when shown.
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
-                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50)),
+                        // Accessibility services read bullets, not the passphrase, while it is hidden.
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50))
+                            .secretForAccessibility(dialogPassphraseField.text.length, hidden = !dialogPassphraseVisible),
                         shape = RoundedCornerShape(percent = 50),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -562,7 +565,9 @@ fun BackupRestoreScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(percent = 50)),
+                        .clip(RoundedCornerShape(percent = 50))
+                        // Accessibility services read bullets, not the passphrase, while it is hidden.
+                        .secretForAccessibility(passphraseField.text.length, hidden = !passphraseVisible),
                     shape = RoundedCornerShape(percent = 50),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,

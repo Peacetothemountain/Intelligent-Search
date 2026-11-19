@@ -41,6 +41,7 @@ import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -230,6 +231,31 @@ internal fun rememberFanHint(engine: FanEngine): FanHint {
     }
     return hint
 }
+
+/**
+ * Where the hint's arrow lies at full size in the fan's box (mockup px): its curve as [drawFanHint] draws it, widened
+ * by its heads and stroke. The fan's caption beside the strips must stay clear of it.
+ */
+internal fun fanHintBounds(engine: FanEngine): androidx.compose.ui.geometry.Rect {
+    val e0 = arcPoint(FanDims.HINT_A0)
+    val e1 = arcPoint(FanDims.HINT_A1)
+    val ctl = arcPoint((FanDims.HINT_A0 + FanDims.HINT_A1) / 2f, FanDims.HINT_BOW_R)
+    var l = Float.MAX_VALUE
+    var t = Float.MAX_VALUE
+    var r = -Float.MAX_VALUE
+    var b = -Float.MAX_VALUE
+    for (j in 0..24) {
+        val u = j / 24f
+        val p = e0 * ((1 - u) * (1 - u)) + ctl * (2 * u * (1 - u)) + e1 * (u * u)
+        val (x, y) = M3.ap(engine.hintPlane, p.x, p.y)
+        l = min(l, x); t = min(t, y); r = max(r, x); b = max(b, y)
+    }
+    val reach = HINT_HEAD_REACH
+    return androidx.compose.ui.geometry.Rect(l - reach, t - reach, r + reach, b + reach)
+}
+
+/** How far the arrow's heads and stroke reach past its curve (mockup px). */
+private const val HINT_HEAD_REACH = 14f
 
 /** The arc's point [deg] degrees clockwise from upright, [r] from the rivet, in the rivet's plane (mockup px). */
 private fun arcPoint(deg: Float, r: Float = FanDims.HINT_R): Offset {

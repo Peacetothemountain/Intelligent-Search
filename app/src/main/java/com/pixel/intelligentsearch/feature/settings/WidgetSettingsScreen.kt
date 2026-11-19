@@ -32,6 +32,9 @@ import com.pixel.intelligentsearch.core.ui.icons.automirrored.filled.*
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
+import kotlin.math.roundToInt
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -526,8 +529,12 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
     ) { padding ->
         BoxWithConstraints(modifier = Modifier.fillMaxSize().padding(padding)) {
         // Where the preview, profiles and selectors pinned at the top would leave the tab little or no room (a phone
-        // on its side), the whole page scrolls as one instead, so every control can be reached.
-        val scrollsAsOne = maxHeight < WIDGET_EDITOR_PINNED_MIN_HEIGHT
+        // on its side, or large text and display size, where the pinned part alone can be taller than the window), the
+        // whole page scrolls as one instead, so every control can be reached. The pinned part is measured where the
+        // tab starts, which is the same whether the page scrolls or not.
+        var pinnedHeightPx by remember { mutableIntStateOf(0) }
+        val pinnedHeight = with(density) { pinnedHeightPx.toDp() }
+        val scrollsAsOne = maxHeight < WIDGET_EDITOR_PINNED_MIN_HEIGHT || maxHeight - pinnedHeight < WIDGET_EDITOR_TAB_MIN_HEIGHT
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -851,6 +858,7 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .then(if (scrollsAsOne) Modifier else Modifier.weight(1f))
+                    .onPlaced { pinnedHeightPx = it.positionInParent().y.roundToInt() }
             ) {
                 Column(
                     modifier = Modifier
@@ -894,6 +902,9 @@ fun WidgetSettingsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
  * page scrolls as one.
  */
 private val WIDGET_EDITOR_PINNED_MIN_HEIGHT = 480.dp
+
+/** The least room the tab under the pinned part keeps; with less, the page scrolls as one. */
+private val WIDGET_EDITOR_TAB_MIN_HEIGHT = 240.dp
 
 /**
  * The live preview's backdrop, drawn as the widget draws its own: the outline (the Material design's rim) filling the

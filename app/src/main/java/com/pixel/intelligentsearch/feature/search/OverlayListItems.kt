@@ -30,7 +30,9 @@ import androidx.compose.ui.platform.LocalContext
 import android.content.res.Configuration
 import com.pixel.intelligentsearch.core.theme.isDark
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.core.data.*
@@ -57,7 +59,7 @@ fun AppGridItem(
 
     Column(
         modifier = modifier
-            .width(80.dp)
+            .width(appTileWidth())
             .moreOptions(onLongClick)
             .bouncyClickable(onLongClick = onLongClick, onClick = onClick)
             .padding(8.dp),
@@ -69,18 +71,32 @@ fun AppGridItem(
             text = app.name,
             color = MaterialTheme.colorScheme.onSurface,
             fontSize = 12.sp,
-            maxLines = 1,
+            maxLines = appTileLines(),
+            textAlign = TextAlign.Center,
+            // A name is never split with a hyphen: a word that doesn't fit is cut short instead.
+            style = androidx.compose.material3.LocalTextStyle.current.copy(hyphens = androidx.compose.ui.text.style.Hyphens.None),
             overflow = TextOverflow.Ellipsis,
             fontFamily = GoogleSansFlex
         )
     }
 }
 
+/**
+ * An app tile's width: 80 dp, growing with larger text (up to twice as wide) so a one-word name keeps its letters; the
+ * row scrolls, so fewer tiles show at once.
+ */
+@Composable
+private fun appTileWidth(): Dp = (80f * LocalDensity.current.fontScale.coerceIn(1f, 2f)).dp
+
+/** A name takes a second line with large text, where even the wider tile holds only a short word. */
+@Composable
+private fun appTileLines(): Int = if (LocalDensity.current.fontScale >= 1.3f) 2 else 1
+
 @Composable
 fun SearchSettingsItem(onClick: () -> Unit) {
     Column(
         modifier = Modifier
-            .width(80.dp)
+            .width(appTileWidth())
             .bouncyClickable(onClick = onClick)
             .padding(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally

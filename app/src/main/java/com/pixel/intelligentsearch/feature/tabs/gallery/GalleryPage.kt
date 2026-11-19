@@ -140,6 +140,19 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     // Back on the page: the look that is on may have been changed meanwhile in Widget Customization or Appearance.
     androidx.lifecycle.compose.LifecycleResumeEffect(state) {
         state.resync()
+        // An open preview (Customize from Yours Now, then Save and Back) shows the looks as they are now, not the ones it
+        // took when it opened: Yours Now is the settings as they are, and the look that is on may have changed.
+        if (pv.open && !pv.closing) {
+            val shown = pv.look
+            val fresh = when {
+                pv.context == "shared" || shown == null -> pv.list.map { state.find(it.id) ?: it }
+                else -> state.previewList(pv.context, state.find(shown.id) ?: shown)
+            }
+            val at = fresh.indexOfFirst { it.id == shown?.id }
+            pv.endStack()
+            pv.list = fresh
+            pv.index = if (at >= 0) at else pv.index.coerceIn(0, (fresh.size - 1).coerceAtLeast(0))
+        }
         onPauseOrDispose { }
     }
     // The fan's place, a pasted look and the open preview are kept in the screen's saved state, so Android closing the app
@@ -165,6 +178,10 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     val blurAvailable by rememberSystemBlurEnabled()
     val wallColors = rememberWallpaperColors()
     var pop by remember { mutableStateOf<Pop?>(null) }
+    // The number picker stands by the counter where it was when it opened; once the window turns or changes size (a
+    // rotation, a fold, a split's divider) the counter is somewhere else, so the picker closes rather than float apart.
+    val windowSize = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
+    LaunchedEffect(windowSize) { if (pop is Pop.Picker) pop = null }
     var snack by session::snack
     val listState = rememberLazyListState()
     var rootCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }

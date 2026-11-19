@@ -311,6 +311,21 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                             }
                         }
                 }
+                // The font size changed with search open (the overlay isn't rebuilt for it): the field kept laying
+                // out the typed text at the old size and lost its cursor, so it is made anew, keeping its focus.
+                val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
+                val fieldFocus = remember { FieldFocus(fontScale) }
+                if (fieldFocus.scale != fontScale) {
+                    fieldFocus.scale = fontScale
+                    fieldFocus.refocus = fieldFocus.focused
+                }
+                LaunchedEffect(fontScale) {
+                    if (fieldFocus.refocus) {
+                        fieldFocus.refocus = false
+                        try { focusRequester.requestFocus() } catch (_: Exception) {}
+                    }
+                }
+                key(fontScale) {
                 androidx.compose.foundation.text.BasicTextField(
                     state = s.ui.fieldState,
                     inputTransformation = typing,
@@ -319,7 +334,10 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         .focusRequester(focusRequester)
                         // With Show Keyboard When Search Opens off, a tap on the field itself brings the keyboard
                         // up; from then on it may come back on its own, as after any open.
-                        .onFocusChanged { if (it.isFocused && !voice.active) isKeyboardDismissedByUser = false }
+                        .onFocusChanged {
+                            fieldFocus.focused = it.isFocused
+                            if (it.isFocused && !voice.active) isKeyboardDismissedByUser = false
+                        }
                         // A physical keyboard's arrows, Tab, Enter and Escape move through the results first.
                         .onPreviewKeyEvent { s.onResultsKey(it, context, rtl, usedKeyPresses) },
                     textStyle = androidx.compose.ui.text.TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 20.sp, fontFamily = GoogleSansFlex),
@@ -359,6 +377,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         }
                     }
                 )
+                }
 
                 AnimatedVisibility(
                     visible = hasStartedTyping,
@@ -491,4 +510,10 @@ internal fun OverlaySearchBar(s: OverlayScope) {
             }
         }
     }
+}
+
+/** Whether the search field has focus, and the font size it was laid out at: kept across its being made anew. */
+private class FieldFocus(var scale: Float) {
+    var focused = false
+    var refocus = false
 }

@@ -1298,9 +1298,15 @@ fun SearchOverlayScreen(
             origin = { ui.todayOrigin },
             hiddenApps = settingsState.hiddenApps,
             recentSearches = distinctRecents,
-            onClose = { ui.todayOpen = false },
+            // Discover took the field's focus and the keyboard as it opened; closing gives them back as search opens
+            // (Show Keyboard When Search Opens), or typing on a keyboard would land nowhere.
+            onClose = {
+                ui.todayOpen = false
+                isKeyboardDismissedByUser = !keyboardUpOnOpen(prefs)
+            },
             onSearch = { query ->
                 ui.todayOpen = false
+                isKeyboardDismissedByUser = !keyboardUpOnOpen(prefs)
                 textFieldValue = androidx.compose.ui.text.input.TextFieldValue(query, androidx.compose.ui.text.TextRange(query.length))
                 hasStartedTyping = true
                 viewModel.onQueryChanged(query)

@@ -766,9 +766,13 @@ fun SearchOverlayScreen(
             else -> return@submit
         }
         val bestMatch = bestMatchIn(results, apps)
-        // "@jo", "#tax", ">wifi": that kind's Best Match or first result opens, and with none Enter does nothing.
+        // "@jo", "#tax", ">wifi": that kind's Best Match or first result opens. With none, what was typed ("@nasa",
+        // "#1 song") is searched on the web as it stands; with only the marker typed, Enter does nothing.
         val scopedTarget = if (outcome == EnterOutcome.OpenScopedResult) {
-            OverlayEnterKey.scopedTarget(results, bestMatch) ?: return@submit
+            OverlayEnterKey.scopedTarget(results, bestMatch) ?: run {
+                if (!results.scoped?.rest.isNullOrEmpty()) launchWebSearch(submittedQuery)
+                return@submit
+            }
         } else null
         // As with a tap, only a web search or a typed web address is kept in Recent Searches (launchWebSearch keeps
         // the search): "spo" that opened Spotify would come back from there as a web search for "spo".

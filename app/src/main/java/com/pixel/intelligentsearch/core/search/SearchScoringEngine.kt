@@ -268,7 +268,14 @@ object SearchScoringEngine {
 
         // E. Phonetic Match via Double Metaphone. Sounds are read from letters only, so a query with a number in it
         // would be matched on its words alone: "call 5551234567" sounds like "Kyle", "$50 to eur" like "Dr.".
-        if (query.none(Char::isDigit)) {
+        // Several words are matched word by word: a code keeps only the first four sounds, so a whole sentence's code
+        // is no more than its first word or two ("remind me" codes as "Raymond").
+        val queryWords = query.split(REGEX_WHITESPACE).filter { it.isNotEmpty() }
+        if (queryWords.size > 1) {
+            if (query.none(Char::isDigit) && eachWordSoundsLike(queryWords, words.filter { it.isNotEmpty() })) {
+                return SCORE_PHONETIC_MATCH
+            }
+        } else if (query.none(Char::isDigit)) {
             val queryMetaphone = precomputedQueryMetaphone ?: DoubleMetaphone.encode(query)
             val titleMetaphone = precomputedTargetMetaphone ?: DoubleMetaphone.encode(title)
             if (queryMetaphone.matches(titleMetaphone) && startsWithSameSound(query, title)) {
@@ -319,6 +326,26 @@ object SearchScoringEngine {
      */
     private fun isPlausibleSlip(query: String, target: String, edits: Int): Boolean =
         edits < 2 || startsWithSameSound(query, target)
+
+    /**
+     * Whether each of [queryWords] sounds like a word of [titleWords] of its own, or starts it (the word still being
+     * typed), with at least one heard by sound: "jon smyth" and "jon sm" are John Smith, while "remind me" is not
+     * Serena Raymond. Words that only start the title's words are left to the other matches.
+     */
+    private fun eachWordSoundsLike(queryWords: List<String>, titleWords: List<String>): Boolean {
+        if (queryWords.size > titleWords.size) return false
+        val unused = titleWords.toMutableList()
+        var heard = false
+        for (word in queryWords) {
+            val started = unused.firstOrNull { it.startsWith(word) }
+            val match = started ?: unused.firstOrNull {
+                DoubleMetaphone.encode(word).matches(DoubleMetaphone.encode(it)) && startsWithSameSound(word, it)
+            } ?: return false
+            if (started == null) heard = true
+            unused.remove(match)
+        }
+        return heard
+    }
 
     /**
      * Whether two words that sound alike also begin alike. Double Metaphone drops every vowel and reads B as P, so

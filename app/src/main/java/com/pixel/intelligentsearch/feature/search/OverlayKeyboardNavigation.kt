@@ -412,8 +412,10 @@ internal fun navSources(s: OverlayScope): NavSources {
         sectionOrder = resultSectionOrder(s.appWeight, s.webWeight, s.contactWeight, s.fileWeight, uiState.androidSettings.any { it.isStrongMatch }),
         apps = if (settings.searchApps) s.filteredApps.ifEmpty { s.visibleApps } else emptyList(),
         androidSettings = if (query.isNotEmpty()) uiState.androidSettings else emptyList(),
-        // A search limited to one kind of result lists no past searches either.
-        suggestions = if ((settings.searchWeb || s.suggestionsEnabled) && query.isNotEmpty() && uiState.scoped == null) {
+        // A search limited to one kind of result lists no past searches either, unless it found nothing.
+        suggestions = if ((settings.searchWeb || s.suggestionsEnabled) && query.isNotEmpty() &&
+            (uiState.scoped == null || uiState.scopedFoundNothing())
+        ) {
             displayedSuggestions(query, uiState.recentSearches, settings.searchPreviousSearches, uiState.webSuggestions, settings.webResultsCount)
         } else emptyList(),
         history = uiState.recentSearches,

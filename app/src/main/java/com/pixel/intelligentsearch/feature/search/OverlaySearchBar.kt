@@ -369,7 +369,20 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                         Box(contentAlignment = Alignment.CenterStart) {
                             if (uiState.query.isEmpty()) {
                                 // One line: in a field too narrow for it (a small screen at the largest text) it wrapped out of the bar.
-                                Text(if (voice.active) "Listening…" else if (calculatorKeyboard) "Calculate…" else "Search…", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 20.sp, fontFamily = GoogleSansFlex, maxLines = 1, softWrap = false)
+                                // Where the bar's buttons leave the field little room (412 dp phones with Discover on), it
+                                // steps down to fit whole, and only past the smallest size ends with an ellipsis.
+                                Text(
+                                    if (voice.active) "Listening…" else if (calculatorKeyboard) "Calculate…" else "Search…",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 20.sp,
+                                    fontFamily = GoogleSansFlex,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis,
+                                    autoSize = androidx.compose.foundation.text.TextAutoSize.StepBased(
+                                        minFontSize = 14.sp, maxFontSize = 20.sp, stepSize = 1.sp
+                                    )
+                                )
                             } else if (ghostTextAnnotated != null) {
                                 // The suggested ending in full onSurfaceVariant, readable at 4.5:1, and set apart
                                 // from the typed text's onSurface by its color, as the "Search…" hint is.

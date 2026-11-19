@@ -44,6 +44,7 @@ import dagger.hilt.android.testing.HiltTestApplication
 import dagger.hilt.android.testing.UninstallModules
 import dagger.hilt.components.SingletonComponent
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Rule
@@ -205,12 +206,21 @@ class TypedFiltersOverlayTest {
     @Test
     fun enterWithNothingOfThatKindToOpenDoesNothing() {
         showOverlay()
-        // No such file, contact or setting, only the marker, and a shortcut after the words.
-        for (query in listOf("#cam", "@zzqx", ">zzqx", "@", "#", "@zzqx !g", "#example.com", "#15 min")) {
+        // Only the marker: nothing to search for.
+        for (query in listOf("@", "#")) {
             type(query)
             pressEnterOnTheKeyboard()
             assertEquals(query, emptyList<String>(), launchedApps)
             assertNull(query, startedActivity())
+            assertEquals(query, emptyList<String>(), openedSettings)
+        }
+        // No such file, contact or setting (a shortcut after the words too): what was typed is searched on the web,
+        // never an app or a page opened.
+        for (query in listOf("#cam", "@zzqx", ">zzqx", "@zzqx !g", "#example.com", "#15 min")) {
+            type(query)
+            pressEnterOnTheKeyboard()
+            assertEquals(query, emptyList<String>(), launchedApps)
+            assertNotNull(query, startedActivity())
             assertEquals(query, emptyList<String>(), openedSettings)
         }
 
@@ -250,7 +260,7 @@ class TypedFiltersOverlayTest {
         type("@")
         compose.onNodeWithText("Type a name").performClick()
         type("@zzqx")
-        compose.onNodeWithText("No contacts match “zzqx”").performClick()
+        compose.onNodeWithText("No contacts match “zzqx”. Search the web for “@zzqx”.").assertExists()
         type(">")
         compose.onNodeWithText("Type a setting").assertExists()
         compose.settle()

@@ -62,6 +62,23 @@ internal fun scopeNotice(state: SearchUiState): ScopeNotice? {
 }
 
 /**
+ * Whether this search limited to one kind of result has words after its marker and found nothing for them (or that
+ * kind can't be searched): then what was typed ("@nasa", "#1 song") is an ordinary web search too, so its web
+ * suggestions show, the line under the chip searches the web, and so does Enter.
+ */
+internal fun SearchUiState.scopedFoundNothing(): Boolean {
+    val scoped = scoped ?: return false
+    if (scoped.rest.isEmpty()) return false
+    if (scopedSourceOff) return true
+    if (!scopedResultsIn) return false
+    return when (scoped.scope) {
+        SearchScope.CONTACTS -> contacts.isEmpty()
+        SearchScope.FILES -> files.isEmpty()
+        SearchScope.SETTINGS -> androidSettings.isEmpty()
+    }
+}
+
+/**
  * Takes the limit to one kind of result off, as tapping its chip does: the marker leaves the search field and the
  * words after it are searched as usual.
  */
@@ -93,7 +110,8 @@ internal val ScopeNoticeShape = RoundedCornerShape(28.dp)
 
 /**
  * [notice] as one quiet line, in the results' secondary text. The line that says a kind of search is off opens Search
- * Sources with [onOpenSearchSources]; the others only say something.
+ * Sources with [onOpenSearchSources]. The line that says nothing matches searches the web for [webQuery], what was
+ * typed, with [onSearchWeb] when both are given; the others only say something.
  */
 @Composable
 internal fun ScopeNoticeRow(
@@ -101,10 +119,13 @@ internal fun ScopeNoticeRow(
     modifier: Modifier = Modifier,
     /** The keyboard's highlight ring, drawn on the line itself. */
     highlight: Modifier = Modifier,
+    webQuery: String? = null,
+    onSearchWeb: (() -> Unit)? = null,
     onOpenSearchSources: () -> Unit
 ) {
+    val searchWeb = onSearchWeb?.takeIf { !notice.opensSearchSources && webQuery != null }
     Text(
-        text = notice.text,
+        text = if (searchWeb != null) "${notice.text}. Search the web for “$webQuery”." else notice.text,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontSize = 14.sp,
         fontFamily = GoogleSansFlex,
@@ -114,6 +135,8 @@ internal fun ScopeNoticeRow(
             .then(
                 if (notice.opensSearchSources) {
                     Modifier.clip(ScopeNoticeShape).then(highlight).expressiveRowClickable(onClick = onOpenSearchSources)
+                } else if (searchWeb != null) {
+                    Modifier.clip(ScopeNoticeShape).expressiveRowClickable(onClick = searchWeb)
                 } else Modifier
             )
             .padding(horizontal = 8.dp, vertical = 12.dp)

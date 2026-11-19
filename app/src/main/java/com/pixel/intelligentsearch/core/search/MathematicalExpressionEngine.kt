@@ -852,10 +852,10 @@ object MathematicalExpressionEngine {
         "g" to 0.001, "gram" to 0.001, "grams" to 0.001,
         "mg" to 1e-6, "milligram" to 1e-6, "milligrams" to 1e-6,
         "lb" to 0.45359237, "lbs" to 0.45359237, "pound" to 0.45359237, "pounds" to 0.45359237,
-        "oz" to 0.028349523, "ounce" to 0.028349523, "ounces" to 0.028349523,
+        "oz" to 0.028349523125, "ounce" to 0.028349523125, "ounces" to 0.028349523125,
         "tonne" to 1000.0, "tonnes" to 1000.0, "t" to 1000.0,
         "short_ton" to 907.18474, "long_ton" to 1016.0469088,
-        "st" to 6.35029, "stone" to 6.35029
+        "st" to 6.35029318, "stone" to 6.35029318
     )
 
     // A "ton" is the 2,000 lb short ton in the US and the metric tonne elsewhere.
@@ -864,9 +864,9 @@ object MathematicalExpressionEngine {
 
     private val speedUnits = mapOf(
         "m/s" to 1.0, "mps" to 1.0,
-        "km/h" to 0.27777778, "kmh" to 0.27777778, "kph" to 0.27777778,
+        "km/h" to 1000.0 / 3600.0, "kmh" to 1000.0 / 3600.0, "kph" to 1000.0 / 3600.0,
         "mph" to 0.44704, "mi/h" to 0.44704,
-        "knot" to 0.514444, "knots" to 0.514444,
+        "knot" to 1852.0 / 3600.0, "knots" to 1852.0 / 3600.0,
         "ft/s" to 0.3048, "fps" to 0.3048
     )
 
@@ -884,20 +884,24 @@ object MathematicalExpressionEngine {
         "tbit" to 1.25e11, "terabit" to 1.25e11, "terabits" to 1.25e11
     )
 
+    // US liquid measures, all exact by definition: a gallon is 231 cubic inches, 3.785411784 l; a quart is a quarter
+    // of it, a pint an eighth, a cup a sixteenth, a fluid ounce a 128th, a tablespoon half a fluid ounce and a teaspoon
+    // a third of a tablespoon. Rounded factors made "1 cup to tbsp" read 15.9999.
+    private const val US_GALLON = 3.785411784
     private val volumeUnits = mapOf(
         "l" to 1.0, "liter" to 1.0, "liters" to 1.0, "litre" to 1.0, "litres" to 1.0,
         "ml" to 0.001, "milliliter" to 0.001, "milliliters" to 0.001, "millilitre" to 0.001, "millilitres" to 0.001,
-        "gal" to 3.78541, "gallon" to 3.78541, "gallons" to 3.78541,
-        "qt" to 0.946353, "quart" to 0.946353, "quarts" to 0.946353,
-        "pt" to 0.473176, "pint" to 0.473176, "pints" to 0.473176,
-        "cup" to 0.236588, "cups" to 0.236588,
-        "fl_oz" to 0.0295735, "floz" to 0.0295735,
-        "tbsp" to 0.0147868, "tablespoon" to 0.0147868, "tablespoons" to 0.0147868,
-        "tsp" to 0.00492892, "teaspoon" to 0.00492892, "teaspoons" to 0.00492892,
+        "gal" to US_GALLON, "gallon" to US_GALLON, "gallons" to US_GALLON,
+        "qt" to US_GALLON / 4, "quart" to US_GALLON / 4, "quarts" to US_GALLON / 4,
+        "pt" to US_GALLON / 8, "pint" to US_GALLON / 8, "pints" to US_GALLON / 8,
+        "cup" to US_GALLON / 16, "cups" to US_GALLON / 16,
+        "fl_oz" to US_GALLON / 128, "floz" to US_GALLON / 128,
+        "tbsp" to US_GALLON / 256, "tablespoon" to US_GALLON / 256, "tablespoons" to US_GALLON / 256,
+        "tsp" to US_GALLON / 768, "teaspoon" to US_GALLON / 768, "teaspoons" to US_GALLON / 768,
         "m3" to 1000.0, "cu_m" to 1000.0, "cm3" to 0.001, "cu_cm" to 0.001, "cc" to 0.001,
         "ft3" to 28.316846592, "cu_ft" to 28.316846592, "in3" to 0.016387064, "cu_in" to 0.016387064,
         // Named with their system ("us gallon", "imperial pint"), these are the same anywhere.
-        "us_gal" to 3.78541, "us_qt" to 0.946353, "us_pt" to 0.473176, "us_fl_oz" to 0.0295735,
+        "us_gal" to US_GALLON, "us_qt" to US_GALLON / 4, "us_pt" to US_GALLON / 8, "us_fl_oz" to US_GALLON / 128,
         "imp_gal" to 4.54609, "imp_qt" to 1.1365225, "imp_pt" to 0.56826125, "imp_fl_oz" to 0.0284130625
     )
 
@@ -945,7 +949,7 @@ object MathematicalExpressionEngine {
         "bar" to 1e5, "bars" to 1e5, "mbar" to 100.0,
         "psi" to 6894.757293168,
         "atm" to 101325.0,
-        "mmhg" to 133.322387415, "inhg" to 3386.389
+        "mmhg" to 133.322387415, "inhg" to 133.322387415 * 25.4
     )
 
     private val energyUnits = mapOf(
@@ -954,17 +958,17 @@ object MathematicalExpressionEngine {
         "cal" to 4.184, "calorie" to 4.184, "calories" to 4.184,
         "kcal" to 4184.0, "kilocalorie" to 4184.0, "kilocalories" to 4184.0,
         "wh" to 3600.0, "kwh" to 3.6e6,
-        "btu" to 1055.05585
+        "btu" to 1055.05585262
     )
 
     private val areaUnits = mapOf(
         "m2" to 1.0, "sqm" to 1.0, "sq_m" to 1.0,
         "km2" to 1e6, "sqkm" to 1e6, "sq_km" to 1e6,
-        "ft2" to 0.092903, "sqft" to 0.092903, "sq_ft" to 0.092903,
-        "mi2" to 2.58999e6, "sqmi" to 2.58999e6, "sq_mi" to 2.58999e6,
+        "ft2" to 0.09290304, "sqft" to 0.09290304, "sq_ft" to 0.09290304,
+        "mi2" to 2589988.110336, "sqmi" to 2589988.110336, "sq_mi" to 2589988.110336,
         "yd2" to 0.83612736, "sq_yd" to 0.83612736, "in2" to 0.00064516, "sq_in" to 0.00064516,
         "cm2" to 1e-4, "sq_cm" to 1e-4,
-        "acre" to 4046.86, "acres" to 4046.86,
+        "acre" to 4046.8564224, "acres" to 4046.8564224,
         "ha" to 10000.0, "hectare" to 10000.0, "hectares" to 10000.0
     )
 
@@ -1327,8 +1331,8 @@ object MathematicalExpressionEngine {
     private const val CALCULATION_DIGITS = 10
 
     /**
-     * Significant digits a unit conversion is written with: its factors are mostly given to about 6, so more would show
-     * their rounding ("1 gal to qt" as 3.999998), and 1 month is 30.4167 days as Google writes it.
+     * Significant digits a unit conversion is written with: answers read as Google writes them (1 month is 30.4167
+     * days), and binary rounding of the exact factors never shows.
      */
     private const val CONVERSION_DIGITS = 6
 

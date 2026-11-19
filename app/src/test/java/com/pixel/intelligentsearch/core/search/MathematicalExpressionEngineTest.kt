@@ -429,13 +429,13 @@ class MathematicalExpressionEngineTest {
             // Under en-GB a gallon was the US one, 3.785 l.
             assertEquals(4.54609, converted("1 gallon to liters")!!.toValue, 1e-9)
             assertEquals(568.26125, converted("1 pint to ml")!!.toValue, 1e-6)
-            assertEquals(3.78541, converted("1 us gallon to liters")!!.toValue, 1e-9)
+            assertEquals(3.785411784, converted("1 us gallon to liters")!!.toValue, 1e-9)
         }
         inLocale(java.util.Locale.forLanguageTag("en-IE")) {
             assertEquals(4.54609, converted("1 gal to l")!!.toValue, 1e-9)
         }
         inLocale(java.util.Locale.US) {
-            assertEquals(3.78541, converted("1 gallon to liters")!!.toValue, 1e-9)
+            assertEquals(3.785411784, converted("1 gallon to liters")!!.toValue, 1e-9)
             assertEquals(4.54609, converted("1 imperial gallon to liters")!!.toValue, 1e-9)
             assertEquals(568.26125, converted("1 uk pint to ml")!!.toValue, 1e-6)
             assertEquals("2 imp gal = 2.4019 US gal", converted("2 imperial gallons in us gallons")!!.formatted)
@@ -719,7 +719,7 @@ class MathematicalExpressionEngineTest {
             }
             val cup = converted("cups to ml")
             assertEquals(1.0, cup?.fromValue ?: 0.0, 0.0)
-            assertEquals(236.588, cup?.toValue ?: 0.0, 1e-9)
+            assertEquals(236.5882365, cup?.toValue ?: 0.0, 1e-9)
             assertEquals(3.0, converted("tbsp to tsp")?.toValue ?: 0.0, 1e-2)
         }
     }

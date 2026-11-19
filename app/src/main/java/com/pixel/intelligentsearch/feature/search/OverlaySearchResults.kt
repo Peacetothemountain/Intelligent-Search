@@ -286,7 +286,13 @@ private fun ResultRows(s: OverlayScope) {
             }
             scopeNotice(uiState)?.let { notice ->
                 resultRow(key = ResultListKeys.SCOPE_NOTICE, contentType = "scope_notice") {
-                    ScopeNoticeRow(notice, highlight = Modifier.keyboardHighlight(s, ResultListKeys.SCOPE_NOTICE, ScopeNoticeShape)) {
+                    val webQuery = uiState.query.takeIf { uiState.scopedFoundNothing() }
+                    ScopeNoticeRow(
+                        notice,
+                        highlight = Modifier.keyboardHighlight(s, ResultListKeys.SCOPE_NOTICE, ScopeNoticeShape),
+                        webQuery = webQuery,
+                        onSearchWeb = webQuery?.let { query -> { s.launchWebSearch(query) } }
+                    ) {
                         hasStartedTyping = false
                         focusManager.clearFocus(force = true)
                         keyboardController?.hide()
@@ -631,8 +637,11 @@ private fun ResultRows(s: OverlayScope) {
                     }
                 }
                 "web" -> {
-                    // A search limited to one kind of result lists no past searches either.
-                    if ((settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty() && scoped == null) {
+                    // A search limited to one kind of result lists no past searches either, unless it found nothing:
+                    // then what was typed ("@nasa") gets the web's suggestions like any other search.
+                    if ((settingsState.searchWeb || suggestionsEnabled) && uiState.query.isNotEmpty() &&
+                        (scoped == null || uiState.scopedFoundNothing())
+                    ) {
                         if (allDisplaySuggestions.isNotEmpty()) {
                             resultRows(allDisplaySuggestions, key = { suggestion -> ResultListKeys.suggestion(suggestion.query) }, contentType = { "web_suggestion" }) { suggestion ->
                                 val query = suggestion.query

@@ -28,8 +28,9 @@ internal sealed interface EnterOutcome {
     data object SearchWeb : EnterOutcome
 
     /**
-     * For a query limited to one kind of result ("@jo"): opens that kind's Best Match, else its first result, else
-     * nothing ([OverlayEnterKey.scopedTarget]). Never a web search, a bang, an action or an app.
+     * For a query limited to one kind of result ("@jo"): opens that kind's Best Match, else its first result
+     * ([OverlayEnterKey.scopedTarget]). Never a bang, an action or an app; with nothing of that kind found, the query
+     * as typed ("@nasa") is searched on the web.
      */
     data object OpenScopedResult : EnterOutcome
 

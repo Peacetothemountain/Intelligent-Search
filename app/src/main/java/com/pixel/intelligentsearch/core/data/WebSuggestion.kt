@@ -57,12 +57,32 @@ object WebSuggestionParser {
             val (query, bold) = decodeMarkup(row.optString(0))
             if (query.isBlank()) continue
             val details = (0 until row.length()).firstNotNullOfOrNull { row.opt(it) as? JSONObject }
-            val title = details?.optString("zh")?.let { decodeMarkup(it).first }?.takeIf { it.isNotBlank() }
+            val display = details?.optString("zh")?.takeIf { it.isNotBlank() }?.let(::decodeMarkup)
+            // Only an entity's "zh" is its name ("Barack Obama"). A long query's "tail" rows (type 33) carry just the
+            // query's last words there ("late reply" for "text mom im running late reply"): they show the whole
+            // query, bolded where the tail is.
+            val entity = row.optInt(1, -1) == ENTITY_TYPE
+            val title = display?.first?.takeIf { entity && it.isNotBlank() }
+            val tailBold = if (!entity && bold.isEmpty() && display != null) tailRanges(query, display) else bold
             val subtitle = details?.optString("zi")?.let { decodeMarkup(it).first }?.takeIf { it.isNotBlank() }
             val image = details?.optString("zs")?.takeIf(::isUsableImageUrl)
-            out += WebSuggestion(query, title, subtitle, image, bold)
+            out += WebSuggestion(query, title, subtitle, image, tailBold)
         }
         return out.distinctBy { it.query.lowercase() }
+    }
+
+    /** The row type of an entity (a person, a song, a place), whose "zh" is its display name. */
+    private const val ENTITY_TYPE = 46
+
+    /**
+     * The bold ranges of [tail], the end of [query] as a tail row shows it, moved to where it ends [query]; none when
+     * [tail] isn't how [query] ends.
+     */
+    private fun tailRanges(query: String, tail: Pair<String, List<IntRange>>): List<IntRange> {
+        val (text, ranges) = tail
+        if (ranges.isEmpty() || !query.endsWith(text, ignoreCase = true)) return emptyList()
+        val offset = query.length - text.length
+        return ranges.map { (it.first + offset)..(it.last + offset) }
     }
 
     private fun parseOpenSearch(root: JSONArray): List<WebSuggestion> {

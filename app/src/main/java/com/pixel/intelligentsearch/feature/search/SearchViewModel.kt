@@ -986,10 +986,23 @@ class SearchViewModel @Inject constructor(
             val learnedPick = if (words.isEmpty()) null else selectionMemory.topPick(words)
 
             currentCoroutineContext().ensureActive()
+            var foundNothing = false
             _uiState.update { current ->
                 if (current.query != newQuery) return@update current
-                current.limitedTo(scoped, !sourceOn, resultsIn = true, contacts, files, pages)
-                    .copy(lastQueryLatency = System.currentTimeMillis() - startTime, learnedPick = learnedPick)
+                val limited = current.limitedTo(scoped, !sourceOn, resultsIn = true, contacts, files, pages)
+                foundNothing = limited.scopedFoundNothing()
+                // With nothing of that kind found, what was typed ("@nasa") is searched on the web like any other
+                // query, so the web's suggestions already fetched for it stay.
+                limited.copy(
+                    lastQueryLatency = System.currentTimeMillis() - startTime,
+                    learnedPick = learnedPick,
+                    webSuggestions = if (foundNothing) current.webSuggestions else emptyList()
+                )
+            }
+            if (foundNothing && _uiState.value.query == newQuery && settings.searchWeb && _queryConfirmed.value &&
+                suggestsFor(newQuery)
+            ) {
+                _remoteSearchQueryFlow.value = newQuery
             }
             ready.complete(Unit)
         }

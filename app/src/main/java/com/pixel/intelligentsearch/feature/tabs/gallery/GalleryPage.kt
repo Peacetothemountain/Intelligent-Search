@@ -50,6 +50,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -66,6 +67,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -484,6 +486,22 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     val fanRects = remember { arrayOfNulls<(Int) -> Pair<Rect, Rect?>?>(1) }
     // Once the preview has closed, the strip it came out of drops back into its slot.
     LaunchedEffect(pv.open) { if (!pv.open && fan.raised >= 0) fan.raise(false) }
+    // The same actions for as long as the fan is here: new ones each time the page composed (a preview opening or
+    // closing) had every strip of the fan paint its picture again, a hitch of tens of milliseconds.
+    val fanOpen by rememberUpdatedState<(Look, Rect, Rect?) -> Unit> { look, pic, bar ->
+        val i = FAN_ORDER.indexOf(look.id).let { if (it >= 0) stripOfLook(it) else -1 }
+        if (!pv.open && i >= 0) {
+            fan.raise(true, i)
+            openPreview(look, "rack", "rack:${look.id}", fromRect = pic, fromBarRect = bar)
+        }
+    }
+    val fanActions = remember(fan, pv) {
+        FanActions(
+            onOpen = { look, pic, bar -> fanOpen(look, pic, bar) },
+            isRaisedHidden = { i -> pv.open && pv.context == "rack" && fan.raised == i },
+            rects = fanRects
+        )
+    }
 
     // Built each composition, so it always reads the current theme and backdrop.
     val host = run {
@@ -560,7 +578,10 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     LaunchedEffect(listState) { snapshotFlow { listState.canScrollBackward }.collect { if (!it) chrome.revealPill() } }
     // The page glow drifts only while the top of the page is in sight; scrolled down, the page can rest.
     val glowAway by remember { derivedStateOf { listState.firstVisibleItemIndex > 1 } }
-    val glowClock = rememberMeshClock(isPaused = glowAway || pv.covering, frameGapMs = PAGE_GLOW_FRAME_GAP_MS)
+    // Read through a derived state: pv.covering reads the window's bounds, and the page read straight from them
+    // composed again on every frame of an opening, which painted the fan's strips again each time.
+    val covering by remember(pv) { derivedStateOf { pv.covering } }
+    val glowClock = rememberMeshClock(isPaused = glowAway || covering, frameGapMs = PAGE_GLOW_FRAME_GAP_MS)
 
     // Open the preview straight away (screenshot tests).
     val openOnStart = LocalGalleryOpenPreview.current
@@ -591,14 +612,16 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .then(if (pv.covering) Modifier.clearAndSetSemantics { } else Modifier)
+                        .then(if (covering) Modifier.clearAndSetSemantics { } else Modifier)
                         // Under the open preview a keyboard can't reach the page either (Tab went on to its buttons
                         // unseen, and Enter opened How Looks Work over the preview).
                         .focusProperties { onEnter = { if (pv.open) cancelFocusChange() } }
                         .focusGroup()
                         .drawWithContent {
-                            if (pv.covering) return@drawWithContent
-                            drawContent()
+                            // Covered, it shows nothing but stays drawn: the fan's strips keep their pictures, so the
+                            // first frame of a close doesn't paint them all again.
+                            if (covering) clipRect(0f, 0f, 0f, 0f) { this@drawWithContent.drawContent() }
+                            else drawContent()
                         }
                         .background(scheme.background)
                         .pageGlow(clock = glowClock)
@@ -662,17 +685,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                                 }
                                 "fan" -> SwatchFan(
                                     fan, phoneDark, GalleryGutter, wallColors,
-                                    FanActions(
-                                        onOpen = { look, pic, bar ->
-                                            val i = FAN_ORDER.indexOf(look.id).let { if (it >= 0) stripOfLook(it) else -1 }
-                                            if (!pv.open && i >= 0) {
-                                                fan.raise(true, i)
-                                                openPreview(look, "rack", "rack:${look.id}", fromRect = pic, fromBarRect = bar)
-                                            }
-                                        },
-                                        isRaisedHidden = { i -> pv.open && pv.context == "rack" && fan.raised == i },
-                                        rects = fanRects
-                                    ),
+                                    fanActions,
                                     rootCoords = { rootCoords },
                                     // What the list shows under the top bar, above the navigation bar (the floating pill
                                     // moves out of the way as the page scrolls down to the fan).

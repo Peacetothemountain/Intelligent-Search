@@ -211,22 +211,25 @@ half4 main(float2 p) {
 """
 
 /**
- * The tint the top bar keeps over the blur for contrast, in place of its solid background: the page's own color, 64%
- * (62% light) at the top of the screen, fading to nothing [height] down, the blur's sharp end. [shown] says how much of it is in;
- * with [slide] it comes down from above the screen as it does (Gallery's, with its small title), otherwise it fades.
+ * The tint the top bar keeps over the blur for contrast, in place of its solid background: the page's own color at 88%
+ * over the bar itself (the status bar and the title row, [bar] tall), so the title and its buttons always read over
+ * whatever passes under them, then fading to nothing across the blur below it, [height] down at the blur's sharp end.
+ * [shown] says how much of it is in; with [slide] it comes down from above the screen as it does (Gallery's, with its
+ * small title), otherwise it fades.
  */
 @Composable
-internal fun Modifier.topBarTint(height: Dp, shown: () -> Float, slide: Boolean = false): Modifier {
+internal fun Modifier.topBarTint(bar: Dp, height: Dp, shown: () -> Float, slide: Boolean = false): Modifier {
     val scheme = MaterialTheme.colorScheme
-    val strongest = if (scheme.isDark) 0.64f else 0.62f
     val color = scheme.background
     return drawWithCache {
         val h = height.toPx()
+        val solid = (bar.toPx() / h).coerceIn(0f, 1f)
+        fun at(f: Float) = solid + (1f - solid) * f
         val brush = Brush.verticalGradient(
-            0f to color.copy(alpha = strongest),
-            0.34f to color.copy(alpha = strongest * 0.86f),
-            0.62f to color.copy(alpha = strongest * 0.55f),
-            0.85f to color.copy(alpha = strongest * 0.18f),
+            0f to color.copy(alpha = BAR_TINT),
+            solid to color.copy(alpha = BAR_TINT),
+            at(0.3f) to color.copy(alpha = BAR_TINT * 0.55f),
+            at(0.65f) to color.copy(alpha = BAR_TINT * 0.18f),
             1f to color.copy(alpha = 0f),
             endY = h
         )
@@ -240,6 +243,9 @@ internal fun Modifier.topBarTint(height: Dp, shown: () -> Float, slide: Boolean 
         }
     }
 }
+
+/** How much of the page's color the top bar keeps over what passes under it. */
+private const val BAR_TINT = 0.88f
 
 /**
  * Behind a popup: everything under it blurred ([sigma], a standard deviation) as it comes in ([progress], 0 to 1).

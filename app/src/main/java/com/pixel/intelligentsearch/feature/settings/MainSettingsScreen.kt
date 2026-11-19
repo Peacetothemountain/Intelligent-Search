@@ -89,7 +89,7 @@ fun MainSettingsScreen(
                     if (!blurOn) Modifier.padding(padding)
                     else Modifier
                         .padding(start = padding.calculateStartPadding(layoutDirection), end = padding.calculateEndPadding(layoutDirection))
-                        .topBarTint(topRoom + com.pixel.intelligentsearch.feature.tabs.ui.BLUR_SHARP_GAP, topBlur)
+                        .topBarTint(topRoom, topRoom + com.pixel.intelligentsearch.feature.tabs.ui.BLUR_SHARP_GAP, topBlur)
                         .blurBands(
                             top = topRoom + com.pixel.intelligentsearch.feature.tabs.ui.BLUR_SHARP_GAP,
                             topStrength = topBlur,

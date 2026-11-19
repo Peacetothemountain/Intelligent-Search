@@ -740,7 +740,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                                 .background(scheme.background)
                                 .pageGlow(clock = glowClock)
                         ) { list(Modifier.fillMaxSize()) }
-                        Box(Modifier.fillMaxWidth().height(appBarHeight + BLUR_SHARP_GAP).topBarTint(appBarHeight + BLUR_SHARP_GAP, { titleIn.value }, slide = true))
+                        Box(Modifier.fillMaxWidth().height(appBarHeight + BLUR_SHARP_GAP).topBarTint(appBarHeight, appBarHeight + BLUR_SHARP_GAP, { titleIn.value }, slide = true))
                         topBar(Modifier)
                     } else {
                         Column(Modifier.fillMaxSize().background(scheme.background).pageGlow(clock = glowClock)) {

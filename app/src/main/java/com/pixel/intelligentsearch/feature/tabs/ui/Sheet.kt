@@ -67,7 +67,8 @@ internal fun scrimColor(): Color = Color.Black.copy(alpha = if (MaterialTheme.co
  * high with the matte grain and 28 dp top corners, sliding up on the spatial spring and down again when it closes.
  * Its handle and its top drag it down; let go far or fast enough it closes, otherwise it springs back. Back closes it.
  *
- * [value] is what the sheet shows, or null for no sheet; the last one stays drawn while it slides away. Pages cover the
+ * [value] is what the sheet shows, or null for no sheet; the last one stays drawn while it slides away. Without [dims]
+ * the page behind draws its own dim, and a tap on it still closes the sheet. Pages cover the
  * pill while [value] is set (PageChrome.setCovered), as they do for every popup. The content is a [SheetTitle], its
  * words, and [SheetButtons].
  */
@@ -77,6 +78,7 @@ internal fun <T : Any> PreviewSheet(
     onDismiss: () -> Unit,
     paneTitle: (T) -> String,
     modifier: Modifier = Modifier,
+    dims: (T) -> Boolean = { true },
     content: @Composable ColumnScope.(T) -> Unit
 ) {
     var shown by remember { mutableStateOf<T?>(null) }
@@ -104,7 +106,7 @@ internal fun <T : Any> PreviewSheet(
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(scrimColor())
+                    .then(if (dims(s)) Modifier.background(scrimColor()) else Modifier)
                     .clickable(remember { MutableInteractionSource() }, indication = null, onClickLabel = "Close") { onDismiss() }
             )
         }

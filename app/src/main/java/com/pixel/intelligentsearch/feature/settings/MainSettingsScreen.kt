@@ -31,6 +31,8 @@ import androidx.compose.ui.draw.*
 import androidx.compose.ui.semantics.*
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import androidx.core.net.toUri
+import com.pixel.intelligentsearch.feature.tabs.ui.blurBands
+import com.pixel.intelligentsearch.feature.tabs.ui.topBarTint
 
 // -----------------------------------------------------------------------------------------
 // MAIN SETTINGS
@@ -71,12 +73,31 @@ fun MainSettingsScreen(
         val scrollState = rememberScrollState()
 
         if (showInfoDialog) SearchRoleInfoDialog(context = context, onDismiss = { showInfoDialog = false })
-        
+
+        // While the system blurs, the page scrolls on under the top bar and the pill, and softens into a blur there
+        // (the top one comes in over the first 40 dp of scroll, under a tint of the page's color); otherwise it stops
+        // at the bar, as it always did.
+        val blurOn = com.pixel.intelligentsearch.feature.tabs.ui.rememberProgressiveBlurOn()
+        val density = LocalDensity.current
+        val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+        val topRoom = padding.calculateTopPadding()
+        val topBlur = { (scrollState.value / with(density) { com.pixel.intelligentsearch.feature.tabs.ui.TOP_BLUR_RAMP.toPx() }).coerceIn(0f, 1f) }
                 Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .then(
+                    if (!blurOn) Modifier.padding(padding)
+                    else Modifier
+                        .padding(start = padding.calculateStartPadding(layoutDirection), end = padding.calculateEndPadding(layoutDirection))
+                        .topBarTint(topRoom + com.pixel.intelligentsearch.feature.tabs.ui.BLUR_SHARP_GAP, topBlur)
+                        .blurBands(
+                            top = topRoom + com.pixel.intelligentsearch.feature.tabs.ui.BLUR_SHARP_GAP,
+                            topStrength = topBlur,
+                            bottom = com.pixel.intelligentsearch.feature.tabs.ui.LocalPillBlur.current
+                        )
+                )
                 .verticalScroll(scrollState)
+                .then(if (blurOn) Modifier.padding(top = topRoom, bottom = padding.calculateBottomPadding()) else Modifier)
                 .padding(16.dp)
                 .graphicsLayer { alpha = if (showTutorial) 0f else 1f },
                 verticalArrangement = Arrangement.spacedBy(16.dp)

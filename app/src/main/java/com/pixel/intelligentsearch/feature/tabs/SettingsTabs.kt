@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -47,7 +48,11 @@ import androidx.compose.ui.unit.dp
 import com.pixel.intelligentsearch.core.theme.LARGE_TEXT_SCALE
 import com.pixel.intelligentsearch.core.ui.pageGlow
 import com.pixel.intelligentsearch.feature.tabs.gallery.GalleryPage
+import com.pixel.intelligentsearch.feature.tabs.ui.BLUR_SHARP_GAP
 import com.pixel.intelligentsearch.feature.tabs.ui.GlassBackdrop
+import com.pixel.intelligentsearch.feature.tabs.ui.LocalPillBlur
+import com.pixel.intelligentsearch.feature.tabs.ui.PillBlur
+import com.pixel.intelligentsearch.feature.tabs.ui.rememberProgressiveBlurOn
 import com.pixel.intelligentsearch.feature.tabs.ui.Springs
 import com.pixel.intelligentsearch.feature.tabs.wellbeing.WellbeingPage
 import kotlinx.coroutines.launch
@@ -195,13 +200,20 @@ fun SettingsTabs(
                     .pageGlow(clock = glowClock)
             )
         }
-        PageSwapHost(swap, Modifier.fillMaxSize().nestedScroll(hideOnScroll)) { page ->
-            val chrome = chromes.getValue(page)
-            DisposableEffect(page) { onDispose { covered[page] = false } }
-            when (page) {
-                SettingsTab.Settings -> settingsPage()
-                SettingsTab.Gallery -> GalleryPage(chrome)
-                SettingsTab.Wellbeing -> WellbeingPage(chrome)
+        // While the system blurs, each page blurs what passes behind the pill, from 24 dp above it to the bottom of the
+        // screen; the band goes with the pill as it slides away.
+        val pillBlur = if (rememberProgressiveBlurOn()) {
+            remember(navigationBottom) { PillBlur(navigationBottom + PILL_BOTTOM_GAP + PILL_HEIGHT + BLUR_SHARP_GAP) { 1f - hide.value } }
+        } else null
+        CompositionLocalProvider(LocalPillBlur provides pillBlur) {
+            PageSwapHost(swap, Modifier.fillMaxSize().nestedScroll(hideOnScroll)) { page ->
+                val chrome = chromes.getValue(page)
+                DisposableEffect(page) { onDispose { covered[page] = false } }
+                when (page) {
+                    SettingsTab.Settings -> settingsPage()
+                    SettingsTab.Gallery -> GalleryPage(chrome)
+                    SettingsTab.Wellbeing -> WellbeingPage(chrome)
+                }
             }
         }
 

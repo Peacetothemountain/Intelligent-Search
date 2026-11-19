@@ -209,7 +209,9 @@ fun WellbeingScreen(
                 TopBarAction(Symbols.Info, "About These Numbers", { view.sheet = Sheet.About })
             }
             Column(
-                Modifier.weight(1f).fillMaxWidth().verticalScroll(scroll)
+                Modifier.weight(1f).fillMaxWidth()
+                    .blurBands(bottom = LocalPillBlur.current)
+                    .verticalScroll(scroll)
                     .padding(start = PageGutter, end = PageGutter, bottom = pad.calculateBottomPadding() + 24.dp)
             ) {
                 when (load) {

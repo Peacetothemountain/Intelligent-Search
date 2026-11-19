@@ -359,6 +359,9 @@ internal fun SwatchFan(
                     Path().apply { addOval(Rect((FanDims.RX - 62f) * u, (FanDims.RY - 50f) * u, (FanDims.RX + 74f) * u, (FanDims.RY + 46f) * u)) }
                 }
         )
+        // The gesture hint, behind every strip at all times: a strip passing over it covers it. A layer of its own: its
+        // light moving redraws nothing else.
+        Box(Modifier.fillMaxSize().drawBehind { drawFanHint(engine, hint, unit, hintColors, hintPaints) })
         for (i in 0 until engine.n) key(i) {
             StripSlot(engine, i, unit, c, hidden = { actions.isRaisedHidden(i) }) { rec ->
                 // The shadows its edges throw: turned out around the rivet as far as the gap on that side allows.
@@ -367,9 +370,6 @@ internal fun SwatchFan(
                 StripFace(engine, i, fanLook(stripLookId(i)), phoneDark, k, c, wallRatio, wallColors, rec, hidden = { actions.isRaisedHidden(i) })
             }
         }
-        // The gesture hint, over the strips (one swinging through the gap under a finger never hides it) and under the
-        // rivet. A layer of its own: its light moving redraws nothing else.
-        Box(Modifier.fillMaxSize().drawBehind { drawFanHint(engine, hint, unit, hintColors, hintPaints) })
         // The one rivet everything turns on: a small eyelet at the foot, metal in the theme's primary.
         Box(
             Modifier

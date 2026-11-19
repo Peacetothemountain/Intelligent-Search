@@ -160,10 +160,12 @@ internal sealed interface Pop {
  * slides in and out and drags down to close). A tap outside or back closes it. The page covers the pill meanwhile.
  */
 @Composable
-internal fun PopLayer(pop: Pop?, phoneDark: Boolean, onClose: () -> Unit, snack: (Snack) -> Unit) {
+internal fun PopLayer(pop: Pop?, phoneDark: Boolean, onClose: () -> Unit, snack: (Snack) -> Unit, sheetDims: Boolean = true) {
     PreviewSheet(
         value = pop?.takeIf { it is Pop.Share || it is Pop.Wallpaper || it is Pop.Info },
         onDismiss = onClose,
+        // While the system blurs, the page draws How Looks Work's lighter scrim and blur itself.
+        dims = { sheetDims || it !is Pop.Info },
         paneTitle = {
             when (it) {
                 is Pop.Share -> "Share Look Code"

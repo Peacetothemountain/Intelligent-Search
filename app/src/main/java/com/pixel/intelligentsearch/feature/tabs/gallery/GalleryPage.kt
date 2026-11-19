@@ -184,6 +184,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     val wallpaperBehind = com.pixel.intelligentsearch.feature.tabs.rememberWallpaperShowsBehind()
     val meshBehind = backdrop == Backdrop.ColorsOnly || standIn || !wallpaperBehind
     val blurAvailable by rememberSystemBlurEnabled()
+    val blurOn = rememberProgressiveBlurOn()
     val wallColors = rememberWallpaperColors()
     var pop by remember { mutableStateOf<Pop?>(null) }
     // The number picker stands by the counter where it was when it opened; once the window turns or changes size (a
@@ -573,6 +574,33 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     }
 
     val showTitle by remember { derivedStateOf { listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > with(density) { 56.dp.toPx() } } }
+    // The blur under the top bar comes in over the first 40 dp of scroll; its tint comes down with the small title.
+    val topBlur by remember {
+        derivedStateOf {
+            if (listState.firstVisibleItemIndex > 0) 1f
+            else (listState.firstVisibleItemScrollOffset / with(density) { TOP_BLUR_RAMP.toPx() }).coerceIn(0f, 1f)
+        }
+    }
+    val titleIn = remember { Animatable(if (showTitle) 1f else 0f) }
+    LaunchedEffect(showTitle) { titleIn.animateTo(if (showTitle) 1f else 0f, Springs.spatial()) }
+    // Behind the number picker and How Looks Work: a light blur of the page and a faint scrim, coming in with the card
+    // or the sheet. The last popup's strengths stay while it goes.
+    val popBlur = remember { Animatable(0f) }
+    val popScrim = when (pop) {
+        is Pop.Picker -> PICKER_SCRIM
+        is Pop.Info -> SHEET_SCRIM
+        else -> null
+    }
+    var lastPopScrim by remember { mutableStateOf(PICKER_SCRIM) }
+    if (popScrim != null) lastPopScrim = popScrim
+    val popBlurSigma = lastPopScrim.sigma
+    val popScrimAlpha = if (phoneDark) lastPopScrim.dark else lastPopScrim.light
+    LaunchedEffect(popScrim != null, blurOn) {
+        if (!blurOn) popBlur.snapTo(0f)
+        else if (popScrim != null) popBlur.animateTo(1f, Springs.spatial())
+        // The picker goes at once; the sheet slides away on the same spring it came in on.
+        else popBlur.animateTo(0f, if (lastPopScrim === SHEET_SCRIM) Springs.spatial() else Springs.effects())
+    }
     // At the very top of the page the pill always shows, however the page got there (the title's scroll to the top, a
     // chip): the shell only hears scrolls a finger makes.
     LaunchedEffect(listState) { snapshotFlow { listState.canScrollBackward }.collect { if (!it) chrome.revealPill() } }
@@ -608,38 +636,25 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
             }
             // One offscreen layer for the whole page: the windows clear their shapes in it (BlendMode.Clear).
             Box(Modifier.fillMaxSize().offscreenLayer()) {
-                // The page (not drawn while the full preview covers it), with the page glow at its top.
-                Box(
-                    Modifier
-                        .fillMaxSize()
-                        .then(if (covering) Modifier.clearAndSetSemantics { } else Modifier)
-                        // Under the open preview a keyboard can't reach the page either (Tab went on to its buttons
-                        // unseen, and Enter opened How Looks Work over the preview).
-                        .focusProperties { onEnter = { if (pv.open) cancelFocusChange() } }
-                        .focusGroup()
-                        .drawWithContent {
-                            // Covered, it shows nothing but stays drawn: the fan's strips keep their pictures, so the
-                            // first frame of a close doesn't paint them all again.
-                            if (covering) clipRect(0f, 0f, 0f, 0f) { this@drawWithContent.drawContent() }
-                            else drawContent()
-                        }
-                        .background(scheme.background)
-                        .pageGlow(clock = glowClock)
-                ) {
-                  Column(Modifier.fillMaxSize()) {
-                    // The top bar: back, the small title once the big one has scrolled away, and How Looks Work.
+                // The top bar: back, the small title once the big one has scrolled away, and How Looks Work.
+                val topBar = @Composable { m: Modifier ->
                     GalleryTopBar(
                         showTitle,
                         onBack = chrome.onBack,
                         onTitle = { scope.launch { scrollToTop(listState) } },
                         more = { TopBarAction(Symbols.Info, "How Looks Work", { info() }) },
-                        modifier = Modifier.padding(top = statusTop).semantics { isTraversalGroup = true; traversalIndex = -2f }
+                        modifier = m.padding(top = statusTop).semantics { isTraversalGroup = true; traversalIndex = -2f }
                     )
+                }
+                // While the system blurs, the list runs on under the top bar.
+                val listTop = if (blurOn) appBarHeight else 0.dp
+                val listTopPx = with(density) { listTop.roundToPx() }
+                val list = @Composable { m: Modifier ->
                     LazyColumn(
                         state = listState,
-                        modifier = Modifier.weight(1f).fillMaxWidth().onSizeChanged { listHeight = it.height },
+                        modifier = m.fillMaxWidth().onSizeChanged { listHeight = it.height - listTopPx },
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            start = GalleryGutter, end = GalleryGutter, top = 0.dp, bottom = bottomPad + 16.dp
+                            start = GalleryGutter, end = GalleryGutter, top = listTop, bottom = bottomPad + 16.dp
                         )
                     ) {
                         items(keys, key = { it }, contentType = { it }) { key ->
@@ -697,7 +712,42 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                             }
                         }
                     }
-                  }
+                }
+                // The page (not drawn while the full preview covers it), with the page glow at its top.
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .then(if (covering) Modifier.clearAndSetSemantics { } else Modifier)
+                        // Under the open preview a keyboard can't reach the page either (Tab went on to its buttons
+                        // unseen, and Enter opened How Looks Work over the preview).
+                        .focusProperties { onEnter = { if (pv.open) cancelFocusChange() } }
+                        .focusGroup()
+                        .drawWithContent {
+                            // Covered, it shows nothing but stays drawn: the fan's strips keep their pictures, so the
+                            // first frame of a close doesn't paint them all again.
+                            if (covering) clipRect(0f, 0f, 0f, 0f) { this@drawWithContent.drawContent() }
+                            else drawContent()
+                        }
+                        // Behind the number picker and How Looks Work everything on the page blurs as they come in.
+                        .then(if (blurOn) Modifier.graphicsLayer { renderEffect = popupBlurEffect(popBlurSigma, popBlur.value, density) } else Modifier)
+                ) {
+                    if (blurOn) {
+                        // The page runs on under the top bar and the pill, and softens into a blur there.
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .blurBands(top = appBarHeight + BLUR_SHARP_GAP, topStrength = { topBlur }, bottom = LocalPillBlur.current)
+                                .background(scheme.background)
+                                .pageGlow(clock = glowClock)
+                        ) { list(Modifier.fillMaxSize()) }
+                        Box(Modifier.fillMaxWidth().height(appBarHeight + BLUR_SHARP_GAP).topBarTint(appBarHeight + BLUR_SHARP_GAP, { titleIn.value }, slide = true))
+                        topBar(Modifier)
+                    } else {
+                        Column(Modifier.fillMaxSize().background(scheme.background).pageGlow(clock = glowClock)) {
+                            topBar(Modifier)
+                            list(Modifier.weight(1f))
+                        }
+                    }
                 }
 
                 // The full preview: a window grown from the card to the whole screen.
@@ -719,7 +769,8 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                     modifier = Modifier.align(if (snackFromTop) Alignment.TopCenter else Alignment.BottomCenter)
                 )
 
-                PopLayer(pop, phoneDark, onClose = { pop = null }, snack = ::show)
+                if (blurOn) Box(Modifier.fillMaxSize().drawBehind { drawRect(Color.Black, alpha = popScrimAlpha * popBlur.value.coerceIn(0f, 1f)) })
+                PopLayer(pop, phoneDark, onClose = { pop = null }, snack = ::show, sheetDims = !blurOn)
             }
         }
     }
@@ -735,3 +786,9 @@ private fun Modifier.offscreenLayer(): Modifier = drawWithContent {
     drawContent()
     canvas.restore()
 }
+
+/** What shows behind a popup while the system blurs: the page blurred this much, under a black scrim this strong. */
+private class PopScrim(val sigma: Dp, val dark: Float, val light: Float)
+
+private val PICKER_SCRIM = PopScrim(6.dp, dark = 0.10f, light = 0.05f)
+private val SHEET_SCRIM = PopScrim(10.dp, dark = 0.20f, light = 0.11f)

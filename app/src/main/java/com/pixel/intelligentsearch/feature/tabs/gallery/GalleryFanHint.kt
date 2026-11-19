@@ -48,7 +48,7 @@ import kotlin.math.sqrt
 
 /**
  * The fan's gesture hint (Gesture Hints in How Looks Work): a double-headed arrow on a curve around the rivet, drawn
- * through the deck's lens over the strips, with a light that glides along it. Left alone, the light glides from the
+ * through the deck's lens behind the strips, with a light that glides along it. Left alone, the light glides from the
  * upright strip's end to the spread's while the fan turns a little toward the next look, draws in at the head, rests,
  * glides back while the fan turns a little back, then rests longer. Under a finger the light follows the drag along the
  * curve and reaches the head when the push is far enough to turn a look. It is one steady light: it grows out of

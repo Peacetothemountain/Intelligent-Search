@@ -24,7 +24,8 @@ import androidx.core.content.ContextCompat
  * [SpeechCleanup]. People speak their first language, so that is what voice search listens for: the on-device engine
  * (Google's on a Pixel) when it has it, so speech stays on the phone; else Google's online engine when that has it;
  * only when neither does, or the online engine can't be reached, the on-device engine in the next of the user's
- * languages it has ([SpeechLanguage] picks the language). Intelligent Search records and stores nothing.
+ * languages it has ([SpeechLanguage] picks the language). The app records the microphone only while listening and hands
+ * the audio straight to the engine ([MicFeed]); it stores no audio.
  */
 class Dictation(private val context: Context) {
     enum class Phase { Idle, Starting, Listening, Finishing }

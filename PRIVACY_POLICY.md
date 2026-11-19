@@ -1,7 +1,7 @@
 # Privacy Policy & Privacy Governance
 
 **Effective Date:** November 11, 2026  
-**Last Updated:** October 23, 2026  
+**Last Updated:** November 19, 2026  
 **Application:** Intelligent Search (`com.pixel.intelligentsearch`)  
 **Developer / Publisher:** NG Designs  
 **Contact:** [support.ngdesigns@gmail.com](mailto:support.ngdesigns@gmail.com)  
@@ -61,7 +61,7 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 
 ### H. Microphone (`android.permission.RECORD_AUDIO`)
 * **Purpose**: Voice search, used only when you start it (for example from the microphone button or when Intelligent Search is your default assistant).
-* **Processing & Security**: Intelligent Search records nothing itself and stores no audio. Speech is turned into text by your device's speech recognizer. The on-device recognizer is used when available; on devices without one, Android's speech recognition service (for example Google's) handles the audio under its own privacy policy.
+* **Processing & Security**: Intelligent Search records from the microphone only while you are doing a voice search, keeps the audio in memory, and hands it straight to your phone's speech recognizer, which turns it into text. The app saves no audio and sends none anywhere itself. The search bar's microphone uses the on-device recognizer when it has your language; otherwise, and always for the **Voice Nebula** widget shortcut, your phone's speech recognition service (for example Google's) handles the audio under its own privacy policy.
 * **User Control**: The microphone permission is requested at runtime and can be revoked in Android System Settings.
 
 ### I. Secure Settings (`WRITE_SECURE_SETTINGS`)
@@ -78,15 +78,14 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Processing & Security**: Requests are answered on the device. Hidden apps are never returned, and contacts are never shared while contact search or sharing is off, or contacts access is not granted.
 
 ### L. Notifications (Notification Access, `BIND_NOTIFICATION_LISTENER_SERVICE`)
-* **One grant for two features**: Intelligent Search has a single notification listener, so it appears once in Android's Notification Access list, and that one grant covers **Search Your Notifications** and the media controls in At a Glance. Google Play allows notification access for an app's core feature; here it is used for these two and nothing else. Revoke it any time in Android Settings -> Notifications -> Device & app notifications (Notification Access).
-* **Consent**: Switching on either of the two without access first shows the same explanation of what each one reads, then opens Android's own Notification Access screen, where you grant access yourself. The feature stays off unless you do. Revoking access stops both at once.
-* **Search Your Notifications** (**Settings -> Search Sources -> Notifications**, off by default): only while this switch is on does Intelligent Search read the notifications showing on your phone, so that typed searches can find them and **At a Glance** can show running timers and stopwatches. Notifications are held in the app's memory only, while they are showing: their title, text, app and time. Nothing read is ever written to storage, the database, preferences or backups, and nothing is sent anywhere. Turning the switch off or revoking access forgets everything at once, and no notification is read again until you turn it back on. Intelligent Search sees only what each notification itself shows; it cannot open your messages, Gmail or other emails behind them.
-* **At a Glance media controls** (shown while **Settings -> Search Behavior -> At a Glance** is on and notification access is granted): Android lets an app with notification access see which media apps are playing. At a Glance uses this to show what is playing with play, pause and skip, on the device only, while the search is on screen. It reads no notifications.
-* **When nothing needs it**: with Search Your Notifications off, the listener disconnects itself, so nothing is read even while access stays granted.
+* **One grant, no separate switch**: Intelligent Search has a single notification listener, so it appears once in Android's Notification Access list. Notification Access is off until you grant it, and there is no switch of the app's own: the grant on Android's screen turns it on, and revoking it there turns it off. Google Play allows notification access for an app's core feature; here it is used only for the features below. Revoke it any time in Android Settings -> Notifications -> Device & app notifications (Notification Access).
+* **Consent**: Before Android's Notification Access screen opens, the app explains what access is used for, and you grant it yourself on Android's screen. Nothing is read unless you do.
+* **What is read, and what for**: while access is granted, Intelligent Search reads the notifications showing on your phone so that typed searches can find them, **Discover's Catch Up** can show missed calls, messages and packages, and **At a Glance** can show running timers and stopwatches. Notifications are held in the app's memory only, while they are showing: their title, text, app and time. One-time codes and notifications marked secret are left out. Nothing read is ever written to storage, the database, preferences or backups, and nothing leaves your phone. Revoking access forgets everything at once. Intelligent Search sees only what each notification itself shows; it cannot open your messages, Gmail or other emails behind them.
+* **At a Glance media controls** (shown while **Settings -> Search Behavior -> At a Glance** is on and notification access is granted): Android lets an app with notification access see which media apps are playing. At a Glance uses this to show what is playing with play, pause and skip, on the device only, while the search is on screen.
 
 ### M. At a Glance (Alarms, Media, Birthdays & Timers)
 * **Purpose**: Above the empty search, At a Glance can show your next alarm, what is playing, birthdays this week and running timers, with a clock you can hide. Turn it on or off in **Settings -> Search Behavior -> At a Glance**; each item shows only when it has something to show and what it reads from is already on.
-* **Processing & Security**: These are read from Android on the device, only while the search is empty and on screen, and are never stored or transmitted. No permission is needed for the alarm. Birthdays come from your contacts and show only while contact search (**Settings -> Search Sources -> Contacts**) is on and contacts access is allowed; timers come from notifications and need **Search Your Notifications** (Section 2.L); what is playing needs Notification Access. Media from apps you hid is never shown. At a Glance never asks for a permission itself.
+* **Processing & Security**: These are read from Android on the device, only while the search is empty and on screen, and are never stored or transmitted. No permission is needed for the alarm. Birthdays come from your contacts and show only while contact search (**Settings -> Search Sources -> Contacts**) is on and contacts access is allowed; timers come from notifications and need Notification Access (Section 2.L); what is playing needs Notification Access. Media from apps you hid is never shown. At a Glance never asks for a permission itself.
 
 ### N. Clipboard (Smart Clipboard Suggestions)
 * **Purpose**: Only if you turn on **Settings -> Search Behavior -> Smart Clipboard Suggestions** (off by default), the empty search offers an action for what you copied: open a link, call a number, search the text, or **Search with Lens** for a copied image.
@@ -97,10 +96,10 @@ Intelligent Search requires certain Android platform permissions solely to enabl
 * **Processing & Security**: Each permission is asked for when you switch its option on, after an in-app explanation; Display over Other Apps is granted by you on Android's own page. They only open search: nothing on screen or in other apps is read, nothing is stored apart from where you placed the button and strip, and nothing is sent anywhere. No accessibility service is used. The notification shows no content on the lock screen.
 * **User Control**: Switch the options off on the same page, or revoke the permissions in Android System Settings. A restored backup never switches them on (see Section 4).
 
----
-
 ### P. Wallpaper (`SET_WALLPAPER`)
 * **Purpose**: Lets **Gallery** set a look's matching wallpaper on your phone, only when you tap **Set Wallpaper** and confirm. The wallpaper is drawn on your phone; nothing is downloaded or sent.
+
+---
 
 ## 3. Web Search, External Search Engines, Live Currency Rates, Instant Answers & AI Answers
 
@@ -140,7 +139,7 @@ When you execute a web search or request live autocomplete suggestions:
 
 ## 4. Local Data Storage, Encryption, & Backup Security
 
-* **Local Storage**: Your search history is stored in a local database (`IntelligentSearchDatabase`, Android Room) and your settings and custom bangs in local app preferences. Definitions and forecasts keep their recent answers in the app's cache folder while Web Suggestions is on (Section 3), and an AI provider key you saved is kept, encrypted with an Android Keystore key, in its own file. What each countdown widget counts down to is kept for that widget on this phone and is not backed up. These are not separately encrypted; they are protected by Android's app sandbox and your device's storage encryption, and are excluded from Android cloud backup and device-to-device transfer.
+* **Local Storage**: Your search history is stored in a local database (`IntelligentSearchDatabase`, Android Room) and your settings and custom bangs in local app preferences. Definitions and forecasts keep their recent answers in the app's cache folder while Web Suggestions is on (Section 3), and an AI provider key you saved is kept, encrypted with an Android Keystore key, in its own file. These are not separately encrypted; they are protected by Android's app sandbox and your device's storage encryption, and are excluded from Android cloud backup and device-to-device transfer.
 * **Recent Search Cards**: The search overlay keeps your recent queries as cards for quick reuse. **Clear all** on those cards removes them, and the **Search History** switch in **Settings -> Search Sources -> Web** stops saving them. Your full web search history is kept by the browser or search engine you choose, under its own privacy policy.
 * **Encrypted Backups**: Intelligent Search provides an encrypted backup and restore mechanism. When exporting a backup file:
   * Application preferences, hidden apps, and search history are encrypted locally using **AES-256-GCM**.
@@ -148,7 +147,7 @@ When you execute a web search or request live autocomplete suggestions:
   * Without a passphrase, the key is created inside this device's Android Keystore and never leaves it, so the backup can only be restored on the same device and installation.
   * With a **passkey** (Android 14 and later, optional), the backup is encrypted with a random key that is itself encrypted with a secret only your passkey can produce (the WebAuthn PRF extension). The passkey is created and kept by the password manager you choose, such as Google Password Manager, for the website `intelligentsearchapp.github.io`, which only links the passkey to this app; nothing is sent to that website or to us. Your password manager syncs the passkey as it normally does, so the backup can be restored on any phone signed in to it, after your fingerprint, face or screen lock. The key the passkey produces is kept on this phone encrypted with an Android Keystore key, so automatic backups can be made without asking. If you also give a passphrase, the same backup opens with either.
   * Backup files are saved strictly to the storage location or cloud drive chosen by the user via the Android system file creator.
-  * Restoring a backup never switches on Web, contact sharing, clipboard suggestions, web suggestions (and with them definitions and forecasts), notification search, AI Answers, the Notification Shortcut, the Floating Search Button or the **Live Currency Rates** switch itself; it can only leave them as you set them on this phone or switch them off. It never moves your search engine off Tor either: while Tor is selected on this phone, a backup's other search engine or custom search address is not restored. It does bring back your **Calculator** and other search engine choices, which also decide whether currency rates are downloaded (see Section 3): with Live Currency Rates on, a restore that turns the Calculator on lets the downloads resume.
+  * Restoring a backup never switches on Web, contact sharing, clipboard suggestions, web suggestions (and with them definitions and forecasts), AI Answers, the Notification Shortcut, the Floating Search Button or the **Live Currency Rates** switch itself; it can only leave them as you set them on this phone or switch them off. It never moves your search engine off Tor either: while Tor is selected on this phone, a backup's other search engine or custom search address is not restored. It does bring back your **Calculator** and other search engine choices, which also decide whether currency rates are downloaded (see Section 3): with Live Currency Rates on, a restore that turns the Calculator on lets the downloads resume.
   * A passphrase you choose to save on the phone is encrypted with an Android Keystore key that works only while the phone is unlocked and shortly after you authenticate.
 
 ---
@@ -156,7 +155,7 @@ When you execute a web search or request live autocomplete suggestions:
 ## 5. Third-Party Libraries & Software Architecture
 
 * **Zero Analytics SDKs**: Intelligent Search contains **no** third-party analytics trackers, telemetric SDKs, or crash-reporting services that monitor user behavior.
-* **Open & Verifiable Dependencies**: The libraries integrated into Intelligent Search are open-source AndroidX (including Jetpack Compose, Room, DataStore, Media3, and App Functions), Material Components, Kotlin/KotlinX, and Hilt components maintained by Google, JetBrains, and the Android Open Source Project (AOSP).
+* **Open & Verifiable Dependencies**: The libraries integrated into Intelligent Search are open-source AndroidX (including Jetpack Compose, Room, Navigation, Credentials, and App Functions), Material Components, Kotlin/KotlinX, and Hilt components maintained by Google, JetBrains, and the Android Open Source Project (AOSP).
 
 ---
 

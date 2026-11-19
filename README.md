@@ -105,6 +105,7 @@
         <li>Quick controls, battery and screen time, a word of the day, holiday countdowns and tomorrow.</li>
         <li>Cards anywhere and any size, in Material shapes, with live widgets from your apps and website cards.</li>
         <li>Private cards stay covered until you tap them.</li>
+        <li>Wellbeing: your screen time, unlocks and notifications by day, week and month, kept on your phone.</li>
       </ul>
     </td>
     <td width="50%" valign="top">
@@ -142,6 +143,7 @@
         <li>Material You colors, light and dark themes, and your wallpaper behind search.</li>
         <li>Blur, transparency and opacity controls, Material shapes and expressive motion.</li>
         <li>Icon packs, custom icons and haptic feedback.</li>
+        <li>Gallery: 40 ready-made looks to try on in a live preview, your own saved looks to share as a code, and a matching wallpaper.</li>
       </ul>
     </td>
     <td width="50%" valign="top">
@@ -180,6 +182,7 @@ app/src/main/java/com/pixel/intelligentsearch
 │   ├── search        The search overlay: results, answers, voice, quick apps
 │   │   └── today     Discover: the freeform card page, its shapes, app widget and website cards
 │   ├── settings      Settings, Widget Customization, backup and restore, setup checklist
+│   ├── tabs          The Settings, Gallery and Wellbeing tabs and the pill that switches them
 │   ├── widget        Search bar widgets, the Quick Settings tile, Voice Nebula
 │   ├── voice         Assistant service, speech recognition, dictation
 │   ├── launch        Notification shortcut and floating button
@@ -193,6 +196,7 @@ app/src/main/java/com/pixel/intelligentsearch
 │   ├── security      Network policy, biometric gate, safe web launches
 │   ├── net           The one HTTPS client
 │   ├── system        Assistant and search roles, system toggles, Direct Boot
+│   ├── wellbeing     Screen time, unlocks and notification counts, and their history on the phone
 │   └── theme, ui     Material You theming, AGSL shaders, shared components
 └── di                Hilt modules
 ```
@@ -203,8 +207,8 @@ Built with Kotlin, Jetpack Compose, Material 3 Expressive, Material You dynamic 
 
 ## 🛠️ Build from source
 
-**You need:** Android Studio with Android Gradle Plugin 9.4, JDK 17, and the Android 17 SDK (compile and target SDK
-37; minimum SDK 31).
+**You need:** Android Studio with Android Gradle Plugin 9.4, JDK 17, and the Android 17 SDK (compile SDK 37.1, target
+SDK 37; minimum SDK 31).
 
 ```bash
 git clone https://github.com/Peacetothemountain/Intelligent-Search.git

@@ -47,6 +47,8 @@ internal class GalleryState(val today: LocalDate) {
     private var undoTo by mutableStateOf<Look?>(null)
     /** The stored value as this session last wrote or read it: anything else there (a restore) is read in again. */
     @Volatile private var known: String? = null
+    /** Whether the stored value couldn't be read in whole, so this session leaves it as it is ([load]). */
+    @Volatile private var keepStored = false
 
     /**
      * Look of the week, fixed for the whole week: picked once (skipping the look that was on then) and kept on the phone,
@@ -73,6 +75,8 @@ internal class GalleryState(val today: LocalDate) {
             snapshotFlow { GalleryKept(current, before, saved.toList(), seq, row, week to hero.id, undoTo) }
                 .drop(1)
                 .collect { k ->
+                    // What is stored but couldn't be read is never written over (a newer version's looks, say).
+                    if (keepStored) return@collect
                     withContext(Dispatchers.IO) {
                         // Known before it is stored, so a resume in between never takes this session's own write for a restore.
                         val json = GalleryDisk.json(k)
@@ -88,6 +92,7 @@ internal class GalleryState(val today: LocalDate) {
         known = GalleryDisk.raw(prefs)
         GalleryLive.refreshG(app)
         val disk = GalleryDisk.read(prefs)
+        keepStored = (disk == null && !known.isNullOrBlank()) || disk?.partial == true
         before = disk?.before
         undoTo = disk?.undoTo
         saved.clear()

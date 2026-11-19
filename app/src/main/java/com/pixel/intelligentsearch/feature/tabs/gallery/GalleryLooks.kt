@@ -519,7 +519,9 @@ internal object LookCode {
             )
             // Its id comes from what it holds: the same code pasted twice is the same look, two different codes never are.
             Look(
-                id = "shared:%08x".format(crc), name = name, desc = "From a look code.", dyn = system.subtheme != "Custom" && material.subtheme != "Custom",
+                id = "shared:%08x".format(crc), name = name, desc = "From a look code.",
+                // Only the design the look shows decides its color chip, as for a look read from the settings.
+                dyn = (if (design == Design.MATERIAL) material else system).subtheme != "Custom",
                 hero = design, system = system, material = material, search = search, origin = Origin.Shared
             )
         } catch (_: Exception) {

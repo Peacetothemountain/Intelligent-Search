@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.provider.Settings
+import com.pixel.intelligentsearch.core.util.resolveActivityCompat
 import android.text.format.DateFormat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -125,12 +126,16 @@ fun WellbeingPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                 context.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).setData("package:${context.packageName}".toUri()))
                     || context.launch(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
             },
-            // Digital Wellbeing's home (timers, Bedtime, Focus), where the card's limits are; its usage list only if the
-            // phone's Digital Wellbeing has no home to open.
-            openDigitalWellbeing = {
-                context.launch(Intent(DW_HOME).setPackage(DW)) || context.launch(Intent(DW_DASHBOARD).setPackage(DW))
+            // Digital Wellbeing (timers, Bedtime, Focus), where the card's limits are: the first of the phone's that
+            // opens. With none, the card isn't shown, rather than a button that does nothing.
+            openDigitalWellbeing = digitalWellbeingIntent(context)?.let { intent -> { context.launch(Intent(intent)) } },
+            // A timer for one app is set on the phone's own app-usage page; where there is none, in Digital Wellbeing,
+            // and with neither the button isn't shown.
+            openTimer = when {
+                context.opens(Intent(Settings.ACTION_APP_USAGE_SETTINGS).putExtra(Intent.EXTRA_PACKAGE_NAME, context.packageName)) ->
+                    { pkg -> context.launch(Intent(Settings.ACTION_APP_USAGE_SETTINGS).putExtra(Intent.EXTRA_PACKAGE_NAME, pkg)) }
+                else -> digitalWellbeingIntent(context)?.let { intent -> { _: String -> context.launch(Intent(intent)) } }
             },
-            openTimer = { pkg -> context.launch(Intent(Settings.ACTION_APP_USAGE_SETTINGS).putExtra(Intent.EXTRA_PACKAGE_NAME, pkg)) },
             openNotifications = { pkg -> context.launch(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, pkg)) },
             clearHistory = { scope.launch { repo.clearHistory(); generation++ } }
         )
@@ -141,6 +146,24 @@ fun WellbeingPage(chrome: PageChrome, modifier: Modifier = Modifier) {
 private const val DW = "com.google.android.apps.wellbeing"
 private const val DW_DASHBOARD = "com.google.android.apps.wellbeing.action.APP_USAGE_DASHBOARD"
 private const val DW_HOME = "com.google.android.apps.wellbeing.action.HOME"
+/** Samsung's Digital Wellbeing, which Galaxy phones have in place of Google's. */
+private const val SAMSUNG_DW = "com.samsung.android.forest"
+
+/**
+ * The phone's Digital Wellbeing: Google's home, else its usage list, else Samsung's or Google's app as its icon opens
+ * it; null when the phone has none of them.
+ */
+private fun digitalWellbeingIntent(context: Context): Intent? =
+    sequenceOf(
+        { Intent(DW_HOME).setPackage(DW) },
+        { Intent(DW_DASHBOARD).setPackage(DW) },
+        { context.packageManager.getLaunchIntentForPackage(SAMSUNG_DW) },
+        { context.packageManager.getLaunchIntentForPackage(DW) }
+    ).mapNotNull { runCatching(it).getOrNull() }.firstOrNull(context::opens)
+
+/** Whether something on the phone opens [intent]. */
+private fun Context.opens(intent: Intent): Boolean =
+    runCatching { packageManager.resolveActivityCompat(intent) != null }.getOrDefault(false)
 
 /**
  * The phone's first day of the week, as Digital Wellbeing uses it: the first-day setting in Settings > System >

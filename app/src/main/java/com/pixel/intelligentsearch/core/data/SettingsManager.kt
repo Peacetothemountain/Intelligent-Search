@@ -318,6 +318,8 @@ class SettingsManager @Inject constructor(@param:ApplicationContext private val 
          * as JSON (GalleryDisk). Backed up with the rest, so saved looks come back with a restore.
          */
         val GALLERY_LOOKS = StringSetting("gallery_looks", "")
+        /** The format of [GALLERY_LOOKS] this build writes; a restore leaves out a value from a newer format. */
+        const val GALLERY_LOOKS_VERSION = 1
         /**
          * Gesture Hints (the switch in Gallery's How Looks Work): Gallery's fan shows a curved arrow that says how to turn
          * it. It goes away for good after [GALLERY_HINT_TURNS] reaches three turns that changed the look; turning the switch

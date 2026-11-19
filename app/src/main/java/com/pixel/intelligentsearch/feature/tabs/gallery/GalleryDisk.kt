@@ -17,7 +17,8 @@ import org.json.JSONObject
 
 /** Gallery's lasting state, as written to and read from [GalleryDisk]. */
 internal class GalleryKept(
-    val current: Look,
+    /** Null when the stored one couldn't be read; the person's design as the settings have it is on then. */
+    val current: Look?,
     val before: Look?,
     val saved: List<Look>,
     val seq: Int,
@@ -25,11 +26,16 @@ internal class GalleryKept(
     /** The look of the week and the week it was picked for ("2026-W47" to "meadow"). */
     val hero: Pair<String, String>? = null,
     /** Every setting a look touches as it was before [before] was replaced: what Undo and the Before tile put back. */
-    val undoTo: Look? = null
+    val undoTo: Look? = null,
+    /**
+     * Whether some of what was stored couldn't be read (a look from a newer version, a damaged entry): then the value
+     * is never written over, so nothing in it is lost.
+     */
+    val partial: Boolean = false
 )
 
 internal object GalleryDisk {
-    private const val VERSION = 1
+    private const val VERSION = SettingsManager.GALLERY_LOOKS_VERSION
     /** The stored value as it is, to tell whether something else (a restore) has replaced it. */
     fun raw(prefs: SharedPreferences): String = prefs[SettingsManager.GALLERY_LOOKS]
 
@@ -37,7 +43,7 @@ internal object GalleryDisk {
     fun json(kept: GalleryKept): String =
         JSONObject().apply {
             put("version", VERSION)
-            put("current", kept.current.toJson())
+            kept.current?.let { put("current", it.toJson()) }
             kept.before?.let { put("before", it.toJson()) }
             put("saved", JSONArray().apply { kept.saved.forEach { put(it.toJson()) } })
             put("seq", kept.seq)
@@ -51,18 +57,30 @@ internal object GalleryDisk {
         prefs.edit { put(SettingsManager.GALLERY_LOOKS, json) }
     }
 
+    /**
+     * What is stored, or null when nothing is or none of it can be read (another format, a newer version's). Each look
+     * is read on its own, so one that can't be read (a built-in look or a value a newer version added) costs only that
+     * look, and [GalleryKept.partial] says some were left out.
+     */
     fun read(prefs: SharedPreferences): GalleryKept? = runCatching {
         val o = JSONObject(prefs[SettingsManager.GALLERY_LOOKS])
         if (o.optInt("version") != VERSION) return null
-        val saved = o.getJSONArray("saved").let { a -> List(a.length()) { a.getJSONObject(it).toLook() } }.take(5)
+        var partial = false
+        fun JSONObject.look(): Look? = runCatching { toLook() }.getOrNull().also { if (it == null) partial = true }
+        val stored = o.optJSONArray("saved")
+        val saved = if (stored == null) emptyList() else List(stored.length()) { stored.optJSONObject(it)?.look() }
+            .also { looks -> if (looks.any { it == null }) partial = true }
+            .filterNotNull()
+            .take(5)
         GalleryKept(
-            current = o.getJSONObject("current").toLook(),
-            before = o.optJSONObject("before")?.toLook(),
+            current = o.optJSONObject("current")?.look(),
+            before = o.optJSONObject("before")?.look(),
             saved = saved,
             seq = o.optInt("seq", 2),
             row = o.optInt("row", 5).coerceIn(0, 5),
             hero = o.optString("heroWeek").ifEmpty { null }?.let { w -> o.optString("hero").ifEmpty { null }?.let { w to it } },
-            undoTo = o.optJSONObject("undoTo")?.let { runCatching { it.toLook() }.getOrNull() }
+            undoTo = o.optJSONObject("undoTo")?.look(),
+            partial = partial
         )
     }.getOrNull()
 

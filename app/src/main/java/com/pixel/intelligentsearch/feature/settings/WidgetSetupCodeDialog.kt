@@ -91,6 +91,9 @@ internal fun WidgetSetupCodeDialog(
                         Text(
                             when {
                                 pasted.isBlank() -> "A code loads into Profile $profile. Your widget changes only when you save."
+                                // A Gallery look code is a code too, for another screen: say which.
+                                incoming == null && pasted.contains("IS2.") && !pasted.contains("IS1.") ->
+                                    "That's a Gallery look code. Paste it in Gallery."
                                 incoming == null -> "That isn't a setup code, or part of it is missing."
                                 else -> "Ready to load into Profile $profile."
                             }

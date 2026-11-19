@@ -84,11 +84,14 @@ sealed interface Load {
     class Ready(val model: WellbeingModel, val fresh: Boolean) : Load
 }
 
-/** What the page's buttons hand to the phone. */
+/**
+ * What the page's buttons hand to the phone. [openDigitalWellbeing] and [openTimer] are null where nothing on the phone
+ * opens them, and their buttons aren't shown.
+ */
 class WellbeingActions(
     val grantAccess: () -> Unit = {},
-    val openDigitalWellbeing: () -> Unit = {},
-    val openTimer: (String) -> Unit = {},
+    val openDigitalWellbeing: (() -> Unit)? = {},
+    val openTimer: ((String) -> Unit)? = {},
     val openNotifications: (String) -> Unit = {},
     val clearHistory: () -> Unit = {}
 )
@@ -216,12 +219,11 @@ fun WellbeingScreen(
             ) {
                 when (load) {
                     Load.Waiting -> {}
-                    Load.NoAccess -> { FirstRunCard(actions.grantAccess); Gap(12.dp); LimitsCard(actions); Footer(view) }
-                    is Load.Loading -> { LoadingCard(load); Gap(12.dp); LimitsCard(actions); Footer(view) }
+                    Load.NoAccess -> { FirstRunCard(actions.grantAccess); LimitsCard(actions); Footer(view) }
+                    is Load.Loading -> { LoadingCard(load); LimitsCard(actions); Footer(view) }
                     is Load.Ready -> if (period != null) {
                         PeriodHeader(model!!, period, view)
                         ReadyPage(model, period, view, actions, intro = load.fresh)
-                        Gap(12.dp)
                         LimitsCard(actions)
                         Footer(view)
                     }
@@ -294,12 +296,15 @@ private fun ReadyPage(m: WellbeingModel, p: Period, view: ViewState, actions: We
 
 @Composable
 internal fun LimitsCard(actions: WellbeingActions) {
+    // Limits are set in Digital Wellbeing: on a phone without it, there is nothing for this card to open.
+    val openDigitalWellbeing = actions.openDigitalWellbeing ?: return
+    Gap(12.dp)
     MatteCard(Modifier.fillMaxWidth()) {
         CardTitle("Set Limits")
         Gap(4.dp)
         Text("App timers, Focus mode and Bedtime mode are set in Digital Wellbeing.", style = WbType.body14, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Gap(16.dp)
-        PreviewButton("Open Digital Wellbeing", ButtonKind.Tonal, modifier = Modifier.fillMaxWidth(), tall = true, trailingIcon = Symbols.OpenInNew, onClick = actions.openDigitalWellbeing)
+        PreviewButton("Open Digital Wellbeing", ButtonKind.Tonal, modifier = Modifier.fillMaxWidth(), tall = true, trailingIcon = Symbols.OpenInNew, onClick = openDigitalWellbeing)
     }
 }
 

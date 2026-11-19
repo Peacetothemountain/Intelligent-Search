@@ -361,8 +361,10 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
             } else {
                 SheetButtonGroup {
                     d.actions.forEachIndexed { i, a ->
-                        // A code's Try It waits until something that could be a code is in the field.
-                        val ready = d.onInput == null || d.inputHint == null || i != d.actions.lastIndex || text.text.contains("IS2.", ignoreCase = true)
+                        // A code's Try It waits until something that could be a code is in the field: a look code, or a
+                        // widget setup code, which it then says where to paste.
+                        val ready = d.onInput == null || d.inputHint == null || i != d.actions.lastIndex ||
+                            text.text.contains("IS2.", ignoreCase = true) || text.text.contains("IS1.", ignoreCase = true)
                         PreviewButton(a.label, a.kind, enabled = ready) {
                             // The last action of an input dialog is its confirm: it checks the input first.
                             if (d.onInput != null && i == d.actions.lastIndex) d.onInput.invoke(text.text.toString().trim())?.let { error = it } ?: onClose()

@@ -225,7 +225,9 @@ private fun Panel(m: WellbeingModel, p: Period, key: String, actions: WellbeingA
         val onTonal = if (ai) onAi else null
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             // A timer is set in Digital Wellbeing: the button says it leaves for another app.
-            PreviewButton("Set a Timer", ButtonKind.Tonal, modifier = Modifier.weight(1f), icon = Symbols.Timer, trailingIcon = Symbols.OpenInNew, container = tonal, content = onTonal, onClick = { actions.openTimer(timerPackage(key)) })
+            actions.openTimer?.let { openTimer ->
+                PreviewButton("Set a Timer", ButtonKind.Tonal, modifier = Modifier.weight(1f), icon = Symbols.Timer, trailingIcon = Symbols.OpenInNew, container = tonal, content = onTonal, onClick = { openTimer(timerPackage(key)) })
+            }
             PreviewButton("Notifications", ButtonKind.Tonal, modifier = Modifier.weight(1f), icon = Symbols.Notifications, container = tonal, content = onTonal, onClick = { actions.openNotifications(key) })
         }
     }

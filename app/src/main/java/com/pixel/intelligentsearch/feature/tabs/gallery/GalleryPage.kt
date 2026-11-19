@@ -397,7 +397,11 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
             input = "", inputHint = "IS2.…",
             onInput = { text ->
                 val look = LookCode.decode(text)
-                if (look == null) "That isn't a look code, or part of it is missing."
+                if (look == null) {
+                    // A widget setup code is a code too, for another screen: say which.
+                    if (text.contains("IS1.") && !text.contains("IS2.")) "That's a widget setup code. Paste it in Widget Customization."
+                    else "That isn't a look code, or part of it is missing."
+                }
                 else {
                     state.shared = look
                     scope.launch { delay(16); openPreview(look, "shared", "paste") }

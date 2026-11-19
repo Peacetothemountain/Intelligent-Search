@@ -153,7 +153,7 @@ fun BackupRestoreScreen(
                         dialogErrorMessage = err
                         showRestorePassphraseDialog = true
                     } else {
-                        safeShowToast("Restore error: $err")
+                        safeShowToast(err)
                     }
                 }
             )
@@ -194,7 +194,7 @@ fun BackupRestoreScreen(
                     val passkeyLeftOut = passkeySetUp && written.passphrase && !written.passkey
                     safeShowToast(
                         when {
-                            passkeyLeftOut -> "Backup exported. It opens with your passphrase only, since this phone can't read its backup passkey's key. Set up the passkey again."
+                            passkeyLeftOut -> "Backup exported. It opens with your passphrase only, because your passkey isn't working on this phone. Set up the passkey again."
                             passkeySetUp && !usedPassphrase.isNullOrBlank() -> "Backup exported. It opens with your passkey or passphrase."
                             passkeySetUp -> "Backup exported. It opens with your passkey."
                             !usedPassphrase.isNullOrBlank() -> "Backup exported. It opens with your passphrase."
@@ -205,7 +205,7 @@ fun BackupRestoreScreen(
                 // The picker made the file before the export ran: don't leave it behind empty. Run with the export,
                 // so it happens even if the screen is gone by then.
                 cleanUp = { deleteIfNothingWritten(appContext, uri) },
-                onError = { err -> safeShowToast("Export error: $err") }
+                onError = { err -> safeShowToast(err) }
             )
         } else {
             android.util.Log.w("BackupRestoreScreen", "exportLauncher: uri or activity was null (uri=$uri, activity=$activity)")
@@ -237,7 +237,7 @@ fun BackupRestoreScreen(
                         subtitle = "To Use the Passphrase Saved to $keyHolder.",
                         onSuccess = { load(afterPrompt = true) },
                         onFailure = {
-                            if (onUnavailable != null) onUnavailable() else safeShowToast("Verify it’s you to use the saved passphrase")
+                            if (onUnavailable != null) onUnavailable() else safeShowToast("Verify it’s you to use the saved passphrase.")
                         },
                         faceFirst = true,
                     )
@@ -259,7 +259,7 @@ fun BackupRestoreScreen(
                 }
                 if (inspectResult == null || inspectResult.isFailure) {
                     val errorMsg = inspectResult?.exceptionOrNull()?.localizedMessage
-                        ?: "Selected backup file could not be read or is invalid."
+                        ?: "That file couldn’t be opened as a backup."
                     safeShowToast(errorMsg)
                     return@launch
                 }
@@ -288,7 +288,7 @@ fun BackupRestoreScreen(
                             },
                             onError = { err ->
                                 restoring = false
-                                safeShowToast("Restore error: $err")
+                                safeShowToast(err)
                             }
                         ) ?: run { restoring = false }
                     } catch (e: com.pixel.intelligentsearch.core.backup.PasskeyException) {
@@ -341,7 +341,7 @@ fun BackupRestoreScreen(
                                 Column(modifier = Modifier.padding(8.dp)) {
                                     // These come from the file's unencrypted header, so they're shown as claims only.
                                     Text(
-                                        "As stated in the file (not verified):",
+                                        "Made on:",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -628,7 +628,7 @@ fun BackupRestoreScreen(
                                             outcome == com.pixel.intelligentsearch.core.security.StrongBoxSecurityManager.PassphraseSave.NEEDS_AUTHENTICATION && !afterPrompt -> {
                                                 val activity = context.findActivity()
                                                 if (activity == null) {
-                                                    safeShowToast("Failed to save to $keyHolder")
+                                                    safeShowToast("Couldn’t save the passphrase to $keyHolder.")
                                                     refreshSavedOnChip()
                                                 } else {
                                                     context.appEntryPoint.biometricSearchGate().authenticate(
@@ -637,7 +637,7 @@ fun BackupRestoreScreen(
                                                         subtitle = "To Save the Passphrase to $keyHolder.",
                                                         onSuccess = { save(afterPrompt = true) },
                                                         onFailure = {
-                                                            safeShowToast("Verify it’s you to save the passphrase")
+                                                            safeShowToast("Verify it’s you to save the passphrase.")
                                                             coroutineScope.launch { refreshSavedOnChip() }
                                                         },
                                                         faceFirst = true,
@@ -645,7 +645,7 @@ fun BackupRestoreScreen(
                                                 }
                                             }
                                             else -> {
-                                                safeShowToast("Failed to save to $keyHolder")
+                                                safeShowToast("Couldn’t save the passphrase to $keyHolder.")
                                                 refreshSavedOnChip()
                                             }
                                         }
@@ -679,7 +679,7 @@ fun BackupRestoreScreen(
                             onClick = {
                                 viewModel?.clearSavedPassphraseFromSecurityChip()
                                 isPassphraseSavedOnChip = false
-                                safeShowToast("Passphrase removed from $keyHolder")
+                                safeShowToast("Passphrase removed from $keyHolder.")
                             },
                             shape = RoundedCornerShape(percent = 50)
                         ) {

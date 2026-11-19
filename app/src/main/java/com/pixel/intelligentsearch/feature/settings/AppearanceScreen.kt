@@ -162,7 +162,7 @@ fun AppearanceScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBa
 
                     var matrixAnimationEnabled by rememberSetting(SettingsManager.MATRIX_ANIMATION_ENABLED) {}
                     SettingsRowToggle(
-                        title = "Enable Matrix Animation on Search Overlay Page",
+                        title = "Drifting Stars on Search Overlay Page",
                         subtitle = "Small Stars Drift Behind the Search Overlay Page.",
                         icon = Symbols.Outlined.AutoAwesome,
                         isChecked = matrixAnimationEnabled,

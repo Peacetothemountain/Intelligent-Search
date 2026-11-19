@@ -98,7 +98,7 @@ class SearchPillsScreenTest {
         show()
         openPicker()
         systemBack()
-        compose.onNodeWithText("Application Search").assertExists()
+        compose.onNodeWithText("Quick Panel Apps").assertExists()
         assertEquals(0, backCalls)
     }
 

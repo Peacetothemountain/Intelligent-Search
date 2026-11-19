@@ -62,7 +62,7 @@ class AppSearchQuickPanelRowsTest {
     fun theRowsSayWhatTheyDo() {
         compose.setContent { IntelligentSearchTheme(darkTheme = false) { AppSearchScreen(prefs, {}, {}) } }
         compose.onNodeWithText("Quick App Panel").assertExists()
-        compose.onNodeWithText("The Apps You Chose Under Application Search. Open Your Favorites Without Searching.").assertExists()
+        compose.onNodeWithText("The Apps You Chose for the Quick App Panel. Open Your Favorites Without Searching.").assertExists()
         compose.onNodeWithText("Max Quick Panel Apps").assertExists()
         compose.onAllNodesWithText("Manage Shortcuts for 20 Apps.").assertCountEquals(0)
         compose.onAllNodesWithText("Max Shortcut Suggestions").assertCountEquals(0)
@@ -126,13 +126,13 @@ class AppSearchQuickPanelRowsTest {
 
         setMaxWithSlider(2)
 
-        compose.onNodeWithText("Remove Apps from Application Search?").assertExists()
+        compose.onNodeWithText("Remove Apps from the Quick App Panel?").assertExists()
         assertEquals("nothing changes before Accept", 4, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
         assertEquals("a,b,c,d", prefs[SettingsManager.SEARCH_PILLS])
 
         compose.onNodeWithText("Discard").performClick()
         settleDialogs()
-        compose.onAllNodesWithText("Remove Apps from Application Search?").assertCountEquals(0)
+        compose.onAllNodesWithText("Remove Apps from the Quick App Panel?").assertCountEquals(0)
         assertEquals(4, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
         assertEquals("a,b,c,d", prefs[SettingsManager.SEARCH_PILLS])
         compose.onNodeWithText("4").assertExists()
@@ -157,12 +157,12 @@ class AppSearchQuickPanelRowsTest {
         compose.setContent { IntelligentSearchTheme(darkTheme = false) { AppSearchScreen(prefs, {}, {}) } }
 
         setMaxWithSlider(3)
-        compose.onNodeWithText("Don't show this again").performClick()
+        compose.onNodeWithText("Don't Show This Again").performClick()
         settleDialogs()
         assertEquals("a,b,c", prefs[SettingsManager.SEARCH_PILLS])
 
         setMaxWithSlider(1)
-        compose.onAllNodesWithText("Remove Apps from Application Search?").assertCountEquals(0)
+        compose.onAllNodesWithText("Remove Apps from the Quick App Panel?").assertCountEquals(0)
         assertEquals("a", prefs[SettingsManager.SEARCH_PILLS])
         assertEquals(1, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
     }
@@ -174,7 +174,7 @@ class AppSearchQuickPanelRowsTest {
 
         setMaxWithSlider(2)
         setMaxWithSlider(9)
-        compose.onAllNodesWithText("Remove Apps from Application Search?").assertCountEquals(0)
+        compose.onAllNodesWithText("Remove Apps from the Quick App Panel?").assertCountEquals(0)
         assertEquals(9, prefs[SettingsManager.SHORTCUT_RESULTS_COUNT])
         assertEquals("a,b", prefs[SettingsManager.SEARCH_PILLS])
     }
@@ -182,11 +182,11 @@ class AppSearchQuickPanelRowsTest {
     @Test
     fun theCardNamesTheAppsItRemoves() {
         assertEquals(
-            "Application Search can then hold only 2 apps, so its last 2 apps will be removed, starting from the bottom: Maps and YouTube.",
+            "The Quick App Panel can then hold only 2 apps, so its last 2 apps will be removed, starting from the bottom: Maps and YouTube.",
             quickPanelTrimMessage(2, listOf("Maps", "YouTube"))
         )
         assertEquals(
-            "Application Search can then hold only 1 app, so the last app in its list, Maps, will be removed.",
+            "The Quick App Panel can then hold only 1 app, so the last app in its list, Maps, will be removed.",
             quickPanelTrimMessage(1, listOf("Maps"))
         )
     }

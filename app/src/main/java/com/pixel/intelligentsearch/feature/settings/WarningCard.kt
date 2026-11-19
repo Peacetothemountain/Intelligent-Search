@@ -28,7 +28,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 
 /**
- * The app's warning card: an amber warning icon, a title and what will happen, then "Don't show this again" on the far
+ * The app's warning card: an amber warning icon, a title and what will happen, then "Don't Show This Again" on the far
  * left and Discard and the accept button on the right, on lines of their own where they don't fit side by side
  * ([WarningCardButtons]). Widget Customization's unsaved-changes card, Max Quick Panel
  * Apps' remove-apps card and Manage Hidden Apps' unsaved-changes card all use it, so they look and read alike.
@@ -79,7 +79,7 @@ internal fun WarningCard(
                     dontShowAgain = {
                         TextButton(onClick = onDontShowAgain, contentPadding = PaddingValues(horizontal = 6.dp)) {
                             Text(
-                                text = "Don't show this again",
+                                text = "Don't Show This Again",
                                 // At the largest text it may need two lines: they break between words.
                                 style = MaterialTheme.typography.labelMedium.wholeWords(),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -117,7 +117,7 @@ internal fun WarningCard(
 /**
  * [WarningCard]'s three buttons, each label kept whole on one line. They share a row ([dontShowAgain] at the start,
  * [discard] and [accept] at the end) where they fit at their full width; otherwise Discard and the accept button keep
- * their row and "Don't show this again" moves to a line under them; and where even those two don't fit, as at the
+ * their row and "Don't Show This Again" moves to a line under them; and where even those two don't fit, as at the
  * largest text sizes, each button gets a line of its own at the end, the accept button on top. A button is never
  * squeezed into what the others leave, which turned "Save" into one letter per line.
  */

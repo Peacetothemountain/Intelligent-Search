@@ -110,7 +110,7 @@ internal fun shapedBattery(battery: TodayBattery): ShapedContent.Battery {
         battery.full -> "Charged"
         battery.charging && battery.minutesToFull != null -> "Full in ${Durations.minutes(battery.minutesToFull * 60_000L)}"
         battery.charging -> "Charging"
-        battery.pluggedNotCharging -> "Connected, not charging"
+        battery.pluggedNotCharging -> "Plugged in, not charging"
         battery.saver -> "Battery Saver on"
         else -> "Not charging"
     }

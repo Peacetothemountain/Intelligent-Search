@@ -98,7 +98,7 @@ class SettingsViewModel @Inject constructor(
                     // What a failed export leaves behind is cleared here, off the main thread, whatever became of
                     // the screen that asked for it.
                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { runCatching(cleanUp) }
-                    onError(it.localizedMessage ?: "Failed to export backup")
+                    onError(it.localizedMessage ?: "Couldn’t export the backup.")
                 }
         }
     }
@@ -112,7 +112,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             backupManager.importFromFile(uri, passphrase)
                 .onSuccess(onSuccess)
-                .onFailure { onError(it.localizedMessage ?: "Failed to restore backup") }
+                .onFailure { onError(it.localizedMessage ?: "Couldn’t restore the backup.") }
         }
     }
 
@@ -126,7 +126,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             backupManager.importWithPasskeyKey(uri, key)
                 .onSuccess(onSuccess)
-                .onFailure { onError(it.localizedMessage ?: "Failed to restore backup") }
+                .onFailure { onError(it.localizedMessage ?: "Couldn’t restore the backup.") }
         }
     }
 

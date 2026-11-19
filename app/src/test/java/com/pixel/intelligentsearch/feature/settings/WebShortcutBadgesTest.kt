@@ -11,7 +11,6 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performCustomAccessibilityActionWithLabel
 import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
@@ -63,7 +62,7 @@ class WebShortcutBadgesTest {
             IntelligentSearchTheme(darkTheme = false) {
                 Column {
                     SynchronizedMorphingShortcutBadge(shortcut, frame = { frame })
-                    Text(shortcut, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = size, maxLines = 1)
+                    Text(shortcut, fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex, fontWeight = FontWeight.Bold, fontSize = size, maxLines = 1, style = androidx.compose.material3.LocalTextStyle.current.copy(fontFeatureSettings = "tnum"))
                 }
             }
         }

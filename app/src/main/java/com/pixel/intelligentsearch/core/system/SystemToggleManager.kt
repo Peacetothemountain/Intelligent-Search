@@ -255,7 +255,7 @@ class SystemToggleManager @Inject constructor(
             _isFlashlightOn.value = enabled
         } catch (se: SecurityException) {
             Log.w(TAG, "Camera flashlight access restricted", se)
-            safeToast("Flashlight permission restricted", Toast.LENGTH_SHORT)
+            safeToast("The flashlight can’t be turned on from here.", Toast.LENGTH_SHORT)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to toggle torch", e)
             safeToast("Flashlight unavailable", Toast.LENGTH_SHORT)
@@ -395,7 +395,7 @@ class SystemToggleManager @Inject constructor(
                 }
                 if (intent.resolveActivity(context.packageManager) != null) {
                     context.startActivity(intent)
-                    safeToast("Grant write settings permission to toggle Auto-Rotate directly", Toast.LENGTH_LONG)
+                    safeToast("Allow Intelligent Search to modify system settings, then tap Auto-Rotate again.", Toast.LENGTH_LONG)
                     return
                 }
             } catch (_: Exception) {}
@@ -405,7 +405,7 @@ class SystemToggleManager @Inject constructor(
                 }
                 if (fallbackIntent.resolveActivity(context.packageManager) != null) {
                     context.startActivity(fallbackIntent)
-                    safeToast("Grant write settings permission to toggle Auto-Rotate directly", Toast.LENGTH_LONG)
+                    safeToast("Allow Intelligent Search to modify system settings, then tap Auto-Rotate again.", Toast.LENGTH_LONG)
                     return
                 }
             } catch (_: Exception) {}
@@ -439,7 +439,7 @@ class SystemToggleManager @Inject constructor(
                 }
                 if (intent.resolveActivity(context.packageManager) != null) {
                     context.startActivity(intent)
-                    safeToast("Grant Do Not Disturb access", Toast.LENGTH_LONG)
+                    safeToast("Allow Do Not Disturb access for Intelligent Search, then tap again.", Toast.LENGTH_LONG)
                     return
                 }
             } catch (_: Exception) {}

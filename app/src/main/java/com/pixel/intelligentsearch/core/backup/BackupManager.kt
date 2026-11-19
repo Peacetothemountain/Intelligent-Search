@@ -70,6 +70,21 @@ class BackupManager @Inject constructor(
          */
         internal const val WRONG_PASSPHRASE = "Incorrect passphrase. It isn't the one this backup was made with."
 
+        /** What every backup file's header names itself. */
+        private const val BACKUP_FORMAT = "INTELLIGENT_SEARCH_ENCRYPTED_BACKUP"
+
+        /** What picking a file that isn't a backup (a text file, some other JSON) says. */
+        internal const val NOT_A_BACKUP = "That file isn't an Intelligent Search backup."
+
+        /** What a backup file whose contents don't match its checksum, or are cut short, says. */
+        internal const val DAMAGED_BACKUP = "This backup file is damaged and can't be restored."
+
+        /** What a file that can't be read at all says. */
+        internal const val UNREADABLE_FILE = "That file couldn't be opened as a backup."
+
+        /** What an empty file says. */
+        internal const val EMPTY_FILE = "That file is empty, so it isn't a backup."
+
         /**
          * Backup preferencesMap names mapped to the DataStore keys they restore. A name not listed, like a removed
          * setting's in an older file ("shortcutInline", "adaptiveIconShape", "dynamicIconMasking"), is skipped.
@@ -457,7 +472,7 @@ class BackupManager @Inject constructor(
         if (!writeSuccess) {
             val os = context.contentResolver.openOutputStream(uri, "wt")
                 ?: context.contentResolver.openOutputStream(uri, "w")
-                ?: throw IllegalArgumentException("Could not open destination file for writing")
+                ?: throw IllegalArgumentException("Couldn’t write the backup to that file.")
             os.use { stream ->
                 stream.write(bytes)
                 stream.flush()
@@ -473,7 +488,16 @@ class BackupManager @Inject constructor(
         throw e
     } catch (e: Throwable) {
         Log.e("BackupManager", "$operation failed: ${e.javaClass.simpleName}") // messages can contain the file URI
-        Result.failure(e)
+        // The page shows a failure's message as it is: what the JSON reader or the file system says is said plainly.
+        Result.failure(
+            when (e) {
+                is org.json.JSONException -> IllegalArgumentException(DAMAGED_BACKUP, e)
+                is java.io.IOException -> IllegalArgumentException(
+                    if (operation.startsWith("export")) "Couldn’t write the backup to that file." else UNREADABLE_FILE, e
+                )
+                else -> e
+            }
+        )
     }
 
     /** Reads a user-picked file, refusing to buffer anything larger than [MAX_BACKUP_BYTES]. */
@@ -486,22 +510,28 @@ class BackupManager @Inject constructor(
                 if (read < 0) break
                 out.write(buffer, 0, read)
                 if (out.size() > MAX_BACKUP_BYTES) {
-                    throw IllegalArgumentException("Selected file is too large to be an Intelligent Search backup.")
+                    throw IllegalArgumentException(NOT_A_BACKUP)
                 }
             }
             out.toString(Charsets.UTF_8.name())
         }
 
+    /**
+     * The header of the backup file at [uri]. A failure's message is a plain sentence to show as it is: a file that
+     * isn't a backup says so ([NOT_A_BACKUP]), and one that can't be opened at all says that ([UNREADABLE_FILE]).
+     */
     fun inspectBackupEnvelope(uri: Uri): Result<EncryptedBackupEnvelope> {
         return try {
             val envelopeJson = readBackupText(uri)
-                ?: return Result.failure(IllegalArgumentException("Could not read backup file"))
+                ?: return Result.failure(IllegalArgumentException(UNREADABLE_FILE))
             if (envelopeJson.isBlank()) {
-                return Result.failure(IllegalArgumentException("Selected backup file is empty (0 bytes). Please create a fresh backup."))
+                return Result.failure(IllegalArgumentException(EMPTY_FILE))
             }
             Result.success(parseEnvelope(envelopeJson))
-        } catch (e: Throwable) {
+        } catch (e: IllegalArgumentException) {
             Result.failure(e)
+        } catch (e: Throwable) {
+            Result.failure(IllegalArgumentException(UNREADABLE_FILE, e))
         }
     }
 
@@ -510,29 +540,26 @@ class BackupManager @Inject constructor(
 
     private fun readVerified(uri: Uri): VerifiedBackup {
         val envelopeJson = readBackupText(uri)
-            ?: throw IllegalArgumentException("Could not read backup file")
+            ?: throw IllegalArgumentException(UNREADABLE_FILE)
 
         if (envelopeJson.isBlank()) {
-            throw IllegalArgumentException("Selected backup file is empty (0 bytes). Please create a fresh backup.")
+            throw IllegalArgumentException(EMPTY_FILE)
         }
 
         val envelope = parseEnvelope(envelopeJson)
-        require(envelope.format == "INTELLIGENT_SEARCH_ENCRYPTED_BACKUP") {
-            "Unsupported backup format: ${envelope.format}"
-        }
-        require(envelope.cipher.tagLengthBits == 128) {
-            "Unsupported GCM authentication tag length: ${envelope.cipher.tagLengthBits}"
-        }
+        require(envelope.cipher.tagLengthBits == 128) { DAMAGED_BACKUP }
 
         // Verify integrity
-        val cipherBytes = BackupCryptoEngine.decodeBase64(envelope.encryptedPayloadBase64)
+        val cipherBytes = runCatching { BackupCryptoEngine.decodeBase64(envelope.encryptedPayloadBase64) }
+            .getOrElse { throw SecurityException(DAMAGED_BACKUP, it) }
         val calculatedSha = BackupCryptoEngine.calculateSha256(cipherBytes)
         if (calculatedSha != envelope.payloadSha256) {
-            throw SecurityException("Backup integrity verification failed (SHA-256 checksum mismatch). File may be corrupted.")
+            throw SecurityException(DAMAGED_BACKUP)
         }
 
-        val iv = BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64)
-        require(iv.size == 12) { "Invalid backup IV length: ${iv.size}" }
+        val iv = runCatching { BackupCryptoEngine.decodeBase64(envelope.cipher.ivBase64) }
+            .getOrElse { throw SecurityException(DAMAGED_BACKUP, it) }
+        require(iv.size == 12) { DAMAGED_BACKUP }
         return VerifiedBackup(envelope, cipherBytes, iv)
     }
 
@@ -710,6 +737,11 @@ class BackupManager @Inject constructor(
                                     return@runCatching
                                 }
                                 if (leavesTor(torHere, target, strVal)) return@runCatching
+                                // Gallery's looks from a newer version's format would read as nothing here and be
+                                // written over: this phone's own looks stay instead.
+                                if (target == SettingsManager.GALLERY_LOOKS.name && strVal.isNotBlank() &&
+                                    runCatching { JSONObject(strVal).optInt("version", 0) }.getOrDefault(0) > SettingsManager.GALLERY_LOOKS_VERSION
+                                ) return@runCatching
                                 editor.putString(target, strVal)
                             }
                             "STRING_SET" -> {
@@ -939,7 +971,19 @@ class BackupManager @Inject constructor(
         return root.toString(2)
     }
 
-    private fun parseEnvelope(jsonString: String): EncryptedBackupEnvelope {
+    /**
+     * The backup header in [jsonString]. Anything that isn't one, a text file or some other JSON, fails with the one
+     * plain [NOT_A_BACKUP] rather than what the JSON reader says ("No value for cipher").
+     */
+    private fun parseEnvelope(jsonString: String): EncryptedBackupEnvelope = try {
+        parseEnvelopeJson(jsonString).also {
+            require(it.format == BACKUP_FORMAT) { NOT_A_BACKUP }
+        }
+    } catch (e: org.json.JSONException) {
+        throw IllegalArgumentException(NOT_A_BACKUP, e)
+    }
+
+    private fun parseEnvelopeJson(jsonString: String): EncryptedBackupEnvelope {
         val root = JSONObject(jsonString)
         val kdfObj = root.optJSONObject("kdf")
         val kdf = if (kdfObj != null) {
@@ -962,7 +1006,7 @@ class BackupManager @Inject constructor(
         val devModel = root.optString("deviceModel").takeIf { it.isNotBlank() }
 
         return EncryptedBackupEnvelope(
-            format = root.optString("format", "INTELLIGENT_SEARCH_ENCRYPTED_BACKUP"),
+            format = root.optString("format", BACKUP_FORMAT),
             schemaVersion = root.optInt("schemaVersion", 1),
             timestampMs = root.optLong("timestampMs", System.currentTimeMillis()),
             isHardwareBacked = root.optBoolean("isHardwareBacked", false),

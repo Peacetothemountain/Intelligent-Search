@@ -391,8 +391,8 @@ private fun DeveloperNoteCards(context: Context, scheme: androidx.compose.materi
                         com.pixel.intelligentsearch.core.system.SearchRoleManager.ADB_ACTIVATION_COMMANDS.lines().forEach { command ->
                             Text(
                                 command,
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                                style = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum"),
+                                fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
                                 color = scheme.primary
                             )
                         }

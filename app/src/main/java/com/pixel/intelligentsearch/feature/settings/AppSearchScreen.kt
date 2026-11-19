@@ -59,7 +59,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
             SettingsSectionHeader("App Settings")
             SettingsCard {
                 SettingsRow(
-                    title = "Application Search",
+                    title = "Choose Quick Panel Apps",
                     subtitle = "Choose the Apps in the Quick App Panel.",
                     icon = Symbols.Outlined.ViewCarousel,
                     onClick = { onNavigate(Route.SearchPills) },
@@ -115,7 +115,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
                 pendingMax?.let { newMax ->
                     val removed = remember(newMax) { pillProfiles.appsRemovedByMax(newMax).map { appLabel(context, it) } }
                     WarningCard(
-                        title = "Remove Apps from Application Search?",
+                        title = "Remove Apps from the Quick App Panel?",
                         message = quickPanelTrimMessage(newMax, removed),
                         acceptLabel = "Remove",
                         onAccept = {
@@ -200,7 +200,7 @@ fun AppSearchScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, onBac
 
 /** What the Quick App Panel switch does: its apps are the ones chosen under Application Search. */
 internal const val QUICK_APP_PANEL_SUBTITLE =
-    "The Apps You Chose Under Application Search. Open Your Favorites Without Searching."
+    "The Apps You Chose for the Quick App Panel. Open Your Favorites Without Searching."
 
 /** An installed app's name, or its package name when it isn't installed. */
 private fun appLabel(context: android.content.Context, packageName: String): String = runCatching {
@@ -217,8 +217,8 @@ internal fun quickPanelTrimMessage(newMax: Int, removed: List<String>): String {
     }
     val apps = if (newMax == 1) "1 app" else "$newMax apps"
     return if (removed.size == 1) {
-        "Application Search can then hold only $apps, so the last app in its list, $names, will be removed."
+        "The Quick App Panel can then hold only $apps, so the last app in its list, $names, will be removed."
     } else {
-        "Application Search can then hold only $apps, so its last ${removed.size} apps will be removed, starting from the bottom: $names."
+        "The Quick App Panel can then hold only $apps, so its last ${removed.size} apps will be removed, starting from the bottom: $names."
     }
 }

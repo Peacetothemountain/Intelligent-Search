@@ -60,7 +60,7 @@ class WarningCardButtonsTest {
     }
 
     private fun assertEveryLabelOnOneLine() {
-        for (label in listOf("Save", "Discard", "Don't show this again")) assertEquals("$label's lines", 1, lines(label))
+        for (label in listOf("Save", "Discard", "Don't Show This Again")) assertEquals("$label's lines", 1, lines(label))
     }
 
     @Test
@@ -78,8 +78,8 @@ class WarningCardButtonsTest {
         assertEquals(1, lines("Discard"))
         // The longest label may need two lines in the dialog's width at this size, but only between its words.
         val layouts = mutableListOf<TextLayoutResult>()
-        compose.onNodeWithText("Don't show this again", useUnmergedTree = true)
+        compose.onNodeWithText("Don't Show This Again", useUnmergedTree = true)
             .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
-        assertFalse(splitsAWord("Don't show this again", layouts.single()))
+        assertFalse(splitsAWord("Don't Show This Again", layouts.single()))
     }
 }

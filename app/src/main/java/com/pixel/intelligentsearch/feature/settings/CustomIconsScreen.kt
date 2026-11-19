@@ -188,7 +188,7 @@ fun CustomIconsScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                                     }
                                 }
                             ) {
-                                Text("Don't show this again", fontSize = 13.sp, color = MaterialTheme.colorScheme.outline)
+                                Text("Don't Show This Again", fontSize = 13.sp, color = MaterialTheme.colorScheme.outline)
                             }
                             
                             Row {

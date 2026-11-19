@@ -215,7 +215,7 @@ fun SearchPillsScreen(
                 when {
                     showAppPicker && multiSelectMode -> "${selectedApps.size} Selected"
                     showAppPicker -> "Add Applications"
-                    else -> "Application Search"
+                    else -> "Quick Panel Apps"
                 },
                 onBack = {
                     if (showAppPicker && multiSelectMode) {
@@ -286,7 +286,7 @@ fun SearchPillsScreen(
         if (showMaxWarning) {
             AlertDialog(
                 onDismissRequest = { showMaxWarning = false },
-                title = { Text("Application Search Is Full", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
+                title = { Text("Quick App Panel Is Full", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge) },
                 text = { Text("It holds up to ${SearchPillProfiles.MAX_PILLS} apps. Remove one to add another.", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.verticalScroll(rememberScrollState())) },
                 confirmButton = {
                     TextButton(onClick = { showMaxWarning = false }) {

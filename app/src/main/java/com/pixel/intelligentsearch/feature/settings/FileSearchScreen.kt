@@ -130,7 +130,12 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { confirmClearMedia = false },
             title = { Text("Stop Searching Chosen Photos and Videos?") },
-            text = { Text("The $mediaCount photos and videos you chose will no longer appear in search results. Nothing in them is changed.") },
+            text = {
+                Text(
+                    if (mediaCount == 1) "The photo or video you chose will no longer appear in search results. Nothing in it is changed."
+                    else "The $mediaCount photos and videos you chose will no longer appear in search results. Nothing in them is changed."
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     confirmClearMedia = false
@@ -229,7 +234,8 @@ fun FileSearchScreen(prefs: SharedPreferences, onBack: () -> Unit) {
                 if (mediaCount > 0) {
                     SettingsRow(
                         title = "Clear Chosen Photos and Videos",
-                        subtitle = "Stop Searching the $mediaCount Photos and Videos Chosen Above.",
+                        subtitle = if (mediaCount == 1) "Stop Searching the Photo or Video Chosen Above."
+                            else "Stop Searching the $mediaCount Photos and Videos Chosen Above.",
                         icon = Symbols.Outlined.DeleteSweep,
                         onClick = { confirmClearMedia = true },
                         showDivider = true

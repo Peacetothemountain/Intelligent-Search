@@ -92,6 +92,8 @@ internal fun androidSettingIcon(iconType: String): ImageVector = when (iconType)
     "is_backup" -> Icons.Outlined.Shield
     "is_ai" -> Icons.Outlined.AutoAwesome
     "is_setup" -> Icons.Outlined.Checklist
+    "is_gallery" -> com.pixel.intelligentsearch.feature.tabs.PillSymbols.Style
+    "is_wellbeing" -> com.pixel.intelligentsearch.feature.tabs.PillSymbols.Spa
     "wifi" -> Icons.Outlined.Wifi
     "network" -> Icons.Outlined.Language
     "mobile_network" -> Icons.Outlined.SignalCellularAlt

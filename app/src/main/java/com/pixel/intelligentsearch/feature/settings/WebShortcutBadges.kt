@@ -82,7 +82,8 @@ fun SynchronizedMorphingShortcutBadge(
         // Longer triggers ("!youtube") shrink to fit on one line; ones that already fit keep their usual size.
         Text(
             text = shortcut,
-            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+            fontFamily = com.pixel.intelligentsearch.core.theme.GoogleSansFlex,
+            style = androidx.compose.material3.LocalTextStyle.current.copy(fontFeatureSettings = "tnum"),
             fontWeight = FontWeight.Bold,
             color = contentColor,
             textAlign = TextAlign.Center,

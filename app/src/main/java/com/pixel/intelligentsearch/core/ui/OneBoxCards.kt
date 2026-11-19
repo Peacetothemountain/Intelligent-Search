@@ -255,7 +255,7 @@ fun AnimatedCopyChip(
             } catch (e: Throwable) {
                 android.util.Log.e("OneBoxCards", "Failed to set primary clip", e)
                 try {
-                    Toast.makeText(context.applicationContext, "Failed to copy to clipboard", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context.applicationContext, "Couldn’t copy.", Toast.LENGTH_SHORT).show()
                 } catch (_: Throwable) {}
             }
         },

@@ -950,7 +950,14 @@ internal fun WidgetPreviewBackdrop(
  * A widget shortcut as the editor names it. "Discover" opens the Google app's feed, so it is named Google Discover
  * there, apart from the app's own Discover page; the stored key stays "Discover".
  */
-internal fun shortcutDisplayName(key: String): String = if (key == "Discover") "Google Discover" else key
+internal fun shortcutDisplayName(key: String): String = when (key) {
+    "Discover" -> "Google Discover"
+    // Stored, shared in setup codes and read by the widget under their old names; shown as TalkBack says them.
+    "Live" -> "Assistant"
+    "Translate (text)" -> "Translate Text"
+    "Translate (camera)" -> "Translate with Camera"
+    else -> key
+}
 
 /**
  * Asked when the widget is added to the Home screen with unsaved changes: the launcher's dialog previews, and places,

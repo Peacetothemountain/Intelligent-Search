@@ -103,11 +103,12 @@ class SettingsActivity : ComponentActivity() {
             Route.fromKey(sanitizedScreenKey)
         }
 
-        // The search's screen time opens the main page on its Wellbeing tab.
-        val initialTab = if (sanitizedScreenKey?.lowercase()?.trim() == "wellbeing") {
-            com.pixel.intelligentsearch.feature.tabs.SettingsTab.Wellbeing
-        } else {
-            com.pixel.intelligentsearch.feature.tabs.SettingsTab.Settings
+        // The search's screen time, and the Wellbeing and Gallery pages found by searching, open the main page on
+        // that tab.
+        val initialTab = when (sanitizedScreenKey?.lowercase()?.trim()) {
+            "wellbeing" -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Wellbeing
+            "gallery" -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Gallery
+            else -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Settings
         }
 
         setContent {

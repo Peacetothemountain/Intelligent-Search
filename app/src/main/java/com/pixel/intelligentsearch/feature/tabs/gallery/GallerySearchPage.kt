@@ -263,10 +263,8 @@ private fun QuickAppPills(scale: Float) {
             }
         }
     }
-    Row(
-        Modifier.fillMaxWidth().padding(start = 16.dp, bottom = 12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
+    // Only the pills that fit whole across the page show; in a narrow window the last ones went off its edge.
+    FitRow(spacing = 8.dp, modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
         SAMPLE_APPS.forEachIndexed { i, app ->
             val shape = RoundedCornerShape(24.dp)
             Row(
@@ -489,6 +487,31 @@ private fun FitColumn(keepEnd: Boolean, spacing: Dp, modifier: Modifier = Modifi
             for (i in kept) {
                 placeables[i].place(0, y)
                 y += placeables[i].height + gap
+            }
+        }
+    }
+}
+
+/** A row of [content] [spacing] apart that keeps only the children, from the start, that fit whole in its width. */
+@Composable
+private fun FitRow(spacing: Dp, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Layout(content, modifier) { measurables, constraints ->
+        val gap = spacing.roundToPx()
+        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity)) }
+        var used = 0
+        var count = 0
+        for (p in placeables) {
+            val need = used + (if (count == 0) 0 else gap) + p.width
+            if (need > constraints.maxWidth) break
+            used = need
+            count++
+        }
+        val height = placeables.take(count).maxOfOrNull { it.height } ?: 0
+        layout(constraints.maxWidth, height) {
+            var x = 0
+            for (p in placeables.take(count)) {
+                p.place(x, (height - p.height) / 2)
+                x += p.width + gap
             }
         }
     }

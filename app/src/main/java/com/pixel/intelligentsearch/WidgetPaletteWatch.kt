@@ -22,6 +22,12 @@ internal object WidgetPaletteWatch {
         SearchWidgetProvider::class.java, SearchWidgetMaterialProvider::class.java, SearchBoxWidgetProvider::class.java
     )
 
+    /** Whether one of the search bar widgets is on a home screen. */
+    fun anyPlaced(context: Context): Boolean = runCatching {
+        val manager = AppWidgetManager.getInstance(context)
+        manager != null && PROVIDERS.any { manager.getAppWidgetIds(ComponentName(context, it)).isNotEmpty() }
+    }.getOrDefault(false)
+
     /** Leaves the new wallpaper's colors a moment to take effect before the widgets read them. */
     private const val SETTLED_MS = 5_000L
 
@@ -30,9 +36,7 @@ internal object WidgetPaletteWatch {
      * already set is kept: the start Android makes to run it must not replace it before it has run.
      */
     fun sync(context: Context, keepExisting: Boolean) {
-        val manager = AppWidgetManager.getInstance(context)
-        val placed = manager != null && PROVIDERS.any { manager.getAppWidgetIds(ComponentName(context, it)).isNotEmpty() }
-        if (!placed) {
+        if (!anyPlaced(context)) {
             AppJob.PALETTE_CHANGE.cancel(context)
             return
         }

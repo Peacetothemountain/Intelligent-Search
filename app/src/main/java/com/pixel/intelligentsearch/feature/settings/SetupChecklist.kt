@@ -48,12 +48,13 @@ import com.pixel.intelligentsearch.core.glance.NotificationAccess
 import com.pixel.intelligentsearch.core.system.openSettingsPage
 import com.pixel.intelligentsearch.core.navigation.Route
 import com.pixel.intelligentsearch.core.system.SearchRoleManager
+import kotlinx.coroutines.launch
 
 /**
  * One thing a new user sets up: what it gives them, and whether it is done. The calendar isn't one: it is asked for
  * only when the user turns on At a Glance's Calendar Events, the one thing that reads it.
  */
-enum class SetupStep { CONTACTS, NOTIFICATIONS, FILES, SEARCH_BAR }
+enum class SetupStep { WIDGET, CONTACTS, NOTIFICATIONS, FILES, SEARCH_BAR }
 
 /** Which setup steps apply on this phone and which are done; read fresh every time the page is shown. */
 object SetupChecklist {
@@ -63,6 +64,8 @@ object SetupChecklist {
     }
 
     fun isDone(context: Context, prefs: SharedPreferences, step: SetupStep): Boolean = when (step) {
+        // The search bar on the home screen, the app's own widget: done once one is placed.
+        SetupStep.WIDGET -> com.pixel.intelligentsearch.WidgetPaletteWatch.anyPlaced(context)
         SetupStep.CONTACTS -> granted(context, Manifest.permission.READ_CONTACTS) && prefs[SettingsManager.SEARCH_CONTACTS]
         SetupStep.NOTIFICATIONS -> NotificationAccess.isGranted(context)
         SetupStep.FILES -> prefs[SettingsManager.SEARCH_FILES] &&
@@ -93,6 +96,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
     // Bumped whenever the user may have changed something (a permission dialog, or back from system settings).
     var revision by remember { mutableIntStateOf(0) }
     var showSearchBarHelp by remember { mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) revision++ }
@@ -184,6 +188,7 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                 steps.forEachIndexed { index, step ->
                     val isDone = done[step] == true
                     val (title, why, icon) = when (step) {
+                        SetupStep.WIDGET -> Triple("Search Bar Widget", "Add the Search Bar to Your Home Screen.", Symbols.Outlined.Widgets)
                         SetupStep.CONTACTS -> Triple("Contacts", "Find People as You Type, Then Call or Message Them.", Symbols.Outlined.Contacts)
                         SetupStep.NOTIFICATIONS -> Triple("Notifications", "Search Your Notifications. Then Turn On Timers and Media Controls in At a Glance.", Symbols.Outlined.Notifications)
                         SetupStep.FILES -> Triple("Files", "Choose the Folders to Search. Nothing Else Is Read.", Symbols.Outlined.Folder)
@@ -195,6 +200,17 @@ fun SetupChecklistScreen(prefs: SharedPreferences, onNavigate: (Route) -> Unit, 
                         icon = if (isDone) Symbols.Outlined.CheckCircle else icon,
                         onClick = {
                             when (step) {
+                                // The launcher's own add-widget dialog, with the design saved in Widget Customization.
+                                SetupStep.WIDGET -> if (isDone) onNavigate(Route.WidgetCustomization) else scope.launch {
+                                    val isMaterial = prefs[SettingsManager.WIDGET_THEME_STYLE] != "System Default"
+                                    val asked = com.pixel.intelligentsearch.feature.widget.PinWidgetReceiver
+                                        .requestPinWidget(context, isMaterial = isMaterial)
+                                    if (!asked) Toast.makeText(
+                                        context,
+                                        "Touch and hold your home screen, tap Widgets, then Intelligent Search.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
                                 SetupStep.CONTACTS ->
                                     if (isDone) {
                                         onNavigate(Route.ContactSearch)

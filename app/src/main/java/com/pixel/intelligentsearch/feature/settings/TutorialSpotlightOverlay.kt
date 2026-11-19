@@ -36,7 +36,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ButtonDefaults
@@ -305,6 +305,10 @@ fun TutorialSpotlightOverlay(
                 }
             }
     ) {
+        // In a short window (a phone on its side) a card placed beside its target is left a slit too short for the
+        // step's words, so there it is placed as a centered step's is, with no arrow, the target still ringed.
+        val arrowShown = stepInfo.showArrow && maxHeight >= SHORT_WINDOW_HEIGHT
+
         // Modern Fluid Pulse Ring with GraphicsLayer isolation
         if (stepInfo.showCircle && localTargetRect != null) {
             val targetCenter = localTargetRect.center
@@ -319,7 +323,7 @@ fun TutorialSpotlightOverlay(
         }
 
         // Hardware-optimized Squiggle Arrow connecting Card to Target
-        if (stepInfo.showArrow && localTargetRect != null && cardBounds != Rect.Zero) {
+        if (arrowShown && localTargetRect != null && cardBounds != Rect.Zero) {
             val squigglePath = remember { Path() }
             val animatedSquigglePath = remember { Path() }
             val arrowHeadPath = remember { Path() }
@@ -451,13 +455,13 @@ fun TutorialSpotlightOverlay(
         val shortWindow = maxHeight < SHORT_WINDOW_HEIGHT
         val (topPadding, bottomPadding) = remember(
             localTargetRect,
-            stepInfo.showArrow,
+            arrowShown,
             constraints.maxHeight,
             statusBarTopPadding,
             navBarBottomPadding,
             searchBarBehind
         ) {
-            if (localTargetRect != null && stepInfo.showArrow) {
+            if (localTargetRect != null && arrowShown) {
                 val targetTopDp = with(density) { localTargetRect.top.toDp() }
                 val targetBottomDp = with(density) { localTargetRect.bottom.toDp() }
                 val isBottomTarget = localTargetRect.center.y > (constraints.maxHeight / 2f)
@@ -543,9 +547,12 @@ fun TutorialSpotlightOverlay(
                     // The height the step's words have before they must scroll (the Welcome video sizes to it).
                     val scrollRoom = maxHeight
                     val scrollWidth = maxWidth
+                    // Each step's words start at their top: a step scrolled to reach a switch doesn't open the next
+                    // one scrolled past its title.
+                    val stepScroll = remember(currentStep) { ScrollState(0) }
                     Column(
                         modifier = Modifier
-                            .verticalScroll(rememberScrollState()),
+                            .verticalScroll(stepScroll),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         // TalkBack Traversal 1: Step Indicator

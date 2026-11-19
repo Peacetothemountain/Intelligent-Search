@@ -7,6 +7,9 @@ import android.graphics.Shader
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import com.pixel.intelligentsearch.feature.settings.focusRing
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -258,7 +261,10 @@ private fun PillTabItem(tab: PillTab, selected: Boolean, share: () -> Float, lar
     val tick = rememberTick()
     val interactions = remember { MutableInteractionSource() }
     val pressed by interactions.collectIsPressedAsState()
+    val focused by interactions.collectIsFocusedAsState()
+    val hovered by interactions.collectIsHoveredAsState()
     LaunchedEffect(pressed) { if (pressed) tick() }
+    val hoverTint = scheme.onSurface.copy(alpha = 0.08f)
     val weight = if (selected) FontWeight.Bold else FontWeight.Medium
     // Tinted while drawing, so the colors follow the indicator without recomposing.
     fun Modifier.tint(on: Color) = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
@@ -278,6 +284,15 @@ private fun PillTabItem(tab: PillTab, selected: Boolean, share: () -> Float, lar
             },
         contentAlignment = Alignment.Center
     ) {
+        // A keyboard's focus shows as the ring the rest of the app draws, a mouse pointer over it as a light tint,
+        // both inside the pill's own outline.
+        Box(
+            Modifier
+                .matchParentSize()
+                .padding(3.dp)
+                .drawBehind { if (hovered) drawRoundRect(hoverTint, cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f)) }
+                .focusRing(CircleShape) { focused }
+        )
         val icon = if (selected) tab.selectedIcon else tab.icon
         if (!largeText) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {

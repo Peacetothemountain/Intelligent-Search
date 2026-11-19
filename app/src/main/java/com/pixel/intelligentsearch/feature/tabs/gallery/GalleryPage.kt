@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.tabs.gallery
 
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
 import com.pixel.intelligentsearch.feature.tabs.ui.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -202,6 +204,9 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     ShowWallpaperBehindWindow(holes)
     // The pill stays away while anything is over the page: the full preview, a menu, a dialog or a sheet.
     LaunchedEffect(pv.open, pop != null) { chrome.setCovered(pv.open || pop != null) }
+    // The preview opening (or its buttons going away) takes focus off what is now covered, so Tab starts on what shows.
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
+    LaunchedEffect(pv.open, pv.bare) { if (pv.open) focusManager.clearFocus(force = true) }
     DisposableEffect(Unit) { onDispose { chrome.setCovered(false) } }
     // Back on a recreated screen: a preview that was opening is shown open, one that was closing is closed.
     LaunchedEffect(Unit) {
@@ -587,6 +592,10 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                     Modifier
                         .fillMaxSize()
                         .then(if (pv.covering) Modifier.clearAndSetSemantics { } else Modifier)
+                        // Under the open preview a keyboard can't reach the page either (Tab went on to its buttons
+                        // unseen, and Enter opened How Looks Work over the preview).
+                        .focusProperties { onEnter = { if (pv.open) cancelFocusChange() } }
+                        .focusGroup()
                         .drawWithContent {
                             if (pv.covering) return@drawWithContent
                             drawContent()

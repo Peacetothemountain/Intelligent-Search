@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.key.type
@@ -603,8 +605,16 @@ fun SettingsRowToggle(
                 }
             }
             Spacer(modifier = Modifier.width(16.dp))
-            // On a plain toggle row the switch still takes taps and drags, but TalkBack hears the row instead.
-            Box(modifier = if (isPlainToggle) Modifier.clearAndSetSemantics {} else Modifier) {
+            // On a plain toggle row the switch still takes taps and drags, but TalkBack hears the row instead, and a
+            // keyboard stops on the row only (it took a second, unmarked Tab stop of its own).
+            Box(
+                modifier = if (isPlainToggle) {
+                    Modifier
+                        .clearAndSetSemantics {}
+                        .focusProperties { onEnter = { cancelFocusChange() } }
+                        .focusGroup()
+                } else Modifier
+            ) {
                 com.pixel.intelligentsearch.core.ui.expressive.GoogleMessagesSwitch(
                     checked = isChecked,
                     onCheckedChange = { next -> applyToggle(next) },

@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.settings
 
+import com.pixel.intelligentsearch.core.ui.tabMovesFocus
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
@@ -95,7 +96,8 @@ internal fun WidgetSetupCodeDialog(
                             }
                         )
                     },
-                    modifier = Modifier.fillMaxWidth()
+                    // Tab moves on to Paste, Close and Load rather than type a tab into the code.
+                    modifier = Modifier.fillMaxWidth().tabMovesFocus()
                 )
             }
         },

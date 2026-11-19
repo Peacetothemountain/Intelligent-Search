@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.tabs.gallery
 
+import androidx.compose.foundation.focusGroup
+import androidx.compose.ui.focus.focusProperties
 import com.pixel.intelligentsearch.feature.tabs.ui.*
 import android.view.RoundedCorner
 import androidx.activity.compose.BackHandler
@@ -274,7 +276,10 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
     val fontScale = density.fontScale
     // Large text, or a narrow window (a third of a split screen): the top row and the bottom bar stack their parts, so
     // the tabs' labels and the look's name and count keep their room.
-    val lg = fontScale >= 1.3f || with(density) { pageWidth.toDp() } < STACKED_BELOW_WIDTH
+    // A window wide enough for them all (a phone on its side) keeps them in one row even with large text: stacked there
+    // they left the search sample no height at all.
+    val pageWidthDp = with(density) { pageWidth.toDp() }
+    val lg = (fontScale >= 1.3f && pageWidthDp < INLINE_LARGE_TEXT_WIDTH) || pageWidthDp < STACKED_BELOW_WIDTH
     val screenRadius = remember(view) {
         view.rootWindowInsets?.getRoundedCorner(RoundedCorner.POSITION_TOP_LEFT)?.radius?.toFloat() ?: with(density) { 28.dp.toPx() }
     }
@@ -674,6 +679,7 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
             TopRow(
                 pv, look, state, lg,
                 Modifier
+                    .hiddenWhileBare(pv)
                     .offset { IntOffset(0, topRowTop.roundToInt()) }
                     .graphicsLayer { translationY = -hide * (topRowTop + topRowH + 40.dp.toPx()) }
                     .onSizeChanged { topRowH = it.height.toFloat() },
@@ -682,6 +688,7 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
             // Labels above the toolbar, each on its own opaque container.
             Column(
                 Modifier
+                    .hiddenWhileBare(pv)
                     .fillMaxWidth()
                     .offset { IntOffset(0, (tbTop - 8.dp.toPx() - noteMax).roundToInt()) }
                     .graphicsLayer { translationY = hide * (pageHeight - tbTop + noteMax + 40.dp.toPx()) }
@@ -709,6 +716,7 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
             Toolbar(
                 pv, name, n, lg, state, pageWidth,
                 Modifier
+                    .hiddenWhileBare(pv)
                     .offset { IntOffset(0, tbTop.roundToInt()) }
                     .graphicsLayer { translationY = hide * (pageHeight - tbTop + 40.dp.toPx()) }
                     .onSizeChanged { toolbarH = it.height.toFloat() },
@@ -817,8 +825,9 @@ private fun SearchPagePane(
                     else Modifier.layout { m, cs ->
                         val room = (bottom - top).coerceAtLeast(1f)
                         val p = m.measure(cs.copy(minHeight = 0, maxHeight = (barNeed * 1.15f).roundToInt()))
-                        val k = (room / p.height.coerceAtLeast(1)).coerceAtMost(1f)
-                        layout(p.width, (p.height * k).roundToInt()) {
+                        // Never so small it can't be read: with less room still it reaches over the space above the toolbar.
+                        val k = (room / p.height.coerceAtLeast(1)).coerceIn(MIN_SAMPLE_SCALE, 1f)
+                        layout(p.width, (p.height * k).roundToInt().coerceAtMost(cs.maxHeight)) {
                             p.placeWithLayer(0, 0) {
                                 scaleX = k; scaleY = k
                                 transformOrigin = TransformOrigin(0.5f, 0f)
@@ -1138,6 +1147,22 @@ private fun FpStack(
     }
 
 }
+
+/**
+ * The preview's buttons while the wallpaper is tapped bare: moved off screen, so out of TalkBack's and a keyboard's
+ * reach too (Tab stopped on them unseen, and Enter pressed them).
+ */
+private fun Modifier.hiddenWhileBare(pv: PreviewController): Modifier =
+    this
+        .then(if (pv.bare) Modifier.clearAndSetSemantics { } else Modifier)
+        .focusProperties { onEnter = { if (pv.bare) cancelFocusChange() } }
+        .focusGroup()
+
+/** At least this wide, the top row and bottom bar keep their parts side by side even with large text. */
+private val INLINE_LARGE_TEXT_WIDTH = 480.dp
+
+/** The least the sample search page is scaled to where its room is shorter than its bar. */
+private const val MIN_SAMPLE_SCALE = 0.6f
 
 /** Below this page width the preview's top row and bottom bar stack their parts, as they do with large text. */
 private val STACKED_BELOW_WIDTH = 360.dp

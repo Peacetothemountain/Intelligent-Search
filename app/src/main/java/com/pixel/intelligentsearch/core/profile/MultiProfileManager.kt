@@ -312,6 +312,7 @@ class MultiProfileManager @Inject constructor(
         activity: Activity? = null,
         intentFlags: Int = 0
     ): Boolean {
+        com.pixel.intelligentsearch.core.system.OutgoingLaunch.mark()
         val targetUser = userHandle ?: Process.myUserHandle()
         val isCurrentUser = targetUser == Process.myUserHandle()
 

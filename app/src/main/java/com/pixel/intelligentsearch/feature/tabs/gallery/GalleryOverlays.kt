@@ -1,5 +1,6 @@
 package com.pixel.intelligentsearch.feature.tabs.gallery
 
+import com.pixel.intelligentsearch.core.ui.tabMovesFocus
 import com.pixel.intelligentsearch.feature.tabs.ui.*
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -296,6 +297,8 @@ private fun DialogPopup(d: Pop.Dialog, phoneDark: Boolean, onClose: () -> Unit) 
                     modifier = Modifier
                         .fillMaxWidth()
                         .focusRequester(focus)
+                        // A code's several lines: Tab moves on to the buttons rather than type a tab into it.
+                        .then(if (multi) Modifier.tabMovesFocus() else Modifier)
                         .semantics { contentDescription = if (multi) "Look code" else "Name" }
                         .border(if (error != null) 2.dp else 1.dp, if (error != null) scheme.error else scheme.outline, RoundedCornerShape(12.dp))
                         // A long pasted code scrolls inside the field, which keeps to a few lines, so the buttons stay in view.

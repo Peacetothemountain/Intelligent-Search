@@ -253,9 +253,19 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         }
     }
 
+    override fun onRestart() {
+        super.onRestart()
+        // Brought back by Android just after it closed itself out of sight: a new search (Home, then search again)
+        // that would go down with it opens afresh. Back from an app it opened goes on Home as always.
+        if (isFinishing && closedOutOfSight && !backFromOpened()) reopenFresh(intent)
+    }
+
+    /** Whether this app opened something a moment ago, so a return to the overlay is Back from that. */
+    private fun backFromOpened(): Boolean =
+        android.os.SystemClock.uptimeMillis() - com.pixel.intelligentsearch.core.system.OutgoingLaunch.at < BACK_FROM_OPENED_MS
+
     override fun onStart() {
         super.onStart()
-        waitWatch.removeCallbacks(closeAfterStop)
         waitWatch.removeCallbacks(leftWhileWaiting)
         waitWatch.removeCallbacks(heldOutOfSight)
         heldForScreen = false
@@ -267,6 +277,9 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
     }
 
     override fun onDestroy() {
+        // Closed out of sight in the very moment a new search brought its task back (Home, then search again): Android
+        // shows the task, but the search went down with this overlay. It opens afresh instead.
+        if (closedOutOfSight && !backFromOpened() && canTellTaskInSight && ownTaskWhileInUse()?.isVisible == true) reopenFresh(intent)
         waitWatch.removeCallbacks(closeAfterStop)
         waitWatch.removeCallbacks(leftWhileWaiting)
         waitWatch.removeCallbacks(heldOutOfSight)
@@ -300,11 +313,16 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
             waitWatch.removeCallbacks(heldOutOfSight)
             waitWatch.postDelayed(heldOutOfSight, HOLD_CHECK_MS)
         } else if (!isChangingConfigurations && !isFinishing && !awayInOwnSettings && !awaitingSpeech && !awayGrantingAccess) {
-            // A moment later rather than at once: a search started just as Android delivers this stop (Home, then
-            // search again within a second) brings this same task back to the front, and closing it then took the new
-            // search with it. Coming back in sight cancels the close (onStart).
+            // Straight after this stop, so nothing can bring back a stopped overlay and its black placeholder. Not
+            // inside it: a search started just as this stop arrives (Home, then search again within a second or two)
+            // has brought the same task back to the front, and its new intent is already queued behind this stop.
+            // Closing after it, the overlay sees the new search and stays for it rather than take it down with it.
+            // Brought back with no new search (Back from an app opened from the results, as this stop arrives) it
+            // closes all the same, so Back goes on Home as always.
+            searchSinceStop = false
+            closeChecks = 0
             waitWatch.removeCallbacks(closeAfterStop)
-            waitWatch.postDelayed(closeAfterStop, CLOSE_AFTER_STOP_MS)
+            waitWatch.post(closeAfterStop)
         } else if (!isChangingConfigurations && !isFinishing && (awaitingSpeech || awayGrantingAccess)) {
             waitWatch.removeCallbacks(leftWhileWaiting)
             lastWaitCheck = android.os.SystemClock.uptimeMillis()
@@ -319,9 +337,69 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
      * when this overlay is its top: another overlay entry opened over it in the same task (the singleTask entries share
      * one affinity) must not go with it.
      */
-    private val closeAfterStop = Runnable {
-        if (isFinishing || lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) return@Runnable
-        if (isTopOfTask()) finishAndRemoveTask() else finish()
+    private val closeAfterStop: Runnable = object : Runnable {
+        override fun run() {
+            if (isFinishing || searchSinceStop) return
+            val started = lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+            val backFromOpened = backFromOpened()
+            when {
+                // Back again already: from an app it opened a moment ago (Back goes on Home, as always), or for a
+                // new search (Home, then search again), which Android brings straight back without a new intent.
+                started -> if (backFromOpened) closeNow()
+                // Android shows this task again but the overlay hasn't heard yet: wait for it.
+                closeChecks < CLOSE_SETTLE_CHECKS && comingBackIntoSight() -> {
+                    closeChecks++
+                    waitWatch.postDelayed(this, CLOSE_SETTLE_MS)
+                }
+                else -> closeNow()
+            }
+        }
+    }
+
+    /** Whether this overlay closed itself as it went out of sight ([closeNow]). */
+    private var closedOutOfSight = false
+
+    /** How many times [closeAfterStop] has waited on a task Android shows again. */
+    private var closeChecks = 0
+
+    /**
+     * Whether Android shows this overlay's task again with the overlay on top: a new search brought it to the front
+     * and its intent is on its way. An app opened from the results in this task is on top instead, and doesn't count.
+     */
+    private fun comingBackIntoSight(): Boolean {
+        if (!canTellTaskInSight) return false
+        val task = ownTaskWhileInUse() ?: return false
+        return task.isVisible && task.topActivity == componentName
+    }
+
+    /** Whether a new search reached this overlay since it last went out of sight ([closeAfterStop]). */
+    private var searchSinceStop = false
+
+    /** Opens this overlay entry afresh with [intent] in place of this closing one. */
+    private fun reopenFresh(intent: Intent?) {
+        if (reopening) return
+        reopening = true
+        val fresh = Intent(intent ?: Intent()).setClass(this, this::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        runCatching { startActivity(fresh) }
+    }
+
+    /** Whether a closing overlay has already asked for a fresh one ([reopenFresh]). */
+    private var reopening = false
+
+    /**
+     * Closes the overlay gone out of sight. Only the overlay, not its task at once: a search started in the very
+     * moment it closes (Home, then search again as it goes) is already on its way to this task, and taking the task
+     * with it lost that search. The search then opens afresh in the task; otherwise the empty task is taken out of
+     * Recents a moment later.
+     */
+    private fun closeNow() {
+        closedOutOfSight = true
+        val removeTask = isTopOfTask()
+        finish()
+        if (!removeTask) return
+        val app = applicationContext
+        val task = taskId
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ removeIfEmpty(app, task) }, EMPTY_TASK_CHECK_MS)
     }
 
     private fun isTopOfTask(): Boolean = runCatching {
@@ -346,6 +424,13 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        // A search that reached an overlay already closing (it went out of sight a moment before) opens a fresh one
+        // rather than go down with it.
+        if (isFinishing) {
+            reopenFresh(intent)
+            return
+        }
+        searchSinceStop = true
         window.setWindowAnimations(0)
         window.decorView.elevation = 0f
         window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
@@ -621,13 +706,21 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
     }
 
     /**
-     * The overlay's look as one color for its Recents card: over the wallpaper, a black scrim on the blurred wallpaper,
-     * close to the system's wallpaper-tinted darkest neutral; without the wallpaper, its own background.
+     * The overlay's look as one color for its Recents card, and for what Android shows in its place while it comes back
+     * (a search started again as it goes out of sight): over the wallpaper, its scrim (the theme's surface container in
+     * light, near black in dark); without the wallpaper, its own background. A near-black card in the light theme
+     * flashed dark before the light overlay.
      */
     private fun recentsCardColor(showWallpaper: Boolean): Int {
         val night = resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
             android.content.res.Configuration.UI_MODE_NIGHT_YES
-        return getColor(if (showWallpaper || night) android.R.color.system_neutral1_900 else android.R.color.system_neutral1_10)
+        return getColor(
+            when {
+                night -> android.R.color.system_neutral1_900
+                showWallpaper -> android.R.color.system_neutral1_50
+                else -> android.R.color.system_neutral1_10
+            }
+        )
     }
 
     /**
@@ -837,8 +930,26 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
         /** A stop this soon after the overlay's display changed (a fold) is the screen's doing ([stoppedByScreen]). */
         const val SCREEN_CHANGE_MS = 1500L
 
-        /** How long after going out of sight the overlay closes ([closeAfterStop]), unless brought back first. */
-        const val CLOSE_AFTER_STOP_MS = 600L
+        /** How long the overlay, out of sight, waits on a task Android shows again before checking once more. */
+        const val CLOSE_SETTLE_MS = 150L
+
+        /** How soon after the overlay opened something a return to it counts as Back from that ([closeAfterStop]). */
+        const val BACK_FROM_OPENED_MS = 5000L
+
+        /** How many more [CLOSE_SETTLE_MS] the overlay waits on a task Android shows again before closing anyway. */
+        const val CLOSE_SETTLE_CHECKS = 4
+
+        /** How long after the overlay closed its emptied task is looked for, to take it out of Recents ([closeNow]). */
+        const val EMPTY_TASK_CHECK_MS = 500L
+
+        /** Takes the overlay's task [taskId] out of Recents if nothing is left in it. */
+        fun removeIfEmpty(context: android.content.Context, taskId: Int) {
+            runCatching {
+                val task = context.getSystemService(android.app.ActivityManager::class.java).appTasks
+                    .firstOrNull { it.taskInfo?.taskId == taskId } ?: return
+                if (task.taskInfo?.numActivities == 0) task.finishAndRemoveTask()
+            }
+        }
 
         /** How often an overlay held through a fold or lock checks whether the user is back ([heldOutOfSight]). */
         const val HOLD_CHECK_MS = 500L

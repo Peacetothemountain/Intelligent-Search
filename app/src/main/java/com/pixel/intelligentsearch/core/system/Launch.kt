@@ -24,6 +24,20 @@ import com.pixel.intelligentsearch.core.util.findActivity
  */
 private const val TAG = "Launch"
 
+/**
+ * When this app last opened another app or page, on the uptime clock: the search overlay, brought back the moment it
+ * goes, tells Back from what it opened (it closes, as always) from a new search (it stays for it).
+ */
+object OutgoingLaunch {
+    @Volatile
+    var at = Long.MIN_VALUE / 2
+        private set
+
+    fun mark() {
+        at = android.os.SystemClock.uptimeMillis()
+    }
+}
+
 /** Starts [intent]; returns false when nothing could handle it so callers can fall back. */
 fun launchSafeIntent(context: Context, intent: Intent, options: Bundle? = null): Boolean = opening(context) {
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -94,6 +108,7 @@ private tailrec fun Context.comesBack(): ComesBackContext? = when (this) {
 
 /** Runs [open] from [context]; from a [ComesBackContext] its screen waits behind what opened, and not if nothing did. */
 private inline fun opening(context: Context, open: () -> Boolean): Boolean {
+    OutgoingLaunch.mark()
     val screen = context.comesBack()?.screen
     screen?.waitWhileGranting(true)
     val opened = open()
@@ -107,6 +122,7 @@ private inline fun opening(context: Context, open: () -> Boolean): Boolean {
  * so a name from outside can't reach a screen the app keeps to itself.
  */
 fun launchApp(context: Context, packageName: String, activityName: String? = null): Boolean {
+    OutgoingLaunch.mark()
     val pm = context.packageManager
     val icon = activityName?.takeIf { it.isNotEmpty() }?.let { name ->
         val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setPackage(packageName)

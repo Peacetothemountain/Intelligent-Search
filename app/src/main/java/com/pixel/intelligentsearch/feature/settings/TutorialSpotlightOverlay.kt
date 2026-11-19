@@ -4,6 +4,7 @@ import com.pixel.intelligentsearch.core.util.clampSafely
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.data.settings.get
+import com.pixel.intelligentsearch.core.data.settings.get
 import android.content.SharedPreferences
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -447,6 +448,7 @@ fun TutorialSpotlightOverlay(
         val cardBgColor = cardColors.container
         val cardTextColor = cardColors.content
 
+        val shortWindow = maxHeight < SHORT_WINDOW_HEIGHT
         val (topPadding, bottomPadding) = remember(
             localTargetRect,
             stepInfo.showArrow,
@@ -461,14 +463,14 @@ fun TutorialSpotlightOverlay(
                 val isBottomTarget = localTargetRect.center.y > (constraints.maxHeight / 2f)
 
                 if (isBottomTarget) {
-                    val minClearance = 36.dp
+                    val minClearance = if (maxHeight < SHORT_WINDOW_HEIGHT) 24.dp else 36.dp
                     val topPad = (statusBarTopPadding + 16.dp).coerceAtLeast(16.dp)
                     val rawBotPad = (maxHeight - targetTopDp + minClearance).coerceAtLeast(navBarBottomPadding + 16.dp)
                     val maxAllowedBotPad = (maxHeight - topPad - 130.dp).coerceAtLeast(16.dp)
                     val botPad = rawBotPad.coerceAtMost(maxAllowedBotPad)
                     topPad to botPad
                 } else {
-                    val minClearance = 36.dp
+                    val minClearance = if (maxHeight < SHORT_WINDOW_HEIGHT) 24.dp else 36.dp
                     val botPad = (navBarBottomPadding + 24.dp).coerceAtLeast(24.dp)
                     val rawTopPad = (targetBottomDp + minClearance).coerceAtLeast(statusBarTopPadding + 16.dp)
                     val maxAllowedTopPad = (maxHeight - botPad - 130.dp).coerceAtLeast(16.dp)
@@ -479,9 +481,13 @@ fun TutorialSpotlightOverlay(
                 // A centered card keeps clear of the search bar, so on a small screen with large text it never hides
                 // the bar. The room is kept on both sides so the card stays centered where it always was; on normal
                 // screens it never grows tall enough to reach it.
+                // In a short window (a phone on its side) the room is kept on the bar's side only: kept on both, it
+                // left the card a slit too short for the step's words.
                 val reserve = if (searchBarBehind) SEARCH_BAR_RESERVE else 0.dp
-                val topPad = (statusBarTopPadding + 16.dp).coerceAtLeast(16.dp) + reserve
-                val botPad = (navBarBottomPadding + 24.dp).coerceAtLeast(24.dp) + reserve
+                val short = maxHeight < SHORT_WINDOW_HEIGHT
+                val barAtBottom = prefs[SettingsManager.BOTTOM_SEARCH]
+                val topPad = (statusBarTopPadding + 16.dp).coerceAtLeast(16.dp) + if (short && barAtBottom) 0.dp else reserve
+                val botPad = (navBarBottomPadding + 24.dp).coerceAtLeast(24.dp) + if (short && !barAtBottom) 0.dp else reserve
                 topPad to botPad
             }
         }
@@ -498,7 +504,8 @@ fun TutorialSpotlightOverlay(
                 colors = CardDefaults.cardColors(containerColor = cardBgColor),
                 elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
                 modifier = Modifier
-                    .widthIn(max = 520.dp)
+                    // Wider in a short window (a phone on its side), so the step's words take fewer lines of its height.
+                    .widthIn(max = if (shortWindow) 720.dp else 520.dp)
                     .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(24.dp))
                     .graphicsLayer {
                         val enter = animationProgress.value
@@ -600,9 +607,10 @@ fun TutorialSpotlightOverlay(
                                 val textWidth = (scrollWidth.roundToPx() - 16.dp.roundToPx()).coerceAtLeast(1)
                                 val words = welcomeMeasurer.measure(cleanText, welcomeStyle, constraints = androidx.compose.ui.unit.Constraints(maxWidth = textWidth)).size.height.toDp()
                                 val fits = scrollRoom - WELCOME_HEADING_ROOM - words
-                                minOf(275.dp, (windowHeightPx * 0.3f).toDp(), fits.coerceAtLeast(WELCOME_VIDEO_MIN))
+                                // With no room for it beside the words (a phone on its side), the video stays out.
+                                if (fits < WELCOME_VIDEO_MIN) 0.dp else minOf(275.dp, (windowHeightPx * 0.3f).toDp(), fits)
                             }
-                            if (welcomePlayer != null) {
+                            if (welcomePlayer != null && welcomeVideoHeight > 0.dp) {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -812,3 +820,6 @@ private val WELCOME_HEADING_ROOM = 72.dp
 
 /** The Welcome video never shrinks below this to make room: the card scrolls instead. */
 private val WELCOME_VIDEO_MIN = 96.dp
+
+/** Below this window height a centered card keeps clear of the search bar on the bar's side only. */
+private val SHORT_WINDOW_HEIGHT = 480.dp

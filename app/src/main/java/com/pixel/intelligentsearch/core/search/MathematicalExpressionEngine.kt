@@ -1074,13 +1074,16 @@ object MathematicalExpressionEngine {
         if (isTemperature(fromUnit) && isTemperature(toUnit)) {
             val converted = convertTemperature(value, fromUnit, toUnit)
             if (!converted.isFinite()) return null
+            // Written with the scales' symbols however they were typed: "72°F = 22.2222°C", not the words in capitals.
+            val fromLabel = temperatureLabel(fromUnit)
+            val toLabel = temperatureLabel(toUnit)
             return MathEvaluationResult.UnitConversion(
                 fromValue = value,
-                fromUnit = fromUnit.uppercase(Locale.ROOT),
+                fromUnit = fromLabel,
                 toValue = converted,
-                toUnit = toUnit.uppercase(Locale.ROOT),
-                formatted = "${formatNumber(value)} ${fromUnit.uppercase(Locale.ROOT)} = " +
-                    "${formatConverted(converted)} ${toUnit.uppercase(Locale.ROOT)}"
+                toUnit = toLabel,
+                formatted = "${formatNumber(value)}${temperatureGap(toLabel = fromLabel)}$fromLabel = " +
+                    "${formatConverted(converted)}${temperatureGap(toLabel = toLabel)}$toLabel"
             )
         }
 
@@ -1291,6 +1294,16 @@ object MathematicalExpressionEngine {
     private const val ABSOLUTE_ZERO_C = -273.15 - 1e-9
 
     private fun isTemperature(u: String) =u in listOf("c", "celsius", "f", "fahrenheit", "k", "kelvin")
+
+    /** A temperature scale's symbol: °C, °F or K. */
+    private fun temperatureLabel(u: String): String = when (u) {
+        "f", "fahrenheit" -> "°F"
+        "k", "kelvin" -> "K"
+        else -> "°C"
+    }
+
+    /** No space before a degree sign ("72°F"), one before kelvin ("295.372 K"), as they are written. */
+    private fun temperatureGap(toLabel: String): String = if (toLabel.startsWith("°")) "" else " "
 
     /** [v] in [from] as [to], or NaN below absolute zero ("-10 k", "-500 c"), which no temperature is. */
     private fun convertTemperature(v: Double, from: String, to: String): Double {

@@ -539,14 +539,16 @@ fun ConversionOneBox(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Text(
+            // Whole, however large the text: it wraps between words, shrinking where a word wouldn't fit, rather than be
+            // cut off after two lines (the largest text and display size cut the result, or lost it).
+            WholeWordText(
                 text = conversionText,
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontFamily = GoogleSansFlex,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                style = androidx.compose.material3.LocalTextStyle.current.merge(
+                    fontSize = 26.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontFamily = GoogleSansFlex
+                )
             )
 
             if (ratesLabel != null) {

@@ -220,8 +220,12 @@ fun SettingsScreensHub(
         val onNavigate: (com.pixel.intelligentsearch.core.navigation.Route) -> Unit = { route ->
             val leaving = navController.currentBackStackEntry
             val glowTime = glowClock.floatValue
-            val wallpaper = context.findActivity()?.window?.attributes?.flags
-                ?.let { it and android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER != 0 } == true
+            // Only where Android really draws the wallpaper behind the window: in split screen or a desktop window the
+            // picture's holes were drawn onto the wallpaper's mesh instead, and clearing behind it would show black.
+            val activity = context.findActivity()
+            val wallpaper = activity?.window?.attributes?.flags
+                ?.let { it and android.view.WindowManager.LayoutParams.FLAG_SHOW_WALLPAPER != 0 } == true &&
+                com.pixel.intelligentsearch.feature.tabs.wallpaperShowsBehind(activity)
             // The picture is of the page as last drawn, so it is taken now, before the new page draws over it; it
             // arrives a few milliseconds later on its own and nothing waits for it.
             pagePicture.take(pageBounds) { picture ->

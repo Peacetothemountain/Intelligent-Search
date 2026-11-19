@@ -175,6 +175,10 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     val store = if (backdrop == Backdrop.LookWallpaper) rememberWallpaperStore() else null
     // Screenshot tests have no wallpaper behind the window; the mesh stands in for it.
     val standIn = LocalGalleryWallpaperColors.current != null
+    // In split screen, a desktop window or picture-in-picture Android draws no wallpaper behind the window: there the
+    // windows look through to the mesh of its colors, as with Colors only, rather than onto black.
+    val wallpaperBehind = com.pixel.intelligentsearch.feature.tabs.rememberWallpaperShowsBehind()
+    val meshBehind = backdrop == Backdrop.ColorsOnly || standIn || !wallpaperBehind
     val blurAvailable by rememberSystemBlurEnabled()
     val wallColors = rememberWallpaperColors()
     var pop by remember { mutableStateOf<Pop?>(null) }
@@ -482,6 +486,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
             override val state = state
             override val phoneDark = phoneDark
             override val backdrop = backdrop
+            override val meshBehind = meshBehind
             override val popOpen = pop != null
             override fun setWallpaper(look: Look) = askWallpaper(look)
             override fun apply(look: Look, asBefore: Boolean, onDone: (Commit) -> Unit) = applyLook(look, asBefore, onDone = onDone)
@@ -566,7 +571,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
         Box(modifier.fillMaxSize().onGloballyPositioned { rootCoords = it }) {
             // Colors only: the mesh the windows look through to, drawn behind the page (the real wallpaper needs nothing:
             // Android draws it behind the window).
-            if (backdrop == Backdrop.ColorsOnly || standIn) {
+            if (meshBehind) {
                 val blurPx = pv.backdropBlur
                 WallMesh(
                     wallColors,

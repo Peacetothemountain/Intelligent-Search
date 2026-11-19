@@ -214,6 +214,11 @@ internal interface PreviewHost {
     val state: GalleryState
     val phoneDark: Boolean
     val backdrop: Backdrop
+    /**
+     * The windows look through to the mesh of the wallpaper's colors drawn behind the page, not to Android's
+     * wallpaper: Colors only, or a window (split screen, a desktop window) the wallpaper isn't drawn behind.
+     */
+    val meshBehind: Boolean
     /** A menu, dialog or sheet is open over the preview: back is theirs. */
     val popOpen: Boolean
     fun apply(look: Look, asBefore: Boolean, onDone: (Commit) -> Unit)
@@ -252,7 +257,7 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
     val store = LocalWallpaperStore.current
     val wallpaper = if (store != null) wallpaperOf(look, look.appDark(host.phoneDark)) else null
     // A hole to Android's wallpaper: that is the backdrop, or this look has no wallpaper of its own.
-    val realWallpaper = host.backdrop != Backdrop.ColorsOnly && wallpaper == null
+    val realWallpaper = !host.meshBehind && wallpaper == null
     if (store != null) {
         // This look's wallpaper and its neighbors', so a swipe never waits on one.
         val size = pv.list.size
@@ -421,12 +426,12 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
     // The real wallpaper is blurred by the window, as the real search page blurs it; a look's own wallpaper and
     // Colors only's mesh are drawn by the app, which blurs them itself.
     val window = remember(context) { context.findActivity()?.window }
-    LaunchedEffect(look, pv.search, blurAvailable, host.backdrop) {
+    LaunchedEffect(look, pv.search, blurAvailable, host.backdrop, host.meshBehind) {
         val px = if (q.wallpaper && blurAvailable) q.blur else 0
         snapshotFlow { pv.searchReveal.value }.collect { r ->
             setWindowBlur(window, if (realWallpaper) (px * r).roundToInt() else 0)
             pv.wallBlur = if (wallpaper != null) px * r else 0f
-            pv.backdropBlur = if (host.backdrop == Backdrop.ColorsOnly) px * r else 0f
+            pv.backdropBlur = if (host.meshBehind && wallpaper == null) px * r else 0f
         }
     }
     DisposableEffect(Unit) {
@@ -447,7 +452,7 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
         onDispose { if (c != null) c.isAppearanceLightStatusBars = !appDark.value }
     }
     val ownTopLight = if (store != null && wallpaper != null) store.palettes[wallpaper.id]?.lightTop ?: (Color(wallpaper.base).luminance() > 0.5f) else null
-    LaunchedEffect(pv.search, searchDark, q.wallpaper, wallDarkIcons, ownTopLight, host.backdrop) {
+    LaunchedEffect(pv.search, searchDark, q.wallpaper, wallDarkIcons, ownTopLight, host.backdrop, host.meshBehind) {
         val c = window?.let { WindowCompat.getInsetsController(it, it.decorView) } ?: return@LaunchedEffect
         c.isAppearanceLightStatusBars = when {
             pv.search -> !searchDark

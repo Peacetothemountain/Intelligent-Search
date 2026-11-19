@@ -42,3 +42,37 @@ internal fun WallpaperBehindWindow(enabled: Boolean) {
 
 /** How many [WallpaperBehindWindow]s want each window's wallpaper now. Main thread only. */
 private val wallpaperAskers = java.util.WeakHashMap<android.view.Window, Int>()
+
+/**
+ * Whether Android draws the wallpaper behind this window when it asks for it (FLAG_SHOW_WALLPAPER): not in split
+ * screen, a desktop window or picture-in-picture, where the task is drawn without the wallpaper and a window's holes
+ * (BlendMode.Clear) show black. Where it doesn't, Gallery's windows look through to the mesh of the wallpaper's colors
+ * instead, as with Colors only.
+ */
+internal fun wallpaperShowsBehind(activity: android.app.Activity?): Boolean =
+    activity == null || !(activity.isInMultiWindowMode || activity.isInPictureInPictureMode)
+
+/**
+ * [wallpaperShowsBehind] as state, for this window: read again as the window enters or leaves split screen or
+ * picture-in-picture, and on every resize (a split's divider drag), as soon as the screen composes for it, so a frame
+ * at the new size never shows a hole onto a wallpaper that isn't there.
+ */
+@Composable
+internal fun rememberWallpaperShowsBehind(): Boolean {
+    val activity = LocalContext.current.findActivity()
+    val size = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val changes = androidx.compose.runtime.remember(activity) { androidx.compose.runtime.mutableIntStateOf(0) }
+    DisposableEffect(activity) {
+        val owner = activity as? androidx.activity.ComponentActivity ?: return@DisposableEffect onDispose { }
+        val multiWindow = androidx.core.util.Consumer<androidx.core.app.MultiWindowModeChangedInfo> { changes.intValue++ }
+        val pip = androidx.core.util.Consumer<androidx.core.app.PictureInPictureModeChangedInfo> { changes.intValue++ }
+        owner.addOnMultiWindowModeChangedListener(multiWindow)
+        owner.addOnPictureInPictureModeChangedListener(pip)
+        onDispose {
+            owner.removeOnMultiWindowModeChangedListener(multiWindow)
+            owner.removeOnPictureInPictureModeChangedListener(pip)
+        }
+    }
+    return androidx.compose.runtime.remember(activity, size, configuration, changes.intValue) { wallpaperShowsBehind(activity) }
+}

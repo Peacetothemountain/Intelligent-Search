@@ -179,9 +179,15 @@ private fun ResultRows(s: OverlayScope) {
     // place, out of view; a list still at its top stays at its top, so the best match shows as it arrives.
     // Where the list is is followed outside composition (it changes every frame of a scroll) and only read here.
     val listPosition = remember { ListTopFlag() }
+    // With the rows first, a list showing them (or the top result scrolled up to just under them) is still at its top:
+    // turned on its side (the rows then follow the results) it goes back to its top, where the answer is.
+    val shortcutsFirst by rememberUpdatedState(inlineShortcutsFirst)
     LaunchedEffect(searchResultsListState) {
-        snapshotFlow { searchResultsListState.firstVisibleItemIndex == 0 && searchResultsListState.firstVisibleItemScrollOffset == 0 }
-            .collect { listPosition.atTop = it }
+        snapshotFlow {
+            val list = searchResultsListState
+            (list.firstVisibleItemIndex == 0 && list.firstVisibleItemScrollOffset == 0) ||
+                (shortcutsFirst && list.layoutInfo.visibleItemsInfo.firstOrNull()?.key in INLINE_SHORTCUT_KEYS)
+        }.collect { listPosition.atTop = it }
     }
     if (!inlineShortcutsFirst && listPosition.atTop) searchResultsListState.requestScrollToItem(0)
     // With the rows first, a list just tall enough for them cut the top result off flat at the search bar (a 4:3
@@ -522,28 +528,29 @@ private fun ResultRows(s: OverlayScope) {
         }
 
         if (uiState.mathResult != null) {
+            // The result on show is not offered back to itself.
+            val earlierResults = uiState.earlierResults.filter { it.shown != uiState.mathResult }
             resultRow(key = ResultListKeys.MATH, contentType = "math_result") {
                 HighlightedCard(s, ResultListKeys.MATH) {
                     MathResultOneBox(
                         expression = uiState.query,
                         result = uiState.mathResult,
                         ansLine = uiState.mathAns,
-                        // The result on show is not offered back to itself.
-                        earlier = uiState.earlierResults.map { it.shown },
+                        earlier = earlierResults.map { it.shown },
                         onEarlier = { index ->
-                            uiState.earlierResults.getOrNull(index)?.let { kept ->
+                            earlierResults.getOrNull(index)?.let { kept ->
                                 // As a calculator's memory recall: the number the sum ends with gives way to it.
                                 val text = com.pixel.intelligentsearch.core.search.CalculatorMemory.recall(s.ui.textFieldValue.text, kept.typed)
                                 s.ui.textFieldValue = androidx.compose.ui.text.input.TextFieldValue(text, androidx.compose.ui.text.TextRange(text.length))
                                 s.viewModel.onQueryChanged(text)
                             }
                         },
-                        onOpenCalculator = {
-                            hasStartedTyping = false
-                            try {
-                                val calcIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR)
-                                launchSafeIntent(context, calcIntent)
-                            } catch (_: Exception) {}
+                        // With no calculator app on the phone the card offers none.
+                        onOpenCalculator = if (!s.hasCalculatorApp) null else {
+                            {
+                                hasStartedTyping = false
+                                calculatorAppIntent(context)?.let { launchSafeIntent(context, it) }
+                            }
                         }
                     )
                 }

@@ -225,7 +225,8 @@ internal fun SearchBarPreview(look: Look, modifier: Modifier = Modifier) {
         LensDrawing(rim, top, handle, sparkle, Modifier.size(28.dp))
         Spacer(Modifier.width(16.dp))
         Text(
-            "Search…", color = scheme.onSurfaceVariant, fontSize = 20.sp, maxLines = 1, softWrap = false,
+            // Cut short with an ellipsis, never mid-letter, where a narrow window leaves it little room.
+            "Search…", color = scheme.onSurfaceVariant, fontSize = 20.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
             fontFamily = MaterialTheme.typography.bodyLarge.fontFamily, modifier = Modifier.weight(1f)
         )
         Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
@@ -403,33 +404,36 @@ internal fun SearchPageContent(
         ) { SearchBarPreview(look) }
     }
     val apps = @Composable { Box(Modifier.revealed(reveal, 0.1f)) { QuickAppPills(if (fontScale >= 1.3f) 0.8f else 1f) } }
-    // The bar and the quick apps always show; the cards take the room left and keep only those that fit whole (in a
-    // short window, large text or a third of a split screen they squeezed the bar to nothing).
+    // The bar always shows, measured first; the quick apps and then the cards take the room left and keep only what
+    // fits whole (in a short window, large text or a third of a split screen they squeezed the bar to nothing).
     if (layout.barAtBottom) {
         Column(modifier.fillMaxHeight(), verticalArrangement = Arrangement.Bottom) {
-            SampleCards(look, reveal, clock.takeIf { layout.showsClock }, nearEnd = true, Modifier.weight(1f, fill = false))
-            apps()
+            SampleCards(look, reveal, clock.takeIf { layout.showsClock }, nearEnd = true, apps, Modifier.weight(1f, fill = false))
             bar()
         }
     } else {
         Column(modifier) {
             bar()
-            apps()
-            SampleCards(look, reveal, clock.takeIf { layout.showsClock }, nearEnd = false, Modifier.weight(1f, fill = false))
+            SampleCards(look, reveal, clock.takeIf { layout.showsClock }, nearEnd = false, apps, Modifier.weight(1f, fill = false))
         }
     }
 }
 
 /**
- * The At a Glance card, with the person's clock when they show it ([clock]), and two sample results. Where they don't
- * all fit, those farthest from the bar go: with the bar under them ([nearEnd]) the top ones, else the bottom ones.
+ * The quick [apps] next to the bar, then the At a Glance card, with the person's clock when they show it ([clock]),
+ * and two sample results. Where they don't all fit, those farthest from the bar go: with the bar under them
+ * ([nearEnd]) the top ones, else the bottom ones.
  */
 @Composable
-private fun SampleCards(look: Look, reveal: () -> Float, clock: String?, nearEnd: Boolean, modifier: Modifier = Modifier) {
+private fun SampleCards(
+    look: Look, reveal: () -> Float, clock: String?, nearEnd: Boolean, apps: @Composable () -> Unit, modifier: Modifier = Modifier
+) {
     val scheme = MaterialTheme.colorScheme
     val today = remember { LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.US)) }
     val fontScale = androidx.compose.ui.platform.LocalDensity.current.fontScale
-    FitColumn(keepEnd = nearEnd, spacing = 8.dp, modifier = modifier) {
+    // The two cards are 8 dp apart; the apps sit right against them, as before.
+    FitColumn(keepEnd = nearEnd, gapAfter = { i -> if (i == (if (nearEnd) 0 else 1)) 8.dp else 0.dp }, modifier = modifier) {
+        if (!nearEnd) apps()
         Box(Modifier.revealed(reveal, 0.2f).padding(horizontal = 16.dp, vertical = 4.dp)) {
             Column(
                 Modifier
@@ -458,24 +462,25 @@ private fun SampleCards(look: Look, reveal: () -> Float, clock: String?, nearEnd
                 GlanceRow(AppSymbols.Outlined.Calculate, "9 × 9 = 81", "Calculator")
             }
         }
+        if (nearEnd) apps()
     }
 }
 
 /**
- * A column of [content] [spacing] apart that keeps only the children that fit whole in the height it is given: from
- * the top, or from the bottom with [keepEnd] (the ones at the top going first).
+ * A column of [content], [gapAfter] each child, that keeps only the children that fit whole in the height it is given:
+ * from the top, or from the bottom with [keepEnd] (the ones at the top going first).
  */
 @Composable
-private fun FitColumn(keepEnd: Boolean, spacing: Dp, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+private fun FitColumn(keepEnd: Boolean, gapAfter: (Int) -> Dp, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Layout(content, modifier) { measurables, constraints ->
-        val gap = spacing.roundToPx()
+        fun gap(between: Int) = gapAfter(between).roundToPx()
         val loose = constraints.copy(minHeight = 0, maxHeight = Constraints.Infinity)
         val placeables = measurables.map { it.measure(loose) }
         val order = if (keepEnd) placeables.indices.reversed() else placeables.indices
         val kept = ArrayList<Int>()
         var used = 0
         for (i in order) {
-            val need = used + (if (kept.isEmpty()) 0 else gap) + placeables[i].height
+            val need = used + (if (kept.isEmpty()) 0 else gap(if (keepEnd) i else i - 1)) + placeables[i].height
             if (need > constraints.maxHeight) break
             used = need
             kept += i
@@ -486,7 +491,7 @@ private fun FitColumn(keepEnd: Boolean, spacing: Dp, modifier: Modifier = Modifi
             var y = 0
             for (i in kept) {
                 placeables[i].place(0, y)
-                y += placeables[i].height + gap
+                y += placeables[i].height + gap(i)
             }
         }
     }

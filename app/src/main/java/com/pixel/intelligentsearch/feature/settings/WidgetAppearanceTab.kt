@@ -231,6 +231,9 @@ internal fun WidgetAppearanceTab(
                 text = label,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                 maxLines = 1,
+                // Laid out unwrapped, so a word too wide for the pill counts as not fitting and shrinks: wrapped, it was
+                // broken inside the word onto a hidden line ("Custo") and looked as if it fit.
+                softWrap = false,
                 autoSize = oneLineAutoSize(MaterialTheme.typography.labelMedium, ONE_WORD_PILL_SHRINK),
                 // One word, kept whole: never hyphenated onto a line that isn't shown.
                 style = MaterialTheme.typography.labelMedium.copy(hyphens = androidx.compose.ui.text.style.Hyphens.None),

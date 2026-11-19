@@ -94,6 +94,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.util.lerp
 import androidx.core.view.WindowCompat
 import kotlinx.coroutines.CancellationException
@@ -101,6 +102,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.graphics.TransformOrigin
 import com.pixel.intelligentsearch.core.ui.wheelSteps
 
 /** What a card draws in its window besides the bar, which the full preview carries while it grows and shrinks. */
@@ -467,6 +470,11 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
     val topEnd = topRowTop + topRowH
     SideEffect { pv.topEnd = topEnd }
     val tbTop = pageHeight - navBottom - with(density) { 16.dp.toPx() } - toolbarH
+    // The sample search page's bar always shows: where the room between the top row and the labels over the toolbar
+    // is too short for it (a phone on its side with large text), the "Sample results" label gives its room up.
+    val sampleBarNeed = with(density) { (20.sp.toDp() * 1.35f + 44.dp).coerceAtLeast(88.dp).toPx() }
+    val sampleTop = topEnd + with(density) { 4.dp.toPx() }
+    val sampleNoLabel = pv.search && tbTop - with(density) { 16.dp.toPx() } - noteMax - sampleTop < sampleBarNeed
     val c0 = topEnd + with(density) { 16.dp.toPx() } + barH / 2
     val room = tbTop - with(density) { 8.dp.toPx() } - noteMax - with(density) { 14.dp.toPx() } - barH / 2 - c0
     if (room < with(density) { 40.dp.toPx() } && !pv.noHint && state.opens <= 3) pv.noHint = true
@@ -631,12 +639,14 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
         // The search page: its dimming and stars rise from the bottom edge, never faded in. Each look's on its page.
         val reveal = pv.searchReveal.value
         if (reveal > 0f) {
-            val top = topEnd + with(density) { 4.dp.toPx() }
+            val top = sampleTop
+            val roomBottom = tbTop - with(density) { 16.dp.toPx() } - (if (sampleNoLabel) 0f else noteMax)
             for ((of, dx) in visible) key(of.id) {
                 SearchPagePane(
                     of, host.phoneDark, blurAvailable, dx, reveal,
                     top = top,
-                    bottom = tbTop - with(density) { 16.dp.toPx() } - noteMax,
+                    bottom = roomBottom,
+                    barNeed = sampleBarNeed,
                     fieldShift = { at -> (barY.value - top - at - with(density) { 8.dp.toPx() }) * (1f - pv.searchReveal.value) }
                 )
             }
@@ -679,7 +689,7 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
                 if (look.switchesTheme(host.phoneDark)) {
                     Chip(if (searchDark) Symbols.DarkMode else Symbols.LightMode, "Switches to ${if (searchDark) "dark" else "light"} theme", chromeScheme.primaryContainer, chromeScheme.onPrimaryContainer)
                 }
-                if (pv.search) {
+                if (pv.search && !sampleNoLabel) {
                     val lost = q.wallpaper && !blurAvailable && q.blur > 0
                     Chip(null, if (lost) "Sample results · Your phone has blur off, so search dims your wallpaper instead" else "Sample results", chromeScheme.surfaceContainerHigh, chromeScheme.onSurface)
                 } else if (state.opens <= 3 && !pv.noHint) {
@@ -770,7 +780,7 @@ internal fun GalleryPreview(pv: PreviewController, host: PreviewHost, blurAvaila
 @Composable
 private fun SearchPagePane(
     look: Look, phoneDark: Boolean, blurAvailable: Boolean, dx: Float, reveal: Float, top: Float, bottom: Float,
-    fieldShift: (Float) -> Float
+    barNeed: Float, fieldShift: (Float) -> Float
 ) {
     val density = LocalDensity.current
     val context = LocalContext.current
@@ -795,6 +805,22 @@ private fun SearchPagePane(
                 .offset { IntOffset(dx.roundToInt(), top.roundToInt()) }
                 .fillMaxWidth()
                 .heightIn(max = with(density) { (bottom - top).coerceAtLeast(0f).toDp() })
+                // Shorter than the bar itself (a phone on its side with large text): the page is laid out with room
+                // for its bar and shown smaller to fit, so the bar is always there whole.
+                .then(
+                    if (bottom - top >= barNeed) Modifier
+                    else Modifier.layout { m, cs ->
+                        val room = (bottom - top).coerceAtLeast(1f)
+                        val p = m.measure(cs.copy(minHeight = 0, maxHeight = (barNeed * 1.15f).roundToInt()))
+                        val k = (room / p.height.coerceAtLeast(1)).coerceAtMost(1f)
+                        layout(p.width, (p.height * k).roundToInt()) {
+                            p.placeWithLayer(0, 0) {
+                                scaleX = k; scaleY = k
+                                transformOrigin = TransformOrigin(0.5f, 0f)
+                            }
+                        }
+                    }
+                )
                 .semantics(mergeDescendants = true) { contentDescription = "Sample results. Nothing here is searched or saved." }
         ) {
             SearchPageContent(look, reveal = { reveal }, fieldShift = fieldShift, layout = layout)

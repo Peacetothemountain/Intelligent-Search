@@ -255,6 +255,7 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
 
     override fun onStart() {
         super.onStart()
+        waitWatch.removeCallbacks(closeAfterStop)
         waitWatch.removeCallbacks(leftWhileWaiting)
         waitWatch.removeCallbacks(heldOutOfSight)
         heldForScreen = false
@@ -266,6 +267,7 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
     }
 
     override fun onDestroy() {
+        waitWatch.removeCallbacks(closeAfterStop)
         waitWatch.removeCallbacks(leftWhileWaiting)
         waitWatch.removeCallbacks(heldOutOfSight)
         runCatching { getSystemService(android.hardware.display.DisplayManager::class.java)?.unregisterDisplayListener(displayChanges) }
@@ -298,9 +300,11 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
             waitWatch.removeCallbacks(heldOutOfSight)
             waitWatch.postDelayed(heldOutOfSight, HOLD_CHECK_MS)
         } else if (!isChangingConfigurations && !isFinishing && !awayInOwnSettings && !awaitingSpeech && !awayGrantingAccess) {
-            // The whole task only when this overlay is its top: another overlay entry opened over it in the same task
-            // (the singleTask entries share one affinity) must not go with it.
-            if (isTopOfTask()) finishAndRemoveTask() else finish()
+            // A moment later rather than at once: a search started just as Android delivers this stop (Home, then
+            // search again within a second) brings this same task back to the front, and closing it then took the new
+            // search with it. Coming back in sight cancels the close (onStart).
+            waitWatch.removeCallbacks(closeAfterStop)
+            waitWatch.postDelayed(closeAfterStop, CLOSE_AFTER_STOP_MS)
         } else if (!isChangingConfigurations && !isFinishing && (awaitingSpeech || awayGrantingAccess)) {
             waitWatch.removeCallbacks(leftWhileWaiting)
             lastWaitCheck = android.os.SystemClock.uptimeMillis()
@@ -308,6 +312,16 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
             // Where checking can't tell when the user has left, it doesn't run every second for nothing.
             waitWatch.postDelayed(leftWhileWaiting, if (canTellTaskInSight) WAIT_CHECK_MS else WAIT_GIVE_UP_MS)
         }
+    }
+
+    /**
+     * The overlay closing once it has gone out of sight ([onStop]), unless it came back meanwhile. The whole task only
+     * when this overlay is its top: another overlay entry opened over it in the same task (the singleTask entries share
+     * one affinity) must not go with it.
+     */
+    private val closeAfterStop = Runnable {
+        if (isFinishing || lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) return@Runnable
+        if (isTopOfTask()) finishAndRemoveTask() else finish()
     }
 
     private fun isTopOfTask(): Boolean = runCatching {
@@ -822,6 +836,9 @@ open class MainActivity : ComponentActivity(), com.pixel.intelligentsearch.core.
 
         /** A stop this soon after the overlay's display changed (a fold) is the screen's doing ([stoppedByScreen]). */
         const val SCREEN_CHANGE_MS = 1500L
+
+        /** How long after going out of sight the overlay closes ([closeAfterStop]), unless brought back first. */
+        const val CLOSE_AFTER_STOP_MS = 600L
 
         /** How often an overlay held through a fold or lock checks whether the user is back ([heldOutOfSight]). */
         const val HOLD_CHECK_MS = 500L

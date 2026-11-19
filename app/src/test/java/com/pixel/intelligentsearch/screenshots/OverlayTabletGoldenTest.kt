@@ -38,6 +38,11 @@ class OverlayTabletGoldenTest(private val state: String, private val query: Stri
     @Before fun inject() {
         hilt.inject()
         disableHandRolledAnimations()
+        // A phone with a calculator app, as nearly all have: the calculation's card offers Open Calculator.
+        com.pixel.intelligentsearch.installActivityFor(
+            android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_APP_CALCULATOR),
+            android.content.ComponentName("com.google.android.calculator", "com.android.calculator2.Calculator")
+        )
     }
 
     @Test

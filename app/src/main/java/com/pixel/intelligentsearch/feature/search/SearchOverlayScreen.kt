@@ -712,6 +712,8 @@ fun SearchOverlayScreen(
         }
     }
     val contactActionTargets = rememberContactActionTargets(settingsState.searchContacts)
+    // Looked up once per window: no calculator app means a calculation's card has nothing to open.
+    val hasCalculatorApp = remember(context) { calculatorAppIntent(context) != null }
     
     val filteredApps by remember {
         derivedStateOf {
@@ -882,6 +884,7 @@ fun SearchOverlayScreen(
         bestMatchText = bestMatchText,
         filteredContacts = filteredContacts,
         contactActionTargets = contactActionTargets,
+        hasCalculatorApp = hasCalculatorApp,
         filteredApps = filteredApps,
         filteredFiles = filteredFiles,
         distinctRecents = distinctRecents,

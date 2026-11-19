@@ -167,6 +167,8 @@ internal class OverlayScope(
     val filteredContacts: List<ContactItem>,
     /** The Call, Message, Email and chat buttons this device can answer, for contact results. */
     val contactActionTargets: ContactActionTargets,
+    /** Whether an app on the phone opens as the calculator; without one, a calculation offers no Open Calculator. */
+    val hasCalculatorApp: Boolean = true,
     val filteredApps: List<AppItem>,
     val filteredFiles: List<FileItem>,
     val distinctRecents: List<String>,

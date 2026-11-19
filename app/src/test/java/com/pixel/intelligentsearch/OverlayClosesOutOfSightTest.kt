@@ -69,6 +69,8 @@ class OverlayClosesOutOfSightTest {
         search.pause()
         assertFalse("only paused (an app opening over it), it stays", search.get().isFinishing)
         search.stop()
+        // It closes a moment after going out of sight, so a search started just then still finds it.
+        org.robolectric.shadows.ShadowLooper.idleMainLooper(1, java.util.concurrent.TimeUnit.SECONDS)
         assertTrue("out of sight, it closes", search.get().isFinishing)
         search.destroy()
     }

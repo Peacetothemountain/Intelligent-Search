@@ -1,5 +1,7 @@
 package com.pixel.intelligentsearch.feature.tabs
 
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.focusGroup
 import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
@@ -225,8 +227,11 @@ fun SettingsTabs(
                 .fillMaxWidth()
                 .height(PILL_HEIGHT)
                 .graphicsLayer { translationY = hide.value * hideDistance }
-                // Out of TalkBack's reach while it is away.
+                // Out of TalkBack's reach while it is away, and out of a keyboard's: Tab skips its tabs then (it was
+                // moved off screen only, so Tab stopped on tabs no one could see, and Enter switched tab unseen).
                 .then(if (hidden) Modifier.clearAndSetSemantics {} else Modifier)
+                .focusProperties { onEnter = { if (hidden) cancelFocusChange() } }
+                .focusGroup()
         )
     }
 }

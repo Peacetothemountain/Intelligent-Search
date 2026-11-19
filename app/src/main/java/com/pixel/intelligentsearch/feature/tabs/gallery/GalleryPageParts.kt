@@ -360,19 +360,40 @@ internal fun SeasonSection(
                                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)
                             ) {
                                 Icon(Symbols.Fullscreen, null, tint = Color.White, modifier = Modifier.size(17.dp))
-                                Text("Try It", color = Color.White, style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.5.sp, fontWeight = FontWeight.SemiBold))
+                                // Its chip is 32 dp tall over the picture: the label grows with large text only so far, so it
+                                // stays inside it and off the bar under it.
+                                val fs = LocalDensity.current.fontScale
+                                Text("Try It", color = Color.White, maxLines = 1, style = MaterialTheme.typography.labelMedium.copy(fontSize = (12.5f * fs.coerceAtMost(1.3f) / fs).sp, fontWeight = FontWeight.SemiBold))
                             }
                         }
                     }
                 }
-                Row(Modifier.padding(start = 10.dp, end = 6.dp, top = 10.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f).semantics(mergeDescendants = true) { }) {
-                        Text(look.name, color = scheme.onSurface, style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Medium))
-                        Text(look.desc, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp))
+                // With large text in a narrow card the button goes under the name, which then keeps its whole words
+                // (beside it, "Harvest" was split as "Har-vest").
+                androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val stacked = LocalDensity.current.fontScale >= 1.3f && maxWidth < 300.dp
+                    val text = @Composable { m: Modifier ->
+                        Column(m.semantics(mergeDescendants = true) { }) {
+                            Text(look.name, color = scheme.onSurface, style = MaterialTheme.typography.titleMedium.copy(fontSize = 18.sp, fontWeight = FontWeight.Medium, hyphens = androidx.compose.ui.text.style.Hyphens.None))
+                            Text(look.desc, color = scheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.5.sp))
+                        }
                     }
-                    Spacer(Modifier.width(10.dp))
-                    if (on) MorphButton(GroupButton("Customize", Symbols.Tune, scheme.primaryContainer, scheme.onPrimaryContainer, onClick = onCustomize), 48.dp, listOf(24.dp, 24.dp, 24.dp, 24.dp), fontSize = 15f, pressed = 12.dp)
-                    else MorphButton(GroupButton("Apply", Symbols.Check, scheme.primaryContainer, scheme.onPrimaryContainer, "Apply ${look.name}") { onApply(look) }, 48.dp, listOf(24.dp, 24.dp, 24.dp, 24.dp), fontSize = 15f, pressed = 12.dp)
+                    val button = @Composable {
+                        if (on) MorphButton(GroupButton("Customize", Symbols.Tune, scheme.primaryContainer, scheme.onPrimaryContainer, onClick = onCustomize), 48.dp, listOf(24.dp, 24.dp, 24.dp, 24.dp), fontSize = 15f, pressed = 12.dp)
+                        else MorphButton(GroupButton("Apply", Symbols.Check, scheme.primaryContainer, scheme.onPrimaryContainer, "Apply ${look.name}") { onApply(look) }, 48.dp, listOf(24.dp, 24.dp, 24.dp, 24.dp), fontSize = 15f, pressed = 12.dp)
+                    }
+                    if (stacked) {
+                        Column(Modifier.padding(start = 10.dp, end = 6.dp, top = 10.dp, bottom = 6.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            text(Modifier.fillMaxWidth())
+                            button()
+                        }
+                    } else {
+                        Row(Modifier.padding(start = 10.dp, end = 6.dp, top = 10.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            text(Modifier.weight(1f))
+                            Spacer(Modifier.width(10.dp))
+                            button()
+                        }
+                    }
                 }
             }
         }

@@ -82,10 +82,18 @@ internal fun ghostText(typed: String, bestMatchName: String?, markerLength: Int 
 internal fun pillAlpha(opacity: Int): Float = (opacity / 100f).coerceIn(0f, 1f)
 
 /**
- * Below this width of its own (a phone under 360 dp, less the panel's margins, or a narrow pane beside results) the
- * search bar gives its Discover button and mic's room to the words being typed.
+ * The least room the words being typed keep. Where the bar's buttons would leave the field less (a 360 or 412 dp
+ * phone, the largest display size, a narrow pane beside results), its Discover button and mic stand aside for them.
  */
-private const val NARROW_BAR_DP = 352
+private const val MIN_FIELD_DP = 120
+
+/**
+ * The room the field gets in a bar [barDp] wide with all its buttons out: the bar's margins and padding (68 dp), the
+ * Discover button and its gap ([discover], 50 dp), the lens and its gap (44 dp), the clear button while there is a
+ * query (48 dp), the mic and its gap ([mic], 54 dp) and the settings button (48 dp).
+ */
+internal fun fieldRoomDp(barDp: Float, discover: Boolean, mic: Boolean): Float =
+    barDp - 68f - (if (discover) 50f else 0f) - 44f - 48f - (if (mic) 54f else 0f) - 48f
 
 /** The overlay's search bar: the text field, its ghost text, the pills around it and the engine chip. */
 @Composable
@@ -165,12 +173,14 @@ internal fun OverlaySearchBar(s: OverlayScope) {
         )
         val searchBarShape = RoundedCornerShape(searchBarCornerRadius)
         val showMic by rememberSetting(SettingsManager.OVERLAY_SHOW_MIC)
-        // Under 360 dp (a small phone, or the largest display size) the bar's buttons leave the field room for a
-        // few letters only, so while words are typed the Discover button and the mic stand aside for them.
-        // Until the bar has been measured, the window less the panel's margins.
+        val todayButton by rememberSetting(SettingsManager.TODAY_BUTTON)
+        // Where the bar's buttons would leave the field room for a few letters only (most phones up to 412 dp, the
+        // largest display size, a narrow pane), while words are typed the Discover button and the mic stand aside
+        // for them. Worked out from the bar's own width (until it is measured, the window less the panel's margins).
         val windowWidthPx = androidx.compose.ui.platform.LocalWindowInfo.current.containerSize.width
         val narrowBar = with(androidx.compose.ui.platform.LocalDensity.current) {
-            (if (barWidthPx > 0) barWidthPx else windowWidthPx - 8.dp.roundToPx()) < NARROW_BAR_DP.dp.roundToPx()
+            val barDp = (if (barWidthPx > 0) barWidthPx else windowWidthPx - 8.dp.roundToPx()).toDp().value
+            fieldRoomDp(barDp, discover = todayButton, mic = showMic) < MIN_FIELD_DP
         }
         val typingOnNarrowBar = narrowBar && uiState.query.isNotEmpty()
         Row(
@@ -231,7 +241,6 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                     modifier = Modifier.size(36.dp)
                 ) { Icon(Icons.Default.Close, contentDescription = "Cancel voice search", modifier = Modifier.size(20.dp)) }
             } else {
-                val todayButton by rememberSetting(SettingsManager.TODAY_BUTTON)
                 if (todayButton && !typingOnNarrowBar) {
                     // Today, to the left of the lens: the bar's own icon size and weight.
                     com.pixel.intelligentsearch.feature.search.today.TodayBarButton(

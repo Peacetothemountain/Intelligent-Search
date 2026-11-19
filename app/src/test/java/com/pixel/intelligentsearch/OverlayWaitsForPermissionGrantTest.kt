@@ -104,6 +104,7 @@ class OverlayWaitsForPermissionGrantTest {
         search.restart().resume()
         assertEquals("screen time", viewModel.uiState.value.query)
         search.pause().stop()
+        ShadowLooper.idleMainLooper(1, TimeUnit.SECONDS)
         assertTrue(activity.isFinishing)
         search.destroy()
     }

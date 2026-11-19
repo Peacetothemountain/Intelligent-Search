@@ -1166,7 +1166,9 @@ internal fun OneLineLabel(
     style: androidx.compose.ui.text.TextStyle,
     fontWeight: FontWeight,
     modifier: Modifier = Modifier,
-    shortText: String? = null
+    shortText: String? = null,
+    /** Show [shortText] as soon as the label needs a second line, for a chip too short to hold two. */
+    shortWhenWrapped: Boolean = false
 ) {
     var wraps by remember(text, style) { mutableStateOf(false) }
     var short by remember(text, style) { mutableStateOf(false) }
@@ -1192,7 +1194,12 @@ internal fun OneLineLabel(
             fontWeight = fontWeight,
             maxLines = 1,
             autoSize = oneLineAutoSize(style),
-            onTextLayout = { if (it.hasVisualOverflow) wraps = true },
+            onTextLayout = {
+                if (it.hasVisualOverflow) {
+                    wraps = true
+                    if (shortWhenWrapped && shortText != null) short = true
+                }
+            },
             modifier = modifier
         )
     }

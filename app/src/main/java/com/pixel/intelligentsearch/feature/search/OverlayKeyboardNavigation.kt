@@ -376,13 +376,21 @@ internal fun instantAnswerAction(answer: InstantAnswer, query: String): AnswerAc
     else -> AnswerAction.WebSearch(query)
 }
 
+/** The calculator app's launch, or null when no app on the phone is one. */
+internal fun calculatorAppIntent(context: android.content.Context): Intent? =
+    Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR)
+        .takeIf { runCatching { context.packageManager.resolveActivity(it, 0) }.getOrNull() != null }
+
 /** What the keyboard can reach in the overlay [s] shows now, mirroring OverlaySearchResults' sections. */
 internal fun navSources(s: OverlayScope): NavSources {
     val uiState = s.uiState
     val settings = s.settingsState
     val query = uiState.query
     val answers = buildList {
-        if (uiState.mathResult != null) add(ResultListKeys.MATH to AnswerAction.OpenCalculator)
+        // Enter opens the calculator app, or with none on the phone copies the result.
+        uiState.mathResult?.let { result ->
+            add(ResultListKeys.MATH to if (s.hasCalculatorApp) AnswerAction.OpenCalculator else AnswerAction.Copy(result, "Result"))
+        }
         val live = uiState.liveAnswer?.takeIf { it.query == query }
         val instant = uiState.instantAnswer
         if (live != null) liveAnswerAction(live)?.let { add(ResultListKeys.LIVE_ANSWER to it) }
@@ -479,7 +487,7 @@ internal fun openNavTarget(context: Context, s: OverlayScope, target: NavTarget)
             when (action) {
                 is AnswerAction.WebSearch -> s.launchWebSearch(action.query)
                 is AnswerAction.OpenAddress -> s.openWebAddress(action.address)
-                AnswerAction.OpenCalculator -> launchSafeIntent(context, Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_CALCULATOR))
+                AnswerAction.OpenCalculator -> calculatorAppIntent(context)?.let { launchSafeIntent(context, it) }
                 AnswerAction.ShowAlarms -> launchSafeIntent(context, Intent(android.provider.AlarmClock.ACTION_SHOW_ALARMS))
                 AnswerAction.OpenStorage -> launchSafeIntent(context, Intent(android.provider.Settings.ACTION_INTERNAL_STORAGE_SETTINGS))
                 is AnswerAction.Copy -> com.pixel.intelligentsearch.core.ui.copyAnswerText(context, action.text, action.label)

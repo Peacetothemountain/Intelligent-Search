@@ -51,13 +51,14 @@ internal fun ProfileSelector(count: Int, selected: Int, onSelect: (Int) -> Unit,
                 modifier = Modifier.size(20.dp)
             )
             Spacer(modifier = Modifier.height(2.dp))
-            // At large text the number wraps under "Profile" rather than spill over the chip, and on the narrowest
-            // phones the chip shows just the number.
+            // Where "Profile 2" doesn't fit on one line (large text, a narrow screen) the chip shows just the number:
+            // the chip is one line tall, and a second line under "Profile" was cut off.
             OneLineLabel(
                 "Profile $id",
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                shortText = "$id"
+                shortText = "$id",
+                shortWhenWrapped = true
             )
         }
     }

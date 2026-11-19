@@ -80,6 +80,8 @@ import kotlin.math.roundToInt
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.referentialEqualityPolicy
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.drawscope.translate
@@ -199,7 +201,13 @@ internal fun SwatchFan(
     }
     val hintPaints = remember { HintPaints() }
     val window = LocalWindowInfo.current.containerSize
-    val screenW = with(density) { (if (view.width > 0) view.width else window.width).toFloat().toDp() }
+    // The fan's own width (its column's, plus the bleed on each side), measured as state: a split screen's divider
+    // drag resizes the window before the view is laid out at its new size, and the view's width read here then left
+    // the fan and its caption laid out for the old window. Until it is measured, the window's.
+    var columnWidthPx by remember { mutableIntStateOf(0) }
+    val screenW = with(density) {
+        (if (columnWidthPx > 0) columnWidthPx + 2 * bleed.roundToPx() else window.width).toFloat().toDp()
+    }
     val screenH = with(density) { (if (window.height > 0) window.height else view.height).toFloat().toDp() }
     // Three quarters of the window's height at most, and never taller than the list shows under its top bar ([room]),
     // so in a short window (a split screen) the whole fan is in view at once.
@@ -253,7 +261,7 @@ internal fun SwatchFan(
     opener[0] = ::openStrip
     actions.rects[0] = ::rectsOf
 
-    Column(Modifier.fillMaxWidth()) {
+    Column(Modifier.fillMaxWidth().onSizeChanged { columnWidthPx = it.width }) {
     Box(
         Modifier
             .layout { m, cs ->

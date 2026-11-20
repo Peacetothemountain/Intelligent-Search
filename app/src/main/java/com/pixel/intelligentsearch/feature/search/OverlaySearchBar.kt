@@ -486,7 +486,7 @@ internal fun OverlaySearchBar(s: OverlayScope) {
                 modifier = Modifier
                     .size(48.dp)
                     .zIndex(if (showTutorial) 10000f else 0f)
-                    .tutorialTarget(2, prefs)
+                    .tutorialTarget(com.pixel.intelligentsearch.feature.settings.TutorialManager.SETTINGS_BUTTON_STEP, prefs)
                     .padding(12.dp)
             ) {
                 Icon(

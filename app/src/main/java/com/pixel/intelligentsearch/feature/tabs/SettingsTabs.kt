@@ -86,6 +86,8 @@ fun SettingsTabs(
     hidePill: Boolean,
     glowClock: State<Float>?,
     openWidgetSettings: () -> Unit,
+    /** A tab to slide to (the tutorial's tour); each new one is shown once, and the pill works as ever after it. */
+    requestedTab: SettingsTab? = null,
     settingsPage: @Composable () -> Unit,
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -118,6 +120,8 @@ fun SettingsTabs(
         scrolledAway = false
         scope.launch { swap.go(to, direction) }
     }
+
+    LaunchedEffect(requestedTab) { requestedTab?.let { select(it) } }
 
     PredictiveBackSwap(swap, to = { SettingsTab.Settings }, enabled = current != SettingsTab.Settings, onCommitted = {
         current = SettingsTab.Settings

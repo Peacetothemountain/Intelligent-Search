@@ -6,6 +6,7 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import android.content.SharedPreferences
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -24,7 +25,22 @@ class TargetState {
 }
 
 object TutorialManager {
-    const val TOTAL_STEPS = 5
+    const val TOTAL_STEPS = 7
+
+    /** On the search screen: the Settings button ringed, Next opening Settings. */
+    const val SETTINGS_BUTTON_STEP = 4
+    /** The first step shown over Settings: the overlay's Settings step opens Settings for it. */
+    const val FIRST_SETTINGS_STEP = 5
+    /** Over Settings' Gallery tab, the swatch fan in the spotlight. */
+    const val GALLERY_STEP = 5
+    /** Over Settings' Wellbeing tab, today's screen time (or the card that turns usage access on) in the spotlight. */
+    const val WELLBEING_STEP = 6
+
+    /** The step showing over Settings right now, or null: Gallery and Wellbeing mark their spotlit part only then. */
+    var liveStep by mutableStateOf<Int?>(null)
+
+    /** The card's top edge in the window (px) while a step shows over Settings, for a page to keep its spotlit part above. */
+    var cardTop by mutableFloatStateOf(0f)
 
     val targetStates = mutableStateMapOf<Int, TargetState>()
     
@@ -53,6 +69,20 @@ object TutorialManager {
     fun isTutorialActive(prefs: SharedPreferences): Boolean =
         (prefs[SettingsManager.DEBUG_UNLOCKED] && prefs[SettingsManager.FORCE_TUTORIAL]) ||
             !prefs[SettingsManager.TUTORIAL_COMPLETED]
+}
+
+/**
+ * Marks the part of a Settings tab that [step] spotlights. Nothing is tracked unless that step is showing, so the page
+ * pays nothing for it otherwise.
+ */
+fun Modifier.tutorialSpot(step: Int): Modifier = this.composed {
+    if (TutorialManager.liveStep != step) return@composed Modifier
+    DisposableEffect(step) {
+        onDispose { TutorialManager.targetStates[step]?.rect = null }
+    }
+    Modifier.onGloballyPositioned { coordinates ->
+        if (coordinates.isAttached) TutorialManager.getTargetState(step).rect = coordinates.boundsInWindow()
+    }
 }
 
 /**

@@ -13,6 +13,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -94,9 +95,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pixel.intelligentsearch.R
-import com.pixel.intelligentsearch.core.ui.expressive.ExpressiveMotionTokens
 import com.pixel.intelligentsearch.core.ui.rememberAnimationsEnabled
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -106,7 +107,6 @@ import kotlin.math.sin
 data class TutorialStepInfo(
     val title: String,
     val text: String,
-    val cardAlignment: Alignment = Alignment.Center,
     val showArrow: Boolean = true,
     val showCircle: Boolean = false,
     /** A small piece of the app playing between the title and the words. */
@@ -114,8 +114,15 @@ data class TutorialStepInfo(
 )
 
 
-/** Room a centred tutorial card leaves for the overlay's search bar. */
-private val SEARCH_BAR_RESERVE = 88.dp
+/**
+ * Every step's card rests in the same place: its bottom edge this far above the navigation bar, just over the search
+ * bar on the search screen and over the tab pill in Settings (higher only if the search bar reaches above it), so the
+ * card never jumps between steps; only its height changes, growing upward.
+ */
+private val CARD_BOTTOM_ROOM = 112.dp
+
+/** Room kept between the card and the search bar under it. */
+private val CARD_BAR_GAP = 44.dp
 
 /** The tutorial card's background, its text and the "STEP x OF y" label above the title. */
 internal data class TutorialCardColors(val container: Color, val content: Color, val stepLabel: Color)
@@ -148,8 +155,11 @@ fun TutorialSpotlightOverlay(
     stepsInfo: Map<Int, TutorialStepInfo>,
     onComplete: () -> Unit,
     onStepAdvance: (Int) -> Unit = {},
-    /** Whether the search bar is on the screen behind, for a centered card to keep clear of. Not over Settings. */
-    searchBarBehind: Boolean = true
+    /**
+     * Over Settings' tabs: the page shows, dimmed, with the part the step is about in a spotlight; only the card takes
+     * a touch, and back stays on the step.
+     */
+    spotlight: Boolean = false
 ) {
     if (!TutorialManager.isTutorialActive(prefs)) return
 
@@ -167,6 +177,17 @@ fun TutorialSpotlightOverlay(
         return
     }
 
+    if (spotlight) {
+        // Tells Gallery and Wellbeing which step shows, so the page marks (and scrolls to) the part it spotlights.
+        androidx.compose.runtime.DisposableEffect(currentStep) {
+            TutorialManager.liveStep = currentStep
+            onDispose {
+                TutorialManager.liveStep = null
+                TutorialManager.cardTop = 0f
+            }
+        }
+    }
+
     val localView = LocalView.current
     val hapticEngine = remember(localView.context) {
         com.pixel.intelligentsearch.core.haptics.PixelHapticEngine.get(localView.context)
@@ -178,14 +199,25 @@ fun TutorialSpotlightOverlay(
         (stepInfo.text.contains("[bugdroid]") || stepInfo.text.contains(":)"))
     val welcomePlayer = rememberBugdroidPlayer(BugdroidClip.WELCOME, enabled = showsBugdroidVideo)
 
+    val cardEnter = remember { Animatable(0f) }
+    val endScope = androidx.compose.runtime.rememberCoroutineScope()
+    val animate by rememberAnimationsEnabled()
+    // Got It and Skip: the card (and the dim over Settings) fade away before the tutorial ends, rather than vanishing.
+    val finish: () -> Unit = {
+        endScope.launch {
+            if (animate) cardEnter.animateTo(0f, tween(180))
+            TutorialManager.completeTutorial(prefs)
+            onComplete()
+        }
+    }
+
     val stepForward: () -> Unit = {
         if (currentStep < TutorialManager.TOTAL_STEPS - 1) {
             val nextStep = currentStep + 1
             currentStep = nextStep
             onStepAdvance(nextStep)
         } else {
-            TutorialManager.completeTutorial(prefs)
-            onComplete()
+            finish()
         }
     }
     val advanceToNextStep: () -> Unit = {
@@ -204,13 +236,18 @@ fun TutorialSpotlightOverlay(
     var overlayRootOffset by remember { mutableStateOf(Offset.Zero) }
     var cardBounds by remember { mutableStateOf(Rect.Zero) }
 
-    // Spring animation for entering each step card
+    // The card comes in once, on a spring with no bounce; after that a step changes only what the card says (crossfaded)
+    // and its height, so the card never jumps or pops between steps.
+    LaunchedEffect(Unit) {
+        cardEnter.animateTo(1f, androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow))
+    }
+    // The arrow draws itself in on each step that has one.
     val animationProgress = remember { Animatable(0f) }
     LaunchedEffect(currentStep) {
         animationProgress.snapTo(0f)
         animationProgress.animateTo(
             1f,
-            animationSpec = ExpressiveMotionTokens.bouncySpring()
+            animationSpec = androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = androidx.compose.animation.core.Spring.StiffnessLow)
         )
     }
 
@@ -288,7 +325,9 @@ fun TutorialSpotlightOverlay(
                         if (downChange != null) {
                             val pos = downChange.position
                             val isInsideCard = currentCardBounds != Rect.Zero && currentCardBounds.contains(pos)
-                            val isInsideTarget = currentTargetRect != null && run {
+                            // Over Settings the spotlit part is only shown: a tap there would open a look or leave the
+                            // app (usage access) mid-step.
+                            val isInsideTarget = !spotlight && currentTargetRect != null && run {
                                 val targetCenter = currentTargetRect.center
                                 val dx = targetCenter.x - pos.x
                                 val dy = targetCenter.y - pos.y
@@ -453,47 +492,20 @@ fun TutorialSpotlightOverlay(
         val cardTextColor = cardColors.content
 
         val shortWindow = maxHeight < SHORT_WINDOW_HEIGHT
-        val (topPadding, bottomPadding) = remember(
-            localTargetRect,
-            arrowShown,
-            constraints.maxHeight,
-            statusBarTopPadding,
-            navBarBottomPadding,
-            searchBarBehind
-        ) {
-            if (localTargetRect != null && arrowShown) {
-                val targetTopDp = with(density) { localTargetRect.top.toDp() }
-                val targetBottomDp = with(density) { localTargetRect.bottom.toDp() }
-                val isBottomTarget = localTargetRect.center.y > (constraints.maxHeight / 2f)
+        // The search bar's top edge (px), when it is on this screen and at its bottom: the card keeps clear of it.
+        val barTop = if (spotlight || !prefs[SettingsManager.BOTTOM_SEARCH]) null else TutorialManager.targetStates[1]?.rect?.top?.minus(overlayRootOffset.y)
+        val topPadding = (statusBarTopPadding + 16.dp).coerceAtLeast(16.dp)
+        val bottomPadding = run {
+            val resting = navBarBottomPadding + if (shortWindow) 24.dp + 64.dp else CARD_BOTTOM_ROOM
+            val overBar = barTop?.let { with(density) { maxHeight - it.toDp() } + CARD_BAR_GAP } ?: 0.dp
+            // Never so high that the card is left less than a usable height.
+            maxOf(resting, overBar).coerceAtMost((maxHeight - topPadding - 160.dp).coerceAtLeast(16.dp))
+        }
 
-                if (isBottomTarget) {
-                    val minClearance = if (maxHeight < SHORT_WINDOW_HEIGHT) 24.dp else 36.dp
-                    val topPad = (statusBarTopPadding + 16.dp).coerceAtLeast(16.dp)
-                    val rawBotPad = (maxHeight - targetTopDp + minClearance).coerceAtLeast(navBarBottomPadding + 16.dp)
-                    val maxAllowedBotPad = (maxHeight - topPad - 130.dp).coerceAtLeast(16.dp)
-                    val botPad = rawBotPad.coerceAtMost(maxAllowedBotPad)
-                    topPad to botPad
-                } else {
-                    val minClearance = if (maxHeight < SHORT_WINDOW_HEIGHT) 24.dp else 36.dp
-                    val botPad = (navBarBottomPadding + 24.dp).coerceAtLeast(24.dp)
-                    val rawTopPad = (targetBottomDp + minClearance).coerceAtLeast(statusBarTopPadding + 16.dp)
-                    val maxAllowedTopPad = (maxHeight - botPad - 130.dp).coerceAtLeast(16.dp)
-                    val topPad = rawTopPad.coerceAtMost(maxAllowedTopPad)
-                    topPad to botPad
-                }
-            } else {
-                // A centered card keeps clear of the search bar, so on a small screen with large text it never hides
-                // the bar. The room is kept on both sides so the card stays centered where it always was; on normal
-                // screens it never grows tall enough to reach it.
-                // In a short window (a phone on its side) the room is kept on the bar's side only: kept on both, it
-                // left the card a slit too short for the step's words.
-                val reserve = if (searchBarBehind) SEARCH_BAR_RESERVE else 0.dp
-                val short = maxHeight < SHORT_WINDOW_HEIGHT
-                val barAtBottom = prefs[SettingsManager.BOTTOM_SEARCH]
-                val topPad = (statusBarTopPadding + 16.dp).coerceAtLeast(16.dp) + if (short && barAtBottom) 0.dp else reserve
-                val botPad = (navBarBottomPadding + 24.dp).coerceAtLeast(24.dp) + if (short && !barAtBottom) 0.dp else reserve
-                topPad to botPad
-            }
+        if (spotlight) {
+            TutorialSpotlightDim(localTargetRect, cardBounds.top.takeIf { cardBounds != Rect.Zero }, cardEnter.value, primaryColor)
+            // Back stays on the step: it would otherwise slide the tab away from what the step is showing.
+            androidx.activity.compose.BackHandler { }
         }
 
         Box(
@@ -501,7 +513,7 @@ fun TutorialSpotlightOverlay(
                 .fillMaxSize()
                 .padding(top = topPadding, bottom = bottomPadding)
                 .padding(horizontal = 24.dp),
-            contentAlignment = stepInfo.cardAlignment
+            contentAlignment = Alignment.BottomCenter
         ) {
             Card(
                 shape = RoundedCornerShape(24.dp),
@@ -512,12 +524,13 @@ fun TutorialSpotlightOverlay(
                     .widthIn(max = if (shortWindow) 720.dp else 520.dp)
                     .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(24.dp))
                     .graphicsLayer {
-                        val enter = animationProgress.value
-                        val scale = 0.90f + 0.10f * enter
+                        val enter = cardEnter.value
+                        val scale = 0.96f + 0.04f * enter
                         scaleX = scale
                         scaleY = scale
+                        transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 1f)
                         alpha = enter.coerceIn(0f, 1f)
-                        translationY = (1f - enter) * 24.dp.toPx()
+                        translationY = (1f - enter) * 16.dp.toPx()
                     }
                     .semantics {
                         isTraversalGroup = true
@@ -530,6 +543,7 @@ fun TutorialSpotlightOverlay(
                                 offset = Offset(windowBounds.left - overlayRootOffset.x, windowBounds.top - overlayRootOffset.y),
                                 size = Size(coordinates.size.width.toFloat(), coordinates.size.height.toFloat())
                             )
+                            if (spotlight) TutorialManager.cardTop = windowBounds.top
                         }
                     }
             ) {
@@ -547,9 +561,28 @@ fun TutorialSpotlightOverlay(
                     // The height the step's words have before they must scroll (the Welcome video sizes to it).
                     val scrollRoom = maxHeight
                     val scrollWidth = maxWidth
+                    // A new step crossfades in place of the last one while the card eases to the new height (it grows
+                    // and shrinks upward, its bottom edge staying put).
+                    androidx.compose.animation.AnimatedContent(
+                        targetState = currentStep,
+                        transitionSpec = {
+                            if (loopsOn) {
+                                (androidx.compose.animation.fadeIn(tween(220, delayMillis = 80)) togetherWith
+                                    androidx.compose.animation.fadeOut(tween(80))) using
+                                    androidx.compose.animation.SizeTransform(clip = true) { _, _ ->
+                                        androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow)
+                                    }
+                            } else {
+                                androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
+                            }
+                        },
+                        contentAlignment = Alignment.BottomCenter,
+                        label = "tutorialStep"
+                    ) { shownStep ->
+                    val shownInfo = stepsInfo[shownStep] ?: stepInfo
                     // Each step's words start at their top: a step scrolled to reach a switch doesn't open the next
                     // one scrolled past its title.
-                    val stepScroll = remember(currentStep) { ScrollState(0) }
+                    val stepScroll = remember(shownStep) { ScrollState(0) }
                     Column(
                         modifier = Modifier
                             .verticalScroll(stepScroll),
@@ -566,7 +599,7 @@ fun TutorialSpotlightOverlay(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "STEP ${currentStep + 1} OF ${TutorialManager.TOTAL_STEPS}",
+                                text = "STEP ${shownStep + 1} OF ${TutorialManager.TOTAL_STEPS}",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = cardColors.stepLabel,
@@ -578,7 +611,7 @@ fun TutorialSpotlightOverlay(
 
                         // TalkBack Traversal 2: Title with Heading Semantics
                         Text(
-                            text = stepInfo.title,
+                            text = shownInfo.title,
                             style = MaterialTheme.typography.titleLarge,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
@@ -593,7 +626,7 @@ fun TutorialSpotlightOverlay(
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        stepInfo.demo?.let { demo ->
+                        shownInfo.demo?.let { demo ->
                             Spacer(modifier = Modifier.height(6.dp))
                             TutorialDemoStage(demo)
                             Spacer(modifier = Modifier.height(12.dp))
@@ -601,7 +634,7 @@ fun TutorialSpotlightOverlay(
 
                         // TalkBack Traversal 3: Description Body Text
                         val bugdroidTag = "[bugdroid]"
-                        val rawText = stepInfo.text
+                        val rawText = shownInfo.text
                         if (rawText.contains(bugdroidTag) || rawText.contains(":)")) {
                             val cleanText = rawText.replace(bugdroidTag, "").replace(":)", "").trim()
                             // 275 dp on a phone, but never more than 30% of the window, so short screens keep room for text,
@@ -676,12 +709,12 @@ fun TutorialSpotlightOverlay(
                             }
                         } else {
                             val iconTag = "[three_bars]"
-                            val normalizedText = if (stepInfo.text.contains(iconTag)) {
-                                stepInfo.text
-                            } else if (stepInfo.text.contains("( the three bar )")) {
-                                stepInfo.text.replace("( the three bar )", "( [three_bars] )")
+                            val normalizedText = if (shownInfo.text.contains(iconTag)) {
+                                shownInfo.text
+                            } else if (shownInfo.text.contains("( the three bar )")) {
+                                shownInfo.text.replace("( the three bar )", "( [three_bars] )")
                             } else {
-                                stepInfo.text
+                                shownInfo.text
                             }
 
                             if (normalizedText.contains(iconTag)) {
@@ -725,7 +758,7 @@ fun TutorialSpotlightOverlay(
                                 )
                             } else {
                                 Text(
-                                    text = stepInfo.text,
+                                    text = shownInfo.text,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontSize = 15.sp,
                                     lineHeight = 22.sp,
@@ -740,10 +773,11 @@ fun TutorialSpotlightOverlay(
                         }
 
                         // The Discover step turns its button on right here, with the switch Settings has for it.
-                        if (stepInfo.demo == TutorialDemo.Discover) {
+                        if (shownInfo.demo == TutorialDemo.Discover) {
                             Spacer(modifier = Modifier.height(14.dp))
                             TutorialDiscoverSwitch()
                         }
+                    }
                     }
                     }
 
@@ -764,8 +798,7 @@ fun TutorialSpotlightOverlay(
                             onClick = {
                                 if (!isAdvancing) {
                                     isAdvancing = true
-                                    TutorialManager.completeTutorial(prefs)
-                                    onComplete()
+                                    finish()
                                 }
                             },
                             shape = RoundedCornerShape(percent = 50),
@@ -830,3 +863,56 @@ private val WELCOME_VIDEO_MIN = 96.dp
 
 /** Below this window height a centered card keeps clear of the search bar on the bar's side only. */
 private val SHORT_WINDOW_HEIGHT = 480.dp
+
+/** The dim over a Settings tab, outside the spotlight: a rounded window this far around the step's part of the page. */
+private val SPOTLIGHT_MARGIN = 8.dp
+private val SPOTLIGHT_RADIUS = 28.dp
+
+/**
+ * Dims the page except a rounded window over [target] (the overlay's coordinates), ringed in [ring], and ending above
+ * the card ([cardTop]). The window glides to each step's target as the page brings it into place, staying where it was
+ * while the next tab slides in; until there is a first one, the whole page is dimmed. [shown] fades it in.
+ */
+@Composable
+private fun TutorialSpotlightDim(target: Rect?, cardTop: Float?, shown: Float, ring: Color) {
+    val density = LocalDensity.current
+    val margin = with(density) { SPOTLIGHT_MARGIN.toPx() }
+    val cardGap = with(density) { 12.dp.toPx() }
+    // The last target seen, kept (not as state: it only changes as [target] does) for the slide to the next one.
+    val last = remember { arrayOfNulls<Rect>(1) }
+    target?.inflate(margin)?.let { t ->
+        val bottom = if (cardTop != null) minOf(t.bottom, cardTop - cardGap) else t.bottom
+        last[0] = if (bottom > t.top) t.copy(bottom = bottom) else t
+    }
+    val hole = last[0]
+    val window by androidx.compose.animation.core.animateRectAsState(
+        hole ?: Rect.Zero,
+        androidx.compose.animation.core.spring(dampingRatio = 1f, stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow),
+        label = "spotlight"
+    )
+    val open by androidx.compose.animation.core.animateFloatAsState(if (hole != null) 1f else 0f, label = "spotlightOpen")
+    val path = remember { Path() }
+    Canvas(Modifier.fillMaxSize()) {
+        val radius = SPOTLIGHT_RADIUS.toPx()
+        path.reset()
+        path.fillType = androidx.compose.ui.graphics.PathFillType.EvenOdd
+        path.addRect(Rect(Offset.Zero, size))
+        if (open > 0f && window != Rect.Zero) {
+            // Opens from its center as it first appears.
+            val w = Rect(window.center, Size.Zero).let { c ->
+                Rect(
+                    androidx.compose.ui.util.lerp(c.left, window.left, open), androidx.compose.ui.util.lerp(c.top, window.top, open),
+                    androidx.compose.ui.util.lerp(c.right, window.right, open), androidx.compose.ui.util.lerp(c.bottom, window.bottom, open)
+                )
+            }
+            path.addRoundRect(androidx.compose.ui.geometry.RoundRect(w, androidx.compose.ui.geometry.CornerRadius(radius)))
+            drawPath(path, Color.Black.copy(alpha = 0.55f * shown))
+            drawRoundRect(
+                ring.copy(alpha = 0.9f * shown * open), w.topLeft, w.size, androidx.compose.ui.geometry.CornerRadius(radius),
+                style = Stroke(width = 2.dp.toPx())
+            )
+        } else {
+            drawPath(path, Color.Black.copy(alpha = 0.55f * shown))
+        }
+    }
+}

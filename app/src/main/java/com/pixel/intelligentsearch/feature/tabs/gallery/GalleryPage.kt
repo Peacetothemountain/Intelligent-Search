@@ -16,6 +16,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import com.pixel.intelligentsearch.feature.settings.TutorialManager
+import com.pixel.intelligentsearch.feature.settings.tutorialSpot
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -473,11 +475,16 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
     val inSeason = remember(today) { rack("seasonal", today).filter { it.season == season } }
     val rackLooks = remember(today) { fullRack(today) }
     LaunchedEffect(store) { store?.start(rackLooks.filter { wallpaperOf(it) != null }.map { it.id }) }
+    // The tutorial's Gallery step: All Looks comes to the top, with the fan under it in the step's spotlight.
+    val tourHere = TutorialManager.liveStep == TutorialManager.GALLERY_STEP
     val keys = buildList {
         add("title"); add("hero"); add("yoursHead"); add("yours")
         if (inSeason.isNotEmpty()) add("season")
         add("allHead"); add("filters"); add("fan")
         add("foot")
+    }
+    LaunchedEffect(tourHere) {
+        if (tourHere) keys.indexOf("allHead").takeIf { it >= 0 }?.let { listState.animateScrollToItem(it) }
     }
 
     // All Looks: the swatch fan and the clock its strips turn on. Its place is kept in the session, so a tab switch or a
@@ -702,7 +709,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                                     fan.show(stripOfLook(FAN_ORDER.indexOf(FAN_GROUPS.first { it.f == f }.ids[0])))
                                     scope.launch { listState.animateScrollToItem(keys.indexOf("allHead")) }
                                 }
-                                "fan" -> SwatchFan(
+                                "fan" -> Box(Modifier.tutorialSpot(TutorialManager.GALLERY_STEP)) { SwatchFan(
                                     fan, phoneDark, GalleryGutter, wallColors,
                                     fanActions,
                                     rootCoords = { rootCoords },
@@ -711,7 +718,7 @@ fun GalleryPage(chrome: PageChrome, modifier: Modifier = Modifier) {
                                     room = if (listHeight > 0) {
                                         with(density) { listHeight.toDp() } - (bottomPad - com.pixel.intelligentsearch.feature.tabs.PILL_HEIGHT - com.pixel.intelligentsearch.feature.tabs.PILL_BOTTOM_GAP) - 16.dp
                                     } else Dp.Unspecified
-                                )
+                                ) }
                                 "foot" -> Footer()
                             }
                         }

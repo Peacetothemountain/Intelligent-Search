@@ -6,41 +6,43 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * The tutorial's last two steps show over Settings with the page hidden behind the tutorial's backdrop, so they
- * mustn't point at rows "below" that the user can't see. Each plays the part of the app it names. The last one names
- * its button from the button's own label (`TUTORIAL_FINISH_LABEL`), so the two can't drift apart.
+ * The tutorial's last two steps show over Settings' own tabs, Gallery and Wellbeing, with the part each is about in a
+ * spotlight; Just Type It and Discover play on the search screen, over the real search bar. The last step names its
+ * button from the button's own label (`TUTORIAL_FINISH_LABEL`), so the two can't drift apart.
  */
 class SettingsTutorialStepsTest {
 
     private val steps = SETTINGS_TUTORIAL_STEPS
+    private val overlaySteps = com.pixel.intelligentsearch.feature.search.OverlayTutorialSteps
 
     @Test
     fun theStepsOverSettingsPointAtNothingHidden() {
-        assertEquals(setOf(3, 4), steps.keys)
+        assertEquals(setOf(TutorialManager.GALLERY_STEP, TutorialManager.WELLBEING_STEP), steps.keys)
         for ((_, step) in steps) {
-            assertFalse(step.title, Regex("""\b(below|above|explore)\b""", RegexOption.IGNORE_CASE).containsMatchIn(step.text))
+            assertFalse(step.title, Regex("""(below|above|explore)""", RegexOption.IGNORE_CASE).containsMatchIn(step.text))
         }
     }
 
     @Test
     fun titlesUseTitleCase() {
-        assertEquals("Just Type It", steps.getValue(4).title)
-        assertEquals("Discover", steps.getValue(3).title)
+        assertEquals("Just Type It", overlaySteps.getValue(2).title)
+        assertEquals("Discover", overlaySteps.getValue(3).title)
+        assertEquals("Gallery", steps.getValue(TutorialManager.GALLERY_STEP).title)
+        assertEquals("Wellbeing", steps.getValue(TutorialManager.WELLBEING_STEP).title)
     }
 
     @Test
     fun eachStepPlaysThePartOfTheAppItNames() {
-        assertEquals(TutorialDemo.Discover, steps.getValue(3).demo)
-        assertEquals(TutorialDemo.Answers, steps.getValue(4).demo)
+        assertEquals(TutorialDemo.Discover, overlaySteps.getValue(3).demo)
+        assertEquals(TutorialDemo.Answers, overlaySteps.getValue(2).demo)
     }
 
-    /** The words the last step quotes are words its demo types, so what is read is what is seen. */
+    /** The words Just Type It quotes are words its demo types, so what is read is what is seen. */
     @Test
-    fun theLastStepQuotesAnExampleItsDemoTypes() {
-        val quoted = Regex("\"([^\"]+)\"").find(steps.getValue(4).text)!!.groupValues[1]
+    fun justTypeItQuotesAnExampleItsDemoTypes() {
+        val quoted = Regex("\"([^\"]+)\"").find(overlaySteps.getValue(2).text)!!.groupValues[1]
         assertTrue(quoted, quoted in ANSWER_EXAMPLES)
     }
-
     @Test
     fun theDemoTypesEachExampleOutAndClearsItBeforeTheNext() {
         ANSWER_EXAMPLES.forEachIndexed { index, text ->

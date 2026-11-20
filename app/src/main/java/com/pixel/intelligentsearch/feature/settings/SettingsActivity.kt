@@ -87,7 +87,7 @@ class SettingsActivity : ComponentActivity() {
         val prefsForTutorial = getSharedPreferences(SettingsManager.PREFS_NAME, Context.MODE_PRIVATE)
         val fromLauncher = intent.action == Intent.ACTION_MAIN && intent.hasCategory(Intent.CATEGORY_LAUNCHER)
         // With the search overlay switched off the search screen only forwards to Google, so settings must open.
-        if (fromLauncher && !prefsForTutorial[SettingsManager.TUTORIAL_COMPLETED] && prefsForTutorial[SettingsManager.TUTORIAL_STEP] < 3 &&
+        if (fromLauncher && !prefsForTutorial[SettingsManager.TUTORIAL_COMPLETED] && prefsForTutorial[SettingsManager.TUTORIAL_STEP] < com.pixel.intelligentsearch.feature.settings.TutorialManager.FIRST_SETTINGS_STEP &&
             prefsForTutorial[SettingsManager.SEARCH_OVERLAY_ENABLED]
         ) {
             startActivity(
@@ -108,7 +108,13 @@ class SettingsActivity : ComponentActivity() {
         val initialTab = when (sanitizedScreenKey?.lowercase()?.trim()) {
             "wellbeing" -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Wellbeing
             "gallery" -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Gallery
-            else -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Settings
+            else -> when {
+                // The tutorial's tour carries on here on its own tab, so Settings opens straight onto it.
+                !TutorialManager.isTutorialActive(prefsForTutorial) -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Settings
+                prefsForTutorial[SettingsManager.TUTORIAL_STEP] == TutorialManager.GALLERY_STEP -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Gallery
+                prefsForTutorial[SettingsManager.TUTORIAL_STEP] == TutorialManager.WELLBEING_STEP -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Wellbeing
+                else -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Settings
+            }
         }
 
         setContent {

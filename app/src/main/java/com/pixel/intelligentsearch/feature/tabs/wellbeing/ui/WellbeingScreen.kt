@@ -12,6 +12,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.gestures.animateScrollBy
+import com.pixel.intelligentsearch.feature.settings.TutorialManager
+import com.pixel.intelligentsearch.feature.settings.tutorialSpot
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -196,6 +199,20 @@ fun WellbeingScreen(
         view.scrollTo = null
     }
 
+    // The tutorial's Wellbeing step: the page scrolls, if it must and can, to keep the part in the step's spotlight
+    // clear of the step's card, never taking it up under the top bar.
+    val tourHere = TutorialManager.liveStep == TutorialManager.WELLBEING_STEP
+    LaunchedEffect(tourHere) {
+        if (!tourHere) return@LaunchedEffect
+        val (spot, cardTop) = snapshotFlow { TutorialManager.targetStates[TutorialManager.WELLBEING_STEP]?.rect to TutorialManager.cardTop }
+            .first { it.first != null && it.second > 0f }
+        val target = spot ?: return@LaunchedEffect
+        val over = target.bottom + with(density) { 16.dp.toPx() } - cardTop
+        val room = target.top - with(density) { (pad.calculateTopPadding() + 72.dp).toPx() }
+        val by = minOf(over, room)
+        if (by > 0f) scroll.animateScrollBy(by, Springs.spatial())
+    }
+
     val covered = view.recap || view.sheet != null
     LaunchedEffect(covered) { chrome.setCovered(covered) }
     BackHandler(view.recap && view.sheet == null) { view.recap = false }
@@ -282,7 +299,7 @@ private fun RangeSelector(selected: Range, onSelect: (Range) -> Unit) {
 // ---------------------------------------------------------------------- the page
 @Composable
 private fun ReadyPage(m: WellbeingModel, p: Period, view: ViewState, actions: WellbeingActions, intro: Boolean) {
-    HeroCard(m, p, intro)
+    Box(Modifier.tutorialSpot(TutorialManager.WELLBEING_STEP)) { HeroCard(m, p, intro) }
     Gap(2.dp)
     ChartCard(m, p, view, intro)
     Gap(12.dp)
@@ -327,7 +344,7 @@ private fun Footer(view: ViewState) {
 private fun FirstRunCard(grant: () -> Unit) {
     val c = MaterialTheme.colorScheme
     val name = LocalContext.current.applicationInfo.loadLabel(LocalContext.current.packageManager).toString()
-    MatteCard(Modifier.fillMaxWidth(), color = c.primaryContainer, contentColor = c.onPrimaryContainer, padding = 24.dp) {
+    MatteCard(Modifier.fillMaxWidth().tutorialSpot(TutorialManager.WELLBEING_STEP), color = c.primaryContainer, contentColor = c.onPrimaryContainer, padding = 24.dp) {
         Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
             ShapeMark(Range.Day, 96.dp, c.primary, Symbols.HourglassTop, c.onPrimary, 40.dp)
             Gap(12.dp)

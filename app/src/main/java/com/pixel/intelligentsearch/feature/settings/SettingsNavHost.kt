@@ -6,8 +6,6 @@ import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.get
 import com.pixel.intelligentsearch.core.util.findActivity
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.draw.blur
-import com.pixel.intelligentsearch.feature.search.AnimatedMatrixBackground
 import com.pixel.intelligentsearch.R
 import android.app.Activity
 import android.content.Context
@@ -63,28 +61,23 @@ val LocalSettingsState = compositionLocalOf<com.pixel.intelligentsearch.core.dat
 }
 
 /**
- * The tutorial's last two steps, shown over Settings. The page is hidden behind the tutorial's backdrop while they
- * show, so rather than point at rows the user can't see, each plays a part of the app worth knowing from day one:
- * the Discover page, with the switch that turns its button on (it is off until asked for), then the answers and
- * actions the search gives as words are typed. The last one says where Got it leaves the user: in Settings.
+ * The tutorial's last two steps, shown over Settings' own tabs: the tour opens on Gallery with the swatch fan in a
+ * spotlight, then slides to Wellbeing with today's screen time (or the card that turns usage access on) in one. The last
+ * one says where Got It leaves the user: back on Settings.
  */
 internal val SETTINGS_TUTORIAL_STEPS = mapOf(
-    3 to TutorialStepInfo(
-        "Discover",
-        "Your day on one page: the weather, your next event, quick controls and cards you arrange yourself. " +
-            "Turn it on here and it opens from a button in your search bar.",
-        Alignment.Center,
-        showArrow = false,
-        demo = TutorialDemo.Discover
+    TutorialManager.GALLERY_STEP to TutorialStepInfo(
+        "Gallery",
+        "${com.pixel.intelligentsearch.feature.tabs.gallery.FAN_ORDER.size} looks for your search bar and search page. " +
+            "Swipe the Swatch Cards to see more, and tap one to try it on your home screen. Nothing changes until you " +
+            "tap Apply.",
+        showArrow = false
     ),
-    4 to TutorialStepInfo(
-        "Just Type It",
-        "Search does more than find things. Type a sum, a conversion, a word to define, a city's weather or " +
-            "\"timer 10 min\", and the answer appears as you type. Start with > to search only settings, or @ for " +
-            "contacts. That's the tour. Tap $TUTORIAL_FINISH_LABEL to finish in Settings.",
-        Alignment.Center,
-        showArrow = false,
-        demo = TutorialDemo.Answers
+    TutorialManager.WELLBEING_STEP to TutorialStepInfo(
+        "Wellbeing",
+        "Your screen time, unlocks, notifications and AI use by day, week and month, worked out on your phone. " +
+            "That's the tour. Tap $TUTORIAL_FINISH_LABEL to finish in Settings.",
+        showArrow = false
     )
 )
 
@@ -449,6 +442,15 @@ fun SettingsScreensHub(
         ) {
             var showTutorial by remember { mutableStateOf(TutorialManager.isTutorialActive(prefs)) }
             val tutorialCompleted by rememberSetting(SettingsManager.TUTORIAL_COMPLETED) {}
+            val tutorialStep by rememberSetting(SettingsManager.TUTORIAL_STEP)
+            // The tour shows each step on its own tab, and Got It (or Skip) slides back to Settings.
+            var tourOver by remember { mutableStateOf(false) }
+            val tourTab = when {
+                showTutorial && tutorialStep == TutorialManager.GALLERY_STEP -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Gallery
+                showTutorial && tutorialStep == TutorialManager.WELLBEING_STEP -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Wellbeing
+                tourOver -> com.pixel.intelligentsearch.feature.tabs.SettingsTab.Settings
+                else -> null
+            }
             
             // Reactively sync tutorial visibility with the completed pref so it stays dismissed
             // permanently after finishing, but re-activates if force-tutorial resets it.
@@ -463,8 +465,7 @@ fun SettingsScreensHub(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .then(if (showTutorial) Modifier.blur(24.dp) else Modifier)
-                    // Hidden from TalkBack too while the tutorial covers it, so it can't be reached or activated.
+                    // Hidden from TalkBack while the tutorial covers it, so it can't be reached or activated.
                     .then(if (showTutorial) Modifier.clearAndSetSemantics {} else Modifier)
             ) {
                 NavHost(
@@ -509,7 +510,7 @@ fun SettingsScreensHub(
                 ) {
                     composable<com.pixel.intelligentsearch.core.navigation.Route.Main> {
                         com.pixel.intelligentsearch.feature.tabs.SettingsTabs(
-                            tab = mainTab, hidePill = showTutorial, glowClock = glowClock,
+                            tab = mainTab, hidePill = false, glowClock = glowClock, requestedTab = tourTab,
                             openWidgetSettings = { onNavigate(com.pixel.intelligentsearch.core.navigation.Route.WidgetCustomization) }
                         ) {
                             MainSettingsScreen(
@@ -555,23 +556,15 @@ fun SettingsScreensHub(
             }
             
             if (showTutorial) {
-                // The app's theme, like the tutorial card above it, not the system's.
-                val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-                val overlayColor = if (isDark) Color.Black.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.5f)
-                
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(overlayColor)
-                ) {
-                    AnimatedMatrixBackground()
-                }
+                // The real tabs show through, dimmed around the part each step is about.
                 TutorialSpotlightOverlay(
                     prefs = prefs,
                     stepsInfo = SETTINGS_TUTORIAL_STEPS,
-                    onComplete = { showTutorial = false },
-                    // No search bar behind these steps, and their demos want the room.
-                    searchBarBehind = false
+                    onComplete = {
+                        showTutorial = false
+                        tourOver = true
+                    },
+                    spotlight = true
                 )
             }
         }

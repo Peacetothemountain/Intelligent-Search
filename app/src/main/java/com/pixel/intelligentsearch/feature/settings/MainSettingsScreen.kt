@@ -3,7 +3,6 @@ package com.pixel.intelligentsearch.feature.settings
 import com.pixel.intelligentsearch.core.ui.symbols.Symbols
 import com.pixel.intelligentsearch.core.data.settings.rememberSetting
 import com.pixel.intelligentsearch.core.data.settings.get
-import androidx.compose.ui.graphics.graphicsLayer
 import com.pixel.intelligentsearch.core.ui.TorBrowserInstallDialog
 import android.content.Context
 import android.content.Intent
@@ -98,8 +97,7 @@ fun MainSettingsScreen(
                 )
                 .verticalScroll(scrollState)
                 .then(if (blurOn) Modifier.padding(top = topRoom, bottom = padding.calculateBottomPadding()) else Modifier)
-                .padding(16.dp)
-                .graphicsLayer { alpha = if (showTutorial) 0f else 1f },
+                .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
             // Offered until everything is set up or the user says they're done; read again on every visit.

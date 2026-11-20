@@ -15,7 +15,6 @@ import com.pixel.intelligentsearch.core.data.SettingsManager
 import com.pixel.intelligentsearch.core.theme.IntelligentSearchTheme
 import com.pixel.intelligentsearch.feature.search.GlanceClock
 import com.pixel.intelligentsearch.feature.search.LocalGlanceClock
-import com.pixel.intelligentsearch.feature.settings.SETTINGS_TUTORIAL_STEPS
 import com.pixel.intelligentsearch.feature.settings.TutorialSpotlightOverlay
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
@@ -31,8 +30,8 @@ import org.robolectric.annotation.GraphicsMode
 import java.util.TimeZone
 
 /**
- * Golden images of the tutorial's last two steps, the ones shown over Settings: Discover, with its switch off and
- * on, and Just Type It, in both themes. Animations are off, so each demo rests on its still moment (the Discover
+ * Golden images of the tutorial's two steps with a demo, Discover (its switch off and on) and Just Type It, in both
+ * themes, the card resting where every step's does. Animations are off, so each demo rests on its still moment (the Discover
  * page open; the weather typed and answered), at a fixed time of day. See [SettingsGoldenTest] for recording.
  */
 @HiltAndroidTest
@@ -68,7 +67,7 @@ class TutorialStepsGoldenTest(private val name: String, private val step: Int, p
             IntelligentSearchTheme(darkTheme = dark) {
                 CompositionLocalProvider(LocalGlanceClock provides GlanceClock({ NOW }, ticks = false)) {
                     Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-                        TutorialSpotlightOverlay(prefs = prefs, stepsInfo = SETTINGS_TUTORIAL_STEPS, onComplete = {}, searchBarBehind = false)
+                        TutorialSpotlightOverlay(prefs = prefs, stepsInfo = com.pixel.intelligentsearch.feature.search.OverlayTutorialSteps, onComplete = {})
                     }
                 }
             }
@@ -89,7 +88,7 @@ class TutorialStepsGoldenTest(private val name: String, private val step: Int, p
         fun parameters(): List<Array<Any>> = listOf(
             Triple("discover", 3, false),
             Triple("discover_on", 3, true),
-            Triple("answers", 4, false)
+            Triple("answers", 2, false)
         ).flatMap { (name, step, on) -> listOf(arrayOf<Any>(name, step, on, false), arrayOf<Any>(name, step, on, true)) }
     }
 }

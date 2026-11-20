@@ -22,6 +22,7 @@ import com.pixel.intelligentsearch.core.data.FileItem
 import com.pixel.intelligentsearch.core.data.ContactItem
 import com.pixel.intelligentsearch.core.data.AppItem
 import com.pixel.intelligentsearch.feature.settings.TutorialStepInfo
+import com.pixel.intelligentsearch.feature.settings.TutorialDemo
 import android.content.Intent
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
@@ -105,11 +106,27 @@ internal fun searchProviderName(engine: String, customUrl: String, customName: S
     else -> engine.ifBlank { "Google" }
 }
 
-/** The first-run tutorial's steps on the overlay; Settings carries on from step 3. */
+/**
+ * The first-run tutorial's steps on the search screen; Settings carries on from [TutorialManager.FIRST_SETTINGS_STEP].
+ * Just Type It and Discover play here, over the real search bar: Discover's switch puts its button in that bar.
+ */
 internal val OverlayTutorialSteps = mapOf(
-    0 to TutorialStepInfo("Welcome", "Thanks for installing Intelligent Search. Here's a quick tour of what it can do. [bugdroid]", Alignment.Center, showArrow = false),
-    1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps or search the web. Turn on contact and file search in Settings, and swipe a recent search away to remove it.", Alignment.Center, showArrow = true),
-    2 to TutorialStepInfo("Settings", "Tap the Settings button ([three_bars]) to choose what search shows and how it looks. Tap Next to open Settings now.", Alignment.Center, showArrow = true, showCircle = true)
+    0 to TutorialStepInfo("Welcome", "Thanks for installing Intelligent Search. Here's a quick tour of what it can do. [bugdroid]", showArrow = false),
+    1 to TutorialStepInfo("Search Bar", "This is your search bar. Start typing to find apps or search the web. Turn on contact and file search in Settings, and swipe a recent search away to remove it.", showArrow = true),
+    2 to TutorialStepInfo(
+        "Just Type It",
+        "Answers show as you type: a sum, a conversion, a word to define, a city's weather or \"timer 10 min\". " +
+            "Start with > to search only settings, or @ for contacts.",
+        showArrow = false,
+        demo = TutorialDemo.Answers
+    ),
+    3 to TutorialStepInfo(
+        "Discover",
+        "Your day on one page: the weather, your next event, quick controls and cards you arrange yourself.",
+        showArrow = false,
+        demo = TutorialDemo.Discover
+    ),
+    TutorialManager.SETTINGS_BUTTON_STEP to TutorialStepInfo("Settings", "Tap the Settings button ([three_bars]) to choose what search shows and how it looks. Tap Next to open Settings now.", showArrow = true, showCircle = true)
 )
 
 /** The name search shows for the app [packageName] ([activityName]'s icon, when known), or null when none lists it. */
@@ -340,7 +357,7 @@ fun SearchOverlayScreen(
         }
         val active = TutorialManager.isTutorialActive(prefs)
         val step = prefs[SettingsManager.TUTORIAL_STEP]
-        if (active && step >= 3) {
+        if (active && step >= TutorialManager.FIRST_SETTINGS_STEP) {
             TutorialManager.completeTutorial(prefs)
             mutableStateOf(false)
         } else {
@@ -548,7 +565,7 @@ fun SearchOverlayScreen(
                 } else {
                     val active = TutorialManager.isTutorialActive(prefs)
                     val step = prefs[SettingsManager.TUTORIAL_STEP]
-                    if (active && step >= 3) {
+                    if (active && step >= TutorialManager.FIRST_SETTINGS_STEP) {
                         TutorialManager.completeTutorial(prefs)
                         showTutorial = false
                     } else {
@@ -1390,7 +1407,7 @@ fun SearchOverlayScreen(
                     showTutorial = false
                 },
                 onStepAdvance = { step ->
-                    if (step == 3) onOpenSettings("main")
+                    if (step == TutorialManager.FIRST_SETTINGS_STEP) onOpenSettings("main")
                 }
             )
         }
